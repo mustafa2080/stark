@@ -543,11 +543,31 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
           {/* Big card */}
-          <div className={`relative md:col-span-1 md:row-span-2 rounded-3xl p-8 flex flex-col justify-between overflow-hidden border transition-all duration-300 group
-            ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444]" : "bg-white border-gray-200 hover:border-gray-400"}`}
-            style={{ minHeight: "320px" }}>
-            {/* inner glow */}
-            <div className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${darkMode ? "bg-gradient-to-br from-white/4 to-transparent" : "bg-gradient-to-br from-black/3 to-transparent"}`} />
+          <div
+            className={`relative md:col-span-1 md:row-span-2 rounded-3xl p-8 flex flex-col justify-between overflow-visible border group
+              ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}
+            style={{
+              minHeight: "320px",
+              transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget;
+              el.style.transform = "translateY(-10px)";
+              el.style.borderColor = darkMode ? "rgba(192,192,192,0.5)" : "rgba(0,0,0,0.35)";
+              el.style.boxShadow = darkMode
+                ? "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(192,192,192,0.2), 0 0 30px rgba(192,192,192,0.08)"
+                : "0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.12)";
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget;
+              el.style.transform = "translateY(0)";
+              el.style.borderColor = darkMode ? "#222" : "#e5e7eb";
+              el.style.boxShadow = "none";
+            }}
+          >
+            {/* glowing border overlay */}
+            <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+              style={{ background: darkMode ? "linear-gradient(135deg, rgba(255,255,255,0.04), transparent 60%)" : "linear-gradient(135deg, rgba(0,0,0,0.03), transparent 60%)" }} />
             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${darkMode ? "bg-white/10" : "bg-black/6"}`}>
               <Truck size={32} className={darkMode ? "text-gray-200" : "text-gray-700"} />
             </div>
@@ -565,10 +585,31 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
 
           {/* Small cards */}
           {features.slice(1).map((f, i) => (
-            <div key={i} className={`relative rounded-3xl p-6 flex flex-col justify-between overflow-hidden border transition-all duration-300 group
-              ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444]" : "bg-white border-gray-200 hover:border-gray-400"}`}
-              style={{ minHeight: "140px" }}>
-              <div className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${darkMode ? "bg-gradient-to-br from-white/4 to-transparent" : "bg-gradient-to-br from-black/3 to-transparent"}`} />
+            <div
+              key={i}
+              className={`relative rounded-3xl p-6 flex flex-col justify-between overflow-visible border group
+                ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}
+              style={{
+                minHeight: "140px",
+                transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
+              }}
+              onMouseEnter={e => {
+                const el = e.currentTarget;
+                el.style.transform = "translateY(-10px)";
+                el.style.borderColor = darkMode ? "rgba(192,192,192,0.5)" : "rgba(0,0,0,0.35)";
+                el.style.boxShadow = darkMode
+                  ? "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(192,192,192,0.2), 0 0 30px rgba(192,192,192,0.08)"
+                  : "0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.12)";
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget;
+                el.style.transform = "translateY(0)";
+                el.style.borderColor = darkMode ? "#222" : "#e5e7eb";
+                el.style.boxShadow = "none";
+              }}
+            >
+              <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                style={{ background: darkMode ? "linear-gradient(135deg, rgba(255,255,255,0.04), transparent 60%)" : "linear-gradient(135deg, rgba(0,0,0,0.03), transparent 60%)" }} />
               <div className="flex items-start justify-between gap-4 relative z-10">
                 <div>
                   <h3 className={`text-lg font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
