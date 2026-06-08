@@ -503,33 +503,33 @@ function ContractSection({ darkMode }: { darkMode: boolean }) {
 // ─── Features Section ─────────────────────────────────────────────────────────
 function FeaturesSection({ darkMode }: { darkMode: boolean }) {
   const features = [
-    { icon: Truck, title: "تسليم سريع", desc: "خدمات شحن سريعة من أقصى الشمال لأقصى الجنوب، من الساعة الأولى تلاقي البضاعة وصلت", big: true },
-    { icon: MapPin, title: "تتبع لحظي", desc: "تابع شحناتك باستخدام GPS المدمج والتحديث الفوري", big: false },
-    { icon: Shield, title: "تغليف آمن", desc: "تغليف احترافي لكل أنواع البضائع بأي حجم أو وزن", big: false },
-    { icon: Clock, title: "دعم 24/7", desc: "خدمة عملاء على مدار الساعة طوال أيام الأسبوع", big: false },
+    { icon: Truck,   title: "تسليم سريع",  desc: "خدمات شحن سريعة مع أوقات توصيل مضمونة لتلبية احتياجاتك اللوجستية العاجلة", tall: false },
+    { icon: MapPin,  title: "تتبع لحظي",   desc: "تتبع شحناتك في الوقت الفعلي باستخدام نظام GPS المتطور واحصل على تحديثات فورية", tall: true  },
+    { icon: Shield,  title: "تغليف آمن",   desc: "حلول تغليف احترافية تضمن وصول بضائعك بأمان وسلامة إلى وجهتها", tall: false },
+    { icon: Clock,   title: "دعم 24/7",    desc: "خدمة عملاء على مدار الساعة لمساعدتك في جميع استفسارات الشحن", tall: true  },
   ];
 
-  const lineColor = darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
-  const accentColor = darkMode ? "rgba(192,192,192,0.12)" : "rgba(0,0,0,0.08)";
+  const lineColor   = darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+  const accentColor = darkMode ? "rgba(192,192,192,0.10)" : "rgba(0,0,0,0.06)";
 
   return (
     <section id="features" className={`relative py-24 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
 
       {/* ─── SVG curved lines background ─── */}
       <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0,150 C200,80 400,220 600,150 C800,80 1000,220 1200,150" fill="none" stroke={lineColor} strokeWidth="1.5"/>
-        <path d="M0,250 C150,180 350,320 550,250 C750,180 950,320 1200,250" fill="none" stroke={lineColor} strokeWidth="1"/>
-        <path d="M0,350 C250,280 450,420 650,350 C850,280 1050,420 1200,350" fill="none" stroke={lineColor} strokeWidth="1.5"/>
-        <path d="M0,450 C200,380 400,520 600,450 C800,380 1000,520 1200,450" fill="none" stroke={lineColor} strokeWidth="1"/>
-        <path d="M100,0 C180,150 80,350 150,600" fill="none" stroke={accentColor} strokeWidth="1"/>
-        <path d="M400,0 C500,120 350,300 420,600" fill="none" stroke={accentColor} strokeWidth="1.5"/>
-        <path d="M750,0 C820,200 700,400 780,600" fill="none" stroke={accentColor} strokeWidth="1"/>
+        <path d="M0,150 C200,80 400,220 600,150 C800,80 1000,220 1200,150"   fill="none" stroke={lineColor}   strokeWidth="1.5"/>
+        <path d="M0,250 C150,180 350,320 550,250 C750,180 950,320 1200,250"  fill="none" stroke={lineColor}   strokeWidth="1"/>
+        <path d="M0,350 C250,280 450,420 650,350 C850,280 1050,420 1200,350" fill="none" stroke={lineColor}   strokeWidth="1.5"/>
+        <path d="M0,450 C200,380 400,520 600,450 C800,380 1000,520 1200,450" fill="none" stroke={lineColor}   strokeWidth="1"/>
+        <path d="M100,0 C180,150 80,350 150,600"   fill="none" stroke={accentColor} strokeWidth="1"/>
+        <path d="M400,0 C500,120 350,300 420,600"  fill="none" stroke={accentColor} strokeWidth="1.5"/>
+        <path d="M750,0 C820,200 700,400 780,600"  fill="none" stroke={accentColor} strokeWidth="1"/>
         <path d="M1050,0 C1100,180 980,380 1050,600" fill="none" stroke={accentColor} strokeWidth="1.5"/>
         <ellipse cx="900" cy="200" rx="300" ry="120" fill="none" stroke={accentColor} strokeWidth="1"/>
-        <ellipse cx="300" cy="400" rx="250" ry="100" fill="none" stroke={lineColor} strokeWidth="1"/>
+        <ellipse cx="300" cy="400" rx="250" ry="100" fill="none" stroke={lineColor}   strokeWidth="1"/>
       </svg>
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4">
+      <div className="relative z-10 max-w-5xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-14">
           <span className={`inline-block text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-4 ${darkMode ? "bg-white/8 text-gray-400 border border-white/10" : "bg-black/5 text-gray-500 border border-black/8"}`}>
@@ -539,67 +539,24 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
           <p className={`text-base max-w-xl mx-auto ${darkMode ? "text-gray-400" : "text-gray-500"}`}>حلول لوجستية متكاملة مناسبة لكل احتياجاتك</p>
         </div>
 
-        {/* Cards grid: big + small */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-
-          {/* Big card */}
-          <div
-            className={`relative md:col-span-1 md:row-span-2 rounded-3xl p-8 flex flex-col justify-between overflow-visible border group
-              ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}
-            style={{
-              minHeight: "320px",
-              transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
-            }}
-            onMouseEnter={e => {
-              const el = e.currentTarget;
-              el.style.transform = "translateY(-10px)";
-              el.style.borderColor = darkMode ? "rgba(192,192,192,0.5)" : "rgba(0,0,0,0.35)";
-              el.style.boxShadow = darkMode
-                ? "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(192,192,192,0.2), 0 0 30px rgba(192,192,192,0.08)"
-                : "0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.12)";
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget;
-              el.style.transform = "translateY(0)";
-              el.style.borderColor = darkMode ? "#222" : "#e5e7eb";
-              el.style.boxShadow = "none";
-            }}
-          >
-            {/* glowing border overlay */}
-            <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-              style={{ background: darkMode ? "linear-gradient(135deg, rgba(255,255,255,0.04), transparent 60%)" : "linear-gradient(135deg, rgba(0,0,0,0.03), transparent 60%)" }} />
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${darkMode ? "bg-white/10" : "bg-black/6"}`}>
-              <Truck size={32} className={darkMode ? "text-gray-200" : "text-gray-700"} />
-            </div>
-            <div>
-              <h3 className={`text-2xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>تسليم سريع</h3>
-              <p className={`text-sm leading-relaxed mb-6 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                خدمات شحن سريعة من أقصى الشمال لأقصى الجنوب — من الساعة الأولى تلاقي البضاعة وصلت لباب العميل بأمان تام
-              </p>
-              <div className={`flex items-center gap-2 text-xs font-semibold ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
-                <div className={`w-6 h-px ${darkMode ? "bg-gray-600" : "bg-gray-300"}`} />
-                27 محافظة مغطاة
-              </div>
-            </div>
-          </div>
-
-          {/* Small cards */}
-          {features.slice(1).map((f, i) => (
+        {/* Cards — alternating short / tall */}
+        <div className="flex items-end gap-5 justify-center">
+          {features.map((f, i) => (
             <div
               key={i}
-              className={`relative rounded-3xl p-6 flex flex-col justify-between overflow-visible border group
+              className={`relative flex-1 rounded-3xl p-7 flex flex-col items-center text-center border
                 ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}
               style={{
-                minHeight: "140px",
+                minHeight: f.tall ? "380px" : "260px",
                 transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
               }}
               onMouseEnter={e => {
                 const el = e.currentTarget;
-                el.style.transform = "translateY(-10px)";
-                el.style.borderColor = darkMode ? "rgba(192,192,192,0.5)" : "rgba(0,0,0,0.35)";
+                el.style.transform = "translateY(-12px)";
+                el.style.borderColor = darkMode ? "rgba(192,192,192,0.5)" : "rgba(0,0,0,0.3)";
                 el.style.boxShadow = darkMode
-                  ? "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(192,192,192,0.2), 0 0 30px rgba(192,192,192,0.08)"
-                  : "0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.12)";
+                  ? "0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(192,192,192,0.15), 0 0 40px rgba(192,192,192,0.07)"
+                  : "0 24px 64px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.10)";
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget;
@@ -608,20 +565,22 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
                 el.style.boxShadow = "none";
               }}
             >
-              <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{ background: darkMode ? "linear-gradient(135deg, rgba(255,255,255,0.04), transparent 60%)" : "linear-gradient(135deg, rgba(0,0,0,0.03), transparent 60%)" }} />
-              <div className="flex items-start justify-between gap-4 relative z-10">
-                <div>
-                  <h3 className={`text-lg font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
-                  <p className={`text-xs leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
-                </div>
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${darkMode ? "bg-white/8" : "bg-black/5"}`}>
-                  <f.icon size={20} className={darkMode ? "text-gray-300" : "text-gray-600"} />
-                </div>
+              {/* inner glow on hover */}
+              <div
+                className="absolute inset-0 rounded-3xl pointer-events-none opacity-0 transition-opacity duration-500 hover:opacity-100"
+                style={{ background: darkMode ? "linear-gradient(135deg,rgba(255,255,255,0.04),transparent 60%)" : "linear-gradient(135deg,rgba(0,0,0,0.025),transparent 60%)" }}
+              />
+
+              {/* icon circle */}
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 mt-2
+                ${darkMode ? "bg-[#1a1a1a] border border-[#2a2a2a]" : "bg-gray-100 border border-gray-200"}`}>
+                <f.icon size={26} className={darkMode ? "text-gray-300" : "text-gray-600"} strokeWidth={1.5} />
               </div>
+
+              <h3 className={`text-xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
+              <p className={`text-sm leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
             </div>
           ))}
-
         </div>
       </div>
     </section>
