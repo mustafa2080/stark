@@ -3,7 +3,7 @@ import { authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, LayoutDashboard, Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, LayoutDashboard, Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon } from "lucide-react";
 
 // ─── Login Modal ─────────────────────────────────────────────────────────────
 function LoginModal({ onClose }: { onClose: () => void }) {
@@ -94,58 +94,192 @@ function LoginModal({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
-function Navbar({ onLoginClick }: { onLoginClick: () => void }) {
+function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () => void; darkMode: boolean; toggleDarkMode: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("home");
+  const [scrolled, setScrolled] = useState(false);
+
   const navLinks = [
-    { label: "الرئيسية", href: "#home" },
-    { label: "من نحن", href: "#about" },
-    { label: "خدماتنا", href: "#services" },
-    { label: "العقد والتعاقد", href: "#contract" },
-    { label: "اتصل بنا", href: "#contact" },
+    { label: "الرئيسية", href: "#home", id: "home" },
+    { label: "من نحن", href: "#about", id: "about" },
+    { label: "خدماتنا", href: "#services", id: "services" },
+    { label: "العقد والتعاقد", href: "#contract", id: "contract" },
+    { label: "اتصل بنا", href: "#contact", id: "contact" },
   ];
+
+  React.useEffect(() => {
+    const onScroll = () => {
+      setScrolled(window.scrollY > 20);
+      const sections = navLinks.map(l => l.id);
+      for (const id of [...sections].reverse()) {
+        const el = document.getElementById(id);
+        if (el && window.scrollY >= el.offsetTop - 100) {
+          setActiveSection(id);
+          break;
+        }
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const navBg = darkMode
+    ? scrolled ? "bg-[#0a0a0a]/95 border-[#2a2a2a] shadow-lg shadow-black/40" : "bg-transparent border-transparent"
+    : scrolled ? "bg-white/95 border-gray-200 shadow-lg shadow-gray-200/40" : "bg-transparent border-transparent";
+
+  const logoText = "STARK";
+
   return (
-    <nav className="fixed top-0 inset-x-0 z-40 bg-black/90 backdrop-blur-md border-b border-[#222]" dir="rtl">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="STARK" className="w-9 h-9 rounded-lg object-cover" />
-          <span className="hidden sm:block font-black tracking-[0.2em] text-base" style={{background: "linear-gradient(135deg, #e8e8e8 0%, #ffffff 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", letterSpacing: "0.2em"}}>STARK</span>
-        </div>
-        <div className="hidden md:flex items-center gap-6">
-          {navLinks.map(l => (
-            <a key={l.href} href={l.href} className="text-gray-300 hover:text-white text-sm transition-colors">{l.label}</a>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onLoginClick}
-            className="relative group flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold overflow-hidden transition-all duration-300"
+    <nav
+      className={`sticky top-0 z-40 border-b backdrop-blur-md transition-all duration-500 ${navBg}`}
+      dir="rtl"
+    >
+      <div className="max-w-6xl mx-auto px-5 h-[68px] flex items-center justify-between">
+        {/* Logo */}
+        <a href="#home" className="flex items-center gap-3 group">
+          <div className="relative">
+            <img src="/logo.jpg" alt="STARK" className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
+          </div>
+          <span
+            className="hidden sm:block font-black text-lg tracking-[0.25em]"
             style={{
-              background: "linear-gradient(135deg, #c0c0c0 0%, #f5f5f5 50%, #a8a8a8 100%)",
-              color: "#0a0a0a",
-              boxShadow: "0 0 0 1px rgba(255,255,255,0.15), 0 4px 20px rgba(255,255,255,0.1)",
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 1px rgba(255,255,255,0.3), 0 4px 28px rgba(255,255,255,0.25)";
-              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 1px rgba(255,255,255,0.15), 0 4px 20px rgba(255,255,255,0.1)";
-              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+              background: darkMode
+                ? "linear-gradient(135deg, #e8e8e8 0%, #ffffff 50%, #a0a0a0 100%)"
+                : "linear-gradient(135deg, #1a1a1a 0%, #444 50%, #111 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
             }}
           >
-            <LayoutDashboard size={15} />
-            <span>لوحة التحكم</span>
+            {logoText}
+          </span>
+        </a>
+
+        {/* Desktop Links */}
+        <div className="hidden md:flex items-center gap-1">
+          {navLinks.map(l => {
+            const isActive = activeSection === l.id;
+            return (
+              <a
+                key={l.href}
+                href={l.href}
+                className={`relative px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 group ${
+                  isActive
+                    ? darkMode
+                      ? "text-white"
+                      : "text-black"
+                    : darkMode
+                    ? "text-gray-400 hover:text-white"
+                    : "text-gray-500 hover:text-black"
+                }`}
+              >
+                {isActive && (
+                  <span
+                    className="absolute inset-0 rounded-xl"
+                    style={{
+                      background: darkMode
+                        ? "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))"
+                        : "linear-gradient(135deg, rgba(0,0,0,0.06), rgba(0,0,0,0.02))",
+                      border: darkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+                    }}
+                  />
+                )}
+                <span className="relative z-10">{l.label}</span>
+                {isActive && (
+                  <span
+                    className="absolute bottom-1 right-1/2 translate-x-1/2 h-0.5 w-5 rounded-full"
+                    style={{
+                      background: darkMode
+                        ? "linear-gradient(90deg, #c0c0c0, #ffffff)"
+                        : "linear-gradient(90deg, #555, #000)",
+                    }}
+                  />
+                )}
+              </a>
+            );
+          })}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {/* Dark/Light Toggle */}
+          <button
+            onClick={toggleDarkMode}
+            className={`p-2.5 rounded-xl transition-all duration-300 ${
+              darkMode
+                ? "bg-white/8 hover:bg-white/15 text-gray-300 hover:text-white border border-white/10"
+                : "bg-black/5 hover:bg-black/10 text-gray-600 hover:text-black border border-black/8"
+            }`}
+            title={darkMode ? "الوضع النهاري" : "الوضع الليلي"}
+          >
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <button className="md:hidden text-white" onClick={() => setMenuOpen(v => !v)}>
+
+          {/* Login Button */}
+          <button
+            onClick={onLoginClick}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300"
+            style={{
+              background: darkMode
+                ? "linear-gradient(135deg, #c0c0c0 0%, #f5f5f5 50%, #a8a8a8 100%)"
+                : "linear-gradient(135deg, #1a1a1a 0%, #333 50%, #111 100%)",
+              color: darkMode ? "#0a0a0a" : "#ffffff",
+              boxShadow: darkMode
+                ? "0 0 0 1px rgba(255,255,255,0.15), 0 4px 20px rgba(255,255,255,0.1)"
+                : "0 0 0 1px rgba(0,0,0,0.15), 0 4px 20px rgba(0,0,0,0.15)",
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
+          >
+            <LayoutDashboard size={15} />
+            <span className="hidden sm:inline">لوحة التحكم</span>
+          </button>
+
+          {/* Mobile Menu Toggle */}
+          <button
+            className={`md:hidden p-2 rounded-xl transition-colors ${darkMode ? "text-white hover:bg-white/10" : "text-black hover:bg-black/10"}`}
+            onClick={() => setMenuOpen(v => !v)}
+          >
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
       </div>
+
+      {/* Mobile Menu */}
       {menuOpen && (
-        <div className="md:hidden bg-black border-t border-[#222] px-4 py-3 flex flex-col gap-3">
-          {navLinks.map(l => (
-            <a key={l.href} href={l.href} onClick={() => setMenuOpen(false)} className="text-gray-300 hover:text-white text-sm py-1">{l.label}</a>
-          ))}
+        <div
+          className={`md:hidden border-t px-4 py-4 flex flex-col gap-1 ${
+            darkMode ? "bg-[#0a0a0a]/98 border-[#2a2a2a]" : "bg-white/98 border-gray-200"
+          }`}
+        >
+          {navLinks.map(l => {
+            const isActive = activeSection === l.id;
+            return (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={() => setMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  isActive
+                    ? darkMode
+                      ? "bg-white/10 text-white border border-white/10"
+                      : "bg-black/6 text-black border border-black/8"
+                    : darkMode
+                    ? "text-gray-400 hover:text-white hover:bg-white/5"
+                    : "text-gray-500 hover:text-black hover:bg-black/4"
+                }`}
+              >
+                {isActive && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: darkMode ? "#c0c0c0" : "#333" }}
+                  />
+                )}
+                {l.label}
+              </a>
+            );
+          })}
         </div>
       )}
     </nav>
@@ -476,10 +610,12 @@ function Footer() {
 // ─── Home Page (default export) ───────────────────────────────────────────────
 export default function HomePage() {
   const [showLogin, setShowLogin] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const toggleDarkMode = () => setDarkMode(v => !v);
   return (
-    <div className="bg-black min-h-screen">
+    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? "bg-black" : "bg-gray-50"}`}>
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
-      <Navbar onLoginClick={() => setShowLogin(true)} />
+      <Navbar onLoginClick={() => setShowLogin(true)} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
       <HeroSection onLoginClick={() => setShowLogin(true)} />
       <TrackingSection />
       <AboutSection />
