@@ -251,31 +251,34 @@ function PageLoader() {
   return (
     <div
       style={{
+        position: "fixed",
+        inset: 0,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: "40vh",
-        background: "transparent",
+        background: "rgba(0,0,0,0.85)",
+        backdropFilter: "blur(8px)",
+        zIndex: 9000,
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 28 }}>
 
-        {/* Logo + rotating ring */}
-        <div style={{ position: "relative", width: 72, height: 72 }}>
+        {/* Logo + rotating rings */}
+        <div style={{ position: "relative", width: 120, height: 120 }}>
           {/* outer spinning ring */}
           <svg
-            width="72" height="72"
-            viewBox="0 0 72 72"
+            width="120" height="120"
+            viewBox="0 0 120 120"
             style={{ position: "absolute", top: 0, left: 0, animation: "starkSpin 1.4s linear infinite" }}
           >
-            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
             <circle
-              cx="36" cy="36" r="32"
+              cx="60" cy="60" r="54"
               fill="none"
               stroke="url(#starkGrad)"
-              strokeWidth="3"
+              strokeWidth="3.5"
               strokeLinecap="round"
-              strokeDasharray="50 150"
+              strokeDasharray="80 260"
             />
             <defs>
               <linearGradient id="starkGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -287,16 +290,16 @@ function PageLoader() {
 
           {/* inner counter-spin ring */}
           <svg
-            width="72" height="72"
-            viewBox="0 0 72 72"
-            style={{ position: "absolute", top: 0, left: 0, animation: "starkSpinR 2s linear infinite" }}
+            width="120" height="120"
+            viewBox="0 0 120 120"
+            style={{ position: "absolute", top: 0, left: 0, animation: "starkSpinR 2.2s linear infinite" }}
           >
             <circle
-              cx="36" cy="36" r="24"
+              cx="60" cy="60" r="40"
               fill="none"
-              stroke="rgba(255,255,255,0.12)"
+              stroke="rgba(255,255,255,0.1)"
               strokeWidth="1.5"
-              strokeDasharray="12 20"
+              strokeDasharray="14 22"
               strokeLinecap="round"
             />
           </svg>
@@ -309,40 +312,25 @@ function PageLoader() {
               position: "absolute",
               top: "50%", left: "50%",
               transform: "translate(-50%, -50%)",
-              width: 40, height: 40,
-              borderRadius: 10,
+              width: 64, height: 64,
+              borderRadius: 16,
               objectFit: "cover",
-              boxShadow: "0 0 20px rgba(255,255,255,0.15)",
+              boxShadow: "0 0 40px rgba(255,255,255,0.2), 0 0 0 1px rgba(255,255,255,0.1)",
             }}
           />
         </div>
 
         {/* STARK text + dots */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 800,
-              letterSpacing: "0.25em",
-              opacity: 0.9,
-            }}
-          >
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <span style={{ color: "#fff", fontSize: 22, fontWeight: 900, letterSpacing: "0.3em", textShadow: "0 0 20px rgba(255,255,255,0.3)" }}>
             STARK
           </span>
-
-          {/* animated dots */}
-          <div style={{ display: "flex", gap: 5 }}>
+          <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, letterSpacing: "0.1em" }}>
+            جاري التحميل...
+          </span>
+          <div style={{ display: "flex", gap: 7, marginTop: 4 }}>
             {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                style={{
-                  width: 5, height: 5,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  animation: `starkDot 1.2s ${i * 0.2}s ease-in-out infinite`,
-                }}
-              />
+              <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#fff", animation: `starkDot 1.2s ${i * 0.2}s ease-in-out infinite` }} />
             ))}
           </div>
         </div>
@@ -354,7 +342,7 @@ function PageLoader() {
         @keyframes starkSpinR { to { transform: rotate(-360deg); } }
         @keyframes starkDot {
           0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
-          40%            { opacity: 1;   transform: scale(1.2); }
+          40%            { opacity: 1;   transform: scale(1.3); }
         }
       `}</style>
     </div>
