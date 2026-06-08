@@ -108,6 +108,7 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
   ];
 
   const scrollTo = (id: string) => {
+    if (id === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -115,14 +116,16 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
   React.useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 20);
-      const sections = navLinks.map(l => l.id);
+      const sections = navLinks.map(l => l.id).filter(id => id !== "home");
+      let found = "home";
       for (const id of [...sections].reverse()) {
         const el = document.getElementById(id);
         if (el && window.scrollY >= el.offsetTop - 100) {
-          setActiveSection(id);
+          found = id;
           break;
         }
       }
+      setActiveSection(found);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -286,7 +289,7 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 function HeroSection({ onLoginClick }: { onLoginClick: () => void }) {
   return (
-    <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black" dir="rtl">
+    <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
       <div className="absolute inset-0 opacity-55">
         <img src="/stark.jpg" alt="" className="w-full h-full object-cover object-center" />
