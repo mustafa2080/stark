@@ -3,7 +3,7 @@ import { authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, LayoutDashboard, Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon } from "lucide-react";
+import { Eye, EyeOff, LayoutDashboard, Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LogIn } from "lucide-react";
 
 // ─── Login Modal ─────────────────────────────────────────────────────────────
 function LoginModal({ onClose }: { onClose: () => void }) {
@@ -144,12 +144,9 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
           <span
             className="hidden sm:block font-black text-lg tracking-[0.25em]"
             style={{
-              background: darkMode
-                ? "linear-gradient(135deg, #e8e8e8 0%, #ffffff 50%, #a0a0a0 100%)"
-                : "linear-gradient(135deg, #1a1a1a 0%, #444 50%, #111 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
+              color: darkMode ? "#ffffff" : "#111111",
+              letterSpacing: "0.25em",
+              textShadow: darkMode ? "0 0 20px rgba(255,255,255,0.3)" : "none",
             }}
           >
             {logoText}
@@ -324,7 +321,7 @@ function HeroSection({ onLoginClick }: { onLoginClick: () => void }) {
 }
 
 // ─── Tracking Section ─────────────────────────────────────────────────────────
-function TrackingSection() {
+function TrackingSection({ darkMode }: { darkMode: boolean }) {
   const [trackingNum, setTrackingNum] = useState("");
   const steps = [
     { icon: FileText, label: "تم التسجيل" },
@@ -334,22 +331,22 @@ function TrackingSection() {
     { icon: CheckCircle, label: "تم التسليم" },
   ];
   return (
-    <section id="tracking" className="py-20 bg-[#0a0a0a]" dir="rtl">
+    <section id="tracking" className={`py-20 ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
       <div className="max-w-3xl mx-auto px-4 text-center">
-        <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Package size={28} className="text-white" />
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+          <Package size={28} className={darkMode ? "text-white" : "text-black"} />
         </div>
-        <h2 className="text-3xl font-black text-white mb-2">تتبع الشحنة</h2>
-        <p className="text-gray-400 mb-8">يمكنك تتبع شحنتك ومعرفة حالتها الدائمة في أي وقت</p>
+        <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>تتبع الشحنة</h2>
+        <p className={`mb-8 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>يمكنك تتبع شحنتك ومعرفة حالتها الدائمة في أي وقت</p>
         <div className="flex gap-3 max-w-lg mx-auto mb-10">
           <input
             type="text"
             value={trackingNum}
             onChange={e => setTrackingNum(e.target.value)}
             placeholder="أدخل رقم التتبع مثال: 1TRK12345678"
-            className="flex-1 bg-[#1a1a1a] border border-[#333] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#666] text-sm"
+            className={`flex-1 border rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none text-sm transition-colors ${darkMode ? "bg-[#1a1a1a] border-[#333] text-white focus:border-[#666]" : "bg-white border-gray-300 text-black focus:border-gray-500"}`}
           />
-          <button className="bg-white text-black font-bold px-6 py-3 rounded-xl hover:bg-gray-100 transition-colors text-sm whitespace-nowrap">
+          <button className={`font-bold px-6 py-3 rounded-xl transition-colors text-sm whitespace-nowrap ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}>
             تتبع
           </button>
         </div>
@@ -357,12 +354,12 @@ function TrackingSection() {
           {steps.map((step, i) => (
             <div key={i} className="flex items-center gap-2">
               <div className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 bg-[#1a1a1a] border border-[#333] rounded-xl flex items-center justify-center">
-                  <step.icon size={18} className="text-gray-400" />
+                <div className={`w-10 h-10 border rounded-xl flex items-center justify-center ${darkMode ? "bg-[#1a1a1a] border-[#333]" : "bg-white border-gray-300"}`}>
+                  <step.icon size={18} className={darkMode ? "text-gray-400" : "text-gray-500"} />
                 </div>
-                <span className="text-xs text-gray-500">{step.label}</span>
+                <span className={`text-xs ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{step.label}</span>
               </div>
-              {i < steps.length - 1 && <div className="w-8 h-px bg-[#333] mb-4" />}
+              {i < steps.length - 1 && <div className={`w-8 h-px mb-4 ${darkMode ? "bg-[#333]" : "bg-gray-300"}`} />}
             </div>
           ))}
         </div>
@@ -372,7 +369,7 @@ function TrackingSection() {
 }
 
 // ─── About Section ────────────────────────────────────────────────────────────
-function AboutSection() {
+function AboutSection({ darkMode }: { darkMode: boolean }) {
   const features = [
     { icon: Star, label: "الخبرة" },
     { icon: Shield, label: "الاعتمادية" },
@@ -380,37 +377,37 @@ function AboutSection() {
     { icon: Users, label: "الخدمة" },
   ];
   return (
-    <section id="about" className="py-20 bg-black" dir="rtl">
+    <section id="about" className={`py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
       <div className="max-w-5xl mx-auto px-4">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <h2 className="text-3xl font-black text-white mb-4">من نحن</h2>
-            <p className="text-gray-400 leading-relaxed mb-6">
+            <h2 className={`text-3xl font-black mb-4 ${darkMode ? "text-white" : "text-black"}`}>من نحن</h2>
+            <p className={`leading-relaxed mb-6 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
               أحد STARK لوجستيك من أبز شركات الشحن والخدمات اللوجستية داخل مصر حيث تقدم خدمة للأفراد والشركات بجميع المحافظات والمدن على المستوى الجمهورية منذ عام 1999.
             </p>
             <div className="grid grid-cols-2 gap-4">
               {features.map((f, i) => (
-                <div key={i} className="bg-[#0d0d0d] border border-[#222] rounded-xl p-4 flex items-center gap-3">
-                  <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center">
-                    <f.icon size={18} className="text-gray-300" />
+                <div key={i} className={`border rounded-xl p-4 flex items-center gap-3 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+                    <f.icon size={18} className={darkMode ? "text-gray-300" : "text-gray-600"} />
                   </div>
-                  <span className="text-gray-200 font-semibold text-sm">{f.label}</span>
+                  <span className={`font-semibold text-sm ${darkMode ? "text-gray-200" : "text-gray-800"}`}>{f.label}</span>
                 </div>
               ))}
             </div>
-            <a href="#services" className="inline-flex items-center gap-2 mt-6 text-gray-300 hover:text-white transition-colors text-sm">
+            <a href="#services" className={`inline-flex items-center gap-2 mt-6 transition-colors text-sm ${darkMode ? "text-gray-300 hover:text-white" : "text-gray-500 hover:text-black"}`}>
               المزيد <ArrowLeft size={16} />
             </a>
           </div>
-          <div className="bg-[#0d0d0d] border border-[#222] rounded-2xl p-8 text-center">
+          <div className={`border rounded-2xl p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
             <img src="/logo.jpg" alt="STARK" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
-            <h3 className="text-white font-bold text-xl mb-1">شركة STARK للشحن</h3>
-            <p className="text-gray-400 text-sm">خدمة الشحن الموثوقة في مصر</p>
-            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#222]">
+            <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>شركة STARK للشحن</h3>
+            <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>خدمة الشحن الموثوقة في مصر</p>
+            <div className={`grid grid-cols-3 gap-4 mt-6 pt-6 border-t ${darkMode ? "border-[#222]" : "border-gray-200"}`}>
               {[["25+", "سنة خبرة"], ["27", "محافظة"], ["99%", "رضا العملاء"]].map(([val, lbl], i) => (
                 <div key={i}>
-                  <div className="text-2xl font-black text-white">{val}</div>
-                  <div className="text-xs text-gray-500 mt-1">{lbl}</div>
+                  <div className={`text-2xl font-black ${darkMode ? "text-white" : "text-black"}`}>{val}</div>
+                  <div className={`text-xs mt-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{lbl}</div>
                 </div>
               ))}
             </div>
@@ -422,7 +419,7 @@ function AboutSection() {
 }
 
 // ─── Shipping Cycle Section ───────────────────────────────────────────────────
-function ShippingCycleSection() {
+function ShippingCycleSection({ darkMode }: { darkMode: boolean }) {
   const steps = [
     { num: "1", title: "تسجيل الشحنة", desc: "سجل شحنتك بسرعة وسهولة من خلال لوحة التحكم أو تواصل معنا مباشرة", icon: FileText },
     { num: "2", title: "طلب البيك أب", desc: "نستقبل طلبك ونرسل مندوب لاستلام الشحنة من موقعك", icon: Truck },
@@ -431,34 +428,34 @@ function ShippingCycleSection() {
     { num: "5", title: "تم التسليم والتحصيل", desc: "يتم تسليم الشحنة للمستلم وتحصيل المبلغ إن وجد بأمان وسرعة", icon: CheckCircle },
   ];
   return (
-    <section id="services" className="py-20 bg-[#0a0a0a]" dir="rtl">
+    <section id="services" className={`py-20 ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-12">
-          <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Truck size={28} className="text-white" />
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+            <Truck size={28} className={darkMode ? "text-white" : "text-black"} />
           </div>
-          <h2 className="text-3xl font-black text-white mb-2">دورة الشحن</h2>
-          <p className="text-gray-400">كيف توصل شحنتك من باب التاجر لباب العميل في خطوات بسيطة</p>
+          <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>دورة الشحن</h2>
+          <p className={darkMode ? "text-gray-400" : "text-gray-500"}>كيف توصل شحنتك من باب التاجر لباب العميل في خطوات بسيطة</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {steps.map((s, i) => (
-            <div key={i} className="bg-[#111] border border-[#222] rounded-2xl p-5 text-center relative">
-              <div className="absolute -top-3 right-1/2 translate-x-1/2 w-6 h-6 bg-white text-black rounded-full text-xs font-black flex items-center justify-center">
+            <div key={i} className={`border rounded-2xl p-5 text-center relative ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}>
+              <div className={`absolute -top-3 right-1/2 translate-x-1/2 w-6 h-6 rounded-full text-xs font-black flex items-center justify-center ${darkMode ? "bg-white text-black" : "bg-black text-white"}`}>
                 {s.num}
               </div>
-              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mx-auto mb-3 mt-2">
-                <s.icon size={22} className="text-gray-300" />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 mt-2 ${darkMode ? "bg-white/10" : "bg-black/6"}`}>
+                <s.icon size={22} className={darkMode ? "text-gray-300" : "text-gray-600"} />
               </div>
-              <h3 className="text-white font-bold text-sm mb-2">{s.title}</h3>
-              <p className="text-gray-500 text-xs leading-relaxed">{s.desc}</p>
+              <h3 className={`font-bold text-sm mb-2 ${darkMode ? "text-white" : "text-black"}`}>{s.title}</h3>
+              <p className={`text-xs leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{s.desc}</p>
             </div>
           ))}
         </div>
         <div className="flex flex-wrap gap-3 justify-center mt-8">
           {[{ icon: Shield, label: "الخدمة" }, { icon: MapPin, label: "الاعتمادية" }, { icon: Users, label: "الوصول المحلي" }, { icon: Star, label: "الخبرة" }].map((t, i) => (
-            <div key={i} className="flex items-center gap-2 bg-[#111] border border-[#222] rounded-xl px-4 py-2">
-              <t.icon size={15} className="text-gray-400" />
-              <span className="text-gray-300 text-sm">{t.label}</span>
+            <div key={i} className={`flex items-center gap-2 border rounded-xl px-4 py-2 ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}>
+              <t.icon size={15} className={darkMode ? "text-gray-400" : "text-gray-500"} />
+              <span className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.label}</span>
             </div>
           ))}
         </div>
@@ -468,33 +465,33 @@ function ShippingCycleSection() {
 }
 
 // ─── Contract Section ─────────────────────────────────────────────────────────
-function ContractSection() {
+function ContractSection({ darkMode }: { darkMode: boolean }) {
   const items = [
     { icon: FileText, label: "الظروف المتعاقدة" },
     { icon: Shield, label: "التمهيد" },
     { icon: Star, label: "بنود العقد" },
   ];
   return (
-    <section id="contract" className="py-20 bg-black" dir="rtl">
+    <section id="contract" className={`py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
       <div className="max-w-3xl mx-auto px-4 text-center">
-        <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <FileText size={28} className="text-white" />
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+          <FileText size={28} className={darkMode ? "text-white" : "text-black"} />
         </div>
-        <h2 className="text-3xl font-black text-white mb-2">عقد شركة STARK للشحن</h2>
-        <p className="text-gray-400 mb-8">عقد خدمات الشحن والتوصيل • شركة STARK للشحن</p>
+        <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>عقد شركة STARK للشحن</h2>
+        <p className={`mb-8 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>عقد خدمات الشحن والتوصيل • شركة STARK للشحن</p>
         <div className="space-y-3 mb-8 text-right">
           {items.map((item, i) => (
-            <div key={i} className="flex items-center gap-4 bg-[#0d0d0d] border border-[#222] rounded-xl px-5 py-4">
-              <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                <item.icon size={18} className="text-gray-300" />
+            <div key={i} className={`flex items-center gap-4 border rounded-xl px-5 py-4 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+                <item.icon size={18} className={darkMode ? "text-gray-300" : "text-gray-600"} />
               </div>
-              <span className="text-gray-200 font-medium">{item.label}</span>
+              <span className={`font-medium ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{item.label}</span>
             </div>
           ))}
         </div>
         <a
           href="#contact"
-          className="inline-flex items-center gap-2 bg-white text-black font-bold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors"
+          className={`inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-colors ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
         >
           <FileText size={18} /> العقد والتعاقد
         </a>
@@ -504,7 +501,7 @@ function ContractSection() {
 }
 
 // ─── Features Section ─────────────────────────────────────────────────────────
-function FeaturesSection() {
+function FeaturesSection({ darkMode }: { darkMode: boolean }) {
   const features = [
     { icon: Truck, title: "تسليم سريع", desc: "خدمات شحن سريعة من أقصى الشمال لأقصى الجنوب، من الساعة الأولى تلاقي البضاعة وصلت" },
     { icon: MapPin, title: "تتبع لحظي", desc: "تابع شحناتك في المدن الكبرى باستخدام GPS المدمج والتحديث على عناوين فورية" },
@@ -512,20 +509,20 @@ function FeaturesSection() {
     { icon: Clock, title: "دعم 24/7", desc: "خدمة عملاء دائمة على مدار الساعة 7 أيام أسبوعياً لمساعدتك في كل استفساراتك" },
   ];
   return (
-    <section id="features" className="py-20 bg-[#0a0a0a]" dir="rtl">
+    <section id="features" className={`py-20 ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
       <div className="max-w-5xl mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-black text-white mb-2">مميزاتنا</h2>
-          <p className="text-gray-400">حلول لوجستية فاملة مناسبة لكل أنواع احتياجات عملائك</p>
+          <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>مميزاتنا</h2>
+          <p className={darkMode ? "text-gray-400" : "text-gray-500"}>حلول لوجستية فاملة مناسبة لكل أنواع احتياجات عملائك</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {features.map((f, i) => (
-            <div key={i} className="bg-[#111] border border-[#222] rounded-2xl p-6 text-center hover:border-[#444] transition-colors">
-              <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <f.icon size={26} className="text-gray-300" />
+            <div key={i} className={`border rounded-2xl p-6 text-center transition-colors ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444]" : "bg-white border-gray-200 hover:border-gray-400"}`}>
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/6"}`}>
+                <f.icon size={26} className={darkMode ? "text-gray-300" : "text-gray-600"} />
               </div>
-              <h3 className="text-white font-bold mb-2">{f.title}</h3>
-              <p className="text-gray-500 text-xs leading-relaxed">{f.desc}</p>
+              <h3 className={`font-bold mb-2 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
+              <p className={`text-xs leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
             </div>
           ))}
         </div>
@@ -535,7 +532,7 @@ function FeaturesSection() {
 }
 
 // ─── Contact Section ──────────────────────────────────────────────────────────
-function ContactSection() {
+function ContactSection({ darkMode }: { darkMode: boolean }) {
   const branches = [
     {
       name: "فرع الهرم",
@@ -549,26 +546,26 @@ function ContactSection() {
     },
   ];
   return (
-    <section id="contact" className="py-20 bg-black" dir="rtl">
+    <section id="contact" className={`py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
       <div className="max-w-4xl mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-black text-white mb-2">اتصل بنا</h2>
-          <p className="text-gray-400">افضل طرق للحصول على المساعدة المطلوبة</p>
+          <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>اتصل بنا</h2>
+          <p className={darkMode ? "text-gray-400" : "text-gray-500"}>افضل طرق للحصول على المساعدة المطلوبة</p>
         </div>
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           {branches.map((b, i) => (
-            <div key={i} className="bg-[#0d0d0d] border border-[#222] rounded-2xl p-6">
+            <div key={i} className={`border rounded-2xl p-6 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center">
-                  <MapPin size={18} className="text-gray-300" />
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+                  <MapPin size={18} className={darkMode ? "text-gray-300" : "text-gray-600"} />
                 </div>
-                <h3 className="text-white font-bold">{b.name}</h3>
+                <h3 className={`font-bold ${darkMode ? "text-white" : "text-black"}`}>{b.name}</h3>
               </div>
-              <p className="text-gray-400 text-sm mb-1">{b.address}</p>
-              <p className="text-gray-500 text-sm mb-4">{b.phone}</p>
+              <p className={`text-sm mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>{b.address}</p>
+              <p className={`text-sm mb-4 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{b.phone}</p>
               <a
                 href="#"
-                className="inline-flex items-center gap-2 text-gray-300 hover:text-white text-sm transition-colors border border-[#333] hover:border-[#666] rounded-lg px-3 py-1.5"
+                className={`inline-flex items-center gap-2 text-sm transition-colors rounded-lg px-3 py-1.5 border ${darkMode ? "text-gray-300 hover:text-white border-[#333] hover:border-[#666]" : "text-gray-600 hover:text-black border-gray-300 hover:border-gray-500"}`}
               >
                 <Phone size={14} /> اتصل الآن
               </a>
@@ -578,7 +575,7 @@ function ContactSection() {
         <div className="text-center">
           <a
             href="mailto:info@alexander-eg.com"
-            className="inline-flex items-center gap-2 bg-white text-black font-bold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors"
+            className={`inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-colors ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
           >
             <Mail size={18} /> تواصل معنا
           </a>
@@ -617,12 +614,12 @@ export default function HomePage() {
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
       <Navbar onLoginClick={() => setShowLogin(true)} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
       <HeroSection onLoginClick={() => setShowLogin(true)} />
-      <TrackingSection />
-      <AboutSection />
-      <ShippingCycleSection />
-      <ContractSection />
-      <FeaturesSection />
-      <ContactSection />
+      <TrackingSection darkMode={darkMode} />
+      <AboutSection darkMode={darkMode} />
+      <ShippingCycleSection darkMode={darkMode} />
+      <ContractSection darkMode={darkMode} />
+      <FeaturesSection darkMode={darkMode} />
+      <ContactSection darkMode={darkMode} />
       <Footer />
     </div>
   );
