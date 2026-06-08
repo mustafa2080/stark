@@ -41,7 +41,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
           <X size={20} />
         </button>
         <div className="text-center mb-6">
-          <img src="/stark.jpg" alt="Logo" className="w-16 h-16 rounded-xl mx-auto mb-3 object-cover" style={{objectPosition: "50% 10%"}} />
+          <img src="/logo.jpg" alt="STARK" className="w-16 h-16 rounded-xl mx-auto mb-3 object-cover" />
           <h2 className="text-xl font-bold text-white">تسجيل الدخول</h2>
           <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للوصول للنظام</p>
         </div>
@@ -157,9 +157,9 @@ function HeroSection({ onLoginClick }: { onLoginClick: () => void }) {
   return (
     <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute top-20 right-20 w-96 h-96 rounded-full bg-white blur-3xl" />
-        <div className="absolute bottom-20 left-20 w-64 h-64 rounded-full bg-gray-400 blur-3xl" />
+      <div className="absolute inset-0 opacity-30">
+        <img src="/stark.jpg" alt="" className="w-full h-full object-cover object-center" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/80" />
       </div>
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
         <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 mb-6">
