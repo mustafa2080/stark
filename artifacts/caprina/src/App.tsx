@@ -84,7 +84,6 @@ const SessionsReportPage    = lazy(() => import("@/pages/sessions-report"));
 const ExportPage            = lazy(() => import("@/pages/export"));
 const InvoiceGroupPage      = lazy(() => import("@/pages/invoice-group"));
 const NotFound              = lazy(() => import("@/pages/not-found"));
-const Login                 = lazy(() => import("@/pages/login"));
 const Home                  = lazy(() => import("@/pages/home"));
 const FinancePurchases      = lazy(() => import("@/pages/finance-purchases"));
 const FinanceSales          = lazy(() => import("@/pages/finance-sales"));
