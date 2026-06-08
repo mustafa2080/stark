@@ -1,4 +1,4 @@
-import { lazy, Suspense, Component, type ReactNode, useRef, useEffect, useLayoutEffect } from "react";
+import { lazy, Suspense, Component, type ReactNode, useRef, useEffect, useLayoutEffect, useState } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +9,117 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BrandLogoMark } from "@/components/brand-logo";
 import Layout from "@/components/layout";
 import { SubscriptionBlocker } from "@/components/subscription-blocker";
+
+// ─── Splash Screen ────────────────────────────────────────────────────────────
+function SplashScreen({ onDone }: { onDone: () => void }) {
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    // بعد 1.8 ثانية ابدأ الـ fade out
+    const fadeTimer = setTimeout(() => setFading(true), 1800);
+    // بعد 2.5 ثانية اخفيها خالص
+    const doneTimer = setTimeout(() => onDone(), 2500);
+    return () => { clearTimeout(fadeTimer); clearTimeout(doneTimer); };
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "#000",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        transition: "opacity 0.7s ease",
+        opacity: fading ? 0 : 1,
+        pointerEvents: fading ? "none" : "all",
+      }}
+    >
+      {/* Logo */}
+      <div
+        style={{
+          animation: "splashPop 0.6s cubic-bezier(0.34,1.56,0.64,1) both",
+          marginBottom: "24px",
+        }}
+      >
+        <img
+          src="/logo.jpg"
+          alt="STARK"
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: 24,
+            objectFit: "cover",
+            boxShadow: "0 0 60px rgba(255,255,255,0.15), 0 0 0 1px rgba(255,255,255,0.1)",
+          }}
+        />
+      </div>
+
+      {/* Brand name */}
+      <div
+        style={{
+          animation: "splashFadeUp 0.6s 0.2s ease both",
+          textAlign: "center",
+        }}
+      >
+        <h1
+          style={{
+            color: "#fff",
+            fontSize: 32,
+            fontWeight: 900,
+            letterSpacing: "0.3em",
+            margin: 0,
+            textShadow: "0 0 30px rgba(255,255,255,0.3)",
+          }}
+        >
+          STARK
+        </h1>
+        <p
+          style={{
+            color: "rgba(255,255,255,0.4)",
+            fontSize: 13,
+            marginTop: 8,
+            letterSpacing: "0.1em",
+          }}
+        >
+          شركة الشحن الموثوقة في مصر
+        </p>
+      </div>
+
+      {/* Loading bar */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          height: 3,
+          background: "linear-gradient(90deg, transparent, #fff, transparent)",
+          animation: "splashBar 2s ease forwards",
+          width: "0%",
+        }}
+      />
+
+      <style>{`
+        @keyframes splashPop {
+          from { opacity: 0; transform: scale(0.7); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes splashFadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes splashBar {
+          from { width: 0%; opacity: 1; }
+          90%  { width: 100%; opacity: 1; }
+          to   { width: 100%; opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 // ─── Global Error Boundary ───────────────────────────────────────────────────
 interface EBState { hasError: boolean; errorMsg: string }
@@ -376,9 +487,20 @@ function Router() {
 
 // ─── App root ────────────────────────────────────────────────────────────────
 function App() {
+  const [showSplash, setShowSplash] = useState(() => {
+    // بتظهر مرة واحدة بس في الـ session
+    return !sessionStorage.getItem("splash_shown");
+  });
+
+  const handleSplashDone = () => {
+    sessionStorage.setItem("splash_shown", "1");
+    setShowSplash(false);
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        {showSplash && <SplashScreen onDone={handleSplashDone} />}
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <ThemeProvider>
             <BrandProvider>
