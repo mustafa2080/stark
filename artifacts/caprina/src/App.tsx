@@ -249,11 +249,114 @@ const queryClient = new QueryClient({
 // ─── Page-level loading spinner ───────────────────────────────────────────────
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-[40vh]" dir="rtl">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-7 h-7 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        <p className="text-xs text-muted-foreground">جاري التحميل...</p>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "40vh",
+        background: "transparent",
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+
+        {/* Logo + rotating ring */}
+        <div style={{ position: "relative", width: 72, height: 72 }}>
+          {/* outer spinning ring */}
+          <svg
+            width="72" height="72"
+            viewBox="0 0 72 72"
+            style={{ position: "absolute", top: 0, left: 0, animation: "starkSpin 1.4s linear infinite" }}
+          >
+            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+            <circle
+              cx="36" cy="36" r="32"
+              fill="none"
+              stroke="url(#starkGrad)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray="50 150"
+            />
+            <defs>
+              <linearGradient id="starkGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* inner counter-spin ring */}
+          <svg
+            width="72" height="72"
+            viewBox="0 0 72 72"
+            style={{ position: "absolute", top: 0, left: 0, animation: "starkSpinR 2s linear infinite" }}
+          >
+            <circle
+              cx="36" cy="36" r="24"
+              fill="none"
+              stroke="rgba(255,255,255,0.12)"
+              strokeWidth="1.5"
+              strokeDasharray="12 20"
+              strokeLinecap="round"
+            />
+          </svg>
+
+          {/* Logo center */}
+          <img
+            src="/logo.jpg"
+            alt="STARK"
+            style={{
+              position: "absolute",
+              top: "50%", left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: 40, height: 40,
+              borderRadius: 10,
+              objectFit: "cover",
+              boxShadow: "0 0 20px rgba(255,255,255,0.15)",
+            }}
+          />
+        </div>
+
+        {/* STARK text + dots */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: "0.25em",
+              opacity: 0.9,
+            }}
+          >
+            STARK
+          </span>
+
+          {/* animated dots */}
+          <div style={{ display: "flex", gap: 5 }}>
+            {[0, 1, 2].map(i => (
+              <div
+                key={i}
+                style={{
+                  width: 5, height: 5,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  animation: `starkDot 1.2s ${i * 0.2}s ease-in-out infinite`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
       </div>
+
+      <style>{`
+        @keyframes starkSpin  { to { transform: rotate(360deg);  } }
+        @keyframes starkSpinR { to { transform: rotate(-360deg); } }
+        @keyframes starkDot {
+          0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+          40%            { opacity: 1;   transform: scale(1.2); }
+        }
+      `}</style>
     </div>
   );
 }
