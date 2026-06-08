@@ -100,12 +100,17 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
   const [scrolled, setScrolled] = useState(false);
 
   const navLinks = [
-    { label: "الرئيسية", href: "#home", id: "home" },
-    { label: "من نحن", href: "#about", id: "about" },
-    { label: "خدماتنا", href: "#services", id: "services" },
-    { label: "العقد والتعاقد", href: "#contract", id: "contract" },
-    { label: "اتصل بنا", href: "#contact", id: "contact" },
+    { label: "الرئيسية", id: "home" },
+    { label: "من نحن",   id: "about" },
+    { label: "خدماتنا",  id: "services" },
+    { label: "العقد والتعاقد", id: "contract" },
+    { label: "اتصل بنا", id: "contact" },
   ];
+
+  const scrollTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   React.useEffect(() => {
     const onScroll = () => {
@@ -137,7 +142,7 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
     >
       <div className="max-w-6xl mx-auto px-5 h-[68px] flex items-center justify-between">
         {/* Logo */}
-        <a href="#home" className="flex items-center gap-3 group">
+        <button onClick={() => scrollTo("home")} className="flex items-center gap-3 group">
           <div className="relative">
             <img src="/logo.jpg" alt="STARK" className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
           </div>
@@ -151,24 +156,20 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
           >
             {logoText}
           </span>
-        </a>
+        </button>
 
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-1">
           {navLinks.map(l => {
             const isActive = activeSection === l.id;
             return (
-              <a
-                key={l.href}
-                href={l.href}
+              <button
+                key={l.id}
+                onClick={() => scrollTo(l.id)}
                 className={`relative px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 group ${
                   isActive
-                    ? darkMode
-                      ? "text-white"
-                      : "text-black"
-                    : darkMode
-                    ? "text-gray-400 hover:text-white"
-                    : "text-gray-500 hover:text-black"
+                    ? darkMode ? "text-white" : "text-black"
+                    : darkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"
                 }`}
               >
                 {isActive && (
@@ -193,7 +194,7 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
                     }}
                   />
                 )}
-              </a>
+              </button>
             );
           })}
         </div>
@@ -253,11 +254,10 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
           {navLinks.map(l => {
             const isActive = activeSection === l.id;
             return (
-              <a
-                key={l.href}
-                href={l.href}
-                onClick={() => setMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              <button
+                key={l.id}
+                onClick={() => { scrollTo(l.id); setMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-right w-full ${
                   isActive
                     ? darkMode
                       ? "bg-white/10 text-white border border-white/10"
@@ -274,7 +274,7 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
                   />
                 )}
                 {l.label}
-              </a>
+              </button>
             );
           })}
         </div>
@@ -305,17 +305,17 @@ function HeroSection({ onLoginClick }: { onLoginClick: () => void }) {
           STARK لوجستيك — خدمات شحن محلية سريعة وموثوقة تطال كل مصر، اطمن — سيب الشحن علينا
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a href="#tracking" className="bg-white text-black font-bold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-2">
+          <button onClick={() => document.getElementById("tracking")?.scrollIntoView({ behavior: "smooth" })} className="bg-white text-black font-bold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-2">
             <Package size={18} /> تتبع شحنتك
-          </a>
-          <a href="#contract" className="border border-[#444] text-white font-bold px-8 py-3.5 rounded-xl hover:border-[#888] transition-colors flex items-center gap-2">
+          </button>
+          <button onClick={() => document.getElementById("contract")?.scrollIntoView({ behavior: "smooth" })} className="border border-[#444] text-white font-bold px-8 py-3.5 rounded-xl hover:border-[#888] transition-colors flex items-center gap-2">
             <FileText size={18} /> تعاقد معنا
-          </a>
+          </button>
         </div>
       </div>
-      <a href="#tracking" className="absolute bottom-8 left-1/2 -translate-x-1/2 text-gray-500 animate-bounce">
+      <button onClick={() => document.getElementById("tracking")?.scrollIntoView({ behavior: "smooth" })} className="absolute bottom-8 left-1/2 -translate-x-1/2 text-gray-500 animate-bounce">
         <ChevronDown size={28} />
-      </a>
+      </button>
     </section>
   );
 }
@@ -395,9 +395,9 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
                 </div>
               ))}
             </div>
-            <a href="#services" className={`inline-flex items-center gap-2 mt-6 transition-colors text-sm ${darkMode ? "text-gray-300 hover:text-white" : "text-gray-500 hover:text-black"}`}>
+            <button onClick={() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" })} className={`inline-flex items-center gap-2 mt-6 transition-colors text-sm ${darkMode ? "text-gray-300 hover:text-white" : "text-gray-500 hover:text-black"}`}>
               المزيد <ArrowLeft size={16} />
-            </a>
+            </button>
           </div>
           <div className={`border rounded-2xl p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
             <img src="/logo.jpg" alt="STARK" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
@@ -489,12 +489,12 @@ function ContractSection({ darkMode }: { darkMode: boolean }) {
             </div>
           ))}
         </div>
-        <a
-          href="#contact"
+        <button
+          onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
           className={`inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-colors ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
         >
           <FileText size={18} /> العقد والتعاقد
-        </a>
+        </button>
       </div>
     </section>
   );
