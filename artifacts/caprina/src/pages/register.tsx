@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, UserPlus, LogIn, User, Phone, Mail, Building2, Lock } from "lucide-react";
+import { Eye, EyeOff, Sparkles, LogIn, User, Phone, Mail, Building2, Lock } from "lucide-react";
 import { Navbar, Footer } from "@/pages/home";
 
 export default function RegisterPage() {
@@ -316,7 +316,7 @@ export default function RegisterPage() {
                 >
                   {loading
                     ? <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    : <><UserPlus size={17} /> إنشاء الحساب</>
+                    : <><Sparkles size={17} /> إنشاء الحساب</>
                   }
                 </button>
 
