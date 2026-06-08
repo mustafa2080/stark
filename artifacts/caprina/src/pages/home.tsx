@@ -255,7 +255,7 @@ function AboutSection() {
             </a>
           </div>
           <div className="bg-[#0d0d0d] border border-[#222] rounded-2xl p-8 text-center">
-            <img src="/logo.jpg" alt="Alexander" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
+            <img src="/stark.jpg" alt="ستارك" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
             <h3 className="text-white font-bold text-xl mb-1">شركة ستارك للشحن</h3>
             <p className="text-gray-400 text-sm">خدمة الشحن الموثوقة في مصر</p>
             <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#222]">
@@ -446,7 +446,7 @@ function Footer() {
     <footer className="py-8 bg-[#050505] border-t border-[#1a1a1a]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+          <img src="/stark.jpg" alt="ستارك" className="w-8 h-8 rounded-lg object-cover" />
           <span className="text-gray-400 text-sm">شركة ستارك للشحن</span>
         </div>
         <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2025</p>
