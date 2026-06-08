@@ -3,7 +3,7 @@ import { authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, LogIn, Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, LayoutDashboard, Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft } from "lucide-react";
 
 // ─── Login Modal ─────────────────────────────────────────────────────────────
 function LoginModal({ onClose }: { onClose: () => void }) {
@@ -133,8 +133,8 @@ function Navbar({ onLoginClick }: { onLoginClick: () => void }) {
               (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
             }}
           >
-            <LogIn size={15} />
-            <span>لوحة الإدارة</span>
+            <LayoutDashboard size={15} />
+            <span>لوحة التحكم</span>
           </button>
           <button className="md:hidden text-white" onClick={() => setMenuOpen(v => !v)}>
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
