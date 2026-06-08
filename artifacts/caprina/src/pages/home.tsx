@@ -108,7 +108,7 @@ function Navbar({ onLoginClick }: { onLoginClick: () => void }) {
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src="/logo.jpg" alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
-          <span className="text-white font-bold text-lg hidden sm:block">ستارك فيكتور</span>
+          <span className="text-white font-bold text-lg hidden sm:block">ستارك</span>
         </div>
         <div className="hidden md:flex items-center gap-6">
           {navLinks.map(l => (
@@ -153,11 +153,11 @@ function HeroSection({ onLoginClick }: { onLoginClick: () => void }) {
           <span className="text-gray-300 text-sm">شركة شحن محلية موثوقة منذ 1999</span>
         </div>
         <h1 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight">
-          شركة اليكسندر<br />
+          شركة ستارك<br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-200 to-gray-500">للشحن</span>
         </h1>
         <p className="text-gray-300 text-lg md:text-xl mb-8 max-w-2xl mx-auto leading-relaxed">
-          اليكسندر لوجستيك — خدمات شحن محلية سريعة وموثوقة تطال كل مصر، اطمن — سيب الشحن علينا
+          ستارك لوجستيك — خدمات شحن محلية سريعة وموثوقة تطال كل مصر، اطمن — سيب الشحن علينا
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a href="#tracking" className="bg-white text-black font-bold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-2">
@@ -238,7 +238,7 @@ function AboutSection() {
           <div>
             <h2 className="text-3xl font-black text-white mb-4">من نحن</h2>
             <p className="text-gray-400 leading-relaxed mb-6">
-              أحد اليكسندر لوجستيك من أبز شركات الشحن والخدمات اللوجستية داخل مصر حيث تقدم خدمة للأفراد والشركات بجميع المحافظات والمدن على المستوى الجمهورية منذ عام 1999.
+              أحد ستارك لوجستيك من أبز شركات الشحن والخدمات اللوجستية داخل مصر حيث تقدم خدمة للأفراد والشركات بجميع المحافظات والمدن على المستوى الجمهورية منذ عام 1999.
             </p>
             <div className="grid grid-cols-2 gap-4">
               {features.map((f, i) => (
@@ -256,7 +256,7 @@ function AboutSection() {
           </div>
           <div className="bg-[#0d0d0d] border border-[#222] rounded-2xl p-8 text-center">
             <img src="/logo.jpg" alt="Alexander" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
-            <h3 className="text-white font-bold text-xl mb-1">شركة اليكسندر للشحن</h3>
+            <h3 className="text-white font-bold text-xl mb-1">شركة ستارك للشحن</h3>
             <p className="text-gray-400 text-sm">خدمة الشحن الموثوقة في مصر</p>
             <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#222]">
               {[["25+", "سنة خبرة"], ["27", "محافظة"], ["99%", "رضا العملاء"]].map(([val, lbl], i) => (
@@ -332,8 +332,8 @@ function ContractSection() {
         <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
           <FileText size={28} className="text-white" />
         </div>
-        <h2 className="text-3xl font-black text-white mb-2">عقد شركة اليكسندر للشحن</h2>
-        <p className="text-gray-400 mb-8">عقد خدمات الشحن والتوصيل • شركة اليكسندر للشحن</p>
+        <h2 className="text-3xl font-black text-white mb-2">عقد شركة ستارك للشحن</h2>
+        <p className="text-gray-400 mb-8">عقد خدمات الشحن والتوصيل • شركة ستارك للشحن</p>
         <div className="space-y-3 mb-8 text-right">
           {items.map((item, i) => (
             <div key={i} className="flex items-center gap-4 bg-[#0d0d0d] border border-[#222] rounded-xl px-5 py-4">
@@ -447,7 +447,7 @@ function Footer() {
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
-          <span className="text-gray-400 text-sm">شركة اليكسندر للشحن</span>
+          <span className="text-gray-400 text-sm">شركة ستارك للشحن</span>
         </div>
         <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2025</p>
         <div className="flex items-center gap-4">
