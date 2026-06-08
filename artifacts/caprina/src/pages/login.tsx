@@ -33,73 +33,103 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl"
-      style={{ background: "#080808" }}
-    >
-      {/* Background image with overlay */}
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl">
+
+      {/* ── Background image — full vivid ── */}
       <div className="absolute inset-0">
-        <img src="/stark.jpg" alt="" className="w-full h-full object-cover object-center" style={{ opacity: 0.15 }} />
-        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, rgba(30,30,30,0.4) 0%, #080808 70%)" }} />
+        <img
+          src="/stark.jpg"
+          alt=""
+          className="w-full h-full object-cover object-center"
+          style={{ filter: "brightness(0.72) saturate(1.1)" }}
+        />
+        {/* subtle dark gradient at edges only */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.55) 100%)",
+          }}
+        />
       </div>
 
-      {/* Dot grid */}
-      <div className="absolute inset-0 pointer-events-none" style={{
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
-        backgroundSize: "36px 36px",
-        maskImage: "radial-gradient(ellipse 80% 80% at center, black 30%, transparent 100%)",
-      }} />
-
-      {/* Glow behind card */}
-      <div className="absolute" style={{
-        width: 600, height: 600,
-        borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%)",
-        pointerEvents: "none",
-      }} />
-
-      {/* Card */}
-      <div className="relative w-full max-w-lg mx-4">
-        <div className="rounded-3xl p-10" style={{
-          background: "linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-          border: "1px solid rgba(255,255,255,0.09)",
-          boxShadow: "0 50px 120px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06)",
-          backdropFilter: "blur(20px)",
-        }}>
-
-          {/* Logo + brand */}
-          <div className="flex flex-col items-center mb-10">
-            <div className="relative mb-5">
-              <div className="absolute inset-0 rounded-3xl blur-2xl" style={{ background: "rgba(255,255,255,0.12)", transform: "scale(1.3)" }} />
-              <img src="/logo.jpg" alt="STARK" className="relative w-24 h-24 rounded-3xl object-cover" style={{
-                boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.5)",
-              }} />
+      {/* ── Login Card ── */}
+      <div className="relative z-10 w-full max-w-[420px] mx-4">
+        <div
+          className="rounded-3xl px-10 py-10"
+          style={{
+            background: "rgba(5, 5, 5, 0.68)",
+            border: "1px solid rgba(255,255,255,0.13)",
+            boxShadow:
+              "0 8px 32px rgba(0,0,0,0.55), 0 1.5px 0 rgba(255,255,255,0.07) inset",
+            backdropFilter: "blur(28px)",
+            WebkitBackdropFilter: "blur(28px)",
+          }}
+        >
+          {/* ── Logo + Brand ── */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="relative mb-4">
+              {/* glow behind logo */}
+              <div
+                className="absolute inset-0 rounded-2xl"
+                style={{
+                  background: "rgba(255,255,255,0.18)",
+                  filter: "blur(18px)",
+                  transform: "scale(1.5)",
+                }}
+              />
+              <img
+                src="/logo.jpg"
+                alt="STARK"
+                className="relative w-[72px] h-[72px] rounded-2xl object-cover"
+                style={{
+                  boxShadow:
+                    "0 0 0 1px rgba(255,255,255,0.18), 0 12px 36px rgba(0,0,0,0.55)",
+                }}
+              />
             </div>
-            <h1 className="text-3xl font-black text-white tracking-[0.3em] mb-2"
-              style={{ textShadow: "0 0 40px rgba(255,255,255,0.2)" }}>
+
+            <h1
+              className="text-3xl font-black text-white tracking-[0.4em]"
+              style={{ textShadow: "0 2px 24px rgba(255,255,255,0.25)" }}
+            >
               STARK
             </h1>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.05em" }}>
+            <p
+              className="text-xs mt-1"
+              style={{ color: "rgba(255,255,255,0.38)", letterSpacing: "0.1em" }}
+            >
               شركة الشحن الموثوقة في مصر
             </p>
           </div>
 
-          {/* Divider */}
-          <div className="mb-8" style={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)" }} />
+          {/* ── Divider ── */}
+          <div
+            className="mb-7"
+            style={{
+              height: 1,
+              background:
+                "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
+            }}
+          />
 
-          {/* Title */}
-          <div className="mb-8 text-center">
-            <h2 className="text-2xl font-black text-white mb-2">تسجيل الدخول</h2>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {/* ── Heading ── */}
+          <div className="text-center mb-7">
+            <h2 className="text-xl font-black text-white mb-1">تسجيل الدخول</h2>
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.38)" }}>
               أدخل بياناتك للوصول للوحة التحكم
             </p>
           </div>
 
-          {/* Form */}
+          {/* ── Form ── */}
           <form onSubmit={handleSubmit} className="space-y-5">
 
             {/* Username */}
             <div>
-              <label className="block text-sm font-semibold mb-2.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+              <label
+                className="block text-[11px] font-bold mb-2 tracking-widest uppercase"
+                style={{ color: "rgba(255,255,255,0.42)" }}
+              >
                 اسم المستخدم
               </label>
               <input
@@ -108,20 +138,20 @@ export default function LoginPage() {
                 onChange={e => setUsername(e.target.value)}
                 placeholder="أدخل اسم المستخدم"
                 autoFocus
-                className="w-full rounded-2xl px-5 py-4 text-white text-base outline-none transition-all duration-300"
+                className="w-full rounded-xl px-4 py-3.5 text-white text-sm outline-none transition-all duration-200"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.10)",
                   caretColor: "#fff",
                 }}
                 onFocus={e => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.28)";
-                  e.currentTarget.style.background = "rgba(255,255,255,0.07)";
-                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(255,255,255,0.04)";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.38)";
+                  e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.05)";
                 }}
                 onBlur={e => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                  e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+                  e.currentTarget.style.background = "rgba(255,255,255,0.07)";
                   e.currentTarget.style.boxShadow = "none";
                 }}
               />
@@ -129,7 +159,10 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-semibold mb-2.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+              <label
+                className="block text-[11px] font-bold mb-2 tracking-widest uppercase"
+                style={{ color: "rgba(255,255,255,0.42)" }}
+              >
                 كلمة المرور
               </label>
               <div className="relative">
@@ -138,32 +171,38 @@ export default function LoginPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="أدخل كلمة المرور"
-                  className="w-full rounded-2xl px-5 py-4 pl-14 text-white text-base outline-none transition-all duration-300"
+                  className="w-full rounded-xl px-4 py-3.5 pl-12 text-white text-sm outline-none transition-all duration-200"
                   style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.10)",
                     caretColor: "#fff",
                   }}
                   onFocus={e => {
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.28)";
-                    e.currentTarget.style.background = "rgba(255,255,255,0.07)";
-                    e.currentTarget.style.boxShadow = "0 0 0 4px rgba(255,255,255,0.04)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.38)";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.05)";
                   }}
                   onBlur={e => {
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                    e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.07)";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200"
-                  style={{ color: "rgba(255,255,255,0.3)" }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.3)"}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200"
+                  style={{ color: "rgba(255,255,255,0.32)" }}
+                  onMouseEnter={e =>
+                    ((e.currentTarget as HTMLButtonElement).style.color =
+                      "rgba(255,255,255,0.85)")
+                  }
+                  onMouseLeave={e =>
+                    ((e.currentTarget as HTMLButtonElement).style.color =
+                      "rgba(255,255,255,0.32)")
+                  }
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
             </div>
@@ -172,44 +211,61 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full font-black py-4 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 text-base disabled:opacity-50"
+              className="w-full font-black py-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 text-[15px] disabled:opacity-50"
               style={{
-                background: "linear-gradient(135deg, #c8c8c8 0%, #ffffff 50%, #aaa 100%)",
+                background:
+                  "linear-gradient(135deg, #c8c8c8 0%, #ffffff 50%, #b0b0b0 100%)",
                 color: "#000",
-                boxShadow: "0 0 0 1px rgba(255,255,255,0.15), 0 8px 40px rgba(255,255,255,0.1)",
-                marginTop: "8px",
+                boxShadow:
+                  "0 0 0 1px rgba(255,255,255,0.18), 0 8px 28px rgba(255,255,255,0.14)",
+                marginTop: 4,
               }}
               onMouseEnter={e => {
                 if (!loading) {
-                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-                  (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 1px rgba(255,255,255,0.2), 0 20px 50px rgba(255,255,255,0.18)";
+                  (e.currentTarget as HTMLButtonElement).style.transform =
+                    "translateY(-2px)";
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                    "0 0 0 1px rgba(255,255,255,0.28), 0 16px 48px rgba(255,255,255,0.22)";
                 }
               }}
               onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 1px rgba(255,255,255,0.15), 0 8px 40px rgba(255,255,255,0.1)";
+                (e.currentTarget as HTMLButtonElement).style.transform =
+                  "translateY(0)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                  "0 0 0 1px rgba(255,255,255,0.18), 0 8px 28px rgba(255,255,255,0.14)";
               }}
             >
-              {loading
-                ? <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                : <><LogIn size={20} /> دخول للوحة التحكم</>
-              }
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <LogIn size={17} />
+                  دخول للوحة التحكم
+                </>
+              )}
             </button>
           </form>
         </div>
 
-        {/* Back + copyright */}
-        <div className="flex items-center justify-between mt-6 px-2">
+        {/* ── Footer row ── */}
+        <div className="flex items-center justify-between mt-5 px-1">
           <button
             onClick={() => navigate("/")}
-            className="flex items-center gap-2 text-sm transition-colors duration-200"
-            style={{ color: "rgba(255,255,255,0.3)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)"}
-            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.3)"}
+            className="flex items-center gap-1.5 text-sm transition-colors duration-200"
+            style={{ color: "rgba(255,255,255,0.38)" }}
+            onMouseEnter={e =>
+              ((e.currentTarget as HTMLButtonElement).style.color =
+                "rgba(255,255,255,0.85)")
+            }
+            onMouseLeave={e =>
+              ((e.currentTarget as HTMLButtonElement).style.color =
+                "rgba(255,255,255,0.38)")
+            }
           >
-            <ArrowRight size={15} /> العودة للرئيسية
+            <ArrowRight size={14} />
+            العودة للرئيسية
           </button>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.22)" }}>
             © 2026 STARK
           </span>
         </div>
