@@ -503,28 +503,84 @@ function ContractSection({ darkMode }: { darkMode: boolean }) {
 // ─── Features Section ─────────────────────────────────────────────────────────
 function FeaturesSection({ darkMode }: { darkMode: boolean }) {
   const features = [
-    { icon: Truck, title: "تسليم سريع", desc: "خدمات شحن سريعة من أقصى الشمال لأقصى الجنوب، من الساعة الأولى تلاقي البضاعة وصلت" },
-    { icon: MapPin, title: "تتبع لحظي", desc: "تابع شحناتك في المدن الكبرى باستخدام GPS المدمج والتحديث على عناوين فورية" },
-    { icon: Shield, title: "تغليف أمن", desc: "نوفر تغليف احترافي وآمن للبضائع بأنواعها المختلفة أيًا كان حجمها ووزنها" },
-    { icon: Clock, title: "دعم 24/7", desc: "خدمة عملاء دائمة على مدار الساعة 7 أيام أسبوعياً لمساعدتك في كل استفساراتك" },
+    { icon: Truck, title: "تسليم سريع", desc: "خدمات شحن سريعة من أقصى الشمال لأقصى الجنوب، من الساعة الأولى تلاقي البضاعة وصلت", big: true },
+    { icon: MapPin, title: "تتبع لحظي", desc: "تابع شحناتك باستخدام GPS المدمج والتحديث الفوري", big: false },
+    { icon: Shield, title: "تغليف آمن", desc: "تغليف احترافي لكل أنواع البضائع بأي حجم أو وزن", big: false },
+    { icon: Clock, title: "دعم 24/7", desc: "خدمة عملاء على مدار الساعة طوال أيام الأسبوع", big: false },
   ];
+
+  const lineColor = darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
+  const accentColor = darkMode ? "rgba(192,192,192,0.12)" : "rgba(0,0,0,0.08)";
+
   return (
-    <section id="features" className={`py-20 ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>مميزاتنا</h2>
-          <p className={darkMode ? "text-gray-400" : "text-gray-500"}>حلول لوجستية فاملة مناسبة لكل أنواع احتياجات عملائك</p>
+    <section id="features" className={`relative py-24 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
+
+      {/* ─── SVG curved lines background ─── */}
+      <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0,150 C200,80 400,220 600,150 C800,80 1000,220 1200,150" fill="none" stroke={lineColor} strokeWidth="1.5"/>
+        <path d="M0,250 C150,180 350,320 550,250 C750,180 950,320 1200,250" fill="none" stroke={lineColor} strokeWidth="1"/>
+        <path d="M0,350 C250,280 450,420 650,350 C850,280 1050,420 1200,350" fill="none" stroke={lineColor} strokeWidth="1.5"/>
+        <path d="M0,450 C200,380 400,520 600,450 C800,380 1000,520 1200,450" fill="none" stroke={lineColor} strokeWidth="1"/>
+        <path d="M100,0 C180,150 80,350 150,600" fill="none" stroke={accentColor} strokeWidth="1"/>
+        <path d="M400,0 C500,120 350,300 420,600" fill="none" stroke={accentColor} strokeWidth="1.5"/>
+        <path d="M750,0 C820,200 700,400 780,600" fill="none" stroke={accentColor} strokeWidth="1"/>
+        <path d="M1050,0 C1100,180 980,380 1050,600" fill="none" stroke={accentColor} strokeWidth="1.5"/>
+        <ellipse cx="900" cy="200" rx="300" ry="120" fill="none" stroke={accentColor} strokeWidth="1"/>
+        <ellipse cx="300" cy="400" rx="250" ry="100" fill="none" stroke={lineColor} strokeWidth="1"/>
+      </svg>
+
+      <div className="relative z-10 max-w-6xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-14">
+          <span className={`inline-block text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-4 ${darkMode ? "bg-white/8 text-gray-400 border border-white/10" : "bg-black/5 text-gray-500 border border-black/8"}`}>
+            مميزاتنا
+          </span>
+          <h2 className={`text-4xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>لماذا STARK؟</h2>
+          <p className={`text-base max-w-xl mx-auto ${darkMode ? "text-gray-400" : "text-gray-500"}`}>حلول لوجستية متكاملة مناسبة لكل احتياجاتك</p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {features.map((f, i) => (
-            <div key={i} className={`border rounded-2xl p-6 text-center transition-colors ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444]" : "bg-white border-gray-200 hover:border-gray-400"}`}>
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/6"}`}>
-                <f.icon size={26} className={darkMode ? "text-gray-300" : "text-gray-600"} />
+
+        {/* Cards grid: big + small */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+          {/* Big card */}
+          <div className={`relative md:col-span-1 md:row-span-2 rounded-3xl p-8 flex flex-col justify-between overflow-hidden border transition-all duration-300 group
+            ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444]" : "bg-white border-gray-200 hover:border-gray-400"}`}
+            style={{ minHeight: "320px" }}>
+            {/* inner glow */}
+            <div className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${darkMode ? "bg-gradient-to-br from-white/4 to-transparent" : "bg-gradient-to-br from-black/3 to-transparent"}`} />
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${darkMode ? "bg-white/10" : "bg-black/6"}`}>
+              <Truck size={32} className={darkMode ? "text-gray-200" : "text-gray-700"} />
+            </div>
+            <div>
+              <h3 className={`text-2xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>تسليم سريع</h3>
+              <p className={`text-sm leading-relaxed mb-6 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                خدمات شحن سريعة من أقصى الشمال لأقصى الجنوب — من الساعة الأولى تلاقي البضاعة وصلت لباب العميل بأمان تام
+              </p>
+              <div className={`flex items-center gap-2 text-xs font-semibold ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+                <div className={`w-6 h-px ${darkMode ? "bg-gray-600" : "bg-gray-300"}`} />
+                27 محافظة مغطاة
               </div>
-              <h3 className={`font-bold mb-2 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
-              <p className={`text-xs leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
+            </div>
+          </div>
+
+          {/* Small cards */}
+          {features.slice(1).map((f, i) => (
+            <div key={i} className={`relative rounded-3xl p-6 flex flex-col justify-between overflow-hidden border transition-all duration-300 group
+              ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444]" : "bg-white border-gray-200 hover:border-gray-400"}`}
+              style={{ minHeight: "140px" }}>
+              <div className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${darkMode ? "bg-gradient-to-br from-white/4 to-transparent" : "bg-gradient-to-br from-black/3 to-transparent"}`} />
+              <div className="flex items-start justify-between gap-4 relative z-10">
+                <div>
+                  <h3 className={`text-lg font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
+                  <p className={`text-xs leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
+                </div>
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${darkMode ? "bg-white/8" : "bg-black/5"}`}>
+                  <f.icon size={20} className={darkMode ? "text-gray-300" : "text-gray-600"} />
+                </div>
+              </div>
             </div>
           ))}
+
         </div>
       </div>
     </section>
