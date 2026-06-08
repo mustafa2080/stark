@@ -564,7 +564,7 @@ function Footer() {
           <img src="/logo.jpg" alt="STARK" className="w-8 h-8 rounded-lg object-cover" />
           <span className="text-gray-400 text-sm">شركة STARK للشحن</span>
         </div>
-        <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2025</p>
+        <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2026</p>
         <div className="flex items-center gap-4">
           <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">سياسة الخصوصية</a>
           <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">الشروط والأحكام</a>

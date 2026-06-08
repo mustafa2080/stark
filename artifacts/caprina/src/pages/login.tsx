@@ -206,7 +206,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <p className="text-center text-gray-700 text-xs mt-8">
-            © 2025 STARK لوجستيك — جميع الحقوق محفوظة
+            © 2026 STARK لوجستيك — جميع الحقوق محفوظة
           </p>
         </div>
       </div>
