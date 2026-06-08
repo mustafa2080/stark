@@ -41,7 +41,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
           <X size={20} />
         </button>
         <div className="text-center mb-6">
-          <img src="/stark.jpg" alt="Logo" className="w-16 h-16 rounded-xl mx-auto mb-3 object-cover" />
+          <img src="/stark.jpg" alt="Logo" className="w-16 h-16 rounded-xl mx-auto mb-3 object-cover" style={{objectPosition: "50% 10%"}} />
           <h2 className="text-xl font-bold text-white">تسجيل الدخول</h2>
           <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للوصول للنظام</p>
         </div>
@@ -107,7 +107,7 @@ function Navbar({ onLoginClick }: { onLoginClick: () => void }) {
     <nav className="fixed top-0 inset-x-0 z-40 bg-black/90 backdrop-blur-md border-b border-[#222]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/stark.jpg" alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
+          <img src="/stark.jpg" alt="Logo" className="w-9 h-9 rounded-lg object-cover" style={{objectPosition: "50% 10%"}} />
           <span className="text-white font-bold text-lg hidden sm:block">ستارك</span>
         </div>
         <div className="hidden md:flex items-center gap-6">
@@ -255,7 +255,7 @@ function AboutSection() {
             </a>
           </div>
           <div className="bg-[#0d0d0d] border border-[#222] rounded-2xl p-8 text-center">
-            <img src="/stark.jpg" alt="ستارك" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
+            <img src="/stark.jpg" alt="ستارك" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" style={{objectPosition: "50% 10%"}} />
             <h3 className="text-white font-bold text-xl mb-1">شركة ستارك للشحن</h3>
             <p className="text-gray-400 text-sm">خدمة الشحن الموثوقة في مصر</p>
             <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#222]">
@@ -446,7 +446,7 @@ function Footer() {
     <footer className="py-8 bg-[#050505] border-t border-[#1a1a1a]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <img src="/stark.jpg" alt="ستارك" className="w-8 h-8 rounded-lg object-cover" />
+          <img src="/stark.jpg" alt="ستارك" className="w-8 h-8 rounded-lg object-cover" style={{objectPosition: "50% 10%"}} />
           <span className="text-gray-400 text-sm">شركة ستارك للشحن</span>
         </div>
         <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2025</p>
