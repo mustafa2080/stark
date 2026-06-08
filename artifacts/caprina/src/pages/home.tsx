@@ -41,7 +41,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
           <X size={20} />
         </button>
         <div className="text-center mb-6">
-          <img src="/logo.jpg" alt="Logo" className="w-16 h-16 rounded-xl mx-auto mb-3 object-cover" />
+          <img src="/stark.jpg" alt="Logo" className="w-16 h-16 rounded-xl mx-auto mb-3 object-cover" />
           <h2 className="text-xl font-bold text-white">تسجيل الدخول</h2>
           <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للوصول للنظام</p>
         </div>
@@ -107,7 +107,7 @@ function Navbar({ onLoginClick }: { onLoginClick: () => void }) {
     <nav className="fixed top-0 inset-x-0 z-40 bg-black/90 backdrop-blur-md border-b border-[#222]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
+          <img src="/stark.jpg" alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
           <span className="text-white font-bold text-lg hidden sm:block">ستارك</span>
         </div>
         <div className="hidden md:flex items-center gap-6">
