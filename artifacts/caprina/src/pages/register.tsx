@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Sparkles, LogIn, User, Phone, Mail, Building2, Lock } from "lucide-react";
+import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Building2, Lock } from "lucide-react";
 import { Navbar, Footer } from "@/pages/home";
 
 export default function RegisterPage() {
@@ -332,7 +332,7 @@ export default function RegisterPage() {
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = dm ? "#fff" : "#000"; (e.currentTarget as HTMLButtonElement).style.textDecoration = "underline"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = dm ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)"; (e.currentTarget as HTMLButtonElement).style.textDecoration = "none"; }}
                   >
-                    <LogIn size={15} />
+                    <KeyRound size={15} />
                     تسجيل الدخول
                   </button>
                 </div>
