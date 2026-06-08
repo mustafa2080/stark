@@ -85,6 +85,7 @@ const ExportPage            = lazy(() => import("@/pages/export"));
 const InvoiceGroupPage      = lazy(() => import("@/pages/invoice-group"));
 const NotFound              = lazy(() => import("@/pages/not-found"));
 const Login                 = lazy(() => import("@/pages/login"));
+const Home                  = lazy(() => import("@/pages/home"));
 const FinancePurchases      = lazy(() => import("@/pages/finance-purchases"));
 const FinanceSales          = lazy(() => import("@/pages/finance-sales"));
 const FinanceSaleDetail     = lazy(() => import("@/pages/finance-sale-detail"));
@@ -180,7 +181,7 @@ function PermissionRefresher() {
     if (!user) return;
     if (refreshingRef.current) return;
     // مش محتاج refresh على صفحة البروفايل أو الصفحات اللي مش محتاجة permissions
-    const skipRefreshPaths = ["/profile", "/login", "/subscription-expired"];
+    const skipRefreshPaths = ["/profile", "/login", "/home", "/subscription-expired"];
     if (prevLocation.current !== null && prevLocation.current !== location) {
       if (!skipRefreshPaths.includes(location)) {
         refreshingRef.current = true;
@@ -211,7 +212,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login") return <Redirect to="/login" />;
+  if (!user && location !== "/login" && location !== "/home") return <Redirect to="/home" />;
 
   // ── Subscription expired check ──
   if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
@@ -290,22 +291,22 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/login") {
+  if (location === "/home" || location === "/login") {
+    // /login يعمل redirect لـ /home
+    if (location === "/login") return <Redirect to="/home" />;
     return (
-      <>
-        <VideoBackgroundSync />
-        <Suspense fallback={<PageLoader />}>
-          <Switch>
-            <Route path="/login" component={Login} />
-          </Switch>
-        </Suspense>
-      </>
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/home" component={Home} />
+        </Switch>
+      </Suspense>
     );
   }
 
-  if (!user) return <Redirect to="/login" />;
+  if (!user) return <Redirect to="/home" />;
 
   // الادمن والسوبر ادمن → الداشبورد، باقي اليوزرات → لوحتي
+  // لو المستخدم على / نوجهه للصفحة المناسبة
   if (location === "/") {
     if (user.role === "admin" || user.role === "super_admin") return <Redirect to="/dashboard" />;
     return <Redirect to="/my-dashboard" />;
