@@ -211,7 +211,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login" && location !== "/home") return <Redirect to="/home" />;
+  if (!user && location !== "/login" && location !== "/home" && location !== "/") return <Redirect to="/home" />;
 
   // ── Subscription expired check ──
   if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
@@ -268,7 +268,7 @@ function ProtectedRoute({ permission, component: Comp }: { permission: string; c
 function VideoBackgroundSync() {
   const [location] = useLocation();
   useEffect(() => {
-    const isLogin = location === "/login" || location === "/";
+    const isLogin = location === "/login" || location === "/home" || location === "/";
     const video = document.getElementById("login-bg-video") as HTMLVideoElement | null;
     const html = document.documentElement;
     if (!video) return;
@@ -290,26 +290,24 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/home" || location === "/login") {
-    // /login يعمل redirect لـ /home
-    if (location === "/login") return <Redirect to="/home" />;
+  if (location === "/" || location === "/home" || location === "/login") {
+    if (location === "/login") return <Redirect to="/" />;
+    if (location === "/home") return <Redirect to="/" />;
+    // لو logged in → روح للداشبورد
+    if (user) {
+      if (user.role === "admin" || user.role === "super_admin") return <Redirect to="/dashboard" />;
+      return <Redirect to="/my-dashboard" />;
+    }
     return (
       <Suspense fallback={<PageLoader />}>
         <Switch>
-          <Route path="/home" component={Home} />
+          <Route path="/" component={Home} />
         </Switch>
       </Suspense>
     );
   }
 
-  if (!user) return <Redirect to="/home" />;
-
-  // الادمن والسوبر ادمن → الداشبورد، باقي اليوزرات → لوحتي
-  // لو المستخدم على / نوجهه للصفحة المناسبة
-  if (location === "/") {
-    if (user.role === "admin" || user.role === "super_admin") return <Redirect to="/dashboard" />;
-    return <Redirect to="/my-dashboard" />;
-  }
+  if (!user) return <Redirect to="/" />;
 
   return (
     <>
