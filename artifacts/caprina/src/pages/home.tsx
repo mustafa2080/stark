@@ -1,103 +1,13 @@
 import React, { useState } from "react";
-import { authApi } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
-import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, LayoutDashboard, Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LogIn } from "lucide-react";
-
-// ─── Login Modal ─────────────────────────────────────────────────────────────
-function LoginModal({ onClose }: { onClose: () => void }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      toast({ title: "خطأ", description: "يرجى إدخال اسم المستخدم وكلمة المرور", variant: "destructive" });
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await authApi.login(username.trim(), password);
-      login(data.token, data.user);
-      navigate("/");
-    } catch {
-      toast({ title: "خطأ في تسجيل الدخول", description: "اسم المستخدم أو كلمة المرور غير صحيحة", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[#0a0a0a] border border-[#333] rounded-2xl p-8 w-full max-w-sm shadow-2xl">
-        <button onClick={onClose} className="absolute top-4 left-4 text-gray-400 hover:text-white transition-colors">
-          <X size={20} />
-        </button>
-        <div className="text-center mb-6">
-          <img src="/logo.jpg" alt="STARK" className="w-16 h-16 rounded-xl mx-auto mb-3 object-cover" />
-          <h2 className="text-xl font-bold text-white">تسجيل الدخول</h2>
-          <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للوصول للنظام</p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-sm text-gray-300 mb-1.5 block">اسم المستخدم</label>
-            <input
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="أدخل اسم المستخدم"
-              className="w-full bg-[#1a1a1a] border border-[#333] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#888] transition-colors text-sm"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="text-sm text-gray-300 mb-1.5 block">كلمة المرور</label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="أدخل كلمة المرور"
-                className="w-full bg-[#1a1a1a] border border-[#333] rounded-xl px-4 py-3 pl-12 text-white placeholder-gray-500 focus:outline-none focus:border-[#888] transition-colors text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(v => !v)}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm mt-2"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <><LogIn size={18} /> دخول</>
-            )}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
+import { Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LayoutDashboard } from "lucide-react";
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
-function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () => void; darkMode: boolean; toggleDarkMode: () => void }) {
+function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggleDarkMode: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
   const [scrolled, setScrolled] = useState(false);
+  const [, navigate] = useLocation();
 
   const navLinks = [
     { label: "الرئيسية", id: "home" },
@@ -219,7 +129,7 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
 
           {/* Login Button */}
           <button
-            onClick={onLoginClick}
+            onClick={() => navigate("/login")}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300"
             style={{
               background: darkMode
@@ -287,7 +197,8 @@ function Navbar({ onLoginClick, darkMode, toggleDarkMode }: { onLoginClick: () =
 }
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
-function HeroSection({ onLoginClick }: { onLoginClick: () => void }) {
+function HeroSection() {
+  const [, navigate] = useLocation();
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
@@ -311,7 +222,7 @@ function HeroSection({ onLoginClick }: { onLoginClick: () => void }) {
           <button onClick={() => document.getElementById("tracking")?.scrollIntoView({ behavior: "smooth" })} className="bg-white text-black font-bold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-2">
             <Package size={18} /> تتبع شحنتك
           </button>
-          <button onClick={() => document.getElementById("contract")?.scrollIntoView({ behavior: "smooth" })} className="border border-[#444] text-white font-bold px-8 py-3.5 rounded-xl hover:border-[#888] transition-colors flex items-center gap-2">
+          <button onClick={() => navigate("/login")} className="border border-[#444] text-white font-bold px-8 py-3.5 rounded-xl hover:border-[#888] transition-colors flex items-center gap-2">
             <FileText size={18} /> تعاقد معنا
           </button>
         </div>
@@ -665,14 +576,12 @@ function Footer() {
 
 // ─── Home Page (default export) ───────────────────────────────────────────────
 export default function HomePage() {
-  const [showLogin, setShowLogin] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const toggleDarkMode = () => setDarkMode(v => !v);
   return (
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? "bg-black" : "bg-gray-50"}`}>
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
-      <Navbar onLoginClick={() => setShowLogin(true)} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
-      <HeroSection onLoginClick={() => setShowLogin(true)} />
+      <Navbar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+      <HeroSection />
       <TrackingSection darkMode={darkMode} />
       <AboutSection darkMode={darkMode} />
       <ShippingCycleSection darkMode={darkMode} />

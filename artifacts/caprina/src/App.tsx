@@ -196,6 +196,7 @@ const ExportPage            = lazy(() => import("@/pages/export"));
 const InvoiceGroupPage      = lazy(() => import("@/pages/invoice-group"));
 const NotFound              = lazy(() => import("@/pages/not-found"));
 const Home                  = lazy(() => import("@/pages/home"));
+const LoginPage             = lazy(() => import("@/pages/login"));
 const FinancePurchases      = lazy(() => import("@/pages/finance-purchases"));
 const FinanceSales          = lazy(() => import("@/pages/finance-sales"));
 const FinanceSaleDetail     = lazy(() => import("@/pages/finance-sale-detail"));
@@ -413,7 +414,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login" && location !== "/home" && location !== "/") return <Redirect to="/home" />;
+  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/login") return <Redirect to="/" />;
 
   // ── Subscription expired check ──
   if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
@@ -493,10 +494,9 @@ function Router() {
   const [location] = useLocation();
 
   if (location === "/" || location === "/home" || location === "/login") {
-    if (location === "/login") return <Redirect to="/" />;
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد
-    if (user) {
+    if (user && (location === "/" || location === "/login")) {
       if (user.role === "admin" || user.role === "super_admin") return <Redirect to="/dashboard" />;
       return <Redirect to="/my-dashboard" />;
     }
@@ -504,6 +504,7 @@ function Router() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/login" component={LoginPage} />
         </Switch>
       </Suspense>
     );
