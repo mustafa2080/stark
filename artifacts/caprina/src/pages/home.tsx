@@ -107,8 +107,8 @@ function Navbar({ onLoginClick }: { onLoginClick: () => void }) {
     <nav className="fixed top-0 inset-x-0 z-40 bg-black/90 backdrop-blur-md border-b border-[#222]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/stark.jpg" alt="Logo" className="w-9 h-9 rounded-lg object-cover" style={{objectPosition: "50% 10%"}} />
-          <span className="text-white font-bold text-lg hidden sm:block">ستارك</span>
+          <img src="/logo.jpg" alt="STARK" className="w-9 h-9 rounded-lg object-cover" />
+          <span className="hidden sm:block font-black tracking-[0.2em] text-base" style={{background: "linear-gradient(135deg, #e8e8e8 0%, #ffffff 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", letterSpacing: "0.2em"}}>STARK</span>
         </div>
         <div className="hidden md:flex items-center gap-6">
           {navLinks.map(l => (
