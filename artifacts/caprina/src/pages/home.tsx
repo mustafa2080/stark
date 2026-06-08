@@ -118,9 +118,23 @@ function Navbar({ onLoginClick }: { onLoginClick: () => void }) {
         <div className="flex items-center gap-3">
           <button
             onClick={onLoginClick}
-            className="bg-white text-black text-sm font-bold px-5 py-2 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-2"
+            className="relative group flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold overflow-hidden transition-all duration-300"
+            style={{
+              background: "linear-gradient(135deg, #c0c0c0 0%, #f5f5f5 50%, #a8a8a8 100%)",
+              color: "#0a0a0a",
+              boxShadow: "0 0 0 1px rgba(255,255,255,0.15), 0 4px 20px rgba(255,255,255,0.1)",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 1px rgba(255,255,255,0.3), 0 4px 28px rgba(255,255,255,0.25)";
+              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 1px rgba(255,255,255,0.15), 0 4px 20px rgba(255,255,255,0.1)";
+              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+            }}
           >
-            <LogIn size={16} /> لوحة الإدارة
+            <LogIn size={15} />
+            <span>لوحة الإدارة</span>
           </button>
           <button className="md:hidden text-white" onClick={() => setMenuOpen(v => !v)}>
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
