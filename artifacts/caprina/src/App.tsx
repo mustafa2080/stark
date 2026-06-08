@@ -197,6 +197,7 @@ const InvoiceGroupPage      = lazy(() => import("@/pages/invoice-group"));
 const NotFound              = lazy(() => import("@/pages/not-found"));
 const Home                  = lazy(() => import("@/pages/home"));
 const LoginPage             = lazy(() => import("@/pages/login"));
+const RegisterPage          = lazy(() => import("@/pages/register"));
 const FinancePurchases      = lazy(() => import("@/pages/finance-purchases"));
 const FinanceSales          = lazy(() => import("@/pages/finance-sales"));
 const FinanceSaleDetail     = lazy(() => import("@/pages/finance-sale-detail"));
@@ -414,7 +415,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/login") return <Redirect to="/" />;
+  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register") return <Redirect to="/" />;
 
   // ── Subscription expired check ──
   if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
@@ -493,10 +494,10 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/" || location === "/home" || location === "/login") {
+  if (location === "/" || location === "/home" || location === "/login" || location === "/register") {
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد
-    if (user && (location === "/" || location === "/login")) {
+    if (user && (location === "/" || location === "/login" || location === "/register")) {
       if (user.role === "admin" || user.role === "super_admin") return <Redirect to="/dashboard" />;
       return <Redirect to="/my-dashboard" />;
     }
@@ -505,6 +506,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/login" component={LoginPage} />
+          <Route path="/register" component={RegisterPage} />
         </Switch>
       </Suspense>
     );

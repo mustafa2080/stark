@@ -3,7 +3,7 @@ import { authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
 import { Navbar, Footer } from "@/pages/home";
 
 export default function LoginPage() {
@@ -276,6 +276,30 @@ export default function LoginPage() {
                     : <><LogIn size={17} /> دخول للوحة التحكم</>
                   }
                 </button>
+
+                {/* Register link */}
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <span className="text-sm" style={{ color: dm ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)" }}>
+                    ليس لديك حساب؟
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/register")}
+                    className="flex items-center gap-1.5 text-sm font-bold transition-all duration-200"
+                    style={{ color: dm ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)" }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.color = dm ? "#ffffff" : "#000000";
+                      (e.currentTarget as HTMLButtonElement).style.textDecoration = "underline";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.color = dm ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)";
+                      (e.currentTarget as HTMLButtonElement).style.textDecoration = "none";
+                    }}
+                  >
+                    <UserPlus size={15} />
+                    إنشاء حساب جديد
+                  </button>
+                </div>
               </form>
             </div>
 
