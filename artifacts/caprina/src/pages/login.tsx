@@ -3,104 +3,9 @@ import { authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, LogIn, ArrowRight, Sun, Moon } from "lucide-react";
+import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Navbar, Footer } from "@/pages/home";
 
-// ─── Navbar (مستقل للصفحة) ────────────────────────────────────────────────────
-function LoginNavbar({ darkMode, toggleDark }: { darkMode: boolean; toggleDark: () => void }) {
-  const [, navigate] = useLocation();
-  return (
-    <nav
-      className="sticky top-0 z-40 border-b backdrop-blur-md transition-all duration-300"
-      style={{
-        background: darkMode ? "rgba(5,5,5,0.85)" : "rgba(255,255,255,0.85)",
-        borderColor: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-      }}
-      dir="rtl"
-    >
-      <div className="max-w-6xl mx-auto px-5 h-[64px] flex items-center justify-between">
-        {/* Logo */}
-        <button onClick={() => navigate("/")} className="flex items-center gap-3 group">
-          <img
-            src="/logo.jpg"
-            alt="STARK"
-            className="w-9 h-9 rounded-xl object-cover transition-all duration-300"
-            style={{ boxShadow: darkMode ? "0 0 0 1px rgba(255,255,255,0.12)" : "0 0 0 1px rgba(0,0,0,0.1)" }}
-          />
-          <span
-            className="font-black text-lg tracking-[0.25em]"
-            style={{ color: darkMode ? "#ffffff" : "#111111" }}
-          >
-            STARK
-          </span>
-        </button>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {/* Dark/Light Toggle */}
-          <button
-            onClick={toggleDark}
-            className="p-2.5 rounded-xl transition-all duration-300"
-            style={{
-              background: darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)",
-              border: darkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
-              color: darkMode ? "#ccc" : "#555",
-            }}
-          >
-            {darkMode ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-
-          {/* Back to home */}
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300"
-            style={{
-              background: darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)",
-              border: darkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
-              color: darkMode ? "#ccc" : "#444",
-            }}
-          >
-            <ArrowRight size={14} />
-            الرئيسية
-          </button>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-// ─── Footer (مستقل للصفحة) ───────────────────────────────────────────────────
-function LoginFooter({ darkMode }: { darkMode: boolean }) {
-  return (
-    <footer
-      className="border-t py-5 transition-all duration-300"
-      style={{
-        background: darkMode ? "rgba(5,5,5,0.90)" : "rgba(255,255,255,0.90)",
-        borderColor: darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)",
-      }}
-      dir="rtl"
-    >
-      <div className="max-w-6xl mx-auto px-5 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <img src="/logo.jpg" alt="STARK" className="w-7 h-7 rounded-lg object-cover opacity-80" />
-          <span
-            className="text-sm font-black tracking-[0.2em]"
-            style={{ color: darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)" }}
-          >
-            STARK
-          </span>
-        </div>
-        <span
-          className="text-xs"
-          style={{ color: darkMode ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.28)" }}
-        >
-          © 2026 جميع الحقوق محفوظة
-        </span>
-      </div>
-    </footer>
-  );
-}
-
-// ─── Login Page ───────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -133,16 +38,16 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col transition-colors duration-300"
+      className="min-h-screen flex flex-col transition-colors duration-500"
       style={{ background: dm ? "#080808" : "#f5f5f5" }}
-      dir="rtl"
     >
-      <LoginNavbar darkMode={dm} toggleDark={() => setDarkMode(v => !v)} />
+      {/* ── نفس الـ Navbar بتاع الصفحة الرئيسية ── */}
+      <Navbar darkMode={dm} toggleDarkMode={() => setDarkMode(v => !v)} />
 
       {/* ── Main content ── */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12 relative overflow-hidden">
+      <div className="flex-1 flex items-center justify-center px-4 py-12 relative overflow-hidden" dir="rtl">
 
-        {/* Background image — full vivid */}
+        {/* Background image */}
         <div className="absolute inset-0">
           <img
             src="/stark.jpg"
@@ -166,7 +71,7 @@ export default function LoginPage() {
           style={{
             maxWidth: 860,
             background: dm ? "rgba(6,6,6,0.72)" : "rgba(255,255,255,0.75)",
-            border: dm ? "1px solid rgba(255,255,255,0.11)" : "1px solid rgba(0,0,0,0.1)",
+            border: dm ? "1px solid rgba(255,255,255,0.11)" : "1px solid rgba(0,0,0,0.10)",
             boxShadow: dm
               ? "0 32px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)"
               : "0 24px 60px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.9)",
@@ -187,7 +92,6 @@ export default function LoginPage() {
                   : "linear-gradient(160deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0.01) 100%)",
               }}
             >
-              {/* Logo glow */}
               <div className="relative mb-5">
                 <div
                   className="absolute inset-0 rounded-3xl"
@@ -208,7 +112,6 @@ export default function LoginPage() {
                   }}
                 />
               </div>
-
               <h1
                 className="text-3xl font-black tracking-[0.4em] mb-2"
                 style={{
@@ -224,8 +127,6 @@ export default function LoginPage() {
               >
                 شركة الشحن الموثوقة في مصر
               </p>
-
-              {/* Divider */}
               <div
                 className="w-12 my-6"
                 style={{
@@ -235,7 +136,6 @@ export default function LoginPage() {
                     : "linear-gradient(90deg, transparent, rgba(0,0,0,0.15), transparent)",
                 }}
               />
-
               <p
                 className="text-xs text-center leading-6"
                 style={{ color: dm ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)" }}
@@ -249,24 +149,15 @@ export default function LoginPage() {
               {/* Mobile logo */}
               <div className="flex md:hidden items-center gap-3 mb-8">
                 <img src="/logo.jpg" alt="STARK" className="w-10 h-10 rounded-xl object-cover" />
-                <span
-                  className="font-black text-xl tracking-[0.3em]"
-                  style={{ color: dm ? "#fff" : "#111" }}
-                >
+                <span className="font-black text-xl tracking-[0.3em]" style={{ color: dm ? "#fff" : "#111" }}>
                   STARK
                 </span>
               </div>
 
-              <h2
-                className="text-2xl font-black mb-1"
-                style={{ color: dm ? "#fff" : "#111" }}
-              >
+              <h2 className="text-2xl font-black mb-1" style={{ color: dm ? "#fff" : "#111" }}>
                 تسجيل الدخول
               </h2>
-              <p
-                className="text-sm mb-8"
-                style={{ color: dm ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.42)" }}
-              >
+              <p className="text-sm mb-8" style={{ color: dm ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.42)" }}>
                 أدخل بياناتك للوصول للوحة التحكم
               </p>
 
@@ -392,7 +283,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <LoginFooter darkMode={dm} />
+      {/* ── نفس الـ Footer بتاع الصفحة الرئيسية ── */}
+      <Footer />
     </div>
   );
 }

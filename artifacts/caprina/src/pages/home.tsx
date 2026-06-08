@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LayoutDashboard } from "lucide-react";
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
-function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggleDarkMode: () => void }) {
+export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggleDarkMode: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
   const [scrolled, setScrolled] = useState(false);
@@ -556,7 +556,7 @@ function ContactSection({ darkMode }: { darkMode: boolean }) {
 }
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
-function Footer() {
+export function Footer() {
   return (
     <footer className="py-8 bg-[#050505] border-t border-[#1a1a1a]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
