@@ -220,9 +220,30 @@ function HeroSection() {
           <Truck size={16} className="text-gray-300" />
           <span className="text-gray-300 text-sm">شركة شحن محلية موثوقة منذ 1999</span>
         </div>
-        <h1 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight">
-          STARK<br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-200 to-gray-500">للشحن</span>
+        <h1 className="text-5xl md:text-7xl font-black text-white mb-4 leading-tight tracking-tight">
+          <span
+            className="inline-block"
+            style={{
+              background: "linear-gradient(135deg, #ffffff 0%, #e0e0e0 40%, #a0a0a0 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              filter: "drop-shadow(0 0 40px rgba(255,255,255,0.25))",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            STARK
+          </span>
+          <br />
+          <span
+            className="inline-block text-3xl md:text-4xl font-light tracking-[0.35em] uppercase mt-1"
+            style={{
+              color: "rgba(255,255,255,0.55)",
+              letterSpacing: "0.35em",
+            }}
+          >
+            للشحن
+          </span>
         </h1>
         <p className="text-gray-300 text-lg md:text-xl mb-8 max-w-2xl mx-auto leading-relaxed">
           STARK لوجستيك — خدمات شحن محلية سريعة وموثوقة تطال كل مصر، اطمن — سيب الشحن علينا
