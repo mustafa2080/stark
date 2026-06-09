@@ -218,7 +218,7 @@ function HeroSection() {
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
         <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 mb-6">
           <Truck size={16} className="text-gray-300" />
-          <span className="text-gray-300 text-sm">شركة شحن محلية موثوقة منذ 1999</span>
+          <span className="text-gray-300 text-sm">شركة شحن محلية موثوقة منذ 2001</span>
         </div>
         <h1 className="text-5xl md:text-7xl font-black text-white mb-4 leading-tight tracking-tight">
           <span
