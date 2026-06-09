@@ -212,7 +212,7 @@ const FinanceClients              = lazy(() => import("@/pages/finance-clients")
 const CommercialClientDetail      = lazy(() => import("@/pages/commercial-client-detail"));
 const SalesReportPage              = lazy(() => import("@/pages/finance-sales-report"));
 const AllClientsPage              = lazy(() => import("@/pages/finance-all-clients"));
-const ClientDashboardPage         = lazy(() => import("@/pages/client-dashboard"));
+
 const SuperAdminPage        = lazy(() => import("@/pages/super-admin"));
 const SubscriptionExpired   = lazy(() => import("@/pages/subscription-expired"));
 const ProfilePage           = lazy(() => import("@/pages/profile"));
@@ -561,7 +561,7 @@ function Router() {
           <Route path="/finance/sales/:id"        component={() => <ProtectedRoute permission="finance.view" component={FinanceSaleDetail} />} />
           <Route path="/finance/clients"          component={() => <ProtectedRoute permission="finance.view" component={FinanceClients} />} />
           <Route path="/finance/all-clients"      component={() => <ProtectedRoute permission="finance.view" component={AllClientsPage} />} />
-          <Route path="/finance/clients-dashboard" component={() => <ProtectedRoute permission="finance.view" component={ClientDashboardPage} />} />
+
           <Route path="/finance/clients/:id"      component={() => <ProtectedRoute permission="finance.view" component={CommercialClientDetail} />} />
           <Route path="/finance/sales-report"     component={() => <ProtectedRoute permission="finance.view" component={SalesReportPage} />} />
           <Route path="/finance/suppliers"        component={() => <ProtectedRoute permission="finance.view" component={FinanceSuppliers} />} />
