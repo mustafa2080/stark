@@ -280,8 +280,6 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
         <div
           className="relative p-10 text-center overflow-hidden"
           style={{
-            background: darkMode ? "rgba(15,15,15,0.95)" : "rgba(255,255,255,0.98)",
-            border: darkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.07)",
             boxShadow: darkMode ? "0 24px 64px rgba(0,0,0,0.6)" : "0 24px 64px rgba(0,0,0,0.10)",
             backgroundImage: `url('/tracking.jpeg')`,
             backgroundSize: "cover",
@@ -290,7 +288,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
         >
           {/* Dark overlay فوق الـ background image */}
           <div className="absolute inset-0 z-0" style={{
-            background: darkMode ? "rgba(5,5,5,0.80)" : "rgba(255,255,255,0.82)",
+            background: darkMode ? "rgba(5,5,5,0.55)" : "rgba(255,255,255,0.60)",
           }} />
           {/* Content */}
           <div className="relative z-10">
