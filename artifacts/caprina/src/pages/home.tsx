@@ -281,17 +281,23 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           className="relative p-10 text-center overflow-hidden"
           style={{
             boxShadow: darkMode ? "0 24px 64px rgba(0,0,0,0.6)" : "0 24px 64px rgba(0,0,0,0.10)",
-            backgroundImage: `url('/tracking.jpeg')`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
+            minHeight: "400px",
           }}
         >
-          {/* Dark overlay فوق الـ background image */}
-          <div className="absolute inset-0 z-0" style={{
-            background: darkMode ? "rgba(5,5,5,0.55)" : "rgba(255,255,255,0.60)",
+          {/* Background image via img tag مضمونة الظهور */}
+          <img
+            src="/tracking.jpeg"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ zIndex: 0 }}
+          />
+          {/* Dark overlay */}
+          <div className="absolute inset-0" style={{
+            background: darkMode ? "rgba(0,0,0,0.60)" : "rgba(255,255,255,0.65)",
+            zIndex: 1,
           }} />
           {/* Content */}
-          <div className="relative z-10">
+          <div className="relative" style={{ zIndex: 2 }}>
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
           <Package size={28} className={darkMode ? "text-white" : "text-black"} />
         </div>
