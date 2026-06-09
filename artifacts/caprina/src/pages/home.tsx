@@ -216,9 +216,25 @@ function HeroSection() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
       </div>
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-        <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 mb-6">
-          <Truck size={16} className="text-gray-300" />
-          <span className="text-gray-300 text-sm">شركة شحن محلية موثوقة منذ 2001</span>
+        <div
+          className="inline-flex items-center gap-3 rounded-full px-5 py-2.5 mb-8"
+          style={{
+            background: "rgba(255,255,255,0.07)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            backdropFilter: "blur(12px)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.08) inset",
+          }}
+        >
+          <span
+            className="flex items-center justify-center rounded-full"
+            style={{ width: 28, height: 28, background: "rgba(255,255,255,0.12)" }}
+          >
+            <Truck size={14} className="text-white" />
+          </span>
+          <span className="text-white/90 text-sm font-medium tracking-wide">
+            شركة شحن محلية موثوقة منذ 2001
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
         </div>
         <h1 className="text-5xl md:text-7xl font-black text-white mb-4 leading-tight tracking-tight">
           <span
