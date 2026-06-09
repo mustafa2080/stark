@@ -342,7 +342,7 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
           <div>
             <h2 className={`text-3xl font-black mb-4 ${darkMode ? "text-white" : "text-black"}`}>من نحن</h2>
             <p className={`leading-relaxed mb-6 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
-              أحد STARK لوجستيك من أبز شركات الشحن والخدمات اللوجستية داخل مصر حيث تقدم خدمة للأفراد والشركات بجميع المحافظات والمدن على المستوى الجمهورية منذ عام 1999.
+              أحد STARK لوجستيك من أبز شركات الشحن والخدمات اللوجستية داخل مصر حيث تقدم خدمة للأفراد والشركات بجميع المحافظات والمدن على المستوى الجمهورية منذ عام 2001.
             </p>
             <div className="grid grid-cols-2 gap-4">
               {features.map((f, i) => (
@@ -363,7 +363,7 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
             <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>شركة STARK للشحن</h3>
             <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>خدمة الشحن الموثوقة في مصر</p>
             <div className={`grid grid-cols-3 gap-4 mt-6 pt-6 border-t ${darkMode ? "border-[#222]" : "border-gray-200"}`}>
-              {[["25+", "سنة خبرة"], ["27", "محافظة"], ["99%", "رضا العملاء"]].map(([val, lbl], i) => (
+              {[["4+", "سنة خبرة"], ["27", "محافظة"], ["99%", "رضا العملاء"]].map(([val, lbl], i) => (
                 <div key={i}>
                   <div className={`text-2xl font-black ${darkMode ? "text-white" : "text-black"}`}>{val}</div>
                   <div className={`text-xs mt-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{lbl}</div>
