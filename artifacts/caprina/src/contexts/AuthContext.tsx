@@ -13,7 +13,7 @@ export interface AuthUser {
   id: number;
   username: string;
   displayName: string;
-  role: "super_admin" | "admin" | "employee" | "warehouse";
+  role: "super_admin" | "super-admin" | "admin" | "employee" | "warehouse" | "client" | string;
   permissions: string[];
   isActive: boolean;
   planStatus?: "active" | "expired" | "suspended" | "grace";
