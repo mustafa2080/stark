@@ -10,6 +10,14 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
   const [location, navigate] = useLocation();
   const isHome = location === "/" || location === "/home";
 
+  const navLinks = [
+    { label: "الرئيسية", id: "home" },
+    { label: "من نحن",   id: "about" },
+    { label: "خدماتنا",  id: "services" },
+    { label: "العقد والتعاقد", id: "contract" },
+    { label: "اتصل بنا", id: "contact" },
+  ];
+
   const scrollTo = (id: string) => {
     if (id === "home") {
       if (!isHome) { navigate("/"); return; }
