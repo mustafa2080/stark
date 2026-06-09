@@ -358,7 +358,8 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
           <div>
             <h2 className={`text-3xl font-black mb-4 ${darkMode ? "text-white" : "text-black"}`}>من نحن</h2>
             <p className={`leading-relaxed mb-6 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
-              أحد STARK لوجستيك من أبز شركات الشحن والخدمات اللوجستية داخل مصر حيث تقدم خدمة للأفراد والشركات بجميع المحافظات والمدن على المستوى الجمهورية منذ عام 2001.
+              تُعدّ <bdi className="font-bold" style={{ unicodeBidi: "embed", direction: "ltr" }}>STARK</bdi> لوجستيك من أبرز شركات الشحن والخدمات اللوجستية داخل مصر،
+              حيث تقدّم خدماتها للأفراد والشركات في جميع المحافظات والمدن على مستوى الجمهورية منذ عام 2001.
             </p>
             <div className="grid grid-cols-2 gap-4">
               {features.map((f, i) => (
