@@ -275,18 +275,27 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
     { icon: CheckCircle, label: "تم التسليم" },
   ];
   return (
-    <section id="tracking" className={`relative z-10 -mt-20 pb-16 ${darkMode ? "bg-transparent" : "bg-transparent"}`} dir="rtl">
+    <section id="tracking" className="relative z-10 -mt-20 pb-16" dir="rtl">
       <div className="max-w-full px-0">
         <div
-          className="p-10 text-center"
+          className="relative p-10 text-center overflow-hidden"
           style={{
             background: darkMode ? "rgba(15,15,15,0.95)" : "rgba(255,255,255,0.98)",
             border: darkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.07)",
-            boxShadow: darkMode
-              ? "0 24px 64px rgba(0,0,0,0.6)"
-              : "0 24px 64px rgba(0,0,0,0.10)",
+            boxShadow: darkMode ? "0 24px 64px rgba(0,0,0,0.6)" : "0 24px 64px rgba(0,0,0,0.10)",
           }}
         >
+          {/* Background image */}
+          <div className="absolute inset-0 z-0">
+            <img src="/tracking.jpeg" alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0" style={{
+              background: darkMode
+                ? "rgba(5,5,5,0.82)"
+                : "rgba(255,255,255,0.85)",
+            }} />
+          </div>
+          {/* Content */}
+          <div className="relative z-10">
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
           <Package size={28} className={darkMode ? "text-white" : "text-black"} />
         </div>
@@ -317,6 +326,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             </div>
           ))}
         </div>
+          </div>{/* end z-10 content */}
         </div>
       </div>
     </section>
