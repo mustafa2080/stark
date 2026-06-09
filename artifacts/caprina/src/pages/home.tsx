@@ -275,28 +275,20 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
     { icon: CheckCircle, label: "تم التسليم" },
   ];
   return (
-    <section id="tracking" className="relative z-10 -mt-20 pb-16" dir="rtl">
-      <div className="max-w-full px-0">
-        <div
-          className="relative p-10 text-center overflow-hidden"
-          style={{
-            boxShadow: darkMode ? "0 24px 64px rgba(0,0,0,0.6)" : "0 24px 64px rgba(0,0,0,0.10)",
-            minHeight: "400px",
-          }}
-        >
-          {/* Background image via img tag مضمونة الظهور */}
-          <img
-            src="/tracking.jpeg"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ zIndex: 0 }}
-          />
-          {/* Dark overlay */}
-          <div className="absolute inset-0" style={{
-            background: darkMode ? "rgba(0,0,0,0.60)" : "rgba(255,255,255,0.65)",
-            zIndex: 1,
-          }} />
-          {/* Content */}
+    <section
+      id="tracking"
+      className="relative z-10 -mt-20 pb-16"
+      dir="rtl"
+      style={{
+        backgroundImage: "url('/tracking.jpeg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      {/* overlay */}
+      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.62)", zIndex: 0 }} />
+      <div className="max-w-full px-0 relative" style={{ zIndex: 1 }}>
+        <div className="relative p-10 text-center">
           <div className="relative" style={{ zIndex: 2 }}>
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
           <Package size={28} className={darkMode ? "text-white" : "text-black"} />
@@ -328,7 +320,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             </div>
           ))}
         </div>
-          </div>{/* end z-10 content */}
+          </div>{/* end content */}
         </div>
       </div>
     </section>
