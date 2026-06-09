@@ -254,8 +254,18 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
     { icon: CheckCircle, label: "تم التسليم" },
   ];
   return (
-    <section id="tracking" className={`py-20 ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
-      <div className="max-w-3xl mx-auto px-4 text-center">
+    <section id="tracking" className={`relative z-10 -mt-20 pb-16 ${darkMode ? "bg-transparent" : "bg-transparent"}`} dir="rtl">
+      <div className="max-w-3xl mx-auto px-4">
+        <div
+          className="rounded-3xl p-10 text-center"
+          style={{
+            background: darkMode ? "rgba(15,15,15,0.95)" : "rgba(255,255,255,0.98)",
+            border: darkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.07)",
+            boxShadow: darkMode
+              ? "0 24px 64px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset"
+              : "0 24px 64px rgba(0,0,0,0.10)",
+          }}
+        >
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
           <Package size={28} className={darkMode ? "text-white" : "text-black"} />
         </div>
@@ -285,6 +295,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
               {i < steps.length - 1 && <div className={`w-8 h-px mb-4 ${darkMode ? "bg-[#333]" : "bg-gray-300"}`} />}
             </div>
           ))}
+        </div>
         </div>
       </div>
     </section>
