@@ -7,18 +7,16 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
   const [scrolled, setScrolled] = useState(false);
-  const [, navigate] = useLocation();
-
-  const navLinks = [
-    { label: "الرئيسية", id: "home" },
-    { label: "من نحن",   id: "about" },
-    { label: "خدماتنا",  id: "services" },
-    { label: "العقد والتعاقد", id: "contract" },
-    { label: "اتصل بنا", id: "contact" },
-  ];
+  const [location, navigate] = useLocation();
+  const isHome = location === "/" || location === "/home";
 
   const scrollTo = (id: string) => {
-    if (id === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (id === "home") {
+      if (!isHome) { navigate("/"); return; }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (!isHome) { navigate("/"); setTimeout(() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 400); return; }
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
