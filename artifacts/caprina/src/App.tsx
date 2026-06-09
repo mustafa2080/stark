@@ -525,7 +525,7 @@ function Router() {
         <Switch>
           <Route path="/my-dashboard"             component={ProfilePage} />
           <Route path="/client-profile"           component={ClientProfilePage} />
-          <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
+          <Route path="/dashboard"                component={ClientDashboardPage} />
           <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/orders"                   component={() => <ProtectedRoute permission="orders.view" component={Orders} />} />
           <Route path="/orders/new"               component={() => <ProtectedRoute permission="orders.create" component={OrderForm} />} />
