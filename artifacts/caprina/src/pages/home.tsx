@@ -55,11 +55,21 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
   const logoText = "STARK";
 
   return (
-    <nav
-      className={`sticky top-0 z-40 border-b backdrop-blur-md transition-all duration-500 ${navBg}`}
-      dir="rtl"
-    >
-      <div className="max-w-6xl mx-auto px-5 h-[68px] flex items-center justify-between">
+    <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-4xl" dir="rtl">
+      <div
+        className="flex items-center justify-between px-5 h-[58px] rounded-2xl backdrop-blur-xl transition-all duration-500"
+        style={{
+          background: darkMode
+            ? "rgba(10,10,10,0.85)"
+            : "rgba(255,255,255,0.88)",
+          border: darkMode
+            ? "1px solid rgba(255,255,255,0.08)"
+            : "1px solid rgba(0,0,0,0.09)",
+          boxShadow: darkMode
+            ? "0 8px 32px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.04) inset"
+            : "0 8px 32px rgba(0,0,0,0.10), 0 1px 0 rgba(255,255,255,0.8) inset",
+        }}
+      >
         {/* Logo */}
         <button onClick={() => scrollTo("home")} className="flex items-center gap-3 group">
           <div className="relative">
@@ -162,13 +172,15 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
           </button>
         </div>
       </div>
-
-      {/* Mobile Menu */}
+      {/* Mobile Menu — تحت الـ pill */}
       {menuOpen && (
         <div
-          className={`md:hidden border-t px-4 py-4 flex flex-col gap-1 ${
-            darkMode ? "bg-[#0a0a0a]/98 border-[#2a2a2a]" : "bg-white/98 border-gray-200"
-          }`}
+          className="mt-2 rounded-2xl overflow-hidden px-3 py-3 flex flex-col gap-1"
+          style={{
+            background: darkMode ? "rgba(10,10,10,0.95)" : "rgba(255,255,255,0.97)",
+            border: darkMode ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.09)",
+            boxShadow: darkMode ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 32px rgba(0,0,0,0.10)",
+          }}
         >
           {navLinks.map(l => {
             const isActive = activeSection === l.id;
@@ -178,20 +190,11 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
                 onClick={() => { scrollTo(l.id); setMenuOpen(false); }}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-right w-full ${
                   isActive
-                    ? darkMode
-                      ? "bg-white/10 text-white border border-white/10"
-                      : "bg-black/6 text-black border border-black/8"
-                    : darkMode
-                    ? "text-gray-400 hover:text-white hover:bg-white/5"
-                    : "text-gray-500 hover:text-black hover:bg-black/4"
+                    ? darkMode ? "bg-white/10 text-white" : "bg-black/6 text-black"
+                    : darkMode ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-gray-500 hover:text-black hover:bg-black/4"
                 }`}
               >
-                {isActive && (
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: darkMode ? "#c0c0c0" : "#333" }}
-                  />
-                )}
+                {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{ background: darkMode ? "#c0c0c0" : "#333" }} />}
                 {l.label}
               </button>
             );
@@ -206,7 +209,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
 function HeroSection() {
   const [, navigate] = useLocation();
   return (
-    <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black" dir="rtl">
+    <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black pt-20" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
       <div className="absolute inset-0 opacity-55">
         <img src="/stark.jpg" alt="" className="w-full h-full object-cover object-center" />
