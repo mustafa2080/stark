@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Building2, Lock } from "lucide-react";
 import { Navbar, Footer } from "@/pages/home";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function RegisterPage() {
   const [darkMode, setDarkMode] = useState(true);
@@ -11,6 +12,7 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { login } = useAuth();
 
   const [form, setForm] = useState({
     displayName: "",
@@ -53,12 +55,13 @@ export default function RegisterPage() {
           company: form.company,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || "فشل التسجيل");
-      }
-      toast({ title: "تم التسجيل بنجاح", description: "يمكنك الآن تسجيل الدخول" });
-      navigate("/login");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "فشل التسجيل");
+
+      // auto-login: store token and navigate to dashboard
+      await login(data.token, data.user);
+      toast({ title: "🎉 تم إنشاء الحساب بنجاح", description: data.message ?? "مرحباً بك في المنصة" });
+      navigate("/dashboard");
     } catch (err: any) {
       toast({ title: "خطأ", description: err.message || "حدث خطأ أثناء التسجيل", variant: "destructive" });
     } finally {

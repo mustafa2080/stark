@@ -36,6 +36,112 @@ const loginLimiter = rateLimit({
 
 const router: IRouter = Router();
 
+// ─── Register limiter: max 5 per hour per IP ────────────────────────────────
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "محاولات تسجيل كثيرة، يرجى المحاولة لاحقاً" },
+});
+
+// POST /auth/register — creates new tenant + owner super-admin account
+router.post("/register", registerLimiter, async (req, res): Promise<void> => {
+  const { displayName, username, password, phone, email, company } = req.body as {
+    displayName: string; username: string; password: string;
+    phone?: string; email?: string; company?: string;
+  };
+
+  // ── Validation ──────────────────────────────────────────────────────────
+  if (!displayName?.trim() || !username?.trim() || !password) {
+    res.status(400).json({ error: "الاسم واسم المستخدم وكلمة المرور مطلوبة" });
+    return;
+  }
+  if (password.length < 6) {
+    res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+    return;
+  }
+  const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+  if (cleanUsername.length < 3) {
+    res.status(400).json({ error: "اسم المستخدم يجب أن يكون 3 أحرف على الأقل (أحرف إنجليزية وأرقام)" });
+    return;
+  }
+
+  // ── Check username uniqueness ────────────────────────────────────────────
+  const [existing] = await db.select({ id: usersTable.id })
+    .from(usersTable).where(eq(usersTable.username, cleanUsername)).limit(1);
+  if (existing) {
+    res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل، يرجى اختيار اسم آخر" });
+    return;
+  }
+
+  // ── Create tenant ────────────────────────────────────────────────────────
+  const tenantName = (company?.trim()) || displayName.trim();
+  const slug = cleanUsername + "_" + Date.now().toString(36);
+  const trialDays = 14;
+  const expiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+  const graceUntil = new Date(expiresAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+  const [tenantResult] = await db.insert(tenantsTable).values({
+    name: tenantName,
+    slug,
+    plan: "free_trial",
+    planStatus: "active",
+    expiresAt,
+    graceUntil,
+    contactEmail: email?.trim() || null,
+    contactPhone: phone?.trim() || null,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  const tenantId = (tenantResult as any).insertId as number;
+
+  // ── Create owner user (super-admin) ─────────────────────────────────────
+  const passwordHash = await hashPassword(password);
+  const [userResult] = await db.insert(usersTable).values({
+    tenantId,
+    username: cleanUsername,
+    displayName: displayName.trim(),
+    passwordHash,
+    role: "super-admin",
+    permissions: JSON.stringify([
+      "orders.view","orders.create","orders.edit","orders.delete",
+      "invoices.view","invoices.create","invoices.edit","invoices.delete",
+      "users.view","users.create","users.edit","users.delete",
+      "finance.view","finance.edit","reports.view",
+      "settings.view","settings.edit","audit.view",
+    ]),
+    phone: phone?.trim() || null,
+    email: email?.trim() || null,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as any);
+  const userId = (userResult as any).insertId as number;
+
+  await logAudit({
+    action: "register",
+    entityType: "user",
+    entityId: userId,
+    entityName: displayName.trim(),
+    userId,
+    userName: displayName.trim(),
+  });
+
+  // ── Auto-login: return token ─────────────────────────────────────────────
+  const [newUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const finalPerms = parsePermissions(newUser.permissions);
+  const token = signToken({ ...newUser, permissions: finalPerms } as any);
+  const { passwordHash: _, ...safeUser } = newUser;
+
+  res.status(201).json({
+    token,
+    user: { ...safeUser, permissions: finalPerms, planStatus: "active" },
+    message: "تم إنشاء الحساب بنجاح — تجربة مجانية 14 يوم",
+  });
+});
+
 // POST /auth/login
 router.post("/login", loginLimiter, async (req, res): Promise<void> => {
   const { username, password } = req.body as { username: string; password: string };
