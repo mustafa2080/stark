@@ -285,10 +285,8 @@ export default function Layout({ children }: LayoutProps) {
       if ((item as any).employeeOnly) return user?.role === "employee";
       // لوحة التحكم → تتخفى عن الـ employee (عنده لوحتي بدلها)
       if (item.href === "/" && user?.role === "employee") return false;
-      if (isAdmin) return true;
-      const sectionOk = item.section ? can(item.section) : true;
-      const permOk    = item.permission ? can(item.permission) : true;
-      return sectionOk && permOk;
+      // كل اليوزرز يشوفوا كل حاجة مؤقتاً
+      return true;
     });
   }, [can, isAdmin, user?.role]);
 
@@ -296,8 +294,8 @@ export default function Layout({ children }: LayoutProps) {
   const redirectingRef = useRef(false);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (isAdmin) return;
-    if (redirectingRef.current) return;
+    // مؤقتاً — مش بنعمل redirect لأي يوزر
+    return;
     // صفحات عامة مش محتاجة nav permission — ما نعملش ليها redirect أبداً
     const globalPages = ["/profile", "/my-dashboard", "/subscription-expired"];
     if (globalPages.some(p => location === p || location.startsWith(p + "/"))) return;
@@ -562,7 +560,7 @@ export default function Layout({ children }: LayoutProps) {
               </NavGroup>
             )}
 
-            {(isAdmin || can("finance.view")) && (
+            {(true) && (
               <NavGroup label="الماليات" icon={DollarSign} iconColor="text-emerald-400" location={location} prefixes={["/finance"]} excludePrefixes={["/finance/cash/analytics"]} isOpen={openGroup === "finance"} onToggle={() => toggleGroup("finance", FINANCE_NAV[0]?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={FINANCE_NAV[0]?.href} groupKey="finance">
                 {FINANCE_NAV.map((item) => {
                   const isActive = location === item.href;
@@ -799,7 +797,7 @@ export default function Layout({ children }: LayoutProps) {
                     </Link>
                   );
                 })}
-                {(isAdmin || can("finance.view")) && (
+                {(true) && (
                   <div className="pt-1">
                     <button type="button" onClick={() => setFinanceOpen(v => !v)}
                       className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all",
