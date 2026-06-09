@@ -221,7 +221,7 @@ function HeroSection() {
           <span className="text-gray-300 text-sm">شركة شحن محلية موثوقة منذ 1999</span>
         </div>
         <h1 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight">
-          شركة STARK<br />
+          STARK<br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-200 to-gray-500">للشحن</span>
         </h1>
         <p className="text-gray-300 text-lg md:text-xl mb-8 max-w-2xl mx-auto leading-relaxed">
@@ -255,14 +255,14 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
   ];
   return (
     <section id="tracking" className={`relative z-10 -mt-20 pb-16 ${darkMode ? "bg-transparent" : "bg-transparent"}`} dir="rtl">
-      <div className="max-w-3xl mx-auto px-4">
+      <div className="max-w-full px-0">
         <div
-          className="rounded-3xl p-10 text-center"
+          className="p-10 text-center"
           style={{
             background: darkMode ? "rgba(15,15,15,0.95)" : "rgba(255,255,255,0.98)",
             border: darkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.07)",
             boxShadow: darkMode
-              ? "0 24px 64px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset"
+              ? "0 24px 64px rgba(0,0,0,0.6)"
               : "0 24px 64px rgba(0,0,0,0.10)",
           }}
         >
