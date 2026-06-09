@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Building2, Lock } from "lucide-react";
-import { Navbar, Footer } from "@/pages/home";
+import { Navbar, Footer, SocialFloat } from "@/pages/home";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function RegisterPage() {
@@ -348,6 +348,7 @@ export default function RegisterPage() {
       </div>
 
       <Footer />
+      <SocialFloat darkMode={darkMode} />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
-import { Navbar, Footer } from "@/pages/home";
+import { Navbar, Footer, SocialFloat } from "@/pages/home";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -309,6 +309,7 @@ export default function LoginPage() {
 
       {/* ── نفس الـ Footer بتاع الصفحة الرئيسية ── */}
       <Footer />
+      <SocialFloat darkMode={darkMode} />
     </div>
   );
 }

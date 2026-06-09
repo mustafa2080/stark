@@ -637,7 +637,7 @@ export function Footer() {
 }
 
 // ─── Social Media Floating Button ────────────────────────────────────────────
-function SocialFloat({ darkMode }: { darkMode: boolean }) {
+export function SocialFloat({ darkMode }: { darkMode: boolean }) {
   const [open, setOpen] = useState(false);
 
   const socials = [
