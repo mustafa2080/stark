@@ -104,7 +104,7 @@ router.post("/register", registerLimiter, async (req, res): Promise<void> => {
     username: cleanUsername,
     displayName: displayName.trim(),
     passwordHash,
-    role: "client",
+    role: "super-admin",
     permissions: JSON.stringify([]),
     phone: phone?.trim() || null,
     email: email?.trim() || null,
