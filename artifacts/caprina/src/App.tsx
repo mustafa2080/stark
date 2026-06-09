@@ -216,6 +216,7 @@ const ClientDashboardPage         = lazy(() => import("@/pages/client-dashboard"
 const SuperAdminPage        = lazy(() => import("@/pages/super-admin"));
 const SubscriptionExpired   = lazy(() => import("@/pages/subscription-expired"));
 const ProfilePage           = lazy(() => import("@/pages/profile"));
+const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
 
 // ─── Global QueryClient with smart caching defaults ──────────────────────────
 // MutationCache: أي mutation تنجح على الطلبات → invalidate الـ analytics فوراً
@@ -499,7 +500,8 @@ function Router() {
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد
     if (user && (location === "/" || location === "/login" || location === "/register")) {
-      if (user.role === "admin" || user.role === "super_admin") return <Redirect to="/dashboard" />;
+      if (user.role === "admin" || user.role === "super_admin" || user.role === "super-admin") return <Redirect to="/dashboard" />;
+      if (user.role === "client") return <Redirect to="/client-profile" />;
       return <Redirect to="/my-dashboard" />;
     }
     return (
@@ -522,6 +524,7 @@ function Router() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/my-dashboard"             component={ProfilePage} />
+          <Route path="/client-profile"           component={ClientProfilePage} />
           <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/orders"                   component={() => <ProtectedRoute permission="orders.view" component={Orders} />} />

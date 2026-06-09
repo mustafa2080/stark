@@ -143,6 +143,99 @@ router.get("/finance/clients/search", async (req, res): Promise<void> => {
   }
 });
 
+// ── GET /finance/clients/me — بيانات العميل المسجل حالياً ──────────────────
+router.get("/finance/clients/me", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const user = (req as any).user;
+
+    // نجيب العميل المرتبط بنفس الـ tenantId بتاع الـ user
+    const conds: any[] = [];
+    if (tenantId !== null) conds.push(eq(clientsTable.tenantId, tenantId));
+
+    // نحاول نطابق باسم العرض أو رقم الهاتف أو الإيميل
+    const [client] = await db.select().from(clientsTable)
+      .where(conds.length ? and(...conds) : undefined as any)
+      .limit(1);
+
+    if (!client) {
+      // لو مفيش عميل → نرجع بيانات الـ user نفسه كـ placeholder
+      res.json({
+        id: null,
+        name: user?.displayName ?? "عميل",
+        phone: user?.phone ?? null,
+        email: user?.email ?? null,
+        isActive: true,
+        totalSales: "0",
+        totalPaid: "0",
+        totalOrders: 0,
+        deliveryRate: 0,
+        orders: [],
+      });
+      return;
+    }
+
+    const orderConds: any[] = [eq(saleOrdersTable.clientName, client.name)];
+    if (tenantId !== null) orderConds.push(eq(saleOrdersTable.tenantId, tenantId));
+
+    const orders = await db.select({
+      id: saleOrdersTable.id, soNumber: saleOrdersTable.soNumber,
+      status: saleOrdersTable.status, paymentStatus: saleOrdersTable.paymentStatus,
+      totalAmount: saleOrdersTable.totalAmount, paidAmount: saleOrdersTable.paidAmount,
+      createdAt: saleOrdersTable.createdAt, invoiceNumber: saleOrdersTable.soNumber,
+    }).from(saleOrdersTable)
+      .where(and(...orderConds))
+      .orderBy(desc(saleOrdersTable.createdAt));
+
+    const totalSales = orders.reduce((s, o) => s + parseFloat(o.totalAmount ?? "0"), 0);
+    const totalPaid  = orders.reduce((s, o) => {
+      const t = parseFloat(o.totalAmount ?? "0");
+      const p = o.paymentStatus === "paid" ? t : parseFloat(o.paidAmount ?? "0");
+      return s + p;
+    }, 0);
+    const totalOrders     = orders.length;
+    const deliveredOrders = orders.filter(o => o.status === "delivered").length;
+    const deliveryRate    = totalOrders > 0 ? Math.round((deliveredOrders / totalOrders) * 100) : 0;
+
+    res.json({
+      ...client,
+      totalOrders,
+      totalSales: String(totalSales),
+      totalPaid:  String(totalPaid),
+      deliveryRate,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /finance/clients/me/orders ──────────────────────────────────────────
+router.get("/finance/clients/me/orders", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const conds: any[] = [];
+    if (tenantId !== null) conds.push(eq(clientsTable.tenantId, tenantId));
+
+    const [client] = await db.select({ name: clientsTable.name })
+      .from(clientsTable)
+      .where(conds.length ? and(...conds) : undefined as any)
+      .limit(1);
+
+    if (!client) { res.json([]); return; }
+
+    const orderConds: any[] = [eq(saleOrdersTable.clientName, client.name)];
+    if (tenantId !== null) orderConds.push(eq(saleOrdersTable.tenantId, tenantId));
+
+    const orders = await db.select().from(saleOrdersTable)
+      .where(and(...orderConds))
+      .orderBy(desc(saleOrdersTable.createdAt));
+
+    res.json(orders);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /finance/clients/:id ─────────────────────────────────────────────────
 router.get("/finance/clients/:id", async (req, res): Promise<void> => {
   try {

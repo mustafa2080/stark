@@ -92,26 +92,25 @@ export default function ClientProfilePage() {
   }), []);
 
   // ── Data ──────────────────────────────────────────────────────────────
-  const { data: clients = [] } = useQuery<any[]>({
-    queryKey: ["finance-clients"],
-    queryFn: () => apiFetch<any[]>("/finance/clients"),
+  // العميل المسجل — نجيب بياناته بالـ tenantId بتاعه
+  const { data: clientData } = useQuery<any>({
+    queryKey: ["client-profile-me", user?.id],
+    queryFn: () => apiFetch<any>("/finance/clients/me"),
     staleTime: 30_000,
+    enabled: !!user,
   });
 
   const { data: orders = [] } = useQuery<any[]>({
-    queryKey: ["finance-sale-orders-all"],
-    queryFn: () => apiFetch<any[]>("/finance/sale-orders"),
+    queryKey: ["client-orders-me", user?.id],
+    queryFn: () => apiFetch<any[]>("/finance/clients/me/orders"),
     staleTime: 30_000,
+    enabled: !!user,
   });
 
-  // أول عميل نشط كـ default — أو ممكن تمرر id من الـ route
-  const client = clients[0] ?? null;
+  const client = clientData ?? null;
 
-  // فلتر الأوامر الخاصة بالعميل
-  const clientOrders = useMemo(() =>
-    orders.filter((o: any) => o.clientName === client?.name || o.clientId === client?.id),
-    [orders, client]
-  );
+  // الأوامر جاية مباشرة خاصة بالعميل من الـ API
+  const clientOrders = orders;
 
   const monthOrders = useMemo(() =>
     clientOrders.filter((o: any) => (o.createdAt ?? "").startsWith(selectedMonth)),
