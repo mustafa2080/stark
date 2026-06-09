@@ -394,8 +394,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const can = useCallback(
     (permission: string): boolean => {
       if (!user) return false;
-      // super_admin عنده كل الصلاحيات دايماً
-      if (user.role === "super_admin") return true;
+      // super_admin / super-admin عنده كل الصلاحيات دايماً
+      if (user.role === "super_admin" || user.role === ("super-admin" as any)) return true;
       const rawPerms = flattenPermissions(user.permissions);
 
       // "*" يعني كل الصلاحيات
@@ -430,7 +430,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user]
   );
 
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === ("super-admin" as any);
 
   const canViewFinancials = isAdmin || can("orders.financials");
   const canViewProfitability = isAdmin || can("orders.financials");
@@ -438,7 +438,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, token, sessionId, login, logout, refreshUser,
-      isSuperAdmin: user?.role === "super_admin",
+      isSuperAdmin: user?.role === "super_admin" || user?.role === ("super-admin" as any),
       isAdmin,
       isEmployee: user?.role === "employee",
       isWarehouse: user?.role === "warehouse",
