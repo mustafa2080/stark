@@ -286,7 +286,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-16"
       dir="rtl"
       style={{
-        marginTop: "-280px",
+        marginTop: "-160px",
         background: "transparent",
       }}
     >
@@ -301,7 +301,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             borderTop: "1px solid rgba(255,255,255,0.04)",
           }}
         >
-          <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2 }}>
+          <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2, marginTop: "-60px" }}>
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-white/10">
           <Package size={28} className="text-white" />
         </div>
