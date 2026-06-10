@@ -7,6 +7,7 @@ import {
   CreditCard, Clock, CheckCircle, AlertTriangle, XCircle,
   ChevronDown, X, RefreshCw, Eye, Edit, Trash2,
   ArrowUpDown, Building2, DollarSign, FileText, Boxes, Tag,
+  Settings, Globe, Layers,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -610,22 +611,232 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
   );
 }
 
+// ─── Zones Settings Tab ───────────────────────────────────────────────────────
+function ZonesTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState({ name: "", governorate: "", price: "" });
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", governorate: "", price: "" });
+
+  const { data: zones = [], isLoading } = useQuery({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch<ShipmentZone[]>("/shipment-zones"),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (d: any) => apiFetch("/shipment-zones", { method: "POST", body: JSON.stringify(d) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shipment-zones"] }); toast({ title: "تمت الإضافة ✅" }); setForm({ name: "", governorate: "", price: "" }); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...d }: any) => apiFetch(`/shipment-zones/${id}`, { method: "PUT", body: JSON.stringify(d) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shipment-zones"] }); toast({ title: "تم التحديث ✅" }); setEditId(null); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiFetch(`/shipment-zones/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shipment-zones"] }); toast({ title: "تم الحذف" }); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  function startEdit(z: ShipmentZone) {
+    setEditId(z.id);
+    setEditForm({ name: z.name, governorate: z.governorate || "", price: String(z.price) });
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* ── Add Zone ── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-black flex items-center gap-2">
+            <Globe className="w-4 h-4 text-cyan-500" /> إضافة منطقة جديدة
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
+              <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block">المحافظة</Label>
+              <Input className="text-sm" placeholder="مثال: القاهرة الكبرى" value={form.governorate} onChange={e => setForm(f => ({ ...f, governorate: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block">سعر التوصيل (جنيه) <span className="text-red-500">*</span></Label>
+              <Input type="number" className="text-sm" placeholder="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+            </div>
+          </div>
+          <Button className="mt-3 gap-2 text-xs" size="sm"
+            disabled={!form.name || !form.price || addMutation.isPending}
+            onClick={() => addMutation.mutate({ name: form.name, governorate: form.governorate || undefined, price: Number(form.price), isActive: true })}>
+            {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            إضافة المنطقة
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ── Zones List ── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-black">المناطق المضافة ({zones.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8"><RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+          ) : zones.length === 0 ? (
+            <p className="text-center text-xs text-muted-foreground py-8">لا توجد مناطق — أضف منطقة من الأعلى</p>
+          ) : (
+            <div className="space-y-2">
+              {zones.map(z => (
+                <div key={z.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors">
+                  {editId === z.id ? (
+                    <>
+                      <Input className="text-xs h-8 flex-1" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="الاسم" />
+                      <Input className="text-xs h-8 w-32" value={editForm.governorate} onChange={e => setEditForm(f => ({ ...f, governorate: e.target.value }))} placeholder="المحافظة" />
+                      <Input type="number" className="text-xs h-8 w-24" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="السعر" />
+                      <Button size="sm" className="h-8 text-xs px-3" onClick={() => updateMutation.mutate({ id: z.id, name: editForm.name, governorate: editForm.governorate || undefined, price: Number(editForm.price) })} disabled={updateMutation.isPending}>
+                        {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setEditId(null)}>إلغاء</Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                        <MapPin className="w-4 h-4 text-cyan-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground">{z.name}</p>
+                        {z.governorate && <p className="text-[10px] text-muted-foreground">{z.governorate}</p>}
+                      </div>
+                      <span className="text-sm font-black text-primary shrink-0">{fc(z.price)}</span>
+                      <div className="flex gap-1 shrink-0">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          onClick={() => { if (confirm("حذف المنطقة؟")) deleteMutation.mutate(z.id); }}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Parcel Pricing Tab ───────────────────────────────────────────────────────
+function ParcelPricingTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [editPrices, setEditPrices] = useState<Record<number, string>>({});
+
+  const { data: pricing = [], isLoading } = useQuery({
+    queryKey: ["parcel-type-pricing"],
+    queryFn: () => apiFetch<ParcelTypePricing[]>("/parcel-type-pricing"),
+  });
+
+  const initMutation = useMutation({
+    mutationFn: () => apiFetch("/parcel-type-pricing/init", { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] }); toast({ title: "تمت التهيئة ✅" }); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, basePrice }: { id: number; basePrice: number }) =>
+      apiFetch(`/parcel-type-pricing/${id}`, { method: "PUT", body: JSON.stringify({ basePrice }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] }); toast({ title: "تم التحديث ✅" }); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const ICONS: Record<string, string> = {
+    document: "📄", normal: "📦", fragile: "🔮", heavy: "⚖️",
+    electronics: "💻", clothing: "👕", food: "🍱", other: "📫",
+  };
+
+  return (
+    <div className="space-y-5">
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm font-black flex items-center gap-2">
+            <Layers className="w-4 h-4 text-violet-500" /> أسعار أنواع الشحنات
+          </CardTitle>
+          {pricing.length === 0 && (
+            <Button size="sm" variant="outline" className="text-xs gap-1.5 h-8"
+              onClick={() => initMutation.mutate()} disabled={initMutation.isPending}>
+              {initMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+              تهيئة الأسعار الافتراضية
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8"><RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+          ) : pricing.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-xs text-muted-foreground mb-3">لا توجد أسعار — اضغط "تهيئة الأسعار الافتراضية" لإضافة الأنواع الـ 8</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {pricing.map(p => (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                  <span className="text-xl shrink-0">{ICONS[p.parcelType] ?? "📦"}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground">{PARCEL_LABELS[p.parcelType as ParcelType] ?? p.parcelType}</p>
+                    <p className="text-[10px] text-muted-foreground">سعر إضافي على رسوم المنطقة</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Input
+                      type="number"
+                      className="text-xs h-8 w-24 text-center"
+                      value={editPrices[p.id] ?? String(p.basePrice)}
+                      onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                    <Button size="sm" className="h-8 text-xs px-3"
+                      onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}
+                      disabled={updateMutation.isPending}>
+                      حفظ
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground mt-4 border-t border-border pt-3">
+            💡 السعر الإجمالي للشحنة = سعر المنطقة + سعر نوع الشحنة + رسوم التأمين
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const [activeTab, setActiveTab]   = useState<"shipments" | "zones" | "pricing">("shipments");
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatus]   = useState("all");
   const [formOpen, setFormOpen]      = useState(false);
   const [editTarget, setEditTarget]  = useState<Shipment | null>(null);
 
-  // ─ data fetching ─
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["shipments", statusFilter, search],
     queryFn:  () => apiFetch<{ data: Shipment[]; total: number }>(
       `/shipments?status=${statusFilter}&search=${encodeURIComponent(search)}&limit=100`
     ),
+    enabled: activeTab === "shipments",
   });
 
   const { data: stats } = useQuery({
@@ -661,10 +872,15 @@ export default function ShipmentsPage() {
   const shipments = shipmentsData?.data ?? [];
   const total     = shipmentsData?.total ?? 0;
 
-  // ─ status counts from stats ─
   const statusCounts: Record<string, number> = {};
   (stats?.statuses ?? []).forEach((r: any) => { statusCounts[r.status] = Number(r.count); });
   const totalAll = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+
+  const TABS = [
+    { key: "shipments", label: "الشحنات",       icon: Package,  count: totalAll },
+    { key: "zones",     label: "المناطق والأسعار", icon: Globe,    count: zones.length },
+    { key: "pricing",   label: "أسعار الأنواع",  icon: Layers,   count: parcelPricing.length },
+  ] as const;
 
   return (
     <div className="space-y-5" dir="rtl">
@@ -678,126 +894,141 @@ export default function ShipmentsPage() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">تتبع وإدارة جميع شحناتك من مكان واحد</p>
         </div>
-        <Button onClick={() => setFormOpen(true)} className="gap-2 text-sm font-bold">
-          <Plus className="w-4 h-4" /> شحنة جديدة
-        </Button>
+        {activeTab === "shipments" && (
+          <Button onClick={() => setFormOpen(true)} className="gap-2 text-sm font-bold">
+            <Plus className="w-4 h-4" /> شحنة جديدة
+          </Button>
+        )}
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="إجمالي الشحنات" value={totalAll} icon={Boxes} color="bg-primary/10 text-primary" />
-        <KpiCard label="تم التسليم" value={statusCounts["delivered"] ?? 0}
-          sub={totalAll ? `${Math.round(((statusCounts["delivered"]??0)/totalAll)*100)}%` : undefined}
-          icon={CheckCircle} color="bg-emerald-500/10 text-emerald-500" />
-        <KpiCard label="في الطريق"
-          value={(statusCounts["in_transit"]??0) + (statusCounts["out_for_delivery"]??0) + (statusCounts["confirmed"]??0)}
-          icon={Truck} color="bg-violet-500/10 text-violet-500" />
-        <KpiCard label="مرتجع / ملغي"
-          value={(statusCounts["returned"]??0) + (statusCounts["cancelled"]??0)}
-          icon={XCircle} color="bg-red-500/10 text-red-500" />
-      </div>
-
-      {/* ── Financial Summary ── */}
-      {stats && (
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="border-border bg-card">
-            <CardContent className="p-3">
-              <p className="text-[10px] text-muted-foreground font-medium">إجمالي رسوم الشحن</p>
-              <p className="text-base font-black text-foreground mt-0.5">{fc(stats.totalShippingFee ?? 0)}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border bg-card">
-            <CardContent className="p-3">
-              <p className="text-[10px] text-muted-foreground font-medium">إجمالي COD المتوقع</p>
-              <p className="text-base font-black text-amber-500 mt-0.5">{fc(stats.totalCod ?? 0)}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border bg-card">
-            <CardContent className="p-3">
-              <p className="text-[10px] text-muted-foreground font-medium">إجمالي المحصَّل</p>
-              <p className="text-base font-black text-emerald-500 mt-0.5">{fc(stats.totalCollected ?? 0)}</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* ── Filters ── */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <Input className="pr-9 text-sm h-9" placeholder="بحث باسم أو هاتف أو رقم الشحنة..."
-            value={search} onChange={e => setSearch(e.target.value)} />
-          {search && (
-            <button onClick={() => setSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-        <Select value={statusFilter} onValueChange={setStatus}>
-          <SelectTrigger className="w-[160px] h-9 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">كل الحالات ({totalAll})</SelectItem>
-            {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => (
-              <SelectItem key={s} value={s}>
-                {STATUS_CFG[s].label} {statusCounts[s] ? `(${statusCounts[s]})` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* ── Status Pills ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button onClick={() => setStatus("all")}
-          className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
-          الكل {totalAll > 0 && `(${totalAll})`}
-        </button>
-        {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => {
-          const cnt = statusCounts[s] ?? 0;
-          if (!cnt && statusFilter !== s) return null;
+      {/* ── Tabs ── */}
+      <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border w-fit">
+        {TABS.map(t => {
+          const Icon = t.icon;
+          const active = activeTab === t.key;
           return (
-            <button key={s} onClick={() => setStatus(s === statusFilter ? "all" : s)}
-              className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${statusFilter === s ? STATUS_CFG[s].cls : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
-              {STATUS_CFG[s].label} {cnt > 0 && `(${cnt})`}
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                active ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
+              }`}>
+              <Icon className="w-3.5 h-3.5" />
+              {t.label}
+              {t.count > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                  {t.count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* ── List ── */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+      {/* ── Tab: Shipments ── */}
+      {activeTab === "shipments" && (<>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard label="إجمالي الشحنات" value={totalAll} icon={Boxes} color="bg-primary/10 text-primary" />
+          <KpiCard label="تم التسليم" value={statusCounts["delivered"] ?? 0}
+            sub={totalAll ? `${Math.round(((statusCounts["delivered"]??0)/totalAll)*100)}%` : undefined}
+            icon={CheckCircle} color="bg-emerald-500/10 text-emerald-500" />
+          <KpiCard label="في الطريق"
+            value={(statusCounts["in_transit"]??0) + (statusCounts["out_for_delivery"]??0) + (statusCounts["confirmed"]??0)}
+            icon={Truck} color="bg-violet-500/10 text-violet-500" />
+          <KpiCard label="مرتجع / ملغي"
+            value={(statusCounts["returned"]??0) + (statusCounts["cancelled"]??0)}
+            icon={XCircle} color="bg-red-500/10 text-red-500" />
         </div>
-      ) : shipments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary/5 border border-primary/15 flex items-center justify-center mb-4">
-            <Package className="w-7 h-7 text-primary/40" />
-          </div>
-          <p className="text-sm font-bold text-foreground">لا توجد شحنات</p>
-          <p className="text-xs text-muted-foreground mt-1">ابدأ بإضافة شحنة جديدة</p>
-          <Button onClick={() => setFormOpen(true)} className="mt-4 gap-2 text-xs" size="sm">
-            <Plus className="w-3.5 h-3.5" /> شحنة جديدة
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {shipments.map(s => (
-            <ShipmentCard key={s.id} shipment={s}
-              onEdit={() => setEditTarget(s)}
-              onDelete={() => {
-                if (confirm(`حذف الشحنة ${s.shipmentNumber}؟`)) deleteMutation.mutate(s.id);
-              }}
-            />
-          ))}
-        </div>
-      )}
 
-      {total > shipments.length && (
-        <p className="text-center text-xs text-muted-foreground">يتم عرض {shipments.length} من {total} شحنة</p>
-      )}
+        {/* Financial Summary */}
+        {stats && (
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="border-border bg-card"><CardContent className="p-3">
+              <p className="text-[10px] text-muted-foreground font-medium">رسوم الشحن</p>
+              <p className="text-base font-black text-foreground mt-0.5">{fc(stats.totalShippingFee ?? 0)}</p>
+            </CardContent></Card>
+            <Card className="border-border bg-card"><CardContent className="p-3">
+              <p className="text-[10px] text-muted-foreground font-medium">COD المتوقع</p>
+              <p className="text-base font-black text-amber-500 mt-0.5">{fc(stats.totalCod ?? 0)}</p>
+            </CardContent></Card>
+            <Card className="border-border bg-card"><CardContent className="p-3">
+              <p className="text-[10px] text-muted-foreground font-medium">المحصَّل</p>
+              <p className="text-base font-black text-emerald-500 mt-0.5">{fc(stats.totalCollected ?? 0)}</p>
+            </CardContent></Card>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input className="pr-9 text-sm h-9" placeholder="بحث باسم أو هاتف أو رقم الشحنة..."
+              value={search} onChange={e => setSearch(e.target.value)} />
+            {search && <button onClick={() => setSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
+          </div>
+          <Select value={statusFilter} onValueChange={setStatus}>
+            <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل الحالات ({totalAll})</SelectItem>
+              {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => (
+                <SelectItem key={s} value={s}>{STATUS_CFG[s].label} {statusCounts[s] ? `(${statusCounts[s]})` : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Status Pills */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setStatus("all")}
+            className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
+            الكل {totalAll > 0 && `(${totalAll})`}
+          </button>
+          {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => {
+            const cnt = statusCounts[s] ?? 0;
+            if (!cnt && statusFilter !== s) return null;
+            return (
+              <button key={s} onClick={() => setStatus(s === statusFilter ? "all" : s)}
+                className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${statusFilter === s ? STATUS_CFG[s].cls : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
+                {STATUS_CFG[s].label} {cnt > 0 && `(${cnt})`}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* List */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        ) : shipments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-primary/5 border border-primary/15 flex items-center justify-center mb-4">
+              <Package className="w-7 h-7 text-primary/40" />
+            </div>
+            <p className="text-sm font-bold text-foreground">لا توجد شحنات</p>
+            <p className="text-xs text-muted-foreground mt-1">ابدأ بإضافة شحنة جديدة</p>
+            <Button onClick={() => setFormOpen(true)} className="mt-4 gap-2 text-xs" size="sm">
+              <Plus className="w-3.5 h-3.5" /> شحنة جديدة
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {shipments.map(s => (
+              <ShipmentCard key={s.id} shipment={s}
+                onEdit={() => setEditTarget(s)}
+                onDelete={() => { if (confirm(`حذف الشحنة ${s.shipmentNumber}؟`)) deleteMutation.mutate(s.id); }}
+              />
+            ))}
+          </div>
+        )}
+
+        {total > shipments.length && (
+          <p className="text-center text-xs text-muted-foreground">يتم عرض {shipments.length} من {total} شحنة</p>
+        )}
+      </>)}
+
+      {/* ── Tab: Zones ── */}
+      {activeTab === "zones" && <ZonesTab />}
+
+      {/* ── Tab: Pricing ── */}
+      {activeTab === "pricing" && <ParcelPricingTab />}
 
       {/* ── Dialogs ── */}
       {formOpen && (
