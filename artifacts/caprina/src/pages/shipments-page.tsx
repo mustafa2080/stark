@@ -288,7 +288,7 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
   };
 
   const { data: zones = [] } = useQuery({ queryKey:["shipment-zones"], queryFn: () => shipApiFetch<ShipmentZone[]>("/shipment-zones"), enabled: open });
-  const { data: parcelPrices = [] } = useQuery({ queryKey:["parcel-type-prices"], queryFn: () => shipApiFetch<ParcelTypePricing[]>("/shipment-parcel-types"), enabled: open });
+  const { data: parcelPrices = [] } = useQuery({ queryKey:["parcel-type-prices"], queryFn: () => shipApiFetch<ParcelTypePricing[]>("/parcel-type-pricing"), enabled: open });
 
   // حساب رسوم الشحن تلقائياً لما تختار منطقة أو نوع
   useEffect(() => {
@@ -454,7 +454,7 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
                   <option value="">— اختر المنطقة —</option>
                   {zones.filter(z => z.isActive !== false).map(z => (
                     <option key={z.id} value={z.id}>
-                      {z.name}{z.governorate ? ` — ${z.governorate}` : ""}  ·  {shipFc(z.price)}
+                      {z.name}{z.governorate ? ` — ${z.governorate}` : ""}  ·  {Number(z.price)} جنيه
                     </option>
                   ))}
                 </select>
@@ -476,7 +476,7 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
                   {parcelPrices.length > 0
                     ? parcelPrices.map(p => (
                         <option key={p.id} value={p.parcelType}>
-                          {p.label || PARCEL_LABELS[p.parcelType]}  ·  +{shipFc(p.basePrice)}
+                          {p.label || PARCEL_LABELS[p.parcelType]}  ·  +{Number(p.basePrice)} جنيه
                         </option>
                       ))
                     : (Object.keys(PARCEL_LABELS) as ParcelType[]).map(k => (
