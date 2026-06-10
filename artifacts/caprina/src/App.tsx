@@ -218,6 +218,7 @@ const SubscriptionExpired   = lazy(() => import("@/pages/subscription-expired"))
 const ProfilePage           = lazy(() => import("@/pages/profile"));
 const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
 const ContractPage          = lazy(() => import("@/pages/contract"));
+const ShipmentsPage         = lazy(() => import("@/pages/shipments"));
 
 // ─── Global QueryClient with smart caching defaults ──────────────────────────
 // MutationCache: أي mutation تنجح على الطلبات → invalidate الـ analytics فوراً
@@ -576,6 +577,8 @@ function Router() {
           <Route path="/super-admin" component={() => user?.role === "super_admin" ? <SuperAdminPage /> : <Redirect to="/" />} />
           {/* Profile */}
           <Route path="/profile" component={ProfilePage} />
+          {/* Shipments */}
+          <Route path="/shipments" component={() => <ProtectedRoute permission="dashboard.view" component={ShipmentsPage} />} />
           {/* Subscription Expired */}
           <Route path="/subscription-expired" component={SubscriptionExpired} />
           <Route                                  component={NotFound} />

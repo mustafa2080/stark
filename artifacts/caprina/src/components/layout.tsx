@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { firstLogoBase64 } from "@/lib/first-logo";
 import { secondLogoBase64 } from "@/lib/second-logo";
-import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, ShoppingCart, ShoppingBag, Receipt, Building2, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User } from "lucide-react";
+import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, ShoppingCart, ShoppingBag, Receipt, Building2, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin } from "lucide-react";
 import { BrandFull, BrandLogoMark } from "@/components/brand-logo";
 import { BrandSettingsDialog } from "@/components/brand-settings-dialog";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ interface LayoutProps {
 const ALL_NAV = [
   { href: "/my-dashboard",      label: "لوحتي",              icon: LayoutDashboard, exact: true, permission: null, section: null, employeeOnly: true,  iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/",                  label: "لوحة التحكم",        icon: LayoutDashboard, exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-blue-400",       group: "dashboard"    },
+  { href: "/shipments",         label: "الشحنات",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "dashboard"    },
   { href: "/orders",            label: "الطلبات",             icon: Package,                     permission: "orders.view",             section: "section_orders",             iconColor: "text-orange-400",     group: "orders"       },
   { href: "/orders/new",        label: "طلب جديد",            icon: Plus,                        permission: "orders.create",           section: "section_new_order",          iconColor: "text-emerald-400",    group: "orders"       },
   { href: "/invoices",          label: "الفواتير",             icon: FileText,                    permission: "invoices.view",           section: "section_invoices",           iconColor: "text-yellow-400",     group: "orders"       },
