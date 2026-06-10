@@ -19,7 +19,7 @@ export async function checkSubscription(
   const user = req.user;
 
   // ── 1. Super Admin Bypass ─────────────────────────────────────────────────
-  if (user?.role === "super_admin") {
+  if (user?.role === "super_admin" || user?.role === "super-admin") {
     next();
     return;
   }
