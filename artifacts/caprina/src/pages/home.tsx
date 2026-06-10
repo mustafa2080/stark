@@ -210,13 +210,13 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
 function HeroSection() {
   const [, navigate] = useLocation();
   return (
-    <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black pt-20" dir="rtl">
+    <section id="hero" className="relative h-screen flex items-start justify-center overflow-hidden bg-black pt-20" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
       <div className="absolute inset-0" style={{ opacity: 0.55 }}>
         <img src={trackingImg} alt="" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
       </div>
-      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
+      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto pt-16">
         <div
           className="inline-flex items-center gap-3 rounded-full px-5 py-2.5 mb-8"
           style={{
@@ -274,9 +274,6 @@ function HeroSection() {
           </button>
         </div>
       </div>
-      <button onClick={() => document.getElementById("tracking")?.scrollIntoView({ behavior: "smooth" })} className="absolute bottom-8 left-1/2 -translate-x-1/2 text-gray-500 animate-bounce">
-        <ChevronDown size={28} />
-      </button>
     </section>
   );
 }
@@ -294,18 +291,25 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
   return (
     <section
       id="tracking"
-      className="relative z-10 -mt-20 pb-16"
+      className="relative z-20 pb-16"
       dir="rtl"
       style={{
-        backgroundImage: "url('/tracking.jpeg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        marginTop: "-38vh",
+        background: "transparent",
       }}
     >
       {/* overlay */}
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.62)", zIndex: 0 }} />
-      <div className="max-w-full px-0 relative" style={{ zIndex: 1 }}>
-        <div className="relative p-10 text-center">
+      <div className="max-w-3xl mx-auto px-4 relative" style={{ zIndex: 1 }}>
+        <div
+          className="relative p-8 text-center rounded-3xl"
+          style={{
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.06) inset",
+          }}
+        >
           <div className="relative" style={{ zIndex: 2 }}>
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-white/10">
           <Package size={28} className="text-white" />
@@ -338,7 +342,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           ))}
         </div>
           </div>{/* end content */}
-        </div>
+        </div>{/* end glass card */}
       </div>
     </section>
   );
