@@ -886,7 +886,7 @@ function ClientsSection() {
             className="text-sm md:text-base"
             style={{ color:"rgba(255,255,255,0.3)", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.25s ease both" : "none" }}
           >
-            من القاهرة للأقصر — نوصل في 27 محافظة بكل احترافية
+            من القاهرة لأسوان — نوصل في 27 محافظة بكل احترافية
           </p>
         </div>
 
