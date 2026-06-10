@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, Truck, MapPin, Clock, CheckCircle, AlertTriangle, XCircle, CreditCard, Boxes, Phone } from "lucide-react";
+import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, Truck, MapPin, Clock, CheckCircle, AlertTriangle, XCircle, CreditCard, Boxes, Phone, User } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
 import type { UpdateOrderBodyStatus } from "@workspace/api-zod";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -213,23 +213,37 @@ function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {
 function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [senderName, setSenderName]       = useState("");
-  const [senderPhone, setSenderPhone]     = useState("");
-  const [clientSearch, setClientSearch]   = useState("");
-  const [showClientDrop, setShowClientDrop] = useState(false);
-  const [receiverName, setReceiverName]   = useState("");
+
+  // ── Sender fields (مملوءة من العميل) ──────────────────────────────────
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [clientSearch,     setClientSearch]     = useState("");
+  const [showClientDrop,   setShowClientDrop]   = useState(false);
+  const [senderName,       setSenderName]       = useState("");
+  const [senderPhone,      setSenderPhone]      = useState("");
+  const [senderPhone2,     setSenderPhone2]     = useState("");
+  const [senderEmail,      setSenderEmail]      = useState("");
+  const [senderAddress,    setSenderAddress]    = useState("");
+  const [senderCity,       setSenderCity]       = useState("");
+
+  // ── Receiver fields ────────────────────────────────────────────────────
+  const [receiverName,  setReceiverName]  = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
-  const [receiverCity, setReceiverCity]   = useState("");
+  const [receiverCity,  setReceiverCity]  = useState("");
+
+  // ── Shipment fields ────────────────────────────────────────────────────
   const [paymentMethod, setPaymentMethod] = useState<ShipPaymentMethod>("cod");
-  const [codAmount, setCodAmount]         = useState("");
-  const [shippingFee, setShippingFee]     = useState("");
-  const [status, setStatus]               = useState<ShipmentStatus>("waiting");
+  const [codAmount,     setCodAmount]     = useState("");
+  const [shippingFee,   setShippingFee]   = useState("");
+  const [status,        setStatus]        = useState<ShipmentStatus>("waiting");
+  const [notes,         setNotes]         = useState("");
+
   const dropRef = useRef<HTMLDivElement>(null);
 
   // جلب العملاء التجاريين
-  const { data: financeClients = [] } = useQuery<{ id:number; name:string; phone:string|null; phone2:string|null; city:string|null }[]>({
+  type FinClient = { id:number; name:string; phone:string|null; phone2:string|null; email:string|null; address:string|null; city:string|null; region:string|null };
+  const { data: financeClients = [] } = useQuery<FinClient[]>({
     queryKey: ["finance-clients-ship"],
-    queryFn: () => apiFetch("/finance/clients"),
+    queryFn:  () => apiFetch("/finance/clients"),
     staleTime: 60_000,
     enabled: open,
   });
@@ -237,23 +251,38 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const filteredClients = clientSearch
     ? financeClients.filter(c =>
         c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-        (c.phone ?? "").includes(clientSearch)
+        (c.phone ?? "").includes(clientSearch) ||
+        (c.phone2 ?? "").includes(clientSearch)
       )
     : financeClients;
 
   // إغلاق الـ dropdown لما يضغط برا
   useEffect(() => {
     if (!showClientDrop) return;
-    const h = (e: MouseEvent) => { if (dropRef.current && !dropRef.current.contains(e.target as Node)) setShowClientDrop(false); };
+    const h = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setShowClientDrop(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showClientDrop]);
 
-  const selectClient = (c: typeof financeClients[0]) => {
+  // لما تختار عميل → ملي كل بياناته
+  const selectClient = (c: FinClient) => {
+    setSelectedClientId(c.id);
     setSenderName(c.name);
-    setSenderPhone(c.phone ?? c.phone2 ?? "");
+    setSenderPhone(c.phone ?? "");
+    setSenderPhone2(c.phone2 ?? "");
+    setSenderEmail(c.email ?? "");
+    setSenderAddress(c.address ?? "");
+    setSenderCity(c.city ?? c.region ?? "");
     setClientSearch(c.name);
     setShowClientDrop(false);
+  };
+
+  const clearClient = () => {
+    setSelectedClientId(null);
+    setClientSearch(""); setSenderName(""); setSenderPhone("");
+    setSenderPhone2(""); setSenderEmail(""); setSenderAddress(""); setSenderCity("");
   };
 
   const { data: zones = [] } = useQuery({ queryKey:["shipment-zones"], queryFn: () => shipApiFetch<ShipmentZone[]>("/shipment-zones") });
@@ -264,96 +293,173 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
     onError: (e: any) => toast({ title:"خطأ", description: e.message, variant:"destructive" }),
   });
 
+  const handleSubmit = () => {
+    createMutation.mutate({
+      clientId:      selectedClientId ?? undefined,
+      senderName,
+      senderPhone:   senderPhone   || undefined,
+      senderPhone2:  senderPhone2  || undefined,
+      senderEmail:   senderEmail   || undefined,
+      senderAddress: senderAddress || undefined,
+      senderCity:    senderCity    || undefined,
+      receiverName,
+      receiverPhone: receiverPhone || undefined,
+      receiverCity:  receiverCity  || undefined,
+      paymentMethod,
+      codAmount:     codAmount    ? Number(codAmount)    : undefined,
+      shippingFee:   shippingFee  ? Number(shippingFee)  : undefined,
+      status,
+      notes:         notes || undefined,
+    });
+  };
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl">
-      <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" dir="rtl">
+      <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-lg mx-auto flex flex-col max-h-[90vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <h2 className="text-base font-black flex items-center gap-2"><Truck className="w-4 h-4 text-primary"/>شحنة جديدة</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
         </div>
-        <div className="grid grid-cols-2 gap-3">
 
-          {/* المُرسِل — searchable dropdown من العملاء التجاريين */}
-          <div className="col-span-2" ref={dropRef}>
-            <label className="text-xs font-bold mb-1 block">المُرسِل *</label>
-            <div className="relative">
-              <input
-                className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="ابحث باسم العميل أو رقم الهاتف..."
-                value={clientSearch}
-                onChange={e => { setClientSearch(e.target.value); setSenderName(e.target.value); setShowClientDrop(true); }}
-                onFocus={() => setShowClientDrop(true)}
-              />
-              {clientSearch && (
-                <button type="button" onClick={() => { setClientSearch(""); setSenderName(""); setSenderPhone(""); }} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                  <X className="w-3.5 h-3.5"/>
-                </button>
-              )}
-              {showClientDrop && (
-                <div className="absolute top-full mt-1 right-0 left-0 z-50 bg-background border border-border rounded-xl shadow-2xl max-h-52 overflow-y-auto">
-                  {filteredClients.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">لا يوجد عملاء مطابقون</p>
-                  ) : filteredClients.map(c => (
-                    <button key={c.id} type="button" onClick={() => selectClient(c)}
-                      className="w-full text-right px-3 py-2.5 hover:bg-muted/50 transition-colors flex items-center justify-between gap-2 border-b border-border/30 last:border-0">
-                      <div>
-                        <p className="text-sm font-bold text-foreground">{c.name}</p>
-                        {c.phone && <p className="text-[11px] text-muted-foreground">{c.phone}</p>}
-                      </div>
-                      {c.city && <span className="text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full shrink-0">{c.city}</span>}
+        {/* Body — scrollable */}
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+
+          {/* ── المُرسِل ───────────────────────────────────────── */}
+          <div>
+            <p className="text-xs font-black text-primary uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5"/>بيانات المُرسِل
+            </p>
+            <div className="space-y-3">
+
+              {/* Searchable client dropdown */}
+              <div ref={dropRef}>
+                <label className="text-xs font-bold mb-1 block">اسم المُرسِل *</label>
+                <div className="relative">
+                  <input
+                    className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="ابحث باسم العميل أو رقم الهاتف..."
+                    value={clientSearch}
+                    onChange={e => { setClientSearch(e.target.value); setSenderName(e.target.value); setSelectedClientId(null); setShowClientDrop(true); }}
+                    onFocus={() => setShowClientDrop(true)}
+                  />
+                  {clientSearch && (
+                    <button type="button" onClick={clearClient} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      <X className="w-3.5 h-3.5"/>
                     </button>
-                  ))}
+                  )}
+                  {showClientDrop && (
+                    <div className="absolute top-full mt-1 right-0 left-0 z-[9999] bg-background border border-border rounded-xl shadow-2xl max-h-48 overflow-y-auto">
+                      {filteredClients.length === 0
+                        ? <p className="text-xs text-muted-foreground text-center py-4">لا يوجد عملاء مطابقون</p>
+                        : filteredClients.map(c => (
+                          <button key={c.id} type="button" onClick={() => selectClient(c)}
+                            className={`w-full text-right px-3 py-2.5 hover:bg-muted/50 transition-colors flex items-center justify-between gap-2 border-b border-border/30 last:border-0 ${selectedClientId === c.id ? "bg-primary/5" : ""}`}>
+                            <div>
+                              <p className="text-sm font-bold text-foreground">{c.name}</p>
+                              <p className="text-[11px] text-muted-foreground">{[c.phone, c.phone2].filter(Boolean).join(" · ")}</p>
+                            </div>
+                            <div className="text-left shrink-0">
+                              {(c.city || c.region) && <span className="text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full block">{c.city || c.region}</span>}
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* باقي بيانات المرسل — تظهر مملوءة بعد الاختيار، قابلة للتعديل */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold mb-1 block">هاتف 1</label>
+                  <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={senderPhone} onChange={e => setSenderPhone(e.target.value)} placeholder="01xxxxxxxxx"/>
+                </div>
+                <div>
+                  <label className="text-xs font-bold mb-1 block">هاتف 2</label>
+                  <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={senderPhone2} onChange={e => setSenderPhone2(e.target.value)} placeholder="اختياري"/>
+                </div>
+                <div>
+                  <label className="text-xs font-bold mb-1 block">البريد الإلكتروني</label>
+                  <input type="email" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={senderEmail} onChange={e => setSenderEmail(e.target.value)} placeholder="email@example.com"/>
+                </div>
+                <div>
+                  <label className="text-xs font-bold mb-1 block">المدينة</label>
+                  <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={senderCity} onChange={e => setSenderCity(e.target.value)} placeholder="القاهرة"/>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs font-bold mb-1 block">العنوان</label>
+                  <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={senderAddress} onChange={e => setSenderAddress(e.target.value)} placeholder="العنوان التفصيلي"/>
+                </div>
+              </div>
             </div>
-            {senderPhone && (
-              <p className="text-[11px] text-primary mt-1 flex items-center gap-1">
-                <Phone className="w-3 h-3"/>{senderPhone}
-              </p>
-            )}
           </div>
 
+          {/* ── المُستلِم ──────────────────────────────────────── */}
           <div>
-            <label className="text-xs font-bold mb-1 block">اسم المُستلِم *</label>
-            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverName} onChange={e => setReceiverName(e.target.value)} placeholder="اسم المُستلِم"/>
+            <p className="text-xs font-black text-primary uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5"/>بيانات المُستلِم
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-bold mb-1 block">اسم المُستلِم *</label>
+                <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverName} onChange={e => setReceiverName(e.target.value)} placeholder="اسم المُستلِم"/>
+              </div>
+              <div>
+                <label className="text-xs font-bold mb-1 block">هاتف المُستلِم</label>
+                <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverPhone} onChange={e => setReceiverPhone(e.target.value)} placeholder="01xxxxxxxxx"/>
+              </div>
+              <div>
+                <label className="text-xs font-bold mb-1 block">المدينة</label>
+                <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverCity} onChange={e => setReceiverCity(e.target.value)} placeholder="القاهرة"/>
+              </div>
+            </div>
           </div>
+
+          {/* ── تفاصيل الشحنة ─────────────────────────────────── */}
           <div>
-            <label className="text-xs font-bold mb-1 block">هاتف المُستلِم</label>
-            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverPhone} onChange={e => setReceiverPhone(e.target.value)} placeholder="01xxxxxxxxx"/>
-          </div>
-          <div>
-            <label className="text-xs font-bold mb-1 block">المدينة</label>
-            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverCity} onChange={e => setReceiverCity(e.target.value)} placeholder="القاهرة"/>
-          </div>
-          <div>
-            <label className="text-xs font-bold mb-1 block">طريقة الدفع</label>
-            <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as ShipPaymentMethod)}>
-              <option value="cod">الدفع عند الاستلام</option>
-              <option value="prepaid">مدفوع مسبقاً</option>
-              <option value="deferred">الدفع لاحق</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-bold mb-1 block">COD (جنيه)</label>
-            <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={codAmount} onChange={e => setCodAmount(e.target.value)} placeholder="0"/>
-          </div>
-          <div>
-            <label className="text-xs font-bold mb-1 block">رسوم الشحن (جنيه)</label>
-            <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={shippingFee} onChange={e => setShippingFee(e.target.value)} placeholder="0"/>
-          </div>
-          <div>
-            <label className="text-xs font-bold mb-1 block">الحالة</label>
-            <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={status} onChange={e => setStatus(e.target.value as ShipmentStatus)}>
-              {(Object.keys(SHIP_STATUS_CFG) as ShipmentStatus[]).map(s => <option key={s} value={s}>{SHIP_STATUS_CFG[s].label}</option>)}
-            </select>
+            <p className="text-xs font-black text-primary uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5"/>تفاصيل الشحنة
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold mb-1 block">طريقة الدفع</label>
+                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as ShipPaymentMethod)}>
+                  <option value="cod">الدفع عند الاستلام</option>
+                  <option value="prepaid">مدفوع مسبقاً</option>
+                  <option value="deferred">الدفع لاحق</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold mb-1 block">الحالة</label>
+                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={status} onChange={e => setStatus(e.target.value as ShipmentStatus)}>
+                  {(Object.keys(SHIP_STATUS_CFG) as ShipmentStatus[]).map(s => <option key={s} value={s}>{SHIP_STATUS_CFG[s].label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold mb-1 block">COD (جنيه)</label>
+                <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={codAmount} onChange={e => setCodAmount(e.target.value)} placeholder="0"/>
+              </div>
+              <div>
+                <label className="text-xs font-bold mb-1 block">رسوم الشحن (جنيه)</label>
+                <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={shippingFee} onChange={e => setShippingFee(e.target.value)} placeholder="0"/>
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-bold mb-1 block">ملاحظات</label>
+                <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={notes} onChange={e => setNotes(e.target.value)} placeholder="أي ملاحظات إضافية..."/>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="flex gap-2 pt-1 border-t border-border">
+
+        {/* Footer */}
+        <div className="flex gap-2 px-6 py-4 border-t border-border shrink-0">
           <button onClick={onClose} className="flex-1 h-9 text-sm border border-border rounded-lg text-muted-foreground hover:bg-muted/40 transition-all">إلغاء</button>
           <button
             disabled={!senderName || !receiverName || createMutation.isPending}
-            onClick={() => createMutation.mutate({ senderName, senderPhone: senderPhone || undefined, receiverName, receiverPhone, receiverCity, paymentMethod, codAmount: codAmount ? Number(codAmount) : undefined, shippingFee: shippingFee ? Number(shippingFee) : undefined, status })}
+            onClick={handleSubmit}
             className="flex-1 h-9 text-sm font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
             {createMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Plus className="w-3.5 h-3.5"/>}
             إنشاء الشحنة
