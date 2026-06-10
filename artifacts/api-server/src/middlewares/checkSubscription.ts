@@ -43,7 +43,13 @@ export async function checkSubscription(
     return;
   }
 
-  if (!tenant || !tenant.isActive) {
+  if (!tenant) {
+    // tenant مش موجود في DB — bypass (single-tenant أو dev mode)
+    next();
+    return;
+  }
+
+  if (!tenant.isActive) {
     res.status(403).json({
       error: "tenant_not_found",
       message: "الاشتراك غير موجود — تواصل مع الإدارة",
