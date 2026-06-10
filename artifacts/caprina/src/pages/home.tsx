@@ -306,20 +306,20 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       <div className="max-w-full px-0 relative" style={{ zIndex: 1 }}>
         <div className="relative p-10 text-center">
           <div className="relative" style={{ zIndex: 2 }}>
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
-          <Package size={28} className={darkMode ? "text-white" : "text-black"} />
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-white/10">
+          <Package size={28} className="text-white" />
         </div>
-        <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>تتبع الشحنة</h2>
-        <p className={`mb-8 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>يمكنك تتبع شحنتك ومعرفة حالتها الدائمة في أي وقت</p>
+        <h2 className="text-3xl font-black mb-2 text-white">تتبع الشحنة</h2>
+        <p className="mb-8 text-gray-300">يمكنك تتبع شحنتك ومعرفة حالتها الدائمة في أي وقت</p>
         <div className="flex gap-3 max-w-lg mx-auto mb-10">
           <input
             type="text"
             value={trackingNum}
             onChange={e => setTrackingNum(e.target.value)}
             placeholder="أدخل رقم التتبع مثال: 1TRK12345678"
-            className={`flex-1 border rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none text-sm transition-colors ${darkMode ? "bg-[#1a1a1a] border-[#333] text-white focus:border-[#666]" : "bg-white border-gray-300 text-black focus:border-gray-500"}`}
+            className="flex-1 border rounded-xl px-4 py-3 focus:outline-none text-sm transition-colors bg-white/10 border-white/20 text-white placeholder-white/40 focus:border-white/50 backdrop-blur-sm"
           />
-          <button className={`font-bold px-6 py-3 rounded-xl transition-colors text-sm whitespace-nowrap ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}>
+          <button className="font-bold px-6 py-3 rounded-xl transition-colors text-sm whitespace-nowrap bg-white text-black hover:bg-gray-100">
             تتبع
           </button>
         </div>
@@ -327,12 +327,12 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           {steps.map((step, i) => (
             <div key={i} className="flex items-center gap-2">
               <div className="flex flex-col items-center gap-1">
-                <div className={`w-10 h-10 border rounded-xl flex items-center justify-center ${darkMode ? "bg-[#1a1a1a] border-[#333]" : "bg-white border-gray-300"}`}>
-                  <step.icon size={18} className={darkMode ? "text-gray-400" : "text-gray-500"} />
+                <div className="w-10 h-10 border rounded-xl flex items-center justify-center bg-white/10 border-white/20 backdrop-blur-sm">
+                  <step.icon size={18} className="text-gray-300" />
                 </div>
-                <span className={`text-xs ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{step.label}</span>
+                <span className="text-xs text-gray-400">{step.label}</span>
               </div>
-              {i < steps.length - 1 && <div className={`w-8 h-px mb-4 ${darkMode ? "bg-[#333]" : "bg-gray-300"}`} />}
+              {i < steps.length - 1 && <div className="w-8 h-px mb-4 bg-white/20" />}
             </div>
           ))}
         </div>
