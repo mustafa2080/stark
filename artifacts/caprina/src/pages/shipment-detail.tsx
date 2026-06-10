@@ -1,15 +1,23 @@
-import { useState, useEffect } from "react";
-import { useRoute, Link } from "wouter";
-import { ArrowRight, Truck, MapPin, Phone, Package, CreditCard, Clock, CheckCircle, AlertTriangle, XCircle, Pencil, Save, X, Printer, RotateCcw, User, FileText, DollarSign } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useRoute, Link, useLocation } from "wouter";
+import { createPortal } from "react-dom";
+import {
+  ArrowRight, Truck, MapPin, Phone, Package, CreditCard, Clock,
+  CheckCircle, AlertTriangle, XCircle, Pencil, Printer, RotateCcw,
+  User, FileText, DollarSign, Trash2, Save, CheckCircle2,
+} from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch } from "@/lib/api";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-// ─── helpers ───────────────────────────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────────────────────
 function apiHeaders() {
   const token = localStorage.getItem("caprina_token");
   return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -24,116 +32,149 @@ const fc = (n: number | string | null | undefined) =>
 const fdate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
-// ─── Status config ─────────────────────────────────────────────────────────────
+// ── types ──────────────────────────────────────────────────────────────────────
 type ShipmentStatus = "waiting"|"confirmed"|"picked_up"|"in_transit"|"out_for_delivery"|"delivered"|"delayed"|"returned"|"cancelled";
 
-const STATUS_CFG: Record<ShipmentStatus, { label: string; icon: React.ElementType; cls: string; dot: string }> = {
-  waiting:          { label: "انتظار",          icon: Clock,         cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600",    dot: "bg-slate-400" },
-  confirmed:        { label: "مؤكدة",           icon: CheckCircle,   cls: "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700",           dot: "bg-blue-500" },
-  picked_up:        { label: "تم الاستلام",     icon: Package,       cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700",           dot: "bg-cyan-500" },
-  in_transit:       { label: "في الطريق",       icon: Truck,         cls: "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700", dot: "bg-violet-500" },
-  out_for_delivery: { label: "خارج للتسليم",   icon: MapPin,        cls: "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700",     dot: "bg-amber-500" },
-  delivered:        { label: "تم التسليم ✓",   icon: CheckCircle,   cls: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700", dot: "bg-emerald-500" },
-  delayed:          { label: "مؤجلة",           icon: AlertTriangle, cls: "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-700", dot: "bg-orange-500" },
-  returned:         { label: "مرتجعة",          icon: RotateCcw,     cls: "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700",               dot: "bg-red-500" },
-  cancelled:        { label: "ملغية",           icon: XCircle,       cls: "bg-gray-50 dark:bg-gray-900/30 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700",          dot: "bg-gray-400" },
-};
-
-const PAYMENT_CFG: Record<string, { label: string; cls: string }> = {
-  cod:      { label: "الدفع عند الاستلام", cls: "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-300" },
-  prepaid:  { label: "مدفوع مسبقاً",       cls: "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-300" },
-  deferred: { label: "الدفع لاحقاً",        cls: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-300" },
-};
-
-const PARCEL_LABELS: Record<string, string> = {
-  document:    "مستندات",
-  normal:      "عادي",
-  fragile:     "هش",
-  heavy:       "ثقيل",
-  electronics: "إلكترونيات",
-  clothing:    "ملابس",
-  food:        "طعام",
-  other:       "أخرى",
-};
-
-// ─── Status timeline steps ─────────────────────────────────────────────────────
-const STATUS_STEPS: ShipmentStatus[] = ["waiting","confirmed","picked_up","in_transit","out_for_delivery","delivered"];
-
-// ─── Shipment interface ────────────────────────────────────────────────────────
 interface Shipment {
-  id: number;
-  shipmentNumber?: string;
-  trackingNumber?: string;
+  id: number; shipmentNumber?: string; trackingNumber?: string;
   clientId?: number;
-  senderName: string;
-  senderPhone?: string;
-  senderPhone2?: string;
-  senderEmail?: string;
-  senderAddress?: string;
-  senderCity?: string;
-  receiverName: string;
-  receiverPhone?: string;
-  receiverPhone2?: string;
-  receiverAddress?: string;
-  receiverCity?: string;
-  zoneId?: number;
-  zonePrice?: string | number;
-  parcelType?: string;
-  parcelTypePrice?: string | number;
-  weight?: string | number;
-  pieces?: number;
-  description?: string;
-  declaredValue?: string | number;
-  paymentMethod: string;
-  codAmount?: string | number;
-  shippingFee?: string | number;
-  insuranceFee?: string | number;
-  totalAmount?: string | number;
-  collectedAmount?: string | number;
-  status: ShipmentStatus;
-  notes?: string;
-  internalNotes?: string;
-  createdAt: string;
-  updatedAt?: string;
-  createdByName?: string;
+  senderName: string; senderPhone?: string; senderPhone2?: string;
+  senderEmail?: string; senderAddress?: string; senderCity?: string;
+  receiverName: string; receiverPhone?: string; receiverPhone2?: string;
+  receiverAddress?: string; receiverCity?: string;
+  zoneId?: number; zonePrice?: string|number;
+  parcelType?: string; parcelTypePrice?: string|number;
+  weight?: string|number; pieces?: number;
+  description?: string; declaredValue?: string|number;
+  paymentMethod: string; codAmount?: string|number;
+  shippingFee?: string|number; insuranceFee?: string|number;
+  totalAmount?: string|number; collectedAmount?: string|number;
+  status: ShipmentStatus; notes?: string; internalNotes?: string;
+  createdAt: string; updatedAt?: string; createdByName?: string;
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
+// ── status config ──────────────────────────────────────────────────────────────
+const STATUS_OPTIONS = [
+  { value: "waiting",          label: "انتظار",          icon: "⏳", color: "text-slate-400",   bg: "bg-slate-500/10",   border: "border-slate-600/40",   dot: "bg-slate-400" },
+  { value: "confirmed",        label: "مؤكدة",           icon: "✅", color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-600/40",    dot: "bg-blue-400" },
+  { value: "picked_up",        label: "تم الاستلام",     icon: "📦", color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-600/40",    dot: "bg-cyan-400" },
+  { value: "in_transit",       label: "في الطريق",       icon: "🚚", color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-600/40",  dot: "bg-violet-400" },
+  { value: "out_for_delivery", label: "خارج للتسليم",   icon: "📍", color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-600/40",   dot: "bg-amber-400" },
+  { value: "delivered",        label: "تم التسليم ✓",   icon: "🎉", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-600/40", dot: "bg-emerald-400" },
+  { value: "delayed",          label: "مؤجلة",           icon: "⚠️", color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-600/40",  dot: "bg-orange-400" },
+  { value: "returned",         label: "مرتجعة",          icon: "↩️", color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
+  { value: "cancelled",        label: "ملغية",           icon: "❌", color: "text-gray-400",    bg: "bg-gray-500/10",    border: "border-gray-600/40",    dot: "bg-gray-400" },
+] as const;
+
+const PAYMENT_LABELS: Record<string, string> = {
+  cod: "الدفع عند الاستلام", prepaid: "مدفوع مسبقاً", deferred: "الدفع لاحقاً",
+};
+const PARCEL_LABELS: Record<string, string> = {
+  document: "مستندات", normal: "عادي", fragile: "هش",
+  heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس", food: "طعام", other: "أخرى",
+};
+const STATUS_STEPS: ShipmentStatus[] = ["waiting","confirmed","picked_up","in_transit","out_for_delivery","delivered"];
+
+// ── StatusSelect (same as order-detail) ───────────────────────────────────────
+function StatusSelect({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const current = STATUS_OPTIONS.find(o => o.value === value) ?? STATUS_OPTIONS[0];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+          dropRef.current  && !dropRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleOpen = () => {
+    if (disabled) return;
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX, width: Math.max(rect.width, 220) });
+    }
+    setOpen(p => !p);
+  };
+
+  return (
+    <div className="relative select-none" style={{ minWidth: 190 }}>
+      <button ref={triggerRef} type="button" disabled={disabled} onClick={handleOpen}
+        className={`w-full flex items-center gap-2 px-3 h-9 rounded-lg border text-sm font-semibold transition-all duration-150 cursor-pointer ${current.bg} ${current.border} ${current.color} hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm`}>
+        <span className="text-base leading-none">{current.icon}</span>
+        <span className="flex-1 text-right">{current.label}</span>
+        <svg className={`w-4 h-4 opacity-60 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div ref={dropRef} style={{ position: "fixed", top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+          className="rounded-xl border border-border bg-popover shadow-2xl overflow-hidden">
+          <div className="p-1.5 flex flex-col gap-0.5">
+            {STATUS_OPTIONS.map(opt => {
+              const isActive = opt.value === value;
+              return (
+                <button key={opt.value} type="button"
+                  onClick={() => { onChange(opt.value); setOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-100 text-right cursor-pointer ${isActive ? `${opt.bg} ${opt.color} ${opt.border} border` : "hover:bg-muted text-foreground border border-transparent"}`}>
+                  <span className="text-base leading-none w-5 text-center">{opt.icon}</span>
+                  <span className="flex-1">{opt.label}</span>
+                  {isActive && <span className={`w-2 h-2 rounded-full shrink-0 ${opt.dot}`} />}
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// ── InfoRow helper ─────────────────────────────────────────────────────────────
+function InfoRow({ label, value, bold, mono }: { label: string; value: string; bold?: boolean; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-2 py-1.5 border-b border-border/40 last:border-0">
+      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+      <span className={`text-xs text-left break-all ${bold ? "font-bold text-foreground" : "text-foreground"} ${mono ? "font-mono" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
 export default function ShipmentDetailPage() {
   const [, params] = useRoute("/shipments/:id");
   const id = Number(params?.id);
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
 
-  // ─── fetch shipment ──────────────────────────────────────────────────────
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [selectStatus, setSelectStatus] = useState<string | null>(null);
+  const [newTracking, setNewTracking] = useState("");
+  const [showTrackingEdit, setShowTrackingEdit] = useState(false);
+
   const { data: shipment, isLoading, error } = useQuery<Shipment>({
     queryKey: ["shipment-detail", id],
     queryFn: () => shipApiFetch<Shipment>(`/shipments/${id}`),
     enabled: !!id,
   });
-
-  // ─── fetch zone name ─────────────────────────────────────────────────────
   const { data: zones = [] } = useQuery<{ id: number; name: string; governorate?: string }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => shipApiFetch("/shipment-zones"),
   });
   const zone = zones.find(z => z.id === shipment?.zoneId);
 
-  // ─── inline status edit ──────────────────────────────────────────────────
-  const [editStatus, setEditStatus] = useState(false);
-  const [newStatus, setNewStatus] = useState<ShipmentStatus>("waiting");
-  const [newTracking, setNewTracking] = useState("");
-  const [editNotes, setEditNotes] = useState(false);
-  const [notesVal, setNotesVal] = useState("");
-  const [iNotesVal, setINotesVal] = useState("");
-
   useEffect(() => {
     if (shipment) {
-      setNewStatus(shipment.status);
+      setSelectStatus(shipment.status);
       setNewTracking(shipment.trackingNumber ?? "");
-      setNotesVal(shipment.notes ?? "");
-      setINotesVal(shipment.internalNotes ?? "");
     }
   }, [shipment]);
 
@@ -143,148 +184,250 @@ export default function ShipmentDetailPage() {
       qc.invalidateQueries({ queryKey: ["shipment-detail", id] });
       qc.invalidateQueries({ queryKey: ["shipments-orders"] });
       toast({ title: "تم الحفظ ✅" });
-      setEditStatus(false);
-      setEditNotes(false);
+      setShowTrackingEdit(false);
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  // ─── guards ──────────────────────────────────────────────────────────────
+  const handleStatusChange = (newStatus: string) => {
+    setSelectStatus(newStatus);
+    updateMutation.mutate({ status: newStatus });
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await shipApiFetch(`/shipments/${id}`, { method: "DELETE" });
+      qc.invalidateQueries({ queryKey: ["shipments-orders"] });
+      toast({ title: "تم حذف الشحنة" });
+      navigate("/orders");
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
+  const handlePrint = () => {
+    if (!shipment) return;
+    const statusLabel = STATUS_OPTIONS.find(o => o.value === shipment.status)?.label ?? shipment.status;
+    const paymentLabel = PAYMENT_LABELS[shipment.paymentMethod] ?? shipment.paymentMethod;
+    const parcelLabel = shipment.parcelType ? (PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType) : "—";
+    const zoneLabel = zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? "—");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>
+<meta charset="UTF-8"/><title>شحنة ${shipment.shipmentNumber ?? id}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:"Cairo",sans-serif; }
+  body { background:#fff; color:#111; padding:24px; font-size:13px; direction:rtl; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid #e5e7eb; }
+  .title { font-size:22px; font-weight:900; } .sub { color:#6b7280; font-size:12px; margin-top:4px; }
+  .status-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-weight:700; font-size:12px; background:#f3f4f6; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  .card { border:1px solid #e5e7eb; border-radius:10px; padding:14px; }
+  .card-title { font-weight:800; font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #f3f4f6; font-size:12px; }
+  .row:last-child { border:none; } .row .label { color:#6b7280; } .row .val { font-weight:600; }
+  .financial { border:2px solid #e5e7eb; border-radius:10px; padding:14px; margin-bottom:16px; }
+  .total { font-size:18px; font-weight:900; color:#7c3aed; }
+  @media print { body { padding:0; } }
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="title">شحنة #${shipment.shipmentNumber ?? id}</div>
+    <div class="sub">${fdate(shipment.createdAt)}${shipment.createdByName ? ` · ${shipment.createdByName}` : ""}</div>
+    ${shipment.trackingNumber ? `<div class="sub" style="margin-top:4px;font-weight:700">رقم التتبع: ${shipment.trackingNumber}</div>` : ""}
+  </div>
+  <span class="status-badge">${statusLabel}</span>
+</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-title">المُرسِل</div>
+    <div class="row"><span class="label">الاسم</span><span class="val">${shipment.senderName}</span></div>
+    ${shipment.senderPhone ? `<div class="row"><span class="label">الهاتف</span><span class="val">${shipment.senderPhone}</span></div>` : ""}
+    ${shipment.senderCity ? `<div class="row"><span class="label">المدينة</span><span class="val">${shipment.senderCity}</span></div>` : ""}
+    ${shipment.senderAddress ? `<div class="row"><span class="label">العنوان</span><span class="val">${shipment.senderAddress}</span></div>` : ""}
+  </div>
+  <div class="card">
+    <div class="card-title">المُستلِم</div>
+    <div class="row"><span class="label">الاسم</span><span class="val">${shipment.receiverName}</span></div>
+    ${shipment.receiverPhone ? `<div class="row"><span class="label">الهاتف</span><span class="val">${shipment.receiverPhone}</span></div>` : ""}
+    <div class="row"><span class="label">المنطقة</span><span class="val">${zoneLabel}</span></div>
+    ${shipment.receiverAddress ? `<div class="row"><span class="label">العنوان</span><span class="val">${shipment.receiverAddress}</span></div>` : ""}
+  </div>
+</div>
+<div class="card" style="margin-bottom:16px">
+  <div class="card-title">تفاصيل الطرد</div>
+  <div class="row"><span class="label">نوع الطرد</span><span class="val">${parcelLabel}</span></div>
+  ${shipment.weight ? `<div class="row"><span class="label">الوزن</span><span class="val">${shipment.weight} كجم</span></div>` : ""}
+  <div class="row"><span class="label">طريقة الدفع</span><span class="val">${paymentLabel}</span></div>
+  ${shipment.description ? `<div class="row"><span class="label">الوصف</span><span class="val">${shipment.description}</span></div>` : ""}
+</div>
+<div class="financial">
+  <div class="card-title">الملخص المالي</div>
+  ${Number(shipment.zonePrice) > 0 ? `<div class="row"><span class="label">سعر المنطقة</span><span class="val">${fc(shipment.zonePrice)}</span></div>` : ""}
+  ${Number(shipment.parcelTypePrice) > 0 ? `<div class="row"><span class="label">سعر النوع</span><span class="val">+${fc(shipment.parcelTypePrice)}</span></div>` : ""}
+  <div class="row" style="margin-top:8px"><span class="label" style="font-weight:700">رسوم الشحن</span><span class="total">${fc(shipment.shippingFee)}</span></div>
+  ${Number(shipment.codAmount) > 0 ? `<div class="row"><span class="label">مبلغ COD</span><span class="val" style="color:#d97706;font-weight:700">${fc(shipment.codAmount)}</span></div>` : ""}
+</div>
+${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</div><p style="font-size:13px;line-height:1.6">${shipment.notes}</p></div>` : ""}
+<script>window.onload=()=>{window.print();window.close();}<\/script>
+</body></html>`);
+    w.document.close();
+  };
+
+  // ── guards ────────────────────────────────────────────────────────────────
   if (isLoading) return (
     <div className="flex items-center justify-center min-h-[60vh]" dir="rtl">
       <div className="flex flex-col items-center gap-3 text-muted-foreground">
         <Truck className="w-10 h-10 animate-pulse text-primary" />
-        <p className="text-sm">جاري تحميل بيانات الشحنة...</p>
+        <p className="text-sm">جاري تحميل الشحنة...</p>
       </div>
     </div>
   );
-
   if (error || !shipment) return (
     <div className="flex items-center justify-center min-h-[60vh]" dir="rtl">
       <div className="text-center space-y-3">
         <XCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <p className="font-bold text-foreground">الشحنة غير موجودة</p>
+        <p className="font-bold">الشحنة غير موجودة</p>
         <Link href="/orders" className="text-sm text-primary underline">← العودة للشحنات</Link>
       </div>
     </div>
   );
 
-  const cfg = STATUS_CFG[shipment.status] ?? STATUS_CFG.waiting;
-  const StatusIcon = cfg.icon;
-  const paymentCfg = PAYMENT_CFG[shipment.paymentMethod] ?? PAYMENT_CFG.cod;
   const currentStepIdx = STATUS_STEPS.indexOf(shipment.status);
   const isTerminal = shipment.status === "returned" || shipment.status === "cancelled";
+  const currentStatusOpt = STATUS_OPTIONS.find(o => o.value === (selectStatus ?? shipment.status)) ?? STATUS_OPTIONS[0];
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-500 max-w-5xl mx-auto" dir="rtl">
+    <div className="space-y-4 animate-in fade-in duration-500 max-w-5xl mx-auto" dir="rtl">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Link href="/orders"
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-card hover:bg-muted transition-colors">
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          <div>
-            <h1 className="text-xl font-black flex items-center gap-2">
-              <Truck className="w-5 h-5 text-primary" />
-              شحنة #{shipment.shipmentNumber ?? String(id).padStart(4, "0")}
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {fdate(shipment.createdAt)}
-              {shipment.createdByName && <span> · بواسطة {shipment.createdByName}</span>}
-            </p>
+      {/* ══ HEADER CARD — نفس شكل order-detail ══════════════════════════════ */}
+      <div className="rounded-xl overflow-hidden border border-border shadow-sm">
+
+        {/* صف العنوان */}
+        <div className="bg-card px-4 py-3 flex items-center justify-between gap-3 border-b border-border">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link href="/orders">
+              <button className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors border border-border bg-card">
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base font-bold truncate flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-primary" />
+                  شحنة {shipment.shipmentNumber ?? `#${id}`}
+                </h1>
+                <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${currentStatusOpt.bg} ${currentStatusOpt.border} ${currentStatusOpt.color}`}>
+                  <span className="text-xs">{currentStatusOpt.icon}</span>
+                  {currentStatusOpt.label}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {fdate(shipment.createdAt)}
+                {shipment.createdByName && <span> · {shipment.createdByName}</span>}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Status badge + edit */}
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${cfg.cls}`}>
-            <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-            <StatusIcon className="w-3.5 h-3.5" />
-            {cfg.label}
-          </span>
+        {/* صف الأزرار — نفس ترتيب order-detail بالظبط */}
+        <div className="bg-muted/30 px-3 py-2 flex items-center gap-1.5 flex-wrap">
+
+          {/* فاتورة / طباعة */}
+          <button onClick={handlePrint}
+            className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium">
+            <Printer className="w-3.5 h-3.5" />فاتورة
+          </button>
+
+          {/* حذف — للأدمن */}
           {isAdmin && (
-            <button onClick={() => setEditStatus(v => !v)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-card hover:bg-muted transition-colors text-muted-foreground hover:text-primary">
-              <Pencil className="w-3.5 h-3.5" />
+            <button onClick={() => setShowDeleteDialog(true)}
+              className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-red-800 text-red-400 hover:bg-red-900/20 bg-card transition-colors flex items-center font-medium">
+              <Trash2 className="w-3.5 h-3.5" />حذف
             </button>
           )}
-          <button onClick={() => window.print()}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-card hover:bg-muted transition-colors text-muted-foreground">
-            <Printer className="w-3.5 h-3.5" />
-          </button>
+
+          {/* تعديل رقم التتبع — للأدمن */}
+          {isAdmin && (
+            <button onClick={() => setShowTrackingEdit(v => !v)}
+              className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium">
+              <Pencil className="w-3.5 h-3.5" />تعديل
+            </button>
+          )}
+
+          {/* تغيير الحالة — للأدمن */}
+          {isAdmin && (
+            <div className="mr-auto">
+              <StatusSelect
+                value={selectStatus ?? shipment.status}
+                onChange={handleStatusChange}
+                disabled={updateMutation.isPending}
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Inline status edit panel ──────────────────────────────────────── */}
-      {editStatus && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="p-4 space-y-3">
-            <p className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
-              <Pencil className="w-3.5 h-3.5" />تعديل الحالة
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold mb-1 block">الحالة الجديدة</label>
-                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  value={newStatus} onChange={e => setNewStatus(e.target.value as ShipmentStatus)}>
-                  {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => (
-                    <option key={s} value={s}>{STATUS_CFG[s].label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold mb-1 block">رقم التتبع</label>
-                <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  value={newTracking} onChange={e => setNewTracking(e.target.value)} placeholder="رقم التتبع..." />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setEditStatus(false)}
-                className="h-8 px-3 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors">
-                إلغاء
-              </button>
-              <button
-                onClick={() => updateMutation.mutate({ status: newStatus, trackingNumber: newTracking || undefined })}
-                disabled={updateMutation.isPending}
-                className="h-8 px-4 text-xs rounded-lg bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors flex items-center gap-1.5">
-                <Save className="w-3 h-3" />{updateMutation.isPending ? "جاري..." : "حفظ"}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+      {/* ── tracking edit panel ── */}
+      {showTrackingEdit && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex items-end gap-3">
+          <div className="flex-1">
+            <label className="text-xs font-bold mb-1 block">رقم التتبع</label>
+            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              value={newTracking} onChange={e => setNewTracking(e.target.value)} placeholder="رقم التتبع..." />
+          </div>
+          <button onClick={() => updateMutation.mutate({ trackingNumber: newTracking || null })}
+            disabled={updateMutation.isPending}
+            className="h-9 px-4 text-xs rounded-lg bg-primary text-primary-foreground font-bold flex items-center gap-1.5 shrink-0">
+            <Save className="w-3 h-3" />{updateMutation.isPending ? "جاري..." : "حفظ"}
+          </button>
+          <button onClick={() => setShowTrackingEdit(false)}
+            className="h-9 px-3 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted shrink-0">
+            إلغاء
+          </button>
+        </div>
       )}
 
-      {/* ── Progress timeline ─────────────────────────────────────────────── */}
+      {/* ── tracking number highlight ── */}
+      {shipment.trackingNumber && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 bg-primary/5">
+          <FileText className="w-4 h-4 text-primary shrink-0" />
+          <span className="text-xs text-muted-foreground">رقم التتبع:</span>
+          <span className="font-black text-sm text-primary font-mono">{shipment.trackingNumber}</span>
+        </div>
+      )}
+
+      {/* ── Progress timeline ── */}
       {!isTerminal && (
         <Card>
           <CardContent className="p-4">
             <p className="text-xs font-bold text-muted-foreground mb-4 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />مسار الشحنة
             </p>
-            <div className="flex items-center gap-0">
+            <div className="flex items-start gap-0">
               {STATUS_STEPS.map((s, i) => {
                 const done = currentStepIdx > i;
                 const active = currentStepIdx === i;
-                const scfg = STATUS_CFG[s];
-                const Icon = scfg.icon;
+                const opt = STATUS_OPTIONS.find(o => o.value === s)!;
                 return (
                   <div key={s} className="flex items-center flex-1">
                     <div className="flex flex-col items-center gap-1 flex-1">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                        done   ? "bg-emerald-500 border-emerald-500 text-white" :
-                        active ? "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20" :
-                                 "bg-muted border-border text-muted-foreground"
-                      }`}>
-                        <Icon className="w-3.5 h-3.5" />
-                      </div>
-                      <span className={`text-[9px] font-bold text-center leading-tight ${
-                        active ? "text-primary" : done ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
-                      }`}>{scfg.label}</span>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${
+                        done   ? "bg-emerald-500 text-white" :
+                        active ? `${opt.bg} ${opt.color} ring-2 ring-offset-2 ring-offset-background ring-current` :
+                                 "bg-muted text-muted-foreground"
+                      }`}>{opt.icon}</div>
+                      <span className={`text-[9px] font-bold text-center leading-tight ${active ? opt.color : done ? "text-emerald-500" : "text-muted-foreground"}`}>
+                        {opt.label}
+                      </span>
                     </div>
                     {i < STATUS_STEPS.length - 1 && (
-                      <div className={`h-0.5 flex-1 mx-1 rounded-full transition-all ${done ? "bg-emerald-500" : "bg-border"}`} />
+                      <div className={`h-0.5 flex-1 mx-1 rounded-full ${done ? "bg-emerald-500" : "bg-border"}`} />
                     )}
                   </div>
                 );
@@ -294,66 +437,57 @@ export default function ShipmentDetailPage() {
         </Card>
       )}
       {isTerminal && (
-        <Card className={shipment.status === "returned" ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/10" : "border-gray-300 dark:border-gray-700"}>
-          <CardContent className="p-4 flex items-center gap-3">
-            {shipment.status === "returned" ? <RotateCcw className="w-5 h-5 text-red-500" /> : <XCircle className="w-5 h-5 text-gray-500" />}
-            <p className="font-bold text-sm">{cfg.label}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Tracking number ──────────────────────────────────────────────── */}
-      {shipment.trackingNumber && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 bg-primary/5">
-          <FileText className="w-4 h-4 text-primary shrink-0" />
-          <span className="text-xs text-muted-foreground">رقم التتبع:</span>
-          <span className="font-black text-sm text-primary font-mono">{shipment.trackingNumber}</span>
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border font-bold text-sm ${
+          shipment.status === "returned"
+            ? "border-red-800 bg-red-900/10 text-red-400"
+            : "border-gray-700 bg-gray-800/20 text-gray-400"
+        }`}>
+          {shipment.status === "returned" ? <RotateCcw className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+          {currentStatusOpt.label}
         </div>
       )}
 
-      {/* ── Main grid ─────────────────────────────────────────────────────── */}
+      {/* ══ MAIN GRID ══════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* ── Left col: sender + receiver ── */}
+        {/* ── left 2/3: sender + receiver + parcel + notes ── */}
         <div className="lg:col-span-2 space-y-4">
 
-          {/* بيانات المُرسِل */}
+          {/* المُرسِل */}
           <Card>
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
                   <User className="w-3.5 h-3.5 text-blue-500" />
                 </div>
                 بيانات المُرسِل
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
+            <CardContent className="px-4 pb-4 space-y-0.5">
               <InfoRow label="الاسم" value={shipment.senderName} bold />
-              {shipment.senderPhone && <InfoRow label="الهاتف" value={shipment.senderPhone} mono dir="ltr" />}
-              {shipment.senderPhone2 && <InfoRow label="هاتف 2" value={shipment.senderPhone2} mono dir="ltr" />}
-              {shipment.senderCity && <InfoRow label="المدينة" value={shipment.senderCity} />}
-              {shipment.senderAddress && <InfoRow label="العنوان" value={shipment.senderAddress} />}
-              {shipment.senderEmail && <InfoRow label="البريد" value={shipment.senderEmail} />}
+              {shipment.senderPhone    && <InfoRow label="الهاتف"   value={shipment.senderPhone} mono />}
+              {shipment.senderPhone2   && <InfoRow label="هاتف 2"   value={shipment.senderPhone2} mono />}
+              {shipment.senderCity     && <InfoRow label="المدينة"  value={shipment.senderCity} />}
+              {shipment.senderAddress  && <InfoRow label="العنوان"  value={shipment.senderAddress} />}
+              {shipment.senderEmail    && <InfoRow label="البريد"   value={shipment.senderEmail} />}
             </CardContent>
           </Card>
 
-          {/* بيانات المُستلِم */}
+          {/* المُستلِم */}
           <Card>
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
                   <MapPin className="w-3.5 h-3.5 text-emerald-500" />
                 </div>
                 بيانات المُستلِم
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
+            <CardContent className="px-4 pb-4 space-y-0.5">
               <InfoRow label="الاسم" value={shipment.receiverName} bold />
-              {shipment.receiverPhone && <InfoRow label="الهاتف" value={shipment.receiverPhone} mono dir="ltr" />}
-              {shipment.receiverPhone2 && <InfoRow label="هاتف 2" value={shipment.receiverPhone2} mono dir="ltr" />}
-              {shipment.receiverCity && <InfoRow label="المدينة / المنطقة" value={
-                zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : shipment.receiverCity
-              } />}
+              {shipment.receiverPhone  && <InfoRow label="الهاتف"        value={shipment.receiverPhone} mono />}
+              {shipment.receiverPhone2 && <InfoRow label="هاتف 2"        value={shipment.receiverPhone2} mono />}
+              <InfoRow label="المنطقة" value={zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? "—")} />
               {shipment.receiverAddress && <InfoRow label="العنوان" value={shipment.receiverAddress} />}
             </CardContent>
           </Card>
@@ -362,133 +496,84 @@ export default function ShipmentDetailPage() {
           <Card>
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
                   <Package className="w-3.5 h-3.5 text-violet-500" />
                 </div>
                 تفاصيل الطرد
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
-              {shipment.parcelType && (
-                <InfoRow label="نوع الطرد" value={PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType} />
-              )}
-              {shipment.weight && <InfoRow label="الوزن" value={`${shipment.weight} كجم`} />}
-              {shipment.pieces && shipment.pieces > 1 && <InfoRow label="عدد القطع" value={String(shipment.pieces)} />}
-              {shipment.description && <InfoRow label="الوصف" value={shipment.description} />}
-              {shipment.declaredValue && Number(shipment.declaredValue) > 0 && (
-                <InfoRow label="القيمة المعلنة" value={fc(shipment.declaredValue)} />
-              )}
+            <CardContent className="px-4 pb-4 space-y-0.5">
+              {shipment.parcelType && <InfoRow label="نوع الطرد" value={PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType} />}
+              {shipment.weight     && <InfoRow label="الوزن"     value={`${shipment.weight} كجم`} />}
+              {(shipment.pieces ?? 1) > 1 && <InfoRow label="القطع" value={String(shipment.pieces)} />}
+              {shipment.description && <InfoRow label="الوصف"    value={shipment.description} />}
+              {Number(shipment.declaredValue) > 0 && <InfoRow label="القيمة المعلنة" value={fc(shipment.declaredValue)} />}
             </CardContent>
           </Card>
 
           {/* الملاحظات */}
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-black flex items-center gap-2 justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+          {(shipment.notes || shipment.internalNotes) && (
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-black flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
                     <FileText className="w-3.5 h-3.5 text-amber-500" />
                   </div>
                   الملاحظات
-                </div>
-                {isAdmin && (
-                  <button onClick={() => setEditNotes(v => !v)}
-                    className="text-muted-foreground hover:text-primary transition-colors">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-2">
+                {shipment.notes && <p className="text-sm text-foreground leading-relaxed">{shipment.notes}</p>}
+                {shipment.internalNotes && (
+                  <div className="pt-2 border-t border-dashed border-border">
+                    <p className="text-[10px] font-bold text-muted-foreground mb-1">ملاحظات داخلية</p>
+                    <p className="text-sm text-foreground leading-relaxed">{shipment.internalNotes}</p>
+                  </div>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-3">
-              {editNotes ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-bold mb-1 block">ملاحظات عامة</label>
-                    <textarea className="w-full text-sm px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-                      rows={3} value={notesVal} onChange={e => setNotesVal(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold mb-1 block">ملاحظات داخلية</label>
-                    <textarea className="w-full text-sm px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-                      rows={3} value={iNotesVal} onChange={e => setINotesVal(e.target.value)} />
-                  </div>
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => setEditNotes(false)}
-                      className="h-8 px-3 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted">إلغاء</button>
-                    <button onClick={() => updateMutation.mutate({ notes: notesVal, internalNotes: iNotesVal })}
-                      disabled={updateMutation.isPending}
-                      className="h-8 px-4 text-xs rounded-lg bg-primary text-primary-foreground font-bold flex items-center gap-1.5">
-                      <Save className="w-3 h-3" />حفظ
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {shipment.notes ? (
-                    <p className="text-sm text-foreground leading-relaxed">{shipment.notes}</p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">لا توجد ملاحظات</p>
-                  )}
-                  {shipment.internalNotes && (
-                    <div className="mt-2 pt-2 border-t border-dashed border-border">
-                      <p className="text-[10px] font-bold text-muted-foreground mb-1">ملاحظات داخلية</p>
-                      <p className="text-sm text-foreground leading-relaxed">{shipment.internalNotes}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        {/* ── Right col: financial summary ── */}
+        {/* ── right 1/3: financial + info ── */}
         <div className="space-y-4">
 
           {/* الملخص المالي */}
           <Card className="border-primary/30">
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <DollarSign className="w-3.5 h-3.5 text-primary" />
                 </div>
                 الملخص المالي
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
-              {/* payment method badge */}
-              <span className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full border ${paymentCfg.cls}`}>
-                {paymentCfg.label}
-              </span>
+              <span className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                shipment.paymentMethod === "cod"      ? "bg-amber-500/10 border-amber-600/40 text-amber-400" :
+                shipment.paymentMethod === "prepaid"  ? "bg-emerald-500/10 border-emerald-600/40 text-emerald-400" :
+                                                        "bg-blue-500/10 border-blue-600/40 text-blue-400"
+              }`}>{PAYMENT_LABELS[shipment.paymentMethod] ?? shipment.paymentMethod}</span>
               <Separator />
               <div className="space-y-2 text-sm">
                 {Number(shipment.zonePrice) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">سعر المنطقة</span>
-                    <span className="font-semibold">{fc(shipment.zonePrice)}</span>
-                  </div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">سعر المنطقة</span><span className="font-semibold">{fc(shipment.zonePrice)}</span></div>
                 )}
                 {Number(shipment.parcelTypePrice) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">سعر نوع الطرد</span>
-                    <span className="font-semibold">+{fc(shipment.parcelTypePrice)}</span>
-                  </div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">سعر نوع الطرد</span><span className="font-semibold">+{fc(shipment.parcelTypePrice)}</span></div>
                 )}
                 {Number(shipment.insuranceFee) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">رسوم التأمين</span>
-                    <span className="font-semibold">{fc(shipment.insuranceFee)}</span>
-                  </div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">رسوم التأمين</span><span className="font-semibold">{fc(shipment.insuranceFee)}</span></div>
                 )}
                 <Separator />
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-bold">رسوم الشحن</span>
-                  <span className="font-black text-base text-primary">{fc(shipment.shippingFee)}</span>
+                  <span className="font-black text-xl text-primary">{fc(shipment.shippingFee)}</span>
                 </div>
                 {Number(shipment.codAmount) > 0 && (
                   <div className="flex justify-between mt-1">
                     <span className="text-muted-foreground">مبلغ COD</span>
-                    <span className="font-black text-base text-amber-500">{fc(shipment.codAmount)}</span>
+                    <span className="font-black text-lg text-amber-500">{fc(shipment.codAmount)}</span>
                   </div>
                 )}
                 {Number(shipment.collectedAmount) > 0 && (
@@ -501,17 +586,17 @@ export default function ShipmentDetailPage() {
             </CardContent>
           </Card>
 
-          {/* معلومات إضافية */}
+          {/* معلومات الشحنة */}
           <Card>
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-slate-500/10 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-slate-500/10 flex items-center justify-center shrink-0">
                   <Clock className="w-3.5 h-3.5 text-slate-500" />
                 </div>
-                معلومات إضافية
+                معلومات الشحنة
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
+            <CardContent className="px-4 pb-4 space-y-0.5">
               <InfoRow label="رقم الشحنة" value={shipment.shipmentNumber ?? "—"} mono />
               {shipment.trackingNumber && <InfoRow label="رقم التتبع" value={shipment.trackingNumber} mono />}
               <InfoRow label="تاريخ الإنشاء" value={fdate(shipment.createdAt)} />
@@ -524,19 +609,24 @@ export default function ShipmentDetailPage() {
 
         </div>
       </div>
-    </div>
-  );
-}
 
-// ─── InfoRow helper ────────────────────────────────────────────────────────────
-function InfoRow({ label, value, bold, mono, dir: d }: {
-  label: string; value: string; bold?: boolean; mono?: boolean; dir?: string;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-2 py-1 border-b border-border/40 last:border-0">
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-      <span className={`text-xs text-left break-all ${bold ? "font-bold text-foreground" : "text-foreground"} ${mono ? "font-mono" : ""}`}
-        dir={d}>{value}</span>
+      {/* ── Delete dialog ── */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف الشحنة</AlertDialogTitle>
+            <AlertDialogDescription>هل أنت متأكد من حذف الشحنة {shipment.shipmentNumber}؟ لا يمكن التراجع.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white">
+              {isDeleting ? "جاري الحذف..." : "نعم، احذف"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
