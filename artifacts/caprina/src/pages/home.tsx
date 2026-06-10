@@ -821,8 +821,8 @@ function ClientsSection() {
       <style>{`
         @keyframes scrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
         @keyframes scrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
-        .clients-t1 { animation: scrollLeft  30s linear infinite; }
-        .clients-t2 { animation: scrollRight 36s linear infinite; }
+        .clients-t1 { animation: scrollLeft  8s linear infinite; }
+        .clients-t2 { animation: scrollRight 10s linear infinite; }
       `}</style>
 
       <div className="text-center mb-12 px-4">
@@ -836,9 +836,18 @@ function ClientsSection() {
         <p className="text-sm" style={{ color: "#444" }}>أكثر من 200 عميل يعتمدون على STARK للشحن يومياً</p>
       </div>
 
-      {/* Row — centered */}
-      <div className="flex justify-center gap-5 flex-wrap px-8">
-        {items.map((item, i) => <Circle key={`c-${i}`} item={item} idx={i} />)}
+      {/* Row 1 — left */}
+      <div className="relative mb-5 overflow-hidden" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
+        <div className="clients-t1 flex gap-5" style={{ width: "max-content" }}>
+          {[...items, ...items, ...items, ...items, ...items, ...items].map((item, i) => <Circle key={`t1-${i}`} item={item} idx={i} />)}
+        </div>
+      </div>
+
+      {/* Row 2 — right */}
+      <div className="relative overflow-hidden" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
+        <div className="clients-t2 flex gap-5" style={{ width: "max-content" }}>
+          {[...items, ...items, ...items, ...items, ...items, ...items].reverse().map((item, i) => <Circle key={`t2-${i}`} item={item} idx={i} />)}
+        </div>
       </div>
     </section>
   );
