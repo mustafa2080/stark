@@ -804,15 +804,7 @@ function ClientsSection() {
     { value: "2001", label: "سنة التأسيس" },
   ];
 
-  // Testimonial cards
-  const testimonials = [
-    { name: "محمد السيد", role: "صاحب متجر إلكتروني", text: "STARK غيرت طريقة شحننا، التوصيل أصبح أسرع وأكثر موثوقية من أي وقت مضى." },
-    { name: "دينا عمر", role: "مديرة مبيعات", text: "التتبع اللحظي والدعم السريع جعلا عملياتنا اللوجستية سلسة تماماً." },
-    { name: "أحمد خالد", role: "تاجر جملة", text: "أثق بـ STARK في توصيل بضاعتي لأنهم دائماً في الموعد وبكل احترافية." },
-    { name: "سارة مصطفى", role: "بائعة أونلاين", text: "خدمة ممتازة وأسعار تنافسية، عملائي سعداء دائماً بسرعة التوصيل." },
-    { name: "عمر حسن", role: "صاحب مصنع", text: "منذ تعاملنا مع STARK لم نواجه أي تأخير — هذا ما يميزهم عن الجميع." },
-    { name: "ريم إبراهيم", role: "مسؤولة تجارة إلكترونية", text: "فريق متعاون وخدمة من الدرجة الأولى، أنصح بها كل تاجر يريد النمو." },
-  ];
+
 
   const avatarColors = ["#1e3a5f","#2d1b4e","#1a3c2e","#3c1a1a","#2e2a10","#12303c"];
 
@@ -924,55 +916,50 @@ function ClientsSection() {
           ))}
         </div>
 
-        {/* ── Testimonials grid ── */}
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-14"
-        >
-          {testimonials.map((t, i) => (
-            <div
-              key={i}
-              className="relative rounded-2xl p-5 group"
-              style={{
-                background:"linear-gradient(135deg,#111 0%,#0d0d0d 100%)",
-                border:"1px solid rgba(255,255,255,0.06)",
-                opacity: visible ? 1 : 0,
-                animation: visible ? `clientsGridReveal 0.5s ${0.45 + i * 0.07}s ease both` : "none",
-                transition:"border-color 0.3s, box-shadow 0.3s, transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-              }}
-              onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="translateY(-6px)"; el.style.borderColor="rgba(255,255,255,0.16)"; el.style.boxShadow="0 20px 50px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.1)"; }}
-              onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="translateY(0)"; el.style.borderColor="rgba(255,255,255,0.06)"; el.style.boxShadow="none"; }}
-            >
-              {/* inner shimmer */}
-              <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{ background:"linear-gradient(135deg,rgba(255,255,255,0.035),transparent 55%)" }} />
-
-              {/* Quote mark */}
-              <div className="text-5xl font-black leading-none mb-3 select-none"
-                style={{ color:"rgba(255,255,255,0.06)", fontFamily:"Georgia,serif" }}>&ldquo;</div>
-
-              <p className="text-sm leading-relaxed mb-5" style={{ color:"rgba(255,255,255,0.55)" }}>{t.text}</p>
-
-              <div className="flex items-center gap-3 mt-auto">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                  style={{ background: avatarColors[i % avatarColors.length], border:"1px solid rgba(255,255,255,0.12)" }}>
-                  {t.name[0]}
+        {/* ── Clients photo grid ── */}
+        {clients.length > 0 && (
+          <div
+            className="mb-14"
+            style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.45s ease both" : "none" }}
+          >
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+              {clients.map((client, i) => (
+                <div
+                  key={client.id}
+                  className="group relative aspect-square rounded-2xl overflow-hidden"
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    background: `linear-gradient(135deg, ${avatarColors[i % avatarColors.length]} 0%, #0d0d0d 100%)`,
+                    opacity: visible ? 1 : 0,
+                    animation: visible ? `clientsGridReveal 0.45s ${0.45 + i * 0.04}s ease both` : "none",
+                    transition: "transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s, border-color 0.3s",
+                  }}
+                  onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "scale(1.06)"; el.style.borderColor = "rgba(255,255,255,0.2)"; el.style.boxShadow = "0 12px 40px rgba(0,0,0,0.7)"; }}
+                  onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "scale(1)"; el.style.borderColor = "rgba(255,255,255,0.07)"; el.style.boxShadow = "none"; }}
+                >
+                  {client.avatar ? (
+                    <img
+                      src={client.avatar}
+                      alt={client.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: 22, fontWeight: 800, color: "rgba(255,255,255,0.2)" }}>{client.name[0]}</span>
+                    </div>
+                  )}
+                  {/* name tooltip on hover */}
+                  <div
+                    className="absolute inset-0 flex items-end opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 60%)" }}
+                  >
+                    <span className="w-full text-center text-xs font-bold text-white pb-2 px-1 truncate">{client.name}</span>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-white">{t.name}</div>
-                  <div className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>{t.role}</div>
-                </div>
-                {/* Stars */}
-                <div className="mr-auto flex gap-0.5">
-                  {Array.from({length:5}).map((_,si) => (
-                    <svg key={si} viewBox="0 0 12 12" fill="#c0a020" className="w-3 h-3">
-                      <path d="M6 0l1.5 3.5L11 4l-2.5 2.5.6 3.5L6 8.5 2.9 10l.6-3.5L1 4l3.5-.5z"/>
-                    </svg>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
         {/* ── Scrolling client avatars ── */}
         <div
