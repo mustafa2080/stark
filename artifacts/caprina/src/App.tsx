@@ -217,6 +217,7 @@ const SuperAdminPage        = lazy(() => import("@/pages/super-admin"));
 const SubscriptionExpired   = lazy(() => import("@/pages/subscription-expired"));
 const ProfilePage           = lazy(() => import("@/pages/profile"));
 const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
+const ContractPage          = lazy(() => import("@/pages/contract"));
 
 // ─── Global QueryClient with smart caching defaults ──────────────────────────
 // MutationCache: أي mutation تنجح على الطلبات → invalidate الـ analytics فوراً
@@ -417,7 +418,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register") return <Redirect to="/" />;
+  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register" && location !== "/contract") return <Redirect to="/" />;
 
   // ── Subscription expired check ──
   if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
@@ -496,9 +497,9 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/" || location === "/home" || location === "/login" || location === "/register") {
+  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/contract") {
     if (location === "/home") return <Redirect to="/" />;
-    // لو logged in → روح للداشبورد
+    // لو logged in → روح للداشبورد (بس مش من /contract)
     if (user && (location === "/" || location === "/login" || location === "/register")) {
       if (user.role === "admin" || user.role === "super_admin" || user.role === "super-admin") return <Redirect to="/dashboard" />;
       if (user.role === "client") return <Redirect to="/client-profile" />;
@@ -508,6 +509,7 @@ function Router() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/contract" component={ContractPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
         </Switch>
