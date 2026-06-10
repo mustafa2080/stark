@@ -895,7 +895,10 @@ export default function ShipmentsPage() {
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab]   = useState<"shipments" | "zones" | "pricing">("shipments");
-  const [search, setSearch]         = useState("");
+  const [search, setSearch]         = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("q") || "";
+  });
   const [statusFilter, setStatus]   = useState("all");
   const [formOpen, setFormOpen]      = useState(false);
   const [editTarget, setEditTarget]  = useState<Shipment | null>(null);

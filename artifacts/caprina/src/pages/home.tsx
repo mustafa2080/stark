@@ -276,6 +276,12 @@ function HeroSection() {
 function TrackingSection({ darkMode }: { darkMode: boolean }) {
   const [trackingNum, setTrackingNum] = useState("");
   const [, navigate] = useLocation();
+
+  const handleTrack = () => {
+    const q = trackingNum.trim();
+    if (!q) return;
+    navigate(`/shipments?q=${encodeURIComponent(q)}`);
+  };
   const steps = [
     { icon: FileText, label: "تم التسجيل" },
     { icon: Package, label: "جارى التجميع" },
@@ -319,6 +325,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             type="text"
             value={trackingNum}
             onChange={e => setTrackingNum(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
             placeholder="أدخل رقم التتبع مثال: 1TRK12345678"
             className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
             style={{
@@ -335,7 +342,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
               e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)";
             }}
           />
-          <button className="font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm whitespace-nowrap text-black hover:scale-105"
+          <button onClick={handleTrack} className="font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm whitespace-nowrap text-black hover:scale-105"
             style={{ background: "linear-gradient(135deg, #ffffff 0%, #d8d8d8 100%)", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.3)" }}>
             تتبع
           </button>
