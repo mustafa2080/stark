@@ -730,44 +730,12 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
 
 // ─── Contact Section ──────────────────────────────────────────────────────────
 function ContactSection({ darkMode }: { darkMode: boolean }) {
-  const branches = [
-    {
-      name: "فرع الهرم",
-      address: "الجيزة - بك فلما أبو الهول",
-      phone: "تليفون : الهرم",
-    },
-    {
-      name: "فرع جسر السويس",
-      address: "القاهرة - جسر السويس، كافيه من تلاتة",
-      phone: "تليفون : جسر السويس",
-    },
-  ];
   return (
     <section id="contact" className={`py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
       <div className="max-w-4xl mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>اتصل بنا</h2>
           <p className={darkMode ? "text-gray-400" : "text-gray-500"}>افضل طرق للحصول على المساعدة المطلوبة</p>
-        </div>
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {branches.map((b, i) => (
-            <div key={i} className={`border rounded-2xl p-6 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
-                  <MapPin size={18} className={darkMode ? "text-gray-300" : "text-gray-600"} />
-                </div>
-                <h3 className={`font-bold ${darkMode ? "text-white" : "text-black"}`}>{b.name}</h3>
-              </div>
-              <p className={`text-sm mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>{b.address}</p>
-              <p className={`text-sm mb-4 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{b.phone}</p>
-              <a
-                href="#"
-                className={`inline-flex items-center gap-2 text-sm transition-colors rounded-lg px-3 py-1.5 border ${darkMode ? "text-gray-300 hover:text-white border-[#333] hover:border-[#666]" : "text-gray-600 hover:text-black border-gray-300 hover:border-gray-500"}`}
-              >
-                <Phone size={14} /> اتصل الآن
-              </a>
-            </div>
-          ))}
         </div>
         <div className="text-center">
           <a
