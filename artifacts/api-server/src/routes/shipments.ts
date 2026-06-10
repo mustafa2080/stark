@@ -343,6 +343,32 @@ router.put("/parcel-type-pricing/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: "خطأ" }); }
 });
 
+router.post("/parcel-type-pricing", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const { parcelType, label, basePrice, isActive = true } = req.body;
+    if (!parcelType || basePrice === undefined) { res.status(400).json({ error: "parcelType والسعر مطلوبان" }); return; }
+    const now = new Date();
+    const result = await db.insert(parcelTypePricingTable).values({
+      ...(tenantId !== null ? { tenantId } : {}),
+      parcelType, label: label ?? parcelType,
+      basePrice: String(basePrice), isActive,
+      createdAt: now, updatedAt: now,
+    });
+    const id = (result as any)[0]?.insertId ?? (result as any).insertId;
+    const rows = await db.select().from(parcelTypePricingTable).where(eq(parcelTypePricingTable.id, id)).limit(1);
+    res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ error: "خطأ في إضافة النوع" }); }
+});
+
+router.delete("/parcel-type-pricing/:id", async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(parcelTypePricingTable).where(eq(parcelTypePricingTable.id, id));
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: "خطأ في الحذف" }); }
+});
+
 router.post("/parcel-type-pricing/init", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);

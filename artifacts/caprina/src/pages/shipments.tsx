@@ -735,11 +735,14 @@ function ZonesTab() {
   );
 }
 
-// ─── Parcel Pricing Tab ───────────────────────────────────────────────────────
 function ParcelPricingTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editPrices, setEditPrices] = useState<Record<number, string>>({});
+  const [addOpen, setAddOpen] = useState(false);
+  const [newType, setNewType] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newPrice, setNewPrice] = useState("");
 
   const { data: pricing = [], isLoading } = useQuery({
     queryKey: ["parcel-type-pricing"],
@@ -758,6 +761,22 @@ function ParcelPricingTab() {
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
+  const addMutation = useMutation({
+    mutationFn: (d: any) => apiFetch("/parcel-type-pricing", { method: "POST", body: JSON.stringify(d) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] });
+      toast({ title: "تمت الإضافة ✅" });
+      setAddOpen(false); setNewType(""); setNewLabel(""); setNewPrice("");
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiFetch(`/parcel-type-pricing/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] }); toast({ title: "تم الحذف" }); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
   const ICONS: Record<string, string> = {
     document: "📄", normal: "📦", fragile: "🔮", heavy: "⚖️",
     electronics: "💻", clothing: "👕", food: "🍱", other: "📫",
@@ -770,13 +789,19 @@ function ParcelPricingTab() {
           <CardTitle className="text-sm font-black flex items-center gap-2">
             <Layers className="w-4 h-4 text-violet-500" /> أسعار أنواع الشحنات
           </CardTitle>
-          {pricing.length === 0 && (
-            <Button size="sm" variant="outline" className="text-xs gap-1.5 h-8"
-              onClick={() => initMutation.mutate()} disabled={initMutation.isPending}>
-              {initMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-              تهيئة الأسعار الافتراضية
+          <div className="flex gap-2">
+            {pricing.length === 0 && (
+              <Button size="sm" variant="outline" className="text-xs gap-1.5 h-8"
+                onClick={() => initMutation.mutate()} disabled={initMutation.isPending}>
+                {initMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                تهيئة الأسعار الافتراضية
+              </Button>
+            )}
+            <Button size="sm" className="text-xs gap-1.5 h-8"
+              onClick={() => setAddOpen(true)}>
+              <Plus className="w-3 h-3" /> إضافة نوع جديد
             </Button>
-          )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -791,7 +816,7 @@ function ParcelPricingTab() {
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
                   <span className="text-xl shrink-0">{ICONS[p.parcelType] ?? "📦"}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground">{PARCEL_LABELS[p.parcelType as ParcelType] ?? p.parcelType}</p>
+                    <p className="text-xs font-bold text-foreground">{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</p>
                     <p className="text-[10px] text-muted-foreground">سعر إضافي على رسوم المنطقة</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -806,6 +831,10 @@ function ParcelPricingTab() {
                       disabled={updateMutation.isPending}>
                       حفظ
                     </Button>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={() => { if (confirm("حذف هذا النوع؟")) deleteMutation.mutate(p.id); }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -816,6 +845,46 @@ function ParcelPricingTab() {
           </p>
         </CardContent>
       </Card>
+
+      {/* ── Add Type Dialog ── */}
+      {addOpen && (
+        <Dialog open onOpenChange={() => setAddOpen(false)}>
+          <DialogContent className="max-w-sm" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-black flex items-center gap-2">
+                <Layers className="w-4 h-4 text-violet-500" /> إضافة نوع شحنة جديد
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">المعرف (بالإنجليزية) <span className="text-red-500">*</span></Label>
+                <Input className="text-sm" placeholder="مثال: special" value={newType}
+                  onChange={e => setNewType(e.target.value.toLowerCase().replace(/\s/g, "_"))} />
+                <p className="text-[10px] text-muted-foreground mt-1">حروف إنجليزية صغيرة وشرطة سفلية فقط</p>
+              </div>
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">الاسم بالعربية <span className="text-red-500">*</span></Label>
+                <Input className="text-sm" placeholder="مثال: شحنة خاصة" value={newLabel}
+                  onChange={e => setNewLabel(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي (جنيه) <span className="text-red-500">*</span></Label>
+                <Input type="number" className="text-sm" placeholder="0" value={newPrice}
+                  onChange={e => setNewPrice(e.target.value)} />
+              </div>
+              <div className="flex gap-2 pt-1 border-t border-border">
+                <Button variant="outline" className="flex-1 text-xs" onClick={() => setAddOpen(false)}>إلغاء</Button>
+                <Button className="flex-1 text-xs gap-1.5"
+                  disabled={!newType || !newLabel || !newPrice || addMutation.isPending}
+                  onClick={() => addMutation.mutate({ parcelType: newType, label: newLabel, basePrice: Number(newPrice), isActive: true })}>
+                  {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  إضافة
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
