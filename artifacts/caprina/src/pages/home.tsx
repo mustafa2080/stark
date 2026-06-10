@@ -819,8 +819,8 @@ function ClientsSection() {
   return (
     <section className="py-20 bg-[#0a0a0a] overflow-hidden" dir="rtl">
       <style>{`
-        @keyframes scrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
-        @keyframes scrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
+        @keyframes scrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-33.333%)} }
+        @keyframes scrollRight { 0%{transform:translateX(-33.333%)} 100%{transform:translateX(0)}   }
         .clients-t1 { animation: scrollLeft  8s linear infinite; }
         .clients-t2 { animation: scrollRight 10s linear infinite; }
       `}</style>
