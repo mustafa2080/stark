@@ -3,8 +3,40 @@ import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
 import { db, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { Router, IRouter } from "express";
 
 const router: IRouter = Router();
+
+// ─── Public router (no auth) ──────────────────────────────────────────────────
+export const publicShipmentsRouter: IRouter = Router();
+
+publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<void> => {
+  try {
+    const { number } = req.params;
+    const rows = await db
+      .select()
+      .from(shipmentsTable)
+      .where(
+        and(
+          isNull(shipmentsTable.deletedAt),
+          or(
+            eq(shipmentsTable.trackingNumber, number),
+            eq(shipmentsTable.shipmentNumber,  number),
+          )
+        )
+      )
+      .limit(1);
+
+    if (!rows.length) {
+      res.status(404).json({ error: "لم يتم العثور على الشحنة" });
+      return;
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    console.error("[GET /shipments/track]", e);
+    res.status(500).json({ error: "خطأ في البحث عن الشحنة" });
+  }
+});
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 const CreateShipmentSchema = z.object({

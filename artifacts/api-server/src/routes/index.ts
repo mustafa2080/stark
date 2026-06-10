@@ -27,7 +27,7 @@ import attendanceRouter from "./attendance";
 import adminTenantsRouter, { publicAdminRouter } from "./admin-tenants";
 import financeSalesRouter from "./finance-sales";
 import financeClientsRouter from "./finance-clients";
-import shipmentsRouter from "./shipments";
+import shipmentsRouter, { publicShipmentsRouter } from "./shipments";
 import clientsShowcaseRouter from "./clients-showcase";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { checkSubscription } from "../middlewares/checkSubscription.js";
@@ -41,6 +41,7 @@ router.use(brandRouter);
 router.use(settingsRouter);
 router.use(clientsShowcaseRouter); // GET /clients-showcase — public for landing page
 router.use(publicAdminRouter); // GET /public/plan-prices — بدون auth
+router.use(publicShipmentsRouter); // GET /shipments/track/:number — public for tracking
 
 // All routes below require authentication
 router.use(requireAuth);
@@ -69,7 +70,6 @@ router.use(attendanceRouter);
 router.use(financeSalesRouter);
 router.use(financeClientsRouter);
 router.use(shipmentsRouter);
-router.use(clientsShowcaseRouter);
 router.use(adminTenantsRouter); // /admin/* — بعد requireAuth عشان req.user يكون موجود
 
 export default router;
