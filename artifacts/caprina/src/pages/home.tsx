@@ -728,6 +728,110 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
   );
 }
 
+// ─── Clients Section ──────────────────────────────────────────────────────────
+function ClientsSection() {
+  const [clients, setClients] = React.useState<{ id: number; name: string; avatar: string | null }[]>([]);
+
+  React.useEffect(() => {
+    fetch("/api/users")
+      .then(r => r.json())
+      .then(data => {
+        const list = (Array.isArray(data) ? data : data.users ?? [])
+          .filter((u: any) => u.avatar)
+          .slice(0, 12);
+        setClients(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  const placeholders = Array.from({ length: 12 }, (_, i) => ({ id: -i, name: `عميل ${i + 1}`, avatar: null }));
+  const items = clients.length >= 4 ? clients : placeholders;
+  const doubled = [...items, ...items];
+
+  const glowVars = [
+    "rgba(192,192,192,0.15)",
+    "rgba(255,255,255,0.08)",
+    "rgba(160,160,160,0.12)",
+  ];
+
+  const Circle = ({ item, idx }: { item: typeof items[0]; idx: number }) => {
+    const glow = glowVars[idx % glowVars.length];
+    return (
+      <div
+        style={{
+          width: 88,
+          height: 88,
+          borderRadius: "50%",
+          flexShrink: 0,
+          background: "linear-gradient(135deg,#1a1a1a 0%,#111 100%)",
+          border: `1px solid ${glow}`,
+          boxShadow: `0 0 18px ${glow}, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.7)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          transition: "all 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+          cursor: "pointer",
+        }}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLDivElement;
+          el.style.transform = "scale(1.1)";
+          el.style.boxShadow = `0 0 28px rgba(255,255,255,0.12), 0 0 0 1px rgba(255,255,255,0.1) inset, 0 12px 40px rgba(0,0,0,0.8)`;
+          el.style.borderColor = "rgba(255,255,255,0.25)";
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLDivElement;
+          el.style.transform = "scale(1)";
+          el.style.boxShadow = `0 0 18px ${glow}, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.7)`;
+          el.style.borderColor = glow;
+        }}
+      >
+        {item.avatar ? (
+          <img src={item.avatar} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+        ) : (
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", fontWeight: 600, textAlign: "center", padding: 4 }}>LOGO</span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <section className="py-20 bg-[#0a0a0a] overflow-hidden" dir="rtl">
+      <style>{`
+        @keyframes scrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
+        @keyframes scrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
+        .clients-t1 { animation: scrollLeft  30s linear infinite; }
+        .clients-t2 { animation: scrollRight 36s linear infinite; }
+      `}</style>
+
+      <div className="text-center mb-12 px-4">
+        <div
+          className="inline-block text-xs font-bold tracking-widest mb-4 rounded-full px-4 py-1.5"
+          style={{ color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          عملاؤنا
+        </div>
+        <h2 className="text-3xl font-black text-white mb-2" style={{ letterSpacing: "-0.02em" }}>يثقون فينا</h2>
+        <p className="text-sm" style={{ color: "#444" }}>أكثر من 200 عميل يعتمدون على STARK للشحن يومياً</p>
+      </div>
+
+      {/* Row 1 — left */}
+      <div className="relative mb-5" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
+        <div className="clients-t1 flex gap-5" style={{ width: "max-content" }}>
+          {doubled.map((item, i) => <Circle key={`t1-${i}`} item={item} idx={i} />)}
+        </div>
+      </div>
+
+      {/* Row 2 — right */}
+      <div className="relative" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
+        <div className="clients-t2 flex gap-5" style={{ width: "max-content" }}>
+          {[...doubled].reverse().map((item, i) => <Circle key={`t2-${i}`} item={item} idx={i} />)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── Contact Section ──────────────────────────────────────────────────────────
 function ContactSection({ darkMode }: { darkMode: boolean }) {
   return (
@@ -952,6 +1056,7 @@ export default function HomePage() {
       <ShippingCycleSection darkMode={darkMode} />
       <ContractSection darkMode={darkMode} />
       <FeaturesSection darkMode={darkMode} />
+      <ClientsSection />
       <ContactSection darkMode={darkMode} />
       <Footer />
       <SocialFloat darkMode={darkMode} />
