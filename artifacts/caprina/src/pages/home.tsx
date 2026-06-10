@@ -382,7 +382,7 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
           </div>
           <div className={`border rounded-2xl p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
             <img src="/logo.jpg" alt="STARK" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
-            <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>شركة STARK للشحن</h3>
+            <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>STARK للشحن</h3>
             <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>خدمة الشحن الموثوقة في مصر</p>
             <div className={`grid grid-cols-3 gap-4 mt-6 pt-6 border-t ${darkMode ? "border-[#222]" : "border-gray-200"}`}>
               {[["4+", "سنة خبرة"], ["27", "محافظة"], ["99%", "رضا العملاء"]].map(([val, lbl], i) => (
