@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, Truck, MapPin, Clock, CheckCircle, AlertTriangle, XCircle, CreditCard, Boxes } from "lucide-react";
+import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, Truck, MapPin, Clock, CheckCircle, AlertTriangle, XCircle, CreditCard, Boxes, Phone } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
 import type { UpdateOrderBodyStatus } from "@workspace/api-zod";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -213,14 +213,48 @@ function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {
 function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [senderName, setSenderName] = useState("");
-  const [receiverName, setReceiverName] = useState("");
+  const [senderName, setSenderName]       = useState("");
+  const [senderPhone, setSenderPhone]     = useState("");
+  const [clientSearch, setClientSearch]   = useState("");
+  const [showClientDrop, setShowClientDrop] = useState(false);
+  const [receiverName, setReceiverName]   = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
-  const [receiverCity, setReceiverCity] = useState("");
+  const [receiverCity, setReceiverCity]   = useState("");
   const [paymentMethod, setPaymentMethod] = useState<ShipPaymentMethod>("cod");
-  const [codAmount, setCodAmount] = useState("");
-  const [shippingFee, setShippingFee] = useState("");
-  const [status, setStatus] = useState<ShipmentStatus>("waiting");
+  const [codAmount, setCodAmount]         = useState("");
+  const [shippingFee, setShippingFee]     = useState("");
+  const [status, setStatus]               = useState<ShipmentStatus>("waiting");
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  // جلب العملاء التجاريين
+  const { data: financeClients = [] } = useQuery<{ id:number; name:string; phone:string|null; phone2:string|null; city:string|null }[]>({
+    queryKey: ["finance-clients-ship"],
+    queryFn: () => apiFetch("/finance/clients"),
+    staleTime: 60_000,
+    enabled: open,
+  });
+
+  const filteredClients = clientSearch
+    ? financeClients.filter(c =>
+        c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+        (c.phone ?? "").includes(clientSearch)
+      )
+    : financeClients;
+
+  // إغلاق الـ dropdown لما يضغط برا
+  useEffect(() => {
+    if (!showClientDrop) return;
+    const h = (e: MouseEvent) => { if (dropRef.current && !dropRef.current.contains(e.target as Node)) setShowClientDrop(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showClientDrop]);
+
+  const selectClient = (c: typeof financeClients[0]) => {
+    setSenderName(c.name);
+    setSenderPhone(c.phone ?? c.phone2 ?? "");
+    setClientSearch(c.name);
+    setShowClientDrop(false);
+  };
 
   const { data: zones = [] } = useQuery({ queryKey:["shipment-zones"], queryFn: () => shipApiFetch<ShipmentZone[]>("/shipment-zones") });
 
@@ -239,10 +273,47 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label className="text-xs font-bold mb-1 block">اسم المُرسِل *</label>
-            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={senderName} onChange={e => setSenderName(e.target.value)} placeholder="اسم المُرسِل"/>
+
+          {/* المُرسِل — searchable dropdown من العملاء التجاريين */}
+          <div className="col-span-2" ref={dropRef}>
+            <label className="text-xs font-bold mb-1 block">المُرسِل *</label>
+            <div className="relative">
+              <input
+                className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="ابحث باسم العميل أو رقم الهاتف..."
+                value={clientSearch}
+                onChange={e => { setClientSearch(e.target.value); setSenderName(e.target.value); setShowClientDrop(true); }}
+                onFocus={() => setShowClientDrop(true)}
+              />
+              {clientSearch && (
+                <button type="button" onClick={() => { setClientSearch(""); setSenderName(""); setSenderPhone(""); }} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="w-3.5 h-3.5"/>
+                </button>
+              )}
+              {showClientDrop && (
+                <div className="absolute top-full mt-1 right-0 left-0 z-50 bg-background border border-border rounded-xl shadow-2xl max-h-52 overflow-y-auto">
+                  {filteredClients.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">لا يوجد عملاء مطابقون</p>
+                  ) : filteredClients.map(c => (
+                    <button key={c.id} type="button" onClick={() => selectClient(c)}
+                      className="w-full text-right px-3 py-2.5 hover:bg-muted/50 transition-colors flex items-center justify-between gap-2 border-b border-border/30 last:border-0">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">{c.name}</p>
+                        {c.phone && <p className="text-[11px] text-muted-foreground">{c.phone}</p>}
+                      </div>
+                      {c.city && <span className="text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full shrink-0">{c.city}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {senderPhone && (
+              <p className="text-[11px] text-primary mt-1 flex items-center gap-1">
+                <Phone className="w-3 h-3"/>{senderPhone}
+              </p>
+            )}
           </div>
+
           <div>
             <label className="text-xs font-bold mb-1 block">اسم المُستلِم *</label>
             <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverName} onChange={e => setReceiverName(e.target.value)} placeholder="اسم المُستلِم"/>
@@ -282,7 +353,7 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <button onClick={onClose} className="flex-1 h-9 text-sm border border-border rounded-lg text-muted-foreground hover:bg-muted/40 transition-all">إلغاء</button>
           <button
             disabled={!senderName || !receiverName || createMutation.isPending}
-            onClick={() => createMutation.mutate({ senderName, receiverName, receiverPhone, receiverCity, paymentMethod, codAmount: codAmount ? Number(codAmount) : undefined, shippingFee: shippingFee ? Number(shippingFee) : undefined, status })}
+            onClick={() => createMutation.mutate({ senderName, senderPhone: senderPhone || undefined, receiverName, receiverPhone, receiverCity, paymentMethod, codAmount: codAmount ? Number(codAmount) : undefined, shippingFee: shippingFee ? Number(shippingFee) : undefined, status })}
             className="flex-1 h-9 text-sm font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
             {createMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Plus className="w-3.5 h-3.5"/>}
             إنشاء الشحنة
