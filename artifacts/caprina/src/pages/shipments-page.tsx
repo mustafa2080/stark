@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, Truck, MapPin, Clock, CheckCircle, AlertTriangle, XCircle, CreditCard, Boxes, Phone, User } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
@@ -718,6 +718,7 @@ export default function Orders() {
   const [shipSearch, setShipSearch]   = useState("");
   const [shipStatus, setShipStatus]   = useState("all");
   const [newShipOpen, setNewShipOpen] = useState(false);
+  const [, navigate] = useLocation();
   const [showShipFilters, setShowShipFilters] = useState(false);
   const EMPTY_SHIP_FILTERS: ShipColFilters = {
     num:new Set(), date:new Set(), sender:new Set(), receiver:new Set(),
@@ -1312,7 +1313,9 @@ export default function Orders() {
                 </TableHeader>
                 <TableBody>
                   {displayedShipments.map((s, i) => (
-                    <TableRow key={s.id} className={`text-xs hover:bg-muted/20 transition-colors ${i%2===1 ? "bg-muted/5" : ""}`}>
+                    <TableRow key={s.id}
+                      onClick={() => navigate(`/shipments/${s.id}`)}
+                      className={`text-xs hover:bg-primary/5 transition-colors cursor-pointer ${i%2===1 ? "bg-muted/5" : ""}`}>
                       <TableCell className="px-3 py-2.5 font-mono font-bold text-primary whitespace-nowrap">
                         {s.shipmentNumber || s.trackingNumber || `#${s.id}`}
                       </TableCell>
@@ -1337,7 +1340,7 @@ export default function Orders() {
                       <TableCell className="px-3 py-2.5 whitespace-nowrap"><ShipmentStatusBadge status={s.status}/></TableCell>
                       <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.createdByName || "—"}</TableCell>
                       <TableCell className="px-3 py-2.5">
-                        <button onClick={() => { if (confirm(`حذف الشحنة ${s.shipmentNumber || s.id}؟`)) deleteMutation.mutate(s.id); }}
+                        <button onClick={e => { e.stopPropagation(); if (confirm(`حذف الشحنة ${s.shipmentNumber || s.id}؟`)) deleteMutation.mutate(s.id); }}
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all">
                           <Trash2 className="w-3.5 h-3.5"/>
                         </button>
