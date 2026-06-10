@@ -766,7 +766,7 @@ function ClientsSection() {
   }, []);
 
   const placeholders = Array.from({ length: 12 }, (_, i) => ({ id: -i, name: `عميل ${i + 1}`, avatar: null }));
-  const items = clients.length >= 4 ? clients : placeholders;
+  const items = clients.length >= 1 ? clients : placeholders;
   const doubled = [...items, ...items];
 
   const glowVars = [
