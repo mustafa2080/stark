@@ -1,18 +1,9 @@
 import React, { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Upload, GripVertical } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface Client { id: number; name: string; avatar: string | null; sort_order: number; }
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const res = await fetch(`/api${path}`, {
-    headers: { "Content-Type": "application/json", ...(opts?.body instanceof FormData ? {} : {}) },
-    credentials: "include",
-    ...opts,
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
 
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve) => {
