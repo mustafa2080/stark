@@ -237,7 +237,7 @@ function HeroSection() {
           </span>
           <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
         </div>
-        <h1 className="flex items-baseline justify-center gap-4 mb-4 flex-wrap">
+        <h1 className="flex items-center justify-center gap-3 mb-4" dir="ltr">
           <span
             className="inline-block text-5xl md:text-7xl font-black"
             style={{
@@ -251,15 +251,16 @@ function HeroSection() {
           >
             STARK
           </span>
+          <span style={{ width: 1, height: 40, background: "rgba(255,255,255,0.2)", display: "inline-block", borderRadius: 1 }} />
           <span
-            className="inline-block text-2xl md:text-3xl font-light"
+            className="inline-block text-xl md:text-2xl font-light tracking-widest"
             style={{
-              background: "linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 40%, #a8a8a8 60%, #d4d4d4 100%)",
+              background: "linear-gradient(135deg, #b0b0b0 0%, #e0e0e0 35%, #909090 65%, #c8c8c8 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
-              letterSpacing: "0.2em",
-              filter: "drop-shadow(0 0 8px rgba(200,200,200,0.3))",
+              filter: "drop-shadow(0 0 10px rgba(180,180,180,0.25))",
+              letterSpacing: "0.25em",
             }}
           >
             للشحن
