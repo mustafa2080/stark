@@ -231,6 +231,8 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [receiverCity,  setReceiverCity]  = useState("");
 
   // ── Shipment fields ────────────────────────────────────────────────────
+  const [parcelType,    setParcelType]    = useState<ParcelType | "">("");
+  const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<ShipPaymentMethod>("cod");
   const [codAmount,     setCodAmount]     = useState("");
   const [shippingFee,   setShippingFee]   = useState("");
@@ -285,7 +287,17 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
     setSenderPhone2(""); setSenderEmail(""); setSenderAddress(""); setSenderCity("");
   };
 
-  const { data: zones = [] } = useQuery({ queryKey:["shipment-zones"], queryFn: () => shipApiFetch<ShipmentZone[]>("/shipment-zones") });
+  const { data: zones = [] } = useQuery({ queryKey:["shipment-zones"], queryFn: () => shipApiFetch<ShipmentZone[]>("/shipment-zones"), enabled: open });
+  const { data: parcelPrices = [] } = useQuery({ queryKey:["parcel-type-prices"], queryFn: () => shipApiFetch<ParcelTypePricing[]>("/shipment-parcel-types"), enabled: open });
+
+  // حساب رسوم الشحن تلقائياً لما تختار منطقة أو نوع
+  useEffect(() => {
+    const zone  = zones.find(z => z.id === selectedZoneId);
+    const ptype = parcelPrices.find(p => p.parcelType === parcelType);
+    const base  = Number(zone?.price ?? 0);
+    const extra = Number(ptype?.basePrice ?? 0);
+    if (base > 0 || extra > 0) setShippingFee(String(base + extra));
+  }, [selectedZoneId, parcelType, zones, parcelPrices]);
 
   const createMutation = useMutation({
     mutationFn: (data: any) => shipApiFetch("/shipments", { method:"POST", body: JSON.stringify(data) }),
@@ -305,6 +317,8 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
       receiverName,
       receiverPhone: receiverPhone || undefined,
       receiverCity:  receiverCity  || undefined,
+      zoneId:        selectedZoneId ?? undefined,
+      parcelType:    parcelType    || undefined,
       paymentMethod,
       codAmount:     codAmount    ? Number(codAmount)    : undefined,
       shippingFee:   shippingFee  ? Number(shippingFee)  : undefined,
@@ -424,6 +438,35 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <CreditCard className="w-3.5 h-3.5"/>تفاصيل الشحنة
             </p>
             <div className="grid grid-cols-2 gap-3">
+              {/* المنطقة */}
+              <div className="col-span-2">
+                <label className="text-xs font-bold mb-1 block">المنطقة <span className="text-muted-foreground font-normal">(يحدد سعر الشحن)</span></label>
+                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={selectedZoneId ?? ""}
+                  onChange={e => { setSelectedZoneId(e.target.value ? Number(e.target.value) : null); setReceiverCity(zones.find(z=>z.id===Number(e.target.value))?.name ?? receiverCity); }}>
+                  <option value="">— اختر المنطقة —</option>
+                  {zones.filter(z => z.isActive !== false).map(z => (
+                    <option key={z.id} value={z.id}>{z.name}{z.governorate ? ` — ${z.governorate}` : ""} ({shipFc(z.price)})</option>
+                  ))}
+                </select>
+              </div>
+              {/* نوع الطرد */}
+              <div className="col-span-2">
+                <label className="text-xs font-bold mb-1 block">نوع الطرد <span className="text-muted-foreground font-normal">(يُضاف لسعر المنطقة)</span></label>
+                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={parcelType} onChange={e => setParcelType(e.target.value as ParcelType | "")}>
+                  <option value="">— اختر النوع —</option>
+                  {parcelPrices.length > 0
+                    ? parcelPrices.map(p => (
+                        <option key={p.id} value={p.parcelType}>{p.label || PARCEL_LABELS[p.parcelType]} ({shipFc(p.basePrice)})</option>
+                      ))
+                    : (Object.keys(PARCEL_LABELS) as ParcelType[]).map(k => (
+                        <option key={k} value={k}>{PARCEL_LABELS[k]}</option>
+                      ))
+                  }
+                </select>
+              </div>
+              {/* طريقة الدفع */}
               <div>
                 <label className="text-xs font-bold mb-1 block">طريقة الدفع</label>
                 <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as ShipPaymentMethod)}>
@@ -443,7 +486,10 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={codAmount} onChange={e => setCodAmount(e.target.value)} placeholder="0"/>
               </div>
               <div>
-                <label className="text-xs font-bold mb-1 block">رسوم الشحن (جنيه)</label>
+                <label className="text-xs font-bold mb-1 flex items-center gap-1.5">
+                  رسوم الشحن (جنيه)
+                  {selectedZoneId && <span className="text-[10px] text-emerald-500 font-normal">محسوبة تلقائياً</span>}
+                </label>
                 <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={shippingFee} onChange={e => setShippingFee(e.target.value)} placeholder="0"/>
               </div>
               <div className="col-span-2">
