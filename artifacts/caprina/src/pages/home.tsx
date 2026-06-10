@@ -262,17 +262,9 @@ function HeroSection() {
             للشحن
           </span>
         </h1>
-        <p className="text-gray-300 text-lg md:text-xl mb-8 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-gray-300 text-lg md:text-xl mb-0 max-w-2xl mx-auto leading-relaxed">
           STARK لوجستيك — خدمات شحن محلية سريعة وموثوقة تطال كل مصر، اطمن — سيب الشحن علينا
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button onClick={() => document.getElementById("tracking")?.scrollIntoView({ behavior: "smooth" })} className="bg-white text-black font-bold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-2">
-            <Package size={18} /> تتبع شحنتك
-          </button>
-          <button onClick={() => navigate("/login")} className="border border-[#444] text-white font-bold px-8 py-3.5 rounded-xl hover:border-[#888] transition-colors flex items-center gap-2">
-            <FileText size={18} /> تعاقد معنا
-          </button>
-        </div>
       </div>
     </section>
   );
@@ -341,6 +333,12 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           ))}
         </div>
           </div>{/* end content */}
+          {/* CTA buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+            <button onClick={() => navigate("/login")} className="border border-[#555] text-white font-bold px-8 py-3 rounded-xl hover:border-white/50 transition-colors flex items-center gap-2 text-sm">
+              <FileText size={16} /> تعاقد معنا
+            </button>
+          </div>
         </div>{/* end glass card */}
       </div>
     </section>
