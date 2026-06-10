@@ -323,16 +323,16 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
             style={{
               background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
-              border: "1px solid rgba(255,255,255,0.2)",
-              boxShadow: "0 0 0 0 rgba(255,255,255,0), inset 0 1px 0 rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.45)",
+              boxShadow: "0 0 18px rgba(255,255,255,0.12), 0 0 40px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.08)",
             }}
             onFocus={e => {
               e.currentTarget.style.border = "1px solid rgba(255,255,255,0.5)";
               e.currentTarget.style.boxShadow = "0 0 20px rgba(255,255,255,0.15), 0 0 40px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.1)";
             }}
             onBlur={e => {
-              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.2)";
-              e.currentTarget.style.boxShadow = "0 0 0 0 rgba(255,255,255,0), inset 0 1px 0 rgba(255,255,255,0.08)";
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.45)";
+              e.currentTarget.style.boxShadow = "0 0 18px rgba(255,255,255,0.12), 0 0 40px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.08)";
             }}
           />
           <button className="font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm whitespace-nowrap text-black hover:scale-105"
