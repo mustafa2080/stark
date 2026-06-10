@@ -338,7 +338,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           </div>{/* end content */}
           {/* CTA buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-            <button onClick={() => navigate("/contract")} className="border border-[#555] text-white font-bold px-8 py-3 rounded-xl hover:border-white/50 transition-colors flex items-center gap-2 text-sm">
+            <button onClick={() => navigate("/contract")} className="cursor-pointer border border-[#555] text-white font-bold px-8 py-3 rounded-xl hover:border-white/50 transition-colors flex items-center gap-2 text-sm">
               <FileText size={16} /> تعاقد معنا
             </button>
           </div>
