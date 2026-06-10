@@ -269,67 +269,170 @@ export default function ShipmentDetailPage() {
     const paymentLabel = PAYMENT_LABELS[shipment.paymentMethod] ?? shipment.paymentMethod;
     const parcelLabel = shipment.parcelType ? (PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType) : "—";
     const zoneLabel = zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? "—");
+    const statusColors: Record<string,string> = {
+      waiting:"#64748b", confirmed:"#3b82f6", picked_up:"#06b6d4",
+      in_transit:"#8b5cf6", out_for_delivery:"#f59e0b",
+      delivered:"#10b981", delayed:"#f97316", returned:"#ef4444", cancelled:"#6b7280",
+    };
+    const stColor = statusColors[shipment.status] ?? "#64748b";
+
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>
-<meta charset="UTF-8"/><title>شحنة ${shipment.shipmentNumber ?? id}</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; font-family:"Cairo",sans-serif; }
-  body { background:#fff; color:#111; padding:24px; font-size:13px; direction:rtl; }
-  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid #e5e7eb; }
-  .title { font-size:22px; font-weight:900; } .sub { color:#6b7280; font-size:12px; margin-top:4px; }
-  .status-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-weight:700; font-size:12px; background:#f3f4f6; }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
-  .card { border:1px solid #e5e7eb; border-radius:10px; padding:14px; }
-  .card-title { font-weight:800; font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; }
-  .row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #f3f4f6; font-size:12px; }
-  .row:last-child { border:none; } .row .label { color:#6b7280; } .row .val { font-weight:600; }
-  .financial { border:2px solid #e5e7eb; border-radius:10px; padding:14px; margin-bottom:16px; }
-  .total { font-size:18px; font-weight:900; color:#7c3aed; }
-  @media print { body { padding:0; } }
-</style></head><body>
-<div class="header">
-  <div>
-    <div class="title">شحنة #${shipment.shipmentNumber ?? id}</div>
-    <div class="sub">${fdate(shipment.createdAt)}${shipment.createdByName ? ` · ${shipment.createdByName}` : ""}</div>
-    ${shipment.trackingNumber ? `<div class="sub" style="margin-top:4px;font-weight:700">رقم التتبع: ${shipment.trackingNumber}</div>` : ""}
-  </div>
-  <span class="status-badge">${statusLabel}</span>
-</div>
-<div class="grid">
-  <div class="card">
-    <div class="card-title">المُرسِل</div>
-    <div class="row"><span class="label">الاسم</span><span class="val">${shipment.senderName}</span></div>
-    ${shipment.senderPhone ? `<div class="row"><span class="label">الهاتف</span><span class="val">${shipment.senderPhone}</span></div>` : ""}
-    ${shipment.senderCity ? `<div class="row"><span class="label">المدينة</span><span class="val">${shipment.senderCity}</span></div>` : ""}
-    ${shipment.senderAddress ? `<div class="row"><span class="label">العنوان</span><span class="val">${shipment.senderAddress}</span></div>` : ""}
-  </div>
-  <div class="card">
-    <div class="card-title">المُستلِم</div>
-    <div class="row"><span class="label">الاسم</span><span class="val">${shipment.receiverName}</span></div>
-    ${shipment.receiverPhone ? `<div class="row"><span class="label">الهاتف</span><span class="val">${shipment.receiverPhone}</span></div>` : ""}
-    <div class="row"><span class="label">المنطقة</span><span class="val">${zoneLabel}</span></div>
-    ${shipment.receiverAddress ? `<div class="row"><span class="label">العنوان</span><span class="val">${shipment.receiverAddress}</span></div>` : ""}
-  </div>
-</div>
-<div class="card" style="margin-bottom:16px">
-  <div class="card-title">تفاصيل الطرد</div>
-  <div class="row"><span class="label">نوع الطرد</span><span class="val">${parcelLabel}</span></div>
-  ${shipment.weight ? `<div class="row"><span class="label">الوزن</span><span class="val">${shipment.weight} كجم</span></div>` : ""}
-  <div class="row"><span class="label">طريقة الدفع</span><span class="val">${paymentLabel}</span></div>
-  ${shipment.description ? `<div class="row"><span class="label">الوصف</span><span class="val">${shipment.description}</span></div>` : ""}
-</div>
-<div class="financial">
-  <div class="card-title">الملخص المالي</div>
-  ${Number(shipment.zonePrice) > 0 ? `<div class="row"><span class="label">سعر المنطقة</span><span class="val">${fc(shipment.zonePrice)}</span></div>` : ""}
-  ${Number(shipment.parcelTypePrice) > 0 ? `<div class="row"><span class="label">سعر النوع</span><span class="val">+${fc(shipment.parcelTypePrice)}</span></div>` : ""}
-  <div class="row" style="margin-top:8px"><span class="label" style="font-weight:700">رسوم الشحن</span><span class="total">${fc(shipment.shippingFee)}</span></div>
-  ${Number(shipment.codAmount) > 0 ? `<div class="row"><span class="label">مبلغ COD</span><span class="val" style="color:#d97706;font-weight:700">${fc(shipment.codAmount)}</span></div>` : ""}
-</div>
-${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</div><p style="font-size:13px;line-height:1.6">${shipment.notes}</p></div>` : ""}
-<script>window.onload=()=>{window.print();window.close();}<\/script>
-</body></html>`);
+
+    const html: string[] = [];
+    html.push(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>`);
+    html.push(`<meta charset="UTF-8"/>`);
+    html.push(`<title>بوليصة شحن — ${shipment.shipmentNumber ?? id}</title>`);
+    html.push(`<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet"/>`);
+    html.push(`<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:210mm;font-family:'Cairo',sans-serif;background:#fff;color:#1a1a2e;direction:rtl;}
+.page{width:210mm;min-height:297mm;display:flex;flex-direction:column;}
+.inv-header{background:linear-gradient(135deg,#0f0f1a 0%,#1a1a3e 50%,#0f172a 100%);color:#fff;padding:26px 30px 20px;position:relative;overflow:hidden;}
+.inv-header::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;border-radius:50%;background:rgba(124,58,237,.12);}
+.inv-header::after{content:'';position:absolute;bottom:-70px;right:10px;width:240px;height:240px;border-radius:50%;background:rgba(59,130,246,.07);}
+.hinner{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1;}
+.logo-area{display:flex;align-items:center;gap:14px;}
+.logo-img{width:60px;height:60px;object-fit:contain;border-radius:10px;background:#fff;padding:5px;}
+.brand-name{font-size:26px;font-weight:900;letter-spacing:-1px;color:#fff;}
+.brand-sub{font-size:10px;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.inv-meta{text-align:left;}
+.inv-lbl{font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;}
+.inv-num{font-size:20px;font-weight:900;color:#fff;}
+.inv-date{font-size:11px;color:rgba(255,255,255,.55);margin-top:3px;}
+.status-strip{background:#f8faff;border-bottom:3px solid #e2e8f0;padding:9px 30px;display:flex;align-items:center;justify-content:space-between;}
+.st-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 15px;border-radius:20px;font-weight:700;font-size:12px;border:2px solid;}
+.st-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.trk-chip{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border:1px solid #e2e8f0;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;color:#475569;letter-spacing:.4px;}
+.body{flex:1;padding:18px 30px 22px;}
+.parties{display:grid;grid-template-columns:1fr 28px 1fr;gap:0;margin-bottom:18px;}
+.party{background:#fafbff;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;}
+.party.recv{background:#f0fdf4;border-color:#bbf7d0;}
+.parrow{display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:22px;}
+.plbl{font-size:8px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;display:flex;align-items:center;gap:4px;}
+.pdot{width:6px;height:6px;border-radius:50%;background:#7c3aed;flex-shrink:0;}
+.party.recv .pdot{background:#10b981;}
+.pname{font-size:15px;font-weight:800;color:#1a1a2e;margin-bottom:5px;}
+.prow{font-size:11px;color:#475569;margin-top:3px;display:flex;align-items:center;gap:4px;}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;}
+.dc{border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;}
+.dh{background:linear-gradient(90deg,#7c3aed0f,#3b82f60f);padding:7px 13px;font-size:8px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#7c3aed;border-bottom:1px solid #e2e8f0;}
+.db{padding:10px 13px;}
+.dr{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px dashed #f1f5f9;}
+.dr:last-child{border:none;}
+.dl{font-size:11px;color:#94a3b8;}
+.dv{font-size:11px;font-weight:700;color:#1a1a2e;text-align:left;}
+.fin{background:linear-gradient(135deg,#faf5ff,#eff6ff);border:2px solid #ddd6fe;border-radius:12px;padding:16px 18px;margin-bottom:18px;}
+.fin-h{font-size:8px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#7c3aed;margin-bottom:12px;}
+.fr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed #e9d5ff;}
+.fr:last-child{border:none;}
+.fl{font-size:12px;color:#6b7280;}
+.fv{font-size:12px;font-weight:700;}
+.ftot{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;background:#7c3aed;border-radius:9px;margin-top:10px;}
+.ftot-l{font-size:11px;color:rgba(255,255,255,.8);font-weight:600;}
+.ftot-v{font-size:20px;font-weight:900;color:#fff;}
+.cod{display:flex;justify-content:space-between;align-items:center;padding:9px 15px;background:#fffbeb;border:2px dashed #f59e0b;border-radius:9px;margin-top:8px;}
+.cod-l{font-size:12px;color:#92400e;font-weight:700;}
+.cod-v{font-size:17px;font-weight:900;color:#d97706;}
+.notes{border:1.5px solid #fde68a;background:#fffdf0;border-radius:10px;padding:13px 15px;margin-bottom:14px;}
+.notes-h{font-size:8px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#d97706;margin-bottom:7px;}
+.bsect{display:flex;justify-content:center;margin:14px 0 8px;}
+.bbox{border:2px solid #e2e8f0;border-radius:10px;padding:11px 22px;text-align:center;background:#f8faff;}
+.bnum{font-size:16px;font-weight:900;letter-spacing:3px;color:#1a1a2e;}
+.blbl{font-size:8px;color:#94a3b8;margin-top:3px;letter-spacing:1px;text-transform:uppercase;}
+.inv-footer{background:linear-gradient(135deg,#0f0f1a,#1a1a3e);color:rgba(255,255,255,.45);padding:11px 30px;display:flex;justify-content:space-between;align-items:center;font-size:10px;margin-top:auto;}
+.footer-brand{color:rgba(255,255,255,.8);font-weight:700;font-size:11px;}
+@media print{html,body{width:210mm;}@page{size:A4;margin:0;}.page{min-height:297mm;}}
+</style></head><body><div class="page">`);
+
+    // ── HEADER ──
+    html.push(`<div class="inv-header"><div class="hinner">`);
+    html.push(`<div class="logo-area">`);
+    html.push(`<img src="/logo.jpg" class="logo-img" alt="STARK" onerror="this.style.display='none'"/>`);
+    html.push(`<div><div class="brand-name">STARK</div><div class="brand-sub">Shipping &amp; Logistics</div></div>`);
+    html.push(`</div>`);
+    html.push(`<div class="inv-meta"><div class="inv-lbl">بوليصة شحن</div>`);
+    html.push(`<div class="inv-num">${shipment.shipmentNumber ?? "#" + id}</div>`);
+    html.push(`<div class="inv-date">${fdate(shipment.createdAt)}</div></div>`);
+    html.push(`</div></div>`);
+
+    // ── STATUS STRIP ──
+    html.push(`<div class="status-strip">`);
+    html.push(`<span class="st-badge" style="color:${stColor};border-color:${stColor}22;background:${stColor}11"><span class="st-dot" style="background:${stColor}"></span>${statusLabel}</span>`);
+    if (shipment.trackingNumber) {
+      html.push(`<span class="trk-chip">رقم التتبع: <strong>${shipment.trackingNumber}</strong></span>`);
+    } else {
+      html.push(`<span class="trk-chip" style="opacity:.35">لا يوجد رقم تتبع</span>`);
+    }
+    html.push(`</div>`);
+
+    // ── BODY ──
+    html.push(`<div class="body">`);
+
+    // Parties
+    html.push(`<div class="parties">`);
+    html.push(`<div class="party"><div class="plbl"><span class="pdot"></span>المُرسِل</div>`);
+    html.push(`<div class="pname">${shipment.senderName}</div>`);
+    if (shipment.senderPhone) html.push(`<div class="prow">&#128222; ${shipment.senderPhone}</div>`);
+    if (shipment.senderCity)  html.push(`<div class="prow">&#128205; ${shipment.senderCity}</div>`);
+    if (shipment.senderAddress) html.push(`<div class="prow" style="color:#94a3b8;font-size:10px">${shipment.senderAddress}</div>`);
+    html.push(`</div>`);
+    html.push(`<div class="parrow">&#8592;</div>`);
+    html.push(`<div class="party recv"><div class="plbl"><span class="pdot"></span>المُستلِم</div>`);
+    html.push(`<div class="pname">${shipment.receiverName}</div>`);
+    if (shipment.receiverPhone) html.push(`<div class="prow">&#128222; ${shipment.receiverPhone}</div>`);
+    html.push(`<div class="prow">&#128205; ${zoneLabel}</div>`);
+    if (shipment.receiverAddress) html.push(`<div class="prow" style="color:#94a3b8;font-size:10px">${shipment.receiverAddress}</div>`);
+    html.push(`</div></div>`);
+
+    // Details grid
+    html.push(`<div class="dgrid">`);
+    html.push(`<div class="dc"><div class="dh">تفاصيل الطرد</div><div class="db">`);
+    html.push(`<div class="dr"><span class="dl">نوع الطرد</span><span class="dv">${parcelLabel}</span></div>`);
+    if (shipment.weight) html.push(`<div class="dr"><span class="dl">الوزن</span><span class="dv">${shipment.weight} كجم</span></div>`);
+    if ((shipment.pieces ?? 1) > 1) html.push(`<div class="dr"><span class="dl">عدد القطع</span><span class="dv">${shipment.pieces}</span></div>`);
+    if (shipment.description) html.push(`<div class="dr"><span class="dl">الوصف</span><span class="dv">${shipment.description}</span></div>`);
+    if (Number(shipment.declaredValue) > 0) html.push(`<div class="dr"><span class="dl">القيمة المعلنة</span><span class="dv">${fc(shipment.declaredValue)}</span></div>`);
+    html.push(`</div></div>`);
+    html.push(`<div class="dc"><div class="dh">معلومات الشحن</div><div class="db">`);
+    html.push(`<div class="dr"><span class="dl">طريقة الدفع</span><span class="dv">${paymentLabel}</span></div>`);
+    if (shipment.createdByName) html.push(`<div class="dr"><span class="dl">بواسطة</span><span class="dv">${shipment.createdByName}</span></div>`);
+    html.push(`<div class="dr"><span class="dl">تاريخ الإنشاء</span><span class="dv" style="font-size:10px">${fdate(shipment.createdAt)}</span></div>`);
+    html.push(`</div></div></div>`);
+
+    // Financial
+    html.push(`<div class="fin"><div class="fin-h">الملخص المالي</div>`);
+    if (Number(shipment.zonePrice) > 0)       html.push(`<div class="fr"><span class="fl">سعر المنطقة</span><span class="fv">${fc(shipment.zonePrice)}</span></div>`);
+    if (Number(shipment.parcelTypePrice) > 0)  html.push(`<div class="fr"><span class="fl">رسوم نوع الطرد</span><span class="fv">+ ${fc(shipment.parcelTypePrice)}</span></div>`);
+    if (Number(shipment.insuranceFee) > 0)     html.push(`<div class="fr"><span class="fl">رسوم التأمين</span><span class="fv">+ ${fc(shipment.insuranceFee)}</span></div>`);
+    html.push(`<div class="ftot"><span class="ftot-l">إجمالي رسوم الشحن</span><span class="ftot-v">${fc(shipment.shippingFee)}</span></div>`);
+    if (Number(shipment.codAmount) > 0) html.push(`<div class="cod"><span class="cod-l">مبلغ الاستلام COD</span><span class="cod-v">${fc(shipment.codAmount)}</span></div>`);
+    html.push(`</div>`);
+
+    // Notes
+    if (shipment.notes) {
+      html.push(`<div class="notes"><div class="notes-h">ملاحظات</div><p style="font-size:12px;line-height:1.7;color:#374151">${shipment.notes}</p></div>`);
+    }
+
+    // Tracking barcode area
+    if (shipment.trackingNumber) {
+      html.push(`<div class="bsect"><div class="bbox"><div class="bnum">${shipment.trackingNumber}</div><div class="blbl">Tracking Number</div></div></div>`);
+    }
+
+    html.push(`</div>`); // end body
+
+    // ── FOOTER ──
+    html.push(`<div class="inv-footer">`);
+    html.push(`<span class="footer-brand">STARK Shipping &amp; Logistics</span>`);
+    html.push(`<span>شكراً لثقتكم · جميع الحقوق محفوظة</span>`);
+    html.push(`<span>طُبع: ${new Date().toLocaleDateString("ar-EG")}</span>`);
+    html.push(`</div>`);
+
+    html.push(`</div></body>`);
+    html.push(`<script>document.fonts.ready.then(()=>{setTimeout(()=>{window.print();},500);});<\/script>`);
+    html.push(`</html>`);
+
+    w.document.write(html.join(""));
     w.document.close();
   };
 
