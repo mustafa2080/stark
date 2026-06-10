@@ -438,53 +438,111 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <CreditCard className="w-3.5 h-3.5"/>تفاصيل الشحنة
             </p>
             <div className="grid grid-cols-2 gap-3">
-              {/* المنطقة */}
+
+              {/* ── المنطقة ── */}
               <div className="col-span-2">
                 <label className="text-xs font-bold mb-1 block">المنطقة <span className="text-muted-foreground font-normal">(يحدد سعر الشحن)</span></label>
-                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary"
-                  value={selectedZoneId ?? ""}
-                  onChange={e => { setSelectedZoneId(e.target.value ? Number(e.target.value) : null); setReceiverCity(zones.find(z=>z.id===Number(e.target.value))?.name ?? receiverCity); }}>
-                  <option value="">— اختر المنطقة —</option>
-                  {zones.filter(z => z.isActive !== false).map(z => (
-                    <option key={z.id} value={z.id}>{z.name}{z.governorate ? ` — ${z.governorate}` : ""} ({shipFc(z.price)})</option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-1 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                  {zones.filter(z => z.isActive !== false).length === 0
+                    ? <p className="text-xs text-muted-foreground text-center py-2">لا توجد مناطق</p>
+                    : zones.filter(z => z.isActive !== false).map(z => (
+                      <button key={z.id} type="button"
+                        onClick={() => { setSelectedZoneId(z.id === selectedZoneId ? null : z.id); setReceiverCity(z.name); }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-all ${
+                          selectedZoneId === z.id
+                            ? "border-primary bg-primary/10 text-primary font-bold"
+                            : "border-border bg-muted/20 text-foreground hover:bg-muted/50"
+                        }`}>
+                        <span className="flex items-center gap-2">
+                          <MapPin className={`w-3.5 h-3.5 ${selectedZoneId === z.id ? "text-primary" : "text-muted-foreground"}`}/>
+                          {z.name}{z.governorate ? <span className="text-muted-foreground font-normal text-xs"> — {z.governorate}</span> : null}
+                        </span>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${selectedZoneId === z.id ? "bg-primary text-primary-foreground" : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"}`}>
+                          {shipFc(z.price)}
+                        </span>
+                      </button>
+                    ))
+                  }
+                </div>
               </div>
-              {/* نوع الطرد */}
+
+              {/* ── نوع الطرد ── */}
               <div className="col-span-2">
                 <label className="text-xs font-bold mb-1 block">نوع الطرد <span className="text-muted-foreground font-normal">(يُضاف لسعر المنطقة)</span></label>
-                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary"
-                  value={parcelType} onChange={e => setParcelType(e.target.value as ParcelType | "")}>
-                  <option value="">— اختر النوع —</option>
-                  {parcelPrices.length > 0
-                    ? parcelPrices.map(p => (
-                        <option key={p.id} value={p.parcelType}>{p.label || PARCEL_LABELS[p.parcelType]} ({shipFc(p.basePrice)})</option>
-                      ))
-                    : (Object.keys(PARCEL_LABELS) as ParcelType[]).map(k => (
-                        <option key={k} value={k}>{PARCEL_LABELS[k]}</option>
-                      ))
-                  }
-                </select>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(parcelPrices.length > 0
+                    ? parcelPrices.map(p => ({ key: p.parcelType, label: p.label || PARCEL_LABELS[p.parcelType], price: Number(p.basePrice) }))
+                    : (Object.keys(PARCEL_LABELS) as ParcelType[]).map(k => ({ key: k, label: PARCEL_LABELS[k], price: 0 }))
+                  ).map(item => (
+                    <button key={item.key} type="button"
+                      onClick={() => setParcelType(item.key === parcelType ? "" : item.key as ParcelType)}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-all ${
+                        parcelType === item.key
+                          ? "border-primary bg-primary/10 text-primary font-bold"
+                          : "border-border bg-muted/20 text-foreground hover:bg-muted/50"
+                      }`}>
+                      <span>{item.label}</span>
+                      {item.price > 0 && (
+                        <span className={`font-black px-1.5 py-0.5 rounded-full text-[10px] ${parcelType === item.key ? "bg-primary text-primary-foreground" : "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"}`}>
+                          +{shipFc(item.price)}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* ── ملخص الحسبة ── */}
+              {(selectedZoneId || parcelType) && (
+                <div className="col-span-2 rounded-xl bg-primary/5 border border-primary/20 px-4 py-3 flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    {selectedZoneId && <p>منطقة: <span className="font-bold text-foreground">{shipFc(zones.find(z=>z.id===selectedZoneId)?.price ?? 0)}</span></p>}
+                    {parcelType && parcelPrices.find(p=>p.parcelType===parcelType) && (
+                      <p>نوع الطرد: <span className="font-bold text-foreground">+{shipFc(parcelPrices.find(p=>p.parcelType===parcelType)?.basePrice ?? 0)}</span></p>
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] text-muted-foreground">رسوم الشحن</p>
+                    <p className="text-lg font-black text-primary">{shipFc(Number(shippingFee) || 0)}</p>
+                  </div>
+                </div>
+              )}
+
               {/* طريقة الدفع */}
               <div>
                 <label className="text-xs font-bold mb-1 block">طريقة الدفع</label>
-                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as ShipPaymentMethod)}>
-                  <option value="cod">الدفع عند الاستلام</option>
-                  <option value="prepaid">مدفوع مسبقاً</option>
-                  <option value="deferred">الدفع لاحق</option>
-                </select>
+                <div className="flex flex-col gap-1">
+                  {([
+                    { v: "cod",      label: "الدفع عند الاستلام", cls: "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20" },
+                    { v: "prepaid",  label: "مدفوع مسبقاً",       cls: "text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20" },
+                    { v: "deferred", label: "الدفع لاحق",          cls: "text-blue-600 border-blue-300 bg-blue-50 dark:bg-blue-900/20" },
+                  ] as { v: ShipPaymentMethod; label: string; cls: string }[]).map(opt => (
+                    <button key={opt.v} type="button" onClick={() => setPaymentMethod(opt.v)}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                        paymentMethod === opt.v ? opt.cls + " ring-1 ring-current" : "border-border bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                      }`}>
+                      <span className={`w-2 h-2 rounded-full ${paymentMethod === opt.v ? "bg-current" : "bg-muted-foreground/30"}`}/>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* الحالة */}
               <div>
                 <label className="text-xs font-bold mb-1 block">الحالة</label>
-                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={status} onChange={e => setStatus(e.target.value as ShipmentStatus)}>
+                <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary text-foreground" value={status} onChange={e => setStatus(e.target.value as ShipmentStatus)}>
                   {(Object.keys(SHIP_STATUS_CFG) as ShipmentStatus[]).map(s => <option key={s} value={s}>{SHIP_STATUS_CFG[s].label}</option>)}
                 </select>
               </div>
+
+              {/* COD */}
               <div>
                 <label className="text-xs font-bold mb-1 block">COD (جنيه)</label>
                 <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={codAmount} onChange={e => setCodAmount(e.target.value)} placeholder="0"/>
               </div>
+
+              {/* رسوم الشحن */}
               <div>
                 <label className="text-xs font-bold mb-1 flex items-center gap-1.5">
                   رسوم الشحن (جنيه)
@@ -492,6 +550,8 @@ function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 </label>
                 <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={shippingFee} onChange={e => setShippingFee(e.target.value)} placeholder="0"/>
               </div>
+
+              {/* ملاحظات */}
               <div className="col-span-2">
                 <label className="text-xs font-bold mb-1 block">ملاحظات</label>
                 <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={notes} onChange={e => setNotes(e.target.value)} placeholder="أي ملاحظات إضافية..."/>
