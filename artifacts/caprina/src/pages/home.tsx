@@ -754,100 +754,279 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
 // ─── Clients Section ──────────────────────────────────────────────────────────
 function ClientsSection() {
   const [clients, setClients] = React.useState<{ id: number; name: string; avatar: string | null }[]>([]);
+  const [count, setCount] = React.useState(0);
+  const [visible, setVisible] = React.useState(false);
+  const sectionRef = React.useRef<HTMLElement>(null);
 
   React.useEffect(() => {
     fetch("/api/clients-showcase")
       .then(r => r.json())
-      .then(data => {
-        const list = (Array.isArray(data) ? data : []).slice(0, 12);
-        setClients(list);
-      })
+      .then(data => { const list = (Array.isArray(data) ? data : []).slice(0, 14); setClients(list); })
       .catch(() => {});
   }, []);
 
-  const placeholders = Array.from({ length: 12 }, (_, i) => ({ id: -i, name: `عميل ${i + 1}`, avatar: null }));
+  // Intersection observer → trigger counter + reveal
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisible(true); },
+      { threshold: 0.2 }
+    );
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Animated counter 0 → 200
+  React.useEffect(() => {
+    if (!visible) return;
+    let frame: number;
+    const duration = 1800;
+    const start = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(eased * 200));
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
+
+  const placeholders = Array.from({ length: 14 }, (_, i) => ({ id: -i, name: `عميل ${i + 1}`, avatar: null }));
   const items = clients.length >= 1 ? clients : placeholders;
 
-
-  const glowVars = [
-    "rgba(192,192,192,0.15)",
-    "rgba(255,255,255,0.08)",
-    "rgba(160,160,160,0.12)",
+  // Trust stats
+  const stats = [
+    { value: "27", label: "محافظة نغطيها" },
+    { value: "99%", label: "نسبة رضا العملاء" },
+    { value: "24/7", label: "دعم متواصل" },
+    { value: "2001", label: "سنة التأسيس" },
   ];
 
-  const Circle = ({ item, idx }: { item: typeof items[0]; idx: number }) => {
-    const glow = glowVars[idx % glowVars.length];
-    return (
-      <div
-        style={{
-          width: 88,
-          height: 88,
-          borderRadius: "50%",
-          flexShrink: 0,
-          background: "linear-gradient(135deg,#1a1a1a 0%,#111 100%)",
-          border: `1px solid ${glow}`,
-          boxShadow: `0 0 18px ${glow}, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.7)`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          transition: "all 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-          cursor: "pointer",
-        }}
-        onMouseEnter={e => {
-          const el = e.currentTarget as HTMLDivElement;
-          el.style.transform = "scale(1.1)";
-          el.style.boxShadow = `0 0 28px rgba(255,255,255,0.12), 0 0 0 1px rgba(255,255,255,0.1) inset, 0 12px 40px rgba(0,0,0,0.8)`;
-          el.style.borderColor = "rgba(255,255,255,0.25)";
-        }}
-        onMouseLeave={e => {
-          const el = e.currentTarget as HTMLDivElement;
-          el.style.transform = "scale(1)";
-          el.style.boxShadow = `0 0 18px ${glow}, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.7)`;
-          el.style.borderColor = glow;
-        }}
-      >
-        {item.avatar ? (
-          <img src={item.avatar} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
-        ) : (
-          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", fontWeight: 600, textAlign: "center", padding: 4 }}>LOGO</span>
-        )}
-      </div>
-    );
-  };
+  // Testimonial cards
+  const testimonials = [
+    { name: "محمد السيد", role: "صاحب متجر إلكتروني", text: "STARK غيرت طريقة شحننا، التوصيل أصبح أسرع وأكثر موثوقية من أي وقت مضى." },
+    { name: "دينا عمر", role: "مديرة مبيعات", text: "التتبع اللحظي والدعم السريع جعلا عملياتنا اللوجستية سلسة تماماً." },
+    { name: "أحمد خالد", role: "تاجر جملة", text: "أثق بـ STARK في توصيل بضاعتي لأنهم دائماً في الموعد وبكل احترافية." },
+    { name: "سارة مصطفى", role: "بائعة أونلاين", text: "خدمة ممتازة وأسعار تنافسية، عملائي سعداء دائماً بسرعة التوصيل." },
+    { name: "عمر حسن", role: "صاحب مصنع", text: "منذ تعاملنا مع STARK لم نواجه أي تأخير — هذا ما يميزهم عن الجميع." },
+    { name: "ريم إبراهيم", role: "مسؤولة تجارة إلكترونية", text: "فريق متعاون وخدمة من الدرجة الأولى، أنصح بها كل تاجر يريد النمو." },
+  ];
+
+  const avatarColors = ["#1e3a5f","#2d1b4e","#1a3c2e","#3c1a1a","#2e2a10","#12303c"];
 
   return (
-    <section className="py-20 bg-[#0a0a0a] overflow-hidden" dir="rtl">
+    <section ref={sectionRef} className="relative py-24 bg-[#050505] overflow-hidden" dir="rtl">
       <style>{`
-        @keyframes scrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
-        @keyframes scrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
-        .clients-t1 { animation: scrollLeft  8s linear infinite; }
-        .clients-t2 { animation: scrollRight 10s linear infinite; }
+        @keyframes clientsScrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
+        @keyframes clientsScrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
+        .clients-row1 { animation: clientsScrollLeft  18s linear infinite; }
+        .clients-row2 { animation: clientsScrollRight 22s linear infinite; }
+        .clients-row1:hover, .clients-row2:hover { animation-play-state: paused; }
+        @keyframes clientsFadeUp {
+          from { opacity:0; transform:translateY(32px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        @keyframes clientsCountPop {
+          0%   { transform:scale(0.7); opacity:0; }
+          60%  { transform:scale(1.08); }
+          100% { transform:scale(1); opacity:1; }
+        }
+        @keyframes clientsGridReveal {
+          from { opacity:0; transform:translateY(20px) scale(0.97); }
+          to   { opacity:1; transform:translateY(0) scale(1); }
+        }
       `}</style>
 
-      <div className="text-center mb-12 px-4">
+      {/* ── Ambient glow blobs ── */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div style={{ position:"absolute", top:"10%", left:"15%", width:500, height:500, borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(255,255,255,0.025) 0%, transparent 70%)", filter:"blur(60px)" }} />
+        <div style={{ position:"absolute", bottom:"5%", right:"10%", width:400, height:400, borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(200,200,200,0.018) 0%, transparent 70%)", filter:"blur(50px)" }} />
+      </div>
+
+      <div className="relative z-10 max-w-6xl mx-auto px-4">
+
+        {/* ── Header ── */}
         <div
-          className="inline-block text-xs font-bold tracking-widest mb-4 rounded-full px-4 py-1.5"
-          style={{ color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.08)" }}
+          className="text-center mb-16"
+          style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s ease both" : "none" }}
         >
-          عملاؤنا
-        </div>
-        <h2 className="text-3xl font-black text-white mb-2" style={{ letterSpacing: "-0.02em" }}>يثقون فينا</h2>
-        <p className="text-sm" style={{ color: "#444" }}>أكثر من 200 عميل يعتمدون على STARK للشحن يومياً</p>
-      </div>
+          <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-5 text-xs font-bold tracking-widest"
+            style={{ color:"rgba(255,255,255,0.35)", border:"1px solid rgba(255,255,255,0.09)", background:"rgba(255,255,255,0.03)" }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            عملاؤنا الموثوقون
+          </div>
 
-      {/* Row 1 — left */}
-      <div className="relative mb-5 overflow-hidden" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
-        <div className="clients-t1 flex gap-5" style={{ width: "max-content" }}>
-          {[...items, ...items].map((item, i) => <Circle key={`t1-${i}`} item={item} idx={i} />)}
+          {/* Big animated counter */}
+          <div className="flex items-end justify-center gap-3 mb-3">
+            <span
+              className="font-black leading-none"
+              style={{
+                fontSize: "clamp(72px, 10vw, 120px)",
+                background: "linear-gradient(135deg, #ffffff 0%, #b0b0b0 50%, #606060 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                filter: "drop-shadow(0 0 40px rgba(255,255,255,0.15))",
+                letterSpacing: "-0.04em",
+                animation: visible ? "clientsCountPop 0.7s 0.3s cubic-bezier(0.34,1.56,0.64,1) both" : "none",
+              }}
+            >
+              {count}
+            </span>
+            <span
+              className="font-black pb-3 text-5xl"
+              style={{
+                background: "linear-gradient(135deg,#ffffff 0%,#888 100%)",
+                WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
+              }}
+            >+</span>
+          </div>
+          <h2
+            className="text-2xl md:text-3xl font-black text-white mb-2"
+            style={{ letterSpacing:"-0.02em", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.15s ease both" : "none" }}
+          >
+            عميل يثق في STARK يومياً
+          </h2>
+          <p
+            className="text-sm md:text-base"
+            style={{ color:"rgba(255,255,255,0.3)", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.25s ease both" : "none" }}
+          >
+            من القاهرة للأقصر — نوصل في 27 محافظة بكل احترافية
+          </p>
         </div>
-      </div>
 
-      {/* Row 2 — right */}
-      <div className="relative overflow-hidden" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
-        <div className="clients-t2 flex gap-5" style={{ width: "max-content" }}>
-          {[...items, ...items].reverse().map((item, i) => <Circle key={`t2-${i}`} item={item} idx={i} />)}
+        {/* ── Stats strip ── */}
+        <div
+          className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-14"
+          style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.35s ease both" : "none" }}
+        >
+          {stats.map((s, i) => (
+            <div
+              key={i}
+              className="relative rounded-2xl px-5 py-5 text-center overflow-hidden group"
+              style={{
+                background:"linear-gradient(135deg,#111 0%,#0d0d0d 100%)",
+                border:"1px solid rgba(255,255,255,0.07)",
+                transition:"border-color 0.3s, box-shadow 0.3s",
+              }}
+              onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.borderColor="rgba(255,255,255,0.18)"; el.style.boxShadow="0 0 28px rgba(255,255,255,0.04)"; }}
+              onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.borderColor="rgba(255,255,255,0.07)"; el.style.boxShadow="none"; }}
+            >
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                style={{ background:"linear-gradient(135deg,rgba(255,255,255,0.03),transparent 60%)" }} />
+              <div className="text-2xl font-black text-white mb-1" style={{ letterSpacing:"-0.02em" }}>{s.value}</div>
+              <div className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>{s.label}</div>
+            </div>
+          ))}
         </div>
+
+        {/* ── Testimonials grid ── */}
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-14"
+        >
+          {testimonials.map((t, i) => (
+            <div
+              key={i}
+              className="relative rounded-2xl p-5 group"
+              style={{
+                background:"linear-gradient(135deg,#111 0%,#0d0d0d 100%)",
+                border:"1px solid rgba(255,255,255,0.06)",
+                opacity: visible ? 1 : 0,
+                animation: visible ? `clientsGridReveal 0.5s ${0.45 + i * 0.07}s ease both` : "none",
+                transition:"border-color 0.3s, box-shadow 0.3s, transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+              }}
+              onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="translateY(-6px)"; el.style.borderColor="rgba(255,255,255,0.16)"; el.style.boxShadow="0 20px 50px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.1)"; }}
+              onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="translateY(0)"; el.style.borderColor="rgba(255,255,255,0.06)"; el.style.boxShadow="none"; }}
+            >
+              {/* inner shimmer */}
+              <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                style={{ background:"linear-gradient(135deg,rgba(255,255,255,0.035),transparent 55%)" }} />
+
+              {/* Quote mark */}
+              <div className="text-5xl font-black leading-none mb-3 select-none"
+                style={{ color:"rgba(255,255,255,0.06)", fontFamily:"Georgia,serif" }}>&ldquo;</div>
+
+              <p className="text-sm leading-relaxed mb-5" style={{ color:"rgba(255,255,255,0.55)" }}>{t.text}</p>
+
+              <div className="flex items-center gap-3 mt-auto">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                  style={{ background: avatarColors[i % avatarColors.length], border:"1px solid rgba(255,255,255,0.12)" }}>
+                  {t.name[0]}
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white">{t.name}</div>
+                  <div className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>{t.role}</div>
+                </div>
+                {/* Stars */}
+                <div className="mr-auto flex gap-0.5">
+                  {Array.from({length:5}).map((_,si) => (
+                    <svg key={si} viewBox="0 0 12 12" fill="#c0a020" className="w-3 h-3">
+                      <path d="M6 0l1.5 3.5L11 4l-2.5 2.5.6 3.5L6 8.5 2.9 10l.6-3.5L1 4l3.5-.5z"/>
+                    </svg>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Scrolling client avatars ── */}
+        <div
+          style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 1s ease both" : "none" }}
+        >
+          <p className="text-center text-xs mb-5" style={{ color:"rgba(255,255,255,0.18)", letterSpacing:"0.1em" }}>
+            — عملاؤنا —
+          </p>
+
+          {/* Row 1 */}
+          <div className="relative mb-4 overflow-hidden"
+            style={{ maskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)", WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)" }}>
+            <div className="clients-row1 flex gap-4" style={{ width:"max-content" }}>
+              {[...items, ...items].map((item, i) => (
+                <div key={`r1-${i}`} style={{
+                  width:72, height:72, borderRadius:"50%", flexShrink:0,
+                  background:`linear-gradient(135deg, ${avatarColors[i % avatarColors.length]} 0%, #0d0d0d 100%)`,
+                  border:"1px solid rgba(255,255,255,0.1)",
+                  boxShadow:"0 4px 20px rgba(0,0,0,0.6)",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  overflow:"hidden",
+                }}>
+                  {item.avatar
+                    ? <img src={item.avatar} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:"50%" }} />
+                    : <span style={{ fontSize:18, fontWeight:800, color:"rgba(255,255,255,0.25)" }}>{item.name[0]}</span>
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 2 */}
+          <div className="relative overflow-hidden"
+            style={{ maskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)", WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)" }}>
+            <div className="clients-row2 flex gap-4" style={{ width:"max-content" }}>
+              {[...items, ...items].reverse().map((item, i) => (
+                <div key={`r2-${i}`} style={{
+                  width:72, height:72, borderRadius:"50%", flexShrink:0,
+                  background:`linear-gradient(135deg, ${avatarColors[(i + 2) % avatarColors.length]} 0%, #0d0d0d 100%)`,
+                  border:"1px solid rgba(255,255,255,0.08)",
+                  boxShadow:"0 4px 20px rgba(0,0,0,0.6)",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  overflow:"hidden",
+                }}>
+                  {item.avatar
+                    ? <img src={item.avatar} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:"50%" }} />
+                    : <span style={{ fontSize:18, fontWeight:800, color:"rgba(255,255,255,0.2)" }}>{item.name[0]}</span>
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
   );
