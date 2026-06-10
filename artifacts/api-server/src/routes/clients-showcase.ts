@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { requireAuth } from "../middlewares/requireAuth.js";
 
 const router = Router();
 
@@ -32,7 +33,7 @@ router.get("/clients-showcase", async (req, res) => {
 });
 
 // POST /clients-showcase
-router.post("/clients-showcase", async (req, res) => {
+router.post("/clients-showcase", requireAuth, async (req, res) => {
   try {
     const { name, avatar, sort_order = 0 } = req.body;
     if (!name) return res.status(400).json({ error: "name required" });
@@ -46,7 +47,7 @@ router.post("/clients-showcase", async (req, res) => {
 });
 
 // PATCH /clients-showcase/:id
-router.patch("/clients-showcase/:id", async (req, res) => {
+router.patch("/clients-showcase/:id", requireAuth, async (req, res) => {
   try {
     const { name, avatar, sort_order } = req.body;
     const { id } = req.params;
@@ -65,7 +66,7 @@ router.patch("/clients-showcase/:id", async (req, res) => {
 });
 
 // DELETE /clients-showcase/:id
-router.delete("/clients-showcase/:id", async (req, res) => {
+router.delete("/clients-showcase/:id", requireAuth, async (req, res) => {
   try {
     await db.run(sql`DELETE FROM clients_showcase WHERE id = ${req.params.id}`);
     res.json({ ok: true });
