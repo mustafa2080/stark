@@ -316,6 +316,51 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
   }
 });
 
+// ─── PATCH /shipments/:id — alias for PUT (partial update) ───────────────────
+router.patch("/shipments/:id", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = parseInt(req.params.id);
+    const parsed = UpdateShipmentSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+    const d = parsed.data;
+    const updateData: any = { updatedAt: new Date() };
+    if (d.status            !== undefined) updateData.status            = d.status;
+    if (d.trackingNumber    !== undefined) updateData.trackingNumber    = d.trackingNumber;
+    if (d.collectedAmount   !== undefined) updateData.collectedAmount   = String(d.collectedAmount);
+    if (d.senderName        !== undefined) updateData.senderName        = d.senderName;
+    if (d.senderPhone       !== undefined) updateData.senderPhone       = d.senderPhone;
+    if (d.receiverName      !== undefined) updateData.receiverName      = d.receiverName;
+    if (d.receiverPhone     !== undefined) updateData.receiverPhone     = d.receiverPhone;
+    if (d.receiverAddress   !== undefined) updateData.receiverAddress   = d.receiverAddress;
+    if (d.receiverCity      !== undefined) updateData.receiverCity      = d.receiverCity;
+    if (d.zoneId            !== undefined) updateData.zoneId            = d.zoneId;
+    if (d.zonePrice         !== undefined) updateData.zonePrice         = String(d.zonePrice);
+    if (d.parcelType        !== undefined) updateData.parcelType        = d.parcelType;
+    if (d.parcelTypePrice   !== undefined) updateData.parcelTypePrice   = String(d.parcelTypePrice);
+    if (d.weight            !== undefined) updateData.weight            = d.weight ? String(d.weight) : null;
+    if (d.pieces            !== undefined) updateData.pieces            = d.pieces;
+    if (d.description       !== undefined) updateData.description       = d.description;
+    if (d.paymentMethod     !== undefined) updateData.paymentMethod     = d.paymentMethod;
+    if (d.codAmount         !== undefined) updateData.codAmount         = String(d.codAmount);
+    if (d.shippingFee       !== undefined) updateData.shippingFee       = String(d.shippingFee);
+    if (d.insuranceFee      !== undefined) updateData.insuranceFee      = String(d.insuranceFee);
+    if (d.totalAmount       !== undefined) updateData.totalAmount       = String(d.totalAmount);
+    if (d.notes             !== undefined) updateData.notes             = d.notes;
+    if (d.internalNotes     !== undefined) updateData.internalNotes     = d.internalNotes;
+    if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
+      : eq(shipmentsTable.id, id);
+    await db.update(shipmentsTable).set(updateData).where(cond);
+    const updated = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+    res.json(updated[0]);
+  } catch (e) {
+    console.error("[PATCH /shipments/:id]", e);
+    res.status(500).json({ error: "خطأ في تحديث الشحنة" });
+  }
+});
+
 // ─── DELETE /shipments/:id (soft delete) ──────────────────────────────────────
 router.delete("/shipments/:id", async (req, res): Promise<void> => {
   try {
