@@ -756,12 +756,10 @@ function ClientsSection() {
   const [clients, setClients] = React.useState<{ id: number; name: string; avatar: string | null }[]>([]);
 
   React.useEffect(() => {
-    fetch("/api/users")
+    fetch("/api/clients-showcase")
       .then(r => r.json())
       .then(data => {
-        const list = (Array.isArray(data) ? data : data.users ?? [])
-          .filter((u: any) => u.avatar)
-          .slice(0, 12);
+        const list = (Array.isArray(data) ? data : []).slice(0, 12);
         setClients(list);
       })
       .catch(() => {});
