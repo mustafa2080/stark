@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { Package, Truck, MapPin, CheckCircle, Clock, AlertTriangle, XCircle, ArrowRight, Phone, User } from "lucide-react";
+import { Navbar, Footer } from "./home";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
@@ -69,22 +70,21 @@ export default function TrackResultPage() {
   const cfg = shipment ? (STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.waiting) : null;
   const StatusIcon = cfg?.icon ?? Package;
 
-  return (
-    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-start pt-16 pb-20 px-4" dir="rtl">
-      {/* Back */}
-      <button
-        onClick={() => navigate("/")}
-        className="self-start mb-8 flex items-center gap-2 text-sm text-white/40 hover:text-white/80 transition-colors"
-      >
-        <ArrowRight size={16} />
-        الرجوع للرئيسية
-      </button>
+  const [darkMode, setDarkMode] = useState(true);
 
-      {/* Logo */}
-      <div className="flex items-center gap-3 mb-10">
-        <img src="/logo.jpg" alt="STARK" className="w-10 h-10 rounded-xl object-cover" />
-        <span className="font-black text-white tracking-widest text-lg">STARK</span>
-      </div>
+  return (
+    <div className="min-h-screen bg-[#050505] flex flex-col" dir="rtl">
+      <Navbar darkMode={darkMode} toggleDarkMode={() => setDarkMode(p => !p)} />
+
+      <main className="flex-1 flex flex-col items-center justify-start pt-28 pb-20 px-4">
+        {/* Back */}
+        <button
+          onClick={() => navigate("/")}
+          className="self-start mb-8 flex items-center gap-2 text-sm text-white/40 hover:text-white/80 transition-colors"
+        >
+          <ArrowRight size={16} />
+          الرجوع للرئيسية
+        </button>
 
       {/* Loading */}
       {loading && (
@@ -208,6 +208,9 @@ export default function TrackResultPage() {
 
         </div>
       )}
+      </main>
+
+      <Footer />
     </div>
   );
 }
