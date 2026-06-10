@@ -287,7 +287,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-16"
       dir="rtl"
       style={{
-        marginTop: "-160px",
+        marginTop: "-320px",
         background: "transparent",
       }}
     >
