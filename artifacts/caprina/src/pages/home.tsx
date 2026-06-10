@@ -305,20 +305,38 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           }}
         >
           <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2, marginTop: "-240px" }}>
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-white/10">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 20px rgba(255,255,255,0.1)" }}>
           <Package size={28} className="text-white" />
         </div>
-        <h2 className="text-3xl font-black mb-2 text-white">تتبع الشحنة</h2>
-        <p className="mb-8 text-gray-300">يمكنك تتبع شحنتك ومعرفة حالتها الدائمة في أي وقت</p>
+        <h2 className="text-3xl font-black mb-2"
+          style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
+          تتبع الشحنة
+        </h2>
+        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>يمكنك تتبع شحنتك ومعرفة حالتها الدائمة في أي وقت</p>
         <div className="flex gap-3 max-w-lg mx-auto mb-10">
           <input
             type="text"
             value={trackingNum}
             onChange={e => setTrackingNum(e.target.value)}
             placeholder="أدخل رقم التتبع مثال: 1TRK12345678"
-            className="flex-1 border rounded-xl px-4 py-3 focus:outline-none text-sm transition-colors bg-white/10 border-white/20 text-white placeholder-white/40 focus:border-white/50 backdrop-blur-sm"
+            className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
+              border: "1px solid rgba(255,255,255,0.2)",
+              boxShadow: "0 0 0 0 rgba(255,255,255,0), inset 0 1px 0 rgba(255,255,255,0.08)",
+            }}
+            onFocus={e => {
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.5)";
+              e.currentTarget.style.boxShadow = "0 0 20px rgba(255,255,255,0.15), 0 0 40px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.1)";
+            }}
+            onBlur={e => {
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.2)";
+              e.currentTarget.style.boxShadow = "0 0 0 0 rgba(255,255,255,0), inset 0 1px 0 rgba(255,255,255,0.08)";
+            }}
           />
-          <button className="font-bold px-6 py-3 rounded-xl transition-colors text-sm whitespace-nowrap bg-white text-black hover:bg-gray-100">
+          <button className="font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm whitespace-nowrap text-black hover:scale-105"
+            style={{ background: "linear-gradient(135deg, #ffffff 0%, #d8d8d8 100%)", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.3)" }}>
             تتبع
           </button>
         </div>
@@ -326,12 +344,13 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           {steps.map((step, i) => (
             <div key={i} className="flex items-center gap-2">
               <div className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 border rounded-xl flex items-center justify-center bg-white/10 border-white/20 backdrop-blur-sm">
-                  <step.icon size={18} className="text-gray-300" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center backdrop-blur-sm transition-all duration-300 hover:scale-110"
+                  style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 0 12px rgba(255,255,255,0.06)" }}>
+                  <step.icon size={18} style={{ color: "rgba(220,220,220,0.9)" }} />
                 </div>
-                <span className="text-xs text-gray-400">{step.label}</span>
+                <span className="text-xs" style={{ color: "rgba(180,180,180,0.8)", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>{step.label}</span>
               </div>
-              {i < steps.length - 1 && <div className="w-8 h-px mb-4 bg-white/20" />}
+              {i < steps.length - 1 && <div className="w-8 h-px mb-4" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)" }} />}
             </div>
           ))}
         </div>
