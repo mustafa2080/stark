@@ -929,7 +929,7 @@ function ClientsSection() {
             }}
           >
             <div className="clients-row1" style={{ display:"flex", flexWrap:"nowrap", width:"max-content" }}>
-              {[...items, ...items, ...items].map((item, i) => (
+              {[...items, ...items].map((item, i) => (
                 <div
                   key={`c-${i}`}
                   className="group relative flex-shrink-0"
