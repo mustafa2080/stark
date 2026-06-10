@@ -793,7 +793,7 @@ function ClientsSection() {
     return () => cancelAnimationFrame(frame);
   }, [visible]);
 
-  const placeholders = Array.from({ length: 14 }, (_, i) => ({ id: -i, name: `عميل ${i + 1}`, avatar: null }));
+  const placeholders = Array.from({ length: 20 }, (_, i) => ({ id: -i, name: `عميل ${i + 1}`, avatar: null }));
   const items = clients.length >= 1 ? clients : placeholders;
 
   // Trust stats
@@ -924,10 +924,10 @@ function ClientsSection() {
           <p className="text-center text-xs mb-6" style={{ color:"rgba(255,255,255,0.18)", letterSpacing:"0.12em" }}>— عملاؤنا —</p>
 
           {([
-            { cls:"clients-row1", arr:[...items,...items],           size:80, gap:16 },
-            { cls:"clients-row2", arr:[...items,...items].reverse(), size:68, gap:14 },
-            { cls:"clients-row3", arr:[...items,...items].slice(3),  size:76, gap:15 },
-          ] as { cls:string; arr:typeof items; size:number; gap:number }[]).map((row, ri) => (
+            { cls:"clients-row1", arr:[...items,...items],           size:80, gap:"16px" },
+            { cls:"clients-row2", arr:[...items,...items].reverse(), size:68, gap:"14px" },
+            { cls:"clients-row3", arr:[...items,...items].slice(3),  size:76, gap:"15px" },
+          ] as { cls:string; arr:typeof items; size:number; gap:string }[]).map((row, ri) => (
             <div
               key={ri}
               className="relative mb-4 overflow-hidden"
@@ -936,7 +936,7 @@ function ClientsSection() {
                 WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)",
               }}
             >
-              <div className={`${row.cls} flex`} style={{ width:"max-content", gap: row.gap }}>
+              <div className={`${row.cls}`} style={{ display:"flex", flexWrap:"nowrap", width:"max-content", gap: row.gap }}>
                 {row.arr.map((item, i) => (
                   <div
                     key={`r${ri}-${i}`}
