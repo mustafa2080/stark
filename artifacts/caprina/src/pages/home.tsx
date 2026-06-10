@@ -836,18 +836,9 @@ function ClientsSection() {
         <p className="text-sm" style={{ color: "#444" }}>أكثر من 200 عميل يعتمدون على STARK للشحن يومياً</p>
       </div>
 
-      {/* Row 1 — left */}
-      <div className="relative mb-5" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
-        <div className="clients-t1 flex gap-5" style={{ width: "max-content" }}>
-          {items.map((item, i) => <Circle key={`t1-${i}`} item={item} idx={i} />)}
-        </div>
-      </div>
-
-      {/* Row 2 — right */}
-      <div className="relative" style={{ maskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)", WebkitMaskImage: "linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)" }}>
-        <div className="clients-t2 flex gap-5" style={{ width: "max-content" }}>
-          {[...items].reverse().map((item, i) => <Circle key={`t2-${i}`} item={item} idx={i} />)}
-        </div>
+      {/* Row — centered */}
+      <div className="flex justify-center gap-5 flex-wrap px-8">
+        {items.map((item, i) => <Circle key={`c-${i}`} item={item} idx={i} />)}
       </div>
     </section>
   );
