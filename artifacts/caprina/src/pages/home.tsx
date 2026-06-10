@@ -999,7 +999,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <img src="/logo.jpg" alt="STARK" className="w-8 h-8 rounded-lg object-cover" />
-          <span className="text-gray-400 text-sm">شركة STARK للشحن</span>
+          <span className="text-gray-400 text-sm">STARK للشحن</span>
         </div>
         <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2026</p>
         <div className="flex items-center gap-4">
