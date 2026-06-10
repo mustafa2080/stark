@@ -66,6 +66,35 @@ async function generateShipmentNumber(tenantId: number | null): Promise<string> 
   return `${prefix}${String(seq).padStart(4, "0")}`;
 }
 
+// ─── GET /shipments/track/:number (public — no auth) ──────────────────────────
+router.get("/shipments/track/:number", async (req, res): Promise<void> => {
+  try {
+    const { number } = req.params;
+    const rows = await db
+      .select()
+      .from(shipmentsTable)
+      .where(
+        and(
+          isNull(shipmentsTable.deletedAt),
+          or(
+            eq(shipmentsTable.trackingNumber, number),
+            eq(shipmentsTable.shipmentNumber,  number),
+          )
+        )
+      )
+      .limit(1);
+
+    if (!rows.length) {
+      res.status(404).json({ error: "لم يتم العثور على الشحنة" });
+      return;
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    console.error("[GET /shipments/track]", e);
+    res.status(500).json({ error: "خطأ في البحث عن الشحنة" });
+  }
+});
+
 // ─── GET /shipments ───────────────────────────────────────────────────────────
 router.get("/shipments", async (req, res): Promise<void> => {
   try {

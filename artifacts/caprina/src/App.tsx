@@ -219,6 +219,7 @@ const ProfilePage           = lazy(() => import("@/pages/profile"));
 const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
 const ContractPage          = lazy(() => import("@/pages/contract"));
 const ShipmentsPage         = lazy(() => import("@/pages/shipments"));
+const TrackResultPage       = lazy(() => import("@/pages/track-result"));
 const ClientsShowcasePage   = lazy(() => import("@/pages/clients-showcase"));
 
 // ─── Global QueryClient with smart caching defaults ──────────────────────────
@@ -499,7 +500,7 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/contract") {
+  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/contract" || location.startsWith("/track/")) {
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد (بس مش من /contract)
     if (user && (location === "/" || location === "/login" || location === "/register")) {
@@ -511,6 +512,7 @@ function Router() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/track/:number" component={TrackResultPage} />
           <Route path="/contract" component={ContractPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />

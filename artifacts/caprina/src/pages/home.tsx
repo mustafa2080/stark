@@ -280,7 +280,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
   const handleTrack = () => {
     const q = trackingNum.trim();
     if (!q) return;
-    navigate(`/shipments?q=${encodeURIComponent(q)}`);
+    navigate(`/track/${encodeURIComponent(q)}`);
   };
   const steps = [
     { icon: FileText, label: "تم التسجيل" },
