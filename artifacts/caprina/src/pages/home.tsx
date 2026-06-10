@@ -396,6 +396,19 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
 
 // ─── Shipping Cycle Section ───────────────────────────────────────────────────
 function ShippingCycleSection({ darkMode }: { darkMode: boolean }) {
+  const [visible, setVisible] = React.useState(false);
+  const [hoveredIdx, setHoveredIdx] = React.useState<number | null>(null);
+  const sectionRef = React.useRef<HTMLElement>(null);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisible(true); },
+      { threshold: 0.15 }
+    );
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   const steps = [
     { num: "1", title: "تسجيل الشحنة", desc: "سجل شحنتك بسرعة وسهولة من خلال لوحة التحكم أو تواصل معنا مباشرة", icon: FileText },
     { num: "2", title: "طلب البيك أب", desc: "نستقبل طلبك ونرسل مندوب لاستلام الشحنة من موقعك", icon: Truck },
@@ -403,33 +416,181 @@ function ShippingCycleSection({ darkMode }: { darkMode: boolean }) {
     { num: "4", title: "جاري التوصيل", desc: "تنطلق الشحنة برحلتها نحو وجهتها مع تتبع فوري مستمر", icon: MapPin },
     { num: "5", title: "تم التسليم والتحصيل", desc: "يتم تسليم الشحنة للمستلم وتحصيل المبلغ إن وجد بأمان وسرعة", icon: CheckCircle },
   ];
+
   return (
-    <section id="services" className={`py-20 ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
+    <section ref={sectionRef} id="services" className={`py-20 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
+      <style>{`
+        @keyframes cycleCardIn {
+          from { opacity: 0; transform: translateY(40px) scale(0.94); }
+          to   { opacity: 1; transform: translateY(0)   scale(1); }
+        }
+        @keyframes cycleNumPop {
+          0%   { transform: translateX(50%) scale(0); opacity: 0; }
+          60%  { transform: translateX(50%) scale(1.25); opacity: 1; }
+          100% { transform: translateX(50%) scale(1); opacity: 1; }
+        }
+        @keyframes cycleIconSpin {
+          from { transform: rotateY(0deg); }
+          to   { transform: rotateY(360deg); }
+        }
+        @keyframes connectorGrow {
+          from { transform: scaleX(0); opacity: 0; }
+          to   { transform: scaleX(1); opacity: 1; }
+        }
+      `}</style>
+
       <div className="max-w-6xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+        {/* Header */}
+        <div className="text-center mb-14">
+          <div
+            className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: visible ? "translateY(0)" : "translateY(20px)",
+              transition: "opacity 0.5s ease, transform 0.5s ease",
+            }}
+          >
             <Truck size={28} className={darkMode ? "text-white" : "text-black"} />
           </div>
-          <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>دورة الشحن</h2>
-          <p className={darkMode ? "text-gray-400" : "text-gray-500"}>كيف توصل شحنتك من باب التاجر لباب العميل في خطوات بسيطة</p>
+          <h2
+            className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: visible ? "translateY(0)" : "translateY(20px)",
+              transition: "opacity 0.5s 0.1s ease, transform 0.5s 0.1s ease",
+            }}
+          >
+            دورة الشحن
+          </h2>
+          <p
+            className={darkMode ? "text-gray-400" : "text-gray-500"}
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: visible ? "translateY(0)" : "translateY(20px)",
+              transition: "opacity 0.5s 0.18s ease, transform 0.5s 0.18s ease",
+            }}
+          >
+            كيف توصل شحنتك من باب التاجر لباب العميل في خطوات بسيطة
+          </p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {steps.map((s, i) => (
-            <div key={i} className={`border rounded-2xl p-5 text-center relative ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}>
-              <div className={`absolute -top-3 right-1/2 translate-x-1/2 w-6 h-6 rounded-full text-xs font-black flex items-center justify-center ${darkMode ? "bg-white text-black" : "bg-black text-white"}`}>
-                {s.num}
-              </div>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 mt-2 ${darkMode ? "bg-white/10" : "bg-black/6"}`}>
-                <s.icon size={22} className={darkMode ? "text-gray-300" : "text-gray-600"} />
-              </div>
-              <h3 className={`font-bold text-sm mb-2 ${darkMode ? "text-white" : "text-black"}`}>{s.title}</h3>
-              <p className={`text-xs leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{s.desc}</p>
-            </div>
-          ))}
+
+        {/* Cards + connectors */}
+        <div className="relative flex flex-col md:flex-row items-stretch gap-0 md:gap-0">
+          {steps.map((s, i) => {
+            const isHovered = hoveredIdx === i;
+            const delay = visible ? `${i * 0.1}s` : "0s";
+            return (
+              <React.Fragment key={i}>
+                {/* Card */}
+                <div
+                  className="flex-1 relative"
+                  style={{
+                    animation: visible ? `cycleCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) ${delay} both` : "none",
+                    opacity: visible ? undefined : 0,
+                  }}
+                  onMouseEnter={() => setHoveredIdx(i)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                >
+                  <div
+                    className={`border rounded-2xl p-5 text-center relative h-full flex flex-col items-center mx-1 md:mx-2 transition-all duration-300 ${
+                      darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"
+                    }`}
+                    style={{
+                      transform: isHovered ? "translateY(-10px) scale(1.03)" : "translateY(0) scale(1)",
+                      boxShadow: isHovered
+                        ? darkMode
+                          ? "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.12)"
+                          : "0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.08)"
+                        : "none",
+                      borderColor: isHovered
+                        ? darkMode ? "rgba(192,192,192,0.4)" : "rgba(0,0,0,0.25)"
+                        : undefined,
+                      transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
+                    }}
+                  >
+                    {/* Number badge */}
+                    <div
+                      className={`absolute -top-3 right-1/2 w-6 h-6 rounded-full text-xs font-black flex items-center justify-center z-10 ${
+                        darkMode ? "bg-white text-black" : "bg-black text-white"
+                      }`}
+                      style={{
+                        animation: visible ? `cycleNumPop 0.5s cubic-bezier(0.34,1.56,0.64,1) ${parseFloat(delay) + 0.25}s both` : "none",
+                        opacity: visible ? undefined : 0,
+                        right: "50%",
+                        transform: "translateX(50%)",
+                      }}
+                    >
+                      {s.num}
+                    </div>
+
+                    {/* Icon */}
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 mt-4 transition-all duration-300 ${
+                        darkMode ? "bg-white/10" : "bg-black/6"
+                      }`}
+                      style={{
+                        animation: isHovered ? "cycleIconSpin 0.6s ease" : "none",
+                        background: isHovered
+                          ? darkMode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)"
+                          : undefined,
+                      }}
+                    >
+                      <s.icon size={22} className={darkMode ? "text-gray-300" : "text-gray-600"} />
+                    </div>
+
+                    <h3 className={`font-bold text-sm mb-2 ${darkMode ? "text-white" : "text-black"}`}>{s.title}</h3>
+                    <p className={`text-xs leading-relaxed flex-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{s.desc}</p>
+
+                    {/* Bottom glow line on hover */}
+                    <div
+                      className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-500"
+                      style={{
+                        width: isHovered ? "70%" : "0%",
+                        background: darkMode
+                          ? "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)"
+                          : "linear-gradient(90deg, transparent, rgba(0,0,0,0.3), transparent)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Connector arrow between cards */}
+                {i < steps.length - 1 && (
+                  <div
+                    className="hidden md:flex items-center justify-center flex-shrink-0 w-6 z-10"
+                    style={{ marginTop: "0" }}
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "2px",
+                        background: darkMode
+                          ? "linear-gradient(90deg, rgba(255,255,255,0.15), rgba(255,255,255,0.35), rgba(255,255,255,0.15))"
+                          : "linear-gradient(90deg, rgba(0,0,0,0.1), rgba(0,0,0,0.25), rgba(0,0,0,0.1))",
+                        transformOrigin: "right",
+                        animation: visible ? `connectorGrow 0.4s ease ${i * 0.1 + 0.45}s both` : "none",
+                        opacity: visible ? undefined : 0,
+                      }}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
-        <div className="flex flex-wrap gap-3 justify-center mt-8">
+
+        {/* Tags */}
+        <div className="flex flex-wrap gap-3 justify-center mt-10">
           {[{ icon: Shield, label: "الخدمة" }, { icon: MapPin, label: "الاعتمادية" }, { icon: Users, label: "الوصول المحلي" }, { icon: Star, label: "الخبرة" }].map((t, i) => (
-            <div key={i} className={`flex items-center gap-2 border rounded-xl px-4 py-2 ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}>
+            <div
+              key={i}
+              className={`flex items-center gap-2 border rounded-xl px-4 py-2 transition-all duration-300 cursor-default ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444] hover:bg-[#1a1a1a]" : "bg-white border-gray-200 hover:border-gray-400 hover:bg-gray-50"}`}
+              style={{
+                opacity: visible ? 1 : 0,
+                transform: visible ? "translateY(0)" : "translateY(16px)",
+                transition: `opacity 0.4s ${0.55 + i * 0.07}s ease, transform 0.4s ${0.55 + i * 0.07}s ease, background 0.3s, border-color 0.3s`,
+              }}
+            >
               <t.icon size={15} className={darkMode ? "text-gray-400" : "text-gray-500"} />
               <span className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.label}</span>
             </div>
