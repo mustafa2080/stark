@@ -254,8 +254,12 @@ function HeroSection() {
           <span
             className="inline-block text-2xl md:text-3xl font-light"
             style={{
-              color: "rgba(255,255,255,0.5)",
+              background: "linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 40%, #a8a8a8 60%, #d4d4d4 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
               letterSpacing: "0.2em",
+              filter: "drop-shadow(0 0 8px rgba(200,200,200,0.3))",
             }}
           >
             للشحن
