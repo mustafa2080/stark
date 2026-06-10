@@ -899,6 +899,9 @@ export default function Orders() {
         </div>
       </div>
 
+      {/* ── محتوى الشحنات ── */}
+      <div className="space-y-4">
+
         {/* KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
