@@ -218,7 +218,7 @@ const SubscriptionExpired   = lazy(() => import("@/pages/subscription-expired"))
 const ProfilePage           = lazy(() => import("@/pages/profile"));
 const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
 const ContractPage          = lazy(() => import("@/pages/contract"));
-const ShipmentsPage         = lazy(() => import("@/pages/shipments"));
+const ShipmentsSettingsPage = lazy(() => import("@/pages/shipments"));
 const TrackResultPage       = lazy(() => import("@/pages/track-result"));
 const ClientsShowcasePage   = lazy(() => import("@/pages/clients-showcase"));
 
@@ -581,7 +581,7 @@ function Router() {
           {/* Profile */}
           <Route path="/profile" component={ProfilePage} />
           {/* Shipments */}
-          <Route path="/shipments" component={() => <ProtectedRoute permission="dashboard.view" component={ShipmentsPage} />} />
+          <Route path="/shipments" component={() => <ProtectedRoute permission="dashboard.view" component={ShipmentsSettingsPage} />} />
           <Route path="/clients-showcase" component={() => <ProtectedRoute permission="dashboard.view" component={ClientsShowcasePage} />} />
           {/* Subscription Expired */}
           <Route path="/subscription-expired" component={SubscriptionExpired} />
