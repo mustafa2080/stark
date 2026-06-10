@@ -6,9 +6,9 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { startSubscriptionCron } from "./lib/subscriptionCron.js";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, shipmentsTable } from "@workspace/db";
 import { hashPassword } from "./lib/auth.js";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, or, and, isNull } from "drizzle-orm";
 
 import crypto from "node:crypto";
 
@@ -81,6 +81,31 @@ app.use(
 // ─── Body parsing ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// ─── Public tracking endpoint — NO auth, registered before router ────────────
+app.get("/api/shipments/track/:number", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { number } = req.params;
+    const rows = await db
+      .select()
+      .from(shipmentsTable)
+      .where(
+        and(
+          isNull(shipmentsTable.deletedAt),
+          or(
+            eq(shipmentsTable.trackingNumber, number),
+            eq(shipmentsTable.shipmentNumber,  number),
+          )
+        )
+      )
+      .limit(1);
+    if (!rows.length) { res.status(404).json({ error: "لم يتم العثور على الشحنة" }); return; }
+    res.json(rows[0]);
+  } catch (e) {
+    console.error("[GET /api/shipments/track]", e);
+    res.status(500).json({ error: "خطأ في البحث" });
+  }
+});
 
 app.use("/api", router);
 
