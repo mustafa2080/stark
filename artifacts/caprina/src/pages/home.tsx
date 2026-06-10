@@ -813,9 +813,10 @@ function ClientsSection() {
       <style>{`
         @keyframes clientsScrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
         @keyframes clientsScrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
-        .clients-row1 { animation: clientsScrollLeft  18s linear infinite; }
-        .clients-row2 { animation: clientsScrollRight 22s linear infinite; }
-        .clients-row1:hover, .clients-row2:hover { animation-play-state: paused; }
+        .clients-row1 { animation: clientsScrollLeft  20s linear infinite; }
+        .clients-row2 { animation: clientsScrollRight 24s linear infinite; }
+        .clients-row3 { animation: clientsScrollLeft  17s linear infinite; }
+        .clients-row1:hover, .clients-row2:hover, .clients-row3:hover { animation-play-state: paused; }
         @keyframes clientsFadeUp {
           from { opacity:0; transform:translateY(32px); }
           to   { opacity:1; transform:translateY(0); }
@@ -916,102 +917,60 @@ function ClientsSection() {
           ))}
         </div>
 
-        {/* ── Clients photo grid ── */}
-        {clients.length > 0 && (
-          <div
-            className="mb-14"
-            style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.45s ease both" : "none" }}
-          >
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-              {clients.map((client, i) => (
-                <div
-                  key={client.id}
-                  className="group relative aspect-square rounded-2xl overflow-hidden"
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    background: `linear-gradient(135deg, ${avatarColors[i % avatarColors.length]} 0%, #0d0d0d 100%)`,
-                    opacity: visible ? 1 : 0,
-                    animation: visible ? `clientsGridReveal 0.45s ${0.45 + i * 0.04}s ease both` : "none",
-                    transition: "transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s, border-color 0.3s",
-                  }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "scale(1.06)"; el.style.borderColor = "rgba(255,255,255,0.2)"; el.style.boxShadow = "0 12px 40px rgba(0,0,0,0.7)"; }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "scale(1)"; el.style.borderColor = "rgba(255,255,255,0.07)"; el.style.boxShadow = "none"; }}
-                >
-                  {client.avatar ? (
-                    <img
-                      src={client.avatar}
-                      alt={client.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    />
-                  ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ fontSize: 22, fontWeight: 800, color: "rgba(255,255,255,0.2)" }}>{client.name[0]}</span>
-                    </div>
-                  )}
-                  {/* name tooltip on hover */}
-                  <div
-                    className="absolute inset-0 flex items-end opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 60%)" }}
-                  >
-                    <span className="w-full text-center text-xs font-bold text-white pb-2 px-1 truncate">{client.name}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Scrolling client avatars ── */}
+        {/* ── Scrolling client circles ── */}
         <div
-          style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 1s ease both" : "none" }}
+          style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.45s ease both" : "none" }}
         >
-          <p className="text-center text-xs mb-5" style={{ color:"rgba(255,255,255,0.18)", letterSpacing:"0.1em" }}>
-            — عملاؤنا —
-          </p>
+          <p className="text-center text-xs mb-6" style={{ color:"rgba(255,255,255,0.18)", letterSpacing:"0.12em" }}>— عملاؤنا —</p>
 
-          {/* Row 1 */}
-          <div className="relative mb-4 overflow-hidden"
-            style={{ maskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)", WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)" }}>
-            <div className="clients-row1 flex gap-4" style={{ width:"max-content" }}>
-              {[...items, ...items].map((item, i) => (
-                <div key={`r1-${i}`} style={{
-                  width:72, height:72, borderRadius:"50%", flexShrink:0,
-                  background:`linear-gradient(135deg, ${avatarColors[i % avatarColors.length]} 0%, #0d0d0d 100%)`,
-                  border:"1px solid rgba(255,255,255,0.1)",
-                  boxShadow:"0 4px 20px rgba(0,0,0,0.6)",
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  overflow:"hidden",
-                }}>
-                  {item.avatar
-                    ? <img src={item.avatar} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:"50%" }} />
-                    : <span style={{ fontSize:18, fontWeight:800, color:"rgba(255,255,255,0.25)" }}>{item.name[0]}</span>
-                  }
-                </div>
-              ))}
+          {([
+            { cls:"clients-row1", arr:[...items,...items],           size:80, gap:16 },
+            { cls:"clients-row2", arr:[...items,...items].reverse(), size:68, gap:14 },
+            { cls:"clients-row3", arr:[...items,...items].slice(3),  size:76, gap:15 },
+          ] as { cls:string; arr:typeof items; size:number; gap:number }[]).map((row, ri) => (
+            <div
+              key={ri}
+              className="relative mb-4 overflow-hidden"
+              style={{
+                maskImage:"linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)",
+                WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 12%,black 88%,transparent 100%)",
+              }}
+            >
+              <div className={`${row.cls} flex`} style={{ width:"max-content", gap: row.gap }}>
+                {row.arr.map((item, i) => (
+                  <div
+                    key={`r${ri}-${i}`}
+                    className="group relative flex-shrink-0"
+                    style={{
+                      width: row.size, height: row.size, borderRadius:"50%",
+                      background:`linear-gradient(135deg, ${avatarColors[(i + ri) % avatarColors.length]} 0%, #0d0d0d 100%)`,
+                      border:"1px solid rgba(255,255,255,0.1)",
+                      boxShadow:"0 4px 24px rgba(0,0,0,0.55)",
+                      overflow:"hidden",
+                      transition:"transform 0.3s ease, box-shadow 0.3s ease",
+                      cursor:"default",
+                    }}
+                    onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="scale(1.18)"; el.style.boxShadow="0 8px 32px rgba(0,0,0,0.8), 0 0 0 2px rgba(255,255,255,0.18)"; }}
+                    onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="scale(1)"; el.style.boxShadow="0 4px 24px rgba(0,0,0,0.55)"; }}
+                  >
+                    {item.avatar
+                      ? <img src={item.avatar} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                      : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <span style={{ fontSize: Math.round(row.size * 0.28), fontWeight:800, color:"rgba(255,255,255,0.25)" }}>{item.name[0]}</span>
+                        </div>
+                    }
+                    {/* name on hover */}
+                    <div
+                      className="absolute inset-0 flex items-end justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                      style={{ background:"linear-gradient(to top, rgba(0,0,0,0.82) 0%, transparent 55%)", borderRadius:"50%" }}
+                    >
+                      <span style={{ fontSize:9, fontWeight:700, color:"#fff", paddingBottom:7, maxWidth:"90%", textAlign:"center", overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{item.name}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-
-          {/* Row 2 */}
-          <div className="relative overflow-hidden"
-            style={{ maskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)", WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 10%,black 90%,transparent 100%)" }}>
-            <div className="clients-row2 flex gap-4" style={{ width:"max-content" }}>
-              {[...items, ...items].reverse().map((item, i) => (
-                <div key={`r2-${i}`} style={{
-                  width:72, height:72, borderRadius:"50%", flexShrink:0,
-                  background:`linear-gradient(135deg, ${avatarColors[(i + 2) % avatarColors.length]} 0%, #0d0d0d 100%)`,
-                  border:"1px solid rgba(255,255,255,0.08)",
-                  boxShadow:"0 4px 20px rgba(0,0,0,0.6)",
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  overflow:"hidden",
-                }}>
-                  {item.avatar
-                    ? <img src={item.avatar} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:"50%" }} />
-                    : <span style={{ fontSize:18, fontWeight:800, color:"rgba(255,255,255,0.2)" }}>{item.name[0]}</span>
-                  }
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
 
       </div>
