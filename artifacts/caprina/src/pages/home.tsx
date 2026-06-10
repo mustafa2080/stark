@@ -262,9 +262,7 @@ function HeroSection() {
             للشحن
           </span>
         </h1>
-        <p className="text-gray-300 text-lg md:text-xl mb-0 max-w-2xl mx-auto leading-relaxed">
-          STARK لوجستيك — خدمات شحن محلية سريعة وموثوقة تطال كل مصر، اطمن — سيب الشحن علينا
-        </p>
+
       </div>
     </section>
   );
