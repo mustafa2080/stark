@@ -465,12 +465,16 @@ function ContractSection({ darkMode }: { darkMode: boolean }) {
             </div>
           ))}
         </div>
-        <button
-          onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
-          className={`inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-colors ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
+        <a
+          href="/STARK_Contract.pdf"
+          download="عقد_شركة_STARK_للشحن.pdf"
+          className={`inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-all duration-300 ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
+          style={{ boxShadow: darkMode ? "0 4px 20px rgba(255,255,255,0.15)" : "0 4px 20px rgba(0,0,0,0.2)" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)"; }}
         >
-          <FileText size={18} /> العقد والتعاقد
-        </button>
+          <FileText size={18} /> تحميل العقد PDF
+        </a>
       </div>
     </section>
   );
