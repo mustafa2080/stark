@@ -2,10 +2,10 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText } from "lucide-react";
+import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, Truck, MapPin, Clock, CheckCircle, AlertTriangle, XCircle, CreditCard, Boxes } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
 import type { UpdateOrderBodyStatus } from "@workspace/api-zod";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,241 @@ const STATUS_OPTIONS = [
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(amount);
 
-// ── ColFilterBtn: فلتر Excel لكل عمود ─────────────────────────────────────
+// ── Shipment Types & Constants ─────────────────────────────────────────────
+type ShipmentStatus = "waiting"|"confirmed"|"picked_up"|"in_transit"|"out_for_delivery"|"delivered"|"delayed"|"returned"|"cancelled";
+type ShipPaymentMethod = "cod"|"prepaid"|"deferred";
+type ParcelType = "document"|"normal"|"fragile"|"heavy"|"electronics"|"clothing"|"food"|"other";
+
+interface Shipment {
+  id: number; shipmentNumber?: string; trackingNumber?: string;
+  senderName: string; senderPhone?: string;
+  receiverName: string; receiverPhone?: string; receiverCity?: string;
+  parcelType?: ParcelType; paymentMethod: ShipPaymentMethod;
+  codAmount?: string|number; shippingFee?: string|number;
+  status: ShipmentStatus; createdAt: string; createdByName?: string;
+}
+interface ShipmentZone { id: number; name: string; governorate?: string; price: string|number; isActive?: boolean }
+interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string|number }
+interface Client { id: number; name: string; phone?: string }
+
+const SHIP_STATUS_CFG: Record<ShipmentStatus, { label: string; icon: React.ElementType; cls: string }> = {
+  waiting:          { label: "انتظار",        icon: Clock,         cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600" },
+  confirmed:        { label: "مؤكدة",         icon: CheckCircle,   cls: "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700" },
+  picked_up:        { label: "تم الاستلام",   icon: Package,       cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700" },
+  in_transit:       { label: "في الطريق",     icon: Truck,         cls: "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700" },
+  out_for_delivery: { label: "خرجت للتسليم", icon: MapPin,        cls: "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700" },
+  delivered:        { label: "تم التسليم",    icon: CheckCircle,   cls: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700" },
+  delayed:          { label: "متأخرة",        icon: AlertTriangle, cls: "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-700" },
+  returned:         { label: "مرتجع",         icon: RotateCcw,     cls: "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700" },
+  cancelled:        { label: "ملغية",         icon: XCircle,       cls: "bg-zinc-100 dark:bg-zinc-800/40 text-zinc-500 dark:text-zinc-400 border-zinc-300 dark:border-zinc-600" },
+};
+const SHIP_PAYMENT_LABELS: Record<ShipPaymentMethod, string> = {
+  cod: "الدفع عند الاستلام", prepaid: "مدفوع مسبقاً", deferred: "الدفع لاحق",
+};
+const SHIP_PAYMENT_COLORS: Record<ShipPaymentMethod, string> = {
+  cod:      "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700",
+  prepaid:  "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700",
+  deferred: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700",
+};
+const PARCEL_LABELS: Record<ParcelType, string> = {
+  document:"مستندات", normal:"طرد عادي", fragile:"قابل للكسر",
+  heavy:"ثقيل", electronics:"إلكترونيات", clothing:"ملابس", food:"طعام", other:"أخرى",
+};
+const shipFmt = (d: string) => new Date(d).toLocaleDateString("ar-EG", { year:"numeric", month:"short", day:"numeric" });
+const shipFc  = (n: number|string) => new Intl.NumberFormat("ar-EG", { style:"currency", currency:"EGP", maximumFractionDigits:0 }).format(Number(n)||0);
+
+function apiHeaders() {
+  const token = localStorage.getItem("caprina_token");
+  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+async function shipApiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
+  const r = await fetch(`/api${path}`, { headers: apiHeaders(), ...opts });
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as any).error || r.statusText); }
+  return r.json();
+}
+
+// ── Shipment ColFilter types ───────────────────────────────────────────────
+type ShipColKey = "num"|"date"|"sender"|"receiver"|"city"|"parcel"|"payment"|"fee"|"cod"|"status"|"creator";
+type ShipColFilters = Record<ShipColKey, Set<string>>;
+
+// ── ShipColFilterBtn ───────────────────────────────────────────────────────
+function ShipColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
+  col: ShipColKey; colFilters: ShipColFilters;
+  getColOptions: (col: ShipColKey) => string[];
+  toggleColFilter: (col: ShipColKey, val: string) => void;
+  clearColFilter: (col: ShipColKey) => void;
+  sortCol: ShipColKey | null; sortDir: "asc"|"desc";
+  onSort: (col: ShipColKey, dir: "asc"|"desc") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const active = colFilters[col].size > 0;
+  const isSorted = sortCol === col;
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node) &&
+          btnRef.current  && !btnRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const panelW = 208;
+      setPos({ top: r.bottom + 4, left: Math.max(4, Math.min(r.left, window.innerWidth - panelW - 4)) });
+    }
+    setOpen(o => !o); setSearch("");
+  };
+  let opts = getColOptions(col);
+  if (search) opts = opts.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <>
+      <button ref={btnRef} type="button" onClick={handleOpen} title="فلتر"
+        className={`inline-flex items-center justify-center w-5 h-5 rounded transition-all shrink-0 ${active ? "text-primary bg-primary/15" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
+        {active ? <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                : <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>}
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div ref={panelRef} style={{ position:"fixed", top:pos.top, left:pos.left, zIndex:9999 }}
+          className="bg-background border border-border rounded-lg shadow-2xl text-[11px] w-52" dir="rtl">
+          <div className="flex gap-1 p-2 border-b border-border/50">
+            <button type="button" onClick={() => { onSort(col,"asc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${isSorted && sortDir==="asc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronUp className="w-2.5 h-2.5"/>أ→ي
+            </button>
+            <button type="button" onClick={() => { onSort(col,"desc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${isSorted && sortDir==="desc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronDown className="w-2.5 h-2.5"/>ي→أ
+            </button>
+          </div>
+          <div className="px-2 pt-2">
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث في القيم..."
+              className="w-full h-7 text-[10px] px-2 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"/>
+          </div>
+          <div className="max-h-52 overflow-y-auto px-1 py-1.5 flex flex-col gap-0.5">
+            {opts.length === 0
+              ? <p className="text-muted-foreground text-center py-3 text-[10px]">لا توجد قيم</p>
+              : opts.map(val => (
+                <label key={val} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer">
+                  <input type="checkbox" checked={colFilters[col].has(val)} onChange={() => toggleColFilter(col,val)} className="accent-primary w-3 h-3 shrink-0"/>
+                  <span className="truncate">{val}</span>
+                </label>
+              ))}
+          </div>
+          {active && (
+            <div className="border-t border-border/50 px-2 py-1.5">
+              <button type="button" onClick={() => { clearColFilter(col); setOpen(false); }}
+                className="text-destructive text-[10px] hover:underline w-full text-right">مسح الفلتر</button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// ── ShipmentStatusBadge ────────────────────────────────────────────────────
+function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {
+  const cfg = SHIP_STATUS_CFG[status] ?? SHIP_STATUS_CFG.waiting;
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${cfg.cls}`}>
+      <Icon className="w-2.5 h-2.5"/>{cfg.label}
+    </span>
+  );
+}
+
+// ── ShipmentFormDialog & EditStatusDialog (forward to shipments page) ──────
+// These live in shipments.tsx — here we inline a minimal new-shipment dialog
+function NewShipmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [senderName, setSenderName] = useState("");
+  const [receiverName, setReceiverName] = useState("");
+  const [receiverPhone, setReceiverPhone] = useState("");
+  const [receiverCity, setReceiverCity] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<ShipPaymentMethod>("cod");
+  const [codAmount, setCodAmount] = useState("");
+  const [shippingFee, setShippingFee] = useState("");
+  const [status, setStatus] = useState<ShipmentStatus>("waiting");
+
+  const { data: zones = [] } = useQuery({ queryKey:["shipment-zones"], queryFn: () => shipApiFetch<ShipmentZone[]>("/shipment-zones") });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => shipApiFetch("/shipments", { method:"POST", body: JSON.stringify(data) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey:["shipments-orders"] }); toast({ title:"تم إنشاء الشحنة ✅" }); onClose(); },
+    onError: (e: any) => toast({ title:"خطأ", description: e.message, variant:"destructive" }),
+  });
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl">
+      <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black flex items-center gap-2"><Truck className="w-4 h-4 text-primary"/>شحنة جديدة</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="text-xs font-bold mb-1 block">اسم المُرسِل *</label>
+            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={senderName} onChange={e => setSenderName(e.target.value)} placeholder="اسم المُرسِل"/>
+          </div>
+          <div>
+            <label className="text-xs font-bold mb-1 block">اسم المُستلِم *</label>
+            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverName} onChange={e => setReceiverName(e.target.value)} placeholder="اسم المُستلِم"/>
+          </div>
+          <div>
+            <label className="text-xs font-bold mb-1 block">هاتف المُستلِم</label>
+            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverPhone} onChange={e => setReceiverPhone(e.target.value)} placeholder="01xxxxxxxxx"/>
+          </div>
+          <div>
+            <label className="text-xs font-bold mb-1 block">المدينة</label>
+            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={receiverCity} onChange={e => setReceiverCity(e.target.value)} placeholder="القاهرة"/>
+          </div>
+          <div>
+            <label className="text-xs font-bold mb-1 block">طريقة الدفع</label>
+            <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as ShipPaymentMethod)}>
+              <option value="cod">الدفع عند الاستلام</option>
+              <option value="prepaid">مدفوع مسبقاً</option>
+              <option value="deferred">الدفع لاحق</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-bold mb-1 block">COD (جنيه)</label>
+            <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={codAmount} onChange={e => setCodAmount(e.target.value)} placeholder="0"/>
+          </div>
+          <div>
+            <label className="text-xs font-bold mb-1 block">رسوم الشحن (جنيه)</label>
+            <input type="number" className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={shippingFee} onChange={e => setShippingFee(e.target.value)} placeholder="0"/>
+          </div>
+          <div>
+            <label className="text-xs font-bold mb-1 block">الحالة</label>
+            <select className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary" value={status} onChange={e => setStatus(e.target.value as ShipmentStatus)}>
+              {(Object.keys(SHIP_STATUS_CFG) as ShipmentStatus[]).map(s => <option key={s} value={s}>{SHIP_STATUS_CFG[s].label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2 pt-1 border-t border-border">
+          <button onClick={onClose} className="flex-1 h-9 text-sm border border-border rounded-lg text-muted-foreground hover:bg-muted/40 transition-all">إلغاء</button>
+          <button
+            disabled={!senderName || !receiverName || createMutation.isPending}
+            onClick={() => createMutation.mutate({ senderName, receiverName, receiverPhone, receiverCity, paymentMethod, codAmount: codAmount ? Number(codAmount) : undefined, shippingFee: shippingFee ? Number(shippingFee) : undefined, status })}
+            className="flex-1 h-9 text-sm font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
+            {createMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Plus className="w-3.5 h-3.5"/>}
+            إنشاء الشحنة
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ── ColFilterBtn types ──────────────────────────────────────────────────────
 type ColKey = "id" | "date" | "customer" | "phone" | "product" | "total" | "creator" | "status";
 type ColFilters = Record<ColKey, Set<string>>;
 
@@ -194,6 +428,29 @@ export default function Orders() {
   const [sortCol, setSortCol] = useState<ColKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
+  // ── Shipments state ──────────────────────────────────────────────────────
+  const [shipSearch, setShipSearch]   = useState("");
+  const [shipStatus, setShipStatus]   = useState("all");
+  const [newShipOpen, setNewShipOpen] = useState(false);
+  const [showShipFilters, setShowShipFilters] = useState(false);
+  const EMPTY_SHIP_FILTERS: ShipColFilters = {
+    num:new Set(), date:new Set(), sender:new Set(), receiver:new Set(),
+    city:new Set(), parcel:new Set(), payment:new Set(), fee:new Set(),
+    cod:new Set(), status:new Set(), creator:new Set(),
+  };
+  const [shipColFilters, setShipColFilters] = useState<ShipColFilters>(EMPTY_SHIP_FILTERS);
+  const [shipSortCol, setShipSortCol] = useState<ShipColKey | null>(null);
+  const [shipSortDir, setShipSortDir] = useState<"asc"|"desc">("asc");
+  const shipColFilterActive = Object.values(shipColFilters).some(s => s.size > 0);
+
+  const handleShipSort = useCallback((col: ShipColKey, dir: "asc"|"desc") => { setShipSortCol(col); setShipSortDir(dir); }, []);
+  const toggleShipColFilter = useCallback((col: ShipColKey, val: string) => {
+    setShipColFilters(prev => { const next = { ...prev, [col]: new Set(prev[col]) }; next[col].has(val) ? next[col].delete(val) : next[col].add(val); return next; });
+  }, []);
+  const clearShipColFilter = useCallback((col: ShipColKey) => {
+    setShipColFilters(prev => ({ ...prev, [col]: new Set() }));
+  }, []);
+
   const handleSort = useCallback((col: ColKey, dir: "asc" | "desc") => {
     setSortCol(col);
     setSortDir(dir);
@@ -249,6 +506,95 @@ export default function Orders() {
     staleTime: 0,
   });
   const inManifestSet = new Set(inManifestData?.ids ?? []);
+
+  // ── Shipments data ─────────────────────────────────────────────────────────
+  const { data: shipmentsData, isLoading: isShipLoading } = useQuery({
+    queryKey: ["shipments-orders", shipStatus, shipSearch],
+    queryFn: () => shipApiFetch<{ data: Shipment[]; total: number }>(
+      `/shipments?status=${shipStatus}&search=${encodeURIComponent(shipSearch)}&limit=200`
+    ),
+  });
+  const { data: shipStats } = useQuery({
+    queryKey: ["shipments-stats"],
+    queryFn: () => shipApiFetch<any>("/shipments/stats"),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => shipApiFetch(`/shipments/${id}`, { method: "DELETE" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["shipments-orders"] }); toast({ title: "تم حذف الشحنة" }); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+  const shipments = shipmentsData?.data ?? [];
+  const shipTotal = shipmentsData?.total ?? 0;
+  const shipStatusCounts: Record<string, number> = {};
+  (shipStats?.statuses ?? []).forEach((r: any) => { shipStatusCounts[r.status] = Number(r.count); });
+  const shipTotalAll = Object.values(shipStatusCounts).reduce((a, b) => a + b, 0);
+
+  const getShipColOptions = useCallback((col: ShipColKey): string[] => {
+    const vals = new Set<string>();
+    shipments.forEach(s => {
+      const v = (() => { switch(col) {
+        case "num":     return s.shipmentNumber || s.trackingNumber || String(s.id);
+        case "date":    return shipFmt(s.createdAt);
+        case "sender":  return s.senderName;
+        case "receiver":return s.receiverName;
+        case "city":    return s.receiverCity || "";
+        case "parcel":  return s.parcelType ? PARCEL_LABELS[s.parcelType] : "";
+        case "payment": return SHIP_PAYMENT_LABELS[s.paymentMethod];
+        case "fee":     return shipFc(s.shippingFee ?? 0);
+        case "cod":     return shipFc(s.codAmount ?? 0);
+        case "status":  return SHIP_STATUS_CFG[s.status]?.label ?? s.status;
+        case "creator": return s.createdByName || "";
+        default: return "";
+      }})();
+      if (v) vals.add(v);
+    });
+    return Array.from(vals).sort((a, b) => a.localeCompare(b, "ar"));
+  }, [shipments]);
+
+  const displayedShipments = useMemo(() => {
+    let rows = [...shipments];
+    (Object.keys(shipColFilters) as ShipColKey[]).forEach(col => {
+      if (!shipColFilters[col].size) return;
+      rows = rows.filter(s => {
+        const v = (() => { switch(col) {
+          case "num":     return s.shipmentNumber || s.trackingNumber || String(s.id);
+          case "date":    return shipFmt(s.createdAt);
+          case "sender":  return s.senderName;
+          case "receiver":return s.receiverName;
+          case "city":    return s.receiverCity || "";
+          case "parcel":  return s.parcelType ? PARCEL_LABELS[s.parcelType] : "";
+          case "payment": return SHIP_PAYMENT_LABELS[s.paymentMethod];
+          case "fee":     return shipFc(s.shippingFee ?? 0);
+          case "cod":     return shipFc(s.codAmount ?? 0);
+          case "status":  return SHIP_STATUS_CFG[s.status]?.label ?? s.status;
+          case "creator": return s.createdByName || "";
+          default: return "";
+        }})();
+        return shipColFilters[col].has(v);
+      });
+    });
+    if (shipSortCol) {
+      rows.sort((a, b) => {
+        const getV = (s: Shipment) => { switch(shipSortCol) {
+          case "num":     return s.shipmentNumber || s.trackingNumber || String(s.id);
+          case "date":    return shipFmt(s.createdAt);
+          case "sender":  return s.senderName;
+          case "receiver":return s.receiverName;
+          case "city":    return s.receiverCity || "";
+          case "parcel":  return s.parcelType ? PARCEL_LABELS[s.parcelType] : "";
+          case "payment": return SHIP_PAYMENT_LABELS[s.paymentMethod];
+          case "fee":     return shipFc(s.shippingFee ?? 0);
+          case "cod":     return shipFc(s.codAmount ?? 0);
+          case "status":  return SHIP_STATUS_CFG[s.status]?.label ?? s.status;
+          case "creator": return s.createdByName || "";
+          default: return "";
+        }};
+        const cmp = getV(a).localeCompare(getV(b), "ar", { numeric: true });
+        return shipSortDir === "asc" ? cmp : -cmp;
+      });
+    }
+    return rows;
+  }, [shipments, shipColFilters, shipSortCol, shipSortDir]);
 
   const filtered = orders?.filter(o => {
     if (customerSearch && !o.customerName?.toLowerCase().includes(customerSearch.toLowerCase())) return false;
@@ -639,6 +985,20 @@ export default function Orders() {
                 </Button>
               </Link>
               )}
+              {/* زر شحنة جديدة — معدني */}
+              <button
+                onClick={() => setNewShipOpen(true)}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-bold transition-all"
+                style={{
+                  background: "linear-gradient(135deg, #9ca3af 0%, #6b7280 40%, #4b5563 70%, #374151 100%)",
+                  color: "#f9fafb",
+                  border: "1px solid rgba(156,163,175,0.4)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
+                }}
+              >
+                <Truck className="w-4 h-4"/>
+                شحنة جديدة
+              </button>
             </>
           ))}
         </div>
@@ -1147,6 +1507,204 @@ export default function Orders() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ── قسم الشحنات ──────────────────────────────────────────────────────
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="mt-8 space-y-4" dir="rtl">
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-border">
+          <div>
+            <h2 className="text-lg font-black text-foreground flex items-center gap-2">
+              <Truck className="w-5 h-5 text-primary"/>
+              الشحنات
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">تتبع وإدارة جميع شحناتك</p>
+          </div>
+          <button
+            onClick={() => setNewShipOpen(true)}
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-bold transition-all"
+            style={{
+              background: "linear-gradient(135deg, #9ca3af 0%, #6b7280 40%, #4b5563 70%, #374151 100%)",
+              color: "#f9fafb",
+              border: "1px solid rgba(156,163,175,0.4)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
+            }}
+          >
+            <Plus className="w-4 h-4"/>شحنة جديدة
+          </button>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "إجمالي الشحنات", value: shipTotalAll, color: "bg-primary/10 text-primary", icon: Boxes },
+            { label: "تم التسليم",      value: shipStatusCounts["delivered"] ?? 0, color: "bg-emerald-500/10 text-emerald-500", icon: CheckCircle },
+            { label: "في الطريق",       value: (shipStatusCounts["in_transit"]??0)+(shipStatusCounts["out_for_delivery"]??0)+(shipStatusCounts["confirmed"]??0), color: "bg-violet-500/10 text-violet-500", icon: Truck },
+            { label: "مرتجع / ملغي",    value: (shipStatusCounts["returned"]??0)+(shipStatusCounts["cancelled"]??0), color: "bg-red-500/10 text-red-500", icon: XCircle },
+          ].map(({ label, value, color, icon: Icon }) => (
+            <Card key={label} className="border-border bg-card">
+              <div className="p-4 flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+                  <Icon className="w-5 h-5"/>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground font-medium">{label}</p>
+                  <p className="text-lg font-black text-foreground">{value}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground"/>
+            <input className="w-full h-9 pr-9 pl-3 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-primary" placeholder="بحث باسم أو رقم الشحنة..." value={shipSearch} onChange={e => setShipSearch(e.target.value)}/>
+            {shipSearch && <button onClick={() => setShipSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5"/></button>}
+          </div>
+          <select className="h-9 text-xs px-3 border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-primary" value={shipStatus} onChange={e => setShipStatus(e.target.value)}>
+            <option value="all">كل الحالات ({shipTotalAll})</option>
+            {(Object.keys(SHIP_STATUS_CFG) as ShipmentStatus[]).map(s => (
+              <option key={s} value={s}>{SHIP_STATUS_CFG[s].label} {shipStatusCounts[s] ? `(${shipStatusCounts[s]})` : ""}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setShowShipFilters(v => !v)}
+            className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${showShipFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
+          >
+            <Filter className="w-3.5 h-3.5"/>
+            {showShipFilters ? "إلغاء الفلتر" : "فلتر الأعمدة"}
+            {shipColFilterActive && (
+              <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-black flex items-center justify-center">
+                {Object.values(shipColFilters).filter(s => s.size > 0).length}
+              </span>
+            )}
+          </button>
+          {shipColFilterActive && (
+            <button onClick={() => setShipColFilters(EMPTY_SHIP_FILTERS)} className="text-xs text-destructive hover:underline">مسح الفلاتر</button>
+          )}
+        </div>
+
+        {/* Status Pills */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setShipStatus("all")} className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${shipStatus==="all" ? "bg-primary text-primary-foreground border-primary" : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
+            الكل {shipTotalAll > 0 && `(${shipTotalAll})`}
+          </button>
+          {(Object.keys(SHIP_STATUS_CFG) as ShipmentStatus[]).map(s => {
+            const cnt = shipStatusCounts[s] ?? 0;
+            if (!cnt && shipStatus !== s) return null;
+            return (
+              <button key={s} onClick={() => setShipStatus(s === shipStatus ? "all" : s)}
+                className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${shipStatus===s ? SHIP_STATUS_CFG[s].cls : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
+                {SHIP_STATUS_CFG[s].label} {cnt > 0 && `(${cnt})`}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Table */}
+        {isShipLoading ? (
+          <div className="flex items-center justify-center py-16"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground"/></div>
+        ) : displayedShipments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-primary/5 border border-primary/15 flex items-center justify-center mb-3">
+              <Truck className="w-6 h-6 text-primary/40"/>
+            </div>
+            <p className="text-sm font-bold text-foreground">لا توجد شحنات</p>
+            <p className="text-xs text-muted-foreground mt-1">ابدأ بإضافة شحنة جديدة</p>
+            <button onClick={() => setNewShipOpen(true)} className="mt-3 text-xs text-primary hover:underline font-bold flex items-center gap-1"><Plus className="w-3 h-3"/>شحنة جديدة</button>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden bg-card">
+            {shipColFilterActive && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border text-xs text-primary font-bold">
+                <Filter className="w-3 h-3"/>
+                فلتر مفعّل — يتم عرض {displayedShipments.length} من {shipments.length} شحنة
+                <button onClick={() => setShipColFilters(EMPTY_SHIP_FILTERS)} className="mr-auto text-destructive hover:underline text-[10px]">مسح الفلاتر</button>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    {([
+                      { col:"num",      label:"رقم الشحنة" },
+                      { col:"date",     label:"التاريخ" },
+                      { col:"sender",   label:"المُرسِل" },
+                      { col:"receiver", label:"المُستلِم" },
+                      { col:"city",     label:"المدينة" },
+                      { col:"parcel",   label:"النوع" },
+                      { col:"payment",  label:"الدفع" },
+                      { col:"fee",      label:"رسوم الشحن" },
+                      { col:"cod",      label:"COD" },
+                      { col:"status",   label:"الحالة" },
+                      { col:"creator",  label:"المنشئ" },
+                    ] as { col: ShipColKey; label: string }[]).map(({ col, label }) => (
+                      <TableHead key={col} className="text-right text-[11px] font-bold text-muted-foreground whitespace-nowrap px-3">
+                        <span className="inline-flex items-center gap-1">
+                          {label}
+                          {showShipFilters && (
+                            <ShipColFilterBtn col={col} colFilters={shipColFilters} getColOptions={getShipColOptions}
+                              toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter}
+                              sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>
+                          )}
+                        </span>
+                      </TableHead>
+                    ))}
+                    <TableHead className="text-right text-[11px] font-bold text-muted-foreground px-3">إجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayedShipments.map((s, i) => (
+                    <TableRow key={s.id} className={`text-xs hover:bg-muted/20 transition-colors ${i%2===1 ? "bg-muted/5" : ""}`}>
+                      <TableCell className="px-3 py-2.5 font-mono font-bold text-primary whitespace-nowrap">
+                        {s.shipmentNumber || s.trackingNumber || `#${s.id}`}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{shipFmt(s.createdAt)}</TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <p className="font-bold text-foreground">{s.senderName}</p>
+                        {s.senderPhone && <p className="text-[10px] text-muted-foreground">{s.senderPhone}</p>}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <p className="font-bold text-foreground">{s.receiverName}</p>
+                        {s.receiverPhone && <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.receiverCity || "—"}</TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.parcelType ? PARCEL_LABELS[s.parcelType] : "—"}</TableCell>
+                      <TableCell className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border ${SHIP_PAYMENT_COLORS[s.paymentMethod]}`}>
+                          {SHIP_PAYMENT_LABELS[s.paymentMethod]}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 font-bold text-foreground whitespace-nowrap">{shipFc(s.shippingFee ?? 0)}</TableCell>
+                      <TableCell className="px-3 py-2.5 font-bold text-amber-500 whitespace-nowrap">{shipFc(s.codAmount ?? 0)}</TableCell>
+                      <TableCell className="px-3 py-2.5 whitespace-nowrap"><ShipmentStatusBadge status={s.status}/></TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.createdByName || "—"}</TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <button onClick={() => { if (confirm(`حذف الشحنة ${s.shipmentNumber || s.id}؟`)) deleteMutation.mutate(s.id); }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all">
+                          <Trash2 className="w-3.5 h-3.5"/>
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {shipTotal > shipments.length && (
+              <p className="text-center text-xs text-muted-foreground py-3 border-t border-border">
+                يتم عرض {shipments.length} من {shipTotal} شحنة
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* New Shipment Dialog */}
+      <NewShipmentDialog open={newShipOpen} onClose={() => setNewShipOpen(false)}/>
     </div>
   );
 }

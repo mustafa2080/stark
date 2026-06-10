@@ -995,54 +995,7 @@ export default function ShipmentsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [activeTab, setActiveTab]   = useState<"shipments" | "zones" | "pricing">("shipments");
-  const [search, setSearch]         = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("q") || "";
-  });
-  const [statusFilter, setStatus]   = useState("all");
-  const [formOpen, setFormOpen]      = useState(false);
-  const [editTarget, setEditTarget]  = useState<Shipment | null>(null);
-
-  // ── Column Filters (Excel-style) ─────────────────────────────────────────────
-  const EMPTY_COL_FILTERS: ShipColFilters = {
-    num: new Set(), date: new Set(), sender: new Set(), receiver: new Set(),
-    city: new Set(), parcel: new Set(), payment: new Set(), fee: new Set(),
-    cod: new Set(), status: new Set(), creator: new Set(),
-  };
-  const [colFilters, setColFilters] = useState<ShipColFilters>(EMPTY_COL_FILTERS);
-  const [sortCol, setSortCol]       = useState<ShipColKey | null>(null);
-  const [sortDir, setSortDir]       = useState<"asc" | "desc">("asc");
-  const colFilterActive = Object.values(colFilters).some(s => s.size > 0);
-
-  const handleSort = useCallback((col: ShipColKey, dir: "asc" | "desc") => {
-    setSortCol(col); setSortDir(dir);
-  }, []);
-
-  const toggleColFilter = useCallback((col: ShipColKey, val: string) => {
-    setColFilters(prev => {
-      const next = { ...prev, [col]: new Set(prev[col]) };
-      next[col].has(val) ? next[col].delete(val) : next[col].add(val);
-      return next;
-    });
-  }, []);
-
-  const clearColFilter = useCallback((col: ShipColKey) => {
-    setColFilters(prev => ({ ...prev, [col]: new Set() }));
-  }, []);
-
-  const { data: shipmentsData, isLoading } = useQuery({
-    queryKey: ["shipments", statusFilter, search],
-    queryFn:  () => apiFetch<{ data: Shipment[]; total: number }>(
-      `/shipments?status=${statusFilter}&search=${encodeURIComponent(search)}&limit=100`
-    ),
-    enabled: activeTab === "shipments",
-  });
-
-  const { data: stats } = useQuery({
-    queryKey: ["shipments-stats"],
-    queryFn:  () => apiFetch<any>("/shipments/stats"),
-  });
+  const [activeTab, setActiveTab] = useState<"zones" | "pricing">("zones");
 
   const { data: zones = [] } = useQuery({
     queryKey: ["shipment-zones"],
@@ -1054,120 +1007,9 @@ export default function ShipmentsPage() {
     queryFn:  () => apiFetch<ParcelTypePricing[]>("/parcel-type-pricing"),
   });
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ["clients-list"],
-    queryFn:  () => apiFetch<any[]>("/finance/clients").then(r => Array.isArray(r) ? r : (r as any).data ?? []),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiFetch(`/shipments/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["shipments"] });
-      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
-      toast({ title: "تم حذف الشحنة" });
-    },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
-  });
-
-  const shipments = shipmentsData?.data ?? [];
-  const total     = shipmentsData?.total ?? 0;
-
-  // ── getColOptions: القيم الفريدة لكل عمود ──────────────────────────────────
-  const getColOptions = useCallback((col: ShipColKey): string[] => {
-    const vals = new Set<string>();
-    shipments.forEach(s => {
-      const v: string = (() => { switch (col) {
-        case "num":     return s.shipmentNumber || s.trackingNumber || String(s.id);
-        case "date":    return fmt(s.createdAt);
-        case "sender":  return s.senderName;
-        case "receiver":return s.receiverName;
-        case "city":    return s.receiverCity || "";
-        case "parcel":  return s.parcelType ? PARCEL_LABELS[s.parcelType] : "";
-        case "payment": return PAYMENT_LABELS[s.paymentMethod];
-        case "fee":     return fc(s.shippingFee ?? 0);
-        case "cod":     return fc(s.codAmount ?? 0);
-        case "status":  return STATUS_CFG[s.status]?.label ?? s.status;
-        case "creator": return s.createdByName || "";
-        default: return "";
-      }})();
-      if (v) vals.add(v);
-    });
-    return Array.from(vals).sort((a, b) => a.localeCompare(b, "ar"));
-  }, [shipments]);
-
-  // ── Apply column filters + sort ────────────────────────────────────────────
-  const displayedShipments = useMemo(() => {
-    let rows = [...shipments];
-    // column filters
-    (Object.keys(colFilters) as ShipColKey[]).forEach(col => {
-      if (!colFilters[col].size) return;
-      rows = rows.filter(s => {
-        const v: string = (() => { switch (col) {
-          case "num":     return s.shipmentNumber || s.trackingNumber || String(s.id);
-          case "date":    return fmt(s.createdAt);
-          case "sender":  return s.senderName;
-          case "receiver":return s.receiverName;
-          case "city":    return s.receiverCity || "";
-          case "parcel":  return s.parcelType ? PARCEL_LABELS[s.parcelType] : "";
-          case "payment": return PAYMENT_LABELS[s.paymentMethod];
-          case "fee":     return fc(s.shippingFee ?? 0);
-          case "cod":     return fc(s.codAmount ?? 0);
-          case "status":  return STATUS_CFG[s.status]?.label ?? s.status;
-          case "creator": return s.createdByName || "";
-          default: return "";
-        }})();
-        return colFilters[col].has(v);
-      });
-    });
-    // sort
-    if (sortCol) {
-      rows.sort((a, b) => {
-        const va = getColOptions(sortCol).indexOf(
-          (() => { switch(sortCol) {
-            case "num":     return a.shipmentNumber || a.trackingNumber || String(a.id);
-            case "date":    return fmt(a.createdAt);
-            case "sender":  return a.senderName;
-            case "receiver":return a.receiverName;
-            case "city":    return a.receiverCity || "";
-            case "parcel":  return a.parcelType ? PARCEL_LABELS[a.parcelType] : "";
-            case "payment": return PAYMENT_LABELS[a.paymentMethod];
-            case "fee":     return fc(a.shippingFee ?? 0);
-            case "cod":     return fc(a.codAmount ?? 0);
-            case "status":  return STATUS_CFG[a.status]?.label ?? a.status;
-            case "creator": return a.createdByName || "";
-            default: return "";
-          }})()
-        );
-        const vb = getColOptions(sortCol).indexOf(
-          (() => { switch(sortCol) {
-            case "num":     return b.shipmentNumber || b.trackingNumber || String(b.id);
-            case "date":    return fmt(b.createdAt);
-            case "sender":  return b.senderName;
-            case "receiver":return b.receiverName;
-            case "city":    return b.receiverCity || "";
-            case "parcel":  return b.parcelType ? PARCEL_LABELS[b.parcelType] : "";
-            case "payment": return PAYMENT_LABELS[b.paymentMethod];
-            case "fee":     return fc(b.shippingFee ?? 0);
-            case "cod":     return fc(b.codAmount ?? 0);
-            case "status":  return STATUS_CFG[b.status]?.label ?? b.status;
-            case "creator": return b.createdByName || "";
-            default: return "";
-          }})()
-        );
-        return sortDir === "asc" ? va - vb : vb - va;
-      });
-    }
-    return rows;
-  }, [shipments, colFilters, sortCol, sortDir, getColOptions]);
-
-  const statusCounts: Record<string, number> = {};
-  (stats?.statuses ?? []).forEach((r: any) => { statusCounts[r.status] = Number(r.count); });
-  const totalAll = Object.values(statusCounts).reduce((a, b) => a + b, 0);
-
   const TABS = [
-    { key: "shipments", label: "الشحنات",       icon: Package,  count: totalAll },
-    { key: "zones",     label: "المناطق والأسعار", icon: Globe,    count: zones.length },
-    { key: "pricing",   label: "أسعار الأنواع",  icon: Layers,   count: parcelPricing.length },
+    { key: "zones",    label: "المناطق والأسعار", icon: Globe,   count: zones.length },
+    { key: "pricing",  label: "أسعار الأنواع",    icon: Layers,  count: parcelPricing.length },
   ] as const;
 
   return (
@@ -1177,16 +1019,11 @@ export default function ShipmentsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-black text-foreground flex items-center gap-2">
-            <Package className="w-5 h-5 text-primary" />
-            إدارة الشحنات
+            <Globe className="w-5 h-5 text-primary" />
+            إعدادات الشحن
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">تتبع وإدارة جميع شحناتك من مكان واحد</p>
+          <p className="text-xs text-muted-foreground mt-0.5">إدارة المناطق وأسعار أنواع الطرود</p>
         </div>
-        {activeTab === "shipments" && (
-          <Button onClick={() => setFormOpen(true)} className="gap-2 text-sm font-bold">
-            <Plus className="w-4 h-4" /> شحنة جديدة
-          </Button>
-        )}
       </div>
 
       {/* ── Tabs ── */}
@@ -1211,198 +1048,11 @@ export default function ShipmentsPage() {
         })}
       </div>
 
-      {/* ── Tab: Shipments ── */}
-      {activeTab === "shipments" && (<>
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <KpiCard label="إجمالي الشحنات" value={totalAll} icon={Boxes} color="bg-primary/10 text-primary" />
-          <KpiCard label="تم التسليم" value={statusCounts["delivered"] ?? 0}
-            sub={totalAll ? `${Math.round(((statusCounts["delivered"]??0)/totalAll)*100)}%` : undefined}
-            icon={CheckCircle} color="bg-emerald-500/10 text-emerald-500" />
-          <KpiCard label="في الطريق"
-            value={(statusCounts["in_transit"]??0) + (statusCounts["out_for_delivery"]??0) + (statusCounts["confirmed"]??0)}
-            icon={Truck} color="bg-violet-500/10 text-violet-500" />
-          <KpiCard label="مرتجع / ملغي"
-            value={(statusCounts["returned"]??0) + (statusCounts["cancelled"]??0)}
-            icon={XCircle} color="bg-red-500/10 text-red-500" />
-        </div>
-
-        {/* Financial Summary */}
-        {stats && (
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="border-border bg-card"><CardContent className="p-3">
-              <p className="text-[10px] text-muted-foreground font-medium">رسوم الشحن</p>
-              <p className="text-base font-black text-foreground mt-0.5">{fc(stats.totalShippingFee ?? 0)}</p>
-            </CardContent></Card>
-            <Card className="border-border bg-card"><CardContent className="p-3">
-              <p className="text-[10px] text-muted-foreground font-medium">COD المتوقع</p>
-              <p className="text-base font-black text-amber-500 mt-0.5">{fc(stats.totalCod ?? 0)}</p>
-            </CardContent></Card>
-            <Card className="border-border bg-card"><CardContent className="p-3">
-              <p className="text-[10px] text-muted-foreground font-medium">المحصَّل</p>
-              <p className="text-base font-black text-emerald-500 mt-0.5">{fc(stats.totalCollected ?? 0)}</p>
-            </CardContent></Card>
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input className="pr-9 text-sm h-9" placeholder="بحث باسم أو هاتف أو رقم الشحنة..."
-              value={search} onChange={e => setSearch(e.target.value)} />
-            {search && <button onClick={() => setSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
-          </div>
-          <Select value={statusFilter} onValueChange={setStatus}>
-            <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">كل الحالات ({totalAll})</SelectItem>
-              {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => (
-                <SelectItem key={s} value={s}>{STATUS_CFG[s].label} {statusCounts[s] ? `(${statusCounts[s]})` : ""}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Status Pills */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => setStatus("all")}
-            className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
-            الكل {totalAll > 0 && `(${totalAll})`}
-          </button>
-          {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => {
-            const cnt = statusCounts[s] ?? 0;
-            if (!cnt && statusFilter !== s) return null;
-            return (
-              <button key={s} onClick={() => setStatus(s === statusFilter ? "all" : s)}
-                className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${statusFilter === s ? STATUS_CFG[s].cls : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"}`}>
-                {STATUS_CFG[s].label} {cnt > 0 && `(${cnt})`}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Table */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        ) : displayedShipments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/5 border border-primary/15 flex items-center justify-center mb-4">
-              <Package className="w-7 h-7 text-primary/40" />
-            </div>
-            <p className="text-sm font-bold text-foreground">لا توجد شحنات</p>
-            <p className="text-xs text-muted-foreground mt-1">ابدأ بإضافة شحنة جديدة</p>
-            <Button onClick={() => setFormOpen(true)} className="mt-4 gap-2 text-xs" size="sm">
-              <Plus className="w-3.5 h-3.5" /> شحنة جديدة
-            </Button>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border overflow-hidden bg-card">
-            {colFilterActive && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border text-xs text-primary font-bold">
-                <Filter className="w-3 h-3" />
-                فلتر مفعّل — يتم عرض {displayedShipments.length} من {shipments.length} شحنة
-                <button onClick={() => setColFilters({ num: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), city: new Set(), parcel: new Set(), payment: new Set(), fee: new Set(), cod: new Set(), status: new Set(), creator: new Set() })}
-                  className="mr-auto text-destructive hover:underline text-[10px]">مسح كل الفلاتر</button>
-              </div>
-            )}
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    {([
-                      { col: "num",      label: "رقم الشحنة" },
-                      { col: "date",     label: "التاريخ" },
-                      { col: "sender",   label: "المُرسِل" },
-                      { col: "receiver", label: "المُستلِم" },
-                      { col: "city",     label: "المدينة" },
-                      { col: "parcel",   label: "النوع" },
-                      { col: "payment",  label: "الدفع" },
-                      { col: "fee",      label: "رسوم الشحن" },
-                      { col: "cod",      label: "COD" },
-                      { col: "status",   label: "الحالة" },
-                      { col: "creator",  label: "المنشئ" },
-                    ] as { col: ShipColKey; label: string }[]).map(({ col, label }) => (
-                      <TableHead key={col} className="text-right text-[11px] font-bold text-muted-foreground whitespace-nowrap px-3">
-                        <span className="inline-flex items-center gap-1">
-                          {label}
-                          <ColFilterBtn col={col} colFilters={colFilters} getColOptions={getColOptions}
-                            toggleColFilter={toggleColFilter} clearColFilter={clearColFilter}
-                            sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                        </span>
-                      </TableHead>
-                    ))}
-                    <TableHead className="text-right text-[11px] font-bold text-muted-foreground px-3">إجراءات</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayedShipments.map((s, i) => (
-                    <TableRow key={s.id} className={`text-xs hover:bg-muted/20 transition-colors ${i % 2 === 1 ? "bg-muted/5" : ""}`}>
-                      <TableCell className="px-3 py-2.5 font-mono font-bold text-primary whitespace-nowrap">
-                        {s.shipmentNumber || s.trackingNumber || `#${s.id}`}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{fmt(s.createdAt)}</TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <p className="font-bold text-foreground">{s.senderName}</p>
-                        {s.senderPhone && <p className="text-[10px] text-muted-foreground">{s.senderPhone}</p>}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <p className="font-bold text-foreground">{s.receiverName}</p>
-                        {s.receiverPhone && <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.receiverCity || "—"}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
-                        {s.parcelType ? PARCEL_LABELS[s.parcelType] : "—"}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 whitespace-nowrap">
-                        <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border ${PAYMENT_COLORS[s.paymentMethod]}`}>
-                          {PAYMENT_LABELS[s.paymentMethod]}
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 font-bold text-foreground whitespace-nowrap">{fc(s.shippingFee ?? 0)}</TableCell>
-                      <TableCell className="px-3 py-2.5 font-bold text-amber-500 whitespace-nowrap">{fc(s.codAmount ?? 0)}</TableCell>
-                      <TableCell className="px-3 py-2.5 whitespace-nowrap"><StatusBadge status={s.status} /></TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.createdByName || "—"}</TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => setEditTarget(s)} title="تعديل الحالة"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all">
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => { if (confirm(`حذف الشحنة ${s.shipmentNumber}؟`)) deleteMutation.mutate(s.id); }}
-                            title="حذف"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {total > shipments.length && (
-              <p className="text-center text-xs text-muted-foreground py-3 border-t border-border">
-                يتم عرض {shipments.length} من {total} شحنة
-              </p>
-            )}
-          </div>
-        )}
-      </>)}
-
       {/* ── Tab: Zones ── */}
       {activeTab === "zones" && <ZonesTab />}
 
       {/* ── Tab: Pricing ── */}
       {activeTab === "pricing" && <ParcelPricingTab />}
-
-      {/* ── Dialogs ── */}
-      {formOpen && (
-        <ShipmentFormDialog open zones={zones} parcelPricing={parcelPricing} clients={clients} onClose={() => setFormOpen(false)} />
-      )}
-      {editTarget && (
-        <EditStatusDialog shipment={editTarget} onClose={() => setEditTarget(null)} />
-      )}
     </div>
   );
 }
