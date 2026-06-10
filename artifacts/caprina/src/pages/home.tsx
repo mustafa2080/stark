@@ -216,7 +216,7 @@ function HeroSection() {
         <img src={trackingImg} alt="" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
       </div>
-      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto" style={{ paddingBottom: "220px" }}>
+      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto" style={{ paddingBottom: "360px" }}>
         <div
           className="inline-flex items-center gap-3 rounded-full px-5 py-2.5 mb-8"
           style={{
@@ -286,7 +286,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-16"
       dir="rtl"
       style={{
-        marginTop: "-180px",
+        marginTop: "-320px",
         background: "transparent",
       }}
     >
@@ -295,10 +295,10 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
         <div
           className="relative p-8 text-center"
           style={{
-            background: "rgba(0,0,0,0.45)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(0,0,0,0.25)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            borderTop: "1px solid rgba(255,255,255,0.04)",
           }}
         >
           <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2 }}>
