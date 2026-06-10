@@ -275,6 +275,7 @@ function HeroSection() {
 // ─── Tracking Section ─────────────────────────────────────────────────────────
 function TrackingSection({ darkMode }: { darkMode: boolean }) {
   const [trackingNum, setTrackingNum] = useState("");
+  const [, navigate] = useLocation();
   const steps = [
     { icon: FileText, label: "تم التسجيل" },
     { icon: Package, label: "جارى التجميع" },
