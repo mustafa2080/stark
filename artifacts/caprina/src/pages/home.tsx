@@ -211,7 +211,7 @@ function HeroSection() {
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black pt-20" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
-      <div className="absolute inset-0 opacity-55">
+      <div className="absolute inset-0" style={{ opacity: 0.55 }}>
         <img src="/tracking.jpeg" alt="" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
       </div>
