@@ -210,13 +210,13 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
 function HeroSection() {
   const [, navigate] = useLocation();
   return (
-    <section id="hero" className="relative h-screen flex items-start justify-center overflow-hidden bg-black pt-20" dir="rtl">
+    <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black pt-20" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
       <div className="absolute inset-0" style={{ opacity: 0.55 }}>
         <img src={trackingImg} alt="" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
       </div>
-      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto pt-16">
+      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto" style={{ paddingBottom: "220px" }}>
         <div
           className="inline-flex items-center gap-3 rounded-full px-5 py-2.5 mb-8"
           style={{
@@ -286,7 +286,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-16"
       dir="rtl"
       style={{
-        marginTop: "-38vh",
+        marginTop: "-180px",
         background: "transparent",
       }}
     >
