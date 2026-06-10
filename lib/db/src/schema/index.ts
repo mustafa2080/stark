@@ -30,3 +30,8 @@ export * from "./clients";
 
 // ─── Subscription / Multi-Tenant ─────────────────────────────────────────────
 export * from "./tenants";
+
+// ─── Shipments Module ─────────────────────────────────────────────────────────
+export * from "./shipments";
+export * from "./shipment_zones";
+export * from "./parcel_type_pricing";
