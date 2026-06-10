@@ -216,7 +216,7 @@ function HeroSection() {
         <img src={trackingImg} alt="" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
       </div>
-      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto" style={{ paddingBottom: "340px" }}>
+      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto" style={{ paddingBottom: "340px", marginTop: "-40px" }}>
         <div
           className="inline-flex items-center gap-3 rounded-full px-5 py-2.5 mb-8"
           style={{
