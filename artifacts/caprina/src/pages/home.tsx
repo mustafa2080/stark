@@ -299,18 +299,17 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       }}
     >
       {/* overlay */}
-      <div className="max-w-3xl mx-auto px-4 relative" style={{ zIndex: 1 }}>
+      <div className="w-full relative" style={{ zIndex: 1 }}>
         <div
-          className="relative p-8 text-center rounded-3xl"
+          className="relative p-8 text-center"
           style={{
-            background: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.06) inset",
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
           }}
         >
-          <div className="relative" style={{ zIndex: 2 }}>
+          <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2 }}>
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-white/10">
           <Package size={28} className="text-white" />
         </div>
