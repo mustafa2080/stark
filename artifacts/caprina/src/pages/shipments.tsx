@@ -856,7 +856,7 @@ export default function ShipmentsPage() {
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients-list"],
-    queryFn:  () => apiFetch<Client[]>("/clients?limit=500"),
+    queryFn:  () => apiFetch<any[]>("/finance/clients").then(r => Array.isArray(r) ? r : (r as any).data ?? []),
   });
 
   const deleteMutation = useMutation({
