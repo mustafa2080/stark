@@ -1,14 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   Package, Plus, Search, Filter, Truck, MapPin, Phone, User,
   CreditCard, Clock, CheckCircle, AlertTriangle, XCircle,
-  ChevronDown, X, RefreshCw, Eye, Edit, Trash2,
+  ChevronDown, ChevronUp, X, RefreshCw, Eye, Edit, Trash2,
   ArrowUpDown, Building2, DollarSign, FileText, Boxes, Tag,
   Settings, Globe, Layers,
 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -107,6 +109,105 @@ async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch(`/api${path}`, { headers: apiHeaders(), ...opts });
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as any).error || r.statusText); }
   return r.json();
+}
+
+// ─── Excel-style Column Filter ────────────────────────────────────────────────
+type ShipColKey = "num" | "date" | "sender" | "receiver" | "city" | "parcel" | "payment" | "fee" | "cod" | "status" | "creator";
+type ShipColFilters = Record<ShipColKey, Set<string>>;
+
+function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
+  col: ShipColKey;
+  colFilters: ShipColFilters;
+  getColOptions: (col: ShipColKey) => string[];
+  toggleColFilter: (col: ShipColKey, val: string) => void;
+  clearColFilter: (col: ShipColKey) => void;
+  sortCol: ShipColKey | null;
+  sortDir: "asc" | "desc";
+  onSort: (col: ShipColKey, dir: "asc" | "desc") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const btnRef   = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const active = colFilters[col].size > 0;
+  const isSorted = sortCol === col;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current  && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const panelW = 208;
+      const left = Math.max(4, Math.min(r.left, window.innerWidth - panelW - 4));
+      setPos({ top: r.bottom + 4, left });
+    }
+    setOpen(o => !o);
+    setSearch("");
+  };
+
+  let opts = getColOptions(col);
+  if (search) opts = opts.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <>
+      <button ref={btnRef} type="button" onClick={handleOpen} title="فلتر"
+        className={`inline-flex items-center justify-center w-5 h-5 rounded transition-all shrink-0 ${active ? "text-primary bg-primary/15" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
+        {active ? (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        )}
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div ref={panelRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-background border border-border rounded-lg shadow-2xl text-[11px] w-52" dir="rtl">
+          <div className="flex gap-1 p-2 border-b border-border/50">
+            <button type="button" onClick={() => { onSort(col, "asc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${isSorted && sortDir === "asc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronUp className="w-2.5 h-2.5" />أ→ي
+            </button>
+            <button type="button" onClick={() => { onSort(col, "desc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${isSorted && sortDir === "desc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronDown className="w-2.5 h-2.5" />ي→أ
+            </button>
+          </div>
+          <div className="px-2 pt-2">
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث في القيم..."
+              className="w-full h-7 text-[10px] px-2 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div className="max-h-52 overflow-y-auto px-1 py-1.5 flex flex-col gap-0.5">
+            {opts.length === 0
+              ? <p className="text-muted-foreground text-center py-3 text-[10px]">لا توجد قيم</p>
+              : opts.map(val => (
+                <label key={val} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer">
+                  <input type="checkbox" checked={colFilters[col].has(val)} onChange={() => toggleColFilter(col, val)} className="accent-primary w-3 h-3 shrink-0" />
+                  <span className="truncate">{val}</span>
+                </label>
+              ))
+            }
+          </div>
+          {active && (
+            <div className="border-t border-border/50 px-2 py-1.5">
+              <button type="button" onClick={() => { clearColFilter(col); setOpen(false); }}
+                className="text-destructive text-[10px] hover:underline w-full text-right">مسح الفلتر</button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -903,6 +1004,33 @@ export default function ShipmentsPage() {
   const [formOpen, setFormOpen]      = useState(false);
   const [editTarget, setEditTarget]  = useState<Shipment | null>(null);
 
+  // ── Column Filters (Excel-style) ─────────────────────────────────────────────
+  const EMPTY_COL_FILTERS: ShipColFilters = {
+    num: new Set(), date: new Set(), sender: new Set(), receiver: new Set(),
+    city: new Set(), parcel: new Set(), payment: new Set(), fee: new Set(),
+    cod: new Set(), status: new Set(), creator: new Set(),
+  };
+  const [colFilters, setColFilters] = useState<ShipColFilters>(EMPTY_COL_FILTERS);
+  const [sortCol, setSortCol]       = useState<ShipColKey | null>(null);
+  const [sortDir, setSortDir]       = useState<"asc" | "desc">("asc");
+  const colFilterActive = Object.values(colFilters).some(s => s.size > 0);
+
+  const handleSort = useCallback((col: ShipColKey, dir: "asc" | "desc") => {
+    setSortCol(col); setSortDir(dir);
+  }, []);
+
+  const toggleColFilter = useCallback((col: ShipColKey, val: string) => {
+    setColFilters(prev => {
+      const next = { ...prev, [col]: new Set(prev[col]) };
+      next[col].has(val) ? next[col].delete(val) : next[col].add(val);
+      return next;
+    });
+  }, []);
+
+  const clearColFilter = useCallback((col: ShipColKey) => {
+    setColFilters(prev => ({ ...prev, [col]: new Set() }));
+  }, []);
+
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["shipments", statusFilter, search],
     queryFn:  () => apiFetch<{ data: Shipment[]; total: number }>(
@@ -943,6 +1071,94 @@ export default function ShipmentsPage() {
 
   const shipments = shipmentsData?.data ?? [];
   const total     = shipmentsData?.total ?? 0;
+
+  // ── getColOptions: القيم الفريدة لكل عمود ──────────────────────────────────
+  const getColOptions = useCallback((col: ShipColKey): string[] => {
+    const vals = new Set<string>();
+    shipments.forEach(s => {
+      const v: string = (() => { switch (col) {
+        case "num":     return s.shipmentNumber || s.trackingNumber || String(s.id);
+        case "date":    return fmt(s.createdAt);
+        case "sender":  return s.senderName;
+        case "receiver":return s.receiverName;
+        case "city":    return s.receiverCity || "";
+        case "parcel":  return s.parcelType ? PARCEL_LABELS[s.parcelType] : "";
+        case "payment": return PAYMENT_LABELS[s.paymentMethod];
+        case "fee":     return fc(s.shippingFee ?? 0);
+        case "cod":     return fc(s.codAmount ?? 0);
+        case "status":  return STATUS_CFG[s.status]?.label ?? s.status;
+        case "creator": return s.createdByName || "";
+        default: return "";
+      }})();
+      if (v) vals.add(v);
+    });
+    return Array.from(vals).sort((a, b) => a.localeCompare(b, "ar"));
+  }, [shipments]);
+
+  // ── Apply column filters + sort ────────────────────────────────────────────
+  const displayedShipments = useMemo(() => {
+    let rows = [...shipments];
+    // column filters
+    (Object.keys(colFilters) as ShipColKey[]).forEach(col => {
+      if (!colFilters[col].size) return;
+      rows = rows.filter(s => {
+        const v: string = (() => { switch (col) {
+          case "num":     return s.shipmentNumber || s.trackingNumber || String(s.id);
+          case "date":    return fmt(s.createdAt);
+          case "sender":  return s.senderName;
+          case "receiver":return s.receiverName;
+          case "city":    return s.receiverCity || "";
+          case "parcel":  return s.parcelType ? PARCEL_LABELS[s.parcelType] : "";
+          case "payment": return PAYMENT_LABELS[s.paymentMethod];
+          case "fee":     return fc(s.shippingFee ?? 0);
+          case "cod":     return fc(s.codAmount ?? 0);
+          case "status":  return STATUS_CFG[s.status]?.label ?? s.status;
+          case "creator": return s.createdByName || "";
+          default: return "";
+        }})();
+        return colFilters[col].has(v);
+      });
+    });
+    // sort
+    if (sortCol) {
+      rows.sort((a, b) => {
+        const va = getColOptions(sortCol).indexOf(
+          (() => { switch(sortCol) {
+            case "num":     return a.shipmentNumber || a.trackingNumber || String(a.id);
+            case "date":    return fmt(a.createdAt);
+            case "sender":  return a.senderName;
+            case "receiver":return a.receiverName;
+            case "city":    return a.receiverCity || "";
+            case "parcel":  return a.parcelType ? PARCEL_LABELS[a.parcelType] : "";
+            case "payment": return PAYMENT_LABELS[a.paymentMethod];
+            case "fee":     return fc(a.shippingFee ?? 0);
+            case "cod":     return fc(a.codAmount ?? 0);
+            case "status":  return STATUS_CFG[a.status]?.label ?? a.status;
+            case "creator": return a.createdByName || "";
+            default: return "";
+          }})()
+        );
+        const vb = getColOptions(sortCol).indexOf(
+          (() => { switch(sortCol) {
+            case "num":     return b.shipmentNumber || b.trackingNumber || String(b.id);
+            case "date":    return fmt(b.createdAt);
+            case "sender":  return b.senderName;
+            case "receiver":return b.receiverName;
+            case "city":    return b.receiverCity || "";
+            case "parcel":  return b.parcelType ? PARCEL_LABELS[b.parcelType] : "";
+            case "payment": return PAYMENT_LABELS[b.paymentMethod];
+            case "fee":     return fc(b.shippingFee ?? 0);
+            case "cod":     return fc(b.codAmount ?? 0);
+            case "status":  return STATUS_CFG[b.status]?.label ?? b.status;
+            case "creator": return b.createdByName || "";
+            default: return "";
+          }})()
+        );
+        return sortDir === "asc" ? va - vb : vb - va;
+      });
+    }
+    return rows;
+  }, [shipments, colFilters, sortCol, sortDir, getColOptions]);
 
   const statusCounts: Record<string, number> = {};
   (stats?.statuses ?? []).forEach((r: any) => { statusCounts[r.status] = Number(r.count); });
@@ -1066,10 +1282,10 @@ export default function ShipmentsPage() {
           })}
         </div>
 
-        {/* List */}
+        {/* Table */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        ) : shipments.length === 0 ? (
+        ) : displayedShipments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-2xl bg-primary/5 border border-primary/15 flex items-center justify-center mb-4">
               <Package className="w-7 h-7 text-primary/40" />
@@ -1081,18 +1297,96 @@ export default function ShipmentsPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {shipments.map(s => (
-              <ShipmentCard key={s.id} shipment={s}
-                onEdit={() => setEditTarget(s)}
-                onDelete={() => { if (confirm(`حذف الشحنة ${s.shipmentNumber}؟`)) deleteMutation.mutate(s.id); }}
-              />
-            ))}
+          <div className="rounded-xl border border-border overflow-hidden bg-card">
+            {colFilterActive && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border text-xs text-primary font-bold">
+                <Filter className="w-3 h-3" />
+                فلتر مفعّل — يتم عرض {displayedShipments.length} من {shipments.length} شحنة
+                <button onClick={() => setColFilters({ num: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), city: new Set(), parcel: new Set(), payment: new Set(), fee: new Set(), cod: new Set(), status: new Set(), creator: new Set() })}
+                  className="mr-auto text-destructive hover:underline text-[10px]">مسح كل الفلاتر</button>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    {([
+                      { col: "num",      label: "رقم الشحنة" },
+                      { col: "date",     label: "التاريخ" },
+                      { col: "sender",   label: "المُرسِل" },
+                      { col: "receiver", label: "المُستلِم" },
+                      { col: "city",     label: "المدينة" },
+                      { col: "parcel",   label: "النوع" },
+                      { col: "payment",  label: "الدفع" },
+                      { col: "fee",      label: "رسوم الشحن" },
+                      { col: "cod",      label: "COD" },
+                      { col: "status",   label: "الحالة" },
+                      { col: "creator",  label: "المنشئ" },
+                    ] as { col: ShipColKey; label: string }[]).map(({ col, label }) => (
+                      <TableHead key={col} className="text-right text-[11px] font-bold text-muted-foreground whitespace-nowrap px-3">
+                        <span className="inline-flex items-center gap-1">
+                          {label}
+                          <ColFilterBtn col={col} colFilters={colFilters} getColOptions={getColOptions}
+                            toggleColFilter={toggleColFilter} clearColFilter={clearColFilter}
+                            sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                        </span>
+                      </TableHead>
+                    ))}
+                    <TableHead className="text-right text-[11px] font-bold text-muted-foreground px-3">إجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayedShipments.map((s, i) => (
+                    <TableRow key={s.id} className={`text-xs hover:bg-muted/20 transition-colors ${i % 2 === 1 ? "bg-muted/5" : ""}`}>
+                      <TableCell className="px-3 py-2.5 font-mono font-bold text-primary whitespace-nowrap">
+                        {s.shipmentNumber || s.trackingNumber || `#${s.id}`}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{fmt(s.createdAt)}</TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <p className="font-bold text-foreground">{s.senderName}</p>
+                        {s.senderPhone && <p className="text-[10px] text-muted-foreground">{s.senderPhone}</p>}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <p className="font-bold text-foreground">{s.receiverName}</p>
+                        {s.receiverPhone && <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.receiverCity || "—"}</TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                        {s.parcelType ? PARCEL_LABELS[s.parcelType] : "—"}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border ${PAYMENT_COLORS[s.paymentMethod]}`}>
+                          {PAYMENT_LABELS[s.paymentMethod]}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 font-bold text-foreground whitespace-nowrap">{fc(s.shippingFee ?? 0)}</TableCell>
+                      <TableCell className="px-3 py-2.5 font-bold text-amber-500 whitespace-nowrap">{fc(s.codAmount ?? 0)}</TableCell>
+                      <TableCell className="px-3 py-2.5 whitespace-nowrap"><StatusBadge status={s.status} /></TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.createdByName || "—"}</TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setEditTarget(s)} title="تعديل الحالة"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all">
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => { if (confirm(`حذف الشحنة ${s.shipmentNumber}؟`)) deleteMutation.mutate(s.id); }}
+                            title="حذف"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {total > shipments.length && (
+              <p className="text-center text-xs text-muted-foreground py-3 border-t border-border">
+                يتم عرض {shipments.length} من {total} شحنة
+              </p>
+            )}
           </div>
-        )}
-
-        {total > shipments.length && (
-          <p className="text-center text-xs text-muted-foreground">يتم عرض {shipments.length} من {total} شحنة</p>
         )}
       </>)}
 
