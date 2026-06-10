@@ -160,6 +160,60 @@ export default function ShipmentDetailPage() {
   const [newTracking, setNewTracking] = useState("");
   const [showTrackingEdit, setShowTrackingEdit] = useState(false);
 
+  // ── edit mode ──────────────────────────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Shipment & { trackingNumber: string }>>({});
+  const { data: parcelPricing = [] } = useQuery<{ id: number; parcelType: string; label: string; basePrice: string }[]>({
+    queryKey: ["parcel-type-pricing"],
+    queryFn: () => shipApiFetch("/parcel-type-pricing"),
+  });
+
+  const startEdit = () => {
+    if (!shipment) return;
+    setEditForm({
+      senderName: shipment.senderName, senderPhone: shipment.senderPhone ?? "",
+      senderPhone2: shipment.senderPhone2 ?? "", senderCity: shipment.senderCity ?? "",
+      senderAddress: shipment.senderAddress ?? "", senderEmail: shipment.senderEmail ?? "",
+      receiverName: shipment.receiverName, receiverPhone: shipment.receiverPhone ?? "",
+      receiverPhone2: shipment.receiverPhone2 ?? "", receiverCity: shipment.receiverCity ?? "",
+      receiverAddress: shipment.receiverAddress ?? "",
+      zoneId: shipment.zoneId,
+      parcelType: shipment.parcelType ?? "",
+      weight: shipment.weight ?? "", pieces: shipment.pieces ?? 1,
+      description: shipment.description ?? "", declaredValue: shipment.declaredValue ?? 0,
+      paymentMethod: shipment.paymentMethod, codAmount: shipment.codAmount ?? 0,
+      shippingFee: shipment.shippingFee ?? 0, insuranceFee: shipment.insuranceFee ?? 0,
+      notes: shipment.notes ?? "", internalNotes: shipment.internalNotes ?? "",
+      trackingNumber: shipment.trackingNumber ?? "",
+    });
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => { setEditMode(false); setEditForm({}); };
+
+  const ef = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setEditForm(p => ({ ...p, [k]: e.target.value }));
+
+  const handleSaveEdit = () => {
+    const payload: any = { ...editForm };
+    if (payload.zoneId) {
+      const z = zones.find(z => z.id === Number(payload.zoneId));
+      payload.zoneId = Number(payload.zoneId);
+      payload.zonePrice = z ? Number((z as any).price ?? 0) : Number(shipment?.zonePrice ?? 0);
+    }
+    if (payload.parcelType) {
+      const p = parcelPricing.find(p => p.parcelType === payload.parcelType);
+      payload.parcelTypePrice = p ? Number(p.basePrice) : Number(shipment?.parcelTypePrice ?? 0);
+    }
+    payload.shippingFee = Number(payload.zonePrice ?? shipment?.zonePrice ?? 0)
+      + Number(payload.parcelTypePrice ?? shipment?.parcelTypePrice ?? 0)
+      + Number(payload.insuranceFee ?? 0);
+    payload.pieces = Number(payload.pieces ?? 1);
+    updateMutation.mutate(payload, {
+      onSuccess: () => { setEditMode(false); setEditForm({}); },
+    });
+  };
+
   const { data: shipment, isLoading, error } = useQuery<Shipment>({
     queryKey: ["shipment-detail", id],
     queryFn: () => shipApiFetch<Shipment>(`/shipments/${id}`),
@@ -352,12 +406,24 @@ ${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</di
             </button>
           )}
 
-          {/* تعديل رقم التتبع — للأدمن */}
-          {isAdmin && (
-            <button onClick={() => setShowTrackingEdit(v => !v)}
+          {/* تعديل — للأدمن */}
+          {isAdmin && !editMode && (
+            <button onClick={startEdit}
               className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium">
               <Pencil className="w-3.5 h-3.5" />تعديل
             </button>
+          )}
+          {isAdmin && editMode && (
+            <>
+              <button onClick={handleSaveEdit} disabled={updateMutation.isPending}
+                className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600/20 transition-colors flex items-center font-bold">
+                <Save className="w-3.5 h-3.5" />{updateMutation.isPending ? "جاري..." : "حفظ"}
+              </button>
+              <button onClick={cancelEdit}
+                className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium text-muted-foreground">
+                إلغاء
+              </button>
+            </>
           )}
 
           {/* تغيير الحالة — للأدمن */}
@@ -464,12 +530,26 @@ ${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</di
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-0.5">
-              <InfoRow label="الاسم" value={shipment.senderName} bold />
-              {shipment.senderPhone    && <InfoRow label="الهاتف"   value={shipment.senderPhone} mono />}
-              {shipment.senderPhone2   && <InfoRow label="هاتف 2"   value={shipment.senderPhone2} mono />}
-              {shipment.senderCity     && <InfoRow label="المدينة"  value={shipment.senderCity} />}
-              {shipment.senderAddress  && <InfoRow label="العنوان"  value={shipment.senderAddress} />}
-              {shipment.senderEmail    && <InfoRow label="البريد"   value={shipment.senderEmail} />}
+              {editMode ? (
+                <div className="space-y-2">
+                  {([["senderName","الاسم *"],["senderPhone","الهاتف"],["senderPhone2","هاتف 2"],["senderCity","المدينة"],["senderAddress","العنوان"],["senderEmail","البريد الإلكتروني"]] as [string,string][]).map(([k,lbl]) => (
+                    <div key={k}>
+                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
+                      <input className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
+                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <InfoRow label="الاسم" value={shipment.senderName} bold />
+                  {shipment.senderPhone    && <InfoRow label="الهاتف"   value={shipment.senderPhone} mono />}
+                  {shipment.senderPhone2   && <InfoRow label="هاتف 2"   value={shipment.senderPhone2} mono />}
+                  {shipment.senderCity     && <InfoRow label="المدينة"  value={shipment.senderCity} />}
+                  {shipment.senderAddress  && <InfoRow label="العنوان"  value={shipment.senderAddress} />}
+                  {shipment.senderEmail    && <InfoRow label="البريد"   value={shipment.senderEmail} />}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -484,11 +564,33 @@ ${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</di
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-0.5">
-              <InfoRow label="الاسم" value={shipment.receiverName} bold />
-              {shipment.receiverPhone  && <InfoRow label="الهاتف"        value={shipment.receiverPhone} mono />}
-              {shipment.receiverPhone2 && <InfoRow label="هاتف 2"        value={shipment.receiverPhone2} mono />}
-              <InfoRow label="المنطقة" value={zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? "—")} />
-              {shipment.receiverAddress && <InfoRow label="العنوان" value={shipment.receiverAddress} />}
+              {editMode ? (
+                <div className="space-y-2">
+                  {([["receiverName","الاسم *"],["receiverPhone","الهاتف"],["receiverPhone2","هاتف 2"],["receiverCity","المدينة"],["receiverAddress","العنوان"]] as [string,string][]).map(([k,lbl]) => (
+                    <div key={k}>
+                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
+                      <input className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
+                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">المنطقة</label>
+                    <select className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
+                      value={editForm.zoneId ?? ""} onChange={ef("zoneId")}>
+                      <option value="">— بدون منطقة —</option>
+                      {zones.map(z => <option key={z.id} value={z.id}>{z.name}{(z as any).governorate ? ` — ${(z as any).governorate}` : ""}</option>)}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <InfoRow label="الاسم" value={shipment.receiverName} bold />
+                  {shipment.receiverPhone  && <InfoRow label="الهاتف"        value={shipment.receiverPhone} mono />}
+                  {shipment.receiverPhone2 && <InfoRow label="هاتف 2"        value={shipment.receiverPhone2} mono />}
+                  <InfoRow label="المنطقة" value={zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? "—")} />
+                  {shipment.receiverAddress && <InfoRow label="العنوان" value={shipment.receiverAddress} />}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -503,16 +605,41 @@ ${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</di
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-0.5">
-              {shipment.parcelType && <InfoRow label="نوع الطرد" value={PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType} />}
-              {shipment.weight     && <InfoRow label="الوزن"     value={`${shipment.weight} كجم`} />}
-              {(shipment.pieces ?? 1) > 1 && <InfoRow label="القطع" value={String(shipment.pieces)} />}
-              {shipment.description && <InfoRow label="الوصف"    value={shipment.description} />}
-              {Number(shipment.declaredValue) > 0 && <InfoRow label="القيمة المعلنة" value={fc(shipment.declaredValue)} />}
+              {editMode ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">نوع الطرد</label>
+                    <select className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
+                      value={editForm.parcelType ?? ""} onChange={ef("parcelType")}>
+                      <option value="">— اختر نوع —</option>
+                      {parcelPricing.length > 0
+                        ? parcelPricing.map(p => <option key={p.parcelType} value={p.parcelType}>{p.label}</option>)
+                        : Object.entries(PARCEL_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)
+                      }
+                    </select>
+                  </div>
+                  {([["weight","الوزن (كجم)","number"],["pieces","عدد القطع","number"],["description","الوصف","text"],["declaredValue","القيمة المعلنة","number"]] as [string,string,string][]).map(([k,lbl,type]) => (
+                    <div key={k}>
+                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
+                      <input type={type} className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
+                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {shipment.parcelType && <InfoRow label="نوع الطرد" value={PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType} />}
+                  {shipment.weight     && <InfoRow label="الوزن"     value={`${shipment.weight} كجم`} />}
+                  {(shipment.pieces ?? 1) > 1 && <InfoRow label="القطع" value={String(shipment.pieces)} />}
+                  {shipment.description && <InfoRow label="الوصف"    value={shipment.description} />}
+                  {Number(shipment.declaredValue) > 0 && <InfoRow label="القيمة المعلنة" value={fc(shipment.declaredValue)} />}
+                </>
+              )}
             </CardContent>
           </Card>
 
           {/* الملاحظات */}
-          {(shipment.notes || shipment.internalNotes) && (
+          {(editMode || shipment.notes || shipment.internalNotes) && (
             <Card>
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-sm font-black flex items-center gap-2">
@@ -523,12 +650,29 @@ ${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</di
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-2">
-                {shipment.notes && <p className="text-sm text-foreground leading-relaxed">{shipment.notes}</p>}
-                {shipment.internalNotes && (
-                  <div className="pt-2 border-t border-dashed border-border">
-                    <p className="text-[10px] font-bold text-muted-foreground mb-1">ملاحظات داخلية</p>
-                    <p className="text-sm text-foreground leading-relaxed">{shipment.internalNotes}</p>
+                {editMode ? (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">ملاحظات</label>
+                      <textarea rows={2} className="w-full text-xs px-2.5 py-1.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5 resize-none"
+                        value={editForm.notes ?? ""} onChange={ef("notes")} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">ملاحظات داخلية</label>
+                      <textarea rows={2} className="w-full text-xs px-2.5 py-1.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5 resize-none"
+                        value={editForm.internalNotes ?? ""} onChange={ef("internalNotes")} />
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    {shipment.notes && <p className="text-sm text-foreground leading-relaxed">{shipment.notes}</p>}
+                    {shipment.internalNotes && (
+                      <div className="pt-2 border-t border-dashed border-border">
+                        <p className="text-[10px] font-bold text-muted-foreground mb-1">ملاحظات داخلية</p>
+                        <p className="text-sm text-foreground leading-relaxed">{shipment.internalNotes}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -549,40 +693,63 @@ ${shipment.notes ? `<div class="card"><div class="card-title">ملاحظات</di
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
-              <span className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-                shipment.paymentMethod === "cod"      ? "bg-amber-500/10 border-amber-600/40 text-amber-400" :
-                shipment.paymentMethod === "prepaid"  ? "bg-emerald-500/10 border-emerald-600/40 text-emerald-400" :
-                                                        "bg-blue-500/10 border-blue-600/40 text-blue-400"
-              }`}>{PAYMENT_LABELS[shipment.paymentMethod] ?? shipment.paymentMethod}</span>
-              <Separator />
-              <div className="space-y-2 text-sm">
-                {Number(shipment.zonePrice) > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">سعر المنطقة</span><span className="font-semibold">{fc(shipment.zonePrice)}</span></div>
-                )}
-                {Number(shipment.parcelTypePrice) > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">سعر نوع الطرد</span><span className="font-semibold">+{fc(shipment.parcelTypePrice)}</span></div>
-                )}
-                {Number(shipment.insuranceFee) > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">رسوم التأمين</span><span className="font-semibold">{fc(shipment.insuranceFee)}</span></div>
-                )}
-                <Separator />
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-bold">رسوم الشحن</span>
-                  <span className="font-black text-xl text-primary">{fc(shipment.shippingFee)}</span>
+              {editMode ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">طريقة الدفع</label>
+                    <select className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
+                      value={editForm.paymentMethod ?? "cod"} onChange={ef("paymentMethod")}>
+                      <option value="cod">الدفع عند الاستلام</option>
+                      <option value="prepaid">مدفوع مسبقاً</option>
+                      <option value="deferred">الدفع لاحقاً</option>
+                    </select>
+                  </div>
+                  {([["codAmount","مبلغ COD"],["insuranceFee","رسوم التأمين"],["trackingNumber","رقم التتبع"]] as [string,string][]).map(([k,lbl]) => (
+                    <div key={k}>
+                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
+                      <input className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
+                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
+                    </div>
+                  ))}
                 </div>
-                {Number(shipment.codAmount) > 0 && (
-                  <div className="flex justify-between mt-1">
-                    <span className="text-muted-foreground">مبلغ COD</span>
-                    <span className="font-black text-lg text-amber-500">{fc(shipment.codAmount)}</span>
+              ) : (
+                <>
+                  <span className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                    shipment.paymentMethod === "cod"      ? "bg-amber-500/10 border-amber-600/40 text-amber-400" :
+                    shipment.paymentMethod === "prepaid"  ? "bg-emerald-500/10 border-emerald-600/40 text-emerald-400" :
+                                                            "bg-blue-500/10 border-blue-600/40 text-blue-400"
+                  }`}>{PAYMENT_LABELS[shipment.paymentMethod] ?? shipment.paymentMethod}</span>
+                  <Separator />
+                  <div className="space-y-2 text-sm">
+                    {Number(shipment.zonePrice) > 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">سعر المنطقة</span><span className="font-semibold">{fc(shipment.zonePrice)}</span></div>
+                    )}
+                    {Number(shipment.parcelTypePrice) > 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">سعر نوع الطرد</span><span className="font-semibold">+{fc(shipment.parcelTypePrice)}</span></div>
+                    )}
+                    {Number(shipment.insuranceFee) > 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">رسوم التأمين</span><span className="font-semibold">{fc(shipment.insuranceFee)}</span></div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground font-bold">رسوم الشحن</span>
+                      <span className="font-black text-xl text-primary">{fc(shipment.shippingFee)}</span>
+                    </div>
+                    {Number(shipment.codAmount) > 0 && (
+                      <div className="flex justify-between mt-1">
+                        <span className="text-muted-foreground">مبلغ COD</span>
+                        <span className="font-black text-lg text-amber-500">{fc(shipment.codAmount)}</span>
+                      </div>
+                    )}
+                    {Number(shipment.collectedAmount) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">تم تحصيله</span>
+                        <span className="font-bold text-emerald-500">{fc(shipment.collectedAmount)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {Number(shipment.collectedAmount) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">تم تحصيله</span>
-                    <span className="font-bold text-emerald-500">{fc(shipment.collectedAmount)}</span>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
