@@ -20,7 +20,7 @@ chmod -R 755 /root/caprina/artifacts/caprina/dist/public
 
 echo "[4.5/5] Copying build to starkvector webroot..."
 rm -rf /root/starkvector/artifacts/caprina/dist/public/*
-cp -r /root/caprina/artifacts/caprina/dist/public/* /root/starkvector/artifacts/caprina/dist/public/
+\cp -rf /root/caprina/artifacts/caprina/dist/public/* /root/starkvector/artifacts/caprina/dist/public/
 chmod -R 755 /root/starkvector/artifacts/caprina/dist/public
 
 echo "[5/5] Restarting API Server..."
