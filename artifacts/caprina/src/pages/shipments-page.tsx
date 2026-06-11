@@ -1094,7 +1094,7 @@ export default function Orders() {
 
       {/* إحصائيات الطلبات */}
       {!isLoading && allOrdersForStats && (() => {
-        const statsOrders = allOrdersForStats as any[];
+        const statsOrders = (Array.isArray(allOrdersForStats) ? allOrdersForStats : (allOrdersForStats as any)?.data ?? []) as any[];
         const total = statsOrders.length;
         const statusData = [
           { key: "pending",          label: "قيد الانتظار",         rgb: "251,191,36"  },
@@ -1157,11 +1157,11 @@ export default function Orders() {
                     <span className="flex-1 text-xs font-medium text-right" style={{ color: "rgba(255,255,255,0.75)" }}>
                       {s.label}
                     </span>
-                    <div className="w-28 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                       <div
                         className="h-full rounded-full transition-all duration-700"
                         style={{
-                          width: `${s.pct}%`,
+                          width: `${Math.max(s.pct, 8)}%`,
                           background: `linear-gradient(90deg, rgba(${s.rgb},0.9), rgba(${s.rgb},0.5))`,
                           boxShadow: `0 0 6px rgba(${s.rgb},0.4)`,
                         }}
