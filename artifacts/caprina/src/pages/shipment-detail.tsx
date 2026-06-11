@@ -1658,69 +1658,15 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
 // StatusSelect — Custom professional dropdown
 // ─────────────────────────────────────────────
 const STATUS_OPTIONS = [
-  {
-    value: "pending",
-    label: "قيد الانتظار",
-    icon: "⏳",
-    color: "text-yellow-400",
-    bg: "bg-yellow-500/10",
-    border: "border-yellow-600/40",
-    dot: "bg-yellow-400",
-  },
-  {
-    value: "warehouse_ready",
-    label: "قيد الشحن في المخزن",
-    icon: "🏭",
-    color: "text-blue-400",
-    bg: "bg-blue-500/10",
-    border: "border-blue-600/40",
-    dot: "bg-blue-400",
-  },
-  {
-    value: "in_shipping",
-    label: "قيد الشحن",
-    icon: "🚚",
-    color: "text-cyan-400",
-    bg: "bg-cyan-500/10",
-    border: "border-cyan-600/40",
-    dot: "bg-cyan-400",
-  },
-  {
-    value: "received",
-    label: "استلم ✓",
-    icon: "✅",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-600/40",
-    dot: "bg-emerald-400",
-  },
-  {
-    value: "partial_received",
-    label: "استلم جزئي",
-    icon: "📦",
-    color: "text-purple-400",
-    bg: "bg-purple-500/10",
-    border: "border-purple-600/40",
-    dot: "bg-purple-400",
-  },
-  {
-    value: "delayed",
-    label: "مؤجل",
-    icon: "⚠️",
-    color: "text-orange-400",
-    bg: "bg-orange-500/10",
-    border: "border-orange-600/40",
-    dot: "bg-orange-400",
-  },
-  {
-    value: "returned",
-    label: "مرتجع",
-    icon: "↩️",
-    color: "text-red-400",
-    bg: "bg-red-500/10",
-    border: "border-red-600/40",
-    dot: "bg-red-400",
-  },
+  { value: "waiting",          label: "في انتظار الاستلام", icon: "⏳", color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-600/40",   dot: "bg-amber-400" },
+  { value: "confirmed",        label: "مؤكدة",              icon: "✔️", color: "text-teal-400",    bg: "bg-teal-500/10",    border: "border-teal-600/40",    dot: "bg-teal-400" },
+  { value: "picked_up",        label: "تم الاستلام",        icon: "📦", color: "text-sky-400",     bg: "bg-sky-500/10",     border: "border-sky-600/40",     dot: "bg-sky-400" },
+  { value: "in_transit",       label: "في الطريق",          icon: "🚛", color: "text-indigo-400",  bg: "bg-indigo-500/10",  border: "border-indigo-600/40",  dot: "bg-indigo-400" },
+  { value: "out_for_delivery", label: "خارج للتسليم",       icon: "🏍️", color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-600/40",    dot: "bg-cyan-400" },
+  { value: "delivered",        label: "تم التسليم",         icon: "✅", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-600/40", dot: "bg-emerald-400" },
+  { value: "delayed",          label: "متأخرة",             icon: "⚠️", color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-600/40",  dot: "bg-orange-400" },
+  { value: "returned",         label: "مرتجع",              icon: "↩️", color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
+  { value: "cancelled",        label: "ملغية",              icon: "🚫", color: "text-gray-400",    bg: "bg-gray-500/10",    border: "border-gray-600/40",    dot: "bg-gray-400" },
 ] as const;
 
 function StatusSelect({
@@ -1878,7 +1824,12 @@ export default function OrderDetail() {
 
   const initializedRef = useRef(false);
 
-  const { data: order, isLoading, error } = useGetOrder(id, { query: { enabled: !!id, queryKey: getGetOrderQueryKey(id) } });
+  const { data: order, isLoading, error } = useQuery({
+    queryKey: ["shipment-detail", id],
+    queryFn: () => apiFetch<any>(`/shipments/${id}`),
+    enabled: !!id,
+    staleTime: 15_000,
+  });
 
   // جيب كل أوردرات الفاتورة (لو فيه invoiceNumber)
   const invoiceNumber = (order as any)?.invoiceNumber as string | null | undefined;
@@ -2021,21 +1972,14 @@ export default function OrderDetail() {
     }
 
     setSelectDisplayStatus(newStatus);
-    // ظپظٹ invoice mode: ظ†ط³طھط®ط¯ظ… ط£ظٹ ط£ظˆط±ط¯ط± ظ…ظ† ط§ظ„ظپط§طھظˆط±ط© ط¹ط´ط§ظ† ط§ظ„ط³ظٹط±ظپط± ظٹط؛ظٹط± ط§ظ„ظƒظ„
-    // (ظ†طھط¬ظ†ط¨ ط§ظ„ظ€ id ط§ظ„ط­ط§ظ„ظٹ ظ„ظˆ ظƒط§ظ† locked ط¨ظ€ received/partial_received)
-    const LOCKED = ["received", "partial_received"];
-    const targetId = invoiceOrders.length > 1
-      ? (invoiceOrders.find((o: any) => !LOCKED.includes(o.status))?.id ?? id)
-      : id;
-    updateOrder.mutate({ id: targetId, data: { status: newStatus as any } }, {
-      onSuccess: (updated: any) => {
-        queryClient.setQueryData(getGetOrderQueryKey(id), updated);
+    apiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] });
+        queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
         setSelectDisplayStatus(null);
-        invalidateAll();
-        toast({ title: "تم تحديث الحالة", description: `الطلب أصبح: ${statusLabels[newStatus]}` });
-      },
-      onError: () => { setSelectDisplayStatus(null); toast({ title: "خطأ", description: "فشل تحديث الحالة.", variant: "destructive" }); },
-    });
+        toast({ title: "تم تحديث الحالة" });
+      })
+      .catch(() => { setSelectDisplayStatus(null); toast({ title: "خطأ", description: "فشل تحديث الحالة.", variant: "destructive" }); });
   };
 
   const handlePartialReceived = () => {
@@ -3213,7 +3157,102 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 space-y-4">
-          {isEditing ? (
+
+          {/* ── بطاقة بيانات الشحنة ── */}
+          {!isEditing && (
+            <Card className="border-border bg-card">
+              <CardContent className="p-4 space-y-4">
+                {/* رأس البطاقة */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-mono">شحنة</span>
+                    <span className="text-sm font-black text-primary">{(order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`}</span>
+                    {(order as any).trackingNumber && (
+                      <span className="text-[10px] bg-muted px-2 py-0.5 rounded font-mono text-muted-foreground">{(order as any).trackingNumber}</span>
+                    )}
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] font-bold border ${statusClasses[order.status] || ""}`}>
+                    {statusLabels[order.status] || order.status}
+                  </Badge>
+                </div>
+
+                {/* المرسل / المستلم */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* المرسل */}
+                  <div className="space-y-1.5 p-3 rounded-xl border border-border/60 bg-muted/10">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1"><Phone className="w-3 h-3" />المرسل</p>
+                    <p className="text-sm font-bold">{(order as any).senderName || "—"}</p>
+                    {(order as any).senderPhone && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).senderPhone}</p>}
+                    {(order as any).senderPhone2 && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).senderPhone2}</p>}
+                    {(order as any).senderCity && <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{(order as any).senderCity}</p>}
+                  </div>
+                  {/* المستلم */}
+                  <div className="space-y-1.5 p-3 rounded-xl border border-border/60 bg-muted/10">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1"><MapPin className="w-3 h-3" />المستلم</p>
+                    <p className="text-sm font-bold">{(order as any).receiverName || "—"}</p>
+                    {(order as any).receiverPhone && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).receiverPhone}</p>}
+                    {(order as any).receiverPhone2 && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).receiverPhone2}</p>}
+                    {((order as any).receiverCity || (order as any).receiverAddress) && (
+                      <p className="text-xs text-muted-foreground">
+                        {(order as any).receiverCity}{(order as any).receiverAddress ? ` — ${(order as any).receiverAddress}` : ""}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* تفاصيل الشحنة */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                  {[
+                    { label: "نوع الشحنة",    value: (order as any).parcelType ?? "—" },
+                    { label: "الوزن",          value: (order as any).weight ? `${(order as any).weight} كجم` : "—" },
+                    { label: "عدد القطع",      value: (order as any).pieces ?? "—" },
+                    { label: "طريقة الدفع",   value: (order as any).paymentMethod === "cod" ? "عند الاستلام" : (order as any).paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً" },
+                  ].map(item => (
+                    <div key={item.label} className="bg-muted/30 rounded-lg p-2.5 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">{item.label}</p>
+                      <p className="text-sm font-bold">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* المالي */}
+                {canViewFinancials && (
+                  <div className="grid grid-cols-3 gap-3 pt-1 border-t border-border/50">
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">COD</p>
+                      <p className="text-sm font-black text-amber-400">{formatCurrency(Number((order as any).codAmount || 0))}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">رسوم الشحن</p>
+                      <p className="text-sm font-black text-primary">{formatCurrency(Number((order as any).shippingFee || 0))}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">الإجمالي</p>
+                      <p className="text-sm font-black text-emerald-400">{formatCurrency(Number((order as any).totalAmount || 0))}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* شركة الشحن / المندوب / الملاحظات */}
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-1 border-t border-border/50">
+                  {(order as any).shippingCompanyName && (
+                    <span className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full"><Truck className="w-3 h-3" />{(order as any).shippingCompanyName}</span>
+                  )}
+                  {(order as any).assignedUserName && (
+                    <span className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full"><UserCheck className="w-3 h-3" />{(order as any).assignedUserName}</span>
+                  )}
+                  {(order as any).createdByName && (
+                    <span className="flex items-center gap-1 text-muted-foreground/60">أنشأه: {(order as any).createdByName}</span>
+                  )}
+                </div>
+                {(order as any).notes && (
+                  <div className="bg-muted/30 rounded-lg px-3 py-2 text-xs text-foreground border border-border/50">
+                    <span className="text-muted-foreground font-bold ml-1">ملاحظات:</span>{(order as any).notes}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmitEdit)}>
                 <Card className="border-primary/30 bg-card shadow-lg overflow-hidden">
