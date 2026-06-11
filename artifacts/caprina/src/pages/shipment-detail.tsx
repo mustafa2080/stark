@@ -3253,7 +3253,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </CardContent>
             </Card>
           )}
-          {isEditing && (
+          {isEditing ? (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmitEdit)}>
                 <Card className="border-primary/30 bg-card shadow-lg overflow-hidden">
