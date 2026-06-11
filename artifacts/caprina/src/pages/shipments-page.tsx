@@ -236,11 +236,11 @@ function ShipmentFormDialog({
                   <SelectItem value="__none__">
                     <span className="text-muted-foreground text-xs">— بدون عميل —</span>
                   </SelectItem>
-                  {clients.map(c => (
+                  {clients.filter(c => c.name).map(c => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                          {c.name.charAt(0)}
+                          {(c.name || "؟").charAt(0)}
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs font-bold">{c.name}</span>
