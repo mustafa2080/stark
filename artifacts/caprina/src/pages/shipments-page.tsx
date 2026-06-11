@@ -669,7 +669,7 @@ export default function Orders() {
   // query منفصلة للإحصائيات — بدون فلتر حالة
   const { data: allOrdersForStats } = useQuery({
     queryKey: ["shipments-stats"],
-    queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({ limit: "1000" }).toString()}`).then((res: any) => res.data ?? res),
+    queryFn: () => apiFetch<any>(`/shipments/stats`),
     staleTime: 30_000,
     gcTime: 60_000,
   });
@@ -1093,23 +1093,37 @@ export default function Orders() {
       </div>
 
       {/* إحصائيات الطلبات */}
-      {!isLoading && allOrdersForStats && (() => {
-        const statsOrders = (Array.isArray(allOrdersForStats) ? allOrdersForStats : (allOrdersForStats as any)?.data ?? []) as any[];
-        const total = statsOrders.length;
-        const statusData = [
-          { key: "pending",          label: "قيد الانتظار",         rgb: "251,191,36"  },
-          { key: "warehouse_ready",  label: "قيد الشحن في المخزن",  rgb: "45,212,191"  },
-          { key: "in_shipping",      label: "قيد الشحن",            rgb: "56,189,248"  },
-          { key: "received",         label: "استلم",                rgb: "52,211,153"  },
-          { key: "delayed",          label: "مؤجل",                 rgb: "99,102,241"  },
-          { key: "returned",         label: "مرتجع",                rgb: "248,113,113" },
-          { key: "partial_received", label: "استلام جزئي",          rgb: "168,85,247"  },
-        ];
-        const counts = statusData.map(s => ({
-          ...s,
-          count: statsOrders.filter(o => o.status === s.key).length,
-          pct: total > 0 ? Math.round(statsOrders.filter(o => o.status === s.key).length / total * 100) : 0,
-        })).filter(s => s.count > 0);
+      {allOrdersForStats && (() => {
+        const statsData = (allOrdersForStats as any)?.statuses as { status: string; count: number }[] ?? [];
+        const total = statsData.reduce((s, r) => s + Number(r.count), 0);
+        const labelMap: Record<string, string> = {
+          pending:          "قيد الانتظار",
+          warehouse_ready:  "قيد الشحن في المخزن",
+          in_shipping:      "قيد الشحن",
+          received:         "استلم",
+          delayed:          "مؤجل",
+          returned:         "مرتجع",
+          partial_received: "استلام جزئي",
+        };
+        const rgbMap: Record<string, string> = {
+          pending:          "251,191,36",
+          warehouse_ready:  "45,212,191",
+          in_shipping:      "56,189,248",
+          received:         "52,211,153",
+          delayed:          "99,102,241",
+          returned:         "248,113,113",
+          partial_received: "168,85,247",
+        };
+        const counts = statsData
+          .filter(r => r.count > 0 && labelMap[r.status])
+          .map(r => ({
+            key:   r.status,
+            label: labelMap[r.status] ?? r.status,
+            rgb:   rgbMap[r.status] ?? "156,163,175",
+            count: Number(r.count),
+            pct:   total > 0 ? Math.round(Number(r.count) / total * 100) : 0,
+          }))
+          .sort((a, b) => b.count - a.count);
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
