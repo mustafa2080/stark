@@ -635,17 +635,17 @@ export default function Orders() {
   });
 
   const { data: orders, isLoading } = useQuery({
-    queryKey: ["orders-list", debouncedSearch, status, dateFrom, dateTo, filterShippingCo],
-    queryFn: () => ordersApi.list({
-      search: debouncedSearch || undefined,
-      status: status !== "all" ? status : undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      shippingCompanyId: filterShippingCo !== "all" ? filterShippingCo : undefined,
-    }),
+    queryKey: ["shipments-list", debouncedSearch, status, dateFrom, dateTo],
+    queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(status !== "all" ? { status } : {}),
+      ...(dateFrom ? { dateFrom } : {}),
+      ...(dateTo ? { dateTo } : {}),
+      limit: "200",
+    }).toString()}`).then((res: any) => res.data ?? res),
     staleTime: 15_000,
     gcTime: 60_000,
-  } as any);
+  });
 
   // IDs of orders already in a shipping manifest (to detect "still in warehouse")
   const { data: inManifestData } = useQuery({
@@ -655,23 +655,24 @@ export default function Orders() {
   });
   const inManifestSet = new Set(inManifestData?.ids ?? []);
 
-  const filtered = orders?.filter(o => {
-    if (customerSearch && !o.customerName?.toLowerCase().includes(customerSearch.toLowerCase())) return false;
-    if (totalSearch && !String(Math.round(o.totalPrice)).includes(totalSearch)) return false;
+  const filtered = (Array.isArray(orders) ? orders : []).filter((o: any) => {
+    if (customerSearch && !o.senderName?.toLowerCase().includes(customerSearch.toLowerCase()) &&
+        !o.receiverName?.toLowerCase().includes(customerSearch.toLowerCase())) return false;
+    if (totalSearch && !String(Math.round(Number(o.totalAmount || 0))).includes(totalSearch)) return false;
     return true;
-  }) ?? [];
+  });
 
   // ── Col Filter helpers ──────────────────────────────────────────────────────
-  const getColVal = useCallback((col: ColKey, o: (typeof filtered)[0]): string => {
+  const getColVal = useCallback((col: ColKey, o: any): string => {
     switch (col) {
-      case "id":       return `#${o.id.toString().padStart(4,"0")}`;
+      case "id":       return o.shipmentNumber ?? `#${o.id.toString().padStart(4,"0")}`;
       case "date":     return format(new Date(o.createdAt), "yyyy/MM/dd");
-      case "customer": return o.customerName ?? "";
-      case "phone":    return o.phone ?? "";
-      case "product":  return o.product ?? "";
-      case "total":    return String(Math.round(o.totalPrice));
+      case "customer": return o.senderName ?? "";
+      case "phone":    return o.senderPhone ?? o.receiverPhone ?? "";
+      case "product":  return o.receiverName ?? "";
+      case "total":    return String(Math.round(Number(o.totalAmount || 0)));
       case "creator":  return (o as any).createdByName ?? "";
-      case "status":   return statusLabels[o.status] ?? o.status;
+      case "status":   return o.status ?? "";
       default:         return "";
     }
   }, []);
