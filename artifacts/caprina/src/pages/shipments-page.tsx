@@ -1093,8 +1093,12 @@ export default function Orders() {
       </div>
 
       {/* إحصائيات الطلبات */}
-      {allOrdersForStats && (() => {
-        const statsData = (allOrdersForStats as any)?.statuses as { status: string; count: number }[] ?? [];
+      {(() => {
+        // نقبل أي شكل response: { statuses: [...] } أو array مباشرة أو undefined
+        const raw = allOrdersForStats as any;
+        const statsData: { status: string; count: number }[] =
+          Array.isArray(raw?.statuses) ? raw.statuses :
+          Array.isArray(raw) ? raw : [];
         const total = statsData.reduce((s, r) => s + Number(r.count), 0);
         const labelMap: Record<string, string> = {
           pending:          "قيد الانتظار",
@@ -1114,8 +1118,16 @@ export default function Orders() {
           returned:         "248,113,113",
           partial_received: "168,85,247",
         };
+        // لو البيانات ما جاتش لسه نعرض skeleton
+        if (!allOrdersForStats) return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 opacity-40">
+            <div className="rounded-2xl h-[140px] bg-muted/20 animate-pulse" />
+            <div className="lg:col-span-2 rounded-2xl h-[140px] bg-muted/20 animate-pulse" />
+          </div>
+        );
+
         const counts = statsData
-          .filter(r => r.count > 0 && labelMap[r.status])
+          .filter(r => Number(r.count) > 0 && labelMap[r.status])
           .map(r => ({
             key:   r.status,
             label: labelMap[r.status] ?? r.status,
