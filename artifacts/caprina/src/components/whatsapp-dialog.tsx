@@ -257,25 +257,26 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, shipment }: Shipmen
     queryKey: ["whatsapp-settings"],
     queryFn: () => apiFetch<WaSettings>("/whatsapp/settings"),
     staleTime: 60_000,
-    enabled: isAdmin,
     retry: false,
   });
 
   const templates = settings?.templates ?? [];
-  const defaultTpl = templates.find(t => t.isDefault) ?? templates[0];
+  // فلتر القوالب اللي فيها shipment placeholders بس
+  const shipmentTemplates = templates.filter(t =>
+    /\{receiverName\}|\{shipmentNumber\}|\{trackingNumber\}|\{shippingFee\}|\{codAmount\}|\{zone\}/.test(t.body)
+  );
+  const defaultTpl = shipmentTemplates.find(t => t.isDefault) ?? shipmentTemplates[0];
 
   useEffect(() => {
     if (!open || !shipment) return;
-    if (defaultTpl) {
-      setSelectedId(defaultTpl.id);
-      const body = applyShipmentTemplate(defaultTpl.body, shipment);
-      setEditingBody(body);
-      setPreview(body);
-    } else {
-      const body = applyShipmentTemplate(DEFAULT_SHIPMENT_TEMPLATE, shipment);
-      setEditingBody(body);
-      setPreview(body);
-    }
+    // استخدم قالب شحنة لو موجود، وإلا DEFAULT_SHIPMENT_TEMPLATE
+    const body = applyShipmentTemplate(
+      defaultTpl ? defaultTpl.body : DEFAULT_SHIPMENT_TEMPLATE,
+      shipment
+    );
+    setSelectedId(defaultTpl?.id ?? "");
+    setEditingBody(body);
+    setPreview(body);
   }, [open, shipment, templates.length]);
 
   useEffect(() => {
@@ -341,11 +342,11 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, shipment }: Shipmen
         </div>
 
         {/* Template chooser */}
-        {templates.length > 0 && (
+        {shipmentTemplates.length > 0 && (
           <div>
             <Label className="text-xs font-bold mb-2 block">القوالب المتاحة</Label>
             <div className="flex flex-wrap gap-2">
-              {templates.map(tpl => (
+              {shipmentTemplates.map(tpl => (
                 <button key={tpl.id} onClick={() => selectTemplate(tpl)}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
                     selectedId === tpl.id
