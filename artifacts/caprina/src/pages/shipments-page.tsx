@@ -1272,7 +1272,7 @@ export default function Orders() {
             <button onClick={() => setNewShipOpen(true)} className="mt-3 text-xs text-primary hover:underline font-bold flex items-center gap-1"><Plus className="w-3 h-3"/>شحنة جديدة</button>
           </div>
         ) : (
-          <div className="rounded-xl border border-border overflow-hidden bg-card">
+          <Card className="border-border overflow-hidden">
             {shipColFilterActive && (
               <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border text-xs text-primary font-bold">
                 <Filter className="w-3 h-3"/>
@@ -1280,82 +1280,179 @@ export default function Orders() {
                 <button onClick={() => setShipColFilters(EMPTY_SHIP_FILTERS)} className="mr-auto text-destructive hover:underline text-[10px]">مسح الفلاتر</button>
               </div>
             )}
-            <div className="overflow-x-auto">
+
+            {/* ── Mobile ── */}
+            <div className="sm:hidden divide-y divide-border">
+              {displayedShipments.map((s) => {
+                const cfg = SHIP_STATUS_CFG[s.status];
+                const StatusIcon = cfg?.icon ?? Package;
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/10 active:bg-muted/20 cursor-pointer"
+                    onClick={() => navigate(`/shipments/${s.id}`)}
+                  >
+                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-foreground shrink-0">
+                      {s.receiverName.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-bold text-sm truncate">{s.receiverName}</p>
+                        <span className="font-bold text-xs text-primary shrink-0">{shipFc(s.codAmount ?? 0)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-muted-foreground font-mono">{s.shipmentNumber || `#${s.id}`}</span>
+                        {s.receiverCity && <span className="text-[10px] text-muted-foreground truncate">{s.receiverCity}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border ${cfg?.cls || ""}`}>
+                          <StatusIcon className="w-2.5 h-2.5"/>
+                          {cfg?.label || s.status}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground mr-auto">{shipFmt(s.createdAt)}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); if (confirm(`حذف الشحنة ${s.shipmentNumber || s.id}؟`)) deleteMutation.mutate(s.id); }}
+                      className="shrink-0 w-7 h-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center"
+                    >
+                      <Trash2 className="w-3.5 h-3.5"/>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Desktop Table ── */}
+            <div className="hidden sm:block overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    {([
-                      { col:"num",      label:"رقم الشحنة" },
-                      { col:"date",     label:"التاريخ" },
-                      { col:"sender",   label:"المُرسِل" },
-                      { col:"receiver", label:"المُستلِم" },
-                      { col:"city",     label:"المدينة" },
-                      { col:"parcel",   label:"النوع" },
-                      { col:"payment",  label:"الدفع" },
-                      { col:"fee",      label:"رسوم الشحن" },
-                      { col:"cod",      label:"COD" },
-                      { col:"status",   label:"الحالة" },
-                      { col:"creator",  label:"المنشئ" },
-                    ] as { col: ShipColKey; label: string }[]).map(({ col, label }) => (
-                      <TableHead key={col} className="text-right text-[11px] font-bold text-muted-foreground whitespace-nowrap px-3">
-                        <span className="inline-flex items-center gap-1">
-                          {label}
-                          {showShipFilters && (
-                            <ShipColFilterBtn col={col} colFilters={shipColFilters} getColOptions={getShipColOptions}
-                              toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter}
-                              sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>
-                          )}
-                        </span>
-                      </TableHead>
-                    ))}
-                    <TableHead className="text-right text-[11px] font-bold text-muted-foreground px-3">إجراءات</TableHead>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-right text-xs px-3">
+                      <span className="inline-flex items-center gap-1">
+                        #
+                        {showShipFilters && <ShipColFilterBtn col="num" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right text-xs px-3">
+                      <span className="inline-flex items-center gap-1">
+                        التاريخ
+                        {showShipFilters && <ShipColFilterBtn col="date" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right text-xs px-3">
+                      <span className="inline-flex items-center gap-1">
+                        المستلم
+                        {showShipFilters && <ShipColFilterBtn col="receiver" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right text-xs px-3">
+                      <span className="inline-flex items-center gap-1">
+                        المرسل / المدينة
+                        {showShipFilters && <ShipColFilterBtn col="sender" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right text-xs px-3">
+                      <span className="inline-flex items-center gap-1">
+                        النوع / الدفع
+                        {showShipFilters && <ShipColFilterBtn col="parcel" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right text-xs px-3">
+                      <span className="inline-flex items-center gap-1">
+                        المبلغ
+                        {showShipFilters && <ShipColFilterBtn col="cod" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right text-xs px-3">
+                      <span className="inline-flex items-center gap-1">
+                        المنشئ
+                        {showShipFilters && <ShipColFilterBtn col="creator" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-center text-xs w-36 px-3">
+                      <span className="inline-flex items-center gap-1">
+                        الحالة
+                        {showShipFilters && <ShipColFilterBtn col="status" colFilters={shipColFilters} getColOptions={getShipColOptions} toggleColFilter={toggleShipColFilter} clearColFilter={clearShipColFilter} sortCol={shipSortCol} sortDir={shipSortDir} onSort={handleShipSort}/>}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-center text-xs w-10 px-3"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayedShipments.map((s, i) => (
-                    <TableRow key={s.id}
-                      onClick={() => navigate(`/shipments/${s.id}`)}
-                      className={`text-xs hover:bg-primary/5 transition-colors cursor-pointer ${i%2===1 ? "bg-muted/5" : ""}`}>
-                      <TableCell className="px-3 py-2.5 font-mono font-bold text-primary whitespace-nowrap">
-                        {s.shipmentNumber || s.trackingNumber || `#${s.id}`}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{shipFmt(s.createdAt)}</TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <p className="font-bold text-foreground">{s.senderName}</p>
-                        {s.senderPhone && <p className="text-[10px] text-muted-foreground">{s.senderPhone}</p>}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <p className="font-bold text-foreground">{s.receiverName}</p>
-                        {s.receiverPhone && <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.receiverCity || "—"}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.parcelType ? PARCEL_LABELS[s.parcelType] : "—"}</TableCell>
-                      <TableCell className="px-3 py-2.5 whitespace-nowrap">
-                        <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border ${SHIP_PAYMENT_COLORS[s.paymentMethod]}`}>
-                          {SHIP_PAYMENT_LABELS[s.paymentMethod]}
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 font-bold text-foreground whitespace-nowrap">{shipFc(s.shippingFee ?? 0)}</TableCell>
-                      <TableCell className="px-3 py-2.5 font-bold text-amber-500 whitespace-nowrap">{shipFc(s.codAmount ?? 0)}</TableCell>
-                      <TableCell className="px-3 py-2.5 whitespace-nowrap"><ShipmentStatusBadge status={s.status}/></TableCell>
-                      <TableCell className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{s.createdByName || "—"}</TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <button onClick={e => { e.stopPropagation(); if (confirm(`حذف الشحنة ${s.shipmentNumber || s.id}؟`)) deleteMutation.mutate(s.id); }}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all">
-                          <Trash2 className="w-3.5 h-3.5"/>
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {displayedShipments.map((s, rowIndex) => {
+                    const cfg = SHIP_STATUS_CFG[s.status];
+                    const StatusIcon = cfg?.icon ?? Package;
+                    return (
+                      <TableRow
+                        key={s.id}
+                        className="border-border hover:bg-muted/20 cursor-pointer"
+                        style={{ animation: "rowFadeIn 0.3s ease both", animationDelay: `${Math.min(rowIndex * 35, 600)}ms` }}
+                        onClick={() => navigate(`/shipments/${s.id}`)}
+                      >
+                        {/* رقم */}
+                        <TableCell className="font-mono text-xs text-primary font-bold px-3">
+                          {s.shipmentNumber || s.trackingNumber || `#${s.id}`}
+                        </TableCell>
+                        {/* تاريخ */}
+                        <TableCell className="text-xs text-muted-foreground px-3">{shipFmt(s.createdAt)}</TableCell>
+                        {/* المستلم */}
+                        <TableCell className="px-3">
+                          <p className="text-sm font-semibold">{s.receiverName}</p>
+                          {s.receiverPhone && <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>}
+                        </TableCell>
+                        {/* المرسل + المدينة */}
+                        <TableCell className="px-3">
+                          <p className="text-xs font-medium">{s.senderName}</p>
+                          {s.receiverCity && <p className="text-[10px] text-muted-foreground">{s.receiverCity}</p>}
+                        </TableCell>
+                        {/* النوع + الدفع */}
+                        <TableCell className="px-3">
+                          {s.parcelType && <p className="text-xs">{PARCEL_LABELS[s.parcelType]}</p>}
+                          <span className={`inline-flex text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${SHIP_PAYMENT_COLORS[s.paymentMethod]}`}>
+                            {SHIP_PAYMENT_LABELS[s.paymentMethod]}
+                          </span>
+                        </TableCell>
+                        {/* المبلغ */}
+                        <TableCell className="px-3">
+                          <p className="text-xs font-bold text-primary">{shipFc(s.codAmount ?? 0)}</p>
+                          {Number(s.shippingFee ?? 0) > 0 && <p className="text-[10px] text-muted-foreground">رسوم: {shipFc(s.shippingFee ?? 0)}</p>}
+                        </TableCell>
+                        {/* المنشئ */}
+                        <TableCell className="text-xs text-muted-foreground px-3">
+                          {s.createdByName
+                            ? <span className="inline-flex items-center gap-1 bg-muted px-1.5 py-0.5 rounded-full text-[10px] font-medium"><span>👤</span>{s.createdByName}</span>
+                            : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
+                        {/* الحالة */}
+                        <TableCell className="text-center px-3">
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${cfg?.cls || ""}`}>
+                            <StatusIcon className="w-3 h-3"/>
+                            {cfg?.label || s.status}
+                          </span>
+                        </TableCell>
+                        {/* حذف */}
+                        <TableCell className="text-center p-1 px-3">
+                          <button
+                            onClick={e => { e.stopPropagation(); if (confirm(`حذف الشحنة ${s.shipmentNumber || s.id}؟`)) deleteMutation.mutate(s.id); }}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5"/>
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
+
             {shipTotal > shipments.length && (
               <p className="text-center text-xs text-muted-foreground py-3 border-t border-border">
                 يتم عرض {shipments.length} من {shipTotal} شحنة
               </p>
             )}
-          </div>
+          </Card>
         )}
       </div>
 
