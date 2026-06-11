@@ -35,7 +35,7 @@ const ALL_NAV = [
   { href: "/shipments",         label: "المناطق والأسعار",    icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "dashboard"    },
   { href: "/clients-showcase",  label: "عملاؤنا",             icon: Users,                       permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-purple-400",     group: "dashboard"    },
   { href: "/orders",            label: "الشحنات",             icon: Package,                     permission: "orders.view",             section: "section_orders",             iconColor: "text-orange-400",     group: "orders"       },
-  { href: "/orders?new=1",      label: "شحنة جديدة",            icon: Plus,                        permission: "orders.create",           section: "section_new_order",          iconColor: "text-emerald-400",    group: "orders"       },
+  { href: "/shipments/new",     label: "شحنة جديدة",            icon: Plus,                        permission: "orders.create",           section: "section_new_order",          iconColor: "text-emerald-400",    group: "orders"       },
   { href: "/invoices",          label: "فواتير الشحن",             icon: FileText,                    permission: "invoices.view",           section: "section_invoices",           iconColor: "text-yellow-400",     group: "orders"       },
   { href: "/shipping-followup", label: "متابعة الشحنات",        icon: Clock,                       permission: "section_shipping_followup", section: "section_shipping_followup",  iconColor: "text-cyan-400",       group: "orders"       },
   { href: "/shipping",          label: "شركات الشحن",         icon: Truck,                       permission: "shipping.view",           section: "section_shipping",           iconColor: "text-sky-400",        group: "shipping"     },
@@ -91,8 +91,7 @@ function NavItem({ item, location, sub = false, collapsed = false }: { item: any
   const hasQuery = item.href.includes("?");
   return (
     <Link href={item.href}
-      onClick={hasQuery ? (e: React.MouseEvent) => { e.preventDefault(); window.location.href = item.href; } : undefined}
-      title={collapsed ? item.label : undefined}
+      onClick={hasQuery ? (e: React.MouseEvent) => { e.preventDefault(); window.location.href = item.href; } : undefined}      title={collapsed ? item.label : undefined}
       className={cn(
         "flex items-center gap-3 rounded-lg text-[11.5px] font-semibold transition-all duration-300 group",
         collapsed ? "px-0 py-2 justify-center" : "px-3 py-2",
