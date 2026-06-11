@@ -168,8 +168,8 @@ export default function ShipmentDetailPage() {
 
   const addParcelMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch(`${(window as any).__SHIP_API__ ?? ""}/api/shipments`, {
-        method: "POST",
+      const res = await fetch(`${(window as any).__SHIP_API__ ?? ""}/api/shipments/${id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(data),
@@ -177,11 +177,11 @@ export default function ShipmentDetailPage() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    onSuccess: (newShipment) => {
-      toast({ title: "تم إضافة الطرد ✓", description: `رقم البوليصة: ${newShipment.shipmentNumber ?? newShipment.id}` });
+    onSuccess: () => {
+      toast({ title: "تم إضافة الطرد ✓", description: "تم تحديث الشحنة بالطرد الجديد" });
       setShowAddParcel(false);
       setParcelForm({ parcelType: "", weight: "", pieces: "1", description: "", declaredValue: "", notes: "" });
-      qc.invalidateQueries({ queryKey: ["shipments"] });
+      qc.invalidateQueries({ queryKey: ["shipment-detail", id] });
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -189,36 +189,17 @@ export default function ShipmentDetailPage() {
   const handleAddParcel = () => {
     if (!shipment) return;
     const pricing = parcelPricing.find(p => p.parcelType === parcelForm.parcelType);
-    const parcelTypePrice = pricing ? Number(pricing.basePrice) : 0;
-    const zonePrice = Number(shipment.zonePrice ?? 0);
-    const declaredVal = Number(parcelForm.declaredValue ?? 0);
-    const insuranceFee = declaredVal > 0 ? Math.round(declaredVal * 0.01) : 0;
-    const shippingFee = zonePrice + parcelTypePrice + insuranceFee;
+    const addedParcelPrice = pricing ? Number(pricing.basePrice) : 0;
+    const currentFee = Number(shipment.shippingFee ?? 0);
+    const newShippingFee = currentFee + addedParcelPrice;
+    const newPieces = Number(shipment.pieces ?? 1) + Number(parcelForm.pieces ?? 1);
+    const currentDesc = shipment.description ? shipment.description + " / " : "";
+    const newDesc = parcelForm.description ? currentDesc + parcelForm.description : shipment.description;
     addParcelMutation.mutate({
-      senderName:      shipment.senderName,
-      senderPhone:     shipment.senderPhone,
-      senderPhone2:    shipment.senderPhone2,
-      senderEmail:     shipment.senderEmail,
-      senderAddress:   shipment.senderAddress,
-      senderCity:      shipment.senderCity,
-      receiverName:    shipment.receiverName,
-      receiverPhone:   shipment.receiverPhone,
-      receiverPhone2:  shipment.receiverPhone2,
-      receiverAddress: shipment.receiverAddress,
-      receiverCity:    shipment.receiverCity,
-      zoneId:          shipment.zoneId,
-      zonePrice,
-      parcelType:      parcelForm.parcelType || undefined,
-      parcelTypePrice,
-      weight:          parcelForm.weight ? Number(parcelForm.weight) : undefined,
-      pieces:          Number(parcelForm.pieces ?? 1),
-      description:     parcelForm.description || undefined,
-      declaredValue:   declaredVal || undefined,
-      insuranceFee,
-      shippingFee,
-      paymentMethod:   shipment.paymentMethod,
-      codAmount:       shipment.codAmount,
-      notes:           parcelForm.notes || undefined,
+      pieces: newPieces,
+      shippingFee: newShippingFee,
+      ...(newDesc !== undefined ? { description: newDesc } : {}),
+      ...(parcelForm.notes ? { notes: shipment.notes ? shipment.notes + " / " + parcelForm.notes : parcelForm.notes } : {}),
     });
   };
 
@@ -1011,14 +992,26 @@ html,body{width:210mm;font-family:'Cairo',sans-serif;background:#fff;color:#1a1a
                 <textarea rows={2} value={parcelForm.notes} onChange={pf("notes")} placeholder="ملاحظات إضافية..."
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
               </div>
-              {/* رسوم متوقعة */}
+              {/* معاينة التكلفة */}
               {parcelForm.parcelType && (() => {
                 const pricing = parcelPricing.find(p => p.parcelType === parcelForm.parcelType);
-                const total = Number(shipment.zonePrice ?? 0) + Number(pricing?.basePrice ?? 0);
+                const addedPrice = Number(pricing?.basePrice ?? 0);
+                const currentFee = Number(shipment.shippingFee ?? 0);
+                const newFee = currentFee + addedPrice;
                 return (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-xs">
-                    <span className="text-muted-foreground">رسوم الشحن المتوقعة</span>
-                    <span className="font-bold text-primary">{total.toLocaleString("ar-EG")} ج.م</span>
+                  <div className="rounded-lg border border-border bg-muted/30 overflow-hidden text-xs">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                      <span className="text-muted-foreground">رسوم الشحن الحالية</span>
+                      <span className="font-bold">{currentFee.toLocaleString("ar-EG")} ج.م</span>
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-border text-emerald-400">
+                      <span>+ سعر الطرد الجديد ({parcelPricing.find(p=>p.parcelType===parcelForm.parcelType)?.label})</span>
+                      <span className="font-bold">+ {addedPrice.toLocaleString("ar-EG")} ج.م</span>
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-2 bg-primary/10">
+                      <span className="font-bold text-primary">الإجمالي الجديد</span>
+                      <span className="font-black text-primary text-sm">{newFee.toLocaleString("ar-EG")} ج.م</span>
+                    </div>
                   </div>
                 );
               })()}
