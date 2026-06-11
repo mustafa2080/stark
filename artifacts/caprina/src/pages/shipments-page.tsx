@@ -35,6 +35,11 @@ const statusLabels: Record<string, string> = {
   delayed:          "مؤجل",
   returned:         "مرتجع",
   partial_received: "استلم جزئي",
+  waiting:          "في انتظار الاستلام",
+  out_for_delivery: "خارج للتسليم",
+  in_transit:       "في الطريق",
+  delivered:        "تم التسليم",
+  cancelled:        "ملغي",
 };
 
 const statusClasses: Record<string, string> = {
@@ -45,6 +50,11 @@ const statusClasses: Record<string, string> = {
   delayed:          "bg-blue-50    dark:bg-blue-900/30    text-blue-700    dark:text-blue-400    border-blue-300    dark:border-blue-800",
   returned:         "bg-red-50     dark:bg-red-900/30     text-red-700     dark:text-red-400     border-red-300     dark:border-red-800",
   partial_received: "bg-purple-50  dark:bg-purple-900/30  text-purple-700  dark:text-purple-400  border-purple-300  dark:border-purple-800",
+  waiting:          "bg-orange-50  dark:bg-orange-900/30  text-orange-700  dark:text-orange-400  border-orange-300  dark:border-orange-800",
+  out_for_delivery: "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-700    dark:text-cyan-400    border-cyan-300    dark:border-cyan-800",
+  in_transit:       "bg-sky-50     dark:bg-sky-900/30     text-sky-700     dark:text-sky-400     border-sky-300     dark:border-sky-800",
+  delivered:        "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
+  cancelled:        "bg-gray-50    dark:bg-gray-900/30    text-gray-500    dark:text-gray-400    border-gray-300    dark:border-gray-700",
 };
 
 const STATUS_OPTIONS = [
