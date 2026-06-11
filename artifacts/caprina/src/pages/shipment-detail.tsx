@@ -3669,27 +3669,41 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           {!isEditing && (
             <Card className="border-border bg-card">
               <CardHeader className="pb-3 pt-4 px-4 border-b border-border">
-                <CardTitle className="text-sm font-bold">تفاصيل الطلب</CardTitle>
+                <CardTitle className="text-sm font-bold">تفاصيل الشحنة</CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">اسم العميل</p>
-                    <p className="font-semibold">{order.customerName}</p>
+                    <p className="text-xs text-muted-foreground mb-1">المرسل</p>
+                    <p className="font-semibold">{(order as any).senderName || order.customerName || <span className="text-muted-foreground">—</span>}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />الهاتف</p>
-                    <p className="font-semibold">{order.phone || <span className="text-muted-foreground">—</span>}</p>
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />هاتف المرسل</p>
+                    <p className="font-semibold">{(order as any).senderPhone || order.phone || <span className="text-muted-foreground">—</span>}</p>
                   </div>
-                  {order.address && (
+                  {((order as any).senderAddress || order.address) && (
                     <div className="col-span-2">
-                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />العنوان</p>
-                      <p className="font-semibold">{order.address}</p>
+                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />عنوان المرسل</p>
+                      <p className="font-semibold">{(order as any).senderAddress || order.address}</p>
                     </div>
                   )}
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">المنتج</p>
-                    <p className="font-semibold">{order.product}</p>
+                    <p className="text-xs text-muted-foreground mb-1">المستلم</p>
+                    <p className="font-semibold">{(order as any).receiverName || <span className="text-muted-foreground">—</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />هاتف المستلم</p>
+                    <p className="font-semibold">{(order as any).receiverPhone || <span className="text-muted-foreground">—</span>}</p>
+                  </div>
+                  {(order as any).receiverAddress && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />عنوان المستلم</p>
+                      <p className="font-semibold">{(order as any).receiverAddress}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">الوصف</p>
+                    <p className="font-semibold">{(order as any).description || order.product || <span className="text-muted-foreground">—</span>}</p>
                     {((order as any).color || (order as any).size) && (
                       <div className="flex items-center gap-1.5 mt-1">
                         {(order as any).color && <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{(order as any).color}</Badge>}
