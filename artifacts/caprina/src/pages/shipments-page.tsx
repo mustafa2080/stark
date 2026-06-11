@@ -607,7 +607,7 @@ export default function Orders() {
   });
   const { data: shipmentClients = [] } = useQuery<ShipmentClient[]>({
     queryKey: ["clients-list-basic"],
-    queryFn: () => apiFetch("/clients?basic=true"),
+    queryFn: () => apiFetch("/finance/clients"),
     staleTime: 5 * 60_000,
   });
   // ── Orders permission shortcuts ──────────────────────────────────────
