@@ -1,6 +1,0 @@
-﻿OK Added cache check to smart-insights
-OK Added cache check to charts
-MISS smart-insights res.json end not found
-OK charts result variable created
-
-Saved 3 fixes to analytics.ts

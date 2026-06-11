@@ -340,7 +340,7 @@ html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-seri
 .logo-img{width:100px;height:100px;object-fit:cover;border-radius:50%;border:3px solid #e5e7eb;}
 .brand-name{font-size:26px;font-weight:900;color:#111827;letter-spacing:-1px;}
 .brand-sub{font-size:11px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;margin-top:1px;}
-.inv-meta{text-align:left;}
+.inv-meta{text-align:right;}
 .inv-title{font-size:22px;font-weight:900;color:#111827;margin-bottom:5px;}
 .inv-row{font-size:13px;color:#6b7280;line-height:1.9;}
 .inv-row strong{color:#111827;font-weight:700;}
@@ -389,12 +389,13 @@ html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-seri
 
     // HEADER
     html.push(`<div class="inv-header">`);
-    html.push(`<div class="logo-wrap"><img src="${logoB64}" class="logo-img" alt="STARK"/></div>`);
     html.push(`<div class="inv-meta"><div class="inv-title">بوليصة شحن</div>`);
     html.push(`<div class="inv-row">رقم البوليصة: <strong>${shipment.shipmentNumber ?? "#" + id}</strong></div>`);
     html.push(`<div class="inv-row">التاريخ: <strong>${fdate(shipment.createdAt)}</strong></div>`);
     if (shipment.trackingNumber) html.push(`<div class="inv-row">رقم التتبع: <strong>${shipment.trackingNumber}</strong></div>`);
-    html.push(`</div></div>`);
+    html.push(`</div>`);
+    html.push(`<div class="logo-wrap"><img src="${logoB64}" class="logo-img" alt="STARK"/></div>`);
+    html.push(`</div>`);
 
     // STATUS STRIP
     html.push(`<div class="status-strip">`);
