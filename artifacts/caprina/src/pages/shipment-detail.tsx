@@ -3158,9 +3158,11 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
           {/* ── بطاقة بيانات الشحنة — تصميم الأوردر ── */}
           {!isEditing && (() => {
-            const shippingFee = Number((order as any).shippingFee || 0);
-            const codAmount   = Number((order as any).codAmount   || 0);
-            const totalAmount = Number((order as any).totalAmount || order.totalPrice || (codAmount + shippingFee) || 0);
+            const shippingFee  = Number((order as any).shippingFee  || (order as any).shippingCost || 0);
+            const codAmount    = Number((order as any).codAmount    || 0);
+            const insuranceFee = Number((order as any).insuranceFee || 0);
+            const storedTotal  = Number((order as any).totalAmount  || 0);
+            const totalAmount  = storedTotal > 0 ? storedTotal : codAmount + shippingFee + insuranceFee;
             return (
               <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
 
