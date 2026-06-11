@@ -3156,101 +3156,156 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 space-y-4">
 
-          {/* ── بطاقة بيانات الشحنة ── */}
-          {!isEditing && (
-            <Card className="border-border bg-card">
-              <CardContent className="p-4 space-y-4">
-                {/* رأس البطاقة */}
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground font-mono">شحنة</span>
-                    <span className="text-sm font-black text-primary">{(order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`}</span>
+          {/* ── بطاقة بيانات الشحنة — تصميم الأوردر ── */}
+          {!isEditing && (() => {
+            const shippingFee = Number((order as any).shippingFee || 0);
+            const totalAmount = Number((order as any).totalAmount || 0);
+            const codAmount   = Number((order as any).codAmount   || 0);
+            return (
+              <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+
+                {/* صف: أيقونة + اسم المستلم + أرقام */}
+                <div className="flex items-center gap-4 p-4">
+
+                  {/* أيقونة الشحنة */}
+                  <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border border-border/60 bg-muted/40 shadow-sm flex items-center justify-center">
+                    <Truck className="w-10 h-10 text-muted-foreground/30" />
+                  </div>
+
+                  {/* التفاصيل */}
+                  <div className="flex-1 min-w-0 space-y-3">
+
+                    {/* الاسم + الحالة */}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">المستلم</p>
+                      <h2 className="text-base sm:text-lg md:text-xl font-black text-foreground leading-tight truncate">
+                        {(order as any).receiverName || order.customerName || "—"}
+                      </h2>
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
+                          {statusLabels[order.status] || order.status}
+                        </Badge>
+                        {(order as any).parcelType && (
+                          <Badge variant="outline" className="text-xs border-border">{(order as any).parcelType}</Badge>
+                        )}
+                        {(order as any).paymentMethod && (
+                          <Badge variant="outline" className="text-xs border-amber-600/50 text-amber-400">
+                            {(order as any).paymentMethod === "cod" ? "COD" : (order as any).paymentMethod === "prepaid" ? "مدفوع" : "لاحقاً"}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Grid الأرقام */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {(order as any).weight ? (
+                        <div className="bg-muted/50 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-muted-foreground mb-1">الوزن</p>
+                          <p className="text-lg sm:text-2xl font-black text-foreground">
+                            {(order as any).weight}<span className="text-xs font-medium mr-0.5">كجم</span>
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-muted/50 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-muted-foreground mb-1">القطع</p>
+                          <p className="text-lg sm:text-2xl font-black text-foreground">{(order as any).pieces || "—"}</p>
+                        </div>
+                      )}
+                      <div className="bg-muted/50 rounded-xl p-2 sm:p-3 text-center">
+                        <p className="text-[10px] text-muted-foreground mb-1">رسوم الشحن</p>
+                        <p className="text-sm sm:text-lg font-black text-foreground">{formatCurrency(shippingFee)}</p>
+                      </div>
+                      <div className="bg-primary/10 border border-primary/30 rounded-xl p-2 sm:p-3 text-center">
+                        <p className="text-[10px] text-primary/70 mb-1">الإجمالي</p>
+                        <p className="text-base sm:text-xl font-black text-primary">{formatCurrency(totalAmount)}</p>
+                      </div>
+                    </div>
+
+                    {/* COD — للمالي فقط */}
+                    {canViewFinancials && codAmount > 0 && (
+                      <div className="bg-amber-900/10 border border-amber-800/40 rounded-lg px-3 py-2">
+                        <p className="text-[10px] text-amber-400/70 mb-0.5">COD (مبلغ عند الاستلام)</p>
+                        <p className="text-sm font-black text-amber-400">{formatCurrency(codAmount)}</p>
+                      </div>
+                    )}
+
+                    {/* ملاحظات */}
+                    {(order as any).notes && (
+                      <div className="bg-muted/40 rounded-lg px-3 py-2 border border-border/50">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">ملاحظات</p>
+                        <p className="text-xs text-foreground">{(order as any).notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* شريط بيانات المرسل / المستلم / العنوان */}
+                <div className="border-t border-border px-4 py-3 bg-muted/10">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                        <Phone className="w-3 h-3" />هاتف المستلم
+                      </span>
+                      <span className="text-sm font-semibold" dir="ltr">
+                        {(order as any).receiverPhone || order.phone || "—"}
+                      </span>
+                      {(order as any).receiverPhone2 && (
+                        <span className="text-xs text-muted-foreground" dir="ltr">{(order as any).receiverPhone2}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />المحافظة
+                      </span>
+                      <span className="text-sm font-semibold">
+                        {(order as any).receiverCity || (order as any).city || "—"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 col-span-2 md:col-span-1">
+                      <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />العنوان
+                      </span>
+                      <span className="text-xs font-semibold line-clamp-2">
+                        {(order as any).receiverAddress || order.address || "—"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground font-medium">المرسل</span>
+                      <span className="text-sm font-semibold">{(order as any).senderName || "—"}</span>
+                      {(order as any).senderPhone && (
+                        <span className="text-xs text-muted-foreground" dir="ltr">{(order as any).senderPhone}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* شريط سفلي: تتبع / شركة الشحن / المندوب */}
+                <div className="border-t border-border px-5 py-3 bg-muted/20 flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     {(order as any).trackingNumber && (
-                      <span className="text-[10px] bg-muted px-2 py-0.5 rounded font-mono text-muted-foreground">{(order as any).trackingNumber}</span>
+                      <span className="flex items-center gap-1 font-mono bg-muted/60 px-2 py-0.5 rounded">
+                        #{(order as any).trackingNumber}
+                      </span>
                     )}
-                  </div>
-                  <Badge variant="outline" className={`text-[10px] font-bold border ${statusClasses[order.status] || ""}`}>
-                    {statusLabels[order.status] || order.status}
-                  </Badge>
-                </div>
-
-                {/* المرسل / المستلم */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* المرسل */}
-                  <div className="space-y-1.5 p-3 rounded-xl border border-border/60 bg-muted/10">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1"><Phone className="w-3 h-3" />المرسل</p>
-                    <p className="text-sm font-bold">{(order as any).senderName || "—"}</p>
-                    {(order as any).senderPhone && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).senderPhone}</p>}
-                    {(order as any).senderPhone2 && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).senderPhone2}</p>}
-                    {(order as any).senderCity && <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{(order as any).senderCity}</p>}
-                  </div>
-                  {/* المستلم */}
-                  <div className="space-y-1.5 p-3 rounded-xl border border-border/60 bg-muted/10">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1"><MapPin className="w-3 h-3" />المستلم</p>
-                    <p className="text-sm font-bold">{(order as any).receiverName || "—"}</p>
-                    {(order as any).receiverPhone && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).receiverPhone}</p>}
-                    {(order as any).receiverPhone2 && <p className="text-xs text-muted-foreground" dir="ltr">{(order as any).receiverPhone2}</p>}
-                    {((order as any).receiverCity || (order as any).receiverAddress) && (
-                      <p className="text-xs text-muted-foreground">
-                        {(order as any).receiverCity}{(order as any).receiverAddress ? ` — ${(order as any).receiverAddress}` : ""}
-                      </p>
+                    {(order as any).shippingCompanyName && (
+                      <span className="flex items-center gap-1">
+                        <Truck className="w-3.5 h-3.5" />{(order as any).shippingCompanyName}
+                      </span>
+                    )}
+                    {(order as any).assignedUserName && (
+                      <span className="flex items-center gap-1">
+                        <UserCheck className="w-3.5 h-3.5" />{(order as any).assignedUserName}
+                      </span>
+                    )}
+                    {(order as any).createdByName && (
+                      <span className="text-muted-foreground/60">أنشأه: {(order as any).createdByName}</span>
                     )}
                   </div>
                 </div>
 
-                {/* تفاصيل الشحنة */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                  {[
-                    { label: "نوع الشحنة",    value: (order as any).parcelType ?? "—" },
-                    { label: "الوزن",          value: (order as any).weight ? `${(order as any).weight} كجم` : "—" },
-                    { label: "عدد القطع",      value: (order as any).pieces ?? "—" },
-                    { label: "طريقة الدفع",   value: (order as any).paymentMethod === "cod" ? "عند الاستلام" : (order as any).paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً" },
-                  ].map(item => (
-                    <div key={item.label} className="bg-muted/30 rounded-lg p-2.5 text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">{item.label}</p>
-                      <p className="text-sm font-bold">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* المالي */}
-                {canViewFinancials && (
-                  <div className="grid grid-cols-3 gap-3 pt-1 border-t border-border/50">
-                    <div className="text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">COD</p>
-                      <p className="text-sm font-black text-amber-400">{formatCurrency(Number((order as any).codAmount || 0))}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">رسوم الشحن</p>
-                      <p className="text-sm font-black text-primary">{formatCurrency(Number((order as any).shippingFee || 0))}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">الإجمالي</p>
-                      <p className="text-sm font-black text-emerald-400">{formatCurrency(Number((order as any).totalAmount || 0))}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* شركة الشحن / المندوب / الملاحظات */}
-                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-1 border-t border-border/50">
-                  {(order as any).shippingCompanyName && (
-                    <span className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full"><Truck className="w-3 h-3" />{(order as any).shippingCompanyName}</span>
-                  )}
-                  {(order as any).assignedUserName && (
-                    <span className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full"><UserCheck className="w-3 h-3" />{(order as any).assignedUserName}</span>
-                  )}
-                  {(order as any).createdByName && (
-                    <span className="flex items-center gap-1 text-muted-foreground/60">أنشأه: {(order as any).createdByName}</span>
-                  )}
-                </div>
-                {(order as any).notes && (
-                  <div className="bg-muted/30 rounded-lg px-3 py-2 text-xs text-foreground border border-border/50">
-                    <span className="text-muted-foreground font-bold ml-1">ملاحظات:</span>{(order as any).notes}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            );
+          })()}
           {isEditing && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmitEdit)}>
