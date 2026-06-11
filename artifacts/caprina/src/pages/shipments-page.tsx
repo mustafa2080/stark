@@ -1072,15 +1072,13 @@ export default function Orders() {
       {!isLoading && orders && (() => {
         const total = orders.length;
         const statusData = [
-          { key: "waiting",          label: "في انتظار الاستلام",   rgb: "251,191,36"  },
-          { key: "confirmed",        label: "مؤكدة",                rgb: "45,212,191"  },
-          { key: "picked_up",        label: "تم الاستلام",          rgb: "56,189,248"  },
-          { key: "in_transit",       label: "في الطريق",            rgb: "99,102,241"  },
-          { key: "out_for_delivery", label: "خارج للتسليم",         rgb: "34,211,238"  },
-          { key: "delivered",        label: "تم التسليم",           rgb: "52,211,153"  },
-          { key: "delayed",          label: "متأخرة",               rgb: "251,146,60"  },
+          { key: "pending",          label: "قيد الانتظار",         rgb: "251,191,36"  },
+          { key: "warehouse_ready",  label: "قيد الشحن في المخزن",  rgb: "45,212,191"  },
+          { key: "in_shipping",      label: "قيد الشحن",            rgb: "56,189,248"  },
+          { key: "received",         label: "استلم",                rgb: "52,211,153"  },
+          { key: "delayed",          label: "مؤجل",                 rgb: "99,102,241"  },
           { key: "returned",         label: "مرتجع",                rgb: "248,113,113" },
-          { key: "cancelled",        label: "ملغية",                rgb: "156,163,175" },
+          { key: "partial_received", label: "استلام جزئي",          rgb: "168,85,247"  },
         ];
         const counts = statusData.map(s => ({
           ...s,

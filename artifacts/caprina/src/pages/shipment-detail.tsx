@@ -1658,15 +1658,13 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
 // StatusSelect — Custom professional dropdown
 // ─────────────────────────────────────────────
 const STATUS_OPTIONS = [
-  { value: "waiting",          label: "في انتظار الاستلام", icon: "⏳", color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-600/40",   dot: "bg-amber-400" },
-  { value: "confirmed",        label: "مؤكدة",              icon: "✔️", color: "text-teal-400",    bg: "bg-teal-500/10",    border: "border-teal-600/40",    dot: "bg-teal-400" },
-  { value: "picked_up",        label: "تم الاستلام",        icon: "📦", color: "text-sky-400",     bg: "bg-sky-500/10",     border: "border-sky-600/40",     dot: "bg-sky-400" },
-  { value: "in_transit",       label: "في الطريق",          icon: "🚛", color: "text-indigo-400",  bg: "bg-indigo-500/10",  border: "border-indigo-600/40",  dot: "bg-indigo-400" },
-  { value: "out_for_delivery", label: "خارج للتسليم",       icon: "🏍️", color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-600/40",    dot: "bg-cyan-400" },
-  { value: "delivered",        label: "تم التسليم",         icon: "✅", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-600/40", dot: "bg-emerald-400" },
-  { value: "delayed",          label: "متأخرة",             icon: "⚠️", color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-600/40",  dot: "bg-orange-400" },
-  { value: "returned",         label: "مرتجع",              icon: "↩️", color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
-  { value: "cancelled",        label: "ملغية",              icon: "🚫", color: "text-gray-400",    bg: "bg-gray-500/10",    border: "border-gray-600/40",    dot: "bg-gray-400" },
+  { value: "pending",          label: "قيد الانتظار",         icon: "⏳", color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-600/40",   dot: "bg-amber-400" },
+  { value: "warehouse_ready",  label: "قيد الشحن في المخزن",  icon: "🏭", color: "text-teal-400",    bg: "bg-teal-500/10",    border: "border-teal-600/40",    dot: "bg-teal-400" },
+  { value: "in_shipping",      label: "قيد الشحن",            icon: "🚛", color: "text-sky-400",     bg: "bg-sky-500/10",     border: "border-sky-600/40",     dot: "bg-sky-400" },
+  { value: "received",         label: "استلم",                icon: "✅", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-600/40", dot: "bg-emerald-400" },
+  { value: "delayed",          label: "مؤجل",                 icon: "⚠️", color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-600/40",    dot: "bg-blue-400" },
+  { value: "returned",         label: "مرتجع",                icon: "↩️", color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
+  { value: "partial_received", label: "استلام جزئي",          icon: "◑",  color: "text-purple-400",  bg: "bg-purple-500/10",  border: "border-purple-600/40",  dot: "bg-purple-400" },
 ] as const;
 
 function StatusSelect({
