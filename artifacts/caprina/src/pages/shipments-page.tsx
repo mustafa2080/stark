@@ -1096,6 +1096,7 @@ export default function Orders() {
       {(() => {
         // نقبل أي شكل response: { statuses: [...] } أو array مباشرة أو undefined
         const raw = allOrdersForStats as any;
+        console.log("[STATS DEBUG]", raw); // مؤقت — نحذفه بعد التأكيد
         const statsData: { status: string; count: number }[] =
           Array.isArray(raw?.statuses) ? raw.statuses :
           Array.isArray(raw) ? raw : [];
@@ -1127,7 +1128,7 @@ export default function Orders() {
         );
 
         const counts = statsData
-          .filter(r => Number(r.count) > 0 && labelMap[r.status])
+          .filter(r => Number(r.count) > 0)
           .map(r => ({
             key:   r.status,
             label: labelMap[r.status] ?? r.status,
