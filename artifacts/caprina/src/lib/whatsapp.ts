@@ -58,6 +58,7 @@ export const SHIPMENT_TEMPLATE_VARIABLES = [
 ];
 
 
+export interface WhatsAppShippingData {
   id: number;
   customerName: string;
   product: string;
