@@ -372,12 +372,13 @@ export default function OrderForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { canViewFinancials, isAdmin } = useAuth();
+
   const { data: products = [] }     = useQuery({ queryKey: ["products"],   queryFn: productsApi.list });
   const { data: allVariants = [] }  = useQuery({ queryKey: ["variants"],   queryFn: variantsApi.listAll });
   const { data: shippingCompanies } = useQuery({ queryKey: ["shipping"],   queryFn: shippingApi.list });
   const { data: warehouses }        = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
-  const { data: users }             = useQuery({ queryKey: ["users"],      queryFn: usersApi.list });
-  const { canViewFinancials } = useAuth();
+  const { data: users }             = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
