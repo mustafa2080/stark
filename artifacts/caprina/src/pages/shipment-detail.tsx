@@ -3253,7 +3253,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </CardContent>
             </Card>
           )}
-          {isEditing ? (
+          {isEditing && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmitEdit)}>
                 <Card className="border-primary/30 bg-card shadow-lg overflow-hidden">
@@ -3670,7 +3670,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 </Card>
               </form>
             </Form>
-          ) : (
+          )}
+          {!isEditing && (
             <Card className="border-border bg-card">
               <CardHeader className="pb-3 pt-4 px-4 border-b border-border">
                 <CardTitle className="text-sm font-bold">تفاصيل الطلب</CardTitle>
@@ -3962,7 +3963,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </CardContent>
             </Card>
           )}
-          </div>
+        </div>
 
         {/* Financial summary — يظهر دائماً */}
         <div className="space-y-4">
