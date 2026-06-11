@@ -1396,7 +1396,10 @@ export default function Orders() {
                       </div>
                     </TableHead>
                     )}
+                    <TableHead className="text-right text-xs">المحافظة</TableHead>
                     <TableHead className="text-right text-xs">شركة الشحن</TableHead>
+                    <TableHead className="text-right text-xs">المندوب</TableHead>
+                    <TableHead className="text-right text-xs">رسوم الشحن</TableHead>
                     <TableHead className="text-center text-xs w-36">
                       <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
@@ -1438,17 +1441,30 @@ export default function Orders() {
                           {o.receiverName || "—"}
                           {(o.receiverGovernorate || o.receiverCity) && <div className="text-[10px] text-muted-foreground">{o.receiverGovernorate || o.receiverCity}</div>}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground" dir="ltr">{senderPhone || "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{senderPhone || "—"}</TableCell>
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
                           {o.codAmount != null ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
                         </TableCell>
                         )}
+                        <TableCell className="text-xs text-muted-foreground">{o.receiverCity || o.receiverGovernorate || "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {o.shippingCompanyName
                             ? <span className="inline-flex items-center gap-1 bg-muted px-1.5 py-0.5 rounded-full text-[10px] font-medium">🚚 {o.shippingCompanyName}</span>
                             : <span className="text-muted-foreground/50">—</span>}
                         </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {o.assignedUserName
+                            ? <span className="inline-flex items-center gap-1 text-[10px] font-medium">👤 {o.assignedUserName}</span>
+                            : o.createdByName
+                            ? <span className="text-[10px] text-muted-foreground/70">{o.createdByName}</span>
+                            : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
+                        {canFinancials && (
+                        <TableCell className="text-xs text-muted-foreground font-medium">
+                          {o.shippingFee != null && Number(o.shippingFee) > 0 ? formatCurrency(Number(o.shippingFee)) : "—"}
+                        </TableCell>
+                        )}
                         <TableCell className="text-center">
                           <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
                             {statusLabels[order.status] || order.status}

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
-import { db, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { Router, IRouter } from "express";
@@ -153,7 +153,57 @@ router.get("/shipments", async (req, res): Promise<void> => {
 
     const where = conditions.length ? and(...conditions) : undefined;
     const [rows, countRows] = await Promise.all([
-      db.select().from(shipmentsTable).where(where)
+      db
+        .select({
+          // ── كل حقول الشحنة ──
+          id:               shipmentsTable.id,
+          tenantId:         shipmentsTable.tenantId,
+          shipmentNumber:   shipmentsTable.shipmentNumber,
+          trackingNumber:   shipmentsTable.trackingNumber,
+          clientId:         shipmentsTable.clientId,
+          senderName:       shipmentsTable.senderName,
+          senderPhone:      shipmentsTable.senderPhone,
+          senderPhone2:     shipmentsTable.senderPhone2,
+          senderCity:       shipmentsTable.senderCity,
+          receiverName:     shipmentsTable.receiverName,
+          receiverPhone:    shipmentsTable.receiverPhone,
+          receiverPhone2:   shipmentsTable.receiverPhone2,
+          receiverAddress:  shipmentsTable.receiverAddress,
+          receiverCity:     shipmentsTable.receiverCity,
+          zoneId:           shipmentsTable.zoneId,
+          zonePrice:        shipmentsTable.zonePrice,
+          parcelType:       shipmentsTable.parcelType,
+          parcelTypePrice:  shipmentsTable.parcelTypePrice,
+          weight:           shipmentsTable.weight,
+          pieces:           shipmentsTable.pieces,
+          description:      shipmentsTable.description,
+          declaredValue:    shipmentsTable.declaredValue,
+          paymentMethod:    shipmentsTable.paymentMethod,
+          codAmount:        shipmentsTable.codAmount,
+          shippingFee:      shipmentsTable.shippingFee,
+          insuranceFee:     shipmentsTable.insuranceFee,
+          totalAmount:      shipmentsTable.totalAmount,
+          collectedAmount:  shipmentsTable.collectedAmount,
+          status:           shipmentsTable.status,
+          shippingCompanyId: shipmentsTable.shippingCompanyId,
+          assignedUserId:   shipmentsTable.assignedUserId,
+          createdByUserId:  shipmentsTable.createdByUserId,
+          createdByName:    shipmentsTable.createdByName,
+          notes:            shipmentsTable.notes,
+          internalNotes:    shipmentsTable.internalNotes,
+          estimatedDelivery: shipmentsTable.estimatedDelivery,
+          actualDelivery:   shipmentsTable.actualDelivery,
+          createdAt:        shipmentsTable.createdAt,
+          updatedAt:        shipmentsTable.updatedAt,
+          // ── JOIN: اسم شركة الشحن ──
+          shippingCompanyName: shippingCompaniesTable.name,
+          // ── JOIN: اسم المندوب ──
+          assignedUserName: usersTable.displayName,
+        })
+        .from(shipmentsTable)
+        .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
+        .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
+        .where(where)
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(parseInt(limit))
         .offset(parseInt(offset)),
