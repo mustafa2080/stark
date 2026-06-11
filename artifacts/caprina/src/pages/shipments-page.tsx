@@ -1362,42 +1362,30 @@ export default function Orders() {
                     <TableHead className="text-right text-xs">
                       <div className="flex items-center gap-1">
                         {!showColFilters
-                          ? <input
-                              value={customerSearch}
-                              onChange={e => setCustomerSearch(e.target.value)}
-                              placeholder="العميل..."
-                              className="w-24 h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          : <span>العميل</span>
+                          ? <input value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} placeholder="المرسل..." className="w-24 h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
+                          : <span>المرسل</span>
                         }
                         {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                       </div>
                     </TableHead>
                     <TableHead className="text-right text-xs">
-                      <div className="flex items-center gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                      <div className="flex items-center gap-1">المستلم{showColFilters && <ColFilterBtn col="product" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
                     <TableHead className="text-right text-xs">
-                      <div className="flex items-center gap-1">المنتج{showColFilters && <ColFilterBtn col="product" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                      <div className="flex items-center gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
                     {canFinancials && (
                     <TableHead className="text-right text-xs">
                       <div className="flex items-center gap-1">
                         {!showColFilters
-                          ? <input
-                              value={totalSearch}
-                              onChange={e => setTotalSearch(e.target.value)}
-                              placeholder="الإجمالي..."
-                              className="w-20 h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          : <span>الإجمالي</span>
+                          ? <input value={totalSearch} onChange={e => setTotalSearch(e.target.value)} placeholder="COD..." className="w-20 h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
+                          : <span>COD</span>
                         }
                         {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                       </div>
                     </TableHead>
                     )}
-                    <TableHead className="text-right text-xs">
-                      <div className="flex items-center gap-1">المنشئ{showColFilters && <ColFilterBtn col="creator" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
-                    </TableHead>
+                    <TableHead className="text-right text-xs">شركة الشحن</TableHead>
                     <TableHead className="text-center text-xs w-36">
                       <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
@@ -1406,23 +1394,19 @@ export default function Orders() {
                 </TableHeader>
                 <TableBody>
                   {displayRows.map((order, rowIndex) => {
-                    const retReason  = (order as any).returnReason as string | null;
-                    const retNote    = (order as any).returnNote   as string | null;
-                    const isGroup = !!(order as any)._groupCount && (order as any)._groupCount > 1;
-                    const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed"]);
-                    const groupStatuses: string[] = (order as any)._groupStatuses ?? [order.status];
-                    const canWhatsApp = canWriteOrders && !bulkSelectMode && groupStatuses.some(s => waStatuses.has(s));
-                    const isSelected  = isGroupSelected(order);
-                    const groupCount = (order as any)._groupCount as number | undefined;
+                    const o = order as any;
+                    const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed","waiting","in_transit"]);
+                    const canWhatsApp = canWriteOrders && !bulkSelectMode && waStatuses.has(o.status);
+                    const senderPhone = o.senderPhone || o.phone || "";
                     const navTarget = `/orders/${order.id}`;
+                    const isSelected = isGroupSelected(order);
+                    const retReason = o.returnReason as string | null;
+                    const retNote   = o.returnNote   as string | null;
                     return (
                       <TableRow
                         key={order.id}
                         className={`border-border hover:bg-muted/20 cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
-                        style={{
-                          animation: "rowFadeIn 0.3s ease both",
-                          animationDelay: `${Math.min(rowIndex * 35, 600)}ms`,
-                        }}
+                        style={{ animation: "rowFadeIn 0.3s ease both", animationDelay: `${Math.min(rowIndex * 35, 600)}ms` }}
                         onClick={() => canWriteOrders && bulkSelectMode ? toggleSelect(order) : (window.location.href = navTarget)}
                       >
                         {canWriteOrders && bulkSelectMode && (
@@ -1432,32 +1416,26 @@ export default function Orders() {
                         )}
                         <TableCell className="font-mono text-xs text-primary font-bold">
                           #{order.id.toString().padStart(4,"0")}
-                          {isGroup && groupCount && (
-                            <span className="mr-1 text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{groupCount} منتجات</span>
-                          )}
+                          {o.shipmentNumber && <div className="text-[9px] text-muted-foreground">{o.shipmentNumber}</div>}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{format(new Date(order.createdAt), "yyyy/MM/dd")}</TableCell>
-                        <TableCell className="text-sm font-semibold">{order.customerName || order.senderName || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{order.phone || "—"}</TableCell>
-                        <TableCell className="text-xs max-w-[200px]">
-                          <span className="truncate block font-medium">{order.product}</span>
-                          {((order as any).color || (order as any).size) && (
-                            <span className="text-[10px] text-primary/70 font-semibold">
-                              {(order as any).color}{(order as any).color && (order as any).size ? " / " : ""}{(order as any).size}
-                            </span>
-                          )}
-                          {!isGroup && <span className="text-muted-foreground text-[10px]">×{order.quantity}</span>}
+                        <TableCell className="text-sm font-semibold">
+                          {o.senderName || o.customerName || "—"}
+                          {o.senderCity && <div className="text-[10px] text-muted-foreground">{o.senderCity}</div>}
                         </TableCell>
+                        <TableCell className="text-xs font-medium">
+                          {o.receiverName || "—"}
+                          {(o.receiverGovernorate || o.receiverCity) && <div className="text-[10px] text-muted-foreground">{o.receiverGovernorate || o.receiverCity}</div>}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground" dir="ltr">{senderPhone || "—"}</TableCell>
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
-                          {order.status === "partial_received" && (order as any)._receivedPrice != null
-                            ? <div><span>{formatCurrency((order as any)._receivedPrice)}</span><div className="line-through text-muted-foreground font-normal text-[9px]">{formatCurrency(order.totalPrice)}</div></div>
-                            : formatCurrency(order.totalPrice)}
+                          {o.codAmount != null ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
                         </TableCell>
                         )}
                         <TableCell className="text-xs text-muted-foreground">
-                          {(order as any).createdByName
-                            ? <span className="inline-flex items-center gap-1 bg-muted px-1.5 py-0.5 rounded-full text-[10px] font-medium"><span>👤</span>{(order as any).createdByName}</span>
+                          {o.shippingCompanyName
+                            ? <span className="inline-flex items-center gap-1 bg-muted px-1.5 py-0.5 rounded-full text-[10px] font-medium">🚚 {o.shippingCompanyName}</span>
                             : <span className="text-muted-foreground/50">—</span>}
                         </TableCell>
                         <TableCell className="text-center">
