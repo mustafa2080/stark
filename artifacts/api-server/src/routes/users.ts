@@ -9,7 +9,6 @@ import { getTenantId } from "../middlewares/requireTenant.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
-router.use(requireAdmin);
 
 function parsePermissions(permissions: any): string[] {
   let parsed = permissions;
@@ -61,7 +60,7 @@ router.get("/", async (req, res): Promise<void> => {
 });
 
 // POST /users
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", requireAdmin, async (req, res): Promise<void> => {
   const { username, password, displayName, role, permissions } = req.body as {
     username: string; password: string; displayName: string;
     role: string; permissions?: string[];
@@ -117,7 +116,7 @@ router.post("/", async (req, res): Promise<void> => {
 });
 
 // PATCH /users/:id
-router.patch("/:id", async (req, res): Promise<void> => {
+router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   const { displayName, role, permissions, isActive, password, avatar, jobTitle, department, showProfileLink } = req.body as {
     displayName?: string; role?: string; permissions?: string[];
@@ -191,7 +190,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
 });
 
 // DELETE /users/:id
-router.delete("/:id", async (req, res): Promise<void> => {
+router.delete("/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (id === req.user!.id) {
     res.status(400).json({ error: "لا يمكنك حذف حسابك الخاص" });
