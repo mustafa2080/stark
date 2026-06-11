@@ -3253,6 +3253,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </CardContent>
             </Card>
           )}
+          {isEditing && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmitEdit)}>
                 <Card className="border-primary/30 bg-card shadow-lg overflow-hidden">
@@ -3960,8 +3961,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 )}
               </CardContent>
             </Card>
-          )}
-        </div>
+          </div>
 
         {/* Financial summary — يظهر دائماً */}
         <div className="space-y-4">
