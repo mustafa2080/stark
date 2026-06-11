@@ -202,35 +202,63 @@ function ShipmentFormDialog({
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
               <User className="w-3.5 h-3.5" /> بيانات المرسل / العميل
             </h3>
-            <div className="relative">
-              <Label className="text-xs font-bold mb-1.5 block">العميل (اختياري)</Label>
-              <div className="relative">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  className="pr-9 text-sm"
-                  placeholder="ابحث باسم العميل أو رقمه..."
-                  value={clientSearch}
-                  onChange={e => { setClientSearch(e.target.value); setShowClientList(true); }}
-                  onFocus={() => setShowClientList(true)}
-                />
-              </div>
-              {showClientList && filteredClients.length > 0 && (
-                <div className="absolute top-full mt-1 w-full bg-card border border-border rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
-                  {filteredClients.slice(0, 10).map(c => (
-                    <button key={c.id} type="button" onClick={() => selectClient(c)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-right">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                        {c.name.charAt(0)}
+
+            {/* Dropdown اختيار العميل التجاري */}
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block">العميل التجاري (اختياري)</Label>
+              <Select
+                value={form.clientId || "__none__"}
+                onValueChange={v => {
+                  if (v === "__none__") {
+                    setForm(f => ({ ...f, clientId: "", senderName: "", senderPhone: "", senderPhone2: "", senderCity: "" }));
+                    return;
+                  }
+                  const c = clients.find(x => String(x.id) === v);
+                  if (c) {
+                    setForm(f => ({
+                      ...f,
+                      clientId: String(c.id),
+                      senderName: c.name,
+                      senderPhone: c.phone || "",
+                      senderPhone2: c.phone2 || "",
+                      senderCity: c.city || "",
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="text-sm h-10">
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="اختر العميل من القائمة..." />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">
+                    <span className="text-muted-foreground text-xs">— بدون عميل —</span>
+                  </SelectItem>
+                  {clients.map(c => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                          {c.name.charAt(0)}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold">{c.name}</span>
+                          {c.phone && <span className="text-[10px] text-muted-foreground">{c.phone}</span>}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold truncate">{c.name}</p>
-                        {c.phone && <p className="text-[10px] text-muted-foreground">{c.phone}</p>}
-                      </div>
-                    </button>
+                    </SelectItem>
                   ))}
-                </div>
+                </SelectContent>
+              </Select>
+              {form.clientId && (
+                <p className="text-[10px] text-primary mt-1 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
+                  تم تعبئة بيانات المرسل تلقائياً
+                </p>
               )}
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-bold mb-1.5 block">اسم المرسل <span className="text-red-500">*</span></Label>
@@ -1013,8 +1041,24 @@ export default function Orders() {
               )}
               {/* زر شحنة جديدة — فقط لو عنده canCreate */}
               {canCreate && (
-              <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm" onClick={() => setShowNewShipment(true)}>
-                <Plus className="w-4 h-4" />شحنة جديدة
+              <Button
+                className="gap-2 font-bold text-sm border-0 relative overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, #d4af37 0%, #f5e17a 40%, #c8960c 70%, #d4af37 100%)",
+                  color: "#3a2800",
+                  boxShadow: "0 2px 12px rgba(212,175,55,0.45), inset 0 1px 0 rgba(255,255,255,0.35)",
+                  textShadow: "0 1px 0 rgba(255,255,255,0.3)",
+                }}
+                onClick={() => setShowNewShipment(true)}
+              >
+                <span
+                  className="absolute inset-0 rounded-md pointer-events-none"
+                  style={{
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 60%)",
+                  }}
+                />
+                <Plus className="w-4 h-4 relative z-10" />
+                <span className="relative z-10">شحنة جديدة</span>
               </Button>
               )}
             </>
