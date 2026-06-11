@@ -64,7 +64,7 @@ const formatCurrency = (amount: number) =>
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 interface ShipmentZone      { id: number; name: string; governorate?: string; price: string | number; isActive?: boolean }
-interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number }
+interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number; isActive?: boolean }
 interface ShipmentClient    { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string }
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -334,17 +334,14 @@ function ShipmentFormDialog({
                 <Select value={form.parcelType} onValueChange={v => set("parcelType", v as ParcelType)}>
                   <SelectTrigger className="text-sm"><SelectValue placeholder="اختر نوع الشحنة..." /></SelectTrigger>
                   <SelectContent>
-                    {(["document","normal","fragile","heavy","electronics","clothing","food","other"] as ParcelType[]).map(t => {
-                      const pp = parcelPricing.find(p => p.parcelType === t);
-                      return (
-                        <SelectItem key={t} value={t}>
-                          <div className="flex items-center justify-between gap-4 w-full">
-                            <span>{PARCEL_LABELS[t]}</span>
-                            {pp && <span className="text-xs text-muted-foreground font-bold">{fc(pp.basePrice)}</span>}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                    {parcelPricing.filter(p => p.isActive !== false).map(p => (
+                      <SelectItem key={p.id} value={p.parcelType}>
+                        <div className="flex items-center justify-between gap-4 w-full">
+                          <span>{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</span>
+                          <span className="text-xs text-muted-foreground font-bold">{fc(p.basePrice)}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {selectedPricing && (
