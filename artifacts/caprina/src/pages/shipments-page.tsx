@@ -911,7 +911,7 @@ export default function Orders() {
         customerName: shipment.senderName || shipment.receiverName || shipment.customerName || "العميل",
         product: shipment.description || shipment.product || "شحنة",
         trackingNumber: shipment.trackingNumber ?? null,
-        shippingCompany: shipment.shippingCompanyName || shipment.shippingCompany ?? null,
+        shippingCompany: (shipment.shippingCompanyName || shipment.shippingCompany) ?? null,
         daysPending: shipment.daysPending ?? 0,
       });
     } else if (tpl) {
