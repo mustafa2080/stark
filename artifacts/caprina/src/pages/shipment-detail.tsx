@@ -2770,44 +2770,49 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       )}
 
       {/* ── وضع الطلب الفردي ── */}
-      {!isInvoiceMode && <><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href="/orders">
-            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border"><ArrowRight className="h-4 w-4" /></Button>
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold">شحنة {(order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`}</h1>
-              {!isEditing && (
-                <Badge variant="outline" className={`font-bold border text-[10px] ${statusClasses[selectDisplayStatus ?? order.status] || ""}`}>
-                  {statusLabels[selectDisplayStatus ?? order.status] || order.status}
-                </Badge>
-              )}
-              {isOrderLocked && (
-                <Badge variant="outline" className="text-[9px] font-bold border-amber-700 bg-amber-900/10 text-amber-400 gap-1 flex items-center">
-                  <Lock className="w-2.5 h-2.5" /> مقفل
-                </Badge>
-              )}
+      {!isInvoiceMode && <><div className="rounded-xl overflow-hidden border border-border shadow-sm">
+        {/* صف العنوان */}
+        <div className="bg-card px-4 py-3 flex items-center justify-between gap-3 border-b border-border">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link href="/orders">
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0 hover:bg-muted"><ArrowRight className="h-4 w-4" /></Button>
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base font-bold truncate">شحنة {(order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`}</h1>
+                {!isEditing && (
+                  <Badge variant="outline" className={`shrink-0 font-bold border text-[10px] ${statusClasses[selectDisplayStatus ?? order.status] || ""}`}>
+                    {statusLabels[selectDisplayStatus ?? order.status] || order.status}
+                  </Badge>
+                )}
+                {isOrderLocked && (
+                  <Badge variant="outline" className="shrink-0 text-[9px] font-bold border-amber-700 bg-amber-900/10 text-amber-400 gap-1 flex items-center">
+                    <Lock className="w-2.5 h-2.5" /> مقفل
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</p>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</p>
           </div>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2">
-          {/* زرار الطباعة — للكل */}
-          <Button variant="outline" size="sm" onClick={handlePrint} className="h-8 text-xs gap-1 border-border">
-            <Printer className="w-3 h-3" />فاتورة
+        {/* صف الأزرار */}
+        <div className="bg-muted/30 px-3 py-2 flex items-center gap-1.5 flex-wrap">
+          {/* فاتورة — للكل */}
+          <Button variant="outline" size="sm" onClick={handlePrint}
+            className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
+            <Printer className="w-3.5 h-3.5" />فاتورة
           </Button>
 
           {/* واتساب — للكل */}
           {(order.status === "pending" || order.status === "warehouse_ready") && (
             <Button variant="outline" size="sm" onClick={handleWhatsApp}
-              className="h-8 text-xs gap-1 border-green-700 text-green-400 hover:bg-green-500/10 hover:text-green-400">
-              <MessageCircle className="w-3 h-3" />واتساب
+              className="h-8 text-xs gap-1.5 border-green-700 text-green-400 hover:bg-green-500/10 bg-card">
+              <MessageCircle className="w-3.5 h-3.5" />واتساب
             </Button>
           )}
 
-          {/* الأزرار دي للأدمن فقط */}
+          {/* الأزرار للأدمن فقط */}
           {isAdmin && !isEditing && (<>
             <StatusSelect
               value={selectDisplayStatus ?? order.status}
@@ -2819,14 +2824,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 onClick={() => !isOrderLocked && setIsEditing(true)}
                 disabled={isOrderLocked}
                 title={isOrderLocked ? "الطلب مقفل — فقط المدير يمكنه التعديل" : undefined}
-                className="h-8 text-xs gap-1 border-border disabled:opacity-40">
-                {isOrderLocked ? <Lock className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}تعديل
+                className="h-8 text-xs gap-1.5 border-border bg-card disabled:opacity-40">
+                {isOrderLocked ? <Lock className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}تعديل
               </Button>
             )}
             {canCreate && (
               <Button variant="outline" size="sm" onClick={() => setShowAddProduct(true)}
-                className="h-8 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10">
-                <Plus className="w-3 h-3" />إضافة منتج
+                className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 bg-card">
+                <Plus className="w-3.5 h-3.5" />إضافة منتج
               </Button>
             )}
             {canDelete && (
@@ -2840,8 +2845,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 }}
                 disabled={isOrderLocked}
                 title={isManifestLocked ? `ممنوع الحذف — الطلب في بيان مفتوح (${invoiceManifestStatus?.manifestNumber})` : isOrderLocked ? "الطلب مقفل — فقط المدير يمكنه الحذف" : undefined}
-                className="h-8 text-xs gap-1 border-red-800 text-red-400 hover:bg-red-900/20 hover:text-red-400 disabled:opacity-40">
-                <Trash2 className="w-3 h-3" />حذف
+                className="h-8 text-xs gap-1.5 border-red-800 text-red-400 hover:bg-red-900/20 bg-card disabled:opacity-40">
+                <Trash2 className="w-3.5 h-3.5" />حذف
               </Button>
             )}
             {(() => {
@@ -2855,8 +2860,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     setShowCloseDialog(true);
                   }}
                   disabled={isAlreadyClosed}
-                  className={`h-8 text-xs gap-1 border ${isAlreadyClosed ? "bg-muted/30 text-muted-foreground border-border cursor-not-allowed opacity-60" : "bg-transparent hover:bg-emerald-500/10 text-emerald-400 border-emerald-600/50 hover:border-emerald-500"}`}>
-                  {isAlreadyClosed ? <Lock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                  className={`h-8 text-xs gap-1.5 border ${isAlreadyClosed ? "bg-muted/30 text-muted-foreground border-border cursor-not-allowed opacity-60" : "bg-card hover:bg-emerald-500/10 text-emerald-400 border-emerald-600/50 hover:border-emerald-500"}`}>
+                  {isAlreadyClosed ? <Lock className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                   {isAlreadyClosed ? "مغلق" : "إغلاق"}
                 </Button>
               );
