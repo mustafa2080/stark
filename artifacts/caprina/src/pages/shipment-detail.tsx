@@ -3961,6 +3961,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 )}
               </CardContent>
             </Card>
+          )}
           </div>
 
         {/* Financial summary — يظهر دائماً */}
