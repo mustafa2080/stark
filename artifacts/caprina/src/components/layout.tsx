@@ -539,7 +539,7 @@ export default function Layout({ children }: LayoutProps) {
             {visibleNav.filter(i => i.group === "dashboard").map(item => <NavItem key={item.href} item={item} location={location} collapsed={sidebarCollapsed} />)}
 
             {visibleNav.some(i => i.group === "orders") && (
-              <NavGroup label="الشحنات" icon={Truck} iconColor="text-orange-400" location={location} prefixes={["/orders","/invoices","/shipping-followup"]} isOpen={openGroup === "orders"} onToggle={() => toggleGroup("orders", visibleNav.find(i => i.group === "orders")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "orders")?.href} groupKey="orders">
+              <NavGroup label="الشحنات" icon={Package} iconColor="text-orange-400" location={location} prefixes={["/orders","/invoices","/shipping-followup"]} isOpen={openGroup === "orders"} onToggle={() => toggleGroup("orders", visibleNav.find(i => i.group === "orders")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "orders")?.href} groupKey="orders">
                 {visibleNav.filter(i => i.group === "orders").map(item => <NavItem key={item.href+item.label} item={item} location={location} sub />)}
               </NavGroup>
             )}
