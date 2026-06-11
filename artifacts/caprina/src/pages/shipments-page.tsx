@@ -905,22 +905,26 @@ export default function Orders() {
 
     let message = "";
     if (status === "in_shipping" && tpl) {
-      // استخدام applyShippingTemplate للحالة دي
+      const shipment = order as any;
       message = applyShippingTemplate(tpl.body, {
         id: order.id,
-        customerName: (order as any).senderName || (order as any).customerName,
-        product: (order as any).description || (order as any).product,
-        trackingNumber: (order as any).trackingNumber ?? null,
-        shippingCompany: (order as any).shippingCompany ?? null,
-        daysPending: (order as any).daysPending ?? 0,
+        customerName: shipment.senderName || shipment.receiverName || shipment.customerName || "العميل",
+        product: shipment.description || shipment.product || "شحنة",
+        trackingNumber: shipment.trackingNumber ?? null,
+        shippingCompany: shipment.shippingCompanyName || shipment.shippingCompany ?? null,
+        daysPending: shipment.daysPending ?? 0,
       });
     } else if (tpl) {
+      const shipment = order as any;
+      const customerName = shipment.senderName || shipment.receiverName || shipment.customerName || "العميل";
+      const product      = shipment.description || shipment.product || "شحنة";
+      const totalPrice   = Number(shipment.totalAmount || shipment.codAmount || shipment.totalPrice || 0);
       message = applyTemplate(tpl.body, {
         id: order.id,
-        customerName: (order as any).senderName || (order as any).customerName,
-        product: (order as any).description || (order as any).product,
-        quantity: (order as any).quantity,
-        totalPrice: (order as any).totalAmount || (order as any).totalPrice,
+        customerName,
+        product,
+        quantity: Number(shipment.pieces || shipment.quantity || 1),
+        totalPrice,
         status: order.status,
         phone,
       });
