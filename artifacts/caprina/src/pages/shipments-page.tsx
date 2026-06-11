@@ -851,7 +851,8 @@ export default function Orders() {
 
   const handleWhatsApp = (e: React.MouseEvent, order: NonNullable<typeof orders>[0]) => {
     e.stopPropagation();
-    if (!order.phone) {
+    const phone = (order as any).senderPhone || (order as any).receiverPhone || (order as any).phone || "";
+    if (!phone) {
       toast({ title: "لا يوجد رقم هاتف", description: "أضف رقم هاتف للعميل أولاً", variant: "destructive" });
       return;
     }
@@ -893,8 +894,8 @@ export default function Orders() {
       // استخدام applyShippingTemplate للحالة دي
       message = applyShippingTemplate(tpl.body, {
         id: order.id,
-        customerName: order.customerName,
-        product: order.product,
+        customerName: (order as any).senderName || (order as any).customerName,
+        product: (order as any).description || (order as any).product,
         trackingNumber: (order as any).trackingNumber ?? null,
         shippingCompany: (order as any).shippingCompany ?? null,
         daysPending: (order as any).daysPending ?? 0,
@@ -902,12 +903,12 @@ export default function Orders() {
     } else if (tpl) {
       message = applyTemplate(tpl.body, {
         id: order.id,
-        customerName: order.customerName,
-        product: order.product,
-        quantity: order.quantity,
-        totalPrice: order.totalPrice,
+        customerName: (order as any).senderName || (order as any).customerName,
+        product: (order as any).description || (order as any).product,
+        quantity: (order as any).quantity,
+        totalPrice: (order as any).totalAmount || (order as any).totalPrice,
         status: order.status,
-        phone: order.phone,
+        phone,
       });
     }
 
@@ -916,7 +917,7 @@ export default function Orders() {
       return;
     }
 
-    const link = buildWhatsAppLink(order.phone, message);
+    const link = buildWhatsAppLink(phone, message);
     window.open(link, "_blank", "noopener,noreferrer");
 
     // تغيير الحالة تلقائياً لو pending → warehouse_ready
@@ -1405,9 +1406,9 @@ export default function Orders() {
                 <TableBody>
                   {displayRows.map((order, rowIndex) => {
                     const o = order as any;
-                    const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed","waiting","in_transit"]);
-                    const canWhatsApp = canWriteOrders && !bulkSelectMode && waStatuses.has(o.status);
-                    const senderPhone = o.senderPhone || o.phone || "";
+                    const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed","waiting","in_transit","out_for_delivery"]);
+                    const senderPhone = o.senderPhone || o.receiverPhone || o.phone || "";
+                    const canWhatsApp = canWriteOrders && !bulkSelectMode && waStatuses.has(o.status) && !!senderPhone;
                     const navTarget = `/orders/${order.id}`;
                     const isSelected = isGroupSelected(order);
                     const retReason = o.returnReason as string | null;
