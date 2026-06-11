@@ -5,6 +5,7 @@ import {
   ArrowRight, Truck, MapPin, Phone, Package, CreditCard, Clock,
   CheckCircle, AlertTriangle, XCircle, Pencil, Printer, RotateCcw,
   User, FileText, DollarSign, Trash2, Save, CheckCircle2, MessageCircle,
+  ClipboardCheck, PackageCheck, Navigation, PartyPopper, ShieldAlert, Undo2, Ban,
 } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -56,15 +57,15 @@ interface Shipment {
 
 // ── status config ──────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = [
-  { value: "waiting",          label: "انتظار",          icon: "⏳", color: "text-slate-400",   bg: "bg-slate-500/10",   border: "border-slate-600/40",   dot: "bg-slate-400" },
-  { value: "confirmed",        label: "مؤكدة",           icon: "✅", color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-600/40",    dot: "bg-blue-400" },
-  { value: "picked_up",        label: "تم الاستلام",     icon: "📦", color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-600/40",    dot: "bg-cyan-400" },
-  { value: "in_transit",       label: "في الطريق",       icon: "🚚", color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-600/40",  dot: "bg-violet-400" },
-  { value: "out_for_delivery", label: "خارج للتسليم",   icon: "📍", color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-600/40",   dot: "bg-amber-400" },
-  { value: "delivered",        label: "تم التسليم ✓",   icon: "🎉", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-600/40", dot: "bg-emerald-400" },
-  { value: "delayed",          label: "مؤجلة",           icon: "⚠️", color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-600/40",  dot: "bg-orange-400" },
-  { value: "returned",         label: "مرتجعة",          icon: "↩️", color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
-  { value: "cancelled",        label: "ملغية",           icon: "❌", color: "text-gray-400",    bg: "bg-gray-500/10",    border: "border-gray-600/40",    dot: "bg-gray-400" },
+  { value: "waiting",          label: "انتظار",          icon: <Clock className="w-4 h-4" />,            color: "text-slate-400",   bg: "bg-slate-500/10",   border: "border-slate-600/40",   dot: "bg-slate-400" },
+  { value: "confirmed",        label: "مؤكدة",           icon: <ClipboardCheck className="w-4 h-4" />,   color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-600/40",    dot: "bg-blue-400" },
+  { value: "picked_up",        label: "تم الاستلام",     icon: <PackageCheck className="w-4 h-4" />,     color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-600/40",    dot: "bg-cyan-400" },
+  { value: "in_transit",       label: "في الطريق",       icon: <Truck className="w-4 h-4" />,            color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-600/40",  dot: "bg-violet-400" },
+  { value: "out_for_delivery", label: "خارج للتسليم",   icon: <Navigation className="w-4 h-4" />,       color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-600/40",   dot: "bg-amber-400" },
+  { value: "delivered",        label: "تم التسليم",      icon: <CheckCircle2 className="w-4 h-4" />,     color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-600/40", dot: "bg-emerald-400" },
+  { value: "delayed",          label: "مؤجلة",           icon: <ShieldAlert className="w-4 h-4" />,      color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-600/40",  dot: "bg-orange-400" },
+  { value: "returned",         label: "مرتجعة",          icon: <Undo2 className="w-4 h-4" />,            color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
+  { value: "cancelled",        label: "ملغية",           icon: <Ban className="w-4 h-4" />,              color: "text-gray-400",    bg: "bg-gray-500/10",    border: "border-gray-600/40",    dot: "bg-gray-400" },
 ] as const;
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -618,29 +619,40 @@ html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-seri
       {/* ── Progress timeline ── */}
       {!isTerminal && (
         <Card>
-          <CardContent className="p-4">
-            <p className="text-xs font-bold text-muted-foreground mb-4 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />مسار الشحنة
+          <CardContent className="p-5">
+            <p className="text-xs font-bold text-muted-foreground mb-5 flex items-center gap-1.5">
+              <Truck className="w-3.5 h-3.5" />مسار الشحنة
             </p>
             <div className="flex items-start gap-0">
               {STATUS_STEPS.map((s, i) => {
-                const done = currentStepIdx > i;
+                const done   = currentStepIdx > i;
                 const active = currentStepIdx === i;
                 const opt = STATUS_OPTIONS.find(o => o.value === s)!;
                 return (
                   <div key={s} className="flex items-center flex-1">
-                    <div className="flex flex-col items-center gap-1 flex-1">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${
-                        done   ? "bg-emerald-500 text-white" :
-                        active ? `${opt.bg} ${opt.color} ring-2 ring-offset-2 ring-offset-background ring-current` :
-                                 "bg-muted text-muted-foreground"
-                      }`}>{opt.icon}</div>
-                      <span className={`text-[9px] font-bold text-center leading-tight ${active ? opt.color : done ? "text-emerald-500" : "text-muted-foreground"}`}>
+                    <div className="flex flex-col items-center gap-2 flex-1">
+                      {/* circle */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm ${
+                        done
+                          ? "bg-emerald-500 text-white shadow-emerald-500/30 shadow-md"
+                          : active
+                          ? `${opt.bg} ${opt.color} ring-2 ring-offset-2 ring-offset-background ring-current shadow-md`
+                          : "bg-muted/60 text-muted-foreground/40 border border-border"
+                      }`}>
+                        {done ? <CheckCircle2 className="w-5 h-5" /> : opt.icon}
+                      </div>
+                      {/* label */}
+                      <span className={`text-[10px] font-bold text-center leading-tight px-0.5 ${
+                        active ? opt.color : done ? "text-emerald-500" : "text-muted-foreground/50"
+                      }`}>
                         {opt.label}
                       </span>
                     </div>
                     {i < STATUS_STEPS.length - 1 && (
-                      <div className={`h-0.5 flex-1 mx-1 rounded-full ${done ? "bg-emerald-500" : "bg-border"}`} />
+                      <div className="relative flex-1 mx-1 mb-5">
+                        <div className={`h-0.5 w-full rounded-full transition-all duration-500 ${done ? "bg-emerald-500" : "bg-border"}`} />
+                        {done && <div className="absolute inset-0 h-0.5 rounded-full bg-emerald-400/40 blur-[2px]" />}
+                      </div>
                     )}
                   </div>
                 );
