@@ -666,6 +666,14 @@ export default function Orders() {
     gcTime: 60_000,
   });
 
+  // query منفصلة للإحصائيات — بدون فلتر حالة
+  const { data: allOrdersForStats } = useQuery({
+    queryKey: ["shipments-stats"],
+    queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({ limit: "1000" }).toString()}`).then((res: any) => res.data ?? res),
+    staleTime: 30_000,
+    gcTime: 60_000,
+  });
+
   // IDs of orders already in a shipping manifest (to detect "still in warehouse")
   const { data: inManifestData } = useQuery({
     queryKey: ["orders-in-manifest-ids"],
@@ -1085,8 +1093,9 @@ export default function Orders() {
       </div>
 
       {/* إحصائيات الطلبات */}
-      {!isLoading && orders && (() => {
-        const total = orders.length;
+      {!isLoading && allOrdersForStats && (() => {
+        const statsOrders = allOrdersForStats as any[];
+        const total = statsOrders.length;
         const statusData = [
           { key: "pending",          label: "قيد الانتظار",         rgb: "251,191,36"  },
           { key: "warehouse_ready",  label: "قيد الشحن في المخزن",  rgb: "45,212,191"  },
@@ -1098,8 +1107,8 @@ export default function Orders() {
         ];
         const counts = statusData.map(s => ({
           ...s,
-          count: orders.filter(o => o.status === s.key).length,
-          pct: total > 0 ? Math.round(orders.filter(o => o.status === s.key).length / total * 100) : 0,
+          count: statsOrders.filter(o => o.status === s.key).length,
+          pct: total > 0 ? Math.round(statsOrders.filter(o => o.status === s.key).length / total * 100) : 0,
         })).filter(s => s.count > 0);
 
         return (
