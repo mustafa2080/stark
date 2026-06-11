@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
@@ -581,6 +581,16 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
 
 export default function Orders() {
   const [showNewShipment, setShowNewShipment] = useState(false);
+  const [location, navigate] = useLocation();
+
+  // لو جاي من الـ sidebar بـ ?new=1 افتح الـ dialog مباشرةً
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") {
+      setShowNewShipment(true);
+      navigate("/orders", { replace: true });
+    }
+  }, []);
   const [search, setSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
