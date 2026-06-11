@@ -4025,23 +4025,48 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           })() : (
             <Card className="border-primary/30 bg-card">
               <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-sm font-bold text-primary">الملخص المالي</CardTitle>
+                <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
+                  <DollarSign className="w-3.5 h-3.5" />الملخص المالي
+                </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">الكمية</span>
-                    <span>{order.quantity}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">سعر الوحدة</span>
-                    <span>{formatCurrency(order.unitPrice)}</span>
-                  </div>
-                  <Separator className="border-border" />
-                  <div className="flex justify-between">
-                    <span className="font-bold text-xs">إجمالي البيع</span>
-                    <span className="font-bold text-lg text-primary">{formatCurrency(order.totalPrice)}</span>
-                  </div>
+                  {(() => {
+                    const cod        = Number((order as any).codAmount    ?? 0);
+                    const shippingFee= Number((order as any).shippingFee  ?? 0);
+                    const insurance  = Number((order as any).insuranceFee ?? 0);
+                    const total      = Number((order as any).totalAmount  ?? 0);
+                    const collected  = Number((order as any).collectedAmount ?? 0);
+                    const payMethod  = (order as any).paymentMethod as string | null;
+                    const payLabel   = payMethod === "cod" ? "عند الاستلام" : payMethod === "prepaid" ? "مدفوع مسبقاً" : payMethod === "deferred" ? "لاحقاً" : "—";
+                    const rows = [
+                      { label: "طريقة الدفع",  value: payLabel,              highlight: false },
+                      { label: "COD",           value: formatCurrency(cod),   highlight: cod > 0 },
+                      { label: "رسوم الشحن",   value: formatCurrency(shippingFee), highlight: false },
+                      ...(insurance > 0 ? [{ label: "رسوم التأمين", value: formatCurrency(insurance), highlight: false }] : []),
+                    ];
+                    return (
+                      <>
+                        {rows.map(r => (
+                          <div key={r.label} className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">{r.label}</span>
+                            <span className={r.highlight ? "font-bold text-amber-400" : "font-semibold"}>{r.value}</span>
+                          </div>
+                        ))}
+                        <Separator className="border-border" />
+                        <div className="flex justify-between">
+                          <span className="font-bold text-xs">الإجمالي</span>
+                          <span className="font-black text-lg text-primary">{formatCurrency(total)}</span>
+                        </div>
+                        {collected > 0 && (
+                          <div className="flex justify-between text-xs pt-1">
+                            <span className="text-muted-foreground">تم تحصيله</span>
+                            <span className="font-bold text-emerald-400">{formatCurrency(collected)}</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>
