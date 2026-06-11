@@ -3151,7 +3151,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 space-y-4">
+        <div className="md:col-span-1 space-y-4">
 
           {/* ── بطاقة بيانات الشحنة ── */}
           {!isEditing && (
@@ -3975,7 +3975,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         </div>
 
         {/* Financial summary — يظهر دائماً */}
-        <div className="space-y-4">
+        <div className="md:col-span-2 space-y-4">
 
           {/* Revenue â€” multi-invoice OR single */}
           {invoiceOrders.length > 1 ? (() => {
