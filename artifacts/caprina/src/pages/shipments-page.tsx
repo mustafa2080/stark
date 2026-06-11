@@ -1273,11 +1273,11 @@ export default function Orders() {
                       <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(order)} onClick={e => e.stopPropagation()} className="shrink-0" />
                     )}
                     <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-foreground shrink-0">
-                      {order.customerName.charAt(0)}
+                      {(order.customerName || order.senderName || "؟").charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-bold text-sm truncate">{order.customerName}</p>
+                        <p className="font-bold text-sm truncate">{order.customerName || order.senderName || "—"}</p>
                         {canFinancials && (
                         <span className="font-bold text-xs text-primary shrink-0">
                           {order.status === "partial_received" && (order as any)._receivedPrice != null
@@ -1437,7 +1437,7 @@ export default function Orders() {
                           )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{format(new Date(order.createdAt), "yyyy/MM/dd")}</TableCell>
-                        <TableCell className="text-sm font-semibold">{order.customerName}</TableCell>
+                        <TableCell className="text-sm font-semibold">{order.customerName || order.senderName || "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{order.phone || "—"}</TableCell>
                         <TableCell className="text-xs max-w-[200px]">
                           <span className="truncate block font-medium">{order.product}</span>
