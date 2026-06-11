@@ -71,7 +71,8 @@ async function getTemplates(tenantId: number | null): Promise<WaTemplate[]> {
 }
 
 // ── GET /api/whatsapp/settings ───────────────────────────────────────────────
-router.get("/whatsapp/settings", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+// requireAuth فقط — أي موظف محتاج يقرأ القوالب عشان زرار الواتساب
+router.get("/whatsapp/settings", requireAuth, async (req, res): Promise<void> => {
   const tenantId = getTenantId(req);
   const [phone, templates] = await Promise.all([
     getSetting(phoneKey(tenantId)),
