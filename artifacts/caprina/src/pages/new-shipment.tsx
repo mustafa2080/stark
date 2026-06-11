@@ -142,8 +142,12 @@ export default function NewShipmentPage() {
         <h1 className="text-base font-black">شحنة جديدة</h1>
       </div>
 
-      {/* Form */}
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
+      {/* Form + Sidebar */}
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+
+          {/* ── يمين: الفورم ── */}
+          <div className="lg:col-span-2 space-y-8">
 
         {/* بيانات المرسل */}
         <section className="space-y-4">
@@ -262,26 +266,6 @@ export default function NewShipmentPage() {
             )}
             <div><Label className="text-xs font-bold mb-1.5 block">رسوم التأمين</Label><Input type="number" className="text-sm" placeholder="0" value={form.insuranceFee} onChange={e => set("insuranceFee", e.target.value)} /></div>
           </div>
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
-            <h4 className="text-xs font-black text-primary">ملخص التكاليف</h4>
-            <div className="space-y-1.5">
-              {[
-                { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
-                { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
-                { label: "رسوم التأمين",       value: fc(insurance) },
-                form.paymentMethod === "cod" ? { label: "مبلغ التحصيل (COD)", value: fc(cod), highlight: true } : null,
-              ].filter(Boolean).map((row: any, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{row.label}</span>
-                  <span className={`font-bold ${row.highlight ? "text-amber-600 dark:text-amber-400" : ""}`}>{row.value}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between text-sm font-black border-t border-primary/20 pt-2 mt-1">
-                <span>الإجمالي</span>
-                <span className="text-primary">{fc(total)}</span>
-              </div>
-            </div>
-          </div>
         </section>
 
         {/* ملاحظات */}
@@ -343,15 +327,49 @@ export default function NewShipmentPage() {
           </div>
         </section>
 
-        {/* أزرار */}
-        <div className="flex gap-3 pt-2 border-t border-border pb-10">
-          <Button variant="outline" onClick={() => navigate("/orders")} className="flex-1">إلغاء</Button>
-          <Button onClick={handleSubmit} disabled={mutation.isPending} className="flex-1 gap-2">
-            {mutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            إنشاء الشحنة
-          </Button>
-        </div>
+          </div>{/* end col-span-2 */}
 
+          {/* ── شمال: sticky card ── */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-20 rounded-2xl border border-primary/20 bg-card shadow-lg overflow-hidden">
+              {/* عنوان الكارت */}
+              <div className="bg-primary/5 border-b border-primary/10 px-5 py-4">
+                <h3 className="text-sm font-black text-primary flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" /> ملخص التكاليف
+                </h3>
+              </div>
+
+              {/* التفاصيل */}
+              <div className="px-5 py-4 space-y-3">
+                {[
+                  { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
+                  { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
+                  { label: "رسوم التأمين",       value: fc(insurance) },
+                  form.paymentMethod === "cod" ? { label: "مبلغ التحصيل (COD)", value: fc(cod), highlight: true } : null,
+                ].filter(Boolean).map((row: any, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{row.label}</span>
+                    <span className={`font-bold ${row.highlight ? "text-amber-500 dark:text-amber-400" : "text-foreground"}`}>{row.value}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between border-t border-primary/20 pt-3 mt-1">
+                  <span className="text-sm font-black">الإجمالي</span>
+                  <span className="text-lg font-black text-primary">{fc(total)}</span>
+                </div>
+              </div>
+
+              {/* الأزرار */}
+              <div className="px-5 pb-5 space-y-2">
+                <Button onClick={handleSubmit} disabled={mutation.isPending} className="w-full gap-2">
+                  {mutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  إنشاء الشحنة
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/orders")} className="w-full">إلغاء</Button>
+              </div>
+            </div>
+          </div>
+
+        </div>{/* end grid */}
       </div>
     </div>
   );
