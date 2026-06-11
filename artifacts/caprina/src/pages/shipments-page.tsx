@@ -604,8 +604,11 @@ export default function Orders() {
   });
   const { data: shipmentClients = [] } = useQuery<ShipmentClient[]>({
     queryKey: ["clients-list-basic"],
-    queryFn: () => apiFetch("/finance/clients"),
+    queryFn: () => apiFetch<any[]>("/finance/clients").then(
+      (data) => (data || []).filter((c: any) => c && typeof c.name === "string" && c.name.trim() !== "")
+    ),
     staleTime: 5 * 60_000,
+    enabled: showNewShipment,
   });
   // ── Orders permission shortcuts ──────────────────────────────────────
   const canView        = isAdmin || can("orders.view");
