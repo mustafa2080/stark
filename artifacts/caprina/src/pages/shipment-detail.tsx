@@ -1831,12 +1831,12 @@ export default function OrderDetail() {
     staleTime: 15_000,
   });
 
-  // جيب كل أوردرات الفاتورة (لو فيه invoiceNumber)
-  const invoiceNumber = (order as any)?.invoiceNumber as string | null | undefined;
+  // الشحنات مش بيها invoiceNumber — نعطل الـ query ده
+  const invoiceNumber = null;
   const { data: invoiceOrders = [], refetch: refetchInvoiceOrders, isLoading: isInvoiceLoading, isFetching: isInvoiceFetching, isError: isInvoiceError } = useQuery({
     queryKey: ["invoice-orders", invoiceNumber],
     queryFn: () => ordersApi.byInvoice(invoiceNumber!),
-    enabled: !!invoiceNumber,
+    enabled: false,
     staleTime: 30_000,
     retry: 1,
     placeholderData: (prev: any) => prev,
@@ -1849,15 +1849,10 @@ export default function OrderDetail() {
   const { data: allVariants } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
   const { data: warehouses }        = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }             = useQuery({ queryKey: ["users"],      queryFn: usersApi.list });
-  const { data: manifestStatus } = useQuery({
-    queryKey: ["order-manifest-status", id],
-    queryFn: () => manifestsApi.getOrderManifestStatus(id),
-    enabled: !!id,
-    staleTime: 0,
-  });
-  // بيان مفتوح مرتبط بالطلب مباشرة؟
-  const invoiceManifestStatus = manifestStatus?.manifestStatus === "open" ? manifestStatus : null;
-  const updateOrder = useUpdateOrder();
+  // الشحنات مش عندها manifest — معطل
+  const manifestStatus = null;
+  const invoiceManifestStatus = null;
+  const updateOrder = { mutate: () => {}, isPending: false } as any;
 
   // Edit form — inline product search state (same as AddProductDialog)
   const [editSelectedProduct, setEditSelectedProduct] = useState<any>(null);
