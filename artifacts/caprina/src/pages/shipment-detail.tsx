@@ -160,6 +160,68 @@ export default function ShipmentDetailPage() {
   const [newTracking, setNewTracking] = useState("");
   const [showTrackingEdit, setShowTrackingEdit] = useState(false);
 
+  // ── add parcel modal ───────────────────────────────────────────────────────
+  const [showAddParcel, setShowAddParcel] = useState(false);
+  const [parcelForm, setParcelForm] = useState({ parcelType: "", weight: "", pieces: "1", description: "", declaredValue: "", notes: "" });
+  const pf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setParcelForm(p => ({ ...p, [k]: e.target.value }));
+
+  const addParcelMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch(`${(window as any).__SHIP_API__ ?? ""}/api/shipments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (newShipment) => {
+      toast({ title: "تم إضافة الطرد ✓", description: `رقم البوليصة: ${newShipment.shipmentNumber ?? newShipment.id}` });
+      setShowAddParcel(false);
+      setParcelForm({ parcelType: "", weight: "", pieces: "1", description: "", declaredValue: "", notes: "" });
+      qc.invalidateQueries({ queryKey: ["shipments"] });
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const handleAddParcel = () => {
+    if (!shipment) return;
+    const pricing = parcelPricing.find(p => p.parcelType === parcelForm.parcelType);
+    const parcelTypePrice = pricing ? Number(pricing.basePrice) : 0;
+    const zonePrice = Number(shipment.zonePrice ?? 0);
+    const declaredVal = Number(parcelForm.declaredValue ?? 0);
+    const insuranceFee = declaredVal > 0 ? Math.round(declaredVal * 0.01) : 0;
+    const shippingFee = zonePrice + parcelTypePrice + insuranceFee;
+    addParcelMutation.mutate({
+      senderName:      shipment.senderName,
+      senderPhone:     shipment.senderPhone,
+      senderPhone2:    shipment.senderPhone2,
+      senderEmail:     shipment.senderEmail,
+      senderAddress:   shipment.senderAddress,
+      senderCity:      shipment.senderCity,
+      receiverName:    shipment.receiverName,
+      receiverPhone:   shipment.receiverPhone,
+      receiverPhone2:  shipment.receiverPhone2,
+      receiverAddress: shipment.receiverAddress,
+      receiverCity:    shipment.receiverCity,
+      zoneId:          shipment.zoneId,
+      zonePrice,
+      parcelType:      parcelForm.parcelType || undefined,
+      parcelTypePrice,
+      weight:          parcelForm.weight ? Number(parcelForm.weight) : undefined,
+      pieces:          Number(parcelForm.pieces ?? 1),
+      description:     parcelForm.description || undefined,
+      declaredValue:   declaredVal || undefined,
+      insuranceFee,
+      shippingFee,
+      paymentMethod:   shipment.paymentMethod,
+      codAmount:       shipment.codAmount,
+      notes:           parcelForm.notes || undefined,
+    });
+  };
+
   // ── edit mode ──────────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Shipment & { trackingNumber: string }>>({});
@@ -484,6 +546,14 @@ html,body{width:210mm;font-family:'Cairo',sans-serif;background:#fff;color:#1a1a
             className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium">
             <Printer className="w-3.5 h-3.5" />فاتورة
           </button>
+
+          {/* إضافة طرد */}
+          {isAdmin && (
+            <button onClick={() => setShowAddParcel(true)}
+              className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-transparent hover:bg-muted transition-colors flex items-center font-medium">
+              <Package className="w-3.5 h-3.5" />إضافة طرد
+            </button>
+          )}
 
           {/* حذف — للأدمن */}
           {isAdmin && (
@@ -880,6 +950,95 @@ html,body{width:210mm;font-family:'Cairo',sans-serif;background:#fff;color:#1a1a
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Add Parcel Modal ── */}
+      {showAddParcel && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.6)" }}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl" dir="rtl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <Package className="w-4 h-4 text-primary" />إضافة طرد جديد
+              </div>
+              <button onClick={() => setShowAddParcel(false)} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
+            </div>
+            {/* Info strip */}
+            <div className="mx-5 mt-4 px-3 py-2 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground flex gap-4">
+              <span>المُستلِم: <strong className="text-foreground">{shipment.receiverName}</strong></span>
+              <span>المنطقة: <strong className="text-foreground">{zone?.name ?? shipment.receiverCity ?? "—"}</strong></span>
+            </div>
+            {/* Form */}
+            <div className="px-5 py-4 flex flex-col gap-3">
+              {/* نوع الطرد */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-muted-foreground">نوع الطرد</label>
+                <select value={parcelForm.parcelType} onChange={pf("parcelType")}
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                  <option value="">— اختر نوع الطرد —</option>
+                  {parcelPricing.map(p => (
+                    <option key={p.parcelType} value={p.parcelType}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+              {/* وزن + قطع */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-muted-foreground">الوزن (كجم)</label>
+                  <input type="number" min="0" step="0.1" value={parcelForm.weight} onChange={pf("weight")} placeholder="0.0"
+                    className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-muted-foreground">عدد القطع</label>
+                  <input type="number" min="1" value={parcelForm.pieces} onChange={pf("pieces")}
+                    className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+              </div>
+              {/* وصف */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-muted-foreground">الوصف</label>
+                <input type="text" value={parcelForm.description} onChange={pf("description")} placeholder="وصف محتوى الطرد..."
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              {/* قيمة معلنة */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-muted-foreground">القيمة المعلنة (اختياري)</label>
+                <input type="number" min="0" value={parcelForm.declaredValue} onChange={pf("declaredValue")} placeholder="0"
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              {/* ملاحظات */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-muted-foreground">ملاحظات</label>
+                <textarea rows={2} value={parcelForm.notes} onChange={pf("notes")} placeholder="ملاحظات إضافية..."
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
+              </div>
+              {/* رسوم متوقعة */}
+              {parcelForm.parcelType && (() => {
+                const pricing = parcelPricing.find(p => p.parcelType === parcelForm.parcelType);
+                const total = Number(shipment.zonePrice ?? 0) + Number(pricing?.basePrice ?? 0);
+                return (
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-xs">
+                    <span className="text-muted-foreground">رسوم الشحن المتوقعة</span>
+                    <span className="font-bold text-primary">{total.toLocaleString("ar-EG")} ج.م</span>
+                  </div>
+                );
+              })()}
+            </div>
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+              <button onClick={() => setShowAddParcel(false)}
+                className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">
+                إلغاء
+              </button>
+              <button onClick={handleAddParcel} disabled={addParcelMutation.isPending}
+                className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5" />
+                {addParcelMutation.isPending ? "جاري الإضافة..." : "إضافة الطرد"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
     </div>
   );
