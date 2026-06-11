@@ -466,17 +466,14 @@ function ShipmentFormDialog({
                 <Select value={form.parcelType} onValueChange={v => set("parcelType", v as ParcelType)}>
                   <SelectTrigger className="text-sm"><SelectValue placeholder="اختر نوع الشحنة..." /></SelectTrigger>
                   <SelectContent>
-                    {(["document","normal","fragile","heavy","electronics","clothing","food","other"] as ParcelType[]).map(t => {
-                      const pp = parcelPricing.find(p => p.parcelType === t);
-                      return (
-                        <SelectItem key={t} value={t}>
-                          <div className="flex items-center justify-between gap-4 w-full">
-                            <span>{PARCEL_LABELS[t]}</span>
-                            {pp && <span className="text-xs text-muted-foreground font-bold">{fc(pp.basePrice)}</span>}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                    {parcelPricing.filter(p => (p as any).isActive !== false).map(p => (
+                      <SelectItem key={p.id} value={p.parcelType}>
+                        <div className="flex items-center justify-between gap-4 w-full">
+                          <span>{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</span>
+                          <span className="text-xs text-muted-foreground font-bold">{fc(p.basePrice)}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {selectedPricing && (
