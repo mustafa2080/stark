@@ -82,13 +82,16 @@ function getRoleLabel(user: any): string {
 }
 
 function NavItem({ item, location, sub = false, collapsed = false }: { item: any; location: string; sub?: boolean; collapsed?: boolean }) {
+  const basePath = item.href.split("?")[0];
   const isActive = item.exact
-    ? location === item.href
-    : location === item.href || location.startsWith(item.href + "/") || (item.href !== "/" && location.startsWith(item.href));
+    ? location === basePath
+    : location === basePath || location.startsWith(basePath + "/") || (basePath !== "/" && location.startsWith(basePath));
   const Icon = item.icon;
   const rgb = resolveRgb(item.iconColor ?? "text-blue-400");
+  const hasQuery = item.href.includes("?");
   return (
     <Link href={item.href}
+      onClick={hasQuery ? (e: React.MouseEvent) => { e.preventDefault(); window.location.href = item.href; } : undefined}
       title={collapsed ? item.label : undefined}
       className={cn(
         "flex items-center gap-3 rounded-lg text-[11.5px] font-semibold transition-all duration-300 group",

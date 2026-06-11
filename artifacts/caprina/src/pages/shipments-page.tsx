@@ -588,9 +588,9 @@ export default function Orders() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("new") === "1") {
       setShowNewShipment(true);
-      navigate("/orders", { replace: true });
+      window.history.replaceState(null, "", "/orders");
     }
-  }, []);
+  }, [location]);
   const [search, setSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
