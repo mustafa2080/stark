@@ -430,9 +430,18 @@ router.delete("/shipment-zones/:id", async (req, res): Promise<void> => {
 router.get("/parcel-type-pricing", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cond = tenantId !== null ? eq(parcelTypePricingTable.tenantId, tenantId) : undefined;
+    // يرجع أسعار الـ tenant الحالي أو الأسعار الـ global (tenantId = null) — أيهما موجود
+    const cond = tenantId !== null
+      ? or(eq(parcelTypePricingTable.tenantId, tenantId), isNull(parcelTypePricingTable.tenantId))
+      : undefined;
     const rows = await db.select().from(parcelTypePricingTable).where(cond).orderBy(parcelTypePricingTable.parcelType);
-    res.json(rows);
+    // لو في أسعار خاصة بالـ tenant، تطغى على الـ global
+    const seen = new Set<string>();
+    const result = rows.filter(r => {
+      if (r.tenantId !== null && r.tenantId !== undefined) { seen.add(r.parcelType); return true; }
+      return !seen.has(r.parcelType);
+    });
+    res.json(result);
   } catch (e) { res.status(500).json({ error: "خطأ" }); }
 });
 
