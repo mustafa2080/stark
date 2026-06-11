@@ -18,8 +18,14 @@ pnpm run build
 echo "[4/5] Setting permissions..."
 chmod -R 755 /root/caprina/artifacts/caprina/dist/public
 
+echo "[4.5/5] Copying build to starkvector webroot..."
+rm -rf /root/starkvector/artifacts/caprina/dist/public/*
+cp -r /root/caprina/artifacts/caprina/dist/public/* /root/starkvector/artifacts/caprina/dist/public/
+chmod -R 755 /root/starkvector/artifacts/caprina/dist/public
+
 echo "[5/5] Restarting API Server..."
 pm2 restart caprina-api
+pm2 restart starkvector-api
 
 echo "[6/6] Patching nginx client_max_body_size..."
 NGINX_CONF="/etc/nginx/sites-available/caprina"
