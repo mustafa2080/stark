@@ -339,51 +339,51 @@ html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-seri
 .logo-wrap{display:flex;align-items:center;gap:12px;}
 .logo-img{width:100px;height:100px;object-fit:cover;border-radius:50%;border:3px solid #e5e7eb;}
 .brand-name{font-size:26px;font-weight:900;color:#111827;letter-spacing:-1px;}
-.brand-sub{font-size:9px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;margin-top:1px;}
+.brand-sub{font-size:11px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;margin-top:1px;}
 .inv-meta{text-align:left;}
-.inv-title{font-size:20px;font-weight:900;color:#111827;margin-bottom:5px;}
-.inv-row{font-size:11px;color:#6b7280;line-height:1.9;}
+.inv-title{font-size:22px;font-weight:900;color:#111827;margin-bottom:5px;}
+.inv-row{font-size:13px;color:#6b7280;line-height:1.9;}
 .inv-row strong{color:#111827;font-weight:700;}
 .status-strip{background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:7px 30px;display:flex;align-items:center;justify-content:space-between;}
-.st-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-weight:700;font-size:11px;border:1.5px solid;}
+.st-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;border:1.5px solid;}
 .st-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-.pay-chip{font-size:11px;font-weight:700;color:#374151;background:#f3f4f6;padding:4px 12px;border-radius:6px;border:1px solid #e5e7eb;}
+.pay-chip{font-size:13px;font-weight:700;color:#374151;background:#f3f4f6;padding:4px 12px;border-radius:6px;border:1px solid #e5e7eb;}
 .body{flex:1;padding:18px 30px;}
 .parties-box{border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:14px;}
 .parties-row{display:grid;grid-template-columns:1fr 1px 1fr;}
 .party{padding:13px 15px;}
 .party-div{background:#e5e7eb;}
-.party-lbl{font-size:8px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;margin-bottom:7px;}
-.party-name{font-size:14px;font-weight:800;color:#111827;margin-bottom:4px;}
-.party-row{font-size:11px;color:#6b7280;margin-top:2px;}
+.party-lbl{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;margin-bottom:7px;}
+.party-name{font-size:16px;font-weight:800;color:#111827;margin-bottom:4px;}
+.party-row{font-size:13px;color:#6b7280;margin-top:2px;}
 .party-row strong{color:#374151;}
-.tbl{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
+.tbl{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;}
 .tbl thead tr{background:#111827;color:#fff;}
-.tbl thead th{padding:8px 12px;font-weight:700;font-size:10px;letter-spacing:.3px;}
+.tbl thead th{padding:9px 12px;font-weight:700;font-size:12px;letter-spacing:.3px;}
 .tbl tbody tr{border-bottom:1px solid #f3f4f6;}
 .tbl tbody tr:last-child{border:none;}
-.tbl tbody td{padding:8px 12px;color:#374151;}
+.tbl tbody td{padding:9px 12px;color:#374151;}
 .tbl tbody td.val{font-weight:700;color:#111827;}
 .summary-wrap{display:flex;justify-content:flex-end;margin-bottom:14px;}
 .summary-box{min-width:260px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;}
-.sum-row{display:flex;justify-content:space-between;padding:7px 14px;font-size:11px;border-bottom:1px solid #f3f4f6;}
+.sum-row{display:flex;justify-content:space-between;padding:8px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;}
 .sum-row:last-child{border:none;}
 .sum-lbl{color:#6b7280;}
 .sum-val{font-weight:700;color:#111827;}
 .sum-total{display:flex;justify-content:space-between;padding:10px 14px;background:#111827;color:#fff;}
-.sum-total-lbl{font-size:11px;font-weight:600;}
-.sum-total-val{font-size:17px;font-weight:900;}
+.sum-total-lbl{font-size:13px;font-weight:600;}
+.sum-total-val{font-size:19px;font-weight:900;}
 .cod-box{display:flex;justify-content:space-between;padding:8px 14px;background:#fffbeb;border:1.5px dashed #f59e0b;border-radius:8px;margin-top:8px;}
-.cod-lbl{font-size:11px;color:#92400e;font-weight:700;}
-.cod-val{font-size:15px;font-weight:900;color:#d97706;}
+.cod-lbl{font-size:13px;color:#92400e;font-weight:700;}
+.cod-val{font-size:17px;font-weight:900;color:#d97706;}
 .notes-box{border:1px solid #fde68a;background:#fefce8;border-radius:8px;padding:11px 14px;margin-bottom:12px;}
-.notes-lbl{font-size:8px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#ca8a04;margin-bottom:5px;}
+.notes-lbl{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#ca8a04;margin-bottom:5px;}
 .trk-center{text-align:center;margin:12px 0 6px;}
 .trk-box{border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 20px;display:inline-block;}
-.trk-num{font-size:14px;font-weight:900;letter-spacing:3px;color:#111827;}
-.trk-sub{font-size:8px;color:#9ca3af;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase;}
-.inv-footer{border-top:1px solid #e5e7eb;padding:10px 30px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#9ca3af;margin-top:auto;}
-.footer-brand{color:#374151;font-weight:700;font-size:11px;}
+.trk-num{font-size:16px;font-weight:900;letter-spacing:3px;color:#111827;}
+.trk-sub{font-size:10px;color:#9ca3af;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase;}
+.inv-footer{border-top:1px solid #e5e7eb;padding:10px 30px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#9ca3af;margin-top:auto;}
+.footer-brand{color:#374151;font-weight:700;font-size:13px;}
 @media print{html,body{width:210mm;max-width:210mm;}@page{size:A4;margin:10mm;}.page{min-height:297mm;}}
 </style></head><body><div class="page">`);
 
@@ -424,7 +424,7 @@ html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-seri
     html.push(`<table class="tbl"><thead><tr><th style="text-align:right">البيان</th><th style="text-align:right">التفاصيل</th><th style="text-align:right">البيان</th><th style="text-align:right">التفاصيل</th></tr></thead><tbody>`);
     html.push(`<tr><td>نوع الطرد</td><td class="val">${parcelLabel}</td><td>طريقة الدفع</td><td class="val">${paymentLabel}</td></tr>`);
     html.push(`<tr><td>الوزن</td><td class="val">${shipment.weight ? shipment.weight + " كجم" : "—"}</td><td>بواسطة</td><td class="val">${shipment.createdByName ?? "—"}</td></tr>`);
-    html.push(`<tr><td>عدد القطع</td><td class="val">${shipment.pieces ?? 1}</td><td>تاريخ الإنشاء</td><td class="val" style="font-size:10px">${fdate(shipment.createdAt)}</td></tr>`);
+    html.push(`<tr><td>عدد القطع</td><td class="val">${shipment.pieces ?? 1}</td><td>تاريخ الإنشاء</td><td class="val" style="font-size:13px">${fdate(shipment.createdAt)}</td></tr>`);
     if (shipment.description)                html.push(`<tr><td>الوصف</td><td class="val" colspan="3">${shipment.description}</td></tr>`);
     if (Number(shipment.declaredValue) > 0)  html.push(`<tr><td>القيمة المعلنة</td><td class="val">${fc(shipment.declaredValue)}</td><td></td><td></td></tr>`);
     html.push(`</tbody></table>`);
@@ -440,7 +440,7 @@ html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-seri
 
     // Notes
     if (shipment.notes) {
-      html.push(`<div class="notes-box" style="margin-top:12px"><div class="notes-lbl">ملاحظات</div><p style="font-size:11px;line-height:1.7;color:#374151">${shipment.notes}</p></div>`);
+      html.push(`<div class="notes-box" style="margin-top:12px"><div class="notes-lbl">ملاحظات</div><p style="font-size:13px;line-height:1.7;color:#374151">${shipment.notes}</p></div>`);
     }
 
     // Tracking
