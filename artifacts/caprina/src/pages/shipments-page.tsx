@@ -1055,10 +1055,10 @@ export default function Orders() {
               <Button
                 className="gap-2 font-bold text-sm border-0 relative overflow-hidden"
                 style={{
-                  background: "linear-gradient(135deg, #d4af37 0%, #f5e17a 40%, #c8960c 70%, #d4af37 100%)",
-                  color: "#3a2800",
-                  boxShadow: "0 2px 12px rgba(212,175,55,0.45), inset 0 1px 0 rgba(255,255,255,0.35)",
-                  textShadow: "0 1px 0 rgba(255,255,255,0.3)",
+                  background: "linear-gradient(135deg, #6b7280 0%, #d1d5db 35%, #9ca3af 60%, #6b7280 100%)",
+                  color: "#1a1a1a",
+                  boxShadow: "0 2px 12px rgba(156,163,175,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
+                  textShadow: "0 1px 0 rgba(255,255,255,0.4)",
                 }}
                 onClick={() => setShowNewShipment(true)}
               >
