@@ -1,94 +1,1750 @@
-import { useState, useEffect, useRef } from "react";
-import { useRoute, Link, useLocation } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
+import { format } from "date-fns";
+import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState, useRef, useEffect, useMemo } from "react";
+import React from "react";
 import { createPortal } from "react-dom";
-import {
-  ArrowRight, Truck, MapPin, Phone, Package, CreditCard, Clock,
-  CheckCircle, AlertTriangle, XCircle, Pencil, Printer, RotateCcw,
-  User, FileText, DollarSign, Trash2, Save, CheckCircle2, MessageCircle,
-  ClipboardCheck, PackageCheck, Navigation, PartyPopper, ShieldAlert, Undo2, Ban,
-} from "lucide-react";
-import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useGetOrder, getGetOrderQueryKey, useUpdateOrder, getListOrdersQueryKey, getGetOrdersSummaryQueryKey, getGetRecentOrdersQueryKey } from "@workspace/api-client-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/contexts/AuthContext";
-import { WhatsAppShipmentDialog } from "@/components/whatsapp-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { ToastAction } from "@/components/ui/toast";
+import { shippingApi, ordersApi, productsApi, variantsApi, manifestsApi, warehousesApi, usersApi, cashRegistersApi, apiFetch } from "@/lib/api";
+import { type WhatsAppOrderData } from "@/lib/whatsapp";
+import { WhatsAppDialog } from "@/components/whatsapp-dialog";
+import { formatCurrency } from "@/lib/utils";
+import { ProductSearchCombobox } from "@/components/product-search-combobox";
+import { RETURN_REASONS, returnReasonLabel, STATUS_LABELS as statusLabels, STATUS_CLASSES as statusClasses } from "@/lib/order-constants";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
-// ── helpers ────────────────────────────────────────────────────────────────────
-function apiHeaders() {
-  const token = localStorage.getItem("caprina_token");
-  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+const AD_SOURCES = [
+  { value: "facebook",  label: "فيسبوك" },
+  { value: "tiktok",   label: "تيك توك" },
+  { value: "instagram",label: "إنستجرام" },
+  { value: "whatsapp", label: "واتساب" },
+  { value: "organic",  label: "ويبسايت" },
+  { value: "other",    label: "أخرى" },
+];
+
+const AdSourceIcon = ({ value, className = "w-4 h-4 shrink-0" }: { value: string; className?: string }) => {
+  if (value === "facebook") return <svg className={className} viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>;
+  if (value === "tiktok") return <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.17 8.17 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/></svg>;
+  if (value === "instagram") return <svg className={className} viewBox="0 0 24 24" fill="url(#igGrad2)"><defs><linearGradient id="igGrad2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#f09433"/><stop offset="25%" stopColor="#e6683c"/><stop offset="50%" stopColor="#dc2743"/><stop offset="75%" stopColor="#cc2366"/><stop offset="100%" stopColor="#bc1888"/></linearGradient></defs><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>;
+  if (value === "whatsapp") return <svg className={className} viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>;
+  if (value === "organic") return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>;
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>;
+};
+
+const editSchema = z.object({
+  customerName:      z.string().min(2, "اسم العميل يجب أن يكون حرفين على الأقل."),
+  phone:             z.string().optional().nullable(),
+  city:              z.string().optional().nullable(),
+  address:           z.string().optional().nullable(),
+  shippingCost:      z.coerce.number().min(0).optional().nullable(),
+  shippingCompanyId: z.coerce.number().optional().nullable(),
+  trackingNumber:    z.string().optional().nullable(),
+  warehouseId:       z.coerce.number().optional().nullable(),
+  assignedUserId:    z.coerce.number().optional().nullable(),
+  adSource:          z.string().optional().nullable(),
+  adCampaign:        z.string().optional().nullable(),
+  notes:             z.string().optional().nullable(),
+  product:           z.string().min(1),
+  quantity:          z.coerce.number().int().min(1),
+  unitPrice:         z.coerce.number().min(0),
+  costPrice:         z.coerce.number().min(0).optional().nullable(),
+});
+
+type EditFormValues = z.infer<typeof editSchema>;
+
+// ── Add Product Dialog ────────────────────────────────────────────────────────
+function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
+  open: boolean; onOpenChange: (v: boolean) => void; order: any; onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const { data: products = [] } = useQuery({ queryKey: ["products"], queryFn: productsApi.list });
+  const { data: allVariants = [] } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
+  const { canViewFinancials } = useAuth();
+
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [variantRows, setVariantRows] = useState<{ color: string; size: string; quantity: number }[]>([{ color: "", size: "", quantity: 1 }]);
+  const [unitPrice, setUnitPrice] = useState(0);
+  const [costPrice, setCostPrice] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // combobox state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const productVariants = allVariants.filter((v: any) => v.productId === selectedProduct?.id);
+  const availableColors = [...new Set(productVariants.map((v: any) => v.color))] as string[];
+  const hasVariants = productVariants.length > 0;
+
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const inStock = (products as any[]).filter((p: any) => {
+      const variants = (allVariants as any[]).filter((v: any) => v.productId === p.id);
+      return variants.length > 0
+        ? variants.some((v: any) => (v.totalQuantity ?? 0) > 0)
+        : (p.totalQuantity ?? 0) > 0;
+    });
+    return (q ? inStock.filter((p: any) => p.name?.toLowerCase().includes(q)) : inStock).slice(0, 20);
+  }, [searchQuery, products, allVariants]);
+
+  const reset = () => {
+    setSelectedProduct(null);
+    setVariantRows([{ color: "", size: "", quantity: 1 }]);
+    setUnitPrice(0); setCostPrice(null);
+    setSearchQuery(""); setSearchOpen(false);
+  };
+
+  const handleSelectProduct = (p: any) => {
+    setSelectedProduct(p);
+    setVariantRows([{ color: "", size: "", quantity: 1 }]);
+    setSearchQuery(""); setSearchOpen(false);
+    if (p.unitPrice) setUnitPrice(p.unitPrice);
+    if (p.costPrice) setCostPrice(p.costPrice);
+  };
+
+  const updateRow = (i: number, key: string, val: any) => {
+    setVariantRows(rows => {
+      const next = rows.map((r, idx) => idx === i ? { ...r, [key]: val, ...(key === "color" ? { size: "" } : {}) } : r);
+      if (key === "size") {
+        const row = next[i];
+        const v = productVariants.find((pv: any) => pv.color === row.color && pv.size === val);
+        if (v?.unitPrice) setUnitPrice(v.unitPrice);
+        if (v?.costPrice) setCostPrice(v.costPrice);
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedProduct) return;
+    setIsSubmitting(true);
+    try {
+      const filledRows = hasVariants ? variantRows.filter(r => r.color && r.size) : variantRows;
+      if (filledRows.length === 0) {
+        toast({ title: "خطأ", description: "اختر لون ومقاس على الأقل.", variant: "destructive" });
+        return;
+      }
+      const items = filledRows.map(r => ({
+        product: selectedProduct.name,
+        color: r.color || null,
+        size: r.size || null,
+        quantity: r.quantity,
+        unitPrice,
+        costPrice: costPrice ?? null,
+        productId: selectedProduct.id,
+        variantId: hasVariants
+          ? (productVariants.find((v: any) => v.color === r.color && v.size === r.size)?.id ?? null)
+          : null,
+      }));
+      await ordersApi.batchCreate({
+        invoiceNumber: order.invoiceNumber ?? undefined,
+        customerName: order.customerName,
+        phone: order.phone ?? null,
+        city: order.city ?? null,
+        address: order.address ?? null,
+        shippingCompanyId: order.shippingCompanyId ?? null,
+        notes: null,
+        items,
+      });
+      toast({ title: "تم إضافة المنتج", description: `${selectedProduct.name} اتضاف للفاتورة بنجاح.` });
+      reset();
+      onOpenChange(false);
+      onSuccess();
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "فشل الإضافة.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+      <DialogContent
+        className="max-w-md"
+        dir="rtl"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <Plus className="w-4 h-4 text-primary" />إضافة منتج لنفس الفاتورة
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {/* Product selector — inline combobox بدون portal */}
+          <div>
+            <label className="text-xs font-medium mb-1.5 block">اختر من المخزون *</label>
+            {selectedProduct ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-md">
+                <div className="flex items-center gap-2">
+                  {selectedProduct.image ? (
+                    <img src={selectedProduct.image} alt={selectedProduct.name} className="w-8 h-8 rounded object-cover border border-emerald-300 shrink-0" />
+                  ) : (
+                    <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  )}
+                  <span className="text-sm font-bold">{selectedProduct.name}</span>
+                </div>
+                <button type="button" onClick={() => { setSelectedProduct(null); setVariantRows([{ color: "", size: "", quantity: 1 }]); }}
+                  className="text-muted-foreground hover:text-red-500 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                {/* Search input */}
+                <div className="relative">
+                  <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    className="w-full h-9 text-sm pr-8 pl-3 rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                    placeholder="ابحث عن منتج..."
+                    value={searchQuery}
+                    onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+                    onFocus={() => setSearchOpen(true)}
+                  />
+                  {searchQuery && (
+                    <button type="button" onClick={() => setSearchQuery("")}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {/* Dropdown — inline داخل الـ Dialog */}
+                {searchOpen && (
+                  <div className="mt-1 w-full bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto z-10 relative">
+                    {filteredProducts.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                        {searchQuery ? "لا يوجد منتج بهذا الاسم" : "لا توجد منتجات في المخزون"}
+                      </div>
+                    ) : filteredProducts.map((p: any) => {
+                      const variants = (allVariants as any[]).filter((v: any) => v.productId === p.id);
+                      const stock = variants.length > 0
+                        ? variants.reduce((s: number, v: any) => s + (v.totalQuantity ?? 0), 0)
+                        : (p.totalQuantity ?? 0);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(p); }}
+                          className="w-full text-right flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors text-sm border-b border-border/20 last:border-0"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {p.image ? (
+                              <img src={p.image} alt={p.name} className="w-7 h-7 rounded object-cover border border-border shrink-0" />
+                            ) : (
+                              <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            )}
+                            <span className="font-medium truncate">{p.name}</span>
+                          </div>
+                          <Badge variant="outline" className={`text-[9px] font-bold shrink-0 ${stock > 0 ? "border-emerald-400 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" : "border-red-400 text-red-600"}`}>
+                            {stock > 0 ? `${stock} متاح` : "نفد"}
+                          </Badge>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Variants */}
+          {selectedProduct && hasVariants && (
+            <div className="space-y-2">
+              {variantRows.map((row, ri) => {
+                const sizesForColor = productVariants.filter((v: any) => v.color === row.color).map((v: any) => v.size);
+                const rowVariant = productVariants.find((v: any) => v.color === row.color && v.size === row.size);
+                const avail = rowVariant ? (rowVariant.totalQuantity ?? 0) : null;
+                return (
+                  <div key={ri} className="flex items-end gap-2 p-2 bg-muted/10 rounded-md border border-border/40">
+                    <div className="flex-1">
+                      <label className="text-[10px] text-muted-foreground mb-1 block">اللون</label>
+                      <select value={row.color} onChange={e => updateRow(ri, "color", e.target.value)}
+                        className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                        <option value="">اختر لون...</option>
+                        {availableColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] text-muted-foreground mb-1 block">المقاس</label>
+                      <select value={row.size} disabled={!row.color} onChange={e => updateRow(ri, "size", e.target.value)}
+                        className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50">
+                        <option value="">اختر مقاس...</option>
+                        {sizesForColor.map((s: string) => {
+                          const v = productVariants.find((pv: any) => pv.color === row.color && pv.size === s);
+                          const a = v ? (v.totalQuantity ?? 0) : 0;
+                          return <option key={s} value={s} disabled={a === 0}>{s} {a === 0 ? "(نفد)" : `(${a})`}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground mb-1 block">الكمية</label>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => updateRow(ri, "quantity", Math.max(1, row.quantity - 1))}
+                          className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">−</button>
+                        <span className="w-8 text-center text-sm font-bold">{row.quantity}</span>
+                        <button type="button" onClick={() => updateRow(ri, "quantity", avail !== null ? Math.min(avail, row.quantity + 1) : row.quantity + 1)}
+                          className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
+                      </div>
+                    </div>
+                    {variantRows.length > 1 && (
+                      <button type="button" onClick={() => setVariantRows(r => r.filter((_, idx) => idx !== ri))}
+                        className="mb-0.5 p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {avail !== null && (
+                      <span className={`text-[9px] font-bold mb-1 shrink-0 ${avail <= 5 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>متاح:{avail}</span>
+                    )}
+                  </div>
+                );
+              })}
+              <button type="button" onClick={() => setVariantRows(r => [...r, { color: "", size: "", quantity: 1 }])}
+                className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 py-2 rounded-md transition-colors">
+                <Plus className="w-3.5 h-3.5" />أضف لون / مقاس آخر
+              </button>
+            </div>
+          )}
+
+          {/* Qty (no variants) */}
+          {selectedProduct && !hasVariants && (
+            <div>
+              <label className="text-xs font-medium mb-1.5 block">الكمية *</label>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setVariantRows(r => [{ ...r[0], quantity: Math.max(1, r[0].quantity - 1) }])}
+                  className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">−</button>
+                <span className="w-10 text-center text-sm font-bold">{variantRows[0]?.quantity ?? 1}</span>
+                <button type="button" onClick={() => setVariantRows(r => [{ ...r[0], quantity: r[0].quantity + 1 }])}
+                  className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
+              </div>
+            </div>
+          )}
+
+          {/* Price */}
+          {selectedProduct && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">سعر البيع (ج.م) *</label>
+                <Input type="number" min={0} value={unitPrice || ""} onChange={e => setUnitPrice(Number(e.target.value))} className="h-9 text-sm" />
+              </div>
+              {canViewFinancials && (
+                <div>
+                  <label className="text-xs font-medium mb-1.5 block">تكلفة الوحدة (ج.م)</label>
+                  <Input type="number" min={0} value={costPrice ?? ""} onChange={e => setCostPrice(e.target.value ? Number(e.target.value) : null)} className="h-9 text-sm" />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex gap-2 mt-2">
+          <Button variant="outline" size="sm" onClick={() => { reset(); onOpenChange(false); }} className="flex-1">إلغاء</Button>
+          <Button size="sm" onClick={handleSubmit}
+            disabled={isSubmitting || !selectedProduct || unitPrice <= 0}
+            className="flex-1 gap-1">
+            <Plus className="w-3 h-3" />{isSubmitting ? "جاري الإضافة..." : "إضافة للفاتورة"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
-async function shipApiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
-  const r = await fetch(`/api${path}`, { headers: apiHeaders(), ...opts });
-  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as any).error || r.statusText); }
-  return r.json();
+
+// -- Edit Single Order Row Dialog (Full Form)
+function EditOrderRowDialog({ open, onOpenChange, order: o, shippingCompanies, products, allVariants, warehouses, users, onSuccess }: {
+  open: boolean; onOpenChange: (v: boolean) => void; order: any;
+  shippingCompanies: any[]; products: any[]; allVariants: any[];
+  warehouses: any[]; users: any[]; onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const updateOrder = useUpdateOrder();
+  const { canViewFinancials } = useAuth();
+
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [variantRows, setVariantRows] = useState<{ color: string; size: string; quantity: number }[]>([{ color: "", size: "", quantity: 1 }]);
+  const [unitPrice, setUnitPrice] = useState(0);
+  const [costPrice, setCostPrice] = useState<number | null>(null);
+  const [notes, setNotes] = useState("");
+  // حقول بيانات العميل والشحن والإعلان
+  const [customerName, setCustomerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [city, setCity] = useState("");
+  const [address, setAddress] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [shippingCompanyId, setShippingCompanyId] = useState<number | null>(null);
+  const [shippingCost, setShippingCost] = useState<number | null>(null);
+  const [warehouseId, setWarehouseId] = useState<number | null>(null);
+  const [assignedUserId, setAssignedUserId] = useState<number | null>(null);
+  const [adSource, setAdSource] = useState<string | null>(null);
+  const [adCampaign, setAdCampaign] = useState("");
+
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const inStock = (products as any[]).filter((p: any) => {
+      const variants = (allVariants as any[]).filter((v: any) => v.productId === p.id);
+      return variants.length > 0
+        ? variants.some((v: any) => (v.totalQuantity ?? 0) > 0)
+        : (p.totalQuantity ?? 0) > 0;
+    });
+    return (q ? inStock.filter((p: any) => p.name?.toLowerCase().includes(q)) : inStock).slice(0, 20);
+  }, [searchQuery, products, allVariants]);
+
+  const productVariants = useMemo(
+    () => (allVariants as any[]).filter((v: any) => v.productId === selectedProduct?.id),
+    [allVariants, selectedProduct]
+  );
+  const availableColors = useMemo(() => [...new Set(productVariants.map((v: any) => v.color))] as string[], [productVariants]);
+  const hasVariants = productVariants.length > 0;
+
+  useEffect(() => {
+    if (o && open) {
+      const existingProduct = o.productId
+        ? (products as any[]).find((p: any) => p.id === o.productId) ?? null
+        : null;
+      setSelectedProduct(existingProduct);
+      setSearchQuery(""); setSearchOpen(false);
+      setUnitPrice(o.unitPrice ?? 0);
+      setCostPrice(o.costPrice ?? null);
+      setNotes(o.notes ?? "");
+      setVariantRows([{ color: o.color ?? "", size: o.size ?? "", quantity: o.quantity ?? 1 }]);
+      // بيانات العميل والشحن والإعلان
+      setCustomerName(o.customerName ?? "");
+      setPhone(o.phone ?? "");
+      setCity(o.city ?? "");
+      setAddress(o.address ?? "");
+      setTrackingNumber(o.trackingNumber ?? "");
+      setShippingCompanyId(o.shippingCompanyId ?? null);
+      setShippingCost(o.shippingCost ?? null);
+      setWarehouseId(o.warehouseId ?? null);
+      setAssignedUserId(o.assignedUserId ?? null);
+      setAdSource(o.adSource ?? null);
+      setAdCampaign(o.adCampaign ?? "");
+    }
+  }, [o, open]);
+
+  const handleSelectProduct = (p: any) => {
+    setSelectedProduct(p);
+    setVariantRows([{ color: "", size: "", quantity: variantRows[0]?.quantity ?? 1 }]);
+    setSearchQuery(""); setSearchOpen(false);
+    if (p.unitPrice) setUnitPrice(p.unitPrice);
+    if (p.costPrice) setCostPrice(p.costPrice);
+  };
+
+  const updateRow = (i: number, key: string, val: any) => {
+    setVariantRows(rows => {
+      const next = rows.map((r, idx) => idx === i ? { ...r, [key]: val, ...(key === "color" ? { size: "" } : {}) } : r);
+      if (key === "size") {
+        const row = next[i];
+        const v = productVariants.find((pv: any) => pv.color === row.color && pv.size === val);
+        if (v?.unitPrice) setUnitPrice(v.unitPrice);
+        if (v?.costPrice) setCostPrice(v.costPrice);
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!customerName.trim()) {
+      toast({ title: "خطأ", description: "اسم العميل مطلوب.", variant: "destructive" });
+      return;
+    }
+    try {
+      const row = variantRows[0];
+      const variant = hasVariants && row.color && row.size
+        ? productVariants.find((v: any) => v.color === row.color && v.size === row.size)
+        : null;
+      await updateOrder.mutateAsync({
+        id: o.id,
+        data: {
+          customerName: customerName.trim(),
+          phone: phone || null,
+          city: city || null,
+          address: address || null,
+          trackingNumber: trackingNumber || null,
+          shippingCompanyId: shippingCompanyId ?? null,
+          shippingCost: shippingCost ?? null,
+          warehouseId: warehouseId ?? null,
+          assignedUserId: assignedUserId ?? null,
+          adSource: adSource ?? null,
+          adCampaign: adCampaign || null,
+          product: selectedProduct?.name ?? o.product,
+          color: variant?.color ?? (row.color || null),
+          size: variant?.size ?? (row.size || null),
+          quantity: row.quantity,
+          unitPrice,
+          costPrice: costPrice ?? null,
+          productId: selectedProduct?.id ?? null,
+          variantId: variant?.id ?? null,
+          notes: notes || null,
+        } as any,
+      });
+      queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ["invoice-orders"] });
+      toast({ title: "تم الحفظ", description: "تم تعديل الطلب بنجاح." });
+      onSuccess(); onOpenChange(false);
+    } catch {
+      toast({ title: "خطأ", description: "فشل الحفظ.", variant: "destructive" });
+    }
+  };
+
+  const row = variantRows[0];
+  const sizesForColor = productVariants.filter((v: any) => v.color === row.color).map((v: any) => v.size);
+  const rowVariant = productVariants.find((v: any) => v.color === row.color && v.size === row.size);
+  const avail = rowVariant ? (rowVariant.totalQuantity ?? 0) : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="max-w-md"
+        dir="rtl"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <Pencil className="w-4 h-4 text-primary" />تعديل الطلب
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="overflow-y-auto max-h-[70vh] space-y-4 py-1 pr-1">
+
+          {/* ── قسم 1: بيانات العميل ── */}
+          <div className="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5" />بيانات العميل</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-medium mb-1.5 block">اسم العميل *</label>
+                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="اسم العميل" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">رقم الهاتف</label>
+                <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="01XXXXXXXXX" className="h-9 text-sm" dir="ltr" />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">المحافظة</label>
+                <Input value={city} onChange={e => setCity(e.target.value)} placeholder="القاهرة، الجيزة..." className="h-9 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-medium mb-1.5 block">العنوان التفصيلي</label>
+                <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="الشارع، الحي..." className="h-9 text-sm" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── قسم 2: المنتج ── */}
+          <div className="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5"><Package className="w-3.5 h-3.5" />تفاصيل المنتج</p>
+            <div>
+              <label className="text-xs font-medium mb-1.5 block">المنتج</label>
+              {selectedProduct ? (
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-md">
+                  <div className="flex items-center gap-2">
+                    {selectedProduct.image ? (
+                      <img src={selectedProduct.image} alt={selectedProduct.name} className="w-8 h-8 rounded object-cover border border-emerald-300 shrink-0" />
+                    ) : (
+                      <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    )}
+                    <span className="text-sm font-bold">{selectedProduct.name}</span>
+                  </div>
+                  <button type="button" onClick={() => { setSelectedProduct(null); setVariantRows([{ color: "", size: "", quantity: row.quantity }]); }}
+                    className="text-muted-foreground hover:text-red-500 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      className="w-full h-9 text-sm pr-8 pl-3 rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder={`ابحث عن منتج... (حالياً: ${o?.product ?? ""})`}
+                      value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+                      onFocus={() => setSearchOpen(true)}
+                    />
+                    {searchQuery && (
+                      <button type="button" onClick={() => setSearchQuery("")}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {searchOpen && (
+                    <div className="mt-1 w-full bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto z-10 relative">
+                      {filteredProducts.length === 0 ? (
+                        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                          {searchQuery ? "لا يوجد منتج بهذا الاسم" : "لا توجد منتجات في المخزون"}
+                        </div>
+                      ) : filteredProducts.map((p: any) => {
+                        const variants = (allVariants as any[]).filter((v: any) => v.productId === p.id);
+                        const stock = variants.length > 0
+                          ? variants.reduce((s: number, v: any) => s + (v.totalQuantity ?? 0), 0)
+                          : (p.totalQuantity ?? 0);
+                        return (
+                          <button key={p.id} type="button"
+                            onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(p); }}
+                            className="w-full text-right flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors text-sm border-b border-border/20 last:border-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {p.image ? (
+                                <img src={p.image} alt={p.name} className="w-7 h-7 rounded object-cover border border-border shrink-0" />
+                              ) : (
+                                <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              )}
+                              <span className="font-medium truncate">{p.name}</span>
+                            </div>
+                            <Badge variant="outline" className={`text-[9px] font-bold shrink-0 ${stock > 0 ? "border-emerald-400 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" : "border-red-400 text-red-600"}`}>
+                              {stock > 0 ? `${stock} متاح` : "نفد"}
+                            </Badge>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedProduct && hasVariants && (
+              <div className="flex items-end gap-2 p-2 bg-muted/10 rounded-md border border-border/40">
+                <div className="flex-1">
+                  <label className="text-[10px] text-muted-foreground mb-1 block">اللون</label>
+                  <select value={row.color} onChange={e => updateRow(0, "color", e.target.value)}
+                    className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                    <option value="">اختر لون...</option>
+                    {availableColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] text-muted-foreground mb-1 block">المقاس</label>
+                  <select value={row.size} disabled={!row.color} onChange={e => updateRow(0, "size", e.target.value)}
+                    className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50">
+                    <option value="">اختر مقاس...</option>
+                    {sizesForColor.map((s: string) => {
+                      const v = productVariants.find((pv: any) => pv.color === row.color && pv.size === s);
+                      const a = v ? (v.totalQuantity ?? 0) : 0;
+                      return <option key={s} value={s} disabled={a === 0}>{s} {a === 0 ? "(نفد)" : `(${a})`}</option>;
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground mb-1 block">الكمية</label>
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => updateRow(0, "quantity", Math.max(1, row.quantity - 1))}
+                      className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">-</button>
+                    <span className="w-8 text-center text-sm font-bold">{row.quantity}</span>
+                    <button type="button" onClick={() => updateRow(0, "quantity", avail !== null ? Math.min(avail, row.quantity + 1) : row.quantity + 1)}
+                      className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
+                  </div>
+                </div>
+                {avail !== null && (
+                  <span className={`text-[9px] font-bold mb-2 shrink-0 ${avail <= 5 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>متاح:{avail}</span>
+                )}
+              </div>
+            )}
+
+            {(!selectedProduct || !hasVariants) && (
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">الكمية *</label>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => updateRow(0, "quantity", Math.max(1, row.quantity - 1))}
+                    className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">-</button>
+                  <span className="w-10 text-center text-sm font-bold">{row.quantity}</span>
+                  <button type="button" onClick={() => updateRow(0, "quantity", row.quantity + 1)}
+                    className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">سعر البيع (ج.م) *</label>
+                <Input type="number" min={0} value={unitPrice || ""} onChange={e => setUnitPrice(Number(e.target.value))} className="h-9 text-sm" />
+              </div>
+              {canViewFinancials && (
+                <div>
+                  <label className="text-xs font-medium mb-1.5 block">تكلفة الوحدة (ج.م)</label>
+                  <Input type="number" min={0} value={costPrice ?? ""} onChange={e => setCostPrice(e.target.value ? Number(e.target.value) : null)} className="h-9 text-sm" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── قسم 3: الشحن ── */}
+          <div className="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5"><Truck className="w-3.5 h-3.5" />بيانات الشحن</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">شركة الشحن</label>
+                <select value={shippingCompanyId ?? ""} onChange={e => setShippingCompanyId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">بدون شركة</option>
+                  {(shippingCompanies as any[]).map((sc: any) => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">رقم التتبع</label>
+                <Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} placeholder="رقم التتبع" className="h-9 text-sm" dir="ltr" />
+              </div>
+              {canViewFinancials && (
+                <div>
+                  <label className="text-xs font-medium mb-1.5 block">تكلفة الشحن (ج.م)</label>
+                  <Input type="number" min={0} value={shippingCost ?? ""} onChange={e => setShippingCost(e.target.value ? Number(e.target.value) : null)} className="h-9 text-sm" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── قسم 4: الإعلان والفريق ── */}
+          <div className="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5"><Megaphone className="w-3.5 h-3.5" />تتبع الإعلان والفريق</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">مصدر الطلب</label>
+                <select value={adSource ?? ""} onChange={e => setAdSource(e.target.value || null)}
+                  className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">اختر المصدر</option>
+                  {AD_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">اسم الحملة</label>
+                <Input value={adCampaign} onChange={e => setAdCampaign(e.target.value)} placeholder="اسم الحملة الإعلانية" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">المخزن</label>
+                <select value={warehouseId ?? ""} onChange={e => setWarehouseId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">اختر مخزن</option>
+                  {(warehouses as any[]).map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">الموظف المسؤول</label>
+                <select value={assignedUserId ?? ""} onChange={e => setAssignedUserId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">اختر موظف</option>
+                  {(users as any[]).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* ── قسم 5: ملاحظات ── */}
+          <div>
+            <label className="text-xs font-medium mb-1.5 block">ملاحظات</label>
+            <Textarea className="min-h-[60px] text-sm resize-none" value={notes} onChange={e => setNotes(e.target.value)} placeholder="أي ملاحظات إضافية..." />
+          </div>
+
+        </div>
+
+        <DialogFooter className="flex gap-2 mt-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="flex-1">إلغاء</Button>
+          <Button size="sm" onClick={handleSubmit}
+            disabled={updateOrder.isPending || unitPrice <= 0}
+            className="flex-1 gap-1">
+            <Save className="w-3 h-3" />{updateOrder.isPending ? "جاري الحفظ..." : "حفظ التعديل"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
-const fc = (n: number | string | null | undefined) =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
-const fdate = (d: string | null | undefined) =>
-  d ? new Date(d).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
-// ── types ──────────────────────────────────────────────────────────────────────
-type ShipmentStatus = "waiting"|"confirmed"|"picked_up"|"in_transit"|"out_for_delivery"|"delivered"|"delayed"|"returned"|"cancelled";
+// ── Invoice Edit Dialog (تعديل بيانات الفاتورة كاملة) ──────────────────────
+function InvoiceEditDialog({ open, onOpenChange, primaryOrder, orders, shippingCompanies, warehouses, users, canViewFinancials, products, allVariants, onSuccess }: {
+  open: boolean; onOpenChange: (v: boolean) => void;
+  primaryOrder: any; orders: any[];
+  shippingCompanies: any[]; warehouses: any[]; users: any[];
+  canViewFinancials: boolean;
+  products: any[]; allVariants: any[];
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const updateOrder = useUpdateOrder();
 
-interface Shipment {
-  id: number; shipmentNumber?: string; trackingNumber?: string;
-  clientId?: number;
-  senderName: string; senderPhone?: string; senderPhone2?: string;
-  senderEmail?: string; senderAddress?: string; senderCity?: string;
-  receiverName: string; receiverPhone?: string; receiverPhone2?: string;
-  receiverAddress?: string; receiverCity?: string;
-  zoneId?: number; zonePrice?: string|number;
-  parcelType?: string; parcelTypePrice?: string|number;
-  weight?: string|number; pieces?: number;
-  description?: string; declaredValue?: string|number;
-  paymentMethod: string; codAmount?: string|number;
-  shippingFee?: string|number; insuranceFee?: string|number;
-  totalAmount?: string|number; collectedAmount?: string|number;
-  status: ShipmentStatus; notes?: string; internalNotes?: string;
-  createdAt: string; updatedAt?: string; createdByName?: string;
+  // state للمنتجات — كل منتج ليه quantity و unitPrice و costPrice و notes و color و size
+  const [productsState, setProductsState] = useState<{ id: number; quantity: number; unitPrice: number; costPrice: number | null; notes: string; color: string; size: string; variantId: number | null }[]>([]);
+
+  useEffect(() => {
+    if (open && orders.length > 0) {
+      setProductsState(orders.map(o => ({
+        id: o.id,
+        quantity: o.quantity ?? 1,
+        unitPrice: o.unitPrice ?? 0,
+        costPrice: o.costPrice ?? null,
+        notes: o.notes ?? "",
+        color: o.color ?? "",
+        size: o.size ?? "",
+        variantId: o.variantId ?? null,
+      })));
+    }
+  }, [open, orders]);
+
+  const invoiceEditSchema = z.object({
+    customerName:      z.string().min(2, "الاسم مطلوب"),
+    phone:             z.string().optional().nullable(),
+    city:              z.string().optional().nullable(),
+    address:           z.string().optional().nullable(),
+    shippingCompanyId: z.coerce.number().optional().nullable(),
+    shippingCost:      z.coerce.number().min(0).optional().nullable(),
+    warehouseId:       z.coerce.number().optional().nullable(),
+    assignedUserId:    z.coerce.number().optional().nullable(),
+    adSource:          z.string().optional().nullable(),
+    adCampaign:        z.string().optional().nullable(),
+    notes:             z.string().optional().nullable(),
+  });
+
+  type InvoiceEditValues = z.infer<typeof invoiceEditSchema>;
+
+  const form = useForm<InvoiceEditValues>({
+    resolver: zodResolver(invoiceEditSchema),
+    defaultValues: {
+      customerName:      primaryOrder?.customerName ?? "",
+      phone:             primaryOrder?.phone ?? "",
+      city:              primaryOrder?.city ?? "",
+      address:           primaryOrder?.address ?? "",
+      shippingCompanyId: primaryOrder?.shippingCompanyId ?? null,
+      shippingCost:      primaryOrder?.shippingCost ?? 0,
+      warehouseId:       primaryOrder?.warehouseId ?? null,
+      assignedUserId:    primaryOrder?.assignedUserId ?? null,
+      adSource:          primaryOrder?.adSource ?? null,
+      adCampaign:        primaryOrder?.adCampaign ?? null,
+      notes:             primaryOrder?.notes ?? "",
+    },
+  });
+
+  // إعادة تحميل القيم لما الـ dialog يفتح
+  useEffect(() => {
+    if (open && primaryOrder) {
+      form.reset({
+        customerName:      primaryOrder.customerName ?? "",
+        phone:             primaryOrder.phone ?? "",
+        city:              primaryOrder.city ?? "",
+        address:           primaryOrder.address ?? "",
+        shippingCompanyId: primaryOrder.shippingCompanyId ?? null,
+        shippingCost:      primaryOrder.shippingCost ?? 0,
+        warehouseId:       primaryOrder.warehouseId ?? null,
+        assignedUserId:    primaryOrder.assignedUserId ?? null,
+        adSource:          primaryOrder.adSource ?? null,
+        adCampaign:        primaryOrder.adCampaign ?? null,
+        notes:             primaryOrder.notes ?? "",
+      });
+    }
+  }, [open, primaryOrder]);
+
+  const handleSubmit = async (values: InvoiceEditValues) => {
+    try {
+      // نحدّث كل طلبات الفاتورة — بيانات العميل والشحن مشتركة، والمنتج لكل طلب على حدة
+      await Promise.all(orders.map(o => {
+        const ps = productsState.find(p => p.id === o.id);
+        return updateOrder.mutateAsync({ id: o.id, data: {
+          customerName:      values.customerName,
+          phone:             values.phone || null,
+          city:              values.city || null,
+          address:           values.address || null,
+          shippingCompanyId: values.shippingCompanyId || null,
+          shippingCost:      values.shippingCost ?? null,
+          warehouseId:       values.warehouseId || null,
+          assignedUserId:    values.assignedUserId || null,
+          adSource:          values.adSource || null,
+          adCampaign:        values.adCampaign || null,
+          notes:             ps?.notes || null,
+          quantity:          ps?.quantity ?? o.quantity,
+          unitPrice:         ps?.unitPrice ?? o.unitPrice,
+          costPrice:         ps?.costPrice ?? null,
+          color:             ps?.color || null,
+          size:              ps?.size || null,
+          variantId:         ps?.variantId ?? null,
+        } as any });
+      }));
+      queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+      toast({ title: "تم الحفظ", description: `تم تحديث بيانات فاتورة ${primaryOrder.invoiceNumber} بنجاح.` });
+      onSuccess();
+      onOpenChange(false);
+    } catch {
+      toast({ title: "خطأ", description: "فشل الحفظ.", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl"
+        onInteractOutside={e => e.preventDefault()} onPointerDownOutside={e => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <Pencil className="w-4 h-4 text-primary" />
+            تعديل بيانات الفاتورة — {primaryOrder?.invoiceNumber}
+            <Badge variant="outline" className="text-[9px] border-primary/40 text-primary">{orders.length} منتجات</Badge>
+          </DialogTitle>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-1">
+
+            {/* بيانات العميل */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Phone className="w-3 h-3" />بيانات العميل
+              </p>
+              <FormField control={form.control} name="customerName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs">اسم العميل *</FormLabel>
+                  <FormControl><Input className="h-9 text-sm" {...field} /></FormControl>
+                  <FormMessage className="text-xs" />
+                </FormItem>
+              )} />
+              <div className="grid grid-cols-2 gap-3">
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs flex items-center gap-1"><Phone className="w-3 h-3" />الهاتف</FormLabel>
+                    <FormControl><Input placeholder="01x-xxxx-xxxx" className="h-9 text-sm" {...field} value={field.value ?? ""} /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="city" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs flex items-center gap-1"><MapPin className="w-3 h-3" />المحافظة</FormLabel>
+                    <FormControl><Input placeholder="القاهرة..." className="h-9 text-sm" {...field} value={field.value ?? ""} /></FormControl>
+                  </FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="address" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs flex items-center gap-1"><MapPin className="w-3 h-3" />العنوان بالتفصيل</FormLabel>
+                  <FormControl><Input placeholder="الحي، الشارع، رقم المنزل..." className="h-9 text-sm" {...field} value={field.value ?? ""} /></FormControl>
+                </FormItem>
+              )} />
+            </div>
+
+            {/* الشحن */}
+            <div className="space-y-3 pt-2 border-t border-border/60">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Truck className="w-3 h-3" />بيانات الشحن
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField control={form.control} name="shippingCompanyId" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">شركة الشحن</FormLabel>
+                    <Select value={field.value?.toString() || "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                      <SelectTrigger className="h-9 text-sm bg-card"><SelectValue placeholder="اختر شركة" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">بدون</SelectItem>
+                        {shippingCompanies?.filter((c: any) => c.isActive).map((c: any) => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
+                {canViewFinancials && (
+                  <FormField control={form.control} name="shippingCost" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs flex items-center gap-1"><DollarSign className="w-3 h-3 text-emerald-600" />تكلفة الشحن (ج.م)</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" step="0.01" placeholder="0" className="h-9 text-sm"
+                          {...field} value={field.value ?? ""}
+                          onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)} />
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                )}
+              </div>
+            </div>
+
+            {/* تتبع الإعلان والفريق */}
+            <div className="space-y-3 pt-2 border-t border-border/60">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Megaphone className="w-3 h-3 text-purple-400" />تتبع الإعلان والفريق
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField control={form.control} name="adSource" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs flex items-center gap-1"><Megaphone className="w-3 h-3" />مصدر الطلب</FormLabel>
+                    <Select value={field.value ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : v)}>
+                      <SelectTrigger className="h-9 text-sm bg-card">
+                        <SelectValue placeholder="اختر المصدر">
+                          {field.value && field.value !== "none" && (
+                            <span className="flex items-center gap-2">
+                              <AdSourceIcon value={field.value} />
+                              {AD_SOURCES.find(s => s.value === field.value)?.label}
+                            </span>
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— غير محدد —</SelectItem>
+                        {AD_SOURCES.map(s => (
+                          <SelectItem key={s.value} value={s.value}>
+                            <span className="flex items-center gap-2"><AdSourceIcon value={s.value} />{s.label}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="adCampaign" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">اسم الحملة</FormLabel>
+                    <FormControl><Input placeholder="Summer 2025..." className="h-9 text-sm" {...field} value={field.value ?? ""} /></FormControl>
+                  </FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField control={form.control} name="warehouseId" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs flex items-center gap-1"><Warehouse className="w-3 h-3" />المخزن</FormLabel>
+                    <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                      <SelectTrigger className="h-9 text-sm bg-card"><SelectValue placeholder="اختر مخزن" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— غير محدد —</SelectItem>
+                        {warehouses?.map((w: any) => <SelectItem key={w.id} value={String(w.id)}>{w.name}{w.isDefault ? " ★" : ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="assignedUserId" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs flex items-center gap-1"><UserCheck className="w-3 h-3" />الموظف المسؤول</FormLabel>
+                    <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                      <SelectTrigger className="h-9 text-sm bg-card"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— غير محدد —</SelectItem>
+                        {users?.filter((u: any) => u.isActive).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            {/* منتجات الفاتورة */}
+            <div className="space-y-3 pt-2 border-t border-border/60">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Package className="w-3 h-3" />منتجات الفاتورة
+              </p>
+              {orders.map((o, idx) => {
+                const ps = productsState.find(p => p.id === o.id);
+                if (!ps) return null;
+                const productImg = (products as any[]).find((p: any) => p.name === o.product)?.image ?? null;
+                // variants لهذا المنتج
+                const productObj = (products as any[]).find((p: any) => p.name === o.product);
+                const productVariants = productObj
+                  ? (allVariants as any[]).filter((v: any) => v.productId === productObj.id)
+                  : [];
+                const hasVariants = productVariants.length > 0;
+                const availableColors = [...new Set(productVariants.map((v: any) => v.color))] as string[];
+                const sizesForColor = productVariants.filter((v: any) => v.color === ps.color).map((v: any) => v.size);
+
+                const updatePs = (field: string, value: any) =>
+                  setProductsState(prev => prev.map(p => p.id === o.id ? { ...p, [field]: value } : p));
+
+                return (
+                  <div key={o.id} className="p-3 rounded-lg border border-border/60 bg-muted/10 space-y-2">
+                    {/* اسم المنتج + صورة */}
+                    <div className="flex items-center gap-2">
+                      {productImg ? (
+                        <img src={productImg} alt={o.product} className="w-8 h-8 rounded object-cover border border-border shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-muted border border-border flex items-center justify-center shrink-0">
+                          <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <p className="text-sm font-bold truncate flex-1">{o.product}</p>
+                    </div>
+
+                    {/* اللون والمقاس — لو المنتج عنده variants */}
+                    {hasVariants && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">اللون</label>
+                          <select value={ps.color} onChange={e => {
+                            const newColor = e.target.value;
+                            const firstVariant = productVariants.find((v: any) => v.color === newColor);
+                            updatePs("color", newColor);
+                            updatePs("size", "");
+                            updatePs("variantId", null);
+                          }} className="w-full h-8 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                            <option value="">اختر لون...</option>
+                            {availableColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">المقاس</label>
+                          <select value={ps.size} disabled={!ps.color} onChange={e => {
+                            const newSize = e.target.value;
+                            const variant = productVariants.find((v: any) => v.color === ps.color && v.size === newSize);
+                            updatePs("size", newSize);
+                            updatePs("variantId", variant?.id ?? null);
+                            if (variant?.unitPrice) updatePs("unitPrice", variant.unitPrice);
+                            if (variant?.costPrice) updatePs("costPrice", variant.costPrice);
+                          }} className="w-full h-8 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50">
+                            <option value="">اختر مقاس...</option>
+                            {sizesForColor.map((s: string) => {
+                              const v = productVariants.find((pv: any) => pv.color === ps.color && pv.size === s);
+                              const avail = v ? (v.totalQuantity ?? 0) : 0;
+                              return <option key={s} value={s} disabled={avail === 0}>{s} {avail === 0 ? "(نفد)" : `(${avail})`}</option>;
+                            })}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground mb-1 block">الكمية</label>
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => setProductsState(prev => prev.map(p => p.id === o.id ? { ...p, quantity: Math.max(1, p.quantity - 1) } : p))}
+                            className="w-7 h-8 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">-</button>
+                          <span className="w-8 text-center text-sm font-bold">{ps.quantity}</span>
+                          <button type="button" onClick={() => setProductsState(prev => prev.map(p => p.id === o.id ? { ...p, quantity: p.quantity + 1 } : p))}
+                            className="w-7 h-8 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground mb-1 block">سعر البيع (ج.م)</label>
+                        <Input type="number" min={0} value={ps.unitPrice || ""} onChange={e => setProductsState(prev => prev.map(p => p.id === o.id ? { ...p, unitPrice: Number(e.target.value) } : p))} className="h-8 text-sm" />
+                      </div>
+                      {canViewFinancials && (
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">تكلفة الوحدة (ج.م)</label>
+                          <Input type="number" min={0} value={ps.costPrice ?? ""} onChange={e => setProductsState(prev => prev.map(p => p.id === o.id ? { ...p, costPrice: e.target.value ? Number(e.target.value) : null } : p))} className="h-8 text-sm" />
+                        </div>
+                      )}
+                      <div className={canViewFinancials ? "" : "col-span-2"}>
+                        <label className="text-[10px] text-muted-foreground mb-1 block">ملاحظات</label>
+                        <Input value={ps.notes} onChange={e => setProductsState(prev => prev.map(p => p.id === o.id ? { ...p, notes: e.target.value } : p))} placeholder="ملاحظة للمنتج..." className="h-8 text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ملاحظات عامة */}
+            <div className="pt-2 border-t border-border/60">
+              <FormField control={form.control} name="notes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs">ملاحظات</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="أي ملاحظات إضافية..." className="min-h-[60px] text-sm resize-none" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                </FormItem>
+              )} />
+            </div>
+
+            <DialogFooter className="flex gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="flex-1">إلغاء</Button>
+              <Button type="submit" size="sm" disabled={updateOrder.isPending} className="flex-1 gap-1">
+                <Save className="w-3 h-3" />{updateOrder.isPending ? "جاري الحفظ..." : `حفظ (${orders.length} طلبات)`}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-// ── status config ──────────────────────────────────────────────────────────────
+function InvoiceView({ orders, currentId, shippingCompanies, products, allVariants, onRefresh, isAdmin, canViewFinancials, canViewProfitability, formatCurrency, warehouses, users, canEdit, canDelete, canCreate, externalShowAddProduct, onExternalShowAddProductChange, externalShowEdit, onExternalShowEditChange }: {
+  orders: any[]; currentId: number; shippingCompanies: any[]; products: any[]; allVariants: any[];
+  onRefresh: () => void; isAdmin: boolean; canViewFinancials: boolean; canViewProfitability: boolean; formatCurrency: (n: number) => string;
+  warehouses: any[]; users: any[]; canEdit: boolean; canDelete: boolean; canCreate: boolean;
+  externalShowAddProduct?: boolean; onExternalShowAddProductChange?: (v: boolean) => void;
+  externalShowEdit?: boolean; onExternalShowEditChange?: (v: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [showDeleteId, setShowDeleteId] = useState<number | null>(null);
+  const [showInvoiceEdit, setShowInvoiceEdit] = useState(false);
+
+  // sync external controls from parent header buttons
+  useEffect(() => {
+    if (externalShowAddProduct) { setShowAddProduct(true); onExternalShowAddProductChange?.(false); }
+  }, [externalShowAddProduct]);
+  useEffect(() => {
+    if (externalShowEdit) { setShowInvoiceEdit(true); onExternalShowEditChange?.(false); }
+  }, [externalShowEdit]);
+
+  const primaryOrder = orders.find(o => o.id === currentId) || orders[0];
+  const invoiceTotal = orders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+
+  const handleDeleteItem = async (id: number) => {
+    setDeletingId(id);
+    try {
+      await ordersApi.delete(id);
+      queryClient.removeQueries({ queryKey: getGetOrderQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+      toast({ title: "تم الحذف", description: "تم حذف المنتج من الفاتورة." });
+      if (id === currentId) {
+        const remaining = orders.filter(o => o.id !== id);
+        if (remaining.length > 0) navigate(`/orders/${remaining[0].id}`);
+        else navigate("/orders");
+      } else { onRefresh(); }
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "فشل الحذف.", variant: "destructive" });
+    } finally { setDeletingId(null); setShowDeleteId(null); }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header الفاتورة */}
+      <Card className="border-primary/40 bg-card">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-muted-foreground">فاتورة</span>
+              <span className="text-sm font-black text-primary">{primaryOrder.invoiceNumber}</span>
+              <Badge variant="outline" className="text-[9px] border-primary/40 text-primary">{orders.length} منتجات</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">إجمالي الفاتورة</p>
+              <p className="text-lg font-black text-primary">{formatCurrency(invoiceTotal)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border/40">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-muted-foreground font-medium">العميل</span>
+              <span className="text-sm font-bold truncate">{primaryOrder.customerName}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1"><Phone className="w-3 h-3" />الواتف</span>
+              <span className="text-sm font-semibold text-foreground/90 truncate">{primaryOrder.phone || "—"}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1"><MapPin className="w-3 h-3" />المحافظة</span>
+              <span className="text-sm font-semibold text-foreground/90 truncate">{primaryOrder.city || "—"}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1"><MapPin className="w-3 h-3" />العنوان</span>
+              <span className="text-xs font-semibold text-foreground/90 line-clamp-2">{primaryOrder.address || "—"}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Single product: بطاقة كبيرة تملي الشاشة ── */}
+      {orders.length === 1 ? (() => {
+        const o = orders[0];
+        const productImg = products.find((p: any) => p.name === o.product)?.image ?? null;
+        const hasCost = (o.costPrice ?? 0) > 0;
+        const qty = o.status === "partial_received" && o.partialQuantity ? o.partialQuantity : o.quantity;
+        const revenue = qty * (o.unitPrice ?? 0);
+        const cost = qty * (o.costPrice ?? 0);
+        const shipping = Math.abs(o.shippingCost ?? 0);
+        const netProfit = revenue - cost - shipping;
+        const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
+        const isRet = o.status === "returned";
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            {/* البطاقة الرئيسية — عمودين */}
+            <div className="lg:col-span-2 rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+
+              {/* صورة + اسم المنتج */}
+              <div className="flex items-center gap-4 p-4">
+                {/* الصورة */}
+                <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-sm">
+                  {productImg ? (
+                    <img src={productImg} alt={o.product}
+                      className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package className="w-8 h-8 opacity-25 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+
+                {/* تفاصيل المنتج */}
+                <div className="flex-1 min-w-0 space-y-3">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">المنتج</p>
+                    <h2 className="text-base sm:text-lg md:text-xl font-black text-foreground leading-tight">{o.product}</h2>
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[o.status] || ""}`}>
+                        {statusLabels[o.status] || o.status}
+                      </Badge>
+                      {o.color && <Badge variant="outline" className="text-xs border-border">{o.color}</Badge>}
+                      {o.size && <Badge variant="outline" className="text-xs border-border">{o.size}</Badge>}
+                    </div>
+                  </div>
+
+                  {/* الأرقام */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-muted/50 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">الكمية</p>
+                      <p className="text-lg sm:text-2xl font-black text-foreground">{o.quantity}</p>
+                    </div>
+                    <div className="bg-muted/50 rounded-xl p-2 sm:p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">سعر الوحدة</p>
+                      <p className="text-sm sm:text-lg font-black text-foreground">{formatCurrency(o.unitPrice ?? 0)}</p>
+                    </div>
+                    <div className="bg-primary/10 border border-primary/30 rounded-xl p-2 sm:p-3 text-center">
+                      <p className="text-[10px] text-primary/70 mb-1">الإجمالي</p>
+                      <p className="text-base sm:text-xl font-black text-primary">{formatCurrency(o.totalPrice ?? 0)}</p>
+                    </div>
+                  </div>
+
+                  {o.notes && (
+                    <div className="bg-muted/40 rounded-lg px-3 py-2 border border-border/50">
+                      <p className="text-[10px] text-muted-foreground mb-0.5">ملاحظات</p>
+                      <p className="text-xs text-foreground">{o.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* شريط التفاصيل السفلي */}
+              <div className="border-t border-border px-5 py-3 bg-muted/20 flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  {o.shippingCompanyName && (
+                    <span className="flex items-center gap-1"><Truck className="w-3.5 h-3.5" />{o.shippingCompanyName}</span>
+                  )}
+                  {o.warehouseName && (
+                    <span className="flex items-center gap-1"><Warehouse className="w-3.5 h-3.5" />{o.warehouseName}</span>
+                  )}
+                  {o.employeeName && (
+                    <span className="flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" />{o.employeeName}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar — ملخص + ربحية */}
+            <div className="space-y-4">
+
+              {/* ملخص مالي */}
+              <Card className="border-primary/30">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" />الملخص المالي
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">سعر الوحدة</span>
+                    <span className="font-semibold">{formatCurrency(o.unitPrice ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">الكمية</span>
+                    <span className="font-semibold">× {o.quantity}</span>
+                  </div>
+                  {shipping > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">الشحن</span>
+                      <span className="font-semibold">{formatCurrency(shipping)}</span>
+                    </div>
+                  )}
+                  <Separator />
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-sm">الإجمالي</span>
+                    <span className="font-black text-xl text-primary">{formatCurrency(o.totalPrice ?? 0)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ربحية — للأدمن فقط */}
+              {canViewProfitability && hasCost && (
+                <Card className={`border ${!isRet && netProfit >= 0 ? "border-emerald-900/50 bg-emerald-900/5" : "border-red-900/50 bg-red-900/5"}`}>
+                  <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      {!isRet && netProfit >= 0
+                        ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                        : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                      تحليل الربحية
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-3 space-y-2 text-xs">
+                    {isRet && (
+                      <div className="p-2 rounded bg-red-900/20 text-red-400 border border-red-900/30 text-[10px] font-semibold">
+                        ⚠ الطلب مرتجع
+                      </div>
+                    )}
+                    <div className="flex justify-between"><span className="text-muted-foreground">الإيرادات</span><span className="text-primary font-semibold">{formatCurrency(revenue)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">تكلفة البضاعة</span><span className="text-amber-400">-{formatCurrency(cost)}</span></div>
+                    {shipping > 0 && <div className="flex justify-between"><span className="text-muted-foreground">تكلفة الشحن</span><span className="text-orange-400">-{formatCurrency(shipping)}</span></div>}
+                    <Separator />
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="font-bold">الربح الصافي</span>
+                      <span className={`font-black text-base ${!isRet && netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(netProfit)}</span>
+                    </div>
+                    {revenue > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">هامش الربح</span>
+                        <span className={`font-bold ${margin >= 20 ? "text-emerald-400" : margin >= 10 ? "text-amber-400" : "text-red-400"}`}>{margin}%</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+            </div>
+          </div>
+        );
+      })() : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          {/* ── العمود الرئيسي: قائمة المنتجات ── */}
+          <div className="lg:col-span-2 space-y-3">
+
+            {/* هيدر القسم */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Package className="w-4 h-4 text-primary" />
+                </div>
+                منتجات الفاتورة
+                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{orders.length}</span>
+              </h3>
+              {false && (
+                <button onClick={() => setShowAddProduct(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
+                  <Plus className="w-3.5 h-3.5" />إضافة منتج
+                </button>
+              )}
+            </div>
+
+            {/* بطاقات المنتجات */}
+            <div className="space-y-2">
+              {orders.map((o, idx) => {
+                const isThis = o.id === currentId;
+                const productImg = products.find((p: any) => p.name === o.product)?.image ?? null;
+                const isRet = o.status === "returned";
+                return (
+                  <div key={o.id} className={`group relative rounded-xl border transition-all ${
+                    isThis
+                      ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20 shadow-sm"
+                      : isRet
+                        ? "border-red-900/30 bg-red-900/5"
+                        : "border-border bg-card hover:border-primary/30 hover:shadow-sm"
+                  }`}>
+                    <div className="flex items-stretch gap-0">
+
+                      {/* رقم ترتيب */}
+                      <div className={`w-8 shrink-0 flex items-center justify-center rounded-r-xl text-xs font-black ${
+                        isThis ? "bg-primary/20 text-primary" : "bg-muted/60 text-muted-foreground"
+                      }`}>
+                        {idx + 1}
+                      </div>
+
+                      {/* صورة المنتج */}
+                      <div className="w-16 h-16 shrink-0 my-2 mr-2 rounded-lg overflow-hidden border border-border/50 bg-muted flex items-center justify-center">
+                        {productImg ? (
+                          <img src={productImg} alt={o.product} className="w-full h-full object-cover" />
+                        ) : (
+                          <Package className="w-6 h-6 text-muted-foreground opacity-40" />
+                        )}
+                      </div>
+
+                      {/* التفاصيل */}
+                      <div className="flex-1 min-w-0 py-2.5 pr-3 pl-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            {isThis && (
+                              <span className="text-[9px] text-primary font-black bg-primary/10 px-1.5 py-0.5 rounded-full inline-block mb-1">← الحالي</span>
+                            )}
+                            <p className="text-sm font-bold text-foreground truncate">{o.product}</p>
+                            <div className="flex items-center gap-1 mt-1 flex-wrap">
+                              <Badge className={`text-[9px] font-bold px-1.5 py-0 h-4 ${statusClasses[o.status] || ""}`}>
+                                {statusLabels[o.status] || o.status}
+                              </Badge>
+                              {o.color && <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{o.color}</span>}
+                              {o.size && <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{o.size}</span>}
+                            </div>
+                          </div>
+                          {canDelete && (
+                            <Button variant="ghost" size="sm"
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:bg-red-900/20 hover:text-red-300 shrink-0 transition-opacity"
+                              onClick={() => setShowDeleteId(o.id)} disabled={deletingId === o.id}>
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* الأرقام */}
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">الكمية:</span>
+                            <span className="font-bold text-foreground">{o.quantity}</span>
+                          </div>
+                          <div className="w-px h-3 bg-border/60" />
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">السعر:</span>
+                            <span className="font-bold text-foreground">{formatCurrency(o.unitPrice)}</span>
+                          </div>
+                          <div className="w-px h-3 bg-border/60" />
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">الإجمالي:</span>
+                            <span className="font-black text-primary">{formatCurrency(o.totalPrice)}</span>
+                          </div>
+                        </div>
+                        {o.notes && (
+                          <p className="text-[10px] text-muted-foreground italic mt-1.5 border-t border-border/40 pt-1.5 line-clamp-1">
+                            {o.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Sidebar: الملخص المالي + الربحية ── */}
+          <div className="space-y-4">
+            <Card className="border-primary/30 bg-card">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />الملخص المالي
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-2 text-sm">
+                {orders.map(o => (
+                  <div key={o.id} className="flex justify-between text-xs">
+                    <span className="text-muted-foreground truncate max-w-[55%]">
+                      {o.product}{o.color ? ` — ${o.color}` : ""}{o.size ? ` / ${o.size}` : ""}
+                    </span>
+                    <span className="font-semibold">{formatCurrency(o.totalPrice ?? 0)}</span>
+                  </div>
+                ))}
+                <Separator className="border-border" />
+                <div className="flex justify-between">
+                  <span className="font-bold text-xs">إجمالي الفاتورة</span>
+                  <span className="font-black text-lg text-primary">{formatCurrency(invoiceTotal)}</span>
+                </div>
+              </CardContent>
+            </Card>
+            {canViewProfitability && (() => {
+              const hasCost = orders.some(o => (o.costPrice ?? 0) > 0);
+              if (!hasCost) return null;
+              let totalRevenue = 0, totalCost = 0, totalShipping = 0, hasReturn = false, allReturned = true;
+              for (const o of orders) {
+                const qty = o.status === "partial_received" && o.partialQuantity ? o.partialQuantity : o.quantity;
+                const isRet = o.status === "returned";
+                const retToStock = isRet && (o.returnReceived === 1 || o.returnReceived === true);
+                if (isRet) { hasReturn = true; } else { allReturned = false; }
+                if (!isRet) totalRevenue += qty * o.unitPrice;
+                if (!retToStock) totalCost += qty * (o.costPrice ?? 0);
+                totalShipping += Math.abs(o.shippingCost ?? 0);
+              }
+              const netProfit = totalRevenue - totalCost - totalShipping;
+              const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+              const isPositive = netProfit >= 0;
+              return (
+                <Card className={`border ${allReturned ? "border-red-900/50 bg-red-900/5" : isPositive ? "border-emerald-900/50 bg-emerald-900/5" : "border-red-900/50 bg-red-900/5"}`}>
+                  <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      {isPositive && !allReturned ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                      تحليل الربحية
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-3 space-y-2 text-xs">
+                    {hasReturn && (
+                      <div className={`p-2 rounded text-[10px] font-semibold border ${allReturned ? "bg-red-900/20 text-red-400 border-red-900/30" : "bg-amber-900/20 text-amber-400 border-amber-900/30"}`}>
+                        {allReturned ? "⚠ الفاتورة مرتجعة بالكامل" : "↩ بعض المنتجات مرتجعة"}
+                      </div>
+                    )}
+                    <div className="flex justify-between"><span className="text-muted-foreground">الإيرادات</span><span className="text-primary font-semibold">{formatCurrency(totalRevenue)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">تكلفة البضاعة</span><span className="text-amber-400">-{formatCurrency(totalCost)}</span></div>
+                    {totalShipping > 0 && <div className="flex justify-between"><span className="text-muted-foreground">تكلفة الشحن</span><span className="text-orange-400">-{formatCurrency(totalShipping)}</span></div>}
+                    <Separator />
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="font-bold">الربح الصافي</span>
+                      <span className={`font-black text-base ${isPositive && !allReturned ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(netProfit)}</span>
+                    </div>
+                    {totalRevenue > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">هامش الربح</span>
+                        <span className={`font-bold ${margin >= 20 ? "text-emerald-400" : margin >= 10 ? "text-amber-400" : "text-red-400"}`}>{margin}%</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      <EditOrderRowDialog
+        open={!!editingOrder} onOpenChange={v => { if (!v) setEditingOrder(null); }}
+        order={editingOrder} shippingCompanies={shippingCompanies}
+        products={products} allVariants={allVariants}
+        warehouses={warehouses} users={users}
+        onSuccess={onRefresh}
+      />
+      <AddProductDialog
+        open={showAddProduct} onOpenChange={setShowAddProduct}
+        order={primaryOrder} onSuccess={onRefresh}
+      />
+      <AlertDialog open={!!showDeleteId} onOpenChange={v => { if (!v) setShowDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف المنتج</AlertDialogTitle>
+            <AlertDialogDescription>هل أنت متأكد من حذف هذا المنتج من الفاتورة؟ لا يمكن التراجع.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={() => showDeleteId && handleDeleteItem(showDeleteId)}
+              disabled={!!deletingId} className="bg-red-600 hover:bg-red-700 text-white">
+              {deletingId ? "جاري الحذف..." : "نعم، احذف"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Invoice Edit Dialog ── */}
+      <InvoiceEditDialog
+        open={showInvoiceEdit}
+        onOpenChange={setShowInvoiceEdit}
+        primaryOrder={primaryOrder}
+        orders={orders}
+        shippingCompanies={shippingCompanies}
+        warehouses={warehouses}
+        users={users}
+        canViewFinancials={canViewFinancials}
+        products={products}
+        allVariants={allVariants}
+        onSuccess={onRefresh}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// StatusSelect — Custom professional dropdown
+// ─────────────────────────────────────────────
 const STATUS_OPTIONS = [
-  { value: "waiting",          label: "انتظار",          icon: <Clock className="w-4 h-4" />,            color: "text-slate-400",   bg: "bg-slate-500/10",   border: "border-slate-600/40",   dot: "bg-slate-400" },
-  { value: "confirmed",        label: "مؤكدة",           icon: <ClipboardCheck className="w-4 h-4" />,   color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-600/40",    dot: "bg-blue-400" },
-  { value: "picked_up",        label: "تم الاستلام",     icon: <PackageCheck className="w-4 h-4" />,     color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-600/40",    dot: "bg-cyan-400" },
-  { value: "in_transit",       label: "في الطريق",       icon: <Truck className="w-4 h-4" />,            color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-600/40",  dot: "bg-violet-400" },
-  { value: "out_for_delivery", label: "خارج للتسليم",   icon: <Navigation className="w-4 h-4" />,       color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-600/40",   dot: "bg-amber-400" },
-  { value: "delivered",        label: "تم التسليم",      icon: <CheckCircle2 className="w-4 h-4" />,     color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-600/40", dot: "bg-emerald-400" },
-  { value: "delayed",          label: "مؤجلة",           icon: <ShieldAlert className="w-4 h-4" />,      color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-600/40",  dot: "bg-orange-400" },
-  { value: "returned",         label: "مرتجعة",          icon: <Undo2 className="w-4 h-4" />,            color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
-  { value: "cancelled",        label: "ملغية",           icon: <Ban className="w-4 h-4" />,              color: "text-gray-400",    bg: "bg-gray-500/10",    border: "border-gray-600/40",    dot: "bg-gray-400" },
+  {
+    value: "pending",
+    label: "قيد الانتظار",
+    icon: "⏳",
+    color: "text-yellow-400",
+    bg: "bg-yellow-500/10",
+    border: "border-yellow-600/40",
+    dot: "bg-yellow-400",
+  },
+  {
+    value: "warehouse_ready",
+    label: "قيد الشحن في المخزن",
+    icon: "🏭",
+    color: "text-blue-400",
+    bg: "bg-blue-500/10",
+    border: "border-blue-600/40",
+    dot: "bg-blue-400",
+  },
+  {
+    value: "in_shipping",
+    label: "قيد الشحن",
+    icon: "🚚",
+    color: "text-cyan-400",
+    bg: "bg-cyan-500/10",
+    border: "border-cyan-600/40",
+    dot: "bg-cyan-400",
+  },
+  {
+    value: "received",
+    label: "استلم ✓",
+    icon: "✅",
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-600/40",
+    dot: "bg-emerald-400",
+  },
+  {
+    value: "partial_received",
+    label: "استلم جزئي",
+    icon: "📦",
+    color: "text-purple-400",
+    bg: "bg-purple-500/10",
+    border: "border-purple-600/40",
+    dot: "bg-purple-400",
+  },
+  {
+    value: "delayed",
+    label: "مؤجل",
+    icon: "⚠️",
+    color: "text-orange-400",
+    bg: "bg-orange-500/10",
+    border: "border-orange-600/40",
+    dot: "bg-orange-400",
+  },
+  {
+    value: "returned",
+    label: "مرتجع",
+    icon: "↩️",
+    color: "text-red-400",
+    bg: "bg-red-500/10",
+    border: "border-red-600/40",
+    dot: "bg-red-400",
+  },
 ] as const;
 
-const PAYMENT_LABELS: Record<string, string> = {
-  cod: "الدفع عند الاستلام", prepaid: "مدفوع مسبقاً", deferred: "الدفع لاحقاً",
-};
-const PARCEL_LABELS: Record<string, string> = {
-  document: "مستندات", normal: "عادي", fragile: "هش",
-  heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس", food: "طعام", other: "أخرى",
-};
-const STATUS_STEPS: ShipmentStatus[] = ["waiting","confirmed","picked_up","in_transit","out_for_delivery","delivered"];
-
-// ── StatusSelect (same as order-detail) ───────────────────────────────────────
-function StatusSelect({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+function StatusSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
-  const current = STATUS_OPTIONS.find(o => o.value === value) ?? STATUS_OPTIONS[0];
+  const current = STATUS_OPTIONS.find((o) => o.value === value) ?? STATUS_OPTIONS[0];
 
+  // إغلاق لو ضغط برا
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
-          dropRef.current  && !dropRef.current.contains(e.target as Node)) setOpen(false);
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+        dropRef.current && !dropRef.current.contains(e.target as Node)
+      ) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -98,34 +1754,75 @@ function StatusSelect({ value, onChange, disabled }: { value: string; onChange: 
     if (disabled) return;
     if (!open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setDropPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX, width: Math.max(rect.width, 220) });
+      setDropPos({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: Math.max(rect.width, 220),
+      });
     }
-    setOpen(p => !p);
+    setOpen((p) => !p);
   };
 
   return (
     <div className="relative select-none" style={{ minWidth: 190 }}>
-      <button ref={triggerRef} type="button" disabled={disabled} onClick={handleOpen}
-        className={`w-full flex items-center gap-2 px-3 h-9 rounded-lg border text-sm font-semibold transition-all duration-150 cursor-pointer ${current.bg} ${current.border} ${current.color} hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm`}>
+      {/* Trigger */}
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
+        onClick={handleOpen}
+        className={`
+          w-full flex items-center gap-2 px-3 h-9 rounded-lg border text-sm font-semibold
+          transition-all duration-150 cursor-pointer
+          ${current.bg} ${current.border} ${current.color}
+          hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed
+          shadow-sm
+        `}
+      >
         <span className="text-base leading-none">{current.icon}</span>
         <span className="flex-1 text-right">{current.label}</span>
-        <svg className={`w-4 h-4 opacity-60 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg
+          className={`w-4 h-4 opacity-60 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
+
+      {/* Dropdown — fixed عشان ميتقطعش بـ overflow */}
       {open && typeof document !== "undefined" && createPortal(
-        <div ref={dropRef} style={{ position: "fixed", top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
-          className="rounded-xl border border-border bg-popover shadow-2xl overflow-hidden">
+        <div
+          ref={dropRef}
+          style={{
+            position: "fixed",
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+          }}
+          className="rounded-xl border border-border bg-popover shadow-2xl overflow-hidden"
+        >
           <div className="p-1.5 flex flex-col gap-0.5">
-            {STATUS_OPTIONS.map(opt => {
+            {STATUS_OPTIONS.map((opt) => {
               const isActive = opt.value === value;
               return (
-                <button key={opt.value} type="button"
+                <button
+                  key={opt.value}
+                  type="button"
                   onClick={() => { onChange(opt.value); setOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-100 text-right cursor-pointer ${isActive ? `${opt.bg} ${opt.color} ${opt.border} border` : "hover:bg-muted text-foreground border border-transparent"}`}>
+                  className={`
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold
+                    transition-all duration-100 text-right cursor-pointer
+                    ${isActive
+                      ? `${opt.bg} ${opt.color} ${opt.border} border`
+                      : "hover:bg-muted text-foreground border border-transparent"}
+                  `}
+                >
                   <span className="text-base leading-none w-5 text-center">{opt.icon}</span>
                   <span className="flex-1">{opt.label}</span>
-                  {isActive && <span className={`w-2 h-2 rounded-full shrink-0 ${opt.dot}`} />}
+                  {isActive && (
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${opt.dot}`} />
+                  )}
                 </button>
               );
             })}
@@ -137,523 +1834,1375 @@ function StatusSelect({ value, onChange, disabled }: { value: string; onChange: 
   );
 }
 
-// ── InfoRow helper ─────────────────────────────────────────────────────────────
-function InfoRow({ label, value, bold, mono }: { label: string; value: string; bold?: boolean; mono?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-2 py-1.5 border-b border-border/40 last:border-0">
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-      <span className={`text-xs text-left break-all ${bold ? "font-bold text-foreground" : "text-foreground"} ${mono ? "font-mono" : ""}`}>{value}</span>
-    </div>
-  );
-}
-
-// ── Main Page ──────────────────────────────────────────────────────────────────
-export default function ShipmentDetailPage() {
-  const [, params] = useRoute("/shipments/:id");
-  const id = Number(params?.id);
+export default function OrderDetail() {
+  const params = useParams();
+  const id = Number(params.id);
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const qc = useQueryClient();
-  const { isAdmin } = useAuth();
-
+  const { isAdmin, canViewFinancials, canViewProfitability, user, can } = useAuth();
+  const canEdit        = isAdmin || can("orders.edit");
+  const canDelete      = isAdmin || can("orders.delete");
+  const canCreate      = isAdmin || can("orders.create");
+  const canFinancials  = isAdmin || can("orders.financials");
+  const canWriteOrders = isAdmin || canEdit || canCreate;
+  const [isEditing, setIsEditing] = useState(false);
+  const [showPartialInput, setShowPartialInput] = useState(false);
+  const [partialQty, setPartialQty] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectStatus, setSelectStatus] = useState<string | null>(null);
-  const [newTracking, setNewTracking] = useState("");
-  const [showTrackingEdit, setShowTrackingEdit] = useState(false);
   const [showWaDialog, setShowWaDialog] = useState(false);
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [selectedRegisterId, setSelectedRegisterId] = useState<string>("");
+  const [isClosing, setIsClosing] = useState(false);
 
-  // ── add parcel modal
-  const [showAddParcel, setShowAddParcel] = useState(false);
-  const [parcelForm, setParcelForm] = useState({ parcelType: "", weight: "", pieces: "1", description: "", declaredValue: "", notes: "" });
-  const pf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setParcelForm(p => ({ ...p, [k]: e.target.value }));
+  // Add product dialog state
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [invoiceShowAddProduct, setInvoiceShowAddProduct] = useState(false);
+  const [invoiceShowEdit, setInvoiceShowEdit] = useState(false);
+  const [addProductName, setAddProductName] = useState("");
+  const [addProductQty, setAddProductQty] = useState(1);
+  const [addProductPrice, setAddProductPrice] = useState(0);
+  const [addProductColor, setAddProductColor] = useState("");
+  const [addProductSize, setAddProductSize] = useState("");
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
 
-  const addParcelMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await fetch(`${(window as any).__SHIP_API__ ?? ""}/api/shipments/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "تم إضافة الطرد ✓", description: "تم تحديث الشحنة بالطرد الجديد" });
-      setShowAddParcel(false);
-      setParcelForm({ parcelType: "", weight: "", pieces: "1", description: "", declaredValue: "", notes: "" });
-      qc.invalidateQueries({ queryKey: ["shipment-detail", id] });
-    },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  // Return reason state
+  const [showReturnInput, setShowReturnInput] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnNote, setReturnNote] = useState("");
+  const [returnIsDamaged, setReturnIsDamaged] = useState(false);
+  const [returnReceived, setReturnReceived] = useState<boolean | null>(null); // null = لم يُحدد
+  const [selectDisplayStatus, setSelectDisplayStatus] = useState<string | null>(null); // قيمة مؤقتة للـ Select
+  const returnSectionRef = useRef<HTMLDivElement>(null);
+
+  const initializedRef = useRef(false);
+
+  const { data: order, isLoading, error } = useGetOrder(id, { query: { enabled: !!id, queryKey: getGetOrderQueryKey(id) } });
+
+  // جيب كل أوردرات الفاتورة (لو فيه invoiceNumber)
+  const invoiceNumber = (order as any)?.invoiceNumber as string | null | undefined;
+  const { data: invoiceOrders = [], refetch: refetchInvoiceOrders, isLoading: isInvoiceLoading, isFetching: isInvoiceFetching, isError: isInvoiceError } = useQuery({
+    queryKey: ["invoice-orders", invoiceNumber],
+    queryFn: () => ordersApi.byInvoice(invoiceNumber!),
+    enabled: !!invoiceNumber,
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev: any) => prev,
   });
+  // كل أوردرات الفاتورة ماعدا الحالي (للعرض في القائمة)
+  const otherInvoiceOrders = invoiceOrders.filter((o: any) => o.id !== id);
 
-  const handleAddParcel = () => {
-    if (!shipment) return;
-    const pricing = parcelPricing.find(p => p.parcelType === parcelForm.parcelType);
-    const addedParcelPrice = pricing ? Number(pricing.basePrice) : 0;
-    const currentFee = Number(shipment.shippingFee ?? 0);
-    const newShippingFee = currentFee + addedParcelPrice;
-    const newPieces = Number(shipment.pieces ?? 1) + Number(parcelForm.pieces ?? 1);
-    const currentDesc = shipment.description ? shipment.description + " / " : "";
-    const newDesc = parcelForm.description ? currentDesc + parcelForm.description : shipment.description;
-    addParcelMutation.mutate({
-      pieces: newPieces,
-      shippingFee: newShippingFee,
-      ...(newDesc !== undefined ? { description: newDesc } : {}),
-      ...(parcelForm.notes ? { notes: shipment.notes ? shipment.notes + " / " + parcelForm.notes : parcelForm.notes } : {}),
-    });
-  };
-
-  // ── edit mode ──────────────────────────────────────────────────────────────
-  const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Shipment & { trackingNumber: string }>>({});
-  const { data: parcelPricing = [] } = useQuery<{ id: number; parcelType: string; label: string; basePrice: string }[]>({
-    queryKey: ["parcel-type-pricing"],
-    queryFn: () => shipApiFetch("/parcel-type-pricing"),
-  });
-
-  const startEdit = () => {
-    if (!shipment) return;
-    setEditForm({
-      senderName: shipment.senderName, senderPhone: shipment.senderPhone ?? "",
-      senderPhone2: shipment.senderPhone2 ?? "", senderCity: shipment.senderCity ?? "",
-      senderAddress: shipment.senderAddress ?? "", senderEmail: shipment.senderEmail ?? "",
-      receiverName: shipment.receiverName, receiverPhone: shipment.receiverPhone ?? "",
-      receiverPhone2: shipment.receiverPhone2 ?? "", receiverCity: shipment.receiverCity ?? "",
-      receiverAddress: shipment.receiverAddress ?? "",
-      zoneId: shipment.zoneId,
-      parcelType: shipment.parcelType ?? "",
-      weight: shipment.weight ?? "", pieces: shipment.pieces ?? 1,
-      description: shipment.description ?? "", declaredValue: shipment.declaredValue ?? 0,
-      paymentMethod: shipment.paymentMethod, codAmount: shipment.codAmount ?? 0,
-      shippingFee: shipment.shippingFee ?? 0, insuranceFee: shipment.insuranceFee ?? 0,
-      notes: shipment.notes ?? "", internalNotes: shipment.internalNotes ?? "",
-      trackingNumber: shipment.trackingNumber ?? "",
-    });
-    setEditMode(true);
-  };
-
-  const cancelEdit = () => { setEditMode(false); setEditForm({}); };
-
-  const ef = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setEditForm(p => ({ ...p, [k]: e.target.value }));
-
-  const handleSaveEdit = () => {
-    const payload: any = { ...editForm };
-    if (payload.zoneId) {
-      const z = zones.find(z => z.id === Number(payload.zoneId));
-      payload.zoneId = Number(payload.zoneId);
-      payload.zonePrice = z ? Number((z as any).price ?? 0) : Number(shipment?.zonePrice ?? 0);
-    }
-    if (payload.parcelType) {
-      const p = parcelPricing.find(p => p.parcelType === payload.parcelType);
-      payload.parcelTypePrice = p ? Number(p.basePrice) : Number(shipment?.parcelTypePrice ?? 0);
-    }
-    payload.shippingFee = Number(payload.zonePrice ?? shipment?.zonePrice ?? 0)
-      + Number(payload.parcelTypePrice ?? shipment?.parcelTypePrice ?? 0)
-      + Number(payload.insuranceFee ?? 0);
-    payload.pieces = Number(payload.pieces ?? 1);
-    updateMutation.mutate(payload, {
-      onSuccess: () => { setEditMode(false); setEditForm({}); },
-    });
-  };
-
-  const { data: shipment, isLoading, error } = useQuery<Shipment>({
-    queryKey: ["shipment-detail", id],
-    queryFn: () => shipApiFetch<Shipment>(`/shipments/${id}`),
+  const { data: shippingCompanies } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
+  const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list });
+  const { data: allVariants } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
+  const { data: warehouses }        = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
+  const { data: users }             = useQuery({ queryKey: ["users"],      queryFn: usersApi.list });
+  const { data: manifestStatus } = useQuery({
+    queryKey: ["order-manifest-status", id],
+    queryFn: () => manifestsApi.getOrderManifestStatus(id),
     enabled: !!id,
+    staleTime: 0,
   });
-  const { data: zones = [] } = useQuery<{ id: number; name: string; governorate?: string }[]>({
-    queryKey: ["shipment-zones"],
-    queryFn: () => shipApiFetch("/shipment-zones"),
+  // بيان مفتوح مرتبط بالطلب مباشرة؟
+  const invoiceManifestStatus = manifestStatus?.manifestStatus === "open" ? manifestStatus : null;
+  const updateOrder = useUpdateOrder();
+
+  // Edit form — inline product search state (same as AddProductDialog)
+  const [editSelectedProduct, setEditSelectedProduct] = useState<any>(null);
+  const [editSearchQuery, setEditSearchQuery] = useState("");
+  const [editSearchOpen, setEditSearchOpen] = useState(false);
+  const [editVariantRows, setEditVariantRows] = useState<{ color: string; size: string; quantity: number }[]>([{ color: "", size: "", quantity: 1 }]);
+
+  // legacy (kept for TS compat — unused after refactor)
+  const [editProductId, setEditProductId] = useState<number | null>(null);
+  const [editColor, setEditColor] = useState<string>("");
+
+  const form = useForm<EditFormValues>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      customerName: "", phone: "", city: "", address: "",
+      shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
+      warehouseId: null, assignedUserId: null,
+      adSource: null, adCampaign: null, notes: "",
+      product: "", quantity: 1, unitPrice: 0, costPrice: null,
+    },
   });
-  const zone = zones.find(z => z.id === shipment?.zoneId);
 
   useEffect(() => {
-    if (shipment) {
-      setSelectStatus(shipment.status);
-      setNewTracking(shipment.trackingNumber ?? "");
+    if (order && !initializedRef.current) {
+      form.reset({
+        customerName:      order.customerName,
+        phone:             order.phone ?? "",
+        city:              (order as any).city ?? "",
+        address:           order.address ?? "",
+        shippingCost:      (order as any).shippingCost ?? 0,
+        shippingCompanyId: order.shippingCompanyId ?? null,
+        trackingNumber:    (order as any).trackingNumber ?? null,
+        warehouseId:       (order as any).warehouseId ?? null,
+        assignedUserId:    (order as any).assignedUserId ?? null,
+        adSource:          (order as any).adSource ?? null,
+        adCampaign:        (order as any).adCampaign ?? null,
+        notes:             order.notes ?? "",
+        product:           order.product,
+        quantity:          order.quantity,
+        unitPrice:         order.unitPrice,
+        costPrice:         (order as any).costPrice ?? null,
+      });
+      const existProd = order.productId && products ? (products as any[]).find((p: any) => p.id === order.productId) ?? null : null;
+      setEditSelectedProduct(existProd);
+      setEditSearchQuery("");
+      setEditSearchOpen(false);
+      setEditVariantRows([{ color: (order as any).color ?? "", size: (order as any).size ?? "", quantity: order.quantity ?? 1 }]);
+      initializedRef.current = true;
     }
-  }, [shipment]);
+  }, [order, form]);
 
-  const updateMutation = useMutation({
-    mutationFn: (data: any) => shipApiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["shipment-detail", id] });
-      qc.invalidateQueries({ queryKey: ["shipments-orders"] });
-      toast({ title: "تم الحفظ ✅" });
-      setShowTrackingEdit(false);
-    },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
-  });
+  useEffect(() => {
+    if (!showReturnInput) return;
+    const frame = window.requestAnimationFrame(() => {
+      returnSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [showReturnInput]);
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics-charts"] });
+    queryClient.invalidateQueries({ queryKey: ["orders-summary"] });
+    // ← مهم: invalidate الفاتورة المتعددة عشان الـ UI يتحدث
+    if (invoiceNumber) {
+      queryClient.invalidateQueries({ queryKey: ["invoice-orders", invoiceNumber] });
+    }
+    // invalidate الأوردر الحالي نفسه
+    queryClient.invalidateQueries({ queryKey: getGetOrderQueryKey(id) });
+  };
 
   const handleStatusChange = (newStatus: string) => {
-    setSelectStatus(newStatus);
-    updateMutation.mutate({ status: newStatus });
+    if (!order) return;
+    // returned و partial_received دايماً بيفتحوا الكارت حتى لو الحالة نفسها
+    if (order.status === newStatus && newStatus !== "returned" && newStatus !== "partial_received") return;
+
+    // reset دايماً أول حاجة
+    setSelectDisplayStatus(null);
+    setShowReturnInput(false);
+    setShowPartialInput(false);
+    setReturnReason("");
+    setReturnNote("");
+    setReturnIsDamaged(false);
+    setReturnReceived(null);
+    setPartialQty("");
+    const activeManifest = manifestStatus?.manifestStatus === "open"
+      ? manifestStatus
+      : invoiceManifestStatus?.manifestStatus === "open"
+      ? invoiceManifestStatus
+      : null;
+
+    if (newStatus === "partial_received") {
+      setSelectDisplayStatus("partial_received");
+      setShowPartialInput(true);
+      return;
+    }
+    if (newStatus === "returned") {
+      setSelectDisplayStatus("returned");
+      setShowReturnInput(true);
+      return;
+    }
+
+    if (activeManifest) {
+      toast({
+        title: "⛔ لا يمكن تعديل حالة الطلب",
+        description: `هذا الطلب مرتبط ببيان شحن مفتوح (${activeManifest.manifestNumber}). يجب تعديل حالته من داخل البيان في قسم شركات الشحن فقط.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectDisplayStatus(newStatus);
+    // ظپظٹ invoice mode: ظ†ط³طھط®ط¯ظ… ط£ظٹ ط£ظˆط±ط¯ط± ظ…ظ† ط§ظ„ظپط§طھظˆط±ط© ط¹ط´ط§ظ† ط§ظ„ط³ظٹط±ظپط± ظٹط؛ظٹط± ط§ظ„ظƒظ„
+    // (ظ†طھط¬ظ†ط¨ ط§ظ„ظ€ id ط§ظ„ط­ط§ظ„ظٹ ظ„ظˆ ظƒط§ظ† locked ط¨ظ€ received/partial_received)
+    const LOCKED = ["received", "partial_received"];
+    const targetId = invoiceOrders.length > 1
+      ? (invoiceOrders.find((o: any) => !LOCKED.includes(o.status))?.id ?? id)
+      : id;
+    updateOrder.mutate({ id: targetId, data: { status: newStatus as any } }, {
+      onSuccess: (updated: any) => {
+        queryClient.setQueryData(getGetOrderQueryKey(id), updated);
+        setSelectDisplayStatus(null);
+        invalidateAll();
+        toast({ title: "تم تحديث الحالة", description: `الطلب أصبح: ${statusLabels[newStatus]}` });
+      },
+      onError: () => { setSelectDisplayStatus(null); toast({ title: "خطأ", description: "فشل تحديث الحالة.", variant: "destructive" }); },
+    });
+  };
+
+  const handlePartialReceived = () => {
+    const pQty = parseInt(partialQty);
+    if (isNaN(pQty) || pQty < 1) { toast({ title: "خطأ", description: "أدخل كمية صحيحة.", variant: "destructive" }); return; }
+
+    const LOCKED_P = ["received", "partial_received"];
+    const partialTargetId = invoiceOrders.length > 1
+      ? (invoiceOrders.find((o: any) => !LOCKED_P.includes(o.status))?.id ?? id)
+      : id;
+    updateOrder.mutate({ id: partialTargetId, data: { status: "partial_received", partialQuantity: pQty } }, {
+      onSuccess: (updated) => {
+        queryClient.setQueryData(getGetOrderQueryKey(id), updated);
+        invalidateAll();
+        setShowPartialInput(false);
+        setPartialQty("");
+        setSelectDisplayStatus(null);
+        toast({ title: "تم التحديث", description: `تم استلام ${pQty} وحدة جزئياً.` });
+      },
+      onError: () => {
+        setSelectDisplayStatus(null);
+        toast({ title: "خطأ", description: "فشل التحديث.", variant: "destructive" });
+      },
+    });
+  };
+
+  const handleReturnConfirm = () => {
+    if (!returnReason) { toast({ title: "خطأ", description: "اختر سبب الإرجاع.", variant: "destructive" }); return; }
+    if (returnReason === "other" && !returnNote.trim()) { toast({ title: "خطأ", description: "اكتب سبب الإرجاع.", variant: "destructive" }); return; }
+
+    // لو الطلب في بيان شحن مفتوح → يطلب تحديد returnReceived، غير كده تلقائي true
+    const inManifest = manifestStatus?.manifestStatus === "open";
+    const finalReturnReceived = inManifest ? returnReceived : true;
+    if (inManifest && returnReceived === null) { toast({ title: "خطأ", description: "حدد هل تم استلام المرتجع أم لا.", variant: "destructive" }); return; }
+
+    // ظپظٹ invoice mode: ظ†ط³طھط®ط¯ظ… ط£ظٹ ط£ظˆط±ط¯ط± ط؛ظٹط± locked ط¹ط´ط§ظ† ط§ظ„ط³ظٹط±ظپط± ظٹط؛ظٹط± ظƒظ„ ط§ظ„ظپط§طھظˆط±ط©
+    const LOCKED_S = ["received", "partial_received"];
+    const returnTargetId = invoiceOrders.length > 1
+      ? (invoiceOrders.find((o: any) => !LOCKED_S.includes(o.status))?.id ?? id)
+      : id;
+    updateOrder.mutate({
+      id: returnTargetId,
+      data: {
+        status: "returned",
+        returnReason,
+        returnNote: returnReason === "other" ? returnNote.trim() : null,
+        isDamaged: returnIsDamaged,
+        returnReceived: finalReturnReceived,
+      } as any,
+    }, {
+      onSuccess: (updated) => {
+        queryClient.setQueryData(getGetOrderQueryKey(id), updated);
+        // invalidate manifest-status عشان يتحدث بعد تغيير returnReceived
+        queryClient.invalidateQueries({ queryKey: ["order-manifest-status", id] });
+        queryClient.invalidateQueries({ queryKey: ["invoice-manifest-status"] });
+        invalidateAll();
+        setShowReturnInput(false);
+        setReturnReason("");
+        setReturnNote("");
+        setReturnIsDamaged(false);
+        setReturnReceived(null);
+        setSelectDisplayStatus(null);
+        const msg = returnReceived
+          ? (returnIsDamaged ? "تم تسجيل المرتجع التالف — لم يُضاف للمخزون." : "تم استلام المرتجع وأُضيف للمخزون.")
+          : "تم تسجيل المرتجع — مازال عند شركة الشحن.";
+        toast({ title: "تم التسجيل", description: msg });
+      },
+      onError: () => {
+        setSelectDisplayStatus(null);
+        toast({ title: "خطأ", description: "فشل تحديث الحالة.", variant: "destructive" });
+      },
+    });
+  };
+
+  const onSubmitEdit = (values: EditFormValues) => {
+    // resolve variant from inline search if product selected
+    const editProdVariants = editSelectedProduct && allVariants
+      ? (allVariants as any[]).filter((v: any) => v.productId === editSelectedProduct.id)
+      : [];
+    const editHasVariants = editProdVariants.length > 0;
+    const editRow = editVariantRows[0];
+    const editVariant = editHasVariants && editRow.color && editRow.size
+      ? editProdVariants.find((v: any) => v.color === editRow.color && v.size === editRow.size)
+      : null;
+
+    const extraData = editSelectedProduct
+      ? {
+          product: editSelectedProduct.name,
+          color: editVariant?.color ?? (editRow.color || null),
+          size: editVariant?.size ?? (editRow.size || null),
+          quantity: editHasVariants ? editRow.quantity : values.quantity,
+          productId: editSelectedProduct.id,
+          variantId: editVariant?.id ?? null,
+        }
+      : {};
+
+    updateOrder.mutate({ id, data: {
+      ...values,
+      shippingCompanyId: values.shippingCompanyId || null,
+      adSource: values.adSource || null,
+      adCampaign: values.adCampaign || null,
+      city: values.city || null,
+      shippingCost: values.shippingCost ?? null,
+      costPrice: values.costPrice ?? null,
+      ...extraData,
+    } as any }, {
+      onSuccess: (updated) => {
+        queryClient.setQueryData(getGetOrderQueryKey(id), updated);
+        queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetRecentOrdersQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["analytics-charts"] });
+        setIsEditing(false);
+        initializedRef.current = false;
+        setEditSelectedProduct(null); setEditSearchQuery(""); setEditSearchOpen(false);
+        setEditVariantRows([{ color: "", size: "", quantity: 1 }]);
+        toast({ title: "تم الحفظ", description: "تم حفظ التعديلات بنجاح." });
+      },
+      onError: () => toast({ title: "خطأ", description: "فشل الحفظ.", variant: "destructive" }),
+    });
+  };
+
+  const handleAddProduct = async () => {
+    if (!order || !addProductName.trim() || addProductPrice <= 0) return;
+    setIsAddingProduct(true);
+    try {
+      await ordersApi.batchCreate({
+        invoiceNumber: (order as any).invoiceNumber ?? undefined,
+        customerName: order.customerName,
+        phone: order.phone ?? null,
+        city: (order as any).city ?? null,
+        address: order.address ?? null,
+        shippingCompanyId: order.shippingCompanyId ?? null,
+        notes: null,
+        items: [{
+          product: addProductName.trim(),
+          color: addProductColor || null,
+          size: addProductSize || null,
+          quantity: addProductQty,
+          unitPrice: addProductPrice,
+        }],
+      });
+      queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+      setShowAddProduct(false);
+      setAddProductName(""); setAddProductQty(1); setAddProductPrice(0);
+      setAddProductColor(""); setAddProductSize("");
+      toast({ title: "تم إضافة المنتج", description: `${addProductName} اتضاف لنفس الفاتورة بنجاح.` });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "فشل إضافة المنتج.", variant: "destructive" });
+    } finally {
+      setIsAddingProduct(false);
+    }
   };
 
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      await shipApiFetch(`/shipments/${id}`, { method: "DELETE" });
-      qc.invalidateQueries({ queryKey: ["shipments-orders"] });
-      toast({ title: "تم حذف الشحنة" });
+      // لو فاتورة متعددة → احذف كل الطلبات في الفاتورة دفعة واحدة
+      const idsToDelete = invoiceOrders.length > 1
+        ? invoiceOrders.map((o: any) => o.id)
+        : [id];
+
+      const token = localStorage.getItem("caprina_token");
+      await fetch("/api/orders/bulk", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+
+      // امسح كل الطلبات من الكاش
+      idsToDelete.forEach((oid: number) => queryClient.removeQueries({ queryKey: getGetOrderQueryKey(oid) }));
+      await queryClient.refetchQueries({ queryKey: getListOrdersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetRecentOrdersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ["orders-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["archived-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-registers-list"] });
+
+      const msg = idsToDelete.length > 1
+        ? `تم حذف الطلب وكل منتجاته (${idsToDelete.length} منتج).`
+        : "تم حذف الطلب بنجاح.";
+      toast({ title: "تم الحذف", description: msg });
       navigate("/orders");
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    } catch (err: any) {
+      const msg = err?.message || "فشل حذف الطلب.";
+      toast({ title: "خطأ", description: msg, variant: "destructive" });
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
     }
   };
 
-  const handlePrint = () => {
-    if (!shipment) return;
-    const statusLabel = STATUS_OPTIONS.find(o => o.value === shipment.status)?.label ?? shipment.status;
-    const paymentLabel = PAYMENT_LABELS[shipment.paymentMethod] ?? shipment.paymentMethod;
-    const parcelLabel = shipment.parcelType ? (PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType) : "—";
-    const zoneLabel = zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? "—");
-    const statusColors: Record<string,string> = {
-      waiting:"#64748b", confirmed:"#3b82f6", picked_up:"#06b6d4",
-      in_transit:"#8b5cf6", out_for_delivery:"#f59e0b",
-      delivered:"#10b981", delayed:"#f97316", returned:"#ef4444", cancelled:"#6b7280",
+  const handlePrint = async () => {
+    if (!order) return;
+
+    // استخدم كل منتجات الفاتورة لو متاحة، وإلا الطلب الفردي
+    const printOrders: any[] = invoiceOrders.length >= 1 ? invoiceOrders : [order];
+    const inv = order.invoiceNumber ?? `#${id}`;
+    const dateLabel = format(new Date(order.createdAt), "yyyy/MM/dd HH:mm");
+    const logoUrl = await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < data.data.length; i += 4) {
+          const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+          if (r < 40 && g < 40 && b < 40) data.data[i+3] = 0;
+        }
+        ctx.putImageData(data, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => resolve(`${window.location.origin}/logo.jpg`);
+      img.src = `${window.location.origin}/logo.jpg`;
+    });
+
+    const fmtEN = (n: number) =>
+      new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
+
+    const totalQty = printOrders.reduce((s: number, o: any) => s + (o.quantity ?? 0), 0);
+    const invoiceTotal = printOrders.reduce((s: number, o: any) => s + (o.totalPrice ?? 0), 0);
+    const shippingCostTotal = printOrders.reduce((s: number, o: any) => s + Math.abs(o.shippingCost ?? 0), 0);
+
+    // حساب الربحية
+    const hasCost = printOrders.some((o: any) => (o.costPrice ?? 0) > 0);
+    let totalRevenue = 0, totalCost = 0;
+    if (hasCost) {
+      for (const o of printOrders) {
+        const isRet = o.status === "returned";
+        const retToStock = isRet && (o.returnReceived === 1 || o.returnReceived === true);
+        const qty = o.status === "partial_received" && o.partialQuantity ? o.partialQuantity : o.quantity;
+        if (!isRet) totalRevenue += qty * (o.unitPrice ?? 0);
+        if (!retToStock) totalCost += qty * (o.costPrice ?? 0);
+      }
+    }
+    const netProfit = totalRevenue - totalCost - shippingCostTotal;
+    const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+
+    // صفوف المنتجات
+    const rowsHtml = printOrders.map((o: any, idx: number) => {
+      const variantLabel = [o.color, o.size].filter(Boolean).join(" / ") || "—";
+      const isRet = o.status === "returned";
+      const statusAr = (statusLabels as any)[o.status] || o.status;
+      return `
+        <tr class="${isRet ? "row-returned" : ""}">
+          <td>${idx + 1}</td>
+          <td class="name">${o.product ?? "—"}</td>
+          <td>${variantLabel}</td>
+          <td>${o.quantity ?? 1}</td>
+          <td>${fmtEN(o.unitPrice ?? 0)}</td>
+          <td class="total-cell">${fmtEN(o.totalPrice ?? 0)}</td>
+          <td><span class="status-badge">${statusAr}</span></td>
+        </tr>`;
+    }).join("");
+
+    // قسم الربحية — للأدمن فقط
+    const profitHtml = hasCost && canViewProfitability ? `
+      <div class="profit-section">
+        <div class="section-title">📊 تحليل الربحية</div>
+        <div class="profit-grid">
+          <div class="profit-row"><span>الإيرادات</span><span class="revenue">${fmtEN(totalRevenue)}</span></div>
+          <div class="profit-row"><span>تكلفة البضاعة</span><span class="cost">- ${fmtEN(totalCost)}</span></div>
+          ${shippingCostTotal > 0 ? `<div class="profit-row"><span>تكلفة الشحن</span><span class="cost">- ${fmtEN(shippingCostTotal)}</span></div>` : ""}
+          <div class="profit-row profit-net"><span>الربح الصافي</span><span class="${netProfit >= 0 ? "positive" : "negative"}">${fmtEN(netProfit)}</span></div>
+          <div class="profit-row"><span>هامش الربح</span><span class="${margin >= 20 ? "positive" : margin >= 10 ? "warn" : "negative"}">${margin}%</span></div>
+        </div>
+      </div>` : "";
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>فاتورة ${inv}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
+body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;font-size:15px;direction:rtl}
+.page{max-width:860px;margin:24px auto;background:#fff;padding:32px 36px}
+
+/* ── HEADER ── */
+.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #ddd;margin-bottom:18px}
+.header-left .inv-title{font-size:26px;font-weight:900;color:#111;margin-bottom:6px}
+.header-left .inv-meta{font-size:14px;color:#555;line-height:2;font-weight:600}
+.header-right .logo{width:140px;height:140px;border-radius:12px;object-fit:contain;border:none;background:transparent;margin-top:16px}
+
+/* ── CLIENT BOX ── */
+.client-box{border:1px solid #ccc;border-radius:6px;padding:14px 20px;margin-bottom:18px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.client-col{display:flex;flex-direction:column;gap:6px}
+.client-row{font-size:15px;color:#222;font-weight:700}
+.client-row span.label{color:#555;font-weight:600;margin-left:4px}
+
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;margin-bottom:18px}
+thead tr{background:#333;color:#fff}
+th{padding:12px 10px;font-size:15px;font-weight:800;text-align:center}
+th:nth-child(2){text-align:right}
+tbody tr{border-bottom:1px solid #e0e0e0}
+tbody tr:last-child{border-bottom:2px solid #ccc}
+td{padding:11px 10px;text-align:center;font-size:15px;font-weight:600;color:#222}
+td.name{font-weight:800;text-align:right}
+td.num{font-weight:800}
+tr.row-returned td{color:#aaa;text-decoration:line-through}
+
+/* ── SUMMARY ── */
+.summary-wrap{display:flex;justify-content:flex-start}
+.summary-table{width:360px;border:1px solid #ccc;border-radius:6px;overflow:hidden}
+.s-row{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:15px;border-bottom:1px solid #e4e4e4}
+.s-row:last-child{border:none;background:#2a2a2a;color:#fff;font-size:17px;font-weight:900;padding:13px 16px}
+.s-row:last-child .s-val{color:#f0c040}
+.s-lbl{font-weight:600;color:#444}
+.s-row:last-child .s-lbl{color:#ddd;font-weight:700}
+.s-val{font-weight:800;color:#111}
+
+/* ── PROFIT ── */
+.profit-wrap{margin-top:18px;border:1px solid #ddd;border-radius:6px;overflow:hidden}
+.profit-head{background:#f5f5f5;padding:10px 16px;font-size:14px;font-weight:800;color:#444;border-bottom:1px solid #ddd}
+.profit-body{padding:10px 16px}
+.p-row{display:flex;justify-content:space-between;padding:7px 0;font-size:15px;font-weight:700;border-bottom:1px solid #f2f2f2}
+.p-row:last-child{border:none;font-size:16px;font-weight:900;padding-top:10px;border-top:2px solid #ddd !important;margin-top:4px}
+.p-rev{color:#1a7a4a}.p-cost{color:#b04a00}
+.p-pos{color:#1a7a4a}.p-neg{color:#c0392b}.p-warn{color:#d68910}
+
+/* ── FOOTER ── */
+.footer{margin-top:30px;padding-top:12px;border-top:1px solid #ddd;text-align:center;font-size:14px;font-weight:600;color:#666}
+
+@media print{
+  body{background:#fff}
+  .page{margin:0;padding:20px 24px;max-width:none}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="inv-title">فاتورة بيع</div>
+      <div class="inv-meta">
+        رقم الفاتورة: ${inv}<br>
+        التاريخ: ${dateLabel}<br>
+        ${printOrders.length} منتج / ${totalQty} قطعة
+      </div>
+    </div>
+    <div class="header-right">
+      <img class="logo" src="${logoUrl}" alt="CAPRINA" onerror="this.style.display='none'"/>
+    </div>
+  </div>
+
+  <!-- CLIENT -->
+  <div class="client-box">
+    <div class="client-col">
+      <div class="client-row"><span class="label">العميل:</span>${order.customerName ?? "—"}</div>
+      <div class="client-row"><span class="label">المحافظة:</span>${(order as any).city ?? "—"}</div>
+    </div>
+    <div class="client-col" style="text-align:left">
+      <div class="client-row"><span class="label">الهاتف:</span><span style="direction:ltr;display:inline-block">${order.phone ?? "—"}</span></div>
+      <div class="client-row"><span class="label">العنوان:</span>${order.address ?? "—"}</div>
+    </div>
+  </div>
+
+  <!-- PRODUCTS TABLE -->
+  <table>
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th style="text-align:right">المنتج</th>
+        <th>اللون / المقاس</th>
+        <th>الكمية</th>
+        <th>سعر الوحدة</th>
+        <th>الإجمالي</th>
+      </tr>
+    </thead>
+    <tbody>${printOrders.map((o: any, idx: number) => {
+      const variantLabel = [o.color, o.size].filter(Boolean).join(" / ") || "—";
+      const isRet = o.status === "returned";
+      return `<tr class="${isRet ? "row-returned" : ""}">
+        <td class="num">${idx + 1}</td>
+        <td class="name">${o.product ?? "—"}</td>
+        <td>${variantLabel}</td>
+        <td class="num">${o.quantity ?? 1}</td>
+        <td>${fmtEN(o.unitPrice ?? 0)}</td>
+        <td class="num">${fmtEN(o.totalPrice ?? 0)}</td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table>
+
+  <!-- SUMMARY -->
+  <div class="summary-wrap">
+    <div class="summary-table">
+      <div class="s-row"><span class="s-lbl">إجمالي المنتجات</span><span class="s-val">${fmtEN(invoiceTotal)}</span></div>
+      <div class="s-row"><span class="s-lbl">تكلفة الشحن</span><span class="s-val">${fmtEN(shippingCostTotal)}</span></div>
+      <div class="s-row"><span class="s-lbl">الإجمالي الكلي</span><span class="s-val">${fmtEN(invoiceTotal + shippingCostTotal)}</span></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">CAPRINA — شكراً لتعاملكم معنا</div>
+
+</div>
+</body></html>`);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      // ننتظر الـ fonts تتحمل قبل الطباعة
+      if ((printWindow as any).document.fonts?.ready) {
+        (printWindow as any).document.fonts.ready.then(() => {
+          setTimeout(() => { printWindow.focus(); printWindow.print(); }, 300);
+        });
+      } else {
+        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1200);
+      }
     };
-    const stColor = statusColors[shipment.status] ?? "#64748b";
-    const printDate = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" });
-
-    const w = window.open("", "_blank");
-    if (!w) return;
-    const logoB64 = "data:image/jpeg;base64,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zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzyyoDzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz7vh2TzzzzyDzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzy7pdrmrzzxkJvzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzh74LKLzP8A4Ntu0O+/kDIC8888888888888888888888888888888888888888+WOCqa4sSzHo6rRVOgE/xy7Okc8888888888888888888888888888888888886scemqI6EgeA22cRUtFvchy14wgsU8888888888888888888888888888888884qCxQIUQnjj0GKmqqRwh7QKI9I6EQwU888888888888888888888888888888884wGgQ4APMIiIAeBSYgjx90ElVF1myAA088888888888888888088888888888888FoUygIZKNXHre1m12nFBh2G+u17lmgUU88888888888888888U8888888888888m6yUx6iyJE5h2HOIT79YkQh9FZnv8AuGvPPPPPPPPPPPPPPPPPPHPPPPPPPPPPPPuHWBusKiK0OSAB1OdoNKuoK2hz5ccW9F+NPPPPPPPPPPPPPPPPPPPPPPPPPPOPMsuvdkOaJNFI5uvGjAWpMwDkvyQ+kawTHo+2PPPPPPPPPPPPPPPPLvPPPPPDPMvm8MAIYmAWMN3edy8AXUnp0VZcvLAONm+w8i/lvPPPPPPPPPPPPPPPGPPPPPPPPBImAaKG/AkFIrsA12XpihOteUVYfYeYSEV1wJAivPPPPPPPPPPPPPPPIVOCOiB/JR5HkfQ/SAIGHDnebG6mNiK+cJVtUNOCIxT136GhnPPPPPPPPPPOPPLIKeNHHMAMJMirR5zhoFJNBGOHgWQsWDp7gnh9nmHLnheM3p3kzPPPPPPPPPPPKFPIuNHPpmnAJhw01AF1oAPNEMiSX+TffdXFJDyIPqoKXyzuLk6LAPvPPPPPPPPHEITEnMkAf0iVfwxLkjyhC2gkrOHspDK//RkzQIVj/VskQUpqWxXapwPvPPPPPOEfECSPuDIqrjlmMd/nB8ayb9aQKPPuHHA48ot8SO9PcLJgZpNVqm1I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";
-
-    const html: string[] = [];
-    html.push(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>`);
-    html.push(`<meta charset="UTF-8"/>`);
-    html.push(`<title>بوليصة شحن — ${shipment.shipmentNumber ?? id}</title>`);
-    html.push(`<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet"/>`);
-    html.push(`<style>
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-serif;background:#fff;color:#1a1a1a;direction:rtl;}
-.page{width:210mm;min-height:297mm;display:flex;flex-direction:column;background:#fff;}
-.inv-header{padding:22px 30px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e5e7eb;}
-.logo-wrap{display:flex;align-items:center;gap:12px;}
-.logo-img{width:100px;height:100px;object-fit:cover;border-radius:50%;border:3px solid #e5e7eb;}
-.brand-name{font-size:26px;font-weight:900;color:#111827;letter-spacing:-1px;}
-.brand-sub{font-size:11px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;margin-top:1px;}
-.inv-meta{text-align:right;}
-.inv-title{font-size:22px;font-weight:900;color:#111827;margin-bottom:5px;}
-.inv-row{font-size:13px;color:#6b7280;line-height:1.9;}
-.inv-row strong{color:#111827;font-weight:700;}
-.status-strip{background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:7px 30px;display:flex;align-items:center;justify-content:space-between;}
-.st-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;border:1.5px solid;}
-.st-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-.pay-chip{font-size:13px;font-weight:700;color:#374151;background:#f3f4f6;padding:4px 12px;border-radius:6px;border:1px solid #e5e7eb;}
-.body{flex:1;padding:18px 30px;}
-.parties-box{border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:14px;}
-.parties-row{display:grid;grid-template-columns:1fr 1px 1fr;}
-.party{padding:13px 15px;}
-.party-div{background:#e5e7eb;}
-.party-lbl{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;margin-bottom:7px;}
-.party-name{font-size:16px;font-weight:800;color:#111827;margin-bottom:4px;}
-.party-row{font-size:13px;color:#6b7280;margin-top:2px;}
-.party-row strong{color:#374151;}
-.tbl{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;}
-.tbl thead tr{background:#111827;color:#fff;}
-.tbl thead th{padding:9px 12px;font-weight:700;font-size:12px;letter-spacing:.3px;}
-.tbl tbody tr{border-bottom:1px solid #f3f4f6;}
-.tbl tbody tr:last-child{border:none;}
-.tbl tbody td{padding:9px 12px;color:#374151;}
-.tbl tbody td.val{font-weight:700;color:#111827;}
-.summary-wrap{display:flex;justify-content:flex-end;margin-bottom:14px;}
-.summary-box{min-width:260px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;}
-.sum-row{display:flex;justify-content:space-between;padding:8px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;}
-.sum-row:last-child{border:none;}
-.sum-lbl{color:#6b7280;}
-.sum-val{font-weight:700;color:#111827;}
-.sum-total{display:flex;justify-content:space-between;padding:10px 14px;background:#111827;color:#fff;}
-.sum-total-lbl{font-size:13px;font-weight:600;}
-.sum-total-val{font-size:19px;font-weight:900;}
-.cod-box{display:flex;justify-content:space-between;padding:8px 14px;background:#fffbeb;border:1.5px dashed #f59e0b;border-radius:8px;margin-top:8px;}
-.cod-lbl{font-size:13px;color:#92400e;font-weight:700;}
-.cod-val{font-size:17px;font-weight:900;color:#d97706;}
-.notes-box{border:1px solid #fde68a;background:#fefce8;border-radius:8px;padding:11px 14px;margin-bottom:12px;}
-.notes-lbl{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#ca8a04;margin-bottom:5px;}
-.trk-center{text-align:center;margin:12px 0 6px;}
-.trk-box{border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 20px;display:inline-block;}
-.trk-num{font-size:16px;font-weight:900;letter-spacing:3px;color:#111827;}
-.trk-sub{font-size:10px;color:#9ca3af;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase;}
-.inv-footer{border-top:1px solid #e5e7eb;padding:10px 30px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#9ca3af;margin-top:auto;}
-.footer-brand{color:#374151;font-weight:700;font-size:13px;}
-@media print{html,body{width:210mm;max-width:210mm;}@page{size:A4;margin:10mm;}.page{min-height:297mm;}}
-</style></head><body><div class="page">`);
-
-    // HEADER
-    html.push(`<div class="inv-header">`);
-    html.push(`<div class="inv-meta"><div class="inv-title">بوليصة شحن</div>`);
-    html.push(`<div class="inv-row">رقم البوليصة: <strong>${shipment.shipmentNumber ?? "#" + id}</strong></div>`);
-    html.push(`<div class="inv-row">التاريخ: <strong>${fdate(shipment.createdAt)}</strong></div>`);
-    if (shipment.trackingNumber) html.push(`<div class="inv-row">رقم التتبع: <strong>${shipment.trackingNumber}</strong></div>`);
-    html.push(`</div>`);
-    html.push(`<div class="logo-wrap"><img src="${logoB64}" class="logo-img" alt="STARK"/></div>`);
-    html.push(`</div>`);
-
-    // STATUS STRIP
-    html.push(`<div class="status-strip">`);
-    html.push(`<span class="st-badge" style="color:${stColor};border-color:${stColor}44;background:${stColor}11"><span class="st-dot" style="background:${stColor}"></span>${statusLabel}</span>`);
-    html.push(`<span class="pay-chip">طريقة الدفع: ${paymentLabel}</span>`);
-    html.push(`</div>`);
-
-    // BODY
-    html.push(`<div class="body">`);
-
-    // Parties
-    html.push(`<div class="parties-box"><div class="parties-row">`);
-    html.push(`<div class="party"><div class="party-lbl">المُرسِل</div><div class="party-name">${shipment.senderName}</div>`);
-    if (shipment.senderPhone)   html.push(`<div class="party-row">الهاتف: <strong>${shipment.senderPhone}</strong></div>`);
-    if (shipment.senderPhone2)  html.push(`<div class="party-row">هاتف 2: <strong>${shipment.senderPhone2}</strong></div>`);
-    if (shipment.senderCity)    html.push(`<div class="party-row">المدينة: <strong>${shipment.senderCity}</strong></div>`);
-    if (shipment.senderAddress) html.push(`<div class="party-row">العنوان: <strong>${shipment.senderAddress}</strong></div>`);
-    html.push(`</div><div class="party-div"></div>`);
-    html.push(`<div class="party"><div class="party-lbl">المُستلِم</div><div class="party-name">${shipment.receiverName}</div>`);
-    if (shipment.receiverPhone)   html.push(`<div class="party-row">الهاتف: <strong>${shipment.receiverPhone}</strong></div>`);
-    if (shipment.receiverPhone2)  html.push(`<div class="party-row">هاتف 2: <strong>${shipment.receiverPhone2}</strong></div>`);
-    html.push(`<div class="party-row">المنطقة: <strong>${zoneLabel}</strong></div>`);
-    if (shipment.receiverAddress) html.push(`<div class="party-row">العنوان: <strong>${shipment.receiverAddress}</strong></div>`);
-    html.push(`</div></div></div>`);
-
-    // Details table
-    html.push(`<table class="tbl"><thead><tr><th style="text-align:right">البيان</th><th style="text-align:right">التفاصيل</th><th style="text-align:right">البيان</th><th style="text-align:right">التفاصيل</th></tr></thead><tbody>`);
-    html.push(`<tr><td>نوع الطرد</td><td class="val">${parcelLabel}</td><td>طريقة الدفع</td><td class="val">${paymentLabel}</td></tr>`);
-    html.push(`<tr><td>الوزن</td><td class="val">${shipment.weight ? shipment.weight + " كجم" : "—"}</td><td>بواسطة</td><td class="val">${shipment.createdByName ?? "—"}</td></tr>`);
-    html.push(`<tr><td>عدد القطع</td><td class="val">${shipment.pieces ?? 1}</td><td>تاريخ الإنشاء</td><td class="val" style="font-size:13px">${fdate(shipment.createdAt)}</td></tr>`);
-    if (shipment.description)                html.push(`<tr><td>الوصف</td><td class="val" colspan="3">${shipment.description}</td></tr>`);
-    if (Number(shipment.declaredValue) > 0)  html.push(`<tr><td>القيمة المعلنة</td><td class="val">${fc(shipment.declaredValue)}</td><td></td><td></td></tr>`);
-    html.push(`</tbody></table>`);
-
-    // Summary (right-aligned like Caprina)
-    html.push(`<div class="summary-wrap"><div class="summary-box">`);
-    if (Number(shipment.zonePrice) > 0)       html.push(`<div class="sum-row"><span class="sum-lbl">سعر المنطقة</span><span class="sum-val">${fc(shipment.zonePrice)}</span></div>`);
-    if (Number(shipment.parcelTypePrice) > 0)  html.push(`<div class="sum-row"><span class="sum-lbl">رسوم نوع الطرد</span><span class="sum-val">${fc(shipment.parcelTypePrice)}</span></div>`);
-    if (Number(shipment.insuranceFee) > 0)     html.push(`<div class="sum-row"><span class="sum-lbl">رسوم التأمين</span><span class="sum-val">${fc(shipment.insuranceFee)}</span></div>`);
-    html.push(`<div class="sum-total"><span class="sum-total-lbl">إجمالي رسوم الشحن</span><span class="sum-total-val">${fc(shipment.shippingFee)}</span></div>`);
-    html.push(`</div></div>`);
-    if (Number(shipment.codAmount) > 0) html.push(`<div class="cod-box"><span class="cod-lbl">مبلغ الاستلام COD</span><span class="cod-val">${fc(shipment.codAmount)}</span></div>`);
-
-    // Notes
-    if (shipment.notes) {
-      html.push(`<div class="notes-box" style="margin-top:12px"><div class="notes-lbl">ملاحظات</div><p style="font-size:13px;line-height:1.7;color:#374151">${shipment.notes}</p></div>`);
-    }
-
-    // Tracking
-    if (shipment.trackingNumber) {
-      html.push(`<div class="trk-center"><div class="trk-box"><div class="trk-num">${shipment.trackingNumber}</div><div class="trk-sub">Tracking Number</div></div></div>`);
-    }
-
-    html.push(`</div>`); // end body
-
-    // FOOTER
-    html.push(`<div class="inv-footer">`);
-    html.push(`<span class="footer-brand">STARK — Shipping &amp; Logistics</span>`);
-    html.push(`<span>شكراً لثقتكم في خدماتنا</span>`);
-    html.push(`<span>طُبع: ${printDate}</span>`);
-    html.push(`</div>`);
-
-    html.push(`</div></body>`);
-    html.push(`<script>document.fonts.ready.then(()=>{setTimeout(()=>{window.print();},500);});<\/script>`);
-    html.push(`</html>`);
-
-    w.document.write(html.join(""));
-    w.document.close();
   };
 
-  // ── guards ────────────────────────────────────────────────────────────────
-  if (isLoading) return (
-    <div className="flex items-center justify-center min-h-[60vh]" dir="rtl">
-      <div className="flex flex-col items-center gap-3 text-muted-foreground">
-        <Truck className="w-10 h-10 animate-pulse text-primary" />
-        <p className="text-sm">جاري تحميل الشحنة...</p>
-      </div>
-    </div>
-  );
-  if (error || !shipment) return (
-    <div className="flex items-center justify-center min-h-[60vh]" dir="rtl">
-      <div className="text-center space-y-3">
-        <XCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <p className="font-bold">الشحنة غير موجودة</p>
-        <Link href="/orders" className="text-sm text-primary underline">← العودة للشحنات</Link>
-      </div>
-    </div>
-  );
+  // ── Cash registers for close dialog ──
+  const { data: cashData } = useQuery({
+    queryKey: ["cash-registers-list"],
+    queryFn: cashRegistersApi.list,
+    enabled: isAdmin,
+  });
 
-  const currentStepIdx = STATUS_STEPS.indexOf(shipment.status);
-  const isTerminal = shipment.status === "returned" || shipment.status === "cancelled";
-  const currentStatusOpt = STATUS_OPTIONS.find(o => o.value === (selectStatus ?? shipment.status)) ?? STATUS_OPTIONS[0];
+  // ── لو الطلب في فاتورة متعددة، نجيب كل الأوردرات عشان نحسب الإجمالي الصح ──
+  const { data: invoiceSiblings } = useQuery({
+    queryKey: ["invoice-group", order?.invoiceNumber],
+    queryFn: () => apiFetch<any[]>(`/orders/by-invoice/${encodeURIComponent(order!.invoiceNumber!)}`),
+    enabled: !!order?.invoiceNumber,
+    staleTime: 0,
+  });
+
+  // إجمالي الإيراد اللي هيتحول للخزنة — لو متعدد يجمع كل الأوردرات غير المغلقة
+  const closeInvoiceAmount = invoiceSiblings
+    ? invoiceSiblings
+        .filter((o: any) => !["received","partial_received","returned"].includes(o.status))
+        .reduce((s: number, o: any) => s + (o.totalPrice ?? 0), 0)
+    : (order?.totalPrice ?? 0);
+
+  const handleCloseInvoice = async () => {
+    if (!order) return;
+    const regId = parseInt(selectedRegisterId);
+    if (!regId) return;
+    setIsClosing(true);
+    try {
+      // بنبعت cashRegisterId مع الـ status عشان الـ backend يستخدم الخزنة الصح
+      // والـ backend هو اللي بيعمل الـ transaction — مش الـ frontend
+      const targetStatus = (order.status === "received" || order.status === "partial_received")
+        ? order.status
+        : "received";
+      await new Promise<void>((resolve, reject) => {
+        updateOrder.mutate(
+          { id: order.id, data: { status: targetStatus, cashRegisterId: regId } as any },
+          { onSuccess: () => resolve(), onError: (e) => reject(e) }
+        );
+      });
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ["cash-registers-list"] });
+      const amount = closeInvoiceAmount;
+      toast({
+        title: "✅ تم إغلاق الطلب",
+        description: `تم تحويله لـ «استلم» وإيداع ${new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(amount)} في الخزنة`,
+      });
+      setShowCloseDialog(false);
+    } catch (err: any) {
+      toast({ title: "خطأ", description: err.message ?? "فشل إغلاق الطلب", variant: "destructive" });
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const handleWhatsApp = () => { setShowWaDialog(true); };
+
+  const handleWaSent = () => {
+    if (!order) return;
+    if (order.status === "pending") {
+      updateOrder.mutate(
+        { id, data: { status: "warehouse_ready" as any } },
+        {
+          onSuccess: (updated: any) => {
+            queryClient.setQueryData(getGetOrderQueryKey(id), updated);
+            invalidateAll();
+            toast({ title: "تم إرسال واتساب ✅", description: "تم تحويل الطلب لـ «قيد الشحن في المخزن» — جاهز للبيان" });
+          },
+        }
+      );
+    } else {
+      toast({ title: "تم فتح واتساب ✅", description: "الرسالة جاهزة للإرسال" });
+    }
+  };
+
+  if (isLoading) return <div className="p-12 text-center text-muted-foreground animate-pulse">جاري التحميل...</div>;
+  if (error || !order) return (
+    <div className="p-12 text-center">
+      <AlertCircle className="w-12 h-12 mx-auto mb-3 text-destructive opacity-50" />
+      <h2 className="text-lg font-bold mb-2">الطلب غير موجود</h2>
+      <Link href="/orders"><Button variant="outline" className="mt-3">العودة للطلبات</Button></Link>
+    </div>
+  );
+  // لو invoiceNumber موجود ولسه بنجيب الطلبات (أول fetch فقط وما فيش بيانات قديمة) → نستنى
+  if (invoiceNumber && isInvoiceLoading && !isInvoiceError && invoiceOrders.length === 0) return <div className="p-12 text-center text-muted-foreground animate-pulse">جاري التحميل...</div>;
+
+  const shippingCompany = shippingCompanies?.find(c => c.id === order.shippingCompanyId);
+  const orderReturnReason = (order as any).returnReason as string | null;
+  const orderReturnNote = (order as any).returnNote as string | null;
+  const isOrderLocked = (order.status === "received" || order.status === "partial_received") && !isAdmin;
+  const isOrderClosed = order.status === "closed";
+  const isManifestLocked = !!invoiceManifestStatus;
+  // لو invoiceNumber موجود ولسه loading → ننتظر قبل ما نحدد الوضع (إلا لو حصل error → نعرض الطلب الفردي)
+  // isInvoiceMode: ظ„ط§ طھطھط£ط«ط± ط¨ط§ظ„ظ€ refetch â€” طھط³طھط®ط¯ظ… invoiceOrders.length ظ…ط¨ط§ط´ط±ط© (placeholderData ط¨طھط­طھظپط¸ ط¨ط§ظ„ط¨ظٹط§ظ†ط§طھ)
+  const isInvoiceMode = !!invoiceNumber && !isInvoiceError && invoiceOrders.length >= 1;
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500 max-w-5xl mx-auto" dir="rtl">
+    <div className="max-w-4xl mx-auto space-y-5 animate-in fade-in duration-500">
 
-      {/* ══ HEADER CARD — نفس شكل order-detail ══════════════════════════════ */}
-      <div className="rounded-xl overflow-hidden border border-border shadow-sm">
+      {/* ── Dialogs مشتركة بين invoice mode و single mode ── */}
+      <Dialog open={showPartialInput} onOpenChange={v => { if (!v) { setShowPartialInput(false); setPartialQty(""); setSelectDisplayStatus(null); } }}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Package className="w-4 h-4 text-purple-400" />استلام جزئي
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">كم وحدة تم استلامها من أصل <span className="font-bold text-foreground">{order?.quantity}</span>؟</p>
+          <Input
+            type="number"
+            min="1"
+            max={order?.quantity}
+            placeholder={`الحد الأقصى: ${order?.quantity}`}
+            value={partialQty}
+            onChange={e => setPartialQty(e.target.value)}
+            className="h-9 text-sm"
+          />
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => { setShowPartialInput(false); setPartialQty(""); setSelectDisplayStatus(null); }}>إلغاء</Button>
+            <Button size="sm" className="flex-1 bg-purple-600 hover:bg-purple-700 text-white" onClick={handlePartialReceived} disabled={updateOrder.isPending}>
+              {updateOrder.isPending ? "جاري..." : "تأكيد"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* صف العنوان */}
-        <div className="bg-card px-4 py-3 flex items-center justify-between gap-3 border-b border-border">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/orders">
-              <button className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors border border-border bg-card">
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </Link>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base font-bold truncate flex items-center gap-1.5">
-                  <Truck className="w-4 h-4 text-primary" />
-                  شحنة {shipment.shipmentNumber ?? `#${id}`}
-                </h1>
-                <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${currentStatusOpt.bg} ${currentStatusOpt.border} ${currentStatusOpt.color}`}>
-                  <span className="text-xs">{currentStatusOpt.icon}</span>
-                  {currentStatusOpt.label}
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {fdate(shipment.createdAt)}
-                {shipment.createdByName && <span> · {shipment.createdByName}</span>}
-              </p>
+      <Dialog open={showReturnInput} onOpenChange={v => { if (!v) { setShowReturnInput(false); setReturnReason(""); setReturnNote(""); setReturnIsDamaged(false); setReturnReceived(null); setSelectDisplayStatus(null); } }}>
+        <DialogContent className="max-w-md overflow-y-auto max-h-[90vh]" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <RotateCcw className="w-4 h-4 text-red-400" />تسجيل مرتجع — ما سبب الإرجاع؟
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">سيتم تحويل {invoiceOrders.length > 1 ? `${invoiceOrders.length} منتج` : "1 منتج"} إلى «مرتجع».</p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">سبب الإرجاع *</Label>
+              <Select value={returnReason} onValueChange={setReturnReason}>
+                <SelectTrigger className="h-9 text-sm bg-card border-red-800 focus:ring-red-700">
+                  <SelectValue placeholder="اختر السبب..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {RETURN_REASONS.map(r => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            {returnReason === "other" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">اكتب السبب *</Label>
+                <Textarea
+                  placeholder="اكتب سبب الإرجاع بالتفصيل..."
+                  className="min-h-[70px] text-sm resize-none bg-card border-red-800 focus:ring-red-700"
+                  value={returnNote}
+                  onChange={e => setReturnNote(e.target.value)}
+                />
+              </div>
+            )}
+            {manifestStatus?.manifestStatus === "open" && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل تم استلام المرتجع؟ *</p>
+                <div className="flex gap-2.5">
+                  <button type="button" onClick={() => setReturnReceived(true)}
+                    className="flex-1 relative outline-none cursor-pointer p-0 border-0 bg-transparent"
+                    style={{ borderRadius: 14 }}>
+                    <div className="absolute inset-0 top-1 rounded-[14px] transition-colors" style={{
+                      background: returnReceived === true ? "#085041" : "var(--color-background-secondary)",
+                      border: returnReceived === true ? "none" : "1.5px solid #9FE1CB",
+                    }} />
+                    <div className={`relative z-10 flex flex-col items-center gap-1.5 px-3 pt-3 pb-4 rounded-[14px] transition-all ${returnReceived === true ? "mb-1" : "mb-0"}`} style={{
+                      background: returnReceived === true ? "#0F6E56" : "var(--color-background-primary)",
+                      border: returnReceived === true ? "none" : "1.5px solid #9FE1CB",
+                      boxShadow: returnReceived === true ? "inset 0 0 0 2px rgba(159,225,203,0.4)" : "none",
+                      transform: returnReceived === true ? "translateY(2px)" : "none",
+                    }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={returnReceived === true ? "#E1F5EE" : "#1D9E75"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7L9 18l-5-5"/></svg>
+                      <span className="text-[11px] font-semibold leading-tight" style={{ color: returnReceived === true ? "#E1F5EE" : "#0F6E56" }}>تم الاستلام</span>
+                      <span className="text-[9px] leading-tight" style={{ color: returnReceived === true ? "rgba(225,245,238,0.7)" : "#5F5E5A" }}>يُعاد للمخزن</span>
+                    </div>
+                  </button>
+                  <button type="button" onClick={() => setReturnReceived(false)}
+                    className="flex-1 relative outline-none cursor-pointer p-0 border-0 bg-transparent"
+                    style={{ borderRadius: 14 }}>
+                    <div className="absolute inset-0 top-1 rounded-[14px] transition-colors" style={{
+                      background: returnReceived === false ? "#412402" : "var(--color-background-secondary)",
+                      border: returnReceived === false ? "none" : "1.5px solid #FAC775",
+                    }} />
+                    <div className={`relative z-10 flex flex-col items-center gap-1.5 px-3 pt-3 pb-4 rounded-[14px] transition-all ${returnReceived === false ? "mb-1" : "mb-0"}`} style={{
+                      background: returnReceived === false ? "#854F0B" : "var(--color-background-primary)",
+                      border: returnReceived === false ? "none" : "1.5px solid #FAC775",
+                      boxShadow: returnReceived === false ? "inset 0 0 0 2px rgba(250,199,117,0.4)" : "none",
+                      transform: returnReceived === false ? "translateY(2px)" : "none",
+                    }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={returnReceived === false ? "#FAEEDA" : "#BA7517"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                      <span className="text-[11px] font-semibold leading-tight" style={{ color: returnReceived === false ? "#FAEEDA" : "#854F0B" }}>مازال في الشحن</span>
+                      <span className="text-[9px] leading-tight" style={{ color: returnReceived === false ? "rgba(250,238,218,0.7)" : "#5F5E5A" }}>لا يؤثر على المخزن</span>
+                    </div>
+                  </button>
+                </div>
+                <p className="text-[10px] text-center font-medium" style={{ color: returnReceived === true ? "#0F6E56" : returnReceived === false ? "#854F0B" : "var(--color-text-secondary)" }}>
+                  {returnReceived === true && "✓ سيتم إرجاع البضاعة للمخزن تلقائياً"}
+                  {returnReceived === false && "⏳ مرتجع مازال في شركة الشحن — لن يؤثر على المخزن"}
+                  {returnReceived === null && "⚠ مطلوب — حدد حالة الاستلام"}
+                </p>
+              </div>
+            )}
+            <div
+              className={`flex items-center gap-3 p-2.5 rounded border cursor-pointer transition-colors ${returnIsDamaged ? "border-amber-700 bg-amber-900/20" : "border-border bg-card/50"}`}
+              onClick={() => setReturnIsDamaged(v => !v)}
+            >
+              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${returnIsDamaged ? "bg-amber-600 border-amber-600" : "border-muted-foreground"}`}>
+                {returnIsDamaged && <X className="w-2.5 h-2.5 text-white" />}
+              </div>
+              <div>
+                <p className={`text-xs font-bold ${returnIsDamaged ? "text-amber-400" : "text-muted-foreground"}`}>
+                  <AlertTriangle className="w-3 h-3 inline ml-1" />المنتج تالف / غير صالح للبيع
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {returnIsDamaged ? "⚠ لن يُضاف للمخزون — سيُسجَّل كخسارة" : "في حالة التيك، لن يُرجَع للمخزون"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" className="h-8 text-xs bg-red-700 hover:bg-red-600 text-white gap-1" onClick={handleReturnConfirm} disabled={updateOrder.isPending || (manifestStatus?.manifestStatus === "open" && returnReceived === null)}>
+                <RotateCcw className="w-3 h-3" />{updateOrder.isPending ? "جاري..." : "تأكيد الإرجاع"}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setShowReturnInput(false); setReturnReason(""); setReturnNote(""); setReturnIsDamaged(false); setReturnReceived(null); setSelectDisplayStatus(null); }}>إلغاء</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── وضع الفاتورة المتعددة: عرض مختلف تماماً ── */}
+      {isInvoiceMode && (
+        <>
+          {/* ── هيدر الفاتورة ── */}
+          <div className="rounded-xl overflow-hidden border border-border shadow-sm">
+            {/* صف العنوان الرئيسي */}
+            <div className="bg-card px-4 py-3 flex items-center justify-between gap-3 border-b border-border">
+              <div className="flex items-center gap-3 min-w-0">
+                <Link href="/orders">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0 hover:bg-muted">
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-base font-bold truncate">فاتورة {invoiceNumber}</h1>
+                    <Badge className={`shrink-0 font-bold text-[10px] px-2 py-0.5 ${statusClasses[order.status] || ""}`}>
+                      {statusLabels[order.status] || order.status}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")} · {invoiceOrders.length} منتج
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* صف الأزرار */}
+            <div className="bg-muted/30 px-3 py-2 flex items-center gap-1.5 flex-wrap">
+              {/* زرار الطباعة — للكل */}
+              <Button variant="outline" size="sm" onClick={handlePrint}
+                className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
+                <Printer className="w-3.5 h-3.5" />فاتورة
+              </Button>
+
+              {/* الأزرار دي للأدمن فقط */}
+              {isAdmin && (<>
+                {/* حذف */}
+                {canDelete && (
+                  <Button variant="outline" size="sm"
+                    onClick={() => {
+                      if (isManifestLocked) {
+                        toast({ title: "⛔ ممنوع حذف الطلب", description: `هذا الطلب مرتبط ببيان شحن مفتوح (${invoiceManifestStatus?.manifestNumber})`, variant: "destructive" });
+                        return;
+                      }
+                      if (!isOrderLocked) setShowDeleteDialog(true);
+                    }}
+                    disabled={isOrderLocked}
+                    className="h-8 text-xs gap-1.5 border-red-800 text-red-400 hover:bg-red-900/20 disabled:opacity-40 bg-card">
+                    <Trash2 className="w-3.5 h-3.5" />حذف
+                  </Button>
+                )}
+
+                {/* إضافة منتج */}
+                {canCreate && (
+                  <Button variant="outline" size="sm"
+                    onClick={() => setInvoiceShowAddProduct(true)}
+                    className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 bg-card">
+                    <Plus className="w-3.5 h-3.5" />إضافة منتج
+                  </Button>
+                )}
+
+                {/* تعديل */}
+                {canEdit && (
+                  <Button variant="outline" size="sm"
+                    onClick={() => !isOrderLocked && setInvoiceShowEdit(true)}
+                    disabled={isOrderLocked}
+                    className="h-8 text-xs gap-1.5 border-border bg-card disabled:opacity-40">
+                    {isOrderLocked ? <Lock className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}تعديل
+                  </Button>
+                )}
+
+                {/* إغلاق */}
+                {(() => {
+                  const isAlreadyClosed = order.status === "received" || order.status === "partial_received" || order.status === "returned";
+                  return (
+                    <Button variant="outline" size="sm"
+                      onClick={isAlreadyClosed ? undefined : () => {
+                        const regs = (cashData as any)?.registers ?? [];
+                        const defaultReg = regs.find((r: any) => r.isDefault) ?? regs[0];
+                        if (defaultReg) setSelectedRegisterId(String(defaultReg.id));
+                        setShowCloseDialog(true);
+                      }}
+                      disabled={isAlreadyClosed}
+                      className={`h-8 text-xs gap-1.5 border ${isAlreadyClosed ? "bg-muted/30 text-muted-foreground border-border cursor-not-allowed opacity-60" : "bg-card hover:bg-emerald-500/10 text-emerald-400 border-emerald-600/50 hover:border-emerald-500"}`}>
+                      {isAlreadyClosed ? <Lock className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {isAlreadyClosed ? "مغلق" : "إغلاق"}
+                    </Button>
+                  );
+                })()}
+              </>)}
+
+              {/* واتساب — للكل */}
+              <Button variant="outline" size="sm"
+                onClick={handleWhatsApp}
+                className="h-8 text-xs gap-1.5 border-green-700 text-green-400 hover:bg-green-500/10 bg-card">
+                <MessageCircle className="w-3.5 h-3.5" />واتساب
+              </Button>
+
+              {/* تغيير الحالة — للأدمن فقط */}
+              {isAdmin && canWriteOrders && (
+                <div className="mr-auto">
+                  <StatusSelect
+                    value={selectDisplayStatus ?? order.status}
+                    onChange={handleStatusChange}
+                    disabled={updateOrder.isPending}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <InvoiceView
+            orders={invoiceOrders}
+            currentId={id}
+            shippingCompanies={shippingCompanies ?? []}
+            products={products ?? []}
+            allVariants={allVariants ?? []}
+            warehouses={warehouses ?? []}
+            users={users ?? []}
+            isAdmin={isAdmin}
+            canViewFinancials={canViewFinancials}
+            canViewProfitability={canViewProfitability}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            canCreate={canCreate}
+            externalShowAddProduct={invoiceShowAddProduct}
+            onExternalShowAddProductChange={setInvoiceShowAddProduct}
+            externalShowEdit={invoiceShowEdit}
+            onExternalShowEditChange={setInvoiceShowEdit}
+            formatCurrency={formatCurrency}
+            onRefresh={() => {
+              refetchInvoiceOrders();
+              queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+            }}
+          />
+
+        </>
+      )}
+
+      {/* ── وضع الطلب الفردي ── */}
+      {!isInvoiceMode && <><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/orders">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border"><ArrowRight className="h-4 w-4" /></Button>
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">طلب #{order.id.toString().padStart(4,"0")}</h1>
+              {!isEditing && (
+                <Badge variant="outline" className={`font-bold border text-[10px] ${statusClasses[selectDisplayStatus ?? order.status] || ""}`}>
+                  {statusLabels[selectDisplayStatus ?? order.status] || order.status}
+                </Badge>
+              )}
+              {isOrderLocked && (
+                <Badge variant="outline" className="text-[9px] font-bold border-amber-700 bg-amber-900/10 text-amber-400 gap-1 flex items-center">
+                  <Lock className="w-2.5 h-2.5" /> مقفل
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</p>
           </div>
         </div>
 
-        {/* صف الأزرار — نفس ترتيب order-detail بالظبط */}
-        <div className="bg-muted/30 px-3 py-2 flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center flex-wrap gap-2">
+          {/* زرار الطباعة — للكل */}
+          <Button variant="outline" size="sm" onClick={handlePrint} className="h-8 text-xs gap-1 border-border">
+            <Printer className="w-3 h-3" />فاتورة
+          </Button>
 
-          {/* فاتورة / طباعة */}
-          <button onClick={handlePrint}
-            className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium">
-            <Printer className="w-3.5 h-3.5" />فاتورة
-          </button>
-
-          {/* واتساب */}
-          <button onClick={() => setShowWaDialog(true)}
-            className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-green-700 text-green-400 hover:bg-green-900/20 bg-card transition-colors flex items-center font-medium">
-            <MessageCircle className="w-3.5 h-3.5" />واتساب
-          </button>
-
-          {/* إضافة طرد */}
-          {isAdmin && (
-            <button onClick={() => setShowAddParcel(true)}
-              className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-transparent hover:bg-muted transition-colors flex items-center font-medium">
-              <Package className="w-3.5 h-3.5" />إضافة طرد
-            </button>
+          {/* واتساب — للكل */}
+          {(order.status === "pending" || order.status === "warehouse_ready") && (
+            <Button variant="outline" size="sm" onClick={handleWhatsApp}
+              className="h-8 text-xs gap-1 border-green-700 text-green-400 hover:bg-green-500/10 hover:text-green-400">
+              <MessageCircle className="w-3 h-3" />واتساب
+            </Button>
           )}
 
-          {/* حذف — للأدمن */}
-          {isAdmin && (
-            <button onClick={() => setShowDeleteDialog(true)}
-              className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-red-800 text-red-400 hover:bg-red-900/20 bg-card transition-colors flex items-center font-medium">
-              <Trash2 className="w-3.5 h-3.5" />حذف
-            </button>
-          )}
-
-          {/* تعديل — للأدمن */}
-          {isAdmin && !editMode && (
-            <button onClick={startEdit}
-              className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium">
-              <Pencil className="w-3.5 h-3.5" />تعديل
-            </button>
-          )}
-          {isAdmin && editMode && (
-            <>
-              <button onClick={handleSaveEdit} disabled={updateMutation.isPending}
-                className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600/20 transition-colors flex items-center font-bold">
-                <Save className="w-3.5 h-3.5" />{updateMutation.isPending ? "جاري..." : "حفظ"}
-              </button>
-              <button onClick={cancelEdit}
-                className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium text-muted-foreground">
-                إلغاء
-              </button>
-            </>
-          )}
-
-          {/* تغيير الحالة — للأدمن */}
-          {isAdmin && (
-            <div className="mr-auto">
-              <StatusSelect
-                value={selectStatus ?? shipment.status}
-                onChange={handleStatusChange}
-                disabled={updateMutation.isPending}
-              />
-            </div>
-          )}
+          {/* الأزرار دي للأدمن فقط */}
+          {isAdmin && !isEditing && (<>
+            <StatusSelect
+              value={selectDisplayStatus ?? order.status}
+              onChange={handleStatusChange}
+              disabled={updateOrder.isPending}
+            />
+            {canEdit && (
+              <Button variant="outline" size="sm"
+                onClick={() => !isOrderLocked && setIsEditing(true)}
+                disabled={isOrderLocked}
+                title={isOrderLocked ? "الطلب مقفل — فقط المدير يمكنه التعديل" : undefined}
+                className="h-8 text-xs gap-1 border-border disabled:opacity-40">
+                {isOrderLocked ? <Lock className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}تعديل
+              </Button>
+            )}
+            {canCreate && (
+              <Button variant="outline" size="sm" onClick={() => setShowAddProduct(true)}
+                className="h-8 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10">
+                <Plus className="w-3 h-3" />إضافة منتج
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="outline" size="sm"
+                onClick={() => {
+                  if (isManifestLocked) {
+                    toast({ title: "⛔ ممنوع حذف الطلب", description: `هذا الطلب مرتبط ببيان شحن مفتوح (${invoiceManifestStatus?.manifestNumber}) — لا يمكن حذفه طالما البيان مفتوح. أغلق البيان أولاً ثم احذف الطلب.`, variant: "destructive" });
+                    return;
+                  }
+                  if (!isOrderLocked) setShowDeleteDialog(true);
+                }}
+                disabled={isOrderLocked}
+                title={isManifestLocked ? `ممنوع الحذف — الطلب في بيان مفتوح (${invoiceManifestStatus?.manifestNumber})` : isOrderLocked ? "الطلب مقفل — فقط المدير يمكنه الحذف" : undefined}
+                className="h-8 text-xs gap-1 border-red-800 text-red-400 hover:bg-red-900/20 hover:text-red-400 disabled:opacity-40">
+                <Trash2 className="w-3 h-3" />حذف
+              </Button>
+            )}
+            {(() => {
+              const isAlreadyClosed = order.status === "received" || order.status === "partial_received" || order.status === "returned";
+              return (
+                <Button variant="outline" size="sm"
+                  onClick={isAlreadyClosed ? undefined : () => {
+                    const regs = (cashData as any)?.registers ?? [];
+                    const defaultReg = regs.find((r: any) => r.isDefault) ?? regs[0];
+                    if (defaultReg) setSelectedRegisterId(String(defaultReg.id));
+                    setShowCloseDialog(true);
+                  }}
+                  disabled={isAlreadyClosed}
+                  className={`h-8 text-xs gap-1 border ${isAlreadyClosed ? "bg-muted/30 text-muted-foreground border-border cursor-not-allowed opacity-60" : "bg-transparent hover:bg-emerald-500/10 text-emerald-400 border-emerald-600/50 hover:border-emerald-500"}`}>
+                  {isAlreadyClosed ? <Lock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                  {isAlreadyClosed ? "مغلق" : "إغلاق"}
+                </Button>
+              );
+            })()}
+          </>)}
         </div>
       </div>
 
-      {/* ── tracking edit panel ── */}
-      {showTrackingEdit && (
-        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex items-end gap-3">
-          <div className="flex-1">
-            <label className="text-xs font-bold mb-1 block">رقم التتبع</label>
-            <input className="w-full h-9 text-sm px-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-              value={newTracking} onChange={e => setNewTracking(e.target.value)} placeholder="رقم التتبع..." />
+
+
+      {/* Partial received Dialog */}
+      <Dialog open={showPartialInput} onOpenChange={v => { if (!v) { setShowPartialInput(false); setPartialQty(""); setSelectDisplayStatus(null); } }}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Package className="w-4 h-4 text-purple-400" />استلام جزئي
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">كم وحدة تم استلامها من أصل <span className="font-bold text-foreground">{order?.quantity}</span>؟</p>
+          <Input
+            type="number"
+            min="1"
+            max={order?.quantity}
+            placeholder={`الحد الأقصى: ${order?.quantity}`}
+            value={partialQty}
+            onChange={e => setPartialQty(e.target.value)}
+            className="h-9 text-sm"
+          />
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => { setShowPartialInput(false); setPartialQty(""); setSelectDisplayStatus(null); }}>إلغاء</Button>
+            <Button size="sm" className="flex-1 bg-purple-600 hover:bg-purple-700 text-white" onClick={handlePartialReceived} disabled={updateOrder.isPending}>
+              {updateOrder.isPending ? "جاري..." : "تأكيد"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Return reason Dialog */}
+      <Dialog open={showReturnInput} onOpenChange={v => { if (!v) { setShowReturnInput(false); setReturnReason(""); setReturnNote(""); setReturnIsDamaged(false); setReturnReceived(null); setSelectDisplayStatus(null); } }}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <RotateCcw className="w-4 h-4 text-red-400" />تسجيل مرتجع — ما سبب الإرجاع؟
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">سيتم تحويل {invoiceOrders.length > 1 ? `${invoiceOrders.length} منتج` : "1 منتج"} إلى «مرتجع».</p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">سبب الإرجاع *</Label>
+              <Select value={returnReason} onValueChange={setReturnReason}>
+                <SelectTrigger className="h-9 text-sm bg-card border-red-800 focus:ring-red-700">
+                  <SelectValue placeholder="اختر السبب..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {RETURN_REASONS.map(r => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {returnReason === "other" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">اكتب السبب *</Label>
+                <Textarea
+                  placeholder="اكتب سبب الإرجاع بالتفصيل..."
+                  className="min-h-[70px] text-sm resize-none bg-card border-red-800 focus:ring-red-700"
+                  value={returnNote}
+                  onChange={e => setReturnNote(e.target.value)}
+                />
+              </div>
+            )}
+            {/* هل تم استلام المرتجع؟ — يظهر فقط لو الطلب في بيان شحن مفتوح */}
+            {manifestStatus?.manifestStatus === "open" && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل تم استلام المرتجع؟ *</p>
+              <div className="flex gap-2.5">
+                {/* تم الاستلام */}
+                <button type="button" onClick={() => setReturnReceived(true)}
+                  className="flex-1 relative outline-none cursor-pointer p-0 border-0 bg-transparent"
+                  style={{ borderRadius: 14 }}>
+                  <div className="absolute inset-0 top-1 rounded-[14px] transition-colors" style={{
+                    background: returnReceived === true ? "#085041" : "var(--color-background-secondary)",
+                    border: returnReceived === true ? "none" : "1.5px solid #9FE1CB",
+                  }} />
+                  <div className={`relative z-10 flex flex-col items-center gap-1.5 px-3 pt-3 pb-4 rounded-[14px] transition-all ${returnReceived === true ? "mb-1" : "mb-0"}`} style={{
+                    background: returnReceived === true ? "#0F6E56" : "var(--color-background-primary)",
+                    border: returnReceived === true ? "none" : "1.5px solid #9FE1CB",
+                    boxShadow: returnReceived === true ? "inset 0 0 0 2px rgba(159,225,203,0.4)" : "none",
+                    transform: returnReceived === true ? "translateY(2px)" : "none",
+                  }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke={returnReceived === true ? "#E1F5EE" : "#1D9E75"}
+                      strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 7L9 18l-5-5"/>
+                    </svg>
+                    <span className="text-[11px] font-semibold leading-tight" style={{ color: returnReceived === true ? "#E1F5EE" : "#0F6E56" }}>تم الاستلام</span>
+                    <span className="text-[9px] leading-tight" style={{ color: returnReceived === true ? "rgba(225,245,238,0.7)" : "#5F5E5A" }}>يُعاد للمخزن</span>
+                  </div>
+                </button>
+                {/* مازال في الشحن */}
+                <button type="button" onClick={() => setReturnReceived(false)}
+                  className="flex-1 relative outline-none cursor-pointer p-0 border-0 bg-transparent"
+                  style={{ borderRadius: 14 }}>
+                  <div className="absolute inset-0 top-1 rounded-[14px] transition-colors" style={{
+                    background: returnReceived === false ? "#412402" : "var(--color-background-secondary)",
+                    border: returnReceived === false ? "none" : "1.5px solid #FAC775",
+                  }} />
+                  <div className={`relative z-10 flex flex-col items-center gap-1.5 px-3 pt-3 pb-4 rounded-[14px] transition-all ${returnReceived === false ? "mb-1" : "mb-0"}`} style={{
+                    background: returnReceived === false ? "#854F0B" : "var(--color-background-primary)",
+                    border: returnReceived === false ? "none" : "1.5px solid #FAC775",
+                    boxShadow: returnReceived === false ? "inset 0 0 0 2px rgba(250,199,117,0.4)" : "none",
+                    transform: returnReceived === false ? "translateY(2px)" : "none",
+                  }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke={returnReceived === false ? "#FAEEDA" : "#BA7517"}
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="1" y="3" width="15" height="13" rx="2"/>
+                      <path d="M16 8h4l3 5v3h-7V8z"/>
+                      <circle cx="5.5" cy="18.5" r="2.5"/>
+                      <circle cx="18.5" cy="18.5" r="2.5"/>
+                    </svg>
+                    <span className="text-[11px] font-semibold leading-tight" style={{ color: returnReceived === false ? "#FAEEDA" : "#854F0B" }}>مازال في الشحن</span>
+                    <span className="text-[9px] leading-tight" style={{ color: returnReceived === false ? "rgba(250,238,218,0.7)" : "#5F5E5A" }}>لا يؤثر على المخزن</span>
+                  </div>
+                </button>
+              </div>
+              <p className="text-[10px] text-center font-medium" style={{
+                color: returnReceived === true ? "#0F6E56" : returnReceived === false ? "#854F0B" : "var(--color-text-secondary)",
+              }}>
+                {returnReceived === true && "✓ سيتم إرجاع البضاعة للمخزن تلقائياً"}
+                {returnReceived === false && "⏳ مرتجع مازال في شركة الشحن — لن يؤثر على المخزن"}
+                {returnReceived === null && "⚠ مطلوب — حدد حالة الاستلام"}
+              </p>
+            </div>
+            )}
+            {/* Damaged checkbox */}
+            <div
+              className={`flex items-center gap-3 p-2.5 rounded border cursor-pointer transition-colors ${returnIsDamaged ? "border-amber-700 bg-amber-900/20" : "border-border bg-card/50"}`}
+              onClick={() => setReturnIsDamaged(v => !v)}
+            >
+              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${returnIsDamaged ? "bg-amber-600 border-amber-600" : "border-muted-foreground"}`}>
+                {returnIsDamaged && <X className="w-2.5 h-2.5 text-white" />}
+              </div>
+              <div>
+                <p className={`text-xs font-bold ${returnIsDamaged ? "text-amber-400" : "text-muted-foreground"}`}>
+                  <AlertTriangle className="w-3 h-3 inline ml-1" />
+                  المنتج تالف / غير صالح للبيع
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {returnIsDamaged ? "⚠ لن يُضاف للمخزون — سيُسجَّل كخسارة" : "في حالة التيك، لن يُرجَع للمخزون"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" className="h-8 text-xs bg-red-700 hover:bg-red-600 text-white gap-1" onClick={handleReturnConfirm} disabled={updateOrder.isPending || (manifestStatus?.manifestStatus === "open" && returnReceived === null)}>
+                <RotateCcw className="w-3 h-3" />{updateOrder.isPending ? "جاري..." : "تأكيد الإرجاع"}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setShowReturnInput(false); setReturnReason(""); setReturnNote(""); setReturnIsDamaged(false); setReturnReceived(null); setSelectDisplayStatus(null); }}>إلغاء</Button>
+            </div>
           </div>
-          <button onClick={() => updateMutation.mutate({ trackingNumber: newTracking || null })}
-            disabled={updateMutation.isPending}
-            className="h-9 px-4 text-xs rounded-lg bg-primary text-primary-foreground font-bold flex items-center gap-1.5 shrink-0">
-            <Save className="w-3 h-3" />{updateMutation.isPending ? "جاري..." : "حفظ"}
-          </button>
-          <button onClick={() => setShowTrackingEdit(false)}
-            className="h-9 px-3 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted shrink-0">
-            إلغاء
-          </button>
-        </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── بيانات البيان (لو الطلب في بيان شحن ومش في قيد الانتظار) ──────────────────────────── */}
+      {manifestStatus && order.status !== "pending" && (
+        <Card className={`border ${
+          manifestStatus.deliveryStatus === "returned"
+            ? "border-red-800 bg-red-900/10"
+            : manifestStatus.deliveryStatus === "delivered"
+            ? "border-emerald-800 bg-emerald-900/10"
+            : manifestStatus.deliveryStatus === "partial_received"
+            ? "border-teal-800 bg-teal-900/10"
+            : manifestStatus.deliveryStatus === "postponed"
+            ? "border-orange-800 bg-orange-900/10"
+            : "border-border bg-muted/5"
+        }`}>
+          <CardContent className="p-3 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs font-bold text-muted-foreground">بيان الشحن</span>
+                <Link href={`/shipping/manifests/${manifestStatus.manifestId}`}>
+                  <span className="text-xs font-mono text-primary hover:underline cursor-pointer">{manifestStatus.manifestNumber}</span>
+                </Link>
+                <Badge variant="outline" className={`text-[9px] font-bold ${manifestStatus.manifestStatus === "open" ? "border-green-600 text-green-500" : "border-border text-muted-foreground"}`}>
+                  {manifestStatus.manifestStatus === "open" ? "مفتوح" : "مغلق"}
+                </Badge>
+              </div>
+              <Badge variant="outline" className={`text-[10px] font-bold border ${
+                manifestStatus.deliveryStatus === "delivered" ? "border-emerald-600 text-emerald-400" :
+                manifestStatus.deliveryStatus === "returned" ? "border-red-600 text-red-400" :
+                manifestStatus.deliveryStatus === "postponed" ? "border-orange-600 text-orange-400" :
+                manifestStatus.deliveryStatus === "partial_received" ? "border-teal-600 text-teal-400" :
+                "border-border text-muted-foreground"
+              }`}>
+                {{
+                  delivered: "مسلَّم ✓",
+                  returned: "مرتجع",
+                  postponed: "مؤجل",
+                  partial_received: `استلم جزئي${manifestStatus.partialQuantity ? ` (${manifestStatus.partialQuantity})` : ""}`,
+                  pending: "قيد الانتظار",
+                }[manifestStatus.deliveryStatus] ?? manifestStatus.deliveryStatus}
+              </Badge>
+            </div>
+
+            {/* حالة المرتجع — تظهر فقط لو حالة الطلب الفعلية = returned */}
+            {manifestStatus.deliveryStatus === "returned" && order.status === "returned" && (() => {
+              // اعتمد على order.returnReceived كمصدر رئيسي
+              const rr = (order as any).returnReceived ?? manifestStatus.returnReceived;
+              return (
+                <div className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold ${
+                  rr === 1 || rr === true
+                    ? "bg-emerald-900/20 text-emerald-400 border border-emerald-700"
+                    : rr === 0 || rr === false
+                    ? "bg-orange-900/20 text-orange-400 border border-orange-700"
+                    : "bg-muted/20 text-muted-foreground border border-border"
+                }`}>
+                  {(rr === 1 || rr === true) && <><CheckCircle2 className="w-3.5 h-3.5" /> تم استلام المرتجع — البضاعة رجعت للمخزن</>}
+                  {(rr === 0 || rr === false) && <><Clock className="w-3.5 h-3.5" /> المرتجع مازال عند شركة الشحن — لم يُستلم بعد</>}
+                </div>
+              );
+            })()}
+
+            {manifestStatus.deliveryNote && (
+              <p className="text-xs text-muted-foreground">ملاحظة: {manifestStatus.deliveryNote}</p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* ── tracking number highlight ── */}
-      {shipment.trackingNumber && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 bg-primary/5">
-          <FileText className="w-4 h-4 text-primary shrink-0" />
-          <span className="text-xs text-muted-foreground">رقم التتبع:</span>
-          <span className="font-black text-sm text-primary font-mono">{shipment.trackingNumber}</span>
-        </div>
-      )}
-
-      {/* ── Progress timeline ── */}
-      {!isTerminal && (
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-xs font-bold text-muted-foreground mb-5 flex items-center gap-1.5">
-              <Truck className="w-3.5 h-3.5" />مسار الشحنة
-            </p>
-            <div className="flex items-start gap-0">
-              {STATUS_STEPS.map((s, i) => {
-                const done   = currentStepIdx > i;
-                const active = currentStepIdx === i;
-                const opt = STATUS_OPTIONS.find(o => o.value === s)!;
+      {/* ── حالة كل منتج في الفاتورة المتعددة ───────────────────────────────── */}
+      {invoiceOrders && invoiceOrders.length > 1 && (
+        <Card className="border-border bg-muted/5">
+          <CardContent className="p-3 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-bold text-muted-foreground">حالة منتجات الفاتورة في البيان</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {invoiceOrders.map((item: any) => {
+                const isThis = item.id === id;
+                const ds = item.status;
+                const dsColor =
+                  ds === "delivered" ? "border-emerald-600 text-emerald-400 bg-emerald-900/10" :
+                  ds === "returned" ? "border-red-600 text-red-400 bg-red-900/10" :
+                  ds === "partial_received" ? "border-teal-600 text-teal-400 bg-teal-900/10" :
+                  ds === "postponed" ? "border-orange-600 text-orange-400 bg-orange-900/10" :
+                  "border-border text-muted-foreground bg-muted/10";
+                const dsLabel: Record<string, string> = {
+                  delivered: "✓ مسلَّم",
+                  returned: "↩ مرتجع",
+                  partial_received: `◑ استلم جزئي${item.partialQuantity != null ? ` (${item.partialQuantity}/${item.quantity})` : ""}`,
+                  postponed: "⏸ مؤجل",
+                  pending: "⏳ قيد الانتظار",
+                };
+                const subStatus = (() => {
+                  if (ds === "returned") {
+                    if (item.returnReceived === 1) return <span className="text-[9px] text-emerald-400">✓ المرتجع في المخزن</span>;
+                    if (item.returnReceived === 0) return <span className="text-[9px] text-orange-400">🚚 المرتجع عند الشحن</span>;
+                  }
+                  if (ds === "partial_received") {
+                    if (item.returnReceived === 0) return <span className="text-[9px] text-orange-400">🚚 الباقي عند الشحن</span>;
+                    if (item.returnReceived === 1) return <span className="text-[9px] text-emerald-400">✓ الباقي في المخزن</span>;
+                  }
+                  return null;
+                })();
                 return (
-                  <div key={s} className="flex items-center flex-1">
-                    <div className="flex flex-col items-center gap-2 flex-1">
-                      {/* circle */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm ${
-                        done
-                          ? "bg-emerald-500 text-white shadow-emerald-500/30 shadow-md"
-                          : active
-                          ? `${opt.bg} ${opt.color} ring-2 ring-offset-2 ring-offset-background ring-current shadow-md`
-                          : "bg-muted/60 text-muted-foreground/40 border border-border"
-                      }`}>
-                        {done ? <CheckCircle2 className="w-5 h-5" /> : opt.icon}
-                      </div>
-                      {/* label */}
-                      <span className={`text-[10px] font-bold text-center leading-tight px-0.5 ${
-                        active ? opt.color : done ? "text-emerald-500" : "text-muted-foreground/50"
-                      }`}>
-                        {opt.label}
+                  <div key={item.id} className={`flex items-center justify-between rounded-md px-2.5 py-1.5 border ${isThis ? "border-primary/40 bg-primary/5" : "border-border bg-transparent"}`}>
+                    <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                      <span className={`text-xs font-semibold truncate ${isThis ? "text-primary" : "text-foreground"}`}>
+                        {isThis && <span className="text-[9px] text-primary font-bold ml-1">← هذا الطلب</span>}
+                        {item.product}
                       </span>
+                      <span className="text-[9px] text-muted-foreground">كمية: {item.quantity}</span>
                     </div>
-                    {i < STATUS_STEPS.length - 1 && (
-                      <div className="relative flex-1 mx-1 mb-5">
-                        <div className={`h-0.5 w-full rounded-full transition-all duration-500 ${done ? "bg-emerald-500" : "bg-border"}`} />
-                        {done && <div className="absolute inset-0 h-0.5 rounded-full bg-emerald-400/40 blur-[2px]" />}
-                      </div>
-                    )}
+                    <div className="flex flex-col items-end gap-0.5">
+                      {ds ? (
+                        <span className={`inline-flex items-center rounded px-2 py-0.5 text-[9px] font-bold border ${dsColor}`}>
+                          {dsLabel[ds] ?? ds}
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-muted-foreground">لا يوجد بيان</span>
+                      )}
+                      {subStatus}
+                    </div>
                   </div>
                 );
               })}
@@ -661,417 +3210,992 @@ html,body{width:100%;max-width:210mm;margin:0 auto;font-family:'Cairo',sans-seri
           </CardContent>
         </Card>
       )}
-      {isTerminal && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border font-bold text-sm ${
-          shipment.status === "returned"
-            ? "border-red-800 bg-red-900/10 text-red-400"
-            : "border-gray-700 bg-gray-800/20 text-gray-400"
-        }`}>
-          {shipment.status === "returned" ? <RotateCcw className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-          {currentStatusOpt.label}
-        </div>
-      )}
 
-      {/* ══ MAIN GRID ══════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* ── left 2/3: sender + receiver + parcel + notes ── */}
-        <div className="lg:col-span-2 space-y-4">
-
-          {/* المُرسِل */}
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                  <User className="w-3.5 h-3.5 text-blue-500" />
-                </div>
-                بيانات المُرسِل
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-0.5">
-              {editMode ? (
-                <div className="space-y-2">
-                  {([["senderName","الاسم *"],["senderPhone","الهاتف"],["senderPhone2","هاتف 2"],["senderCity","المدينة"],["senderAddress","العنوان"],["senderEmail","البريد الإلكتروني"]] as [string,string][]).map(([k,lbl]) => (
-                    <div key={k}>
-                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
-                      <input className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
-                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2 space-y-4">
+          {isEditing ? (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmitEdit)}>
+                <Card className="border-primary/30 bg-card shadow-lg overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-border bg-primary/5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
+                        <Pencil className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground">تعديل الطلب</p>
+                        <p className="text-[10px] text-muted-foreground truncate">طلب #{order.id.toString().padStart(4,"0")}</p>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <InfoRow label="الاسم" value={shipment.senderName} bold />
-                  {shipment.senderPhone    && <InfoRow label="الهاتف"   value={shipment.senderPhone} mono />}
-                  {shipment.senderPhone2   && <InfoRow label="هاتف 2"   value={shipment.senderPhone2} mono />}
-                  {shipment.senderCity     && <InfoRow label="المدينة"  value={shipment.senderCity} />}
-                  {shipment.senderAddress  && <InfoRow label="العنوان"  value={shipment.senderAddress} />}
-                  {shipment.senderEmail    && <InfoRow label="البريد"   value={shipment.senderEmail} />}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* المُستلِم */}
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-500" />
-                </div>
-                بيانات المُستلِم
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-0.5">
-              {editMode ? (
-                <div className="space-y-2">
-                  {([["receiverName","الاسم *"],["receiverPhone","الهاتف"],["receiverPhone2","هاتف 2"],["receiverCity","المدينة"],["receiverAddress","العنوان"]] as [string,string][]).map(([k,lbl]) => (
-                    <div key={k}>
-                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
-                      <input className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
-                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
-                    </div>
-                  ))}
-                  <div>
-                    <label className="text-[10px] text-muted-foreground">المنطقة</label>
-                    <select className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
-                      value={editForm.zoneId ?? ""} onChange={ef("zoneId")}>
-                      <option value="">— بدون منطقة —</option>
-                      {zones.map(z => <option key={z.id} value={z.id}>{z.name}{(z as any).governorate ? ` — ${(z as any).governorate}` : ""}</option>)}
-                    </select>
+                    <button
+                      type="button"
+                      onClick={() => { setIsEditing(false); initializedRef.current = false; setEditProductId(null); setEditColor(""); }}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                </div>
-              ) : (
-                <>
-                  <InfoRow label="الاسم" value={shipment.receiverName} bold />
-                  {shipment.receiverPhone  && <InfoRow label="الهاتف"        value={shipment.receiverPhone} mono />}
-                  {shipment.receiverPhone2 && <InfoRow label="هاتف 2"        value={shipment.receiverPhone2} mono />}
-                  <InfoRow label="المنطقة" value={zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? "—")} />
-                  {shipment.receiverAddress && <InfoRow label="العنوان" value={shipment.receiverAddress} />}
-                </>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* تفاصيل الطرد */}
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                  <Package className="w-3.5 h-3.5 text-violet-500" />
-                </div>
-                تفاصيل الطرد
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-0.5">
-              {editMode ? (
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground">نوع الطرد</label>
-                    <select className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
-                      value={editForm.parcelType ?? ""} onChange={ef("parcelType")}>
-                      <option value="">— اختر نوع —</option>
-                      {parcelPricing.length > 0
-                        ? parcelPricing.map(p => <option key={p.parcelType} value={p.parcelType}>{p.label}</option>)
-                        : Object.entries(PARCEL_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)
-                      }
-                    </select>
-                  </div>
-                  {([["weight","الوزن (كجم)","number"],["pieces","عدد القطع","number"],["description","الوصف","text"],["declaredValue","القيمة المعلنة","number"]] as [string,string,string][]).map(([k,lbl,type]) => (
-                    <div key={k}>
-                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
-                      <input type={type} className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
-                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
+                  <CardContent className="p-0">
+                    {/* القسم الأول: بيانات العميل */}
+                    <div className="px-4 sm:px-5 py-4 border-b border-border/60">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <Phone className="w-3 h-3" />بيانات العميل
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="customerName" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">الاسم *</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="phone" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />رقم الهاتف</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="01x-xxxx-xxxx" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                        <FormField control={form.control} name="city" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />المحافظة</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="القاهرة، الإسكندرية..." {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="address" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />العنوان بالتفصيل</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="الحي، الشارع، رقم المنزل..." {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {shipment.parcelType && <InfoRow label="نوع الطرد" value={PARCEL_LABELS[shipment.parcelType] ?? shipment.parcelType} />}
-                  {shipment.weight     && <InfoRow label="الوزن"     value={`${shipment.weight} كجم`} />}
-                  {(shipment.pieces ?? 1) > 1 && <InfoRow label="القطع" value={String(shipment.pieces)} />}
-                  {shipment.description && <InfoRow label="الوصف"    value={shipment.description} />}
-                  {Number(shipment.declaredValue) > 0 && <InfoRow label="القيمة المعلنة" value={fc(shipment.declaredValue)} />}
-                </>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* الملاحظات */}
-          {(editMode || shipment.notes || shipment.internalNotes) && (
-            <Card>
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-sm font-black flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                    <FileText className="w-3.5 h-3.5 text-amber-500" />
-                  </div>
-                  الملاحظات
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2">
-                {editMode ? (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground">ملاحظات</label>
-                      <textarea rows={2} className="w-full text-xs px-2.5 py-1.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5 resize-none"
-                        value={editForm.notes ?? ""} onChange={ef("notes")} />
+                    {/* القسم الثاني: المنتج */}
+                    <div className="px-4 sm:px-5 py-4 border-b border-border/60">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <Package className="w-3 h-3" />تفاصيل المنتج
+                      </p>
+
+                      {/* Product picker — inline search مثل AddProductDialog */}
+                      <div className="mb-3">
+                        <label className="text-xs font-medium mb-1.5 block">اختر من المخزون *</label>
+                        {editSelectedProduct ? (
+                          <div className="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-md">
+                            <div className="flex items-center gap-2">
+                              {(editSelectedProduct as any).image ? (
+                                <img src={(editSelectedProduct as any).image} alt={(editSelectedProduct as any).name} className="w-8 h-8 rounded object-cover border border-emerald-300 shrink-0" />
+                              ) : (
+                                <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              )}
+                              <span className="text-sm font-bold">{(editSelectedProduct as any).name}</span>
+                            </div>
+                            <button type="button" onClick={() => { setEditSelectedProduct(null); setEditVariantRows([{ color: "", size: "", quantity: editVariantRows[0]?.quantity ?? 1 }]); }}
+                              className="text-muted-foreground hover:text-red-500 transition-colors">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <div className="relative">
+                              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                              <input
+                                type="text"
+                                className="w-full h-9 text-sm pr-8 pl-3 rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                                placeholder={`ابحث عن منتج... (حالياً: ${order.product ?? ""})`}
+                                value={editSearchQuery}
+                                onChange={e => { setEditSearchQuery(e.target.value); setEditSearchOpen(true); }}
+                                onFocus={() => setEditSearchOpen(true)}
+                                onBlur={() => setTimeout(() => setEditSearchOpen(false), 150)}
+                              />
+                              {editSearchQuery && (
+                                <button type="button" onClick={() => setEditSearchQuery("")}
+                                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            {editSearchOpen && (() => {
+                              const q = editSearchQuery.toLowerCase().trim();
+                              const filtered = ((products ?? []) as any[])
+                                .filter((p: any) => !q || p.name?.toLowerCase().includes(q))
+                                .slice(0, 20);
+                              return (
+                                <div className="mt-1 w-full bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto z-10 relative">
+                                  {filtered.length === 0 ? (
+                                    <div className="px-3 py-4 text-center text-sm text-muted-foreground">لا يوجد منتج بهذا الاسم</div>
+                                  ) : filtered.map((p: any) => {
+                                    const pvs = ((allVariants ?? []) as any[]).filter((v: any) => v.productId === p.id);
+                                    const stock = pvs.length > 0
+                                      ? pvs.reduce((s: number, v: any) => s + (v.totalQuantity ?? 0) - (v.reservedQuantity ?? 0) - (v.soldQuantity ?? 0), 0)
+                                      : (p.totalQuantity ?? 0) - (p.reservedQuantity ?? 0) - (p.soldQuantity ?? 0);
+                                    return (
+                                      <button key={p.id} type="button"
+                                        onMouseDown={() => {
+                                          setEditSelectedProduct(p);
+                                          setEditVariantRows([{ color: "", size: "", quantity: editVariantRows[0]?.quantity ?? 1 }]);
+                                          setEditSearchQuery(""); setEditSearchOpen(false);
+                                          form.setValue("product", p.name);
+                                          if (p.unitPrice) form.setValue("unitPrice", p.unitPrice);
+                                        }}
+                                        className="w-full text-right flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors text-sm border-b border-border/20 last:border-0"
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          {p.image ? (
+                                            <img src={p.image} alt={p.name} className="w-7 h-7 rounded object-cover border border-border shrink-0" />
+                                          ) : (
+                                            <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                          )}
+                                          <span className="font-medium truncate">{p.name}</span>
+                                        </div>
+                                        <Badge variant="outline" className={`text-[9px] font-bold shrink-0 ${stock > 0 ? "border-emerald-400 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" : "border-red-400 text-red-600"}`}>
+                                          {stock > 0 ? `${stock} متاح` : "نفد"}
+                                        </Badge>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Variants إذا المنتج المختار عنده variants */}
+                      {editSelectedProduct && (() => {
+                        const ePVs = ((allVariants ?? []) as any[]).filter((v: any) => v.productId === (editSelectedProduct as any).id);
+                        const eColors = [...new Set(ePVs.map((v: any) => v.color))] as string[];
+                        const eHasV = ePVs.length > 0;
+                        const eRow = editVariantRows[0];
+                        const eSizes = ePVs.filter((v: any) => v.color === eRow.color).map((v: any) => v.size);
+                        const eVariant = ePVs.find((v: any) => v.color === eRow.color && v.size === eRow.size);
+                        const eAvail = eVariant
+                          ? (eVariant.totalQuantity ?? 0) - (eVariant.reservedQuantity ?? 0) - (eVariant.soldQuantity ?? 0)
+                          : null;
+                        if (!eHasV) return (
+                          <div className="mb-3">
+                            <label className="text-xs font-medium mb-1.5 block">الكمية *</label>
+                            <div className="flex items-center gap-2">
+                              <button type="button" onClick={() => { const q = Math.max(1, eRow.quantity - 1); setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
+                                className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">−</button>
+                              <span className="w-10 text-center text-sm font-bold">{eRow.quantity}</span>
+                              <button type="button" onClick={() => { const q = eRow.quantity + 1; setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
+                                className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
+                            </div>
+                          </div>
+                        );
+                        return (
+                          <div className="mb-3 flex flex-col sm:flex-row sm:items-end gap-2 p-2 bg-muted/10 rounded-md border border-border/40">
+                            <div className="flex-1 min-w-0">
+                              <label className="text-[10px] text-muted-foreground mb-1 block">اللون</label>
+                              <select value={eRow.color}
+                                onChange={e => {
+                                  const c = e.target.value;
+                                  setEditVariantRows([{ color: c, size: "", quantity: eRow.quantity }]);
+                                  const v = ePVs.find((pv: any) => pv.color === c);
+                                  if (v?.unitPrice) form.setValue("unitPrice", v.unitPrice);
+                                }}
+                                className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                                <option value="">اختر لون...</option>
+                                {eColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <label className="text-[10px] text-muted-foreground mb-1 block">المقاس</label>
+                              <select value={eRow.size} disabled={!eRow.color}
+                                onChange={e => {
+                                  const s = e.target.value;
+                                  setEditVariantRows([{ ...eRow, size: s }]);
+                                  const v = ePVs.find((pv: any) => pv.color === eRow.color && pv.size === s);
+                                  if (v?.unitPrice) form.setValue("unitPrice", v.unitPrice);
+                                }}
+                                className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50">
+                                <option value="">اختر مقاس...</option>
+                                {eSizes.map((s: string) => {
+                                  const v = ePVs.find((pv: any) => pv.color === eRow.color && pv.size === s);
+                                  const a = v ? (v.totalQuantity ?? 0) - (v.reservedQuantity ?? 0) - (v.soldQuantity ?? 0) : 0;
+                                  return <option key={s} value={s} disabled={a === 0}>{s} {a === 0 ? "(نفد)" : `(${a})`}</option>;
+                                })}
+                              </select>
+                            </div>
+                            <div className="sm:w-auto">
+                              <label className="text-[10px] text-muted-foreground mb-1 block">الكمية</label>
+                              <div className="flex items-center gap-1">
+                                <button type="button" onClick={() => { const q = Math.max(1, eRow.quantity - 1); setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
+                                  className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">−</button>
+                                <span className="w-8 text-center text-sm font-bold">{eRow.quantity}</span>
+                                <button type="button" onClick={() => { const q = eAvail !== null ? Math.min(eAvail, eRow.quantity + 1) : eRow.quantity + 1; setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
+                                  className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
+                              </div>
+                            </div>
+                            {eAvail !== null && (
+                              <span className={`text-[9px] font-bold mt-1 sm:mt-0 sm:mb-2 shrink-0 ${eAvail <= 5 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>متاح:{eAvail}</span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* اسم المنتج + الكمية (fallback يدوي) + السعر */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        <FormField control={form.control} name="product" render={({ field }) => (
+                          <FormItem className="lg:col-span-3">
+                            <FormLabel className="text-xs text-muted-foreground">اسم المنتج *</FormLabel>
+                            <FormControl><Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} /></FormControl>
+                          </FormItem>
+                        )} />
+                        {!editSelectedProduct && (
+                          <FormField control={form.control} name="quantity" render={({ field }) => (
+                            <FormItem className="lg:col-span-1">
+                              <FormLabel className="text-xs text-muted-foreground">الكمية</FormLabel>
+                              <FormControl><Input type="number" min="1" className="h-9 text-sm text-center bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} /></FormControl>
+                            </FormItem>
+                          )} />
+                        )}
+                        <FormField control={form.control} name="unitPrice" render={({ field }) => (
+                          <FormItem className="lg:col-span-1">
+                            <FormLabel className="text-xs text-muted-foreground">السعر</FormLabel>
+                            <FormControl><Input type="number" min="0" step="0.01" className="h-9 text-sm text-center bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} /></FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground">ملاحظات داخلية</label>
-                      <textarea rows={2} className="w-full text-xs px-2.5 py-1.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5 resize-none"
-                        value={editForm.internalNotes ?? ""} onChange={ef("internalNotes")} />
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {shipment.notes && <p className="text-sm text-foreground leading-relaxed">{shipment.notes}</p>}
-                    {shipment.internalNotes && (
-                      <div className="pt-2 border-t border-dashed border-border">
-                        <p className="text-[10px] font-bold text-muted-foreground mb-1">ملاحظات داخلية</p>
-                        <p className="text-sm text-foreground leading-relaxed">{shipment.internalNotes}</p>
+
+                    {/* القسم الرابع: التكلفة المالية */}
+                    {canViewFinancials && (
+                      <div className="px-4 sm:px-5 py-4 border-b border-border/60 bg-emerald-50/30 dark:bg-emerald-900/5">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                          <DollarSign className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />التكلفة المالية
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <FormField control={form.control} name="costPrice" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs text-muted-foreground">تكلفة الوحدة (ج.م)</FormLabel>
+                              <FormControl>
+                                <Input type="number" min="0" step="0.01" placeholder="0" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"
+                                  {...field} value={field.value ?? ""}
+                                  onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)} />
+                              </FormControl>
+                            </FormItem>
+                          )} />
+                          <FormField control={form.control} name="shippingCost" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs text-muted-foreground">تكلفة الشحن (ج.م)</FormLabel>
+                              <FormControl>
+                                <Input type="number" min="0" step="0.01" placeholder="0" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"
+                                  {...field} value={field.value ?? ""}
+                                  onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)} />
+                              </FormControl>
+                            </FormItem>
+                          )} />
+                        </div>
                       </div>
                     )}
-                  </>
+
+                    {/* القسم الخامس: تتبع الإعلان والفريق */}
+                    <div className="px-4 sm:px-5 py-4 border-b border-border/60 bg-purple-50/30 dark:bg-purple-900/5">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <Megaphone className="w-3 h-3 text-purple-400" />تتبع الإعلان والفريق
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="adSource" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Megaphone className="w-3 h-3" />مصدر الطلب</FormLabel>
+                            <Select value={field.value ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : v)}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70">
+                                <SelectValue placeholder="اختر المصدر">
+                                  {field.value && field.value !== "none" && (
+                                    <span className="flex items-center gap-2">
+                                      <AdSourceIcon value={field.value} />
+                                      {AD_SOURCES.find(s => s.value === field.value)?.label}
+                                    </span>
+                                  )}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— غير محدد —</SelectItem>
+                                {AD_SOURCES.map(s => (
+                                  <SelectItem key={s.value} value={s.value}>
+                                    <span className="flex items-center gap-2"><AdSourceIcon value={s.value} />{s.label}</span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="adCampaign" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">اسم الحملة</FormLabel>
+                            <FormControl><Input placeholder="Summer 2025..." className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? ""} /></FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                        <FormField control={form.control} name="warehouseId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Warehouse className="w-3 h-3" />المخزن</FormLabel>
+                            <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر مخزن" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— غير محدد —</SelectItem>
+                                {warehouses?.map((w: any) => <SelectItem key={w.id} value={String(w.id)}>{w.name}{w.isDefault ? " ★" : ""}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="assignedUserId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><UserCheck className="w-3 h-3" />الموظف المسؤول</FormLabel>
+                            <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— غير محدد —</SelectItem>
+                                {users?.filter((u: any) => u.isActive).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                      </div>
+                    </div>
+
+                    {/* القسم السادس: الملاحظات */}
+                    <div className="px-4 sm:px-5 py-4 border-b border-border/60">
+                      <FormField control={form.control} name="notes" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">ملاحظات</FormLabel>
+                          <FormControl>
+                            <Textarea className="min-h-[64px] text-sm resize-none bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="أي ملاحظات إضافية..." {...field} value={field.value ?? ""} />
+                          </FormControl>
+                        </FormItem>
+                      )} />
+                    </div>
+                    {invoiceNumber && (
+                      <div className="px-4 sm:px-5 py-4 border-b border-border/60 bg-muted/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                            <Package className="w-3 h-3" />منتجات الفاتورة ({invoiceOrders.length > 0 ? invoiceOrders.length : 1})
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => { setIsEditing(false); setTimeout(() => setShowAddProduct(true), 100); }}
+                            className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1.5 rounded-md transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />إضافة منتج
+                          </button>
+                        </div>
+                        {otherInvoiceOrders.length > 0 && (
+                          <div className="flex flex-col gap-1">
+                            {otherInvoiceOrders.map((o: any) => (
+                              <div key={o.id} className="flex items-center justify-between text-[10px] text-muted-foreground bg-background px-2.5 py-1.5 rounded border border-border/40">
+                                <span className="font-medium">{o.product}{o.color ? ` — ${o.color}` : ""}{o.size ? ` / ${o.size}` : ""}</span>
+                                <span className="font-bold">{o.quantity} وحدة</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* أزرار الحفظ */}
+                    <div className="px-4 sm:px-5 py-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        onClick={() => { setIsEditing(false); initializedRef.current = false; setEditProductId(null); setEditColor(""); }}
+                        className="h-9 px-4 text-sm text-muted-foreground hover:text-foreground w-full sm:w-auto"
+                      >
+                        إلغاء
+                      </Button>
+                      <Button
+                        type="submit" size="sm"
+                        disabled={updateOrder.isPending}
+                        className="h-9 px-6 text-sm gap-2 font-bold w-full sm:w-auto"
+                      >
+                        {updateOrder.isPending
+                          ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />جاري الحفظ...</>
+                          : <><Save className="w-3.5 h-3.5" />حفظ التعديلات</>
+                        }
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </form>
+            </Form>
+          ) : (
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-3 pt-4 px-4 border-b border-border">
+                <CardTitle className="text-sm font-bold">تفاصيل الطلب</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">اسم العميل</p>
+                    <p className="font-semibold">{order.customerName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />الهاتف</p>
+                    <p className="font-semibold">{order.phone || <span className="text-muted-foreground">—</span>}</p>
+                  </div>
+                  {order.address && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />العنوان</p>
+                      <p className="font-semibold">{order.address}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">المنتج</p>
+                    <p className="font-semibold">{order.product}</p>
+                    {((order as any).color || (order as any).size) && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {(order as any).color && <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{(order as any).color}</Badge>}
+                        {(order as any).size && <Badge variant="outline" className="text-[9px] border-primary/40 text-primary font-bold">{(order as any).size}</Badge>}
+                      </div>
+                    )}
+                    {/* Stock badge: show current inventory for this product/variant */}
+                    {(() => {
+                      const orderColor = (order as any).color as string | null;
+                      const orderSize = (order as any).size as string | null;
+                      const orderProductId = (order as any).productId as number | null;
+                      const orderVariantId = (order as any).variantId as number | null;
+
+                      // Match by variantId first
+                      if (orderVariantId && allVariants) {
+                        const v = allVariants.find(v => v.id === orderVariantId);
+                        if (v) {
+                          const avail = v.totalQuantity - v.reservedQuantity - v.soldQuantity;
+                          const isLow = avail <= v.lowStockThreshold;
+                          return (
+                            <div className="mt-1.5">
+                              <Badge variant="outline" className={`text-[9px] font-bold border ${avail === 0 ? "border-red-700 text-red-400" : isLow ? "border-amber-700 text-amber-400" : "border-emerald-700 text-emerald-400"}`}>
+                                <Package className="w-2.5 h-2.5 ml-1" />
+                                المخزون: {avail} وحدة
+                              </Badge>
+                            </div>
+                          );
+                        }
+                      }
+
+                      // Match by productId
+                      if (orderProductId && products) {
+                        const p = products.find(p => p.id === orderProductId);
+                        if (p) {
+                          // If has color/size, try to match variant
+                          if ((orderColor || orderSize) && allVariants) {
+                            const v = allVariants.find(v =>
+                              v.productId === orderProductId &&
+                              (!orderColor || v.color === orderColor) &&
+                              (!orderSize || v.size === orderSize)
+                            );
+                            if (v) {
+                              const avail = v.totalQuantity - v.reservedQuantity - v.soldQuantity;
+                              const isLow = avail <= v.lowStockThreshold;
+                              return (
+                                <div className="mt-1.5">
+                                  <Badge variant="outline" className={`text-[9px] font-bold border ${avail === 0 ? "border-red-700 text-red-400" : isLow ? "border-amber-700 text-amber-400" : "border-emerald-700 text-emerald-400"}`}>
+                                    <Package className="w-2.5 h-2.5 ml-1" />
+                                    المخزون: {avail} وحدة
+                                  </Badge>
+                                </div>
+                              );
+                            }
+                          }
+                          // Product-level stock (no variants)
+                          if (!allVariants?.some(v => v.productId === orderProductId)) {
+                            const avail = p.totalQuantity - p.reservedQuantity - p.soldQuantity;
+                            const isLow = avail <= p.lowStockThreshold;
+                            return (
+                              <div className="mt-1.5">
+                                <Badge variant="outline" className={`text-[9px] font-bold border ${avail === 0 ? "border-red-700 text-red-400" : isLow ? "border-amber-700 text-amber-400" : "border-emerald-700 text-emerald-400"}`}>
+                                  <Package className="w-2.5 h-2.5 ml-1" />
+                                  المخزون: {avail} وحدة
+                                </Badge>
+                              </div>
+                            );
+                          }
+                        }
+                      }
+
+                      return null;
+                    })()}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">الكمية</p>
+                    <p className="font-semibold">{order.quantity} وحدة</p>
+                    {/* حالة المنتج — المرتجع يعتمد على order مباشرة (بغض النظر عن وجود بيان شحن) */}
+                    {(() => {
+                      // لو الطلب مرتجع: اعتمد على order.returnReceived دائماً
+                      if (order.status === "returned") {
+                        const returnRec = (order as any).returnReceived;
+                        return (
+                          <div className="mt-1.5 flex flex-col gap-1">
+                            {(returnRec === 1 || returnRec === true) ? (
+                              <Badge variant="outline" className="text-[9px] font-bold border-emerald-700 text-emerald-400 w-fit">
+                                <CheckCircle2 className="w-2.5 h-2.5 ml-1" />تم الاستلام — رجع للمخزن
+                              </Badge>
+                            ) : (
+                              <>
+                                <Badge variant="outline" className="text-[9px] font-bold border-red-600 text-red-400 w-fit">
+                                  ↩ مرتجع
+                                </Badge>
+                                {(returnRec === 0 || returnRec === false) && (
+                                  <Badge variant="outline" className="text-[9px] font-bold border-orange-600 text-orange-400 w-fit">
+                                    <Clock className="w-2.5 h-2.5 ml-1" />مازال عند شركة الشحن
+                                  </Badge>
+                                )}
+                                {(returnRec === 1 || returnRec === true) && (
+                                  <Badge variant="outline" className="text-[9px] font-bold border-emerald-600 text-emerald-400 w-fit">
+                                    <CheckCircle2 className="w-2.5 h-2.5 ml-1" />في المخزن
+                                  </Badge>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      }
+                      // باقي الحالات تعتمد على بيان الشحن
+                      if (!manifestStatus) return null;
+                      const ds = manifestStatus.deliveryStatus;
+                      const pQty = manifestStatus.partialQuantity;
+                      if (ds === "delivered") return (
+                        <div className="mt-1.5 flex flex-col gap-1">
+                          <Badge variant="outline" className="text-[9px] font-bold border-emerald-600 text-emerald-400 w-fit">
+                            <CheckCircle2 className="w-2.5 h-2.5 ml-1" />تم التسليم ✓
+                          </Badge>
+                        </div>
+                      );
+                      if (ds === "partial_received") return (
+                        <div className="mt-1.5 flex flex-col gap-1">
+                          <Badge variant="outline" className="text-[9px] font-bold border-teal-600 text-teal-400 w-fit">
+                            ◑ استُلم جزئياً — {pQty ?? "؟"} من {order.quantity}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] font-bold border-amber-600 text-amber-400 w-fit">
+                            🚚 الباقي ({(pQty != null ? order.quantity - pQty : "؟")}) مازال عند الشحن
+                          </Badge>
+                        </div>
+                      );
+                      if (ds === "postponed") return (
+                        <div className="mt-1.5">
+                          <Badge variant="outline" className="text-[9px] font-bold border-orange-600 text-orange-400 w-fit">
+                            ⏳ مؤجل
+                          </Badge>
+                        </div>
+                      );
+                      if (ds === "pending") return (
+                        <div className="mt-1.5">
+                          <Badge variant="outline" className="text-[9px] font-bold border-blue-600 text-blue-400 w-fit">
+                            🚚 قيد الشحن
+                          </Badge>
+                        </div>
+                      );
+                      return null;
+                    })()}
+                  </div>
+                  {order.partialQuantity && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">المستلم جزئياً</p>
+                      <p className="font-semibold text-purple-400">{order.partialQuantity} وحدة</p>
+                    </div>
+                  )}
+                  {shippingCompany && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">شركة الشحن</p>
+                      <p className="font-semibold">{shippingCompany.name}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Return reason section */}
+                {order.status === "returned" && orderReturnReason && (
+                  <div className="mt-2 p-3 rounded border border-red-900 bg-red-900/10">
+                    <p className="text-xs text-red-400 font-bold mb-1 flex items-center gap-1">
+                      <RotateCcw className="w-3 h-3" />سبب الإرجاع
+                    </p>
+                    <p className="text-sm font-semibold text-red-300">
+                      {returnReasonLabel(orderReturnReason)}
+                    </p>
+                    {orderReturnNote && (
+                      <p className="text-xs text-muted-foreground mt-1">{orderReturnNote}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* ── منتجات الفاتورة الأخرى (أفقي) ── */}
+                {otherInvoiceOrders.length > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                        <Package className="w-3 h-3" />منتجات الفاتورة ({otherInvoiceOrders.length + 1} منتجات)
+                      </p>
+                      {false && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAddProduct(true)}
+                          className="flex items-center gap-1 text-[10px] font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-2 py-1 rounded transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />إضافة منتج
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+                      {/* الطلب الحالي */}
+                      <div className="flex-shrink-0 w-80 flex flex-col justify-between rounded-md px-3 py-3 border-2 border-primary/40 bg-primary/5">
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[9px] text-primary font-bold bg-primary/20 px-2 py-0.5 rounded">← هذا الطلب</span>
+                          </div>
+                          <span className="text-sm font-bold text-primary block mb-2">{order.product}</span>
+                          {((order as any).color || (order as any).size) && (
+                            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                              {(order as any).color && <Badge className="text-[9px] bg-primary/20 text-primary border-primary/30">{(order as any).color}</Badge>}
+                              {(order as any).size && <Badge className="text-[9px] bg-primary text-white">{(order as any).size}</Badge>}
+                            </div>
+                          )}
+                        </div>
+                        <div className="border-t border-primary/20 pt-2 mt-2">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[9px] text-muted-foreground">الكمية</span>
+                            <span className="text-sm font-bold text-primary">{order.quantity} وحدة</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] text-muted-foreground">الإجمالي</span>
+                            <span className="text-sm font-black text-primary">{formatCurrency(order.totalPrice)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* باقي المنتجات في الفاتورة */}
+                      {otherInvoiceOrders.map((o: any) => (
+                        <div key={o.id} className="flex-shrink-0 w-80 flex flex-col justify-between rounded-md px-3 py-3 border border-border/60 bg-muted/10 hover:bg-muted/20 transition-colors">
+                          <div>
+                            <span className="text-sm font-bold text-foreground block mb-2">{o.product}</span>
+                            {(o.color || o.size) && (
+                              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                                {o.color && <Badge variant="outline" className="text-[9px]">{o.color}</Badge>}
+                                {o.size && <Badge variant="outline" className="text-[9px] font-bold">{o.size}</Badge>}
+                              </div>
+                            )}
+                            <Badge variant="outline" className={`text-[9px] font-bold ${statusClasses[o.status] || ""}`}>
+                              {statusLabels[o.status] || o.status}
+                            </Badge>
+                          </div>
+                          <div className="border-t border-border/40 pt-2 mt-2">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[9px] text-muted-foreground">الكمية</span>
+                              <span className="text-sm font-bold">{o.quantity} وحدة</span>
+                            </div>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-[9px] text-muted-foreground">الإجمالي</span>
+                              <span className="text-sm font-bold">{formatCurrency(o.totalPrice)}</span>
+                            </div>
+                            <Link href={`/orders/${o.id}`}>
+                              <span className="text-[9px] text-primary hover:underline cursor-pointer block">عرض التفاصيل ←</span>
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* إجمالي الفاتورة */}
+                    <div className="flex items-center justify-between rounded-md px-3 py-2 bg-gradient-to-l from-primary/20 to-primary/5 border border-primary/40 mt-2">
+                      <span className="text-sm font-bold text-primary">إجمالي الفاتورة</span>
+                      <span className="text-lg font-black text-primary">
+                        {formatCurrency([...invoiceOrders].reduce((s: number, o: any) => s + (o.totalPrice ?? 0), 0))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {order.notes && (
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground mb-1">ملاحظات</p>
+                    <div className="bg-muted/20 p-3 rounded text-sm border border-border">{order.notes}</div>
+                  </div>
                 )}
               </CardContent>
             </Card>
           )}
         </div>
 
-        {/* ── right 1/3: financial + info ── */}
+        {/* Financial summary — يظهر دائماً */}
         <div className="space-y-4">
 
-          {/* الملخص المالي */}
-          <Card className="border-primary/30">
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <DollarSign className="w-3.5 h-3.5 text-primary" />
-                </div>
-                الملخص المالي
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-3">
-              {editMode ? (
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground">طريقة الدفع</label>
-                    <select className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
-                      value={editForm.paymentMethod ?? "cod"} onChange={ef("paymentMethod")}>
-                      <option value="cod">الدفع عند الاستلام</option>
-                      <option value="prepaid">مدفوع مسبقاً</option>
-                      <option value="deferred">الدفع لاحقاً</option>
-                    </select>
-                  </div>
-                  {([["codAmount","مبلغ COD"],["insuranceFee","رسوم التأمين"],["trackingNumber","رقم التتبع"]] as [string,string][]).map(([k,lbl]) => (
-                    <div key={k}>
-                      <label className="text-[10px] text-muted-foreground">{lbl}</label>
-                      <input className="w-full h-8 text-xs px-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary mt-0.5"
-                        value={(editForm as any)[k] ?? ""} onChange={ef(k)} />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <span className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-                    shipment.paymentMethod === "cod"      ? "bg-amber-500/10 border-amber-600/40 text-amber-400" :
-                    shipment.paymentMethod === "prepaid"  ? "bg-emerald-500/10 border-emerald-600/40 text-emerald-400" :
-                                                            "bg-blue-500/10 border-blue-600/40 text-blue-400"
-                  }`}>{PAYMENT_LABELS[shipment.paymentMethod] ?? shipment.paymentMethod}</span>
-                  <Separator />
+          {/* Revenue â€” multi-invoice OR single */}
+          {invoiceOrders.length > 1 ? (() => {
+            const allOrders = invoiceOrders as any[];
+            const invoiceTotalPrice = allOrders.reduce((s: number, o: any) => s + (o.totalPrice ?? 0), 0);
+            const totalQty = allOrders.reduce((s: number, o: any) => s + (o.quantity ?? 0), 0);
+            return (
+              <Card className="border-primary/30 bg-card">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
+                    <Package className="w-3.5 h-3.5" />
+                    الملخص المالي (الفاتورة كاملة)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
                   <div className="space-y-2 text-sm">
-                    {Number(shipment.zonePrice) > 0 && (
-                      <div className="flex justify-between"><span className="text-muted-foreground">سعر المنطقة</span><span className="font-semibold">{fc(shipment.zonePrice)}</span></div>
-                    )}
-                    {Number(shipment.parcelTypePrice) > 0 && (
-                      <div className="flex justify-between"><span className="text-muted-foreground">سعر نوع الطرد</span><span className="font-semibold">+{fc(shipment.parcelTypePrice)}</span></div>
-                    )}
-                    {Number(shipment.insuranceFee) > 0 && (
-                      <div className="flex justify-between"><span className="text-muted-foreground">رسوم التأمين</span><span className="font-semibold">{fc(shipment.insuranceFee)}</span></div>
-                    )}
-                    <Separator />
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground font-bold">رسوم الشحن</span>
-                      <span className="font-black text-xl text-primary">{fc(shipment.shippingFee)}</span>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">عدد المنتجات</span>
+                      <span>{allOrders.length} منتج</span>
                     </div>
-                    {Number(shipment.codAmount) > 0 && (
-                      <div className="flex justify-between mt-1">
-                        <span className="text-muted-foreground">مبلغ COD</span>
-                        <span className="font-black text-lg text-amber-500">{fc(shipment.codAmount)}</span>
-                      </div>
-                    )}
-                    {Number(shipment.collectedAmount) > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">تم تحصيله</span>
-                        <span className="font-bold text-emerald-500">{fc(shipment.collectedAmount)}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">إجمالي الكميات</span>
+                      <span>{totalQty} وحدة</span>
+                    </div>
+                    <div className="mt-1 space-y-1 border-t border-border pt-2">
+                      {allOrders.map((o: any) => (
+                        <div key={o.id} className="flex justify-between text-[10px]">
+                          <span className={`text-muted-foreground truncate max-w-[60%] ${o.id === id ? "text-primary font-bold" : ""}`}>
+                            {o.product}{o.color ? ` - ${o.color}` : ""}{o.size ? ` / ${o.size}` : ""}
+                            {o.id === id ? " ←" : ""}
+                          </span>
+                          <span className={`font-semibold ${o.status === "returned" ? "text-red-400 line-through" : "text-foreground"}`}>
+                            {formatCurrency(o.totalPrice)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <Separator className="border-border" />
+                    <div className="flex justify-between">
+                      <span className="font-bold text-xs">إجمالي البيع</span>
+                      <span className="font-bold text-lg text-primary">{formatCurrency(invoiceTotalPrice)}</span>
+                    </div>
                   </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* معلومات الشحنة */}
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-black flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-slate-500/10 flex items-center justify-center shrink-0">
-                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                </CardContent>
+              </Card>
+            );
+          })() : (
+            <Card className="border-primary/30 bg-card">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-bold text-primary">الملخص المالي</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">الكمية</span>
+                    <span>{order.quantity}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">سعر الوحدة</span>
+                    <span>{formatCurrency(order.unitPrice)}</span>
+                  </div>
+                  <Separator className="border-border" />
+                  <div className="flex justify-between">
+                    <span className="font-bold text-xs">إجمالي البيع</span>
+                    <span className="font-bold text-lg text-primary">{formatCurrency(order.totalPrice)}</span>
+                  </div>
                 </div>
-                معلومات الشحنة
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-0.5">
-              <InfoRow label="رقم الشحنة" value={shipment.shipmentNumber ?? "—"} mono />
-              {shipment.trackingNumber && <InfoRow label="رقم التتبع" value={shipment.trackingNumber} mono />}
-              <InfoRow label="تاريخ الإنشاء" value={fdate(shipment.createdAt)} />
-              {shipment.updatedAt && shipment.updatedAt !== shipment.createdAt && (
-                <InfoRow label="آخر تعديل" value={fdate(shipment.updatedAt)} />
-              )}
-              {shipment.createdByName && <InfoRow label="بواسطة" value={shipment.createdByName} />}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
+          {/* Profit breakdown — admin only */}
+          {canViewProfitability && (() => {
+            if (invoiceOrders.length > 1) {
+              const allOrders = invoiceOrders as any[];
+              let totalRevenue = 0, totalCost = 0, totalShipping = 0;
+              let hasAnyLost = false, hasAnyReturnedToStock = false, hasCostData = false;
+              for (const o of allOrders) {
+                const cp = (o as any).costPrice as number | null;
+                if (!cp) continue;
+                hasCostData = true;
+                const sc = Math.abs((o as any).shippingCost ?? 0);
+                const isRet = o.status === "returned";
+                const retRec = (o as any).returnReceived;
+                const toStock = isRet && (retRec === 1 || retRec === true);
+                const lost = isRet && !toStock;
+                const qty2 = o.status === "partial_received" && o.partialQuantity ? o.partialQuantity : (o.quantity ?? 0);
+                if (lost) hasAnyLost = true;
+                if (toStock) hasAnyReturnedToStock = true;
+                totalRevenue += isRet ? 0 : qty2 * (o.unitPrice ?? 0);
+                totalCost += toStock ? 0 : qty2 * cp;
+                totalShipping += sc;
+              }
+              if (!hasCostData) return null;
+              const np = totalRevenue - totalCost - totalShipping;
+              const mg = totalRevenue > 0 ? Math.round((np / totalRevenue) * 100) : 0;
+              const allRet = allOrders.every((o: any) => o.status === "returned");
+              return (
+                <Card className={`border ${np < 0 || allRet ? "border-red-900/50 bg-red-900/5" : hasAnyReturnedToStock ? "border-amber-900/50 bg-amber-900/5" : "border-emerald-900/50 bg-emerald-900/5"}`}>
+                  <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      {np >= 0 && !allRet ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                      تحليل الربحية (الفاتورة كاملة)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-3 space-y-2 text-xs">
+                    {hasAnyLost && <div className="p-2 bg-red-900/20 rounded text-red-400 text-[10px] font-semibold border border-red-900/30">⚠ يوجد مرتجعات بخسارة كاملة</div>}
+                    {hasAnyReturnedToStock && <div className="p-2 bg-amber-900/20 rounded text-amber-400 text-[10px] font-semibold border border-amber-900/30">↩ بعض المرتجعات رجعت للمخزن</div>}
+                    <div className="flex justify-between"><span className="text-muted-foreground">الإيرادات</span><span className="text-primary font-semibold">{formatCurrency(totalRevenue)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">تكلفة البضاعة</span><span className="text-amber-400">-{formatCurrency(totalCost)}</span></div>
+                    {totalShipping > 0 && <div className="flex justify-between"><span className="text-muted-foreground">تكلفة الشحن</span><span className="text-orange-400">-{formatCurrency(totalShipping)}</span></div>}
+                    <Separator />
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="font-bold">الربح الصافي</span>
+                      <span className={`font-black text-base ${np >= 0 && !allRet ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(np)}</span>
+                    </div>
+                    {totalRevenue > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">هامش الربح</span>
+                        <span className={`font-bold ${mg >= 20 ? "text-emerald-400" : mg >= 10 ? "text-amber-400" : "text-red-400"}`}>{mg}%</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            }
+            const costPrice = (order as any).costPrice as number | null;
+            const shippingCost = (order as any).shippingCost as number | null;
+            if (!costPrice) return null;
+            const qty = order.status === "partial_received" && order.partialQuantity ? order.partialQuantity : order.quantity;
+            const isReturned = order.status === "returned";
+            const returnRec = (order as any).returnReceived;
+            const isReturnedToStock = isReturned && (returnRec === 1 || returnRec === true);
+            const isReturnedLost = isReturned && !isReturnedToStock;
+            const revenue = isReturned ? 0 : qty * order.unitPrice;
+            const cost = isReturnedToStock ? 0 : qty * costPrice;
+            const shipping = Math.abs(shippingCost ?? 0);
+            const netProfit = revenue - cost - shipping;
+            const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
+            const isPositive = netProfit >= 0;
+            return (
+              <Card className={`border ${isReturnedLost ? "border-red-900/50 bg-red-900/5" : isReturnedToStock ? "border-amber-900/50 bg-amber-900/5" : isPositive ? "border-emerald-900/50 bg-emerald-900/5" : "border-red-900/50 bg-red-900/5"}`}>
+                <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    {isReturnedToStock ? <TrendingUp className="w-3.5 h-3.5 text-amber-400" /> : isPositive && !isReturned ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                    تحليل الربحية
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-3 space-y-2 text-xs">
+                  {isReturnedLost && <div className="p-2 bg-red-900/20 rounded text-red-400 text-[10px] font-semibold border border-red-900/30">مرتجع — خسارة كاملة</div>}
+                  {isReturnedToStock && <div className="p-2 bg-amber-900/20 rounded text-amber-400 text-[10px] font-semibold border border-amber-900/30">↩ رجع للمخزن — خسارة الشحن فقط</div>}
+                  <div className="flex justify-between"><span className="text-muted-foreground">الإيرادات</span><span className="text-primary font-semibold">{formatCurrency(revenue)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">تكلفة البضاعة</span><span className="text-amber-400">-{formatCurrency(cost)}</span></div>
+                  {shipping > 0 && <div className="flex justify-between"><span className="text-muted-foreground">تكلفة الشحن</span><span className="text-orange-400">-{formatCurrency(shipping)}</span></div>}
+                  <Separator />
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="font-bold">الربح الصافي</span>
+                    <span className={`font-black text-base ${isPositive && !isReturned ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(netProfit)}</span>
+                  </div>
+                  {revenue > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">هامش الربح</span>
+                      <span className={`font-bold ${margin >= 20 ? "text-emerald-400" : margin >= 10 ? "text-amber-400" : "text-red-400"}`}>{margin}%</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          <p className="text-[10px] text-center text-muted-foreground">
+            آخر تحديث: {format(new Date(order.updatedAt), "yyyy/MM/dd HH:mm")}
+          </p>
         </div>
       </div>
 
-      {/* ── Delete dialog ── */}
+      {/* ── Add Product Dialog ── */}
+      <AddProductDialog
+        open={showAddProduct}
+        onOpenChange={setShowAddProduct}
+        order={order}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ["invoice-orders", invoiceNumber] });
+          refetchInvoiceOrders();
+        }}
+      />
+      </>}
+
+      {/* Close Invoice Dialog */}
+      <AlertDialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              إغلاق الطلب وإيداع المبلغ
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              سيتم تحويل الطلب إلى «استلم» وإيداع المبلغ في الخزنة المحددة.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="py-2 space-y-3">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">المبلغ:</span>
+              <span className="font-bold text-emerald-400">
+                {new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(closeInvoiceAmount)}
+              </span>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">اختر الخزنة</label>
+              <select
+                value={selectedRegisterId}
+                onChange={(e) => setSelectedRegisterId(e.target.value)}
+                className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value="">-- اختر خزنة --</option>
+                {((cashData as any)?.registers ?? []).map((r: any) => (
+                  <option key={r.id} value={String(r.id)}>
+                    {r.name}{r.isDefault ? " (افتراضية)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClosing}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCloseInvoice}
+              disabled={isClosing || !selectedRegisterId}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isClosing ? "جاري الإغلاق..." : "تأكيد الإغلاق"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete confirmation dialog — يظهر في الوضعين (فردي ومتعدد) */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>تأكيد حذف الشحنة</AlertDialogTitle>
-            <AlertDialogDescription>هل أنت متأكد من حذف الشحنة {shipment.shipmentNumber}؟ لا يمكن التراجع.</AlertDialogDescription>
+            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isInvoiceMode
+                ? `هل أنت متأكد من حذف فاتورة ${invoiceNumber} بالكامل (${invoiceOrders.length} منتجات) للعميل ${order.customerName}؟ لا يمكن التراجع عن هذا الإجراء.`
+                : `هل أنت متأكد من حذف طلب #${order.id.toString().padStart(4,"0")} للعميل ${order.customerName}؟ لا يمكن التراجع عن هذا الإجراء.`
+              }
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white">
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white">
               {isDeleting ? "جاري الحذف..." : "نعم، احذف"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── WhatsApp Shipment Dialog ── */}
-      <WhatsAppShipmentDialog
-        open={showWaDialog}
-        onOpenChange={setShowWaDialog}
-        shipment={shipment ? {
-          id: shipment.id,
-          shipmentNumber: shipment.shipmentNumber,
-          receiverName: shipment.receiverName,
-          receiverPhone: shipment.receiverPhone,
-          senderName: shipment.senderName,
-          trackingNumber: shipment.trackingNumber,
-          status: shipment.status,
-          shippingFee: shipment.shippingFee,
-          codAmount: shipment.codAmount,
-          zoneLabel: zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? null),
-        } : null}
-      />
-
-      {/* ── Add Parcel Modal ── */}
-      {showAddParcel && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.6)" }}>
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl" dir="rtl">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="flex items-center gap-2 font-bold text-sm">
-                <Package className="w-4 h-4 text-primary" />إضافة طرد جديد
-              </div>
-              <button onClick={() => setShowAddParcel(false)} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
-            </div>
-            {/* Info strip */}
-            <div className="mx-5 mt-4 px-3 py-2 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground flex gap-4">
-              <span>المُستلِم: <strong className="text-foreground">{shipment.receiverName}</strong></span>
-              <span>المنطقة: <strong className="text-foreground">{zone?.name ?? shipment.receiverCity ?? "—"}</strong></span>
-            </div>
-            {/* Form */}
-            <div className="px-5 py-4 flex flex-col gap-3">
-              {/* نوع الطرد */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-muted-foreground">نوع الطرد</label>
-                <select value={parcelForm.parcelType} onChange={pf("parcelType")}
-                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                  <option value="">— اختر نوع الطرد —</option>
-                  {parcelPricing.map(p => (
-                    <option key={p.parcelType} value={p.parcelType}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-              {/* وزن + قطع */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-bold text-muted-foreground">الوزن (كجم)</label>
-                  <input type="number" min="0" step="0.1" value={parcelForm.weight} onChange={pf("weight")} placeholder="0.0"
-                    className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-bold text-muted-foreground">عدد القطع</label>
-                  <input type="number" min="1" value={parcelForm.pieces} onChange={pf("pieces")}
-                    className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                </div>
-              </div>
-              {/* وصف */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-muted-foreground">الوصف</label>
-                <input type="text" value={parcelForm.description} onChange={pf("description")} placeholder="وصف محتوى الطرد..."
-                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-              {/* قيمة معلنة */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-muted-foreground">القيمة المعلنة (اختياري)</label>
-                <input type="number" min="0" value={parcelForm.declaredValue} onChange={pf("declaredValue")} placeholder="0"
-                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-              {/* ملاحظات */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-muted-foreground">ملاحظات</label>
-                <textarea rows={2} value={parcelForm.notes} onChange={pf("notes")} placeholder="ملاحظات إضافية..."
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
-              </div>
-              {/* معاينة التكلفة */}
-              {parcelForm.parcelType && (() => {
-                const pricing = parcelPricing.find(p => p.parcelType === parcelForm.parcelType);
-                const addedPrice = Number(pricing?.basePrice ?? 0);
-                const currentFee = Number(shipment.shippingFee ?? 0);
-                const newFee = currentFee + addedPrice;
-                return (
-                  <div className="rounded-lg border border-border bg-muted/30 overflow-hidden text-xs">
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                      <span className="text-muted-foreground">رسوم الشحن الحالية</span>
-                      <span className="font-bold">{currentFee.toLocaleString("ar-EG")} ج.م</span>
-                    </div>
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-border text-emerald-400">
-                      <span>+ سعر الطرد الجديد ({parcelPricing.find(p=>p.parcelType===parcelForm.parcelType)?.label})</span>
-                      <span className="font-bold">+ {addedPrice.toLocaleString("ar-EG")} ج.م</span>
-                    </div>
-                    <div className="flex items-center justify-between px-3 py-2 bg-primary/10">
-                      <span className="font-bold text-primary">الإجمالي الجديد</span>
-                      <span className="font-black text-primary text-sm">{newFee.toLocaleString("ar-EG")} ج.م</span>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
-              <button onClick={() => setShowAddParcel(false)}
-                className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">
-                إلغاء
-              </button>
-              <button onClick={handleAddParcel} disabled={addParcelMutation.isPending}
-                className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5" />
-                {addParcelMutation.isPending ? "جاري الإضافة..." : "إضافة الطرد"}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {/* WhatsApp dialog — يظهر في الوضعين (فردي ومتعدد) */}
+      {order && (
+        <WhatsAppDialog
+          open={showWaDialog}
+          onOpenChange={setShowWaDialog}
+          order={{ id: order.id, customerName: order.customerName, product: order.product, quantity: order.quantity, totalPrice: order.totalPrice, status: order.status, phone: order.phone }}
+          onSent={handleWaSent}
+        />
       )}
-
     </div>
   );
 }
