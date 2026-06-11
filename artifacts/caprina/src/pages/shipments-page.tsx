@@ -1096,7 +1096,6 @@ export default function Orders() {
       {(() => {
         // نقبل أي شكل response: { statuses: [...] } أو array مباشرة أو undefined
         const raw = allOrdersForStats as any;
-        console.log("[STATS DEBUG]", raw); // مؤقت — نحذفه بعد التأكيد
         const statsData: { status: string; count: number }[] =
           Array.isArray(raw?.statuses) ? raw.statuses :
           Array.isArray(raw) ? raw : [];
@@ -1109,6 +1108,14 @@ export default function Orders() {
           delayed:          "مؤجل",
           returned:         "مرتجع",
           partial_received: "استلام جزئي",
+          // قيم قديمة في الـ DB
+          waiting:          "قيد الانتظار",
+          confirmed:        "قيد الشحن في المخزن",
+          picked_up:        "قيد الشحن في المخزن",
+          in_transit:       "قيد الشحن",
+          out_for_delivery: "قيد الشحن",
+          delivered:        "استلم",
+          cancelled:        "مرتجع",
         };
         const rgbMap: Record<string, string> = {
           pending:          "251,191,36",
@@ -1118,6 +1125,14 @@ export default function Orders() {
           delayed:          "99,102,241",
           returned:         "248,113,113",
           partial_received: "168,85,247",
+          // قيم قديمة — نفس الألوان
+          waiting:          "251,191,36",
+          confirmed:        "45,212,191",
+          picked_up:        "45,212,191",
+          in_transit:       "56,189,248",
+          out_for_delivery: "56,189,248",
+          delivered:        "52,211,153",
+          cancelled:        "248,113,113",
         };
         // لو البيانات ما جاتش لسه نعرض skeleton
         if (!allOrdersForStats) return (
