@@ -4,13 +4,14 @@ import { createPortal } from "react-dom";
 import {
   ArrowRight, Truck, MapPin, Phone, Package, CreditCard, Clock,
   CheckCircle, AlertTriangle, XCircle, Pencil, Printer, RotateCcw,
-  User, FileText, DollarSign, Trash2, Save, CheckCircle2,
+  User, FileText, DollarSign, Trash2, Save, CheckCircle2, MessageCircle,
 } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
+import { WhatsAppShipmentDialog } from "@/components/whatsapp-dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -159,8 +160,9 @@ export default function ShipmentDetailPage() {
   const [selectStatus, setSelectStatus] = useState<string | null>(null);
   const [newTracking, setNewTracking] = useState("");
   const [showTrackingEdit, setShowTrackingEdit] = useState(false);
+  const [showWaDialog, setShowWaDialog] = useState(false);
 
-  // ── add parcel modal ───────────────────────────────────────────────────────
+  // ── add parcel modal
   const [showAddParcel, setShowAddParcel] = useState(false);
   const [parcelForm, setParcelForm] = useState({ parcelType: "", weight: "", pieces: "1", description: "", declaredValue: "", notes: "" });
   const pf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -526,6 +528,12 @@ html,body{width:210mm;font-family:'Cairo',sans-serif;background:#fff;color:#1a1a
           <button onClick={handlePrint}
             className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center font-medium">
             <Printer className="w-3.5 h-3.5" />فاتورة
+          </button>
+
+          {/* واتساب */}
+          <button onClick={() => setShowWaDialog(true)}
+            className="h-8 px-3 text-xs gap-1.5 rounded-lg border border-green-700 text-green-400 hover:bg-green-900/20 bg-card transition-colors flex items-center font-medium">
+            <MessageCircle className="w-3.5 h-3.5" />واتساب
           </button>
 
           {/* إضافة طرد */}
@@ -931,6 +939,24 @@ html,body{width:210mm;font-family:'Cairo',sans-serif;background:#fff;color:#1a1a
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── WhatsApp Shipment Dialog ── */}
+      <WhatsAppShipmentDialog
+        open={showWaDialog}
+        onOpenChange={setShowWaDialog}
+        shipment={shipment ? {
+          id: shipment.id,
+          shipmentNumber: shipment.shipmentNumber,
+          receiverName: shipment.receiverName,
+          receiverPhone: shipment.receiverPhone,
+          senderName: shipment.senderName,
+          trackingNumber: shipment.trackingNumber,
+          status: shipment.status,
+          shippingFee: shipment.shippingFee,
+          codAmount: shipment.codAmount,
+          zoneLabel: zone ? `${zone.name}${zone.governorate ? ` — ${zone.governorate}` : ""}` : (shipment.receiverCity ?? null),
+        } : null}
+      />
 
       {/* ── Add Parcel Modal ── */}
       {showAddParcel && createPortal(

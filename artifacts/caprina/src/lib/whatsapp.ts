@@ -20,7 +20,44 @@ export interface WhatsAppOrderData {
   phone?: string | null;
 }
 
-export interface WhatsAppShippingData {
+export interface WhatsAppShipmentData {
+  id: number;
+  shipmentNumber?: string | null;
+  receiverName: string;
+  receiverPhone?: string | null;
+  senderName?: string | null;
+  trackingNumber?: string | null;
+  status: string;
+  shippingFee?: number | string | null;
+  codAmount?: number | string | null;
+  zoneLabel?: string | null;
+}
+
+export function applyShipmentTemplate(templateBody: string, s: WhatsAppShipmentData): string {
+  const formatCurr = (n: number | string | null | undefined) =>
+    new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
+  return templateBody
+    .replace(/\{receiverName\}/g,    s.receiverName)
+    .replace(/\{shipmentNumber\}/g,  s.shipmentNumber ?? String(s.id))
+    .replace(/\{trackingNumber\}/g,  s.trackingNumber ?? "—")
+    .replace(/\{status\}/g,          s.status)
+    .replace(/\{shippingFee\}/g,     formatCurr(s.shippingFee))
+    .replace(/\{codAmount\}/g,       formatCurr(s.codAmount))
+    .replace(/\{zone\}/g,            s.zoneLabel ?? "—")
+    .replace(/\{senderName\}/g,      s.senderName ?? "—");
+}
+
+export const SHIPMENT_TEMPLATE_VARIABLES = [
+  { var: "{receiverName}",   label: "اسم المستلم" },
+  { var: "{shipmentNumber}", label: "رقم البوليصة" },
+  { var: "{trackingNumber}", label: "رقم التتبع" },
+  { var: "{status}",         label: "حالة الشحنة" },
+  { var: "{shippingFee}",    label: "رسوم الشحن" },
+  { var: "{codAmount}",      label: "مبلغ COD" },
+  { var: "{zone}",           label: "المنطقة" },
+];
+
+
   id: number;
   customerName: string;
   product: string;
