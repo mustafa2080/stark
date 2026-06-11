@@ -1276,7 +1276,7 @@ export default function Orders() {
                 const retNote   = (order as any).returnNote   as string | null;
                 const isSelected = isGroupSelected(order);
                 const groupCount = (order as any)._groupCount as number | undefined;
-                const navTarget = `/orders/${order.id}`;
+                const navTarget = `/shipments/${order.id}`;
                 return (
                   <div
                     key={order.id}
@@ -1415,7 +1415,7 @@ export default function Orders() {
                     const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed","waiting","in_transit","out_for_delivery"]);
                     const senderPhone = o.senderPhone || o.receiverPhone || o.phone || "";
                     const canWhatsApp = canWriteOrders && !bulkSelectMode && waStatuses.has(o.status) && !!senderPhone;
-                    const navTarget = `/orders/${order.id}`;
+                    const navTarget = `/shipments/${order.id}`;
                     const isSelected = isGroupSelected(order);
                     const retReason = o.returnReason as string | null;
                     const retNote   = o.returnNote   as string | null;

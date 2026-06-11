@@ -1897,7 +1897,7 @@ export default function OrderDetail() {
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list });
   const { data: allVariants } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
   const { data: warehouses }        = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
-  const { data: users }             = useQuery({ queryKey: ["users"],      queryFn: usersApi.list });
+  const { data: users }             = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
   const { data: manifestStatus } = useQuery({
     queryKey: ["order-manifest-status", id],
     queryFn: () => manifestsApi.getOrderManifestStatus(id),
