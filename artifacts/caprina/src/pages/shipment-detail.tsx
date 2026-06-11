@@ -4040,8 +4040,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     const cod        = Number((order as any).codAmount    ?? 0);
                     const shippingFee= Number((order as any).shippingFee  ?? 0);
                     const insurance  = Number((order as any).insuranceFee ?? 0);
-                    const total      = Number((order as any).totalAmount  ?? 0);
                     const collected  = Number((order as any).collectedAmount ?? 0);
+                    const storedTotal = Number((order as any).totalAmount ?? 0);
+                    const total      = storedTotal > 0 ? storedTotal : cod + shippingFee + insurance;
                     const payMethod  = (order as any).paymentMethod as string | null;
                     const payLabel   = payMethod === "cod" ? "عند الاستلام" : payMethod === "prepaid" ? "مدفوع مسبقاً" : payMethod === "deferred" ? "لاحقاً" : "—";
                     const rows = [
