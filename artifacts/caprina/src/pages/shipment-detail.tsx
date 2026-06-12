@@ -2417,17 +2417,22 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         .reduce((s: number, o: any) => s + (o.totalPrice ?? 0), 0)
     : (order?.totalPrice ?? 0);
 
+  // مبلغ الإغلاق للشحنة = shippingFee (المبلغ الفعلي اللي بيتحول للخزنة)
+  const isShipmentOrder = !!(order && ((order as any).receiverName || (order as any).shippingFee));
+  const shipmentCloseAmount = isShipmentOrder
+    ? Number((order as any).shippingFee || 0) + Number((order as any).codAmount || 0)
+    : closeInvoiceAmount;
+
   const handleCloseInvoice = async () => {
     if (!order) return;
     const regId = parseInt(selectedRegisterId);
     if (!regId) return;
     setIsClosing(true);
     try {
-      // بنبعت cashRegisterId مع الـ status عشان الـ backend يستخدم الخزنة الصح
-      // والـ backend هو اللي بيعمل الـ transaction — مش الـ frontend
-      const targetStatus = (order.status === "received" || order.status === "partial_received")
-        ? order.status
-        : "received";
+      const targetStatus = isShipmentOrder ? "closed" :
+        (order.status === "received" || order.status === "partial_received")
+          ? order.status
+          : "received";
       await new Promise<void>((resolve, reject) => {
         updateOrder.mutate(
           { id: order.id, data: { status: targetStatus, cashRegisterId: regId } as any },
@@ -2436,7 +2441,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       });
       invalidateAll();
       queryClient.invalidateQueries({ queryKey: ["cash-registers-list"] });
-      const amount = closeInvoiceAmount;
+      const amount = isShipmentOrder ? shipmentCloseAmount : closeInvoiceAmount;
       toast({
         title: "✅ تم إغلاق الطلب",
         description: `تم تحويله لـ «استلم» وإيداع ${new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(amount)} في الخزنة`,
@@ -2701,7 +2706,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
                 {/* إغلاق */}
                 {(() => {
-                  const isAlreadyClosed = order.status === "received" || order.status === "partial_received" || order.status === "returned";
+                  const isAlreadyClosed = ["received","partial_received","returned","closed"].includes(order.status);
                   return (
                     <Button variant="outline" size="sm"
                       onClick={isAlreadyClosed ? undefined : () => {
@@ -2848,7 +2853,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </Button>
             )}
             {(() => {
-              const isAlreadyClosed = order.status === "received" || order.status === "partial_received" || order.status === "returned";
+              const isAlreadyClosed = ["received","partial_received","returned","closed"].includes(order.status);
               return (
                 <Button variant="outline" size="sm"
                   onClick={isAlreadyClosed ? undefined : () => {
@@ -4271,20 +4276,48 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              إغلاق الطلب وإيداع المبلغ
+              إغلاق الشحنة وتحويل المبلغ للخزنة
             </AlertDialogTitle>
             <AlertDialogDescription className="text-right">
-              سيتم تحويل الطلب إلى «استلم» وإيداع المبلغ في الخزنة المحددة.
+              {isShipmentOrder
+                ? "سيتم تغيير حالة الشحنة إلى «مغلق» وإيداع مبلغ الشحن في الخزنة المحددة."
+                : "سيتم تحويل الطلب إلى «استلم» وإيداع المبلغ في الخزنة المحددة."}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="py-2 space-y-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">المبلغ:</span>
-              <span className="font-bold text-emerald-400">
-                {new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(closeInvoiceAmount)}
-              </span>
-            </div>
+            {isShipmentOrder && (
+              <div className="bg-muted/30 rounded-lg p-3 space-y-1.5 text-sm border border-border/50">
+                {Number((order as any).codAmount || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">COD</span>
+                    <span className="font-semibold text-amber-400">
+                      {new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number((order as any).codAmount))}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">رسوم الشحن</span>
+                  <span className="font-semibold">
+                    {new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number((order as any).shippingFee || 0))}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-border/50 pt-1.5">
+                  <span className="font-bold text-xs">الإجمالي المحوّل</span>
+                  <span className="font-black text-emerald-400">
+                    {new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(shipmentCloseAmount)}
+                  </span>
+                </div>
+              </div>
+            )}
+            {!isShipmentOrder && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">المبلغ:</span>
+                <span className="font-bold text-emerald-400">
+                  {new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(closeInvoiceAmount)}
+                </span>
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">اختر الخزنة</label>
               <select
