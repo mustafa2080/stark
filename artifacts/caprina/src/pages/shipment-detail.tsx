@@ -4352,12 +4352,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogTitle>تأكيد حذف الشحنة</AlertDialogTitle>
             <AlertDialogDescription>
-              {isInvoiceMode
-                ? `هل أنت متأكد من حذف فاتورة ${invoiceNumber} بالكامل (${invoiceOrders.length} منتجات) للعميل ${order.customerName}؟ لا يمكن التراجع عن هذا الإجراء.`
-                : `هل أنت متأكد من حذف طلب #${order.id.toString().padStart(4,"0")} للعميل ${order.customerName}؟ لا يمكن التراجع عن هذا الإجراء.`
-              }
+              هل أنت متأكد من حذف شحنة{" "}
+              <span className="font-bold text-foreground">
+                {(order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`}
+              </span>{" "}
+              للمستلم{" "}
+              <span className="font-bold text-foreground">
+                {(order as any).receiverName || order.customerName}
+              </span>؟
+              {" "}لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
