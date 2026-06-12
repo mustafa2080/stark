@@ -51,7 +51,7 @@ const statusClasses: Record<string, string> = {
   in_shipping:      "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
   received:         "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-400 dark:border-emerald-700",
   partial_received: "bg-cyan-100   dark:bg-cyan-900/40    text-cyan-800    dark:text-cyan-300    border-cyan-400    dark:border-cyan-700",
-  delayed:          "bg-violet-600 dark:bg-violet-700 text-white dark:text-white border-violet-700 dark:border-violet-600",
+  delayed:          "bg-transparent text-violet-400 border-violet-400",
   returned:         "bg-red-100    dark:bg-red-900/40     text-red-800     dark:text-red-300     border-red-400     dark:border-red-700",
   // fallback للقيم القديمة في الـ DB
   out_for_delivery: "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
