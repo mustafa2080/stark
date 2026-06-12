@@ -1625,28 +1625,31 @@ export default function Orders() {
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex flex-col items-center gap-0.5">
-                          {(() => { const SI = STATUS_ICONS[order.status] || Package; return (
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border ${statusClasses[order.status] || ""}`}>
-                              <SI className="w-3 h-3" />
+                            <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
                               {statusLabels[order.status] || order.status}
-                            </span>
-                          ); })()}
+                            </Badge>
                           {order.status === "warehouse_ready" && (
-                            <span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">🏠 ما زال في المخزن</span>
+                            <div className="flex items-center justify-center gap-0.5 mt-1">
+                              <span className="text-[9px] font-bold text-amber-500 dark:text-amber-400 leading-none">🏠 ما زال في المخزن</span>
+                            </div>
                           )}
                           {order.status === "in_shipping" && (
-                            <span className="text-[9px] font-bold text-blue-500 dark:text-blue-400 leading-none">🚚 تحت التسليم</span>
+                            <div className="flex items-center justify-center gap-0.5 mt-1">
+                              <span className="text-[9px] font-bold text-blue-500 dark:text-blue-400 leading-none">🚚 تحت التسليم</span>
+                            </div>
                           )}
                           {order.status === "returned" && (() => {
                             const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
-                            if (rr === 0) return <span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">⏳ عند شركة الشحن</span>;
+                            if (rr === 0) return <div className="flex items-center justify-center gap-0.5 mt-1"><span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">⏳ عند شركة الشحن</span></div>;
                             return null;
                           })()}
                           {order.status === "delayed" && (() => {
                             const dn = (order as any).delayNote as string | null | undefined;
                             if (!dn) return null;
                             return (
-                              <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 leading-none">⏸ {dn}</span>
+                              <div className="flex items-center justify-center gap-0.5 mt-1">
+                                <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 leading-none">⏸ {dn}</span>
+                              </div>
                             );
                           })()}
                           {order.status === "partial_received" && (() => {
