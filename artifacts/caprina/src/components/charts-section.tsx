@@ -52,16 +52,16 @@ const SOURCE_CFG: Record<string, { label: string; emoji: string; color: string }
 
 // ─── Shipment status config ───────────────────────────────────────────────────
 const SHIPMENT_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  waiting:          { label: "انتظار",         color: "#94a3b8", bg: "#94a3b818" },
-  confirmed:        { label: "مؤكدة",          color: "#3b82f6", bg: "#3b82f618" },
-  picked_up:        { label: "تم الاستلام",    color: "#06b6d4", bg: "#06b6d418" },
-  in_transit:       { label: "في الطريق",      color: "#8b5cf6", bg: "#8b5cf618" },
-  out_for_delivery: { label: "خرجت للتسليم",  color: "#f59e0b", bg: "#f59e0b18" },
-  delivered:        { label: "تم التسليم",     color: "#22c55e", bg: "#22c55e18" },
-  delayed:          { label: "متأخرة",         color: "#f97316", bg: "#f9731618" },
-  returned:         { label: "مرتجعة",         color: "#ef4444", bg: "#ef444418" },
-  cancelled:        { label: "ملغاة",          color: "#6b7280", bg: "#6b728018" },
-  closed:           { label: "مغلقة",          color: "#10b981", bg: "#10b98118" },
+  waiting:          { label: "انتظار",         color: "#eab308", bg: "#eab30818" }, // 🟡 أصفر
+  confirmed:        { label: "مؤكدة",          color: "#3b82f6", bg: "#3b82f618" }, // 🔵 أزرق
+  picked_up:        { label: "تم الاستلام",    color: "#f97316", bg: "#f9731618" }, // 🟠 برتقالي
+  in_transit:       { label: "في الطريق",      color: "#3b82f6", bg: "#3b82f618" }, // 🔵 أزرق
+  out_for_delivery: { label: "خرجت للتسليم",  color: "#f59e0b", bg: "#f59e0b18" }, // 🟠 برتقالي فاتح
+  delivered:        { label: "تم التسليم",     color: "#22c55e", bg: "#22c55e18" }, // 🟢 أخضر
+  delayed:          { label: "متأخرة",         color: "#8b5cf6", bg: "#8b5cf618" }, // 🟣 بنفسجي
+  returned:         { label: "مرتجعة",         color: "#ef4444", bg: "#ef444418" }, // 🔴 أحمر
+  cancelled:        { label: "ملغاة",          color: "#6b7280", bg: "#6b728018" }, // ⚪ رمادي
+  closed:           { label: "مغلقة",          color: "#06b6d4", bg: "#06b6d418" }, // 🩵 سماوي
 };
 
 const BAR_COLOR = "#f59e0b";
