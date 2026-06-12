@@ -2653,14 +2653,15 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
   const handleWaSent = () => {
     if (!order) return;
-    if (order.status === "pending") {
+    const FINAL_STATUSES = ["received", "returned", "partial_received"];
+    if (!FINAL_STATUSES.includes(order.status)) {
       updateOrder.mutate(
         { id, data: { status: "warehouse_ready" as any } },
         {
           onSuccess: (updated: any) => {
             queryClient.setQueryData(getGetOrderQueryKey(id), updated);
             invalidateAll();
-            toast({ title: "تم إرسال واتساب ✅", description: "تم تحويل الطلب لـ «قيد الشحن في المخزن» — جاهز للبيان" });
+            toast({ title: "تم إرسال واتساب ✅", description: "تم تحويل الشحنة لـ «قيد الشحن في المخزن»" });
           },
         }
       );
@@ -4574,6 +4575,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         <WhatsAppShipmentDialog
           open={showWaDialog}
           onOpenChange={setShowWaDialog}
+          onSent={handleWaSent}
           shipment={{
             id: order.id,
             shipmentNumber: (order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`,

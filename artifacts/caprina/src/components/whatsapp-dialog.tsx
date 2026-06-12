@@ -227,6 +227,7 @@ export function WhatsAppDialog({ open, onOpenChange, order, onSent }: Props) {
 interface ShipmentDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onSent?: () => void;
   shipment: WhatsAppShipmentData | null;
 }
 
@@ -246,7 +247,7 @@ const DEFAULT_SHIPMENT_TEMPLATE = `أهلاً يا {receiverName} 👋
 
 شكراً لثقتك في STARK ❤️`;
 
-export function WhatsAppShipmentDialog({ open, onOpenChange, shipment }: ShipmentDialogProps) {
+export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }: ShipmentDialogProps) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [editingBody, setEditingBody] = useState("");
   const [preview, setPreview] = useState("");
@@ -295,6 +296,7 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, shipment }: Shipmen
     const link = buildWhatsAppLink(shipment.receiverPhone, editingBody);
     window.open(link, "_blank", "noopener,noreferrer");
     onOpenChange(false);
+    onSent?.();
   };
 
   if (!shipment) return null;
