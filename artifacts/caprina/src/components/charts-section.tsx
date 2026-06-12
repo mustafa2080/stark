@@ -1242,14 +1242,20 @@ export function ChartsSection() {
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1 — Orders Donut */}
+        {/* 1 — Shipments Donut */}
         <ChartCard
-          title="توزيع حالات الطلبات"
-          subtitle="اضغط على الحالة لعرض طلباتها"
-          dot="#22c55e"
+          title="توزيع حالات الشحنات"
+          subtitle="بيانات مباشرة من جدول الشحنات"
+          dot="#06b6d4"
           liveTag
         >
-          <StatusDonutWithOrders data={data.statusBreakdown} total={data.total} />
+          {shipmentsStatus && shipmentsStatus.total > 0
+            ? <ShipmentStatusDonut data={shipmentsStatus.statusBreakdown} total={shipmentsStatus.total} />
+            : <div className="flex flex-col items-center justify-center h-40 gap-2">
+                <span className="text-3xl font-black text-muted-foreground">0</span>
+                <span className="text-xs text-muted-foreground">لا توجد شحنات بعد</span>
+              </div>
+          }
         </ChartCard>
 
         {/* 2 — Weekly Bar */}
@@ -1274,23 +1280,6 @@ export function ChartsSection() {
           <AdSources data={data.adSourceBreakdown} />
         </ChartCard>
       </div>
-
-      {/* Shipments Status */}
-      {shipmentsStatus && shipmentsStatus.total > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <ChartCard
-            title="توزيع حالات الشحنات"
-            subtitle="بيانات مباشرة من جدول الشحنات"
-            dot="#06b6d4"
-            liveTag
-          >
-            <ShipmentStatusDonut
-              data={shipmentsStatus.statusBreakdown}
-              total={shipmentsStatus.total}
-            />
-          </ChartCard>
-        </div>
-      )}
     </div>
   );
 }
