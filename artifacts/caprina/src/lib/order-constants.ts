@@ -31,19 +31,19 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const STATUS_CLASSES: Record<string, string> = {
-  pending:          "bg-amber-100  dark:bg-amber-900/40   text-amber-800   dark:text-amber-300   border-amber-400   dark:border-amber-700",
-  warehouse_ready:  "bg-teal-600   dark:bg-teal-700       text-white        dark:text-white        border-teal-700    dark:border-teal-600",
-  in_shipping:      "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
-  received:         "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-400 dark:border-emerald-700",
-  partial_received: "bg-cyan-100   dark:bg-cyan-900/40    text-cyan-800    dark:text-cyan-300    border-cyan-400    dark:border-cyan-700",
-  delayed:          "bg-indigo-600 dark:bg-indigo-700       text-white        dark:text-white        border-indigo-700    dark:border-indigo-600",
-  returned:         "bg-red-100    dark:bg-red-900/40     text-red-800     dark:text-red-300     border-red-400     dark:border-red-700",
+  pending:          "bg-amber-500  dark:bg-amber-600  text-white dark:text-white  border-amber-600  dark:border-amber-700",
+  warehouse_ready:  "bg-teal-600   dark:bg-teal-700   text-white dark:text-white  border-teal-700   dark:border-teal-600",
+  in_shipping:      "bg-sky-600    dark:bg-sky-700    text-white dark:text-white  border-sky-700    dark:border-sky-600",
+  received:         "bg-emerald-600 dark:bg-emerald-700 text-white dark:text-white border-emerald-700 dark:border-emerald-600",
+  partial_received: "bg-purple-600 dark:bg-purple-700  text-white dark:text-white  border-purple-700 dark:border-purple-600",
+  delayed:          "bg-indigo-600 dark:bg-indigo-700  text-white dark:text-white  border-indigo-700 dark:border-indigo-600",
+  returned:         "bg-red-600    dark:bg-red-700     text-white dark:text-white  border-red-700    dark:border-red-600",
   // fallback mapping للقيم القديمة في الـ DB
-  waiting:          "bg-amber-100  dark:bg-amber-900/40   text-amber-800   dark:text-amber-300   border-amber-400   dark:border-amber-700",
-  confirmed:        "bg-amber-100  dark:bg-amber-900/40   text-amber-800   dark:text-amber-300   border-amber-400   dark:border-amber-700",
-  picked_up:        "bg-teal-600   dark:bg-teal-700       text-white        dark:text-white        border-teal-700    dark:border-teal-600",
-  in_transit:       "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
-  out_for_delivery: "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
-  delivered:        "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-400 dark:border-emerald-700",
-  cancelled:        "bg-red-100    dark:bg-red-900/40     text-red-800     dark:text-red-300     border-red-400     dark:border-red-700",
+  waiting:          "bg-amber-500  dark:bg-amber-600  text-white dark:text-white  border-amber-600  dark:border-amber-700",
+  confirmed:        "bg-amber-500  dark:bg-amber-600  text-white dark:text-white  border-amber-600  dark:border-amber-700",
+  picked_up:        "bg-teal-600   dark:bg-teal-700   text-white dark:text-white  border-teal-700   dark:border-teal-600",
+  in_transit:       "bg-sky-600    dark:bg-sky-700    text-white dark:text-white  border-sky-700    dark:border-sky-600",
+  out_for_delivery: "bg-sky-600    dark:bg-sky-700    text-white dark:text-white  border-sky-700    dark:border-sky-600",
+  delivered:        "bg-emerald-600 dark:bg-emerald-700 text-white dark:text-white border-emerald-700 dark:border-emerald-600",
+  cancelled:        "bg-red-600    dark:bg-red-700     text-white dark:text-white  border-red-700    dark:border-red-600",
 };
