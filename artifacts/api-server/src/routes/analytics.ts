@@ -2104,7 +2104,6 @@ router.get("/analytics/shipments-status", requireAuth, async (req, res): Promise
     const tenantId = getTenantId(req);
     const conditions: any[] = [isNull(shipmentsTable.deletedAt)];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
-    else conditions.push(isNull(shipmentsTable.tenantId));
 
     const rows = await db
       .select({ status: shipmentsTable.status, count: count() })
@@ -2114,7 +2113,7 @@ router.get("/analytics/shipments-status", requireAuth, async (req, res): Promise
 
     const total = rows.reduce((s, r) => s + Number(r.count), 0);
     const statusBreakdown = rows.map(r => ({
-      status: r.status,
+      status: r.status ?? "pending",   // null status → pending
       count: Number(r.count),
       pct: total > 0 ? Math.round((Number(r.count) / total) * 100) : 0,
     }));

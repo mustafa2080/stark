@@ -1145,7 +1145,23 @@ export const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
   total: number;
 }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
+  // merge duplicate statuses (e.g. null → pending from backend)
+  const sorted = useMemo(() => {
+    const merged: Record<string, { status: string; count: number; pct: number }> = {};
+    for (const d of data) {
+      const key = d.status ?? "pending";
+      if (merged[key]) {
+        merged[key].count += d.count;
+      } else {
+        merged[key] = { ...d, status: key };
+      }
+    }
+    const arr = Object.values(merged);
+    const t = arr.reduce((s, d) => s + d.count, 0);
+    return arr
+      .map(d => ({ ...d, pct: t > 0 ? Math.round((d.count / t) * 100) : 0 }))
+      .sort((a, b) => b.count - a.count);
+  }, [data]);
 
   return (
     <div className="space-y-4">
