@@ -2111,11 +2111,27 @@ router.get("/analytics/shipments-status", requireAuth, async (req, res): Promise
       .where(conditions.length ? and(...conditions) : undefined)
       .groupBy(shipmentsTable.status);
 
+    // normalize legacy statuses to new ones
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up:        "warehouse_ready",
+      in_transit:       "in_shipping",
+      out_for_delivery: "in_shipping",
+      delivered:        "received",
+      waiting:          "pending",
+      confirmed:        "pending",
+      cancelled:        "returned",
+    };
     const total = rows.reduce((s, r) => s + Number(r.count), 0);
-    const statusBreakdown = rows.map(r => ({
-      status: r.status ?? "pending",   // null status → pending
-      count: Number(r.count),
-      pct: total > 0 ? Math.round((Number(r.count) / total) * 100) : 0,
+    // merge after normalization
+    const merged: Record<string, number> = {};
+    for (const r of rows) {
+      const key = r.status ? (LEGACY_MAP[r.status] ?? r.status) : "pending";
+      merged[key] = (merged[key] ?? 0) + Number(r.count);
+    }
+    const statusBreakdown = Object.entries(merged).map(([status, count]) => ({
+      status,
+      count,
+      pct: total > 0 ? Math.round((count / total) * 100) : 0,
     }));
 
     res.json({ statusBreakdown, total });

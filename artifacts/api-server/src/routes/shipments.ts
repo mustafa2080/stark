@@ -136,7 +136,22 @@ router.get("/shipments", async (req, res): Promise<void> => {
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
     conditions.push(isNull(shipmentsTable.deletedAt));
-    if (status && status !== "all") conditions.push(eq(shipmentsTable.status, status));
+    // map legacy statuses to new ones
+    const STATUS_ALIASES: Record<string, string[]> = {
+      warehouse_ready: ["warehouse_ready", "picked_up"],
+      in_shipping:     ["in_shipping", "in_transit", "out_for_delivery"],
+      received:        ["received", "delivered"],
+      pending:         ["pending", "waiting", "confirmed"],
+      returned:        ["returned", "cancelled"],
+    };
+    if (status && status !== "all") {
+      const aliases = STATUS_ALIASES[status];
+      if (aliases && aliases.length > 1) {
+        conditions.push(inArray(shipmentsTable.status, aliases));
+      } else {
+        conditions.push(eq(shipmentsTable.status, status));
+      }
+    }
     if (search) {
       conditions.push(
         or(
