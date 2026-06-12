@@ -97,7 +97,7 @@ export default function Invoices() {
   const { data: shipmentsData, isLoading: isShipmentsLoading } = useQuery({
     queryKey: ["shipments-invoices"],
     queryFn: () => apiFetch<{ data: any[]; total: number }>("/shipments?status=warehouse_ready&limit=200"),
-    enabled: activeTab === "shipments",
+    enabled: true,
   });
   const warehouseShipments: any[] = useMemo(() => {
     const rows = (shipmentsData as any)?.data ?? (Array.isArray(shipmentsData) ? shipmentsData : []);
@@ -506,29 +506,12 @@ export default function Invoices() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">الفواتير</h1>
+          <h1 className="text-2xl font-bold">فواتير الشحنات</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            تظهر الطلبات والشحنات في مرحلة «قيد الشحن في المخزن»
+            تظهر الشحنات في مرحلة «قيد الشحن في المخزن»
           </p>
         </div>
-        {activeTab === "orders" && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">فواتير/صفحة:</span>
-            <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
-              <SelectTrigger className="w-28 h-9 text-sm bg-card border-border"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">1 فاتورة</SelectItem>
-                <SelectItem value="2">2 فواتير</SelectItem>
-                <SelectItem value="4">4 فواتير</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => void handlePrint()} className="gap-2 font-bold text-sm h-9" disabled={selectedIds.size === 0}>
-              <Printer className="w-4 h-4" />طباعة ({selectedIds.size})
-            </Button>
-          </div>
-        )}
-        {activeTab === "shipments" && (
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground whitespace-nowrap">فواتير/صفحة:</span>
             <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
               <SelectTrigger className="w-28 h-9 text-sm bg-card border-border"><SelectValue /></SelectTrigger>
@@ -542,158 +525,11 @@ export default function Invoices() {
               <Printer className="w-4 h-4" />طباعة ({selectedShipmentIds.size})
             </Button>
           </div>
-        )}
       </div>
 
-      {/* ── التابات ── */}
-      <div className="flex gap-1 border-b border-border">
-        <button
-          onClick={() => setActiveTab("orders")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-            activeTab === "orders"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          فواتير الطلبات
-          {invoiceGroups.length > 0 && (
-            <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">{invoiceGroups.length}</span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("shipments")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-            activeTab === "shipments"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Truck className="w-4 h-4" />
-          فواتير الشحنات
-          {warehouseShipments.length > 0 && (
-            <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">{warehouseShipments.length}</span>
-          )}
-        </button>
-      </div>
+      {/* ══════════════ فواتير الشحنات ══════════════ */}
 
-      {/* ══════════════ تاب الطلبات ══════════════ */}
-      {activeTab === "orders" && (<>
-      {/* ── شريط الأدوات ── */}
-      <Card className="border-border overflow-hidden">
-        <div className="p-3 flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1 border-border" onClick={selectAll}>
-            <CheckSquare className="w-3.5 h-3.5" />تحديد النتائج ({filtered.length})
-          </Button>
-          {invoiceGroups.length !== filtered.length && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={selectAllPages}>
-              <CheckSquare className="w-3.5 h-3.5" />تحديد الكل ({invoiceGroups.length})
-            </Button>
-          )}
-          {selectedIds.size > 0 && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={clearAll}>
-              <Square className="w-3.5 h-3.5" />إلغاء التحديد
-            </Button>
-          )}
-          {selectedIds.size > 0 && (
-            <span className="text-xs text-primary font-bold">{selectedIds.size} محدد للطباعة</span>
-          )}
-          {!isLoading && (
-            <span className="text-xs text-muted-foreground mr-auto">
-              {filtered.length !== invoiceGroups.length
-                ? `${filtered.length} من ${invoiceGroups.length} فاتورة`
-                : `${invoiceGroups.length} فاتورة`}
-              {filtered.length > 0 && (
-                <span className="mr-1 text-primary font-bold">· {formatCurrency(totalAmount)}</span>
-              )}
-            </span>
-          )}
-        </div>
-      </Card>
-
-      {/* ── قائمة الفواتير ── */}
-      {isLoading ? (
-        <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
-      ) : filtered.length ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((grp) => {
-            const sel = isSelected(grp.invoiceNumber);
-            const company = shippingCompanies?.find(c => c.id === grp.shippingCompanyId);
-            const displayOrders = realOrdersCache.get(grp.invoiceNumber) ?? grp.orders;
-            const isGroup = displayOrders.length > 1;
-            return (
-              <Card
-                key={grp.invoiceNumber}
-                onClick={() => toggleSelect(grp.invoiceNumber)}
-                className={`border p-4 cursor-pointer transition-all select-none ${
-                  sel
-                    ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
-                    : "border-border bg-card hover:border-primary/40 hover:bg-muted/10"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    {sel
-                      ? <CheckSquare className="w-4 h-4 text-primary shrink-0" />
-                      : <Square className="w-4 h-4 text-muted-foreground shrink-0" />}
-                    <div>
-                      <p className="font-bold text-sm leading-tight">{grp.customerName}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-[10px] text-muted-foreground font-mono">#{grp.representativeId.toString().padStart(4,"0")}</p>
-                        {isGroup && (
-                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{displayOrders.length} منتجات</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${statusClasses[grp.status] || ""}`}>
-                    {statusLabels[grp.status]}
-                  </Badge>
-                </div>
-
-                <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
-                  {isGroup ? (
-                    <div className="space-y-0.5">
-                      {displayOrders.map((o: any) => (
-                        <div key={o.id} className="flex justify-between">
-                          <span className="font-medium text-foreground truncate">{o.product} ×{o.quantity}</span>
-                          <span className="font-bold text-primary shrink-0 mr-1">{formatCurrency(o.totalPrice)}</span>
-                        </div>
-                      ))}
-                      <div className="flex justify-between border-t border-border pt-1 mt-1">
-                        <span className="font-bold text-foreground">الإجمالي</span>
-                        <span className="font-bold text-primary">{formatCurrency(displayOrders.reduce((s: number, o: any) => s + o.totalPrice, 0))}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between">
-                      <span className="font-medium text-foreground">{displayOrders[0].product} ×{displayOrders[0].quantity}</span>
-                      <span className="font-bold text-primary">{formatCurrency(displayOrders[0].totalPrice)}</span>
-                    </div>
-                  )}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-0.5">
-                    {company && <span className="flex items-center gap-0.5">🚚 {company.name}</span>}
-                    {grp.phone && <span className="font-mono text-[11px]">📞 {grp.phone}</span>}
-                    {grp.city  && <span>📍 {grp.city}</span>}
-                  </div>
-                  <p className="text-[10px] opacity-60">{format(new Date(grp.createdAt), "yyyy/MM/dd")}</p>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        <Card className="border-border p-12 text-center">
-          <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
-          <p className="font-bold">لا توجد فواتير</p>
-          <p className="text-sm text-muted-foreground mt-1">سيظهر هنا الطلبات بعد إنشائها</p>
-        </Card>
-      )}
-      </>)}
-
-      {/* ══════════════ تاب الشحنات ══════════════ */}
-      {activeTab === "shipments" && (
-        <div className="space-y-3">
+      <div className="space-y-3">
           {/* شريط معلومات */}
           <Card className="border-border overflow-hidden">
             <div className="p-3 flex items-center gap-2 flex-wrap">
@@ -799,8 +635,7 @@ export default function Invoices() {
               <p className="text-sm text-muted-foreground mt-1">سيظهر هنا الشحنات التي حالتها «قيد الشحن في المخزن»</p>
             </Card>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
