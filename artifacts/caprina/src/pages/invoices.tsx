@@ -1,13 +1,13 @@
 import { useListOrders } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
-import { shippingApi, ordersApi } from "@/lib/api";
+import { shippingApi, ordersApi, apiFetch } from "@/lib/api";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Printer, FileText, CheckSquare, Square } from "lucide-react";
+import { Printer, FileText, CheckSquare, Square, Package, Truck } from "lucide-react";
 import { useBrand } from "@/contexts/BrandContext";
 
 const statusLabels: Record<string, string> = {
@@ -41,16 +41,47 @@ const formatCurrency = (n: number) => {
 
 type InvoiceListStatus = "all" | "warehouse_ready" | "in_shipping" | "received" | "delayed" | "returned" | "partial_received";
 
+// ─── حالات شحنة الـ shipments table ─────────────────────────────────────────
+const shipmentStatusLabels: Record<string, string> = {
+  waiting:          "انتظار",
+  confirmed:        "مؤكدة",
+  picked_up:        "تم الاستلام",
+  in_transit:       "في الطريق",
+  out_for_delivery: "خرجت للتسليم",
+  delivered:        "تم التسليم",
+  delayed:          "متأخرة",
+  returned:         "مرتجع",
+  cancelled:        "ملغية",
+  warehouse_ready:  "قيد الشحن في المخزن",
+};
+
+const shipmentStatusClasses: Record<string, string> = {
+  waiting:          "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800",
+  confirmed:        "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-300 dark:border-teal-800",
+  picked_up:        "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-300 dark:border-sky-800",
+  in_transit:       "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-300 dark:border-sky-800",
+  out_for_delivery: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800",
+  delivered:        "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
+  delayed:          "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800",
+  returned:         "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800",
+  cancelled:        "bg-gray-50 dark:bg-gray-900/30 text-gray-700 dark:text-gray-400 border-gray-300 dark:border-gray-800",
+  warehouse_ready:  "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-300 dark:border-teal-800",
+};
+
 export default function Invoices() {
   const { brand } = useBrand();
   const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const preselectedInvoiceNumber = params.get("invoiceNumber");
+
+  // ── تاب نشط ─────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"orders" | "shipments">("orders");
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     preselectedInvoiceNumber ? new Set([preselectedInvoiceNumber]) : new Set()
   );
   const [statusFilter, setStatusFilter] = useState<InvoiceListStatus>("all");
   const [perPage, setPerPage] = useState<number>(4);
+  const [selectedShipmentIds, setSelectedShipmentIds] = useState<Set<number>>(new Set());
 
   const { data: allOrders, isLoading } = useListOrders({
     status: statusFilter !== "all" ? statusFilter : undefined,
@@ -61,6 +92,17 @@ export default function Invoices() {
     queryFn: () => ordersApi.byInvoice(preselectedInvoiceNumber!),
     enabled: !!preselectedInvoiceNumber,
   });
+
+  // ── شحنات بحالة warehouse_ready فقط ─────────────────────────────────────
+  const { data: shipmentsData, isLoading: isShipmentsLoading } = useQuery({
+    queryKey: ["shipments-invoices"],
+    queryFn: () => apiFetch<{ data: any[]; total: number }>("/shipments?status=warehouse_ready&limit=200"),
+    enabled: activeTab === "shipments",
+  });
+  const warehouseShipments: any[] = useMemo(() => {
+    const rows = (shipmentsData as any)?.data ?? (Array.isArray(shipmentsData) ? shipmentsData : []);
+    return rows;
+  }, [shipmentsData]);
 
   const rawOrders = useMemo(() => {
     if (!allOrders) return [];
@@ -334,25 +376,61 @@ export default function Invoices() {
         <div>
           <h1 className="text-2xl font-bold">الفواتير</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            تظهر الطلبات من مرحلة «قيد الشحن في المخزن» فما بعد
+            تظهر الطلبات والشحنات في مرحلة «قيد الشحن في المخزن»
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">فواتير/صفحة:</span>
-          <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
-            <SelectTrigger className="w-28 h-9 text-sm bg-card border-border"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">1 فاتورة</SelectItem>
-              <SelectItem value="2">2 فواتير</SelectItem>
-              <SelectItem value="4">4 فواتير</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={() => void handlePrint()} className="gap-2 font-bold text-sm h-9" disabled={selectedIds.size === 0}>
-            <Printer className="w-4 h-4" />طباعة ({selectedIds.size})
-          </Button>
-        </div>
+        {activeTab === "orders" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">فواتير/صفحة:</span>
+            <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
+              <SelectTrigger className="w-28 h-9 text-sm bg-card border-border"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 فاتورة</SelectItem>
+                <SelectItem value="2">2 فواتير</SelectItem>
+                <SelectItem value="4">4 فواتير</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={() => void handlePrint()} className="gap-2 font-bold text-sm h-9" disabled={selectedIds.size === 0}>
+              <Printer className="w-4 h-4" />طباعة ({selectedIds.size})
+            </Button>
+          </div>
+        )}
       </div>
 
+      {/* ── التابات ── */}
+      <div className="flex gap-1 border-b border-border">
+        <button
+          onClick={() => setActiveTab("orders")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+            activeTab === "orders"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          فواتير الطلبات
+          {invoiceGroups.length > 0 && (
+            <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">{invoiceGroups.length}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("shipments")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+            activeTab === "shipments"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Truck className="w-4 h-4" />
+          فواتير الشحنات
+          {warehouseShipments.length > 0 && (
+            <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">{warehouseShipments.length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* ══════════════ تاب الطلبات ══════════════ */}
+      {activeTab === "orders" && (<>
       {/* ── شريط الأدوات ── */}
       <Card className="border-border overflow-hidden">
         <div className="p-3 flex items-center gap-2 flex-wrap">
@@ -462,6 +540,118 @@ export default function Invoices() {
           <p className="font-bold">لا توجد فواتير</p>
           <p className="text-sm text-muted-foreground mt-1">سيظهر هنا الطلبات بعد إنشائها</p>
         </Card>
+      )}
+      </>)}
+
+      {/* ══════════════ تاب الشحنات ══════════════ */}
+      {activeTab === "shipments" && (
+        <div className="space-y-3">
+          {/* شريط معلومات */}
+          <Card className="border-border overflow-hidden">
+            <div className="p-3 flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline" size="sm"
+                className="h-8 text-xs gap-1 border-border"
+                onClick={() => setSelectedShipmentIds(new Set(warehouseShipments.map((s: any) => s.id)))}
+              >
+                <CheckSquare className="w-3.5 h-3.5" />تحديد الكل ({warehouseShipments.length})
+              </Button>
+              {selectedShipmentIds.size > 0 && (
+                <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => setSelectedShipmentIds(new Set())}>
+                  <Square className="w-3.5 h-3.5" />إلغاء التحديد
+                </Button>
+              )}
+              {selectedShipmentIds.size > 0 && (
+                <span className="text-xs text-primary font-bold">{selectedShipmentIds.size} محدد</span>
+              )}
+              {!isShipmentsLoading && (
+                <span className="text-xs text-muted-foreground mr-auto">
+                  {warehouseShipments.length} شحنة
+                  {warehouseShipments.length > 0 && (
+                    <span className="mr-1 text-primary font-bold">
+                      · {formatCurrency(warehouseShipments.reduce((s: number, sh: any) => s + (parseFloat(sh.codAmount) || 0), 0))} COD
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          </Card>
+
+          {/* قائمة الشحنات */}
+          {isShipmentsLoading ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
+          ) : warehouseShipments.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {warehouseShipments.map((sh: any) => {
+                const sel = selectedShipmentIds.has(sh.id);
+                const company = shippingCompanies?.find((c: any) => c.id === sh.shippingCompanyId);
+                return (
+                  <Card
+                    key={sh.id}
+                    onClick={() => setSelectedShipmentIds(prev => {
+                      const n = new Set(prev);
+                      n.has(sh.id) ? n.delete(sh.id) : n.add(sh.id);
+                      return n;
+                    })}
+                    className={`border p-4 cursor-pointer transition-all select-none ${
+                      sel
+                        ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                        : "border-border bg-card hover:border-primary/40 hover:bg-muted/10"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {sel
+                          ? <CheckSquare className="w-4 h-4 text-primary shrink-0" />
+                          : <Square className="w-4 h-4 text-muted-foreground shrink-0" />}
+                        <div>
+                          <p className="font-bold text-sm leading-tight">{sh.receiverName}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                            #{sh.shipmentNumber ?? String(sh.id).padStart(4, "0")}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${shipmentStatusClasses[sh.status] || ""}`}>
+                        {shipmentStatusLabels[sh.status] ?? sh.status}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                      <div className="flex justify-between items-center">
+                        <span className="text-foreground font-medium">COD</span>
+                        <span className="font-bold text-primary">{formatCurrency(parseFloat(sh.codAmount) || 0)}</span>
+                      </div>
+                      {(parseFloat(sh.shippingFee) || 0) > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span>رسوم الشحن</span>
+                          <span className="font-semibold">{formatCurrency(parseFloat(sh.shippingFee) || 0)}</span>
+                        </div>
+                      )}
+                      {sh.description && (
+                        <p className="text-foreground font-medium truncate">📦 {sh.description}</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-0.5">
+                        {company && <span className="flex items-center gap-0.5">🚚 {company.name}</span>}
+                        {sh.receiverPhone && <span className="font-mono text-[11px]">📞 {sh.receiverPhone}</span>}
+                        {sh.receiverCity && <span>📍 {sh.receiverCity}</span>}
+                      </div>
+                      {sh.trackingNumber && (
+                        <p className="font-mono text-[10px] opacity-70 dir-ltr text-left">🔎 {sh.trackingNumber}</p>
+                      )}
+                      <p className="text-[10px] opacity-60">{sh.createdAt ? format(new Date(sh.createdAt), "yyyy/MM/dd") : ""}</p>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="border-border p-12 text-center">
+              <Truck className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
+              <p className="font-bold">لا توجد شحنات</p>
+              <p className="text-sm text-muted-foreground mt-1">سيظهر هنا الشحنات التي حالتها «قيد الشحن في المخزن»</p>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );
