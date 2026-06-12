@@ -2157,7 +2157,7 @@ export default function OrderDetail() {
         ? `تم حذف الطلب وكل منتجاته (${idsToDelete.length} منتج).`
         : "تم حذف الطلب بنجاح.";
       toast({ title: "تم الحذف", description: msg });
-      navigate("/orders");
+      navigate("/shipments");
     } catch (err: any) {
       const msg = err?.message || "فشل حذف الطلب.";
       toast({ title: "خطأ", description: msg, variant: "destructive" });
