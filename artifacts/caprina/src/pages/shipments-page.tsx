@@ -134,9 +134,8 @@ function ShipmentFormDialog({
   const zonePrice       = Number(selectedZone?.price) || 0;
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
-  const insurance       = Number(form.insuranceFee) || 0;
   const cod             = Number(form.codAmount) || 0;
-  const total           = (form.paymentMethod === "cod" ? cod : 0) + shippingFee + insurance;
+  const total           = (form.paymentMethod === "cod" ? cod : 0) + shippingFee;
 
   const filteredClients = useMemo(() =>
     clients.filter(c => c.name.includes(clientSearch) || (c.phone || "").includes(clientSearch)),
@@ -191,11 +190,9 @@ function ShipmentFormDialog({
       weight:          form.weight    ? form.weight    : undefined,
       pieces:          Number(form.pieces) || 1,
       description:     form.description || undefined,
-      declaredValue:   form.declaredValue ? form.declaredValue : undefined,
       paymentMethod:   form.paymentMethod,
       codAmount:       cod || undefined,
       shippingFee:     shippingFee || undefined,
-      insuranceFee:    insurance || undefined,
       totalAmount:     total || undefined,
       notes:           form.notes || undefined,
       status:          "waiting",
@@ -373,10 +370,6 @@ function ShipmentFormDialog({
                 <Label className="text-xs font-bold mb-1.5 block">عدد القطع</Label>
                 <Input type="number" min="1" className="text-sm" value={form.pieces} onChange={e => set("pieces", e.target.value)} />
               </div>
-              <div>
-                <Label className="text-xs font-bold mb-1.5 block">القيمة المعلنة (جنيه)</Label>
-                <Input type="number" className="text-sm" placeholder="0" value={form.declaredValue} onChange={e => set("declaredValue", e.target.value)} />
-              </div>
               <div className="sm:col-span-2">
                 <Label className="text-xs font-bold mb-1.5 block">وصف الشحنة</Label>
                 <Input className="text-sm" placeholder="محتوى الشحنة..." value={form.description} onChange={e => set("description", e.target.value)} />
@@ -409,14 +402,10 @@ function ShipmentFormDialog({
               </div>
               {form.paymentMethod === "cod" && (
                 <div>
-                  <Label className="text-xs font-bold mb-1.5 block">مبلغ التحصيل (COD)</Label>
+                  <Label className="text-xs font-bold mb-1.5 block">سعر الشحنة</Label>
                   <Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} />
                 </div>
               )}
-              <div>
-                <Label className="text-xs font-bold mb-1.5 block">رسوم التأمين</Label>
-                <Input type="number" className="text-sm" placeholder="0" value={form.insuranceFee} onChange={e => set("insuranceFee", e.target.value)} />
-              </div>
             </div>
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
               <h4 className="text-xs font-black text-primary">ملخص التكاليف</h4>
@@ -424,9 +413,8 @@ function ShipmentFormDialog({
                 {[
                   { label: "سعر منطقة التوصيل",  value: fc(zonePrice)   },
                   { label: "إضافة نوع الشحنة",   value: fc(parcelPrice) },
-                  { label: "رسوم التأمين",        value: fc(insurance)   },
                   form.paymentMethod === "cod"
-                    ? { label: "مبلغ التحصيل (COD)", value: fc(cod), highlight: true }
+                    ? { label: "سعر الشحنة", value: fc(cod), highlight: true }
                     : null,
                 ].filter(Boolean).map((row: any, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
