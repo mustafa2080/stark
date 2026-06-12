@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import ExcelJS from "exceljs";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard } from "lucide-react";
@@ -579,6 +580,126 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
   );
 }
 
+// ─── Status colours for Excel ─────────────────────────────────────────────────
+const EXCEL_STATUS_FILL: Record<string, string> = {
+  pending:          "FFFBBF24",
+  warehouse_ready:  "FFFB923C",
+  in_shipping:      "FF3B82F6",
+  received:         "FF22C55E",
+  delayed:          "FFA855F7",
+  returned:         "FFEF4444",
+  partial_received: "FF06B6D4",
+};
+
+async function exportToExcel(
+  rows: any[],
+  canFinancials: boolean,
+  statusLabels: Record<string, string>
+) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Caprina Orders";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("الشحنات", { views: [{ rightToLeft: true }] });
+
+  // ── Column definitions ─────────────────────────────────────────────────────
+  const cols: { header: string; key: string; width: number }[] = [
+    { header: "#",           key: "num",        width: 8  },
+    { header: "التاريخ",    key: "date",       width: 14 },
+    { header: "المرسل",     key: "sender",     width: 22 },
+    { header: "المستلم",    key: "receiver",   width: 22 },
+    { header: "الهاتف",     key: "phone",      width: 16 },
+    { header: "المحافظة",   key: "gov",        width: 16 },
+    ...(canFinancials ? [{ header: "سعر الشحنة", key: "price", width: 14 }] : []),
+    { header: "المندوب",    key: "agent",      width: 20 },
+    { header: "الحالة",     key: "status",     width: 16 },
+  ];
+
+  ws.columns = cols;
+
+  // ── Header row style ───────────────────────────────────────────────────────
+  const headerRow = ws.getRow(1);
+  headerRow.height = 26;
+  headerRow.eachCell(cell => {
+    cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF16A34A" } };
+    cell.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 12, name: "Cairo" };
+    cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rightToLeft" };
+    cell.border = {
+      top:    { style: "thin", color: { argb: "FF14532D" } },
+      bottom: { style: "thin", color: { argb: "FF14532D" } },
+      left:   { style: "thin", color: { argb: "FF14532D" } },
+      right:  { style: "thin", color: { argb: "FF14532D" } },
+    };
+  });
+
+  // ── Data rows ─────────────────────────────────────────────────────────────
+  rows.forEach((o, idx) => {
+    const status  = o.status as string;
+    const rowData: Record<string, any> = {
+      num:      (o.id ?? idx + 1).toString().padStart(4, "0"),
+      date:     new Date(o.createdAt).toLocaleDateString("ar-EG"),
+      sender:   (o as any).senderName   || (o as any).customerName || "",
+      receiver: (o as any).receiverName || "",
+      phone:    (o as any).senderPhone  || (o as any).receiverPhone || (o as any).phone || "",
+      gov:      (o as any).receiverCity || (o as any).receiverGovernorate || "",
+      ...(canFinancials ? { price: Number((o as any).codAmount ?? (o as any).totalAmount ?? 0) } : {}),
+      agent:    (o as any).assignedUserName || (o as any).createdByName || "",
+      status:   statusLabels[status] || status,
+    };
+
+    const excelRow = ws.addRow(rowData);
+    excelRow.height = 22;
+
+    // status fill colour
+    const fillArgb = EXCEL_STATUS_FILL[status] ?? "FFCCCCCC";
+    const statusColIdx = cols.findIndex(c => c.key === "status") + 1;
+
+    excelRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      cell.font      = { name: "Cairo", size: 11, color: { argb: "FF1F2937" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rightToLeft", wrapText: false };
+      cell.border    = {
+        top:    { style: "hair", color: { argb: "FFD1D5DB" } },
+        bottom: { style: "hair", color: { argb: "FFD1D5DB" } },
+        left:   { style: "hair", color: { argb: "FFD1D5DB" } },
+        right:  { style: "hair", color: { argb: "FFD1D5DB" } },
+      };
+
+      // zebra stripe
+      if (idx % 2 === 0) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+      }
+
+      // status cell gets its own colour + bold white
+      if (colNum === statusColIdx) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fillArgb } };
+        cell.font = { name: "Cairo", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+      }
+
+      // price cell: number format
+      if (cols[colNum - 1]?.key === "price" && typeof cell.value === "number") {
+        cell.numFmt = '#,##0.00" ج"';
+        cell.font   = { name: "Cairo", size: 11, bold: true, color: { argb: "FF15803D" } };
+      }
+    });
+  });
+
+  // ── Freeze header row ──────────────────────────────────────────────────────
+  ws.views = [{ state: "frozen", ySplit: 1, rightToLeft: true }];
+
+  // ── Auto-filter on header ──────────────────────────────────────────────────
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+
+  // ── Download ───────────────────────────────────────────────────────────────
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `shipments-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Orders() {
   const [showNewShipment, setShowNewShipment] = useState(false);
   const [location, navigate] = useLocation();
@@ -1057,32 +1178,9 @@ export default function Orders() {
               {canExport && (
               <Button variant="outline" size="sm" className="gap-1 text-xs h-9" onClick={() => {
                 if (!filtered?.length) return;
-                const rows = filtered.map(o => {
-                  const r: Record<string, any> = {
-                    "#": o.id.toString().padStart(4, "0"),
-                    "التاريخ": new Date(o.createdAt).toLocaleDateString("ar-EG"),
-                    "المرسل": (o as any).senderName || (o as any).customerName || "",
-                    "المستلم": (o as any).receiverName || "",
-                    "الهاتف": (o as any).senderPhone || (o as any).receiverPhone || (o as any).phone || "",
-                    "المحافظة": (o as any).receiverCity || (o as any).receiverGovernorate || "",
-                  };
-                  if (canFinancials) {
-                    const cod = (o as any).codAmount ?? (o as any).totalAmount;
-                    r["سعر الشحنة"] = cod != null ? Number(cod) : "";
-                  }
-                  r["المندوب"] = (o as any).assignedUserName || (o as any).createdByName || "";
-                  r["الحالة"] = statusLabels[o.status] || o.status;
-                  return r;
-                });
-                const header = Object.keys(rows[0]).join(",");
-                const csv = [header, ...rows.map(r => Object.values(r).map(v => `"${v}"`).join(","))].join("\n");
-                const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url; a.download = `shipments-${new Date().toISOString().slice(0,10)}.csv`; a.click();
-                URL.revokeObjectURL(url);
+                exportToExcel(filtered, canFinancials, statusLabels);
               }}>
-                <Download className="w-3.5 h-3.5" />تصدير
+                <Download className="w-3.5 h-3.5" />تصدير Excel
               </Button>
               )}
               {/* زر شحنة جديدة — فقط لو عنده canCreate */}
