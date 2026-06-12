@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Package, Plus, Search, Filter, Truck, MapPin, Phone, User,
+  Package, Plus, Search, Filter, Truck, MapPin, Phone, User, Users,
   CreditCard, Clock, CheckCircle, AlertTriangle, XCircle,
   ChevronDown, ChevronUp, X, RefreshCw, Eye, Edit, Trash2,
   ArrowUpDown, Building2, DollarSign, FileText, Boxes, Tag,
@@ -709,13 +709,56 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
   );
 }
 
+// ── تصنيفات العملاء — ثابتة للـ UI ──────────────────────────────────────────
+const TIER_INFO = [
+  {
+    key:   "normal"     as const,
+    label: "عادي",
+    range: "١ – ٢٠٠ شحنة / شهر",
+    color: "text-slate-400",
+    border:"border-slate-600/60",
+    bg:    "bg-slate-800/30",
+    dot:   "bg-slate-400",
+    field: "priceNormal" as const,
+    placeholder: "سعر العميل العادي",
+  },
+  {
+    key:   "commercial" as const,
+    label: "تجاري",
+    range: "٢٠١ – ٥٠٠ شحنة / شهر",
+    color: "text-blue-400",
+    border:"border-blue-600/60",
+    bg:    "bg-blue-900/20",
+    dot:   "bg-blue-400",
+    field: "priceCommercial" as const,
+    placeholder: "سعر العميل التجاري",
+  },
+  {
+    key:   "vip" as const,
+    label: "VIP",
+    range: "٥٠١ – ١٠٠٠ شحنة / شهر",
+    color: "text-amber-400",
+    border:"border-amber-600/60",
+    bg:    "bg-amber-900/20",
+    dot:   "bg-amber-400",
+    field: "priceVip" as const,
+    placeholder: "سعر عميل VIP",
+  },
+] as const;
+
+type ZoneFormState = {
+  name: string; governorate: string;
+  priceNormal: string; priceCommercial: string; priceVip: string;
+};
+const emptyZoneForm = (): ZoneFormState => ({ name: "", governorate: "", priceNormal: "", priceCommercial: "", priceVip: "" });
+
 // ─── Zones Settings Tab ───────────────────────────────────────────────────────
 function ZonesTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState({ name: "", governorate: "", price: "" });
+  const [form, setForm] = useState<ZoneFormState>(emptyZoneForm());
   const [editId, setEditId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", governorate: "", price: "" });
+  const [editForm, setEditForm] = useState<ZoneFormState>(emptyZoneForm());
 
   const { data: zones = [], isLoading } = useQuery({
     queryKey: ["shipment-zones"],
@@ -724,13 +767,21 @@ function ZonesTab() {
 
   const addMutation = useMutation({
     mutationFn: (d: any) => apiFetch("/shipment-zones", { method: "POST", body: JSON.stringify(d) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shipment-zones"] }); toast({ title: "تمت الإضافة ✅" }); setForm({ name: "", governorate: "", price: "" }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shipment-zones"] });
+      toast({ title: "تمت إضافة المنطقة ✅" });
+      setForm(emptyZoneForm());
+    },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, ...d }: any) => apiFetch(`/shipment-zones/${id}`, { method: "PUT", body: JSON.stringify(d) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shipment-zones"] }); toast({ title: "تم التحديث ✅" }); setEditId(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shipment-zones"] });
+      toast({ title: "تم التحديث ✅" });
+      setEditId(null);
+    },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
@@ -740,13 +791,77 @@ function ZonesTab() {
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  function startEdit(z: ShipmentZone) {
+  function startEdit(z: ShipmentZone & { priceNormal?: string; priceCommercial?: string; priceVip?: string }) {
     setEditId(z.id);
-    setEditForm({ name: z.name, governorate: z.governorate || "", price: String(z.price) });
+    setEditForm({
+      name:           z.name,
+      governorate:    z.governorate || "",
+      priceNormal:    String(z.priceNormal     ?? z.price ?? "0"),
+      priceCommercial:String(z.priceCommercial ?? "0"),
+      priceVip:       String(z.priceVip        ?? "0"),
+    });
+  }
+
+  function submitAdd() {
+    if (!form.name) return;
+    addMutation.mutate({
+      name: form.name,
+      governorate: form.governorate || undefined,
+      priceNormal:     Number(form.priceNormal     || 0),
+      priceCommercial: Number(form.priceCommercial || 0),
+      priceVip:        Number(form.priceVip        || 0),
+      isActive: true,
+    });
+  }
+
+  function submitEdit(id: number) {
+    updateMutation.mutate({
+      id,
+      name:            editForm.name,
+      governorate:     editForm.governorate || undefined,
+      priceNormal:     Number(editForm.priceNormal     || 0),
+      priceCommercial: Number(editForm.priceCommercial || 0),
+      priceVip:        Number(editForm.priceVip        || 0),
+    });
+  }
+
+  // مكوّن صغير — شريحة السعر لكل tier داخل البطاقة
+  function TierPriceChip({ tier, value }: { tier: typeof TIER_INFO[number]; value: string | number }) {
+    const n = Number(value) || 0;
+    return (
+      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${tier.border} ${tier.bg}`}>
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tier.dot}`} />
+        <span className={`text-[9px] font-bold ${tier.color}`}>{tier.label}</span>
+        <span className={`text-[11px] font-black ${tier.color} mr-auto`}>
+          {n > 0 ? fc(n) : <span className="text-muted-foreground/50 font-normal text-[9px]">—</span>}
+        </span>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-5">
+
+      {/* ── Tier Legend (شرح مرة واحدة في الأعلى) ── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-black flex items-center gap-2">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            تصنيفات العملاء — نطاقات الشحن الشهرية
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-2">
+            {TIER_INFO.map(t => (
+              <div key={t.key} className={`p-2.5 rounded-xl border ${t.border} ${t.bg} text-center`}>
+                <span className={`text-[11px] font-black block ${t.color}`}>{t.label}</span>
+                <span className="text-[9px] text-muted-foreground mt-0.5 block">{t.range}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ── Add Zone ── */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
@@ -754,24 +869,49 @@ function ZonesTab() {
             <Globe className="w-4 h-4 text-cyan-500" /> إضافة منطقة جديدة
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <CardContent className="space-y-3">
+          {/* الاسم والمحافظة */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
-              <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block">المحافظة</Label>
-              <Input className="text-sm" placeholder="مثال: القاهرة الكبرى" value={form.governorate} onChange={e => setForm(f => ({ ...f, governorate: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="text-xs font-bold mb-1.5 block">سعر التوصيل (جنيه) <span className="text-red-500">*</span></Label>
-              <Input type="number" className="text-sm" placeholder="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+              <Input className="text-sm" placeholder="مثال: القاهرة الكبرى" value={form.governorate}
+                onChange={e => setForm(f => ({ ...f, governorate: e.target.value }))} />
             </div>
           </div>
-          <Button className="mt-3 gap-2 text-xs" size="sm"
-            disabled={!form.name || !form.price || addMutation.isPending}
-            onClick={() => addMutation.mutate({ name: form.name, governorate: form.governorate || undefined, price: Number(form.price), isActive: true })}>
+
+          {/* أسعار التيرز */}
+          <div className="p-3 rounded-xl border border-border bg-muted/10 space-y-2.5">
+            <p className="text-[10px] font-bold text-muted-foreground flex items-center gap-1.5">
+              <DollarSign className="w-3 h-3" />سعر التوصيل حسب تصنيف العميل
+            </p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {TIER_INFO.map(t => (
+                <div key={t.key}>
+                  <Label className={`text-[10px] font-bold mb-1 block flex items-center gap-1 ${t.color}`}>
+                    <span className={`w-2 h-2 rounded-full ${t.dot}`} />
+                    {t.label}
+                    <span className="text-muted-foreground font-normal text-[9px] mr-0.5">({t.range})</span>
+                  </Label>
+                  <Input
+                    type="number" min={0} step="0.5"
+                    className={`text-sm h-9 border ${t.border} focus:border-current`}
+                    placeholder="0"
+                    value={form[t.field]}
+                    onChange={e => setForm(f => ({ ...f, [t.field]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Button className="gap-2 text-xs" size="sm"
+            disabled={!form.name || addMutation.isPending}
+            onClick={submitAdd}>
             {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             إضافة المنطقة
           </Button>
@@ -789,39 +929,75 @@ function ZonesTab() {
           ) : zones.length === 0 ? (
             <p className="text-center text-xs text-muted-foreground py-8">لا توجد مناطق — أضف منطقة من الأعلى</p>
           ) : (
-            <div className="space-y-2">
-              {zones.map(z => (
-                <div key={z.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors">
+            <div className="space-y-3">
+              {(zones as any[]).map(z => (
+                <div key={z.id} className="rounded-xl border border-border bg-muted/10 overflow-hidden">
+
                   {editId === z.id ? (
-                    <>
-                      <Input className="text-xs h-8 flex-1" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="الاسم" />
-                      <Input className="text-xs h-8 w-32" value={editForm.governorate} onChange={e => setEditForm(f => ({ ...f, governorate: e.target.value }))} placeholder="المحافظة" />
-                      <Input type="number" className="text-xs h-8 w-24" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="السعر" />
-                      <Button size="sm" className="h-8 text-xs px-3" onClick={() => updateMutation.mutate({ id: z.id, name: editForm.name, governorate: editForm.governorate || undefined, price: Number(editForm.price) })} disabled={updateMutation.isPending}>
-                        {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ"}
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setEditId(null)}>إلغاء</Button>
-                    </>
+                    /* ── وضع التعديل ── */
+                    <div className="p-3 space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] font-bold mb-1 block">الاسم</Label>
+                          <Input className="text-xs h-8" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] font-bold mb-1 block">المحافظة</Label>
+                          <Input className="text-xs h-8" value={editForm.governorate} onChange={e => setEditForm(f => ({ ...f, governorate: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-lg border border-border bg-muted/10 space-y-2">
+                        <p className="text-[9px] font-bold text-muted-foreground">أسعار التوصيل حسب التصنيف</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {TIER_INFO.map(t => (
+                            <div key={t.key}>
+                              <Label className={`text-[9px] font-bold mb-1 block ${t.color}`}>{t.label}</Label>
+                              <Input
+                                type="number" min={0} className={`text-xs h-8 border ${t.border}`}
+                                value={editForm[t.field]}
+                                onChange={e => setEditForm(f => ({ ...f, [t.field]: e.target.value }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="h-8 text-xs px-4" onClick={() => submitEdit(z.id)} disabled={updateMutation.isPending}>
+                          {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ التعديلات"}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditId(null)}>إلغاء</Button>
+                      </div>
+                    </div>
                   ) : (
-                    <>
-                      <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
-                        <MapPin className="w-4 h-4 text-cyan-500" />
+                    /* ── وضع العرض ── */
+                    <div className="p-3">
+                      {/* رأس البطاقة */}
+                      <div className="flex items-center gap-3 mb-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                          <MapPin className="w-4 h-4 text-cyan-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold">{z.name}</p>
+                          {z.governorate && <p className="text-[10px] text-muted-foreground">{z.governorate}</p>}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            onClick={() => { if (confirm("حذف المنطقة؟")) deleteMutation.mutate(z.id); }}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-foreground">{z.name}</p>
-                        {z.governorate && <p className="text-[10px] text-muted-foreground">{z.governorate}</p>}
+
+                      {/* شرائح الأسعار */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {TIER_INFO.map(t => (
+                          <TierPriceChip key={t.key} tier={t} value={z[t.field] ?? (t.field === "priceNormal" ? z.price : "0")} />
+                        ))}
                       </div>
-                      <span className="text-sm font-black text-primary shrink-0">{fc(z.price)}</span>
-                      <div className="flex gap-1 shrink-0">
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          onClick={() => { if (confirm("حذف المنطقة؟")) deleteMutation.mutate(z.id); }}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </>
+                    </div>
                   )}
                 </div>
               ))}

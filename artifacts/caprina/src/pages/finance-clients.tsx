@@ -298,15 +298,45 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
           </div>
           <div><Label className="text-xs mb-1.5 block">ملاحظات</Label>
             <Textarea placeholder="أي ملاحظات..." className="min-h-[60px] text-sm resize-none bg-background" value={form.notes} onChange={e => f("notes", e.target.value)} rows={2} /></div>
-          <div><Label className="text-xs mb-1.5 block">تصنيف العميل</Label>
-            <Select value={form.clientType} onValueChange={v => f("clientType", v as ClientType)}>
-              <SelectTrigger className="h-9 text-sm bg-background"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="normal">عادي</SelectItem>
-                <SelectItem value="commercial">تجاري</SelectItem>
-                <SelectItem value="vip">VIP</SelectItem>
-              </SelectContent>
-            </Select></div>
+
+          {/* ── تصنيف العميل — تصميم بطاقات مع ملحوظة النطاق ── */}
+          <div>
+            <Label className="text-xs mb-2 block font-bold">تصنيف العميل</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { value: "normal",     label: "عادي",   range: "١ – ٢٠٠ شحنة/شهر",    color: "text-slate-400",  border: "border-slate-600/70",  bg: "bg-slate-800/30",  activeBorder: "border-slate-400",  activeBg: "bg-slate-800/60",  dot: "bg-slate-400"  },
+                  { value: "commercial", label: "تجاري",  range: "٢٠١ – ٥٠٠ شحنة/شهر",  color: "text-blue-400",   border: "border-blue-700/60",   bg: "bg-blue-900/20",   activeBorder: "border-blue-400",   activeBg: "bg-blue-900/40",   dot: "bg-blue-400"   },
+                  { value: "vip",        label: "VIP",    range: "٥٠١ – ١٠٠٠ شحنة/شهر", color: "text-amber-400",  border: "border-amber-700/60",  bg: "bg-amber-900/20",  activeBorder: "border-amber-400",  activeBg: "bg-amber-900/40",  dot: "bg-amber-400"  },
+                ] as const
+              ).map(opt => {
+                const isActive = form.clientType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => f("clientType", opt.value)}
+                    className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all text-center
+                      ${isActive ? `${opt.activeBorder} ${opt.activeBg} ring-1 ring-current ring-offset-0` : `${opt.border} ${opt.bg} hover:opacity-80`}`}
+                    style={isActive ? { color: "inherit" } : {}}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${opt.dot} ${isActive ? "scale-125" : "opacity-60"} transition-transform`} />
+                    <span className={`text-xs font-black ${opt.color}`}>{opt.label}</span>
+                    <span className={`text-[9px] leading-tight ${isActive ? opt.color : "text-muted-foreground"}`}>{opt.range}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* ملحوظة توضيحية للتصنيف المختار */}
+            <p className="text-[10px] text-muted-foreground mt-2 px-0.5 flex items-center gap-1">
+              <span className="text-[11px]">ℹ️</span>
+              {form.clientType === "normal"
+                ? "عميل عادي — أقل من ٢٠٠ شحنة شهرياً، يحصل على السعر الأساسي"
+                : form.clientType === "commercial"
+                ? "عميل تجاري — من ٢٠١ إلى ٥٠٠ شحنة شهرياً، يحصل على سعر مخفَّض"
+                : "عميل VIP — من ٥٠١ إلى ١٠٠٠ شحنة شهرياً، يحصل على أفضل سعر"}
+            </p>
+          </div>
           <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-md">
             <span className="text-xs font-medium">حالة العميل</span>
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 mr-auto" onClick={() => f("isActive", !form.isActive)}>

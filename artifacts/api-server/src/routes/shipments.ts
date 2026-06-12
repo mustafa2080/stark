@@ -439,12 +439,17 @@ router.get("/shipment-zones", async (req, res): Promise<void> => {
 router.post("/shipment-zones", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { name, governorate, price, isActive = true } = req.body;
-    if (!name || price === undefined) { res.status(400).json({ error: "الاسم والسعر مطلوبان" }); return; }
+    const { name, governorate, price, priceNormal, priceCommercial, priceVip, isActive = true } = req.body;
+    if (!name) { res.status(400).json({ error: "اسم المنطقة مطلوب" }); return; }
+    const normalPrice = priceNormal ?? price ?? 0;
     const result = await db.insert(shipmentZonesTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
       name, governorate: governorate ?? null,
-      price: String(price), isActive,
+      price:           String(normalPrice),
+      priceNormal:     String(normalPrice),
+      priceCommercial: String(priceCommercial ?? 0),
+      priceVip:        String(priceVip        ?? 0),
+      isActive,
       createdAt: new Date(), updatedAt: new Date(),
     });
     const id = (result as any)[0]?.insertId ?? (result as any).insertId;
@@ -456,12 +461,15 @@ router.post("/shipment-zones", async (req, res): Promise<void> => {
 router.put("/shipment-zones/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { name, governorate, price, isActive } = req.body;
+    const { name, governorate, price, priceNormal, priceCommercial, priceVip, isActive } = req.body;
     const upd: any = { updatedAt: new Date() };
-    if (name       !== undefined) upd.name        = name;
-    if (governorate !== undefined) upd.governorate = governorate;
-    if (price      !== undefined) upd.price       = String(price);
-    if (isActive   !== undefined) upd.isActive    = isActive;
+    if (name            !== undefined) upd.name            = name;
+    if (governorate     !== undefined) upd.governorate     = governorate;
+    if (priceNormal     !== undefined) { upd.priceNormal   = String(priceNormal);     upd.price = String(priceNormal); }
+    else if (price      !== undefined) { upd.price         = String(price);           upd.priceNormal = String(price); }
+    if (priceCommercial !== undefined) upd.priceCommercial = String(priceCommercial);
+    if (priceVip        !== undefined) upd.priceVip        = String(priceVip);
+    if (isActive        !== undefined) upd.isActive        = isActive;
     await db.update(shipmentZonesTable).set(upd).where(eq(shipmentZonesTable.id, id));
     const rows = await db.select().from(shipmentZonesTable).where(eq(shipmentZonesTable.id, id)).limit(1);
     res.json(rows[0]);
