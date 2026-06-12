@@ -4,7 +4,7 @@ import { useGetOrdersSummary, useGetRecentOrders } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { ChartsSection, WeeklyBars, ChartCard, StatusDonutWithOrders } from "@/components/charts-section";
+import { ChartsSection, WeeklyBars, ChartCard, StatusDonutWithOrders, ShipmentStatusDonut } from "@/components/charts-section";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -612,6 +612,12 @@ export default function Dashboard() {
     refetchOnWindowFocus: false,
     enabled: isAdmin || can("finance.view"),
   });
+  const { data: shipmentsStatus } = useQuery({
+    queryKey: ["analytics-shipments-status"],
+    queryFn: () => apiFetchDashboard<{ statusBreakdown: { status: string; count: number; pct: number }[]; total: number }>("/analytics/shipments-status"),
+    staleTime: 0,
+    refetchInterval: 15000,
+  });
   const { data: teamPerf = [] } = useQuery<TeamMemberExtStats[]>({
     queryKey: ["team-perf-dashboard"],
     queryFn: () => teamAnalyticsApi.teamPerformanceExtended(),
@@ -1037,14 +1043,14 @@ export default function Dashboard() {
         <div className="space-y-3 sm:space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             <ChartCard
-              title="توزيع حالات الطلبات"
-              dot="#22c55e"
+              title="توزيع حالات الشحنات"
+              dot="#06b6d4"
               liveTag
             >
-              <StatusDonutWithOrders
-                data={chartsData?.statusBreakdown ?? []}
-                total={chartsData?.total ?? 0}
-              />
+              {shipmentsStatus && shipmentsStatus.total > 0
+                ? <ShipmentStatusDonut data={shipmentsStatus.statusBreakdown} total={shipmentsStatus.total} />
+                : <StatusDonutWithOrders data={chartsData?.statusBreakdown ?? []} total={chartsData?.total ?? 0} />
+              }
 
               {/* ── أحدث العملاء ── */}
               {recentClients.length > 0 && (
