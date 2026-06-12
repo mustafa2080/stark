@@ -2167,6 +2167,207 @@ export default function OrderDetail() {
     }
   };
 
+  const handleShipmentPrint = async () => {
+    if (!order) return;
+
+    const logoUrl = await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => resolve(`${window.location.origin}/logo.jpg`);
+      img.src = `${window.location.origin}/logo.jpg`;
+    });
+
+    const o = order as any;
+    const dateLabel = format(new Date(order.createdAt), "yyyy/MM/dd HH:mm");
+    const shipNum   = o.shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`;
+    const tracking  = o.trackingNumber  ?? "—";
+    const fmtCurr   = (n: number) =>
+      new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+
+    const shippingFee  = Number(o.shippingFee  || 0);
+    const codAmount    = Number(o.codAmount    || 0);
+    const insuranceFee = Number(o.insuranceFee || 0);
+    const storedTotal  = Number(o.totalAmount  || 0);
+    const totalAmount  = storedTotal > 0 ? storedTotal : shippingFee + codAmount + insuranceFee;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<title>شحنة ${shipNum}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
+body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;direction:rtl;font-size:15px}
+.page{max-width:800px;margin:20px auto;padding:28px 32px;background:#fff}
+
+/* HEADER */
+.header{display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:3px solid #111;margin-bottom:20px}
+.header-title{font-size:28px;font-weight:900;letter-spacing:-0.5px}
+.header-title span{font-size:16px;font-weight:600;color:#555;display:block;margin-top:4px}
+.logo{width:90px;height:90px;object-fit:contain;border-radius:8px}
+
+/* TRACKING BAR */
+.tracking-bar{background:#111;color:#fff;border-radius:8px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.tracking-item{text-align:center}
+.tracking-item .t-label{font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px}
+.tracking-item .t-value{font-size:17px;font-weight:900;color:#fff}
+.tracking-item .t-value.highlight{color:#f0c040;font-size:20px}
+.tracking-item .t-value.green{color:#4ade80}
+
+/* PARTIES */
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.party-box{border:2px solid #111;border-radius:8px;padding:16px 18px}
+.party-box.receiver{border-color:#111;border-width:3px}
+.party-title{font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e0e0e0}
+.party-name{font-size:22px;font-weight:900;color:#111;margin-bottom:8px;line-height:1.3}
+.party-row{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#333;margin-bottom:5px}
+.party-row .icon{font-size:14px;flex-shrink:0}
+.party-row .val{font-size:15px;font-weight:800;color:#111}
+.party-row .val.phone{direction:ltr;display:inline-block}
+
+/* DETAILS ROW */
+.details-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.detail-box{border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center;background:#fafafa}
+.detail-box .d-label{font-size:11px;font-weight:700;color:#666;margin-bottom:6px}
+.detail-box .d-value{font-size:18px;font-weight:900;color:#111}
+.detail-box.highlight{background:#111;border-color:#111}
+.detail-box.highlight .d-label{color:#aaa}
+.detail-box.highlight .d-value{color:#f0c040;font-size:22px}
+
+/* NOTES */
+.notes-box{border:2px dashed #ccc;border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:14px;font-weight:700;color:#333;line-height:1.8}
+.notes-box .n-title{font-size:12px;font-weight:700;color:#888;margin-bottom:4px}
+
+/* BARCODE AREA */
+.barcode-area{border:2px solid #111;border-radius:8px;padding:14px 20px;text-align:center;margin-bottom:20px;background:#fafafa}
+.barcode-area .b-label{font-size:12px;font-weight:700;color:#666;margin-bottom:6px}
+.barcode-num{font-size:30px;font-weight:900;letter-spacing:4px;color:#111;font-family:monospace}
+
+/* FOOTER */
+.footer{border-top:2px solid #ddd;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:#555}
+.footer .date{font-size:12px}
+
+@media print{.page{margin:0;padding:16px 20px;max-width:none}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-title">
+      بوليصة شحن
+      <span>رقم الشحنة: ${shipNum} &nbsp;|&nbsp; ${dateLabel}</span>
+    </div>
+    <img class="logo" src="${logoUrl}" alt="Logo" onerror="this.style.display='none'"/>
+  </div>
+
+  <!-- TRACKING BAR -->
+  <div class="tracking-bar">
+    <div class="tracking-item">
+      <div class="t-label">رقم التتبع</div>
+      <div class="t-value highlight">${tracking}</div>
+    </div>
+    <div class="tracking-item">
+      <div class="t-label">شركة الشحن</div>
+      <div class="t-value">${o.shippingCompanyName || "—"}</div>
+    </div>
+    <div class="tracking-item">
+      <div class="t-label">طريقة الدفع</div>
+      <div class="t-value">${o.paymentMethod === "cod" ? "عند الاستلام" : o.paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً"}</div>
+    </div>
+    <div class="tracking-item">
+      <div class="t-label">الحالة</div>
+      <div class="t-value green">${(statusLabels as any)[order.status] || order.status}</div>
+    </div>
+  </div>
+
+  <!-- PARTIES -->
+  <div class="parties">
+    <!-- المرسل -->
+    <div class="party-box">
+      <div class="party-title">📤 المرسل</div>
+      <div class="party-name">${o.senderName || "—"}</div>
+      ${o.senderPhone ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${o.senderPhone}</span></div>` : ""}
+      ${o.senderPhone2 ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${o.senderPhone2}</span></div>` : ""}
+      ${o.senderCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${o.senderCity}</span></div>` : ""}
+    </div>
+    <!-- المستلم -->
+    <div class="party-box receiver">
+      <div class="party-title">📦 المستلم</div>
+      <div class="party-name">${o.receiverName || order.customerName || "—"}</div>
+      ${(o.receiverPhone || order.phone) ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${o.receiverPhone || order.phone}</span></div>` : ""}
+      ${o.receiverPhone2 ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${o.receiverPhone2}</span></div>` : ""}
+      ${(o.receiverCity || o.city) ? `<div class="party-row"><span class="icon">📍</span><span class="val">${o.receiverCity || o.city}</span></div>` : ""}
+      ${(o.receiverAddress || order.address) ? `<div class="party-row"><span class="icon">🏠</span><span class="val">${o.receiverAddress || order.address}</span></div>` : ""}
+    </div>
+  </div>
+
+  <!-- DETAILS -->
+  <div class="details-row">
+    <div class="detail-box">
+      <div class="d-label">نوع الشحنة</div>
+      <div class="d-value">${o.parcelType || "—"}</div>
+    </div>
+    <div class="detail-box">
+      <div class="d-label">${o.weight ? "الوزن" : "عدد القطع"}</div>
+      <div class="d-value">${o.weight ? `${o.weight} كجم` : (o.pieces || "—")}</div>
+    </div>
+    <div class="detail-box">
+      <div class="d-label">رسوم الشحن</div>
+      <div class="d-value">${fmtCurr(shippingFee)}</div>
+    </div>
+    <div class="detail-box highlight">
+      <div class="d-label">الإجمالي</div>
+      <div class="d-value">${fmtCurr(totalAmount)}</div>
+    </div>
+  </div>
+
+  ${codAmount > 0 ? `
+  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:20px">
+    <div class="detail-box" style="background:#fffbeb;border-color:#f59e0b">
+      <div class="d-label" style="color:#92400e">مبلغ COD</div>
+      <div class="d-value" style="color:#b45309">${fmtCurr(codAmount)}</div>
+    </div>
+    ${insuranceFee > 0 ? `<div class="detail-box"><div class="d-label">رسوم التأمين</div><div class="d-value">${fmtCurr(insuranceFee)}</div></div>` : `<div></div>`}
+  </div>` : ""}
+
+  ${o.notes ? `
+  <div class="notes-box">
+    <div class="n-title">ملاحظات</div>
+    ${o.notes}
+  </div>` : ""}
+
+  ${tracking !== "—" ? `
+  <div class="barcode-area">
+    <div class="b-label">رقم التتبع</div>
+    <div class="barcode-num">${tracking}</div>
+  </div>` : ""}
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span>شحنة رقم: <strong>${shipNum}</strong>${o.assignedUserName ? ` &nbsp;|&nbsp; المندوب: <strong>${o.assignedUserName}</strong>` : ""}</span>
+    <span class="date">طُبع في: ${dateLabel}</span>
+  </div>
+
+</div>
+</body></html>`);
+
+    printWindow.document.close();
+    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1200);
+  };
+
   const handlePrint = async () => {
     if (!order) return;
 
@@ -2662,9 +2863,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             {/* صف الأزرار */}
             <div className="bg-muted/30 px-3 py-2 flex items-center gap-1.5 flex-wrap">
               {/* زرار الطباعة — للكل */}
-              <Button variant="outline" size="sm" onClick={handlePrint}
+              <Button variant="outline" size="sm" onClick={handleShipmentPrint}
                 className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
-                <Printer className="w-3.5 h-3.5" />فاتورة
+                <Printer className="w-3.5 h-3.5" />طباعة
               </Button>
 
               {/* الأزرار دي للأدمن فقط */}
@@ -2802,9 +3003,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         {/* صف الأزرار */}
         <div className="bg-muted/30 px-3 py-2 flex items-center gap-1.5 flex-wrap">
           {/* فاتورة — للكل */}
-          <Button variant="outline" size="sm" onClick={handlePrint}
+          <Button variant="outline" size="sm" onClick={handleShipmentPrint}
             className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
-            <Printer className="w-3.5 h-3.5" />فاتورة
+            <Printer className="w-3.5 h-3.5" />طباعة
           </Button>
 
           {/* واتساب — للكل */}
