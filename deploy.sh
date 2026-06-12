@@ -5,7 +5,7 @@ echo "[1/5] Pulling latest from GitHub..."
 cd /root/caprina
 git reset --hard HEAD
 git clean -fd artifacts/caprina/dist/public/assets/
-git pull
+git pull origin main
 
 echo "[2/5] Building API Server..."
 cd /root/caprina/artifacts/api-server
