@@ -1461,10 +1461,7 @@ export default function Orders() {
                     {canFinancials && (
                     <TableHead className="text-right text-xs">
                       <div className="flex items-center gap-1">
-                        {!showColFilters
-                          ? <input value={totalSearch} onChange={e => setTotalSearch(e.target.value)} placeholder="سعر الشحنة..." className="w-20 h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
-                          : <span>سعر الشحنة</span>
-                        }
+                        <span>سعر الشحنة</span>
                         {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                       </div>
                     </TableHead>
