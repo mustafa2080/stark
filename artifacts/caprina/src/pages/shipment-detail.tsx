@@ -2131,35 +2131,18 @@ export default function OrderDetail() {
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      // لو فاتورة متعددة → احذف كل الطلبات في الفاتورة دفعة واحدة
-      const idsToDelete = invoiceOrders.length > 1
-        ? invoiceOrders.map((o: any) => o.id)
-        : [id];
+      // احذف الشحنة عن طريق endpoint الشحنات الصح
+      await apiFetch(`/shipments/${id}`, { method: "DELETE" });
 
-      const token = localStorage.getItem("caprina_token");
-      await fetch("/api/orders/bulk", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ids: idsToDelete }),
-      });
+      // امسح الشحنة من الكاش
+      queryClient.removeQueries({ queryKey: ["shipment-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
 
-      // امسح كل الطلبات من الكاش
-      idsToDelete.forEach((oid: number) => queryClient.removeQueries({ queryKey: getGetOrderQueryKey(oid) }));
-      await queryClient.refetchQueries({ queryKey: getListOrdersQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetRecentOrdersQueryKey() });
-      queryClient.invalidateQueries({ queryKey: ["orders-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["archived-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["cash-registers-list"] });
-
-      const msg = idsToDelete.length > 1
-        ? `تم حذف الطلب وكل منتجاته (${idsToDelete.length} منتج).`
-        : "تم حذف الطلب بنجاح.";
-      toast({ title: "تم الحذف", description: msg });
-      navigate("/shipments");
+      toast({ title: "تم الحذف", description: "تم حذف الشحنة بنجاح." });
+      navigate("/orders");
     } catch (err: any) {
-      const msg = err?.message || "فشل حذف الطلب.";
+      const msg = err?.message || "فشل حذف الشحنة.";
       toast({ title: "خطأ", description: msg, variant: "destructive" });
     } finally {
       setIsDeleting(false);
