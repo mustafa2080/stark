@@ -1624,24 +1624,29 @@ export default function Orders() {
                             : <span className="text-muted-foreground/50">—</span>}
                         </TableCell>
                         <TableCell className="text-center">
+                          <div className="flex flex-col items-center gap-0.5">
                           {(() => { const SI = STATUS_ICONS[order.status] || Package; return (
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusClasses[order.status] || ""}`}>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border ${statusClasses[order.status] || ""}`}>
                               <SI className="w-3 h-3" />
                               {statusLabels[order.status] || order.status}
                             </span>
                           ); })()}
+                          {order.status === "warehouse_ready" && (
+                            <span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">🏠 ما زال في المخزن</span>
+                          )}
+                          {order.status === "in_shipping" && (
+                            <span className="text-[9px] font-bold text-blue-500 dark:text-blue-400 leading-none">🚚 تحت التسليم</span>
+                          )}
                           {order.status === "returned" && (() => {
                             const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
-                            if (rr === 0) return <div className="flex items-center justify-center gap-0.5 mt-1"><span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">⏳ عند شركة الشحن</span></div>;
+                            if (rr === 0) return <span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">⏳ عند شركة الشحن</span>;
                             return null;
                           })()}
                           {order.status === "delayed" && (() => {
                             const dn = (order as any).delayNote as string | null | undefined;
                             if (!dn) return null;
                             return (
-                              <div className="flex items-center justify-center gap-0.5 mt-1">
-                                <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 leading-none">⏸ {dn}</span>
-                              </div>
+                              <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 leading-none">⏸ {dn}</span>
                             );
                           })()}
                           {order.status === "partial_received" && (() => {
@@ -1657,13 +1662,14 @@ export default function Orders() {
                             );
                           })()}
                           {order.status === "returned" && retReason && (
-                            <div className="flex items-center justify-center gap-0.5 mt-1">
+                            <div className="flex items-center justify-center gap-0.5">
                               <RotateCcw className="w-2.5 h-2.5 text-red-500 shrink-0" />
                               <span className="text-[9px] text-red-600 dark:text-red-400 leading-none">
                                 {retReason === "other" && retNote ? retNote : returnReasonLabel(retReason)}
                               </span>
                             </div>
                           )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center p-1">
                           {canWhatsApp && (
