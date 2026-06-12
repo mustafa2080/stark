@@ -52,16 +52,16 @@ const SOURCE_CFG: Record<string, { label: string; emoji: string; color: string }
 
 // ─── Shipment status config ───────────────────────────────────────────────────
 const SHIPMENT_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  waiting:          { label: "انتظار",         color: "#eab308", bg: "#eab30818" }, // 🟡 أصفر
-  confirmed:        { label: "مؤكدة",          color: "#3b82f6", bg: "#3b82f618" }, // 🔵 أزرق
-  picked_up:        { label: "تم الاستلام",    color: "#f97316", bg: "#f9731618" }, // 🟠 برتقالي
-  in_transit:       { label: "في الطريق",      color: "#3b82f6", bg: "#3b82f618" }, // 🔵 أزرق
-  out_for_delivery: { label: "خرجت للتسليم",  color: "#f59e0b", bg: "#f59e0b18" }, // 🟠 برتقالي فاتح
-  delivered:        { label: "تم التسليم",     color: "#22c55e", bg: "#22c55e18" }, // 🟢 أخضر
-  delayed:          { label: "متأخرة",         color: "#8b5cf6", bg: "#8b5cf618" }, // 🟣 بنفسجي
-  returned:         { label: "مرتجعة",         color: "#ef4444", bg: "#ef444418" }, // 🔴 أحمر
-  cancelled:        { label: "ملغاة",          color: "#6b7280", bg: "#6b728018" }, // ⚪ رمادي
-  closed:           { label: "مغلقة",          color: "#06b6d4", bg: "#06b6d418" }, // 🩵 سماوي
+  pending:          { label: "قيد الانتظار",        color: "#eab308", bg: "#eab30818" }, // 🟡 أصفر
+  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#f97316", bg: "#f9731618" }, // 🟠 برتقالي
+  in_shipping:      { label: "قيد الشحن",            color: "#3b82f6", bg: "#3b82f618" }, // 🔵 أزرق
+  received:         { label: "مُسلَّم",              color: "#22c55e", bg: "#22c55e18" }, // 🟢 أخضر
+  delivered:        { label: "مُسلَّم",              color: "#22c55e", bg: "#22c55e18" }, // 🟢 أخضر
+  delayed:          { label: "مؤجل",                 color: "#8b5cf6", bg: "#8b5cf618" }, // 🟣 بنفسجي
+  returned:         { label: "مرتجع",                color: "#ef4444", bg: "#ef444418" }, // 🔴 أحمر
+  partial_received: { label: "استلم جزئي",           color: "#06b6d4", bg: "#06b6d418" }, // 🩵 سماوي
+  out_for_delivery: { label: "خرجت للتسليم",        color: "#f59e0b", bg: "#f59e0b18" }, // 🟠 أمبر
+  cancelled:        { label: "ملغاة",                color: "#6b7280", bg: "#6b728018" }, // ⚪ رمادي
 };
 
 const BAR_COLOR = "#f59e0b";
