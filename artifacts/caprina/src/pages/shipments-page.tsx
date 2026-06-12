@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import ExcelJS from "exceljs";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard } from "lucide-react";
+import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, PackageX, AlertTriangle } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
 import type { UpdateOrderBodyStatus } from "@workspace/api-zod";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -63,6 +63,25 @@ const statusClasses: Record<string, string> = {
   in_shipping:      "bg-blue-50    dark:bg-blue-900/30    text-blue-700    dark:text-blue-400    border-blue-300    dark:border-blue-800",
   received:         "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
   partial_received: "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-700    dark:text-cyan-400    border-cyan-300    dark:border-cyan-800",
+};
+
+const STATUS_ICONS: Record<string, React.ElementType> = {
+  // حالات الأوردرز
+  waiting:          Clock,
+  confirmed:        CheckCircle2,
+  picked_up:        PackageCheck,
+  in_transit:       Truck,
+  out_for_delivery: Truck,
+  delivered:        CheckCircle2,
+  delayed:          ShieldAlert,
+  returned:         RotateCcw,
+  cancelled:        PackageX,
+  // حالات الشحنات
+  pending:          Clock,
+  warehouse_ready:  PackageCheck,
+  in_shipping:      Truck,
+  received:         CheckCircle2,
+  partial_received: AlertTriangle,
 };
 
 const STATUS_OPTIONS = [
@@ -1469,9 +1488,12 @@ export default function Orders() {
                           )}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
-                          {statusLabels[order.status] || order.status}
-                        </Badge>
+                        {(() => { const SI = STATUS_ICONS[order.status] || Package; return (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusClasses[order.status] || ""}`}>
+                            <SI className="w-3 h-3" />
+                            {statusLabels[order.status] || order.status}
+                          </span>
+                        ); })()}
                         {order.status === "returned" && (() => {
                           const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                           if (rr === 0) return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-orange-500 dark:text-orange-400">⏳ عند شركة الشحن</span>;
@@ -1607,9 +1629,12 @@ export default function Orders() {
                             : <span className="text-muted-foreground/50">—</span>}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
-                            {statusLabels[order.status] || order.status}
-                          </Badge>
+                          {(() => { const SI = STATUS_ICONS[order.status] || Package; return (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusClasses[order.status] || ""}`}>
+                              <SI className="w-3 h-3" />
+                              {statusLabels[order.status] || order.status}
+                            </span>
+                          ); })()}
                           {order.status === "returned" && (() => {
                             const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                             if (rr === 0) return <div className="flex items-center justify-center gap-0.5 mt-1"><span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">⏳ عند شركة الشحن</span></div>;
