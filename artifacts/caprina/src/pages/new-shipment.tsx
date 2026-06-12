@@ -60,9 +60,9 @@ export default function NewShipmentPage() {
     senderName: "", senderPhone: "", senderPhone2: "", senderCity: "",
     receiverName: "", receiverPhone: "", receiverPhone2: "", receiverAddress: "", receiverCity: "",
     zoneId: "", parcelType: "" as ParcelType | "",
-    weight: "", pieces: "1", description: "", declaredValue: "",
+    weight: "", pieces: "1", description: "",
     paymentMethod: "cod" as PaymentMethod,
-    codAmount: "", insuranceFee: "0", notes: "",
+    codAmount: "", notes: "",
     adSource: "", adCampaign: "", warehouseId: "", assignedUserId: "",
   });
 
@@ -79,9 +79,8 @@ export default function NewShipmentPage() {
   const zonePrice       = Number(selectedZone?.price) || 0;
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
-  const insurance       = Number(form.insuranceFee) || 0;
   const cod             = Number(form.codAmount) || 0;
-  const total           = (form.paymentMethod === "cod" ? cod : 0) + shippingFee + insurance;
+  const total           = (form.paymentMethod === "cod" ? cod : 0) + shippingFee;
 
   const mutation = useMutation({
     mutationFn: (data: any) => apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
@@ -116,11 +115,9 @@ export default function NewShipmentPage() {
       weight:          form.weight    || undefined,
       pieces:          Number(form.pieces) || 1,
       description:     form.description || undefined,
-      declaredValue:   form.declaredValue || undefined,
       paymentMethod:   form.paymentMethod,
       codAmount:       cod || undefined,
       shippingFee:     shippingFee || undefined,
-      insuranceFee:    insurance || undefined,
       totalAmount:     total || undefined,
       notes:           form.notes || undefined,
       adSource:        form.adSource || undefined,
@@ -239,7 +236,6 @@ export default function NewShipmentPage() {
             </div>
             <div><Label className="text-xs font-bold mb-1.5 block">الوزن (كجم)</Label><Input type="number" className="text-sm" placeholder="0.00" value={form.weight} onChange={e => set("weight", e.target.value)} /></div>
             <div><Label className="text-xs font-bold mb-1.5 block">عدد القطع</Label><Input type="number" min="1" className="text-sm" value={form.pieces} onChange={e => set("pieces", e.target.value)} /></div>
-            <div><Label className="text-xs font-bold mb-1.5 block">القيمة المعلنة (جنيه)</Label><Input type="number" className="text-sm" placeholder="0" value={form.declaredValue} onChange={e => set("declaredValue", e.target.value)} /></div>
             <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">وصف الشحنة</Label><Input className="text-sm" placeholder="محتوى الشحنة..." value={form.description} onChange={e => set("description", e.target.value)} /></div>
           </div>
         </section>
@@ -262,9 +258,8 @@ export default function NewShipmentPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {form.paymentMethod === "cod" && (
-              <div><Label className="text-xs font-bold mb-1.5 block">مبلغ التحصيل (COD)</Label><Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">سعر الشحنة</Label><Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} /></div>
             )}
-            <div><Label className="text-xs font-bold mb-1.5 block">رسوم التأمين</Label><Input type="number" className="text-sm" placeholder="0" value={form.insuranceFee} onChange={e => set("insuranceFee", e.target.value)} /></div>
           </div>
         </section>
 
@@ -344,8 +339,7 @@ export default function NewShipmentPage() {
                 {[
                   { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
                   { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
-                  { label: "رسوم التأمين",       value: fc(insurance) },
-                  form.paymentMethod === "cod" ? { label: "مبلغ التحصيل (COD)", value: fc(cod), highlight: true } : null,
+                  form.paymentMethod === "cod" ? { label: "سعر الشحنة", value: fc(cod), highlight: true } : null,
                 ].filter(Boolean).map((row: any, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{row.label}</span>
