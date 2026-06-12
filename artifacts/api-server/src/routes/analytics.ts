@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable } from "@workspace/db";
 import { eq, isNull, and, desc, lte, gte, sql, inArray, count } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -2097,5 +2097,31 @@ export async function warmAnalyticsCache() {
     console.warn("[cache-warm] product-performance failed:", e);
   }
 }
+
+// ─── Shipments Status Breakdown ───────────────────────────────────────────────
+router.get("/analytics/shipments-status", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const conditions: any[] = [];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const rows = await db
+      .select({ status: shipmentsTable.status, count: count() })
+      .from(shipmentsTable)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .groupBy(shipmentsTable.status);
+
+    const total = rows.reduce((s, r) => s + Number(r.count), 0);
+    const statusBreakdown = rows.map(r => ({
+      status: r.status,
+      count: Number(r.count),
+      pct: total > 0 ? Math.round((Number(r.count) / total) * 100) : 0,
+    }));
+
+    res.json({ statusBreakdown, total });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 export default router;

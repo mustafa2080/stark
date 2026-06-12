@@ -50,6 +50,20 @@ const SOURCE_CFG: Record<string, { label: string; emoji: string; color: string }
   other:     { label: "أخرى",     emoji: "📌", color: "#8b5cf6" },
 };
 
+// ─── Shipment status config ───────────────────────────────────────────────────
+const SHIPMENT_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  waiting:          { label: "انتظار",         color: "#94a3b8", bg: "#94a3b818" },
+  confirmed:        { label: "مؤكدة",          color: "#3b82f6", bg: "#3b82f618" },
+  picked_up:        { label: "تم الاستلام",    color: "#06b6d4", bg: "#06b6d418" },
+  in_transit:       { label: "في الطريق",      color: "#8b5cf6", bg: "#8b5cf618" },
+  out_for_delivery: { label: "خرجت للتسليم",  color: "#f59e0b", bg: "#f59e0b18" },
+  delivered:        { label: "تم التسليم",     color: "#22c55e", bg: "#22c55e18" },
+  delayed:          { label: "متأخرة",         color: "#f97316", bg: "#f9731618" },
+  returned:         { label: "مرتجعة",         color: "#ef4444", bg: "#ef444418" },
+  cancelled:        { label: "ملغاة",          color: "#6b7280", bg: "#6b728018" },
+  closed:           { label: "مغلقة",          color: "#10b981", bg: "#10b98118" },
+};
+
 const BAR_COLOR = "#f59e0b";
 
 const fc = (n: number) =>
@@ -1123,14 +1137,87 @@ export function StatusDonutWithOrders({ data, total }: { data: ChartsData["statu
   );
 }
 
+// ─── Shipment Status Donut ────────────────────────────────────────────────────
+const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
+  data, total,
+}: {
+  data: { status: string; count: number; pct: number }[];
+  total: number;
+}) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
+
+  return (
+    <div className="space-y-4">
+      {/* Donut */}
+      <div className="relative" style={{ height: 220 }}>
+        {activeIndex === null && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+            <p className="text-4xl font-black text-foreground leading-none">{total}</p>
+            <p className="text-xs text-muted-foreground mt-1">إجمالي الشحنات</p>
+          </div>
+        )}
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart tabIndex={-1} style={{ outline: "none" }}>
+            <Pie
+              data={sorted}
+              cx="50%" cy="50%"
+              innerRadius="52%" outerRadius="78%"
+              paddingAngle={3} dataKey="count"
+              stroke="none" cornerRadius={5}
+              startAngle={90} endAngle={-270}
+              labelLine={false}
+              activeIndex={activeIndex ?? undefined}
+              activeShape={ActiveDonutShape}
+              animationBegin={0} animationDuration={600} animationEasing="ease-out"
+              onMouseEnter={(_, i) => setActiveIndex(i)}
+              onMouseLeave={() => setActiveIndex(null)}
+            >
+              {sorted.map((d, i) => (
+                <Cell key={i} fill={SHIPMENT_STATUS_CFG[d.status]?.color ?? "#888"} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Legend */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {sorted.map((d) => {
+          const cfg = SHIPMENT_STATUS_CFG[d.status] ?? { label: d.status, color: "#888", bg: "#88888818" };
+          return (
+            <div key={d.status}
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold"
+              style={{ background: cfg.bg }}
+            >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+              <span className="text-foreground truncate">{cfg.label}</span>
+              <span className="mr-auto font-black" style={{ color: cfg.color }}>{d.count}</span>
+              <span className="text-muted-foreground">{d.pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 // ─── Exported Component ──────────────────────────────────────────────────────
 export function ChartsSection() {
   const { data, isLoading } = useQuery({
     queryKey: ["analytics-charts"],
     queryFn: analyticsApi.charts,
-    staleTime: 0,           // دايماً fresh لما يتعمل invalidate
-    refetchInterval: 15000, // كل 15 ثانية كـ fallback
-    refetchOnWindowFocus: true, // لما المستخدم يرجع للتبويبة يحدث فوراً
+    staleTime: 0,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: shipmentsStatus } = useQuery({
+    queryKey: ["analytics-shipments-status"],
+    queryFn: () => apiFetch<{ statusBreakdown: { status: string; count: number; pct: number }[]; total: number }>("/analytics/shipments-status"),
+    staleTime: 0,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) return <Skeleton />;
@@ -1155,7 +1242,7 @@ export function ChartsSection() {
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1 — Donut with expandable orders */}
+        {/* 1 — Orders Donut */}
         <ChartCard
           title="توزيع حالات الطلبات"
           subtitle="اضغط على الحالة لعرض طلباتها"
@@ -1187,6 +1274,23 @@ export function ChartsSection() {
           <AdSources data={data.adSourceBreakdown} />
         </ChartCard>
       </div>
+
+      {/* Shipments Status */}
+      {shipmentsStatus && shipmentsStatus.total > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <ChartCard
+            title="توزيع حالات الشحنات"
+            subtitle="بيانات مباشرة من جدول الشحنات"
+            dot="#06b6d4"
+            liveTag
+          >
+            <ShipmentStatusDonut
+              data={shipmentsStatus.statusBreakdown}
+              total={shipmentsStatus.total}
+            />
+          </ChartCard>
+        </div>
+      )}
     </div>
   );
 }
