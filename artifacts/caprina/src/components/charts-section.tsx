@@ -41,6 +41,11 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
   delayed:          { label: "متأخرة",          color: "#8b5cf6", bg: "#8b5cf618" }, // 🟣 بنفسجي
   returned:         { label: "مرتجع",           color: "#ef4444", bg: "#ef444418" }, // 🔴 أحمر
   cancelled:        { label: "ملغية",           color: "#6b7280", bg: "#6b728018" }, // ⚪ رمادي
+  // ─── legacy statuses (قديمة في DB) ─────────────────────────────────────
+  warehouse_ready:      { label: "قيد الشحن في المخزن", color: "#f97316", bg: "#f9731618" }, // 🟠 برتقالي
+  shipping:             { label: "قيد الشحن",            color: "#3b82f6", bg: "#3b82f618" }, // 🔵 أزرق
+  partial_delivered:    { label: "استلم جزئى",           color: "#06b6d4", bg: "#06b6d418" }, // 🩵 سماوي
+  pending:              { label: "قيد الانتظار",         color: "#eab308", bg: "#eab30818" }, // 🟡 أصفر
 };
 
 const SOURCE_CFG: Record<string, { label: string; emoji: string; color: string }> = {
