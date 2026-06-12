@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { ToastAction } from "@/components/ui/toast";
 import { shippingApi, ordersApi, productsApi, variantsApi, manifestsApi, warehousesApi, usersApi, cashRegistersApi, apiFetch } from "@/lib/api";
 import { type WhatsAppOrderData } from "@/lib/whatsapp";
-import { WhatsAppDialog } from "@/components/whatsapp-dialog";
+import { WhatsAppDialog, WhatsAppShipmentDialog } from "@/components/whatsapp-dialog";
 import { formatCurrency } from "@/lib/utils";
 import { ProductSearchCombobox } from "@/components/product-search-combobox";
 import { RETURN_REASONS, returnReasonLabel, STATUS_LABELS as statusLabels, STATUS_CLASSES as statusClasses } from "@/lib/order-constants";
@@ -4336,13 +4336,23 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* WhatsApp dialog — يظهر في الوضعين (فردي ومتعدد) */}
+      {/* WhatsApp dialog — shipment logic */}
       {order && (
-        <WhatsAppDialog
+        <WhatsAppShipmentDialog
           open={showWaDialog}
           onOpenChange={setShowWaDialog}
-          order={{ id: order.id, customerName: order.customerName, product: order.product, quantity: order.quantity, totalPrice: order.totalPrice, status: order.status, phone: order.phone }}
-          onSent={handleWaSent}
+          shipment={{
+            id: order.id,
+            shipmentNumber: (order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`,
+            receiverName: (order as any).receiverName || order.customerName,
+            receiverPhone: (order as any).receiverPhone || order.phone || null,
+            senderName: (order as any).senderName ?? null,
+            trackingNumber: (order as any).trackingNumber ?? null,
+            status: order.status,
+            shippingFee: (order as any).shippingFee ?? null,
+            codAmount: (order as any).codAmount ?? null,
+            zoneLabel: (order as any).zoneLabel ?? null,
+          }}
         />
       )}
     </div>
