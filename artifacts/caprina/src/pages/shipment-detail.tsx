@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useGetOrder, getGetOrderQueryKey, useUpdateOrder, getListOrdersQueryKey, getGetOrdersSummaryQueryKey, getGetRecentOrdersQueryKey } from "@workspace/api-client-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1861,7 +1861,17 @@ export default function OrderDetail() {
   // الشحنات مش عندها manifest — معطل
   const manifestStatus = null;
   const invoiceManifestStatus = null;
-  const updateOrder = { mutate: () => {}, isPending: false } as any;
+
+  // mutation لتحديث حالة الشحنة
+  const updateOrder = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shipment", id] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
+    },
+  });
 
   // Edit form — inline product search state (same as AddProductDialog)
   const [editSelectedProduct, setEditSelectedProduct] = useState<any>(null);
