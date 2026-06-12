@@ -235,8 +235,7 @@ export default function NewShipmentPage() {
               {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {fc(selectedPricing.basePrice)}</p>}
             </div>
             <div><Label className="text-xs font-bold mb-1.5 block">الوزن (كجم)</Label><Input type="number" className="text-sm" placeholder="0.00" value={form.weight} onChange={e => set("weight", e.target.value)} /></div>
-            <div><Label className="text-xs font-bold mb-1.5 block">عدد القطع</Label><Input type="number" min="1" className="text-sm" value={form.pieces} onChange={e => set("pieces", e.target.value)} /></div>
-            <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">وصف الشحنة</Label><Input className="text-sm" placeholder="محتوى الشحنة..." value={form.description} onChange={e => set("description", e.target.value)} /></div>
+
           </div>
         </section>
 
