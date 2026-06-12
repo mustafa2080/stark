@@ -2102,7 +2102,7 @@ export async function warmAnalyticsCache() {
 router.get("/analytics/shipments-status", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const conditions: any[] = [];
+    const conditions: any[] = [isNull(shipmentsTable.deletedAt)];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
     const rows = await db
