@@ -29,6 +29,7 @@ import { ordersApi, shippingApi, apiFetch } from "@/lib/api";
 type OrderStatusValue = "waiting" | "confirmed" | "picked_up" | "in_transit" | "out_for_delivery" | "delivered" | "delayed" | "returned" | "cancelled";
 
 const statusLabels: Record<string, string> = {
+  // حالات الأوردرز
   waiting:          "انتظار",
   confirmed:        "مؤكدة",
   picked_up:        "تم الاستلام",
@@ -38,6 +39,12 @@ const statusLabels: Record<string, string> = {
   delayed:          "متأخرة",
   returned:         "مرتجع",
   cancelled:        "ملغية",
+  // حالات الشحنات
+  pending:          "قيد الشحن",
+  warehouse_ready:  "قيد الشحن في المخزن",
+  in_shipping:      "قيد الشحن",
+  received:         "تم التسليم",
+  partial_received: "تسليم جزئي",
 };
 
 const statusClasses: Record<string, string> = {
@@ -50,6 +57,12 @@ const statusClasses: Record<string, string> = {
   delayed:          "bg-purple-50  dark:bg-purple-900/30  text-purple-700  dark:text-purple-400  border-purple-300  dark:border-purple-800",
   returned:         "bg-red-50     dark:bg-red-900/30     text-red-700     dark:text-red-400     border-red-300     dark:border-red-800",
   cancelled:        "bg-gray-50    dark:bg-gray-900/30    text-gray-600    dark:text-gray-400    border-gray-300    dark:border-gray-700",
+  // حالات الشحنات
+  pending:          "bg-amber-50   dark:bg-amber-900/30   text-amber-700   dark:text-amber-400   border-amber-300   dark:border-amber-800",
+  warehouse_ready:  "bg-orange-50  dark:bg-orange-900/30  text-orange-700  dark:text-orange-400  border-orange-300  dark:border-orange-800",
+  in_shipping:      "bg-blue-50    dark:bg-blue-900/30    text-blue-700    dark:text-blue-400    border-blue-300    dark:border-blue-800",
+  received:         "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
+  partial_received: "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-700    dark:text-cyan-400    border-cyan-300    dark:border-cyan-800",
 };
 
 const STATUS_OPTIONS = [
@@ -1459,9 +1472,6 @@ export default function Orders() {
                         <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
                           {statusLabels[order.status] || order.status}
                         </Badge>
-                        {order.status === "warehouse_ready" && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-500 dark:text-amber-400">🏠 ما زال في المخزن</span>
-                        )}
                         {order.status === "returned" && (() => {
                           const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                           if (rr === 0) return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-orange-500 dark:text-orange-400">⏳ عند شركة الشحن</span>;
@@ -1600,11 +1610,6 @@ export default function Orders() {
                           <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
                             {statusLabels[order.status] || order.status}
                           </Badge>
-                          {order.status === "warehouse_ready" && (
-                            <div className="flex items-center justify-center gap-0.5 mt-1">
-                              <span className="text-[9px] font-bold text-amber-500 dark:text-amber-400 leading-none">🏠 ما زال في المخزن</span>
-                            </div>
-                          )}
                           {order.status === "returned" && (() => {
                             const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                             if (rr === 0) return <div className="flex items-center justify-center gap-0.5 mt-1"><span className="text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none">⏳ عند شركة الشحن</span></div>;
