@@ -849,7 +849,7 @@ router.get("/analytics/my-report", async (req, res): Promise<void> => {
     .leftJoin(usersTable, eq(employeeProfilesTable.userId, usersTable.id))
     .where(eq(employeeProfilesTable.userId, userId));
 
-  if (!row) {
+  if (!row || !row.profile) {
     // No employee profile â€” return basic stats from orders only
   const monthParam = (req.query.month as string) || "";
   const { dateFrom, dateTo } = getPayPeriod(monthParam);
