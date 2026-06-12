@@ -1680,7 +1680,18 @@ function StatusSelect({
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
-  const current = STATUS_OPTIONS.find((o) => o.value === value) ?? STATUS_OPTIONS[0];
+  // fallback mapping للقيم القديمة في الـ DB لأقرب حالة من الـ 7 الحالية
+  const LEGACY_STATUS_MAP: Record<string, string> = {
+    waiting: "pending",
+    confirmed: "warehouse_ready",
+    picked_up: "warehouse_ready",
+    in_transit: "in_shipping",
+    out_for_delivery: "in_shipping",
+    delivered: "received",
+    cancelled: "returned",
+  };
+  const normalizedValue = LEGACY_STATUS_MAP[value] ?? value;
+  const current = STATUS_OPTIONS.find((o) => o.value === normalizedValue) ?? STATUS_OPTIONS[0];
 
   // إغلاق لو ضغط برا
   useEffect(() => {
@@ -1748,7 +1759,7 @@ function StatusSelect({
         >
           <div className="p-1.5 flex flex-col gap-0.5">
             {STATUS_OPTIONS.map((opt) => {
-              const isActive = opt.value === value;
+              const isActive = opt.value === normalizedValue;
               return (
                 <button
                   key={opt.value}
