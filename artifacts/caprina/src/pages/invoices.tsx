@@ -352,6 +352,138 @@ export default function Invoices() {
   };
 
   const autoPrintTriggeredRef = useRef(false);
+
+  // ─── Print Shipments ──────────────────────────────────────────────────────
+  const handleShipmentPrint = async () => {
+    const selected = warehouseShipments.filter((sh: any) => selectedShipmentIds.has(sh.id));
+    if (!selected.length) { alert("اختر شحنات للطباعة أولاً."); return; }
+
+    let logoB64 = "";
+    const logoSrc = brand.logoUrl || "/logo.jpg";
+    try {
+      const r = await fetch(logoSrc);
+      const blob = await r.blob();
+      logoB64 = await new Promise<string>(res => { const reader = new FileReader(); reader.onload = () => res(reader.result as string); reader.readAsDataURL(blob); });
+    } catch {}
+    const brandName = brand.name || "CAPRINA";
+    const brandTagline = brand.tagline || "WIN OR DIE";
+
+    const cols = perPage === 1 ? 1 : 2;
+    const pageGroups: any[][] = [];
+    for (let i = 0; i < selected.length; i += perPage) pageGroups.push(selected.slice(i, i + perPage));
+
+    const shipmentInvoiceHTML = (sh: any) => {
+      const company = shippingCompanies?.find((c: any) => c.id === sh.shippingCompanyId);
+      const dateStr = sh.createdAt ? format(new Date(sh.createdAt), "yyyy/MM/dd") : "";
+      const shipNum = sh.shipmentNumber ?? String(sh.id).padStart(4, "0");
+      const cod = parseFloat(sh.codAmount) || 0;
+      const fee = parseFloat(sh.shippingFee) || 0;
+      const total = cod + fee;
+      return `<div class="inv">
+        <div class="inv-hdr">
+          <div class="hdr-logo">
+            <div style="width:12mm;height:12mm;flex-shrink:0">${logoB64 ? `<img src="${logoB64}" style="width:100%;height:100%;object-fit:contain;border-radius:1.5mm;background:white;padding:0.5mm;" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border-radius:1.5mm;font-size:7pt;font-weight:900;color:white;">${brandName.substring(0,2)}</div>`}</div>
+            <div style="text-align:left;line-height:1.2;margin-right:2mm"><div class="logo-txt">${brandName}</div><div class="logo-sub">${brandTagline}</div></div>
+          </div>
+          <div class="hdr-date">${dateStr}<br/><span style="font-size:5pt;opacity:0.5">SHP #${shipNum}</span></div>
+        </div>
+        <div class="cust-row">
+          <div class="cust-name">${sh.receiverName}</div>
+          <div class="cust-phone">&#128222; ${sh.receiverPhone ?? "&#8212;"}</div>
+        </div>
+        <div class="inv-body">
+          <div class="table-wrap">
+            <table class="prod-table">
+              <thead><tr><th style="width:40%">البيان</th><th style="width:30%">المرسل</th><th style="width:30%">المبلغ</th></tr></thead>
+              <tbody>
+                <tr><td class="name-col">${sh.description || "شحنة"}</td><td>${sh.senderName}</td><td style="font-weight:900">${cod.toLocaleString("en-US")} ج.م</td></tr>
+                ${fee > 0 ? `<tr><td class="name-col" colspan="2">رسوم الشحن</td><td style="font-weight:700">${fee.toLocaleString("en-US")} ج.م</td></tr>` : ""}
+              </tbody>
+            </table>
+          </div>
+          <div class="total-bar-wrap">
+            <div style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;background:#1a1a1a;border:1px solid #000;border-radius:1mm;padding:1.2mm 2.5mm;font-size:10pt;font-weight:900;color:#fff;margin-bottom:0.5mm">
+              <span>الإجمالي</span><span style="font-size:12pt">${total.toLocaleString("en-US")} ج.م</span>
+            </div>
+          </div>
+        </div>
+        <div class="inv-bottom">
+          <div class="info-strip">
+            <div class="info-cell"><span class="info-lbl">المدينة</span><span class="info-val">${sh.receiverCity || "&#8212;"}</span></div>
+            <div class="info-cell"><span class="info-lbl">شركة الشحن</span><span class="info-val">${company ? company.name : "&#8212;"}</span></div>
+            <div class="info-cell"><span class="info-lbl">رقم التتبع</span><span class="info-val" style="direction:ltr;text-align:right">${sh.trackingNumber || "&#8212;"}</span></div>
+          </div>
+          <div class="addr-box"><div class="addr-lbl">العنوان</div><div class="addr-val">${sh.receiverAddress || "&#8212;"}</div></div>
+          ${sh.notes ? `<div class="notes-box"><b>&#128203; ملاحظات:</b><span>${sh.notes}</span></div>` : ""}
+        </div>
+        <div class="inv-footer">
+          <div class="policy-txt">الاسترجاع فقط اثناء تواجد المندوب &middot; احتفظ بالفاتورة</div>
+          <div class="footer-brand">${brandName}</div>
+        </div>
+      </div>`;
+    };
+
+    const styles = `
+      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap');
+      @page { size: A4 landscape; margin: 0; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'Cairo', Arial, sans-serif; direction: rtl; background: white; color: #000; font-size: 9pt; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { display: grid; grid-template-rows: 1fr 1fr; gap: 2mm; width: 297mm; height: 210mm; padding: 2mm 3mm; page-break-after: always; box-sizing: border-box; }
+      .page:last-child { page-break-after: avoid; }
+      .page.single-row { grid-template-rows: 1fr; height: 105mm; }
+      .inv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; align-items: stretch; min-height: 0; height: 100%; }
+      .inv-row.single { grid-template-columns: 1fr; }
+      .empty-slot { border: 2px dashed #ddd; border-radius: 2mm; }
+      .inv { border: 2px solid #000; border-radius: 2mm; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; background: white; width: 100%; height: 100%; min-height: 0; }
+      .inv-hdr { background: #1a1a1a; color: white; display: flex; align-items: center; justify-content: space-between; padding: 1.5mm 2.5mm; gap: 2mm; flex-shrink: 0; }
+      .hdr-date { font-size: 7pt; font-weight: 700; white-space: nowrap; direction: ltr; text-align: right; }
+      .hdr-logo { display: flex; align-items: center; gap: 1.5mm; }
+      .logo-txt { font-size: 10pt; font-weight: 900; letter-spacing: 2px; }
+      .logo-sub { font-size: 4.5pt; font-weight: 700; opacity: 0.7; letter-spacing: 2px; }
+      .cust-row { display: flex; align-items: center; justify-content: space-between; padding: 1mm 2.5mm; border-bottom: 1.5px solid #000; background: #f0f0f0; flex-shrink: 0; gap: 2mm; }
+      .cust-phone { font-size: 9pt; font-weight: 800; direction: ltr; }
+      .cust-name { font-size: 11pt; font-weight: 900; }
+      .inv-body { padding: 0.8mm 2.5mm 0.3mm; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between; }
+      .total-bar-wrap { margin-top: auto; }
+      .inv-bottom { padding: 0.4mm 2.5mm; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.6mm; border-top: 1px solid #ddd; background: #fafafa; }
+      .inv-footer { border-top: 2px solid #1a1a1a; background: #1a1a1a; padding: 0.8mm 2.5mm; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+      .prod-table { width: 100%; border-collapse: collapse; }
+      .prod-table th { background: #1a1a1a; color: white; border: 1px solid #333; padding: 0.7mm 1.2mm; font-weight: 800; font-size: 7pt; text-align: center; }
+      .prod-table td { border: 1px solid #bbb; padding: 0.7mm 1.2mm; text-align: center; font-size: 7pt; font-weight: 700; }
+      .prod-table td.name-col { text-align: right; font-weight: 800; }
+      .info-strip { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1px solid #bbb; border-radius: 1mm; overflow: hidden; }
+      .info-cell { padding: 0.6mm 1.5mm; border-left: 1px solid #bbb; display: flex; flex-direction: column; }
+      .info-cell:last-child { border-left: none; }
+      .info-lbl { font-size: 5.5pt; font-weight: 700; color: #555; }
+      .info-val { font-size: 7pt; font-weight: 800; color: #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .addr-box { border: 1px solid #bbb; border-radius: 1mm; padding: 0.6mm 1.5mm; }
+      .addr-lbl { font-size: 5.5pt; font-weight: 700; color: #555; }
+      .addr-val { font-size: 7pt; font-weight: 800; }
+      .notes-box { background: #fff8e1; border: 1px solid #ffe082; border-right: 3px solid #f59e0b; border-radius: 1mm; padding: 0.5mm 2mm; font-size: 5.5pt; font-weight: 700; display: flex; gap: 1.5mm; }
+      .notes-box b { color: #92400e; font-size: 6pt; white-space: nowrap; }
+      .policy-txt { font-size: 6pt; font-weight: 600; color: #ccc; }
+      .footer-brand { font-size: 8pt; font-weight: 900; color: #fff; letter-spacing: 2px; }
+    `;
+
+    const pagesHTML = pageGroups.map(group => {
+      let rowsHTML = "";
+      for (let i = 0; i < group.length; i += cols) {
+        const rowItems = group.slice(i, i + cols);
+        const rowContent = rowItems.map((sh: any) => shipmentInvoiceHTML(sh)).join("");
+        const empty = rowItems.length < cols ? '<div class="empty-slot"></div>' : "";
+        rowsHTML += `<div class="inv-row${cols === 1 ? " single" : ""}">${rowContent}${empty}</div>`;
+      }
+      const rowCount = Math.ceil(group.length / cols);
+      return `<div class="${rowCount <= 1 ? "page single-row" : "page"}">${rowsHTML}</div>`;
+    }).join("");
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>فواتير الشحنات - ${brandName}</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap" rel="stylesheet"><style>${styles}</style></head><body>${pagesHTML}</body></html>`);
+    printWindow.document.close();
+    printWindow.onload = () => { setTimeout(() => { printWindow.focus(); printWindow.print(); }, 600); };
+  };
+
   useEffect(() => {
     if (!preselectedInvoiceNumber || autoPrintTriggeredRef.current) return;
     if (isLoading || isDirectInvoiceLoading || !invoiceGroups.length) return;
@@ -392,6 +524,22 @@ export default function Invoices() {
             </Select>
             <Button onClick={() => void handlePrint()} className="gap-2 font-bold text-sm h-9" disabled={selectedIds.size === 0}>
               <Printer className="w-4 h-4" />طباعة ({selectedIds.size})
+            </Button>
+          </div>
+        )}
+        {activeTab === "shipments" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">فواتير/صفحة:</span>
+            <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
+              <SelectTrigger className="w-28 h-9 text-sm bg-card border-border"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 فاتورة</SelectItem>
+                <SelectItem value="2">2 فواتير</SelectItem>
+                <SelectItem value="4">4 فواتير</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={() => void handleShipmentPrint()} className="gap-2 font-bold text-sm h-9" disabled={selectedShipmentIds.size === 0}>
+              <Printer className="w-4 h-4" />طباعة ({selectedShipmentIds.size})
             </Button>
           </div>
         )}
