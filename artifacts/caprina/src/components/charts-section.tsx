@@ -1138,7 +1138,7 @@ export function StatusDonutWithOrders({ data, total }: { data: ChartsData["statu
 }
 
 // ─── Shipment Status Donut ────────────────────────────────────────────────────
-const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
+export const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
   data, total,
 }: {
   data: { status: string; count: number; pct: number }[];
