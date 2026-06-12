@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import ExcelJS from "exceljs";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, PackageX, AlertTriangle } from "lucide-react";
+import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, AlertTriangle } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
 import type { UpdateOrderBodyStatus } from "@workspace/api-zod";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -26,74 +26,46 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ordersApi, shippingApi, apiFetch } from "@/lib/api";
 
 // حالات الشحنة — تتطابق مع DB schema (SHIPMENT_STATUSES)
-type OrderStatusValue = "waiting" | "confirmed" | "picked_up" | "in_transit" | "out_for_delivery" | "delivered" | "delayed" | "returned" | "cancelled";
+type ShipmentStatusValue = "pending" | "warehouse_ready" | "in_shipping" | "received" | "partial_received" | "delayed" | "returned";
 
 const statusLabels: Record<string, string> = {
-  // حالات الأوردرز
-  waiting:          "انتظار",
-  confirmed:        "مؤكدة",
-  picked_up:        "تم الاستلام",
-  in_transit:       "في الطريق",
-  out_for_delivery: "خرجت للتسليم",
-  delivered:        "تم التسليم",
-  delayed:          "متأخرة",
-  returned:         "مرتجع",
-  cancelled:        "ملغية",
-  // حالات الشحنات
-  pending:          "قيد الشحن",
+  pending:          "قيد الانتظار",
   warehouse_ready:  "قيد الشحن في المخزن",
   in_shipping:      "قيد الشحن",
-  received:         "تم التسليم",
-  partial_received: "تسليم جزئي",
+  received:         "استلم",
+  partial_received: "استلام جزئي",
+  delayed:          "مؤجل",
+  returned:         "مرتجع",
 };
 
 const statusClasses: Record<string, string> = {
-  waiting:          "bg-amber-50   dark:bg-amber-900/30   text-amber-700   dark:text-amber-400   border-amber-300   dark:border-amber-800",
-  confirmed:        "bg-teal-50    dark:bg-teal-900/30    text-teal-700    dark:text-teal-400    border-teal-300    dark:border-teal-800",
-  picked_up:        "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-700    dark:text-cyan-400    border-cyan-300    dark:border-cyan-800",
-  in_transit:       "bg-sky-50     dark:bg-sky-900/30     text-sky-700     dark:text-sky-400     border-sky-300     dark:border-sky-800",
-  out_for_delivery: "bg-orange-50  dark:bg-orange-900/30  text-orange-700  dark:text-orange-400  border-orange-300  dark:border-orange-800",
-  delivered:        "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
-  delayed:          "bg-purple-50  dark:bg-purple-900/30  text-purple-700  dark:text-purple-400  border-purple-300  dark:border-purple-800",
-  returned:         "bg-red-50     dark:bg-red-900/30     text-red-700     dark:text-red-400     border-red-300     dark:border-red-800",
-  cancelled:        "bg-gray-50    dark:bg-gray-900/30    text-gray-600    dark:text-gray-400    border-gray-300    dark:border-gray-700",
-  // حالات الشحنات
   pending:          "bg-amber-50   dark:bg-amber-900/30   text-amber-700   dark:text-amber-400   border-amber-300   dark:border-amber-800",
   warehouse_ready:  "bg-orange-50  dark:bg-orange-900/30  text-orange-700  dark:text-orange-400  border-orange-300  dark:border-orange-800",
   in_shipping:      "bg-blue-50    dark:bg-blue-900/30    text-blue-700    dark:text-blue-400    border-blue-300    dark:border-blue-800",
   received:         "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
   partial_received: "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-700    dark:text-cyan-400    border-cyan-300    dark:border-cyan-800",
+  delayed:          "bg-purple-50  dark:bg-purple-900/30  text-purple-700  dark:text-purple-400  border-purple-300  dark:border-purple-800",
+  returned:         "bg-red-50     dark:bg-red-900/30     text-red-700     dark:text-red-400     border-red-300     dark:border-red-800",
 };
 
 const STATUS_ICONS: Record<string, React.ElementType> = {
-  // حالات الأوردرز
-  waiting:          Clock,
-  confirmed:        CheckCircle2,
-  picked_up:        PackageCheck,
-  in_transit:       Truck,
-  out_for_delivery: Truck,
-  delivered:        CheckCircle2,
-  delayed:          ShieldAlert,
-  returned:         RotateCcw,
-  cancelled:        PackageX,
-  // حالات الشحنات
   pending:          Clock,
   warehouse_ready:  PackageCheck,
   in_shipping:      Truck,
   received:         CheckCircle2,
   partial_received: AlertTriangle,
+  delayed:          ShieldAlert,
+  returned:         RotateCcw,
 };
 
 const STATUS_OPTIONS = [
-  { value: "waiting",          label: "انتظار",           color: "text-amber-500"   },
-  { value: "confirmed",        label: "مؤكدة",            color: "text-teal-500"    },
-  { value: "picked_up",        label: "تم الاستلام",      color: "text-cyan-500"    },
-  { value: "in_transit",       label: "في الطريق",        color: "text-sky-500"     },
-  { value: "out_for_delivery", label: "خرجت للتسليم",    color: "text-orange-500"  },
-  { value: "delivered",        label: "تم التسليم",       color: "text-emerald-500" },
-  { value: "delayed",          label: "متأخرة",           color: "text-purple-500"  },
-  { value: "returned",         label: "مرتجع",            color: "text-red-500"     },
-  { value: "cancelled",        label: "ملغية",            color: "text-gray-500"    },
+  { value: "pending",          label: "قيد الانتظار",        color: "text-amber-500"   },
+  { value: "warehouse_ready",  label: "قيد الشحن في المخزن", color: "text-orange-500"  },
+  { value: "in_shipping",      label: "قيد الشحن",           color: "text-blue-500"    },
+  { value: "received",         label: "استلم",               color: "text-emerald-500" },
+  { value: "partial_received", label: "استلام جزئي",         color: "text-cyan-500"    },
+  { value: "delayed",          label: "مؤجل",                color: "text-purple-500"  },
+  { value: "returned",         label: "مرتجع",               color: "text-red-500"     },
 ];
 
 const formatCurrency = (amount: number) =>
@@ -1582,7 +1554,7 @@ export default function Orders() {
                 <TableBody>
                   {displayRows.map((order, rowIndex) => {
                     const o = order as any;
-                    const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed","waiting","in_transit","out_for_delivery"]);
+                    const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed"]);
                     const senderPhone = o.senderPhone || o.receiverPhone || o.phone || "";
                     const canWhatsApp = canWriteOrders && !bulkSelectMode && waStatuses.has(o.status) && !!senderPhone;
                     const navTarget = `/shipments/${order.id}`;
