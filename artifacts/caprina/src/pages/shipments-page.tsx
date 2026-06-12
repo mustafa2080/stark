@@ -1056,24 +1056,30 @@ export default function Orders() {
               {/* زر تصدير — فقط لو عنده orders.export */}
               {canExport && (
               <Button variant="outline" size="sm" className="gap-1 text-xs h-9" onClick={() => {
-                if (!orders?.length) return;
-                const rows = filtered.map(o => ({
-                  "#": o.id,
-                  "العميل": o.customerName,
-                  "الهاتف": o.phone ?? "",
-                  "المنتج": o.product,
-                  "الكمية": o.quantity,
-                  "السعر": o.unitPrice,
-                  "الإجمالي": o.totalPrice,
-                  "الحالة": o.status,
-                  "التاريخ": new Date(o.createdAt).toLocaleDateString("ar-EG"),
-                }));
+                if (!filtered?.length) return;
+                const rows = filtered.map(o => {
+                  const r: Record<string, any> = {
+                    "#": o.id.toString().padStart(4, "0"),
+                    "التاريخ": new Date(o.createdAt).toLocaleDateString("ar-EG"),
+                    "المرسل": (o as any).senderName || (o as any).customerName || "",
+                    "المستلم": (o as any).receiverName || "",
+                    "الهاتف": (o as any).senderPhone || (o as any).receiverPhone || (o as any).phone || "",
+                    "المحافظة": (o as any).receiverCity || (o as any).receiverGovernorate || "",
+                  };
+                  if (canFinancials) {
+                    const cod = (o as any).codAmount ?? (o as any).totalAmount;
+                    r["سعر الشحنة"] = cod != null ? Number(cod) : "";
+                  }
+                  r["المندوب"] = (o as any).assignedUserName || (o as any).createdByName || "";
+                  r["الحالة"] = statusLabels[o.status] || o.status;
+                  return r;
+                });
                 const header = Object.keys(rows[0]).join(",");
                 const csv = [header, ...rows.map(r => Object.values(r).map(v => `"${v}"`).join(","))].join("\n");
                 const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
-                a.href = url; a.download = `orders-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+                a.href = url; a.download = `shipments-${new Date().toISOString().slice(0,10)}.csv`; a.click();
                 URL.revokeObjectURL(url);
               }}>
                 <Download className="w-3.5 h-3.5" />تصدير
