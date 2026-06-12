@@ -36,6 +36,14 @@ const statusLabels: Record<string, string> = {
   partial_received: "استلام جزئي",
   delayed:          "مؤجل",
   returned:         "مرتجع",
+  // fallback للقيم القديمة في الـ DB
+  out_for_delivery: "قيد الشحن",
+  in_transit:       "قيد الشحن",
+  delivered:        "استلم",
+  waiting:          "قيد الانتظار",
+  confirmed:        "قيد الانتظار",
+  picked_up:        "قيد الشحن في المخزن",
+  cancelled:        "مرتجع",
 };
 
 const statusClasses: Record<string, string> = {
@@ -46,6 +54,14 @@ const statusClasses: Record<string, string> = {
   partial_received: "bg-cyan-50    dark:bg-cyan-900/30    text-cyan-700    dark:text-cyan-400    border-cyan-300    dark:border-cyan-800",
   delayed:          "bg-purple-50  dark:bg-purple-900/30  text-purple-700  dark:text-purple-400  border-purple-300  dark:border-purple-800",
   returned:         "bg-red-50     dark:bg-red-900/30     text-red-700     dark:text-red-400     border-red-300     dark:border-red-800",
+  // fallback للقيم القديمة في الـ DB
+  out_for_delivery: "bg-blue-50    dark:bg-blue-900/30    text-blue-700    dark:text-blue-400    border-blue-300    dark:border-blue-800",
+  in_transit:       "bg-blue-50    dark:bg-blue-900/30    text-blue-700    dark:text-blue-400    border-blue-300    dark:border-blue-800",
+  delivered:        "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
+  waiting:          "bg-amber-50   dark:bg-amber-900/30   text-amber-700   dark:text-amber-400   border-amber-300   dark:border-amber-800",
+  confirmed:        "bg-amber-50   dark:bg-amber-900/30   text-amber-700   dark:text-amber-400   border-amber-300   dark:border-amber-800",
+  picked_up:        "bg-orange-50  dark:bg-orange-900/30  text-orange-700  dark:text-orange-400  border-orange-300  dark:border-orange-800",
+  cancelled:        "bg-red-50     dark:bg-red-900/30     text-red-700     dark:text-red-400     border-red-300     dark:border-red-800",
 };
 
 const STATUS_ICONS: Record<string, React.ElementType> = {
@@ -56,6 +72,14 @@ const STATUS_ICONS: Record<string, React.ElementType> = {
   partial_received: AlertTriangle,
   delayed:          ShieldAlert,
   returned:         RotateCcw,
+  // fallback للقيم القديمة في الـ DB
+  out_for_delivery: Truck,
+  in_transit:       Truck,
+  delivered:        CheckCircle2,
+  waiting:          Clock,
+  confirmed:        Clock,
+  picked_up:        PackageCheck,
+  cancelled:        RotateCcw,
 };
 
 const STATUS_OPTIONS = [
