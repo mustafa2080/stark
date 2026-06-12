@@ -35,6 +35,7 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
   pending:          { label: "قيد الانتظار",          color: "#eab308", bg: "#eab30818" }, // 🟡 أصفر
   warehouse_ready:  { label: "قيد الشحن في المخزن",  color: "#f97316", bg: "#f9731618" }, // 🟠 برتقالي
   in_shipping:      { label: "قيد الشحن",             color: "#3b82f6", bg: "#3b82f618" }, // 🔵 أزرق
+  out_for_delivery: { label: "خرجت للتسليم",          color: "#f59e0b", bg: "#f59e0b18" }, // 🟠 أمبر
   received:         { label: "مُسلَّم",               color: "#22c55e", bg: "#22c55e18" }, // 🟢 أخضر
   delayed:          { label: "مؤجل",                  color: "#8b5cf6", bg: "#8b5cf618" }, // 🟣 بنفسجي
   returned:         { label: "مرتجع",                 color: "#ef4444", bg: "#ef444418" }, // 🔴 أحمر

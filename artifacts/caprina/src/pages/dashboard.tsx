@@ -71,7 +71,7 @@ const pct = (n: number, color = true) => {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "قيد الانتظار", in_shipping: "قيد الشحن", received: "استلم",
+  pending: "قيد الانتظار", in_shipping: "قيد الشحن", out_for_delivery: "خرجت للتسليم", received: "استلم",
   delayed: "مؤجل", returned: "مرتجع", partial_received: "استلم جزئي",
   warehouse_ready: "قيد الشحن في المخزن",
 };
@@ -81,6 +81,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_CLASSES: Record<string, string> = {
   pending:          "bg-yellow-50   dark:bg-yellow-900/30  text-yellow-500   dark:text-yellow-400   border-yellow-200   dark:border-yellow-700",
   in_shipping:      "bg-blue-50     dark:bg-blue-900/30    text-blue-500     dark:text-blue-400     border-blue-200     dark:border-blue-700",
+  out_for_delivery: "bg-amber-50    dark:bg-amber-900/30   text-amber-500    dark:text-amber-400    border-amber-200    dark:border-amber-700",
   warehouse_ready:  "bg-orange-50   dark:bg-orange-900/30  text-orange-500   dark:text-orange-400   border-orange-200   dark:border-orange-700",
   received:         "bg-green-50    dark:bg-green-900/30   text-green-500    dark:text-green-400    border-green-200    dark:border-green-700",
   delayed:          "bg-violet-50   dark:bg-violet-900/30  text-violet-500   dark:text-violet-400   border-violet-200   dark:border-violet-700",
