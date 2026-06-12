@@ -5,7 +5,6 @@ import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, AlertTriangle } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
-import type { UpdateOrderBodyStatus } from "@workspace/api-zod";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
@@ -621,7 +620,7 @@ async function exportToExcel(
   headerRow.eachCell(cell => {
     cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF16A34A" } };
     cell.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 12, name: "Cairo" };
-    cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rightToLeft" };
+    cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rtl" };
     cell.border = {
       top:    { style: "thin", color: { argb: "FF14532D" } },
       bottom: { style: "thin", color: { argb: "FF14532D" } },
@@ -654,7 +653,7 @@ async function exportToExcel(
 
     excelRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
       cell.font      = { name: "Cairo", size: 11, color: { argb: "FF1F2937" } };
-      cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rightToLeft", wrapText: false };
+      cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rtl", wrapText: false };
       cell.border    = {
         top:    { style: "hair", color: { argb: "FFD1D5DB" } },
         bottom: { style: "hair", color: { argb: "FFD1D5DB" } },
@@ -1070,7 +1069,7 @@ export default function Orders() {
     // تغيير الحالة تلقائياً لو pending → warehouse_ready
     if (status === "pending") {
       updateOrder.mutate(
-        { id: order.id, data: { status: "warehouse_ready" as UpdateOrderBodyStatus } },
+        { id: order.id, data: { status: "warehouse_ready" } },
         { onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["orders-list"] });
           toast({ title: "تم فتح واتساب ✅", description: `تم تحويل الطلب #${order.id.toString().padStart(4,"0")} إلى «قيد الشحن في المخزن»` });
