@@ -733,6 +733,16 @@ export default function Orders() {
   const debouncedSearch = useDebounce(search, 300);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // mutation لتحديث حالة الشحنة
+  const updateShipment = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
+    },
+  });
   const { user, isAdmin, can } = useAuth();
 
   // ── Shipment form data ───────────────────────────────────────────────────────
@@ -1066,22 +1076,17 @@ export default function Orders() {
     const link = buildWhatsAppLink(phone, message);
     window.open(link, "_blank", "noopener,noreferrer");
 
-    // تغيير الحالة تلقائياً لو pending → warehouse_ready
-    if (status === "pending") {
-      updateOrder.mutate(
+    // تحويل الحالة → warehouse_ready عند الضغط على واتساب (إلا لو استلم أو مرتجع)
+    const FINAL_STATUSES = ["received", "returned", "partial_received"];
+    if (!FINAL_STATUSES.includes(status)) {
+      updateShipment.mutate(
         { id: order.id, data: { status: "warehouse_ready" } },
         { onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["orders-list"] });
-          toast({ title: "تم فتح واتساب ✅", description: `تم تحويل الطلب #${order.id.toString().padStart(4,"0")} إلى «قيد الشحن في المخزن»` });
+          toast({ title: "تم فتح واتساب ✅", description: `تم تحويل الشحنة إلى «قيد الشحن في المخزن»` });
         }}
       );
     } else {
-      const statusMsg: Record<string, string> = {
-        warehouse_ready: "تم إرسال إشعار الشحن",
-        in_shipping:     "تم فتح متابعة الشحن",
-        delayed:         "تم فتح متابعة التأجيل",
-      };
-      toast({ title: "تم فتح واتساب ✅", description: statusMsg[status] ?? "الرسالة جاهزة للإرسال" });
+      toast({ title: "تم فتح واتساب ✅", description: "الرسالة جاهزة للإرسال" });
     }
   };
 
