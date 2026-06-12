@@ -29,13 +29,32 @@ const fmt = (n: string | number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n));
 
 // ── types ─────────────────────────────────────────────────────────────────
+type ClientType = "normal" | "commercial" | "vip";
+
 type Client = {
   id: number; name: string; phone: string | null; phone2: string | null;
   email: string | null; address: string | null; city: string | null; region: string | null;
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
+  clientType: ClientType | null;
 };
+
+// ── Tier config & badge ────────────────────────────────────────────────────
+const TIER_CFG: Record<ClientType, { label: string; color: string; border: string; bg: string }> = {
+  normal:     { label: "عادي",    color: "text-slate-400",  border: "border-slate-600",  bg: "bg-slate-900/20" },
+  commercial: { label: "تجاري",   color: "text-blue-400",   border: "border-blue-600",   bg: "bg-blue-900/20"  },
+  vip:        { label: "VIP",     color: "text-amber-400",  border: "border-amber-600",  bg: "bg-amber-900/20" },
+};
+function TierBadge({ type }: { type?: ClientType | null }) {
+  if (!type) return null;
+  const cfg = TIER_CFG[type];
+  return (
+    <Badge variant="outline" className={`text-[9px] ${cfg.border} ${cfg.bg} ${cfg.color}`}>
+      {cfg.label}
+    </Badge>
+  );
+}
 
 type SaleOrder = {
   id: number; soNumber: string; status: string; paymentStatus: string;
@@ -75,7 +94,7 @@ function ClientAvatar({ avatar, name, size = "md" }: { avatar?: string|null; nam
 const emptyForm = {
   name: "", phone: "", phone2: "", email: "", address: "", city: "", region: "",
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
-  creditLimit: "0", notes: "", isActive: true, avatar: "",
+  creditLimit: "0", notes: "", isActive: true, avatar: "", clientType: "normal" as ClientType,
 };
 
 // ── Column Filter Dropdown ────────────────────────────────────────────────
@@ -183,6 +202,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     creditLimit: String(editClient.creditLimit ?? "0"),
     notes: editClient.notes ?? "", isActive: editClient.isActive,
     avatar: editClient.avatar ?? "🧑‍💼",
+    clientType: (editClient.clientType ?? "normal") as ClientType,
   } : { ...emptyForm });
 
   const mutation = useMutation({
@@ -195,6 +215,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         paymentTerms: form.paymentTerms || null,
         creditLimit: parseFloat(form.creditLimit) || 0,
         notes: form.notes || null, isActive: form.isActive, avatar: form.avatar || "🧑‍💼",
+        clientType: form.clientType || "normal",
       };
       if (isEdit) return apiFetch<any>(`/finance/clients/${editClient!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       return apiFetch<any>("/finance/clients", { method: "POST", body: JSON.stringify(body) });
@@ -277,6 +298,15 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
           </div>
           <div><Label className="text-xs mb-1.5 block">ملاحظات</Label>
             <Textarea placeholder="أي ملاحظات..." className="min-h-[60px] text-sm resize-none bg-background" value={form.notes} onChange={e => f("notes", e.target.value)} rows={2} /></div>
+          <div><Label className="text-xs mb-1.5 block">تصنيف العميل</Label>
+            <Select value={form.clientType} onValueChange={v => f("clientType", v as ClientType)}>
+              <SelectTrigger className="h-9 text-sm bg-background"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">عادي</SelectItem>
+                <SelectItem value="commercial">تجاري</SelectItem>
+                <SelectItem value="vip">VIP</SelectItem>
+              </SelectContent>
+            </Select></div>
           <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-md">
             <span className="text-xs font-medium">حالة العميل</span>
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 mr-auto" onClick={() => f("isActive", !form.isActive)}>
@@ -712,6 +742,7 @@ export default function FinanceClients() {
                       <div>
                         <p className="text-xs font-bold">{c.name}</p>
                         {c.phone && <p className="text-[10px] text-muted-foreground">{c.phone}</p>}
+                        <TierBadge type={c.clientType} />
                       </div>
                     </div>
                     {/* الحالة */}

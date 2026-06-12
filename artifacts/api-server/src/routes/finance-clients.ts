@@ -21,7 +21,15 @@ const ClientSchema = z.object({
   notes:         z.string().nullish(),
   isActive:      z.boolean().default(true),
   avatar:        z.string().nullish(),
+  clientType:    z.enum(["normal", "commercial", "vip"]).nullish(),
 });
+
+// ── حساب نوع العميل تلقائياً بناءً على عدد الشحنات الشهرية ────────────
+function calcClientType(monthlyShipments: number): "normal" | "commercial" | "vip" {
+  if (monthlyShipments >= 501) return "vip";
+  if (monthlyShipments >= 201) return "commercial";
+  return "normal";
+}
 
 // ── مساعد: تحديث إحصائيات العميل من أوامر البيع ────────────────────────────
 async function syncClientStats(clientName: string, tenantId: number | null) {
