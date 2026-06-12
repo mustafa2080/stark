@@ -22,6 +22,11 @@ export const clientsTable = mysqlTable("clients", {
   paymentTerms:   varchar("payment_terms", { length: 100 }),           // شروط الدفع (مثلاً: آجل 30 يوم)
   creditLimit:    decimal("credit_limit", { precision: 14, scale: 2 }).default("0"), // حد الائتمان
 
+  // ── تصنيف العميل (tier) ───────────────────────────────────────────────
+  // normal = 1–200 شحنة/شهر | commercial = 201–500 | vip = 501–1000
+  clientType:         varchar("client_type", { length: 20 }).default("normal"), // normal | commercial | vip
+  monthlyShipmentTarget: int("monthly_shipment_target").default(0),             // الهدف الشهري من الشحنات (يُحدَّد يدوياً)
+
   // ── إحصائيات محسوبة (تُحدَّث عند كل أمر بيع) ─────────────────────────
   totalOrders:    int("total_orders").default(0),
   totalSales:     decimal("total_sales", { precision: 14, scale: 2 }).default("0"),
