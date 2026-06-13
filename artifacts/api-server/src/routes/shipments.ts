@@ -312,6 +312,16 @@ router.post("/shipments", async (req, res): Promise<void> => {
     const shipmentNumber = await generateShipmentNumber(tenantId);
     const now = new Date();
 
+    // لو receiverCity فاضي وعنده zoneId، خد governorate من الـ zone
+    let resolvedReceiverCity = d.receiverCity ?? undefined;
+    if (!resolvedReceiverCity && d.zoneId) {
+      const zone = await db.select({ governorate: shipmentZonesTable.governorate })
+        .from(shipmentZonesTable)
+        .where(eq(shipmentZonesTable.id, d.zoneId))
+        .limit(1);
+      resolvedReceiverCity = zone[0]?.governorate ?? undefined;
+    }
+
     const result = await db.insert(shipmentsTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
       shipmentNumber,
@@ -324,7 +334,7 @@ router.post("/shipments", async (req, res): Promise<void> => {
       receiverPhone:   d.receiverPhone  ?? undefined,
       receiverPhone2:  d.receiverPhone2 ?? undefined,
       receiverAddress: d.receiverAddress ?? undefined,
-      receiverCity:    d.receiverCity ?? undefined,
+      receiverCity:    resolvedReceiverCity,
       zoneId:          d.zoneId      ?? undefined,
       zonePrice:       String(d.zonePrice),
       parcelType:      d.parcelType  ?? undefined,
@@ -377,7 +387,15 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.receiverPhone    !== undefined) updateData.receiverPhone    = d.receiverPhone;
     if (d.receiverAddress  !== undefined) updateData.receiverAddress  = d.receiverAddress;
     if (d.receiverCity     !== undefined) updateData.receiverCity     = d.receiverCity;
-    if (d.zoneId           !== undefined) updateData.zoneId           = d.zoneId;
+    if (d.zoneId           !== undefined) {
+      updateData.zoneId = d.zoneId;
+      // لو مفيش receiverCity جديد، خد governorate من الـ zone
+      if (d.receiverCity === undefined && d.zoneId) {
+        const zone = await db.select({ governorate: shipmentZonesTable.governorate })
+          .from(shipmentZonesTable).where(eq(shipmentZonesTable.id, d.zoneId)).limit(1);
+        if (zone[0]?.governorate) updateData.receiverCity = zone[0].governorate;
+      }
+    }
     if (d.zonePrice        !== undefined) updateData.zonePrice        = String(d.zonePrice);
     if (d.parcelType       !== undefined) updateData.parcelType       = d.parcelType;
     if (d.parcelTypePrice  !== undefined) updateData.parcelTypePrice  = String(d.parcelTypePrice);
