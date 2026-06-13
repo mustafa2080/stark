@@ -1614,10 +1614,14 @@ export default function Orders() {
                         </TableCell>
                         <TableCell className="text-xs font-medium">
                           {o.receiverName || "—"}
-                          {(o.receiverGovernorate || o.receiverCity) && <div className="text-[10px] text-muted-foreground">{o.receiverGovernorate || o.receiverCity}</div>}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{senderPhone || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{o.receiverCity || o.receiverGovernorate || "—"}</TableCell>
+                        <TableCell className="text-xs font-medium">
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                            {o.zoneGovernorate || o.receiverCity || o.receiverGovernorate || "—"}
+                          </span>
+                        </TableCell>
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
                           {o.codAmount != null ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
