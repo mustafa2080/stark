@@ -1449,9 +1449,7 @@ export default function Orders() {
             <div className="sm:hidden divide-y divide-border">
               {filtered.map((order) => {
                 const isGroup = !!(order as any)._groupCount && (order as any)._groupCount > 1;
-                const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed"]);
-                const groupStatuses: string[] = (order as any)._groupStatuses ?? [order.status];
-                const canWhatsApp = canWriteOrders && !bulkSelectMode && groupStatuses.some(s => waStatuses.has(s));
+                const canWhatsApp = canWriteOrders && !bulkSelectMode;
                 const retReason = (order as any).returnReason as string | null;
                 const retNote   = (order as any).returnNote   as string | null;
                 const isSelected = isGroupSelected(order);
@@ -1590,9 +1588,8 @@ export default function Orders() {
                 <TableBody>
                   {displayRows.map((order, rowIndex) => {
                     const o = order as any;
-                    const waStatuses = new Set(["pending","warehouse_ready","in_shipping","delayed"]);
                     const senderPhone = o.senderPhone || o.receiverPhone || o.phone || "";
-                    const canWhatsApp = canWriteOrders && !bulkSelectMode && waStatuses.has(o.status) && !!senderPhone;
+                    const canWhatsApp = canWriteOrders && !bulkSelectMode;
                     const navTarget = `/shipments/${order.id}`;
                     const isSelected = isGroupSelected(order);
                     const retReason = o.returnReason as string | null;
