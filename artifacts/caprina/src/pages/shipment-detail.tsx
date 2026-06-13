@@ -2278,7 +2278,33 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .footer{border-top:2px solid #ddd;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:#555}
 .footer .date{font-size:12px}
 
-@media print{.page{margin:0;padding:16px 20px;max-width:none}}
+@media print{
+  @page{size:A4;margin:10mm 12mm}
+  body{font-size:11px}
+  .page{margin:0;padding:0;max-width:none}
+  .header{padding-bottom:8px;margin-bottom:10px}
+  .header-title{font-size:20px}
+  .logo{width:60px;height:60px}
+  .tracking-bar{padding:8px 14px;margin-bottom:10px;gap:10px}
+  .tracking-item .t-label{font-size:9px}
+  .tracking-item .t-value{font-size:13px}
+  .tracking-item .t-value.highlight{font-size:15px}
+  .parties{gap:10px;margin-bottom:10px}
+  .party-box{padding:10px 12px}
+  .party-name{font-size:17px;margin-bottom:5px}
+  .party-row{font-size:12px;margin-bottom:3px}
+  .party-row .val{font-size:13px}
+  .details-row{gap:6px;margin-bottom:10px}
+  .detail-box{padding:8px}
+  .detail-box .d-label{font-size:9px;margin-bottom:3px}
+  .detail-box .d-value{font-size:14px}
+  .detail-box.highlight .d-value{font-size:16px}
+  .notes-box{padding:8px 12px;margin-bottom:10px;font-size:12px}
+  .barcode-area{padding:8px 14px;margin-bottom:10px}
+  .barcode-num{font-size:22px;letter-spacing:3px}
+  .footer{padding-top:8px;font-size:11px}
+  .header,.tracking-bar,.parties,.details-row,.notes-box,.barcode-area{page-break-inside:avoid}
+}
 </style>
 </head>
 <body>
@@ -2355,7 +2381,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   </div>
 
   ${codAmount > 0 ? `
-  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:20px">
+  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
     <div class="detail-box" style="background:#fffbeb;border-color:#f59e0b">
       <div class="d-label" style="color:#92400e">مبلغ COD</div>
       <div class="d-value" style="color:#b45309">${fmtCurr(codAmount)}</div>
