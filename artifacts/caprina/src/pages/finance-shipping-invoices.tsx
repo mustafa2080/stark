@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, CheckCircle, Clock, AlertCircle, ArrowRight, Package, RotateCcw, Wallet, Link as LinkIcon, ChevronRight, Trash2 } from "lucide-react";
+import { Truck, CheckCircle, Clock, AlertCircle, ArrowRight, Package, RotateCcw, Wallet, Link as LinkIcon, ChevronRight, Trash2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Link, useLocation } from "wouter";
@@ -115,6 +115,163 @@ export default function FinanceShippingInvoices() {
 
   // الفاتورة المراد حذفها (للعرض في الـ dialog)
   const invoiceToDelete = invoices.find(i => i.id === deleteConfirmId);
+
+  // ── طباعة فواتير الشحن 2×2 ────────────────────────────────────────────────
+  const handlePrintInvoice = async (inv: any) => {
+    const logoUrl = await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => resolve(`${window.location.origin}/logo.jpg`);
+      img.src = `${window.location.origin}/logo.jpg`;
+    });
+
+    const fmtCurr = (n: any) =>
+      new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n || 0));
+
+    let shipments: any[] = [];
+    if (inv.manifestId) {
+      try {
+        const manifest = await apiFetch<any>(`/shipping-manifests/${inv.manifestId}`);
+        shipments = manifest?.orders ?? manifest?.shipments ?? [];
+      } catch {
+        toast({ title: "⚠️ تعذر جلب الشحنات", variant: "destructive" });
+        return;
+      }
+    }
+    if (!shipments.length) {
+      toast({ title: "⚠️ لا توجد شحنات مرتبطة بهذه الفاتورة" });
+      return;
+    }
+
+    const STATUS_AR: Record<string, string> = {
+      pending:"قيد الانتظار", warehouse_ready:"جاهزة للشحن", in_shipping:"قيد الشحن",
+      received:"استلم", partial_received:"استلم جزئي", returned:"مرتجع",
+      delivered:"استلم", waiting:"انتظار", cancelled:"ملغية", delayed:"مؤجل",
+    };
+
+    const buildCard = (s: any) => {
+      const shipNum  = s.shipmentNumber ?? s.shipment_number ?? `#${String(s.id).padStart(4,"0")}`;
+      const tracking = s.trackingNumber  ?? s.tracking_number ?? "—";
+      const dateStr  = s.createdAt ? format(new Date(s.createdAt), "yyyy/MM/dd") : "";
+      const statusAr = STATUS_AR[s.status] ?? s.status ?? "—";
+      const shippingFee = Number(s.shippingFee || 0);
+      const codAmount   = Number(s.codAmount   || 0);
+      const total       = Number(s.totalAmount || 0) || (shippingFee + codAmount);
+
+      return `
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">بوليصة شحن</div>
+      <div class="card-sub">${shipNum} | ${dateStr}</div>
+    </div>
+    <img class="card-logo" src="${logoUrl}" alt="" onerror="this.style.display='none'"/>
+  </div>
+  <div class="track-bar">
+    <div class="t-item"><div class="t-lbl">التتبع</div><div class="t-val hi">${tracking}</div></div>
+    <div class="t-item"><div class="t-lbl">الحالة</div><div class="t-val gr">${statusAr}</div></div>
+    <div class="t-item"><div class="t-lbl">رسوم</div><div class="t-val">${fmtCurr(shippingFee)}</div></div>
+    <div class="t-item"><div class="t-lbl">الإجمالي</div><div class="t-val hi">${fmtCurr(total)}</div></div>
+  </div>
+  <div class="parties">
+    <div class="party">
+      <div class="p-title">📤 المرسل</div>
+      <div class="p-name">${s.senderName || "—"}</div>
+      ${s.senderPhone ? `<div class="p-row">📞 <span dir="ltr">${s.senderPhone}</span></div>` : ""}
+      ${s.senderCity  ? `<div class="p-row">📍 ${s.senderCity}</div>` : ""}
+    </div>
+    <div class="party recv">
+      <div class="p-title">📦 المستلم</div>
+      <div class="p-name">${s.receiverName || "—"}</div>
+      ${s.receiverPhone   ? `<div class="p-row">📞 <span dir="ltr">${s.receiverPhone}</span></div>` : ""}
+      ${s.receiverCity    ? `<div class="p-row">📍 ${s.receiverCity}</div>` : ""}
+      ${s.receiverAddress ? `<div class="p-row">🏠 ${s.receiverAddress}</div>` : ""}
+    </div>
+  </div>
+  ${(s.pieces || s.description || codAmount > 0) ? `<div class="details-row">
+    ${s.description ? `<div class="d-box"><div class="d-lbl">الوصف</div><div class="d-val small">${s.description}</div></div>` : ""}
+    ${s.pieces      ? `<div class="d-box"><div class="d-lbl">القطع</div><div class="d-val">${s.pieces}</div></div>` : ""}
+    ${codAmount > 0 ? `<div class="d-box cod"><div class="d-lbl">COD</div><div class="d-val">${fmtCurr(codAmount)}</div></div>` : ""}
+  </div>` : ""}
+  ${s.notes ? `<div class="notes">${s.notes}</div>` : ""}
+  <div class="card-footer">
+    <span>${inv.invoiceNumber}</span>
+    <span dir="ltr" class="barcode">${tracking !== "—" ? tracking : ""}</span>
+  </div>
+</div>`;
+    };
+
+    const chunks: any[][] = [];
+    for (let i = 0; i < shipments.length; i += 4) chunks.push(shipments.slice(i, i + 4));
+
+    const pagesHtml = chunks.map(group => `
+<div class="print-page">
+  <div class="grid-2x2">
+    ${group.map(buildCard).join("")}
+  </div>
+</div>`).join("");
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<title>فواتير شحن — ${inv.invoiceNumber}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
+body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;direction:rtl}
+.print-page{width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;page-break-after:always}
+.grid-2x2{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:6mm;width:198mm;height:285mm;padding:4mm}
+.card{border:2px solid #111;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;overflow:hidden;font-size:9px}
+.card-header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #111;padding-bottom:5px;margin-bottom:2px}
+.card-title{font-size:13px;font-weight:900}
+.card-sub{font-size:8px;color:#555;font-weight:600;margin-top:2px}
+.card-logo{width:38px;height:38px;object-fit:contain;border-radius:4px}
+.track-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;background:#111;border-radius:4px;padding:4px 6px}
+.t-item{text-align:center}
+.t-lbl{font-size:7px;color:#aaa;font-weight:600;margin-bottom:1px}
+.t-val{font-size:9px;font-weight:900;color:#fff}
+.t-val.hi{color:#f0c040;font-size:10px}
+.t-val.gr{color:#4ade80}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.party{border:1.5px solid #ddd;border-radius:4px;padding:5px 6px}
+.party.recv{border-color:#111;border-width:2px}
+.p-title{font-size:7px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #eee;padding-bottom:2px;margin-bottom:3px}
+.p-name{font-size:12px;font-weight:900;color:#111;margin-bottom:2px;line-height:1.2}
+.p-row{font-size:8px;font-weight:700;color:#333;margin-bottom:1px}
+.details-row{display:flex;gap:4px}
+.d-box{border:1px solid #ddd;border-radius:3px;padding:3px 5px;text-align:center;flex:1}
+.d-box.cod{background:#fffbeb;border-color:#f59e0b}
+.d-lbl{font-size:7px;font-weight:700;color:#666;margin-bottom:1px}
+.d-val{font-size:10px;font-weight:900;color:#111}
+.d-val.small{font-size:8px}
+.notes{border:1px dashed #ccc;border-radius:3px;padding:3px 5px;font-size:8px;color:#444;line-height:1.5}
+.card-footer{border-top:1.5px solid #ddd;padding-top:4px;display:flex;justify-content:space-between;align-items:center;font-size:8px;font-weight:700;color:#555;margin-top:auto}
+.barcode{font-family:monospace;font-size:11px;font-weight:900;letter-spacing:2px;color:#111}
+@media print{@page{size:A4 portrait;margin:0}body{margin:0}.print-page{page-break-after:always;page-break-inside:avoid}}
+</style>
+</head>
+<body>${pagesHtml}</body></html>`);
+
+    printWindow.document.close();
+    if ((printWindow as any).document.fonts?.ready) {
+      (printWindow as any).document.fonts.ready.then(() => {
+        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 400);
+      });
+    } else {
+      setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1400);
+    }
+  };
 
   return (
     <div className="space-y-5 animate-in fade-in duration-500" dir="rtl">
@@ -376,6 +533,20 @@ export default function FinanceShippingInvoices() {
                         disabled={updateStatus.isPending}>
                         <CheckCircle className="w-3 h-3 mr-1" />تحقق
                       </Button>
+                    )}
+                    {/* زر الطباعة */}
+                    {inv.manifestId && (
+                      <button
+                        className="h-7 w-7 rounded-lg flex items-center justify-center transition-all"
+                        style={{
+                          background: "rgba(99,102,241,0.10)",
+                          border: "1px solid rgba(99,102,241,0.30)",
+                          color: "#6366F1",
+                        }}
+                        title="طباعة بوالص الشحن (2×2)"
+                        onClick={() => handlePrintInvoice(inv)}>
+                        <Printer className="w-3.5 h-3.5" />
+                      </button>
                     )}
                     {/* زر الحذف */}
                     <button
