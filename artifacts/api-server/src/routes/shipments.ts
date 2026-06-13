@@ -214,10 +214,14 @@ router.get("/shipments", async (req, res): Promise<void> => {
           shippingCompanyName: shippingCompaniesTable.name,
           // ── JOIN: اسم المندوب ──
           assignedUserName: usersTable.displayName,
+          // ── JOIN: المنطقة ──
+          zoneLabel:       shipmentZonesTable.name,
+          zoneGovernorate: shipmentZonesTable.governorate,
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
+        .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
         .where(where)
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(parseInt(limit))
@@ -225,7 +229,13 @@ router.get("/shipments", async (req, res): Promise<void> => {
       db.select({ count: sql<number>`count(*)` }).from(shipmentsTable).where(where),
     ]);
 
-    res.json({ data: rows, total: Number(countRows[0]?.count ?? 0) });
+    // normalize: لو receiverCity فاضية خد من zoneGovernorate
+    const normalized = rows.map(r => ({
+      ...r,
+      receiverCity: r.receiverCity || r.zoneGovernorate || null,
+    }));
+
+    res.json({ data: normalized, total: Number(countRows[0]?.count ?? 0) });
   } catch (e) {
     console.error("[GET /shipments]", e);
     res.status(500).json({ error: "خطأ في استرجاع الشحنات" });
