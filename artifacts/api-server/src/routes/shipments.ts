@@ -229,13 +229,6 @@ router.get("/shipments", async (req, res): Promise<void> => {
       db.select({ count: sql<number>`count(*)` }).from(shipmentsTable).where(where),
     ]);
 
-    // DEBUG: طباعة أول shipment raw لفهم field names
-    if (rows.length > 0) {
-      const sample = rows[0];
-      console.log("[DEBUG shipments] raw keys:", Object.keys(sample));
-      console.log("[DEBUG shipments] receiverCity:", (sample as any).receiverCity, "| zoneGovernorate:", (sample as any).zoneGovernorate, "| zone_governorate:", (sample as any).zone_governorate);
-    }
-
     // normalize: لو receiverCity فاضية خد من zoneGovernorate
     const normalized = rows.map(r => {
       const city = (r as any).receiverCity || (r as any).receiver_city || r.zoneGovernorate || (r as any).zone_governorate || null;
