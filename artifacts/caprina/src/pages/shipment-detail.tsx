@@ -1909,28 +1909,23 @@ export default function OrderDetail() {
   useEffect(() => {
     if (order && !initializedRef.current) {
       form.reset({
-        customerName:      order.customerName,
-        phone:             order.phone ?? "",
-        city:              (order as any).city ?? "",
-        address:           order.address ?? "",
-        shippingCost:      (order as any).shippingCost ?? 0,
-        shippingCompanyId: order.shippingCompanyId ?? null,
+        customerName:      (order as any).receiverName ?? order.customerName ?? "",
+        phone:             (order as any).receiverPhone ?? order.phone ?? "",
+        city:              (order as any).receiverCity ?? (order as any).city ?? "",
+        address:           (order as any).receiverAddress ?? order.address ?? "",
+        shippingCost:      (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
+        shippingCompanyId: (order as any).shippingCompanyId ?? null,
         trackingNumber:    (order as any).trackingNumber ?? null,
         warehouseId:       (order as any).warehouseId ?? null,
         assignedUserId:    (order as any).assignedUserId ?? null,
         adSource:          (order as any).adSource ?? null,
         adCampaign:        (order as any).adCampaign ?? null,
-        notes:             order.notes ?? "",
-        product:           order.product,
-        quantity:          order.quantity,
-        unitPrice:         order.unitPrice,
+        notes:             (order as any).notes ?? order.notes ?? "",
+        product:           (order as any).description ?? order.product ?? "",
+        quantity:          (order as any).pieces ?? order.quantity ?? 1,
+        unitPrice:         (order as any).codAmount ?? order.unitPrice ?? 0,
         costPrice:         (order as any).costPrice ?? null,
       });
-      const existProd = order.productId && products ? (products as any[]).find((p: any) => p.id === order.productId) ?? null : null;
-      setEditSelectedProduct(existProd);
-      setEditSearchQuery("");
-      setEditSearchOpen(false);
-      setEditVariantRows([{ color: (order as any).color ?? "", size: (order as any).size ?? "", quantity: order.quantity ?? 1 }]);
       initializedRef.current = true;
     }
   }, [order, form]);
@@ -3039,7 +3034,12 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             />
             {canEdit && (
               <Button variant="outline" size="sm"
-                onClick={() => !isOrderLocked && setIsEditing(true)}
+                onClick={() => {
+                    if (!isOrderLocked) {
+                      initializedRef.current = false;
+                      setIsEditing(true);
+                    }
+                  }}
                 disabled={isOrderLocked}
                 title={isOrderLocked ? "الطلب مقفل — فقط المدير يمكنه التعديل" : undefined}
                 className="h-8 text-xs gap-1.5 border-border bg-card disabled:opacity-40">
