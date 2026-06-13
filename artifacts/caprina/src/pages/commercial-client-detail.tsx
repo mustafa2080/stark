@@ -556,9 +556,9 @@ export default function CommercialClientDetailPage() {
   }, [client, allOrders, totalSales, totalPaid]);
   // ── بيانات الـ Donut chart ───────────────────────────────────────────────
   const donutData = useMemo(() => [
-    { name: "المبيعات الفعلية", value: Math.min(totalSales, TARGET) },
-    { name: "المتبقي للهدف",    value: Math.max(0, TARGET - totalSales) },
-  ], [totalSales, TARGET]);
+    { name: "الأوردرات الفعلية", value: Math.min(totalOrdersCount, TARGET) },
+    { name: "المتبقي للهدف",     value: Math.max(0, TARGET - totalOrdersCount) },
+  ], [totalOrdersCount, TARGET]);
 
   // ── بيانات الـ Line chart — آخر 6 أشهر ─────────────────────────────────
   const monthlyData = useMemo(() => {
@@ -567,15 +567,14 @@ export default function CommercialClientDetailPage() {
       const d     = subMonths(new Date(), i);
       const start = startOfMonth(d);
       const end   = endOfMonth(d);
-      const sales = allOrders
-        .filter(o => {
+      // عدد الأوردرات في الشهر
+      const ordersCount = allOrders.filter(o => {
           const cd = new Date(o.createdAt);
           return cd >= start && cd <= end;
-        })
-        .reduce((s, o) => s + parseFloat(o.totalAmount ?? "0"), 0);
+        }).length;
       months.push({
         label: format(d, "MMM", { locale: ar }),
-        sales: Math.round(sales),
+        sales: ordersCount,
         target: monthlyTarget,
       });
     }
@@ -837,20 +836,20 @@ export default function CommercialClientDetailPage() {
                 <div>
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: salesPct >= 75 ? "#10b981" : salesPct >= 50 ? "#f59e0b" : "#3b82f6" }} />
-                    <p className="text-[10px] text-muted-foreground">المبيعات الفعلية</p>
+                    <p className="text-[10px] text-muted-foreground">الأوردرات الفعلية</p>
                   </div>
-                  <p className="text-sm font-black text-primary">{fmt(totalSales)}</p>
+                  <p className="text-sm font-black text-primary">{totalOrdersCount} أوردر</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="w-2 h-2 rounded-full bg-muted-foreground/30 shrink-0" />
                     <p className="text-[10px] text-muted-foreground">المتبقي للهدف</p>
                   </div>
-                  <p className="text-sm font-black text-muted-foreground">{fmt(Math.max(0, TARGET - totalSales))}</p>
+                  <p className="text-sm font-black text-muted-foreground">{Math.max(0, TARGET - totalOrdersCount)} أوردر</p>
                 </div>
                 <div className="pt-1 border-t border-border">
                   <p className="text-[10px] text-muted-foreground">الهدف الكلي</p>
-                  <p className="text-xs font-bold">{fmt(TARGET)}</p>
+                  <p className="text-xs font-bold">{TARGET} أوردر</p>
                 </div>
               </div>
             </div>
@@ -878,7 +877,7 @@ export default function CommercialClientDetailPage() {
                   tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}K` : String(v)} />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11, direction: "rtl" }}
-                  formatter={(v: any, name: string) => [fmt(v), name === "sales" ? "المبيعات" : "الهدف"]}
+                  formatter={(v: any, name: string) => [`${v} أوردر`, name === "sales" ? "الأوردرات" : "الهدف"]}
                   labelFormatter={(l) => `شهر ${l}`}
                 />
                 <ReferenceLine y={monthlyTarget} stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5} />
@@ -888,7 +887,7 @@ export default function CommercialClientDetailPage() {
               </LineChart>
             </ResponsiveContainer>
             <p className="text-[9px] text-muted-foreground text-center mt-1">
-              الهدف الشهري: {fmt(monthlyTarget)}
+              الهدف الشهري: {monthlyTarget} أوردر
             </p>
           </Card>
         </div>
