@@ -3493,7 +3493,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <MapPin className="w-3 h-3" />المحافظة
                       </span>
                       <span className="text-sm font-semibold">
-                        {(order as any).receiverCity || (order as any).city || "—"}
+                        {(order as any).receiverCity || (order as any).city || (order as any).zoneLabel || "—"}
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5 col-span-2 md:col-span-1">

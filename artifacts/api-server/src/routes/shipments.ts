@@ -267,9 +267,24 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);
-    const rows = await db.select().from(shipmentsTable).where(cond).limit(1);
+    const rows = await db
+      .select({
+        ...shipmentsTable,
+        assignedUserName: usersTable.displayName,
+        zoneLabel: shipmentZonesTable.name,
+        zoneGovernorate: shipmentZonesTable.governorate,
+      })
+      .from(shipmentsTable)
+      .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
+      .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
+      .where(cond).limit(1);
     if (!rows.length) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
-    res.json(rows[0]);
+    const row = rows[0];
+    // إذا receiverCity فاضية، خد من المحافظة الخاصة بالمنطقة
+    if (!row.receiverCity && row.zoneGovernorate) {
+      (row as any).receiverCity = row.zoneGovernorate;
+    }
+    res.json(row);
   } catch (e) {
     res.status(500).json({ error: "خطأ" });
   }

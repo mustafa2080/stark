@@ -330,7 +330,12 @@ function ShipmentFormDialog({
               </div>
               <div>
                 <Label className="text-xs font-bold mb-1.5 block">المنطقة / المدينة</Label>
-                <Select value={form.zoneId} onValueChange={v => set("zoneId", v)}>
+                <Select value={form.zoneId} onValueChange={v => {
+                    set("zoneId", v);
+                    // عبي المحافظة تلقائياً من الـ zone
+                    const zone = zones.find(z => String(z.id) === v);
+                    if (zone?.governorate) set("receiverCity", zone.governorate);
+                  }}>
                   <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المنطقة..." /></SelectTrigger>
                   <SelectContent>
                     {zones.filter(z => z.isActive !== false).map(z => (
@@ -1624,8 +1629,6 @@ export default function Orders() {
                         <TableCell className="text-xs text-muted-foreground">
                           {o.assignedUserName
                             ? <span className="inline-flex items-center gap-1 text-[10px] font-medium">👤 {o.assignedUserName}</span>
-                            : o.createdByName
-                            ? <span className="text-[10px] text-muted-foreground/70">{o.createdByName}</span>
                             : <span className="text-muted-foreground/50">—</span>}
                         </TableCell>
                         <TableCell className="text-center">
