@@ -68,6 +68,9 @@ const editSchema = z.object({
   phone:             z.string().optional().nullable(),
   city:              z.string().optional().nullable(),
   address:           z.string().optional().nullable(),
+  senderName:        z.string().optional().nullable(),
+  senderPhone:       z.string().optional().nullable(),
+  codAmount:         z.coerce.number().min(0).optional().nullable(),
   shippingCost:      z.coerce.number().min(0).optional().nullable(),
   shippingCompanyId: z.coerce.number().optional().nullable(),
   trackingNumber:    z.string().optional().nullable(),
@@ -76,7 +79,7 @@ const editSchema = z.object({
   adSource:          z.string().optional().nullable(),
   adCampaign:        z.string().optional().nullable(),
   notes:             z.string().optional().nullable(),
-  product:           z.string().min(1),
+  product:           z.string().optional().nullable(),
   quantity:          z.coerce.number().int().min(1),
   unitPrice:         z.coerce.number().min(0),
   costPrice:         z.coerce.number().min(0).optional().nullable(),
@@ -1899,6 +1902,7 @@ export default function OrderDetail() {
     resolver: zodResolver(editSchema),
     defaultValues: {
       customerName: "", phone: "", city: "", address: "",
+      senderName: "", senderPhone: "", codAmount: 0,
       shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
       warehouseId: null, assignedUserId: null,
       adSource: null, adCampaign: null, notes: "",
@@ -1913,6 +1917,9 @@ export default function OrderDetail() {
         phone:             (order as any).receiverPhone ?? order.phone ?? "",
         city:              (order as any).receiverCity ?? (order as any).city ?? "",
         address:           (order as any).receiverAddress ?? order.address ?? "",
+        senderName:        (order as any).senderName ?? "",
+        senderPhone:       (order as any).senderPhone ?? "",
+        codAmount:         (order as any).codAmount ?? 0,
         shippingCost:      (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
         shippingCompanyId: (order as any).shippingCompanyId ?? null,
         trackingNumber:    (order as any).trackingNumber ?? null,
@@ -2103,6 +2110,11 @@ export default function OrderDetail() {
       receiverPhone:     values.phone ?? null,
       receiverCity:      values.city ?? null,
       receiverAddress:   values.address ?? null,
+      senderName:        values.senderName ?? null,
+      senderPhone:       values.senderPhone ?? null,
+      codAmount:         values.codAmount ?? null,
+      description:       values.product ?? null,
+      pieces:            values.quantity ?? null,
       shippingFee:       values.shippingCost ?? null,
       shippingCompanyId: values.shippingCompanyId || null,
       trackingNumber:    values.trackingNumber || null,
@@ -3566,7 +3578,32 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   </div>
 
                   <CardContent className="p-0">
-                    {/* القسم الأول: بيانات المستلم */}
+                    {/* القسم الأول: بيانات المرسل */}
+                    <div className="px-4 sm:px-5 py-4 border-b border-border/60">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <UserCheck className="w-3 h-3" />بيانات المرسل
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="senderName" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">اسم المرسل</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="senderPhone" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />هاتف المرسل</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="01x-xxxx-xxxx" dir="ltr" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
+                    </div>
+
+                    {/* القسم الثاني: بيانات المستلم */}
                     <div className="px-4 sm:px-5 py-4 border-b border-border/60">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
                         <Phone className="w-3 h-3" />بيانات المستلم
@@ -3610,12 +3647,30 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       </div>
                     </div>
 
-                    {/* القسم الثاني: بيانات الشحن */}
+                    {/* القسم الثالث: بيانات الشحن */}
                     <div className="px-4 sm:px-5 py-4 border-b border-border/60">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
                         <Truck className="w-3 h-3" />بيانات الشحن
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="shippingCost" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" />رسوم الشحن</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="0.01" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? 0} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="codAmount" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" />مبلغ COD (عند الاستلام)</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="0.01" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? 0} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                         <FormField control={form.control} name="trackingNumber" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground">رقم التتبع</FormLabel>
@@ -3655,7 +3710,32 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       )}
                     </div>
 
-                    {/* القسم الثالث: الملاحظات */}
+                    {/* القسم الرابع: تفاصيل المنتج */}
+                    <div className="px-4 sm:px-5 py-4 border-b border-border/60">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <Package className="w-3 h-3" />تفاصيل المنتج
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="product" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">الوصف</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="quantity" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">الكمية</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="1" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? 1} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
+                    </div>
+
+                    {/* القسم الخامس: الملاحظات */}
                     <div className="px-4 sm:px-5 py-4 border-b border-border/60">
                       <FormField control={form.control} name="notes" render={({ field }) => (
                         <FormItem>
