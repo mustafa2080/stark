@@ -3670,44 +3670,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                           </FormItem>
                         )} />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                        <FormField control={form.control} name="trackingNumber" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">رقم التتبع</FormLabel>
-                            <FormControl>
-                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="TRK-XXXXX" dir="ltr" {...field} value={field.value ?? ""} />
-                            </FormControl>
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="shippingCompanyId" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" />شركة الشحن</FormLabel>
-                            <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
-                              <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر شركة" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">— غير محدد —</SelectItem>
-                                {shippingCompanies?.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )} />
-                      </div>
-                      {isAdmin && (
-                        <div className="mt-3">
-                          <FormField control={form.control} name="assignedUserId" render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><UserCheck className="w-3 h-3" />المندوب المسؤول</FormLabel>
-                              <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
-                                <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر مندوب" /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">— غير محدد —</SelectItem>
-                                  {users?.filter((u: any) => u.isActive).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            </FormItem>
-                          )} />
-                        </div>
-                      )}
                     </div>
 
                     {/* القسم الرابع: تفاصيل المنتج */}
