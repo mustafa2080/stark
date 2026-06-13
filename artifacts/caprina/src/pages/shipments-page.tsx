@@ -1555,7 +1555,7 @@ export default function Orders() {
                     </TableHead>
                     <TableHead className="text-right text-xs">
                       <div className="flex items-center gap-1">
-                        <span>المرسل</span>
+                        <span>الراسل</span>
                         {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                       </div>
                     </TableHead>
