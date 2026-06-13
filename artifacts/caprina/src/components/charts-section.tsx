@@ -1202,15 +1202,15 @@ export const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
         {sorted.map((d) => {
           const cfg = SHIPMENT_STATUS_CFG[d.status] ?? { label: d.status, color: "#888", bg: "#88888818" };
           return (
-            <div key={d.status}
-              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold"
+            <Link key={d.status} href={`/shipments?status=${d.status}`}
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold hover:opacity-80 hover:ring-1 hover:ring-current transition cursor-pointer"
               style={{ background: cfg.bg }}
             >
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
               <span className="text-foreground truncate">{cfg.label}</span>
               <span className="mr-auto font-black" style={{ color: cfg.color }}>{d.count}</span>
               <span className="text-muted-foreground">{d.pct}%</span>
-            </div>
+            </Link>
           );
         })}
       </div>

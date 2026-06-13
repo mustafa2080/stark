@@ -713,6 +713,11 @@ export default function Orders() {
       setShowNewShipment(true);
       window.history.replaceState(null, "", "/orders");
     }
+    const statusParam = params.get("status");
+    if (statusParam) {
+      setStatus(statusParam);
+      window.history.replaceState(null, "", "/shipments");
+    }
   }, [location]);
   const [search, setSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
