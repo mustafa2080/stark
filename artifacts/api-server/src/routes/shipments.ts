@@ -230,10 +230,14 @@ router.get("/shipments", async (req, res): Promise<void> => {
     ]);
 
     // normalize: لو receiverCity فاضية خد من zoneGovernorate
-    const normalized = rows.map(r => ({
-      ...r,
-      receiverCity: r.receiverCity || r.zoneGovernorate || null,
-    }));
+    const normalized = rows.map(r => {
+      const city = (r as any).receiverCity || (r as any).receiver_city || r.zoneGovernorate || null;
+      return {
+        ...r,
+        receiverCity: city,
+        zoneGovernorate: r.zoneGovernorate || null,
+      };
+    });
 
     res.json({ data: normalized, total: Number(countRows[0]?.count ?? 0) });
   } catch (e) {

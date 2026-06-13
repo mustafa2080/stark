@@ -1619,7 +1619,7 @@ export default function Orders() {
                         <TableCell className="text-xs font-medium">
                           <span className="inline-flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                            {o.receiverCity || o.zoneGovernorate || "—"}
+                            {o.receiverCity || o.zoneGovernorate || o.zoneLabel || "—"}
                           </span>
                         </TableCell>
                         {canFinancials && (
