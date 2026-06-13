@@ -1574,6 +1574,12 @@ export default function Orders() {
                       </div>
                     </TableHead>
                     )}
+                    {canFinancials && (
+                    <TableHead className="text-right text-xs">سعر الشحن</TableHead>
+                    )}
+                    {canFinancials && (
+                    <TableHead className="text-right text-xs">الإجمالي</TableHead>
+                    )}
                     <TableHead className="text-right text-xs">المندوب</TableHead>
                     <TableHead className="text-center text-xs w-36">
                       <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
@@ -1625,6 +1631,16 @@ export default function Orders() {
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
                           {o.codAmount != null ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
+                        </TableCell>
+                        )}
+                        {canFinancials && (
+                        <TableCell className="text-xs font-medium">
+                          {o.shippingFee != null ? formatCurrency(Number(o.shippingFee)) : "—"}
+                        </TableCell>
+                        )}
+                        {canFinancials && (
+                        <TableCell className="text-xs font-bold text-primary">
+                          {formatCurrency((Number(o.codAmount ?? o.totalAmount ?? 0)) + Number(o.shippingFee ?? 0))}
                         </TableCell>
                         )}
                         <TableCell className="text-xs text-muted-foreground">
