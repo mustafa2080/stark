@@ -1555,11 +1555,8 @@ export default function Orders() {
                     </TableHead>
                     <TableHead className="text-right text-xs">
                       <div className="flex items-center gap-1">
-                        {!showColFilters
-                          ? <input value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} placeholder="المرسل..." className="w-24 h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
-                          : <span>المرسل</span>
-                        }
-                        {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                        <span>المرسل</span>
+                        <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                       </div>
                     </TableHead>
                     <TableHead className="text-right text-xs">
