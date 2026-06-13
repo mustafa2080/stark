@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useListOrders } from "@workspace/api-client-react";
 import { analyticsApi, apiFetch, type ChartsData, type ChartDayItem } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import {
@@ -1137,6 +1138,106 @@ export function StatusDonutWithOrders({ data, total }: { data: ChartsData["statu
   );
 }
 
+// ─── Shipment Filtered List (Popover body) ────────────────────────────────────
+function ShipmentFilteredList({ status, cfg }: { status: string; cfg: { label: string; color: string; bg: string } }) {
+  const { data, isLoading, error } = useQuery<any>({
+    queryKey: ["shipments-by-status-dash", status],
+    queryFn: () => apiFetch<any>(`/shipments?status=${status}&limit=20`),
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const shipments: any[] = data?.shipments ?? data?.data ?? (Array.isArray(data) ? data : []);
+
+  return (
+    <div className="w-[88vw] max-w-xs max-h-96 overflow-y-auto rounded-xl border" style={{ borderColor: cfg.color + "44", background: cfg.bg }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b sticky top-0 z-10"
+        style={{ borderColor: cfg.color + "33", background: cfg.bg }}>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+          <span className="text-xs font-bold" style={{ color: cfg.color }}>{cfg.label}</span>
+          {!isLoading && shipments.length > 0 && (
+            <span className="text-[10px] text-muted-foreground">({shipments.length})</span>
+          )}
+        </div>
+        <Link href={`/shipments?status=${status}`} className="text-[10px] font-bold hover:underline" style={{ color: cfg.color }}>
+          عرض الكل ←
+        </Link>
+      </div>
+
+      {/* Body */}
+      {isLoading ? (
+        <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
+      ) : error ? (
+        <div className="p-4 text-center text-xs text-red-500">خطأ في التحميل</div>
+      ) : shipments.length === 0 ? (
+        <div className="p-4 text-center text-xs text-muted-foreground">لا توجد شحنات بهذه الحالة</div>
+      ) : (
+        <div className="divide-y" style={{ borderColor: cfg.color + "22" }}>
+          {shipments.slice(0, 20).map((s: any) => (
+            <Link
+              key={s.id}
+              href={`/shipments/${s.id}`}
+              className="flex items-center justify-between px-3 py-2 hover:bg-black/5 transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-white"
+                  style={{ background: cfg.color }}>
+                  {(s.receiverName ?? "؟").charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">{s.receiverName ?? "—"}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {s.shipmentNumber ?? `#${String(s.id).padStart(4, "0")}`}
+                    {s.receiverCity ? ` • ${s.receiverCity}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="text-left shrink-0 mr-1">
+                {s.codAmount != null && Number(s.codAmount) > 0 && (
+                  <p className="text-[10px] font-black" style={{ color: cfg.color }}>
+                    {new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(s.codAmount))}
+                  </p>
+                )}
+                <p className="text-[9px] text-muted-foreground">
+                  {s.createdAt ? format(new Date(s.createdAt), "dd/MM") : ""}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Shipment Status Legend Item (clickable with popover) ─────────────────────
+function ShipmentStatusLegendItem({ d }: { d: { status: string; count: number; pct: number } }) {
+  const [open, setOpen] = useState(false);
+  const cfg = SHIPMENT_STATUS_CFG[d.status] ?? { label: d.status, color: "#888", bg: "#88888818" };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold w-full text-right transition hover:opacity-80 hover:ring-1 hover:ring-current cursor-pointer"
+          style={{ background: cfg.bg }}
+          onClick={() => setOpen(v => !v)}
+        >
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+          <span className="text-foreground truncate flex-1">{cfg.label}</span>
+          <span className="font-black" style={{ color: cfg.color }}>{d.count}</span>
+          <span className="text-muted-foreground">{d.pct}%</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="start" avoidCollisions={true} className="p-0 border-0 shadow-2xl w-auto z-50" sideOffset={6}>
+        <ShipmentFilteredList status={d.status} cfg={cfg} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ─── Shipment Status Donut ────────────────────────────────────────────────────
 export const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
   data, total,
@@ -1197,22 +1298,11 @@ export const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
         </ResponsiveContainer>
       </div>
 
-      {/* Legend */}
+      {/* Legend — clickable popovers */}
       <div className="grid grid-cols-2 gap-1.5">
-        {sorted.map((d) => {
-          const cfg = SHIPMENT_STATUS_CFG[d.status] ?? { label: d.status, color: "#888", bg: "#88888818" };
-          return (
-            <Link key={d.status} href={`/shipments?status=${d.status}`}
-              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold hover:opacity-80 hover:ring-1 hover:ring-current transition cursor-pointer"
-              style={{ background: cfg.bg }}
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
-              <span className="text-foreground truncate">{cfg.label}</span>
-              <span className="mr-auto font-black" style={{ color: cfg.color }}>{d.count}</span>
-              <span className="text-muted-foreground">{d.pct}%</span>
-            </Link>
-          );
-        })}
+        {sorted.map((d) => (
+          <ShipmentStatusLegendItem key={d.status} d={d} />
+        ))}
       </div>
     </div>
   );
