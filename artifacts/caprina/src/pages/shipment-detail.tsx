@@ -1866,8 +1866,20 @@ export default function OrderDetail() {
   const updateOrder = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) =>
       apiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onMutate: async ({ id, data }) => {
+      // optimistic update — حدّث الـ UI فوراً
+      await queryClient.cancelQueries({ queryKey: ["shipment-detail", id] });
+      const prev = queryClient.getQueryData(["shipment-detail", id]);
+      queryClient.setQueryData(["shipment-detail", id], (old: any) =>
+        old ? { ...old, ...data } : old
+      );
+      return { prev };
+    },
+    onError: (_err, { id }, ctx: any) => {
+      queryClient.setQueryData(["shipment-detail", id], ctx?.prev);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shipment", id] });
+      queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
       queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
     },
