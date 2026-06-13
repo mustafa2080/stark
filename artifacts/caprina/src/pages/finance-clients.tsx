@@ -786,9 +786,9 @@ export default function FinanceClients() {
                     {/* نسبة تحقيق الهدف */}
                     <div>
                       {(() => {
-                        const sales = parseFloat(c.totalSales ?? "0");
-                        const target = parseFloat(c.creditLimit ?? "0") || 1_000_000;
-                        const pct = Math.min((sales / target) * 100, 100);
+                        const orders = c.totalOrders ?? 0;
+                        const target = parseFloat(c.creditLimit ?? "0") || 100;
+                        const pct = Math.min((orders / target) * 100, 100);
                         const color = pct >= 75 ? "bg-emerald-500 text-emerald-400" : pct >= 50 ? "bg-amber-500 text-amber-400" : "bg-primary text-primary";
                         const [barColor, textColor] = color.split(" ");
                         return (
@@ -797,7 +797,7 @@ export default function FinanceClients() {
                             <div className="w-full bg-muted/30 rounded-full h-1 mt-0.5 overflow-hidden">
                               <div className={`h-1 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[9px] text-muted-foreground mt-0.5">{fmt(sales)}</p>
+                            <p className="text-[9px] text-muted-foreground mt-0.5">{orders} / {target} أوردر</p>
                           </div>
                         );
                       })()}

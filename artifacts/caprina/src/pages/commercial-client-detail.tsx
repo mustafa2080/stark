@@ -255,11 +255,12 @@ export default function CommercialClientDetailPage() {
 
       const ws = wb.addWorksheet("كشف الحساب", { views: [{ rightToLeft: true }] });
 
-      const TARGET_VAL = parseFloat(data.creditLimit ?? "0") > 0 ? parseFloat(data.creditLimit) : 1_000_000;
+      const TARGET_VAL = parseFloat(data.creditLimit ?? "0") > 0 ? parseFloat(data.creditLimit) : 100;
+      const tOrders = data.totalOrders ?? 0;
       const tSales  = parseFloat(data.totalSales ?? "0");
       const tPaid   = parseFloat(data.totalPaid  ?? "0");
       const tUnpaid = Math.max(0, tSales - tPaid);
-      const pct     = Math.min((tSales / TARGET_VAL) * 100, 100).toFixed(1);
+      const pct     = Math.min((tOrders / TARGET_VAL) * 100, 100).toFixed(1);
 
       const bAll = (cell: any, color = "FFB0BEC5") => {
         const s = { style: "thin" as const, color: { argb: color } };
@@ -412,11 +413,12 @@ export default function CommercialClientDetailPage() {
   const exportPDF = useCallback(() => {
     if (!data) return;
     setExportingPDF(true);
-    const TARGET_VAL = parseFloat(data.creditLimit ?? "0") > 0 ? parseFloat(data.creditLimit) : 1_000_000;
+    const TARGET_VAL = parseFloat(data.creditLimit ?? "0") > 0 ? parseFloat(data.creditLimit) : 100;
+    const tOrders = data.totalOrders ?? 0;
     const tSales  = parseFloat(data.totalSales  ?? "0");
     const tPaid   = parseFloat(data.totalPaid   ?? "0");
     const tUnpaid = Math.max(0, tSales - tPaid);
-    const pct     = Math.min((tSales / TARGET_VAL) * 100, 100).toFixed(1);
+    const pct     = Math.min((tOrders / TARGET_VAL) * 100, 100).toFixed(1);
     const fmtNum  = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
     const statusMap: Record<string, string> = {
       draft: "مسودة", confirmed: "مؤكد", processing: "قيد التجهيز", delivered: "تم التسليم", closed: "مغلق",
@@ -502,15 +504,16 @@ export default function CommercialClientDetailPage() {
   const unpaid = Math.max(0, totalSales - totalPaid);
   // ✅ نسبة التسليم الحقيقية من الـ API (delivered ÷ total)
   const deliveryRate = data?.deliveryRate ?? 0;
-  // نسبة تحقيق الهدف (المبيعات ÷ creditLimit)
-  const salesPct    = Math.min((totalSales / (creditLimit > 0 ? creditLimit : 1_000_000)) * 100, 100);
-  const remaining   = Math.max(0, creditLimit - totalSales);
+  // نسبة تحقيق الهدف (عدد الأوردرات ÷ creditLimit كهدف)
+  const totalOrdersCount = client?.totalOrders ?? 0;
+  const salesPct    = Math.min((totalOrdersCount / (creditLimit > 0 ? creditLimit : 100)) * 100, 100);
+  const remaining   = Math.max(0, creditLimit - totalOrdersCount);
 
   const processingOrders = allOrders.filter(o => ["draft", "confirmed", "processing"].includes(o.status));
   const deliveredOrders  = allOrders.filter(o => ["delivered", "closed"].includes(o.status));
   const latestProcessingId = processingOrders[0]?.id;
 
-  const TARGET = creditLimit > 0 ? creditLimit : 1_000_000;
+  const TARGET = creditLimit > 0 ? creditLimit : 100;
   const monthlyTarget = Math.round(TARGET / 12);
 
   // ── مؤشر الخطر 0–100 (كلما قل كان أأمن) ────────────────────────────────
@@ -790,7 +793,7 @@ export default function CommercialClientDetailPage() {
                 className="flex items-center justify-center gap-1 mt-1.5 mx-auto group"
               >
                 <p className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">
-                  {creditLimit > 0 ? `هدف ${fmt(creditLimit)}` : `هدف ${fmt(1_000_000)}`}
+                  {creditLimit > 0 ? `هدف ${creditLimit} أوردر` : `هدف 100 أوردر`}
                 </p>
                 <Edit2 className="w-2.5 h-2.5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
               </button>
