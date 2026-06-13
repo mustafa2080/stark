@@ -3566,15 +3566,15 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   </div>
 
                   <CardContent className="p-0">
-                    {/* القسم الأول: بيانات العميل */}
+                    {/* القسم الأول: بيانات المستلم */}
                     <div className="px-4 sm:px-5 py-4 border-b border-border/60">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <Phone className="w-3 h-3" />بيانات العميل
+                        <Phone className="w-3 h-3" />بيانات المستلم
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <FormField control={form.control} name="customerName" render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">الاسم *</FormLabel>
+                            <FormLabel className="text-xs text-muted-foreground">اسم المستلم *</FormLabel>
                             <FormControl>
                               <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} />
                             </FormControl>
@@ -3585,7 +3585,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />رقم الهاتف</FormLabel>
                             <FormControl>
-                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="01x-xxxx-xxxx" {...field} value={field.value ?? ""} />
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="01x-xxxx-xxxx" dir="ltr" {...field} value={field.value ?? ""} />
                             </FormControl>
                           </FormItem>
                         )} />
@@ -3610,293 +3610,52 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       </div>
                     </div>
 
-                    {/* القسم الثاني: المنتج */}
+                    {/* القسم الثاني: بيانات الشحن */}
                     <div className="px-4 sm:px-5 py-4 border-b border-border/60">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <Package className="w-3 h-3" />تفاصيل المنتج
+                        <Truck className="w-3 h-3" />بيانات الشحن
                       </p>
-
-                      {/* Product picker — inline search مثل AddProductDialog */}
-                      <div className="mb-3">
-                        <label className="text-xs font-medium mb-1.5 block">اختر من المخزون *</label>
-                        {editSelectedProduct ? (
-                          <div className="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-md">
-                            <div className="flex items-center gap-2">
-                              {(editSelectedProduct as any).image ? (
-                                <img src={(editSelectedProduct as any).image} alt={(editSelectedProduct as any).name} className="w-8 h-8 rounded object-cover border border-emerald-300 shrink-0" />
-                              ) : (
-                                <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              )}
-                              <span className="text-sm font-bold">{(editSelectedProduct as any).name}</span>
-                            </div>
-                            <button type="button" onClick={() => { setEditSelectedProduct(null); setEditVariantRows([{ color: "", size: "", quantity: editVariantRows[0]?.quantity ?? 1 }]); }}
-                              className="text-muted-foreground hover:text-red-500 transition-colors">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <div className="relative">
-                              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                              <input
-                                type="text"
-                                className="w-full h-9 text-sm pr-8 pl-3 rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                                placeholder={`ابحث عن منتج... (حالياً: ${order.product ?? ""})`}
-                                value={editSearchQuery}
-                                onChange={e => { setEditSearchQuery(e.target.value); setEditSearchOpen(true); }}
-                                onFocus={() => setEditSearchOpen(true)}
-                                onBlur={() => setTimeout(() => setEditSearchOpen(false), 150)}
-                              />
-                              {editSearchQuery && (
-                                <button type="button" onClick={() => setEditSearchQuery("")}
-                                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                            {editSearchOpen && (() => {
-                              const q = editSearchQuery.toLowerCase().trim();
-                              const filtered = ((products ?? []) as any[])
-                                .filter((p: any) => !q || p.name?.toLowerCase().includes(q))
-                                .slice(0, 20);
-                              return (
-                                <div className="mt-1 w-full bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto z-10 relative">
-                                  {filtered.length === 0 ? (
-                                    <div className="px-3 py-4 text-center text-sm text-muted-foreground">لا يوجد منتج بهذا الاسم</div>
-                                  ) : filtered.map((p: any) => {
-                                    const pvs = ((allVariants ?? []) as any[]).filter((v: any) => v.productId === p.id);
-                                    const stock = pvs.length > 0
-                                      ? pvs.reduce((s: number, v: any) => s + (v.totalQuantity ?? 0) - (v.reservedQuantity ?? 0) - (v.soldQuantity ?? 0), 0)
-                                      : (p.totalQuantity ?? 0) - (p.reservedQuantity ?? 0) - (p.soldQuantity ?? 0);
-                                    return (
-                                      <button key={p.id} type="button"
-                                        onMouseDown={() => {
-                                          setEditSelectedProduct(p);
-                                          setEditVariantRows([{ color: "", size: "", quantity: editVariantRows[0]?.quantity ?? 1 }]);
-                                          setEditSearchQuery(""); setEditSearchOpen(false);
-                                          form.setValue("product", p.name);
-                                          if (p.unitPrice) form.setValue("unitPrice", p.unitPrice);
-                                        }}
-                                        className="w-full text-right flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors text-sm border-b border-border/20 last:border-0"
-                                      >
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          {p.image ? (
-                                            <img src={p.image} alt={p.name} className="w-7 h-7 rounded object-cover border border-border shrink-0" />
-                                          ) : (
-                                            <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                                          )}
-                                          <span className="font-medium truncate">{p.name}</span>
-                                        </div>
-                                        <Badge variant="outline" className={`text-[9px] font-bold shrink-0 ${stock > 0 ? "border-emerald-400 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" : "border-red-400 text-red-600"}`}>
-                                          {stock > 0 ? `${stock} متاح` : "نفد"}
-                                        </Badge>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Variants إذا المنتج المختار عنده variants */}
-                      {editSelectedProduct && (() => {
-                        const ePVs = ((allVariants ?? []) as any[]).filter((v: any) => v.productId === (editSelectedProduct as any).id);
-                        const eColors = [...new Set(ePVs.map((v: any) => v.color))] as string[];
-                        const eHasV = ePVs.length > 0;
-                        const eRow = editVariantRows[0];
-                        const eSizes = ePVs.filter((v: any) => v.color === eRow.color).map((v: any) => v.size);
-                        const eVariant = ePVs.find((v: any) => v.color === eRow.color && v.size === eRow.size);
-                        const eAvail = eVariant
-                          ? (eVariant.totalQuantity ?? 0) - (eVariant.reservedQuantity ?? 0) - (eVariant.soldQuantity ?? 0)
-                          : null;
-                        if (!eHasV) return (
-                          <div className="mb-3">
-                            <label className="text-xs font-medium mb-1.5 block">الكمية *</label>
-                            <div className="flex items-center gap-2">
-                              <button type="button" onClick={() => { const q = Math.max(1, eRow.quantity - 1); setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
-                                className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">−</button>
-                              <span className="w-10 text-center text-sm font-bold">{eRow.quantity}</span>
-                              <button type="button" onClick={() => { const q = eRow.quantity + 1; setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
-                                className="w-9 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
-                            </div>
-                          </div>
-                        );
-                        return (
-                          <div className="mb-3 flex flex-col sm:flex-row sm:items-end gap-2 p-2 bg-muted/10 rounded-md border border-border/40">
-                            <div className="flex-1 min-w-0">
-                              <label className="text-[10px] text-muted-foreground mb-1 block">اللون</label>
-                              <select value={eRow.color}
-                                onChange={e => {
-                                  const c = e.target.value;
-                                  setEditVariantRows([{ color: c, size: "", quantity: eRow.quantity }]);
-                                  const v = ePVs.find((pv: any) => pv.color === c);
-                                  if (v?.unitPrice) form.setValue("unitPrice", v.unitPrice);
-                                }}
-                                className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring">
-                                <option value="">اختر لون...</option>
-                                {eColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <label className="text-[10px] text-muted-foreground mb-1 block">المقاس</label>
-                              <select value={eRow.size} disabled={!eRow.color}
-                                onChange={e => {
-                                  const s = e.target.value;
-                                  setEditVariantRows([{ ...eRow, size: s }]);
-                                  const v = ePVs.find((pv: any) => pv.color === eRow.color && pv.size === s);
-                                  if (v?.unitPrice) form.setValue("unitPrice", v.unitPrice);
-                                }}
-                                className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50">
-                                <option value="">اختر مقاس...</option>
-                                {eSizes.map((s: string) => {
-                                  const v = ePVs.find((pv: any) => pv.color === eRow.color && pv.size === s);
-                                  const a = v ? (v.totalQuantity ?? 0) - (v.reservedQuantity ?? 0) - (v.soldQuantity ?? 0) : 0;
-                                  return <option key={s} value={s} disabled={a === 0}>{s} {a === 0 ? "(نفد)" : `(${a})`}</option>;
-                                })}
-                              </select>
-                            </div>
-                            <div className="sm:w-auto">
-                              <label className="text-[10px] text-muted-foreground mb-1 block">الكمية</label>
-                              <div className="flex items-center gap-1">
-                                <button type="button" onClick={() => { const q = Math.max(1, eRow.quantity - 1); setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
-                                  className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">−</button>
-                                <span className="w-8 text-center text-sm font-bold">{eRow.quantity}</span>
-                                <button type="button" onClick={() => { const q = eAvail !== null ? Math.min(eAvail, eRow.quantity + 1) : eRow.quantity + 1; setEditVariantRows([{ ...eRow, quantity: q }]); form.setValue("quantity", q); }}
-                                  className="w-7 h-9 flex items-center justify-center rounded border border-input bg-card hover:bg-muted text-sm font-bold">+</button>
-                              </div>
-                            </div>
-                            {eAvail !== null && (
-                              <span className={`text-[9px] font-bold mt-1 sm:mt-0 sm:mb-2 shrink-0 ${eAvail <= 5 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>متاح:{eAvail}</span>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* اسم المنتج + الكمية (fallback يدوي) + السعر */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                        <FormField control={form.control} name="product" render={({ field }) => (
-                          <FormItem className="lg:col-span-3">
-                            <FormLabel className="text-xs text-muted-foreground">اسم المنتج *</FormLabel>
-                            <FormControl><Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} /></FormControl>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="trackingNumber" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">رقم التتبع</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="TRK-XXXXX" dir="ltr" {...field} value={field.value ?? ""} />
+                            </FormControl>
                           </FormItem>
                         )} />
-                        {!editSelectedProduct && (
-                          <FormField control={form.control} name="quantity" render={({ field }) => (
-                            <FormItem className="lg:col-span-1">
-                              <FormLabel className="text-xs text-muted-foreground">الكمية</FormLabel>
-                              <FormControl><Input type="number" min="1" className="h-9 text-sm text-center bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} /></FormControl>
-                            </FormItem>
-                          )} />
-                        )}
-                        <FormField control={form.control} name="unitPrice" render={({ field }) => (
-                          <FormItem className="lg:col-span-1">
-                            <FormLabel className="text-xs text-muted-foreground">السعر</FormLabel>
-                            <FormControl><Input type="number" min="0" step="0.01" className="h-9 text-sm text-center bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} /></FormControl>
+                        <FormField control={form.control} name="shippingCompanyId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" />شركة الشحن</FormLabel>
+                            <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر شركة" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— غير محدد —</SelectItem>
+                                {shippingCompanies?.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
                           </FormItem>
                         )} />
                       </div>
-                    </div>
-
-                    {/* القسم الرابع: التكلفة المالية */}
-                    {canViewFinancials && (
-                      <div className="px-4 sm:px-5 py-4 border-b border-border/60 bg-emerald-50/30 dark:bg-emerald-900/5">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                          <DollarSign className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />التكلفة المالية
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <FormField control={form.control} name="costPrice" render={({ field }) => (
+                      {isAdmin && (
+                        <div className="mt-3">
+                          <FormField control={form.control} name="assignedUserId" render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-xs text-muted-foreground">تكلفة الوحدة (ج.م)</FormLabel>
-                              <FormControl>
-                                <Input type="number" min="0" step="0.01" placeholder="0" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"
-                                  {...field} value={field.value ?? ""}
-                                  onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)} />
-                              </FormControl>
-                            </FormItem>
-                          )} />
-                          <FormField control={form.control} name="shippingCost" render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs text-muted-foreground">تكلفة الشحن (ج.م)</FormLabel>
-                              <FormControl>
-                                <Input type="number" min="0" step="0.01" placeholder="0" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"
-                                  {...field} value={field.value ?? ""}
-                                  onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)} />
-                              </FormControl>
+                              <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><UserCheck className="w-3 h-3" />المندوب المسؤول</FormLabel>
+                              <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                                <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر مندوب" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">— غير محدد —</SelectItem>
+                                  {users?.filter((u: any) => u.isActive).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
                             </FormItem>
                           )} />
                         </div>
-                      </div>
-                    )}
-
-                    {/* القسم الخامس: تتبع الإعلان والفريق */}
-                    <div className="px-4 sm:px-5 py-4 border-b border-border/60 bg-purple-50/30 dark:bg-purple-900/5">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <Megaphone className="w-3 h-3 text-purple-400" />تتبع الإعلان والفريق
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <FormField control={form.control} name="adSource" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Megaphone className="w-3 h-3" />مصدر الطلب</FormLabel>
-                            <Select value={field.value ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : v)}>
-                              <SelectTrigger className="h-9 text-sm bg-background border-border/70">
-                                <SelectValue placeholder="اختر المصدر">
-                                  {field.value && field.value !== "none" && (
-                                    <span className="flex items-center gap-2">
-                                      <AdSourceIcon value={field.value} />
-                                      {AD_SOURCES.find(s => s.value === field.value)?.label}
-                                    </span>
-                                  )}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">— غير محدد —</SelectItem>
-                                {AD_SOURCES.map(s => (
-                                  <SelectItem key={s.value} value={s.value}>
-                                    <span className="flex items-center gap-2"><AdSourceIcon value={s.value} />{s.label}</span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="adCampaign" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">اسم الحملة</FormLabel>
-                            <FormControl><Input placeholder="Summer 2025..." className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? ""} /></FormControl>
-                          </FormItem>
-                        )} />
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                        <FormField control={form.control} name="warehouseId" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Warehouse className="w-3 h-3" />المخزن</FormLabel>
-                            <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
-                              <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر مخزن" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">— غير محدد —</SelectItem>
-                                {warehouses?.map((w: any) => <SelectItem key={w.id} value={String(w.id)}>{w.name}{w.isDefault ? " ★" : ""}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="assignedUserId" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><UserCheck className="w-3 h-3" />الموظف المسؤول</FormLabel>
-                            <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
-                              <SelectTrigger className="h-9 text-sm bg-background border-border/70"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">— غير محدد —</SelectItem>
-                                {users?.filter((u: any) => u.isActive).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )} />
-                      </div>
+                      )}
                     </div>
 
-                    {/* القسم السادس: الملاحظات */}
+                    {/* القسم الثالث: الملاحظات */}
                     <div className="px-4 sm:px-5 py-4 border-b border-border/60">
                       <FormField control={form.control} name="notes" render={({ field }) => (
                         <FormItem>
