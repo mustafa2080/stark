@@ -2102,27 +2102,24 @@ export default function OrderDetail() {
         }
       : {};
 
+    // map order form fields → shipment fields
     updateOrder.mutate({ id, data: {
-      ...values,
+      receiverName:      values.customerName,
+      receiverPhone:     values.phone ?? null,
+      receiverCity:      values.city ?? null,
+      receiverAddress:   values.address ?? null,
+      shippingFee:       values.shippingCost ?? null,
       shippingCompanyId: values.shippingCompanyId || null,
-      adSource: values.adSource || null,
-      adCampaign: values.adCampaign || null,
-      city: values.city || null,
-      shippingCost: values.shippingCost ?? null,
-      costPrice: values.costPrice ?? null,
-      ...extraData,
+      trackingNumber:    values.trackingNumber || null,
+      assignedUserId:    values.assignedUserId || null,
+      notes:             values.notes ?? null,
     } as any }, {
-      onSuccess: (updated) => {
-        queryClient.setQueryData(getGetOrderQueryKey(id), updated);
-        queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetRecentOrdersQueryKey() });
-        queryClient.invalidateQueries({ queryKey: ["analytics-charts"] });
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] });
+        queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
         setIsEditing(false);
         initializedRef.current = false;
-        setEditSelectedProduct(null); setEditSearchQuery(""); setEditSearchOpen(false);
-        setEditVariantRows([{ color: "", size: "", quantity: 1 }]);
-        toast({ title: "تم الحفظ", description: "تم حفظ التعديلات بنجاح." });
+        toast({ title: "تم الحفظ ✅", description: "تم حفظ التعديلات بنجاح." });
       },
       onError: () => toast({ title: "خطأ", description: "فشل الحفظ.", variant: "destructive" }),
     });
