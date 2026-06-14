@@ -100,6 +100,7 @@ app.get("/api/shipments/track/:number", async (req: Request, res: Response): Pro
       )
       .limit(1);
     if (!rows.length) { res.status(404).json({ error: "لم يتم العثور على الشحنة" }); return; }
+    res.set("Cache-Control", "no-store");
     res.json(rows[0]);
   } catch (e) {
     console.error("[GET /api/shipments/track]", e);

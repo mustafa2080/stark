@@ -61,7 +61,7 @@ export default function TrackResultPage() {
     if (!params.number) return;
     setLoading(true);
     setError(null);
-    fetch(`/api/shipments/track/${encodeURIComponent(params.number)}`)
+    fetch(`/api/shipments/track/${encodeURIComponent(params.number)}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : r.json().then(d => Promise.reject(d.error || "خطأ")))
       .then(data => { setShipment(data); setLoading(false); })
       .catch(err => { setError(typeof err === "string" ? err : "لم يتم العثور على الشحنة"); setLoading(false); });
