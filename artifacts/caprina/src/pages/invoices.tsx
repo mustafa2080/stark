@@ -375,17 +375,10 @@ export default function Invoices() {
     const fmtCurr = (n: any) =>
       new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n || 0));
 
-    const STATUS_AR: Record<string, string> = {
-      pending:"قيد الانتظار", warehouse_ready:"جاهزة للشحن", in_shipping:"قيد الشحن",
-      received:"استلم", partial_received:"استلم جزئي", returned:"مرتجع",
-      delivered:"استلم", waiting:"انتظار", cancelled:"ملغية", delayed:"مؤجل",
-    };
-
     const buildPage = (sh: any) => {
       const shipNum  = sh.shipmentNumber ?? `SHP#${String(sh.id).padStart(4,"0")}`;
       const tracking = sh.trackingNumber ?? "—";
       const dateLabel = sh.createdAt ? format(new Date(sh.createdAt), "yyyy/MM/dd HH:mm") : "";
-      const statusAr = STATUS_AR[sh.status] ?? sh.status ?? "—";
       const paymentMethodAr = sh.paymentMethod === "cod" ? "عند الاستلام" : sh.paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً";
       const shippingFee  = Number(sh.shippingFee  || 0);
       const codAmount    = Number(sh.codAmount    || 0);
@@ -404,9 +397,8 @@ export default function Invoices() {
   </div>
   <div class="tracking-bar">
     <div class="tracking-item"><div class="t-label">رقم التتبع</div><div class="t-value highlight">${tracking}</div></div>
-    <div class="tracking-item"><div class="t-label">شركة الشحن</div><div class="t-value">${sh.shippingCompanyName || "—"}</div></div>
     <div class="tracking-item"><div class="t-label">طريقة الدفع</div><div class="t-value">${paymentMethodAr}</div></div>
-    <div class="tracking-item"><div class="t-label">الحالة</div><div class="t-value green">${statusAr}</div></div>
+    <div class="tracking-item"><div class="t-value brand">STARK</div></div>
   </div>
   <div class="parties">
     <div class="party-box">
@@ -465,13 +457,14 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .header{display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;border-bottom:2.5px solid #111;margin-bottom:5px}
 .header-title{font-size:16px;font-weight:900;letter-spacing:-0.5px}
 .header-title span{font-size:8px;font-weight:700;color:#555;display:block;margin-top:2px}
-.logo{width:32px;height:32px;object-fit:contain;border-radius:4px}
+.logo{width:48px;height:48px;object-fit:contain;border-radius:5px}
 .tracking-bar{background:#111;color:#fff;border-radius:5px;padding:4px 7px;display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:6px;flex-wrap:wrap}
 .tracking-item{text-align:center}
 .tracking-item .t-label{font-size:7px;color:#ccc;font-weight:700;margin-bottom:1px}
 .tracking-item .t-value{font-size:10px;font-weight:900;color:#fff}
 .tracking-item .t-value.highlight{color:#f0c040;font-size:13px}
 .tracking-item .t-value.green{color:#4ade80}
+.tracking-item .t-value.brand{font-size:18px;font-weight:900;letter-spacing:4px;color:#fff;font-style:italic}
 .parties{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px}
 .party-box{border:1.5px solid #111;border-radius:3px;padding:5px 6px}
 .party-box.receiver{border-width:2px}
@@ -500,7 +493,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   .sheet{width:297mm;height:210mm;padding:2mm;gap:2mm}
   .page{padding:7px 8px}
   .header-title{font-size:15px}
-  .logo{width:28px;height:28px}
+  .logo{width:42px;height:42px}
   .tracking-bar{padding:3px 6px;margin-bottom:4px}
   .tracking-item .t-value{font-size:9.5px}
   .tracking-item .t-value.highlight{font-size:12px}
