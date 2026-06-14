@@ -1408,3 +1408,67 @@ export type CashRegister = {
 export const cashRegistersApi = {
   list: () => apiFetch<{ registers: CashRegister[]; totalBalance: number }>("/cash-registers"),
 };
+
+// ─── Shipments API ────────────────────────────────────────────────────────────
+export interface Shipment {
+  id: number;
+  shipmentNumber: string;
+  trackingNumber: string | null;
+  clientId: number | null;
+  senderName: string;
+  senderPhone: string | null;
+  receiverName: string;
+  receiverPhone: string | null;
+  receiverAddress: string | null;
+  receiverCity: string | null;
+  zoneId: number | null;
+  zoneLabel: string | null;
+  zoneGovernorate: string | null;
+  paymentMethod: "cod" | "prepaid" | "deferred";
+  codAmount: string;
+  shippingFee: string;
+  totalAmount: string;
+  collectedAmount: string;
+  status: string;
+  shippingCompanyId: number | null;
+  shippingCompanyName: string | null;
+  assignedUserId: number | null;
+  assignedUserName: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentsListResponse {
+  data: Shipment[];
+  total: number;
+}
+
+export const shipmentsApi = {
+  list: (params?: {
+    status?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+    shippingCompanyId?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.status)           q.set("status",           params.status);
+    if (params?.search)           q.set("search",           params.search);
+    if (params?.limit != null)    q.set("limit",            String(params.limit));
+    if (params?.offset != null)   q.set("offset",           String(params.offset));
+    if (params?.shippingCompanyId != null) q.set("shippingCompanyId", String(params.shippingCompanyId));
+    const qs = q.toString();
+    return apiFetch<ShipmentsListResponse>(`/shipments${qs ? `?${qs}` : ""}`);
+  },
+  get: (id: number) => apiFetch<Shipment>(`/shipments/${id}`),
+  create: (data: Partial<Shipment> & { senderName: string; receiverName: string }) =>
+    apiFetch<Shipment>("/shipments", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: Partial<Shipment>) =>
+    apiFetch<Shipment>(`/shipments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  patch: (id: number, data: Partial<Shipment>) =>
+    apiFetch<Shipment>(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  delete: (id: number) => apiFetch<{ success: boolean }>(`/shipments/${id}`, { method: "DELETE" }),
+  stats: () => apiFetch<any>("/shipments/stats"),
+  track: (number: string) => apiFetch<Shipment>(`/shipments/track/${encodeURIComponent(number)}`),
+};

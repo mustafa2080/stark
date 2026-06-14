@@ -3,7 +3,6 @@ import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
 import { db, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { Router, IRouter } from "express";
 
 const router: IRouter = Router();
 
@@ -131,7 +130,7 @@ router.get("/shipments/track/:number", async (req, res): Promise<void> => {
 router.get("/shipments", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { status, search, limit = "50", offset = "0" } = req.query as Record<string, string>;
+    const { status, search, limit = "50", offset = "0", shippingCompanyId } = req.query as Record<string, string>;
 
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
@@ -151,6 +150,9 @@ router.get("/shipments", async (req, res): Promise<void> => {
       } else {
         conditions.push(eq(shipmentsTable.status, status));
       }
+    }
+    if (shippingCompanyId) {
+      conditions.push(eq(shipmentsTable.shippingCompanyId, parseInt(shippingCompanyId)));
     }
     if (search) {
       conditions.push(

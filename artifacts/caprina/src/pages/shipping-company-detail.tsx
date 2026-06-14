@@ -1,7 +1,7 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { shippingApi, manifestsApi, type ShippingManifestListItem } from "@/lib/api";
+import { shippingApi, manifestsApi, shipmentsApi, type ShippingManifestListItem } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,8 @@ import { CreateManifestDialog } from "./shipping-companies";
 import {
   ArrowRight, Truck, PackagePlus, FileText, Lock,
   CheckCircle2, RotateCcw, Clock, TrendingUp, TrendingDown,
-  ChevronRight, Calendar, Package, Phone, Globe, X,
+  ChevronRight, Calendar, Package, Phone, Globe, X, Send,
+  MapPin, User,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -139,6 +140,7 @@ export default function ShippingCompanyDetailPage() {
   const [showNewManifest, setShowNewManifest] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo]     = useState("");
+  const [activeTab, setActiveTab] = useState<"manifests" | "shipments">("manifests");
   const { can, isAdmin } = useAuth();
   const canFinancials = isAdmin || can("shipping.financials");
   const canManifests  = isAdmin || can("shipping.manifests");
@@ -157,6 +159,13 @@ export default function ShippingCompanyDetailPage() {
     queryFn: () => manifestsApi.companyStats(companyId),
     enabled: !isNaN(companyId),
   });
+
+  const { data: shipmentsData, isLoading: shipmentsLoading } = useQuery({
+    queryKey: ["company-shipments", companyId],
+    queryFn: () => shipmentsApi.list({ shippingCompanyId: companyId, limit: 100 }),
+    enabled: !isNaN(companyId) && activeTab === "shipments",
+  });
+  const shipments = shipmentsData?.data ?? [];
 
   if (isNaN(companyId)) return <div className="p-8 text-center text-muted-foreground">معرّف غير صحيح</div>;
 
@@ -267,14 +276,37 @@ export default function ShippingCompanyDetailPage() {
         </div>
       )}
 
-      {/* ─── Manifests Timeline ─── */}
-      <div>
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h2 className="font-bold text-sm flex items-center gap-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
-            البيانات
-            {manifests && <Badge variant="outline" className="text-[9px]">{manifests.length}</Badge>}
-          </h2>
+      {/* ─── Tabs ─── */}
+      <div className="flex items-center gap-1 border-b border-border pb-0">
+        <button
+          onClick={() => setActiveTab("manifests")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+            activeTab === "manifests"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          البيانات
+          {manifests && <Badge variant="outline" className="text-[9px] ml-1">{manifests.length}</Badge>}
+        </button>
+        <button
+          onClick={() => setActiveTab("shipments")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+            activeTab === "shipments"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Send className="w-3.5 h-3.5" />
+          الشحنات
+          {shipmentsData && <Badge variant="outline" className="text-[9px] ml-1">{shipmentsData.total}</Badge>}
+        </button>
+      </div>
+
+      {/* ─── Tab: Manifests ─── */}
+      {activeTab === "manifests" && <div>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2 pt-3">
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />مفتوح: {openManifests.length}
@@ -362,7 +394,88 @@ export default function ShippingCompanyDetailPage() {
             )}
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* ─── Tab: Shipments ─── */}
+      {activeTab === "shipments" && (
+        <div className="pt-3">
+          {shipmentsLoading ? (
+            <div className="py-12 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</div>
+          ) : shipments.length === 0 ? (
+            <div className="py-16 text-center">
+              <Send className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+              <p className="text-muted-foreground text-sm">لا توجد شحنات مرتبطة بهذه الشركة</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {shipments.map((s: any) => {
+                const statusColors: Record<string, string> = {
+                  waiting:           "border-amber-700 bg-amber-900/20 text-amber-400",
+                  confirmed:         "border-blue-700 bg-blue-900/20 text-blue-400",
+                  picked_up:         "border-indigo-700 bg-indigo-900/20 text-indigo-400",
+                  warehouse_ready:   "border-purple-700 bg-purple-900/20 text-purple-400",
+                  in_transit:        "border-cyan-700 bg-cyan-900/20 text-cyan-400",
+                  in_shipping:       "border-cyan-700 bg-cyan-900/20 text-cyan-400",
+                  out_for_delivery:  "border-sky-700 bg-sky-900/20 text-sky-400",
+                  delivered:         "border-emerald-700 bg-emerald-900/20 text-emerald-400",
+                  received:          "border-emerald-700 bg-emerald-900/20 text-emerald-400",
+                  returned:          "border-red-700 bg-red-900/20 text-red-400",
+                  cancelled:         "border-red-700 bg-red-900/20 text-red-400",
+                };
+                const statusLabels: Record<string, string> = {
+                  waiting: "انتظار", confirmed: "مؤكد", picked_up: "تم الاستلام",
+                  warehouse_ready: "جاهز", in_transit: "في الطريق", in_shipping: "في الشحن",
+                  out_for_delivery: "خرج للتسليم", delivered: "مسلَّم", received: "مستلم",
+                  returned: "مرتجع", cancelled: "ملغي",
+                };
+                const colorClass = statusColors[s.status] ?? "border-border bg-card text-muted-foreground";
+                return (
+                  <Link key={s.id} href={`/shipments/${s.id}`}>
+                    <div className="group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border border-border bg-card/50">
+                      <div className={`w-1 rounded-r-lg shrink-0 ${s.status === "delivered" || s.status === "received" ? "bg-emerald-500" : s.status === "returned" || s.status === "cancelled" ? "bg-red-500" : "bg-blue-500"}`} />
+                      <div className="flex-1 px-4 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-sm">{s.shipmentNumber}</span>
+                              {s.trackingNumber && (
+                                <span className="text-[10px] text-muted-foreground font-mono">{s.trackingNumber}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <User className="w-2.5 h-2.5" />{s.receiverName}
+                              </span>
+                              {s.receiverCity && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-2.5 h-2.5" />{s.receiverCity}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-2.5 h-2.5" />
+                                {format(new Date(s.createdAt), "yyyy/MM/dd")}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="outline" className={`text-[9px] font-bold border ${colorClass}`}>
+                              {statusLabels[s.status] ?? s.status}
+                            </Badge>
+                            {canFinancials && s.codAmount && Number(s.codAmount) > 0 && (
+                              <span className="text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</span>
+                            )}
+                            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* New manifest dialog */}
       {showNewManifest && company && companies && (
