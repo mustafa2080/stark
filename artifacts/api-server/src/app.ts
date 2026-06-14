@@ -8,7 +8,7 @@ import { logger } from "./lib/logger";
 import { startSubscriptionCron } from "./lib/subscriptionCron.js";
 import { db, usersTable, shipmentsTable } from "@workspace/db";
 import { hashPassword } from "./lib/auth.js";
-import { eq, sql, or, and, isNull } from "drizzle-orm";
+import { eq, sql, or, and, isNull, desc } from "drizzle-orm";
 
 import crypto from "node:crypto";
 
@@ -98,6 +98,7 @@ app.get("/api/shipments/track/:number", async (req: Request, res: Response): Pro
           )
         )
       )
+      .orderBy(desc(shipmentsTable.createdAt))
       .limit(1);
     if (!rows.length) { res.status(404).json({ error: "لم يتم العثور على الشحنة" }); return; }
     res.set("Cache-Control", "no-store");

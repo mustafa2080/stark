@@ -19,7 +19,7 @@ interface Shipment {
   receiverPhone?: string;
   receiverAddress?: string;
   receiverCity?: string;
-  status: ShipmentStatus;
+  status: string;
   parcelType?: string;
   weight?: string | number;
   notes?: string;
@@ -28,10 +28,12 @@ interface Shipment {
 }
 
 // ─── Status config ────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<ShipmentStatus, { label: string; color: string; bg: string; icon: typeof Package; step: number }> = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number }> = {
   waiting:          { label: "في الانتظار",      color: "#a0a0a0", bg: "rgba(160,160,160,0.1)", icon: Clock,         step: 0 },
+  pending:          { label: "قيد المعالجة",     color: "#a0a0a0", bg: "rgba(160,160,160,0.1)", icon: Clock,         step: 0 },
   confirmed:        { label: "تم التأكيد",       color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: CheckCircle,   step: 1 },
   picked_up:        { label: "تم الاستلام",      color: "#a78bfa", bg: "rgba(167,139,250,0.1)", icon: Package,       step: 2 },
+  warehouse_ready:  { label: "جاهزة للشحن",      color: "#a78bfa", bg: "rgba(167,139,250,0.1)", icon: Package,       step: 2 },
   in_transit:       { label: "جاري الشحن",       color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Truck,         step: 3 },
   out_for_delivery: { label: "خرج للتوصيل",      color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: MapPin,        step: 4 },
   delivered:        { label: "تم التسليم",       color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 5 },
