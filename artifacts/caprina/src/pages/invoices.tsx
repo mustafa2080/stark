@@ -445,7 +445,12 @@ export default function Invoices() {
 </div>`;
     };
 
-    const pagesHtml = selected.map((sh: any) => buildPage(sh)).join("");
+    const builtPages = selected.map((sh: any) => buildPage(sh));
+    const sheetsHtml: string[] = [];
+    for (let i = 0; i < builtPages.length; i += 2) {
+      sheetsHtml.push(`<div class="sheet">${builtPages.slice(i, i + 2).join("")}</div>`);
+    }
+    const pagesHtml = sheetsHtml.join("");
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     printWindow.document.write(`<!DOCTYPE html>
@@ -457,65 +462,52 @@ export default function Invoices() {
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
 body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;direction:rtl;font-size:15px}
-.page{max-width:800px;margin:20px auto;padding:28px 32px;background:#fff;page-break-after:always}
-.page:last-child{page-break-after:auto}
-.header{display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:3px solid #111;margin-bottom:20px}
-.header-title{font-size:28px;font-weight:900;letter-spacing:-0.5px}
-.header-title span{font-size:16px;font-weight:600;color:#555;display:block;margin-top:4px}
-.logo{width:90px;height:90px;object-fit:contain;border-radius:8px}
-.tracking-bar{background:#111;color:#fff;border-radius:8px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.sheet{display:grid;grid-template-columns:1fr 1fr;gap:6mm;width:297mm;height:210mm;padding:6mm;box-sizing:border-box;page-break-after:always}
+.sheet:last-child{page-break-after:auto}
+.page{border:2px solid #111;border-radius:4mm;padding:14px 16px;background:#fff;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.header{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:2.5px solid #111;margin-bottom:10px}
+.header-title{font-size:16px;font-weight:900;letter-spacing:-0.5px}
+.header-title span{font-size:9px;font-weight:600;color:#555;display:block;margin-top:2px}
+.logo{width:44px;height:44px;object-fit:contain;border-radius:5px}
+.tracking-bar{background:#111;color:#fff;border-radius:5px;padding:6px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap}
 .tracking-item{text-align:center}
-.tracking-item .t-label{font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px}
-.tracking-item .t-value{font-size:17px;font-weight:900;color:#fff}
-.tracking-item .t-value.highlight{color:#f0c040;font-size:20px}
+.tracking-item .t-label{font-size:6.5px;color:#aaa;font-weight:600;margin-bottom:2px}
+.tracking-item .t-value{font-size:9px;font-weight:900;color:#fff}
+.tracking-item .t-value.highlight{color:#f0c040;font-size:11px}
 .tracking-item .t-value.green{color:#4ade80}
-.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
-.party-box{border:2px solid #111;border-radius:8px;padding:16px 18px}
-.party-box.receiver{border-width:3px}
-.party-title{font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e0e0e0}
-.party-name{font-size:22px;font-weight:900;color:#111;margin-bottom:8px;line-height:1.3}
-.party-row{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#333;margin-bottom:5px}
-.party-row .icon{font-size:14px;flex-shrink:0}
-.party-row .val{font-size:15px;font-weight:800;color:#111}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.party-box{border:1.5px solid #111;border-radius:4px;padding:7px 9px}
+.party-box.receiver{border-width:2px}
+.party-title{font-size:6.5px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #e0e0e0}
+.party-name{font-size:12px;font-weight:900;color:#111;margin-bottom:4px;line-height:1.2}
+.party-row{display:flex;align-items:center;gap:4px;font-size:8px;font-weight:700;color:#333;margin-bottom:2px}
+.party-row .icon{font-size:8px;flex-shrink:0}
+.party-row .val{font-size:9px;font-weight:800;color:#111}
 .party-row .val.phone{direction:ltr;display:inline-block}
-.details-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
-.detail-box{border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center;background:#fafafa}
-.detail-box .d-label{font-size:11px;font-weight:700;color:#666;margin-bottom:6px}
-.detail-box .d-value{font-size:18px;font-weight:900;color:#111}
+.details-row{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px}
+.detail-box{border:1px solid #ddd;border-radius:3px;padding:5px;text-align:center;background:#fafafa}
+.detail-box .d-label{font-size:6.5px;font-weight:700;color:#666;margin-bottom:3px}
+.detail-box .d-value{font-size:10px;font-weight:900;color:#111}
 .detail-box.highlight{background:#111;border-color:#111}
 .detail-box.highlight .d-label{color:#aaa}
-.detail-box.highlight .d-value{color:#f0c040;font-size:22px}
-.notes-box{border:2px dashed #ccc;border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:14px;font-weight:700;color:#333;line-height:1.8}
-.notes-box .n-title{font-size:12px;font-weight:700;color:#888;margin-bottom:4px}
-.barcode-area{border:2px solid #111;border-radius:8px;padding:14px 20px;text-align:center;margin-bottom:20px;background:#fafafa}
-.barcode-area .b-label{font-size:12px;font-weight:700;color:#666;margin-bottom:6px}
-.barcode-num{font-size:30px;font-weight:900;letter-spacing:4px;color:#111;font-family:monospace}
-.footer{border-top:2px solid #ddd;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:#555}
-.footer .date{font-size:12px}
+.detail-box.highlight .d-value{color:#f0c040;font-size:11px}
+.notes-box{border:1.5px dashed #ccc;border-radius:4px;padding:5px 8px;margin-bottom:6px;font-size:7.5px;font-weight:700;color:#333;line-height:1.6}
+.notes-box .n-title{font-size:6.5px;font-weight:700;color:#888;margin-bottom:2px}
+.barcode-area{border:1.5px solid #111;border-radius:4px;padding:6px 10px;text-align:center;margin-bottom:6px;background:#fafafa}
+.barcode-area .b-label{font-size:6.5px;font-weight:700;color:#666;margin-bottom:2px}
+.barcode-num{font-size:16px;font-weight:900;letter-spacing:3px;color:#111;font-family:monospace}
+.footer{border-top:1.5px solid #ddd;padding-top:5px;margin-top:auto;display:flex;justify-content:space-between;align-items:center;font-size:7px;font-weight:600;color:#555}
+.footer .date{font-size:6.5px}
 @media print{
-  @page{size:A4;margin:10mm 12mm}
-  body{font-size:11px}
-  .page{margin:0;padding:0;max-width:none}
-  .header{padding-bottom:8px;margin-bottom:10px}
-  .header-title{font-size:20px}
-  .logo{width:60px;height:60px}
-  .tracking-bar{padding:8px 14px;margin-bottom:10px;gap:10px}
-  .tracking-item .t-label{font-size:9px}
-  .tracking-item .t-value{font-size:13px}
-  .tracking-item .t-value.highlight{font-size:15px}
-  .parties{gap:10px;margin-bottom:10px}
-  .party-box{padding:10px 12px}
-  .party-name{font-size:17px;margin-bottom:5px}
-  .party-row{font-size:12px;margin-bottom:3px}
-  .party-row .val{font-size:13px}
-  .details-row{gap:6px;margin-bottom:10px}
-  .detail-box{padding:8px}
-  .detail-box .d-label{font-size:9px;margin-bottom:3px}
-  .detail-box .d-value{font-size:14px}
-  .detail-box.highlight .d-value{font-size:16px}
-  .notes-box{padding:8px 12px;margin-bottom:10px;font-size:12px}
-  .barcode-area{padding:8px 14px;margin-bottom:10px}
-  .barcode-num{font-size:22px;letter-spacing:3px}
+  @page{size:A4 landscape;margin:0}
+  html,body{width:297mm;height:210mm;overflow:hidden}
+  .sheet{width:297mm;height:210mm;padding:5mm;gap:5mm}
+  .page{padding:10px 12px}
+  .header-title{font-size:14px}
+  .logo{width:38px;height:38px}
+  .tracking-bar{padding:5px 8px;margin-bottom:7px}
+  .tracking-item .t-value{font-size:8px}
+  .tracking-item .t-value.highlight{font-size:10px}
   .footer{padding-top:8px;font-size:11px}
   .header,.tracking-bar,.parties,.details-row,.notes-box,.barcode-area{page-break-inside:avoid}
 }
