@@ -718,6 +718,12 @@ export default function Orders() {
       setStatus(statusParam);
       window.history.replaceState(null, "", "/shipments");
     }
+    // لو جاي من صفحة شركات الشحن بـ ?company=ID
+    const companyParam = params.get("company");
+    if (companyParam) {
+      setFilterShippingCo(companyParam);
+      window.history.replaceState(null, "", "/orders");
+    }
   }, [location]);
   const [search, setSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");

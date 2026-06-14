@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Package } from "lucide-react";
 import { format } from "date-fns";
 
 const BASE = "/api";
@@ -834,6 +834,27 @@ export default function ShippingCompanies() {
               </div>
 
               <CompanyStats companyId={company.id} canViewFinancials={canViewFinancials && canFinancials} />
+
+              {/* ── زر الانتقال لشحنات الشركة ── */}
+              <div className="mt-3 pt-3 border-t" style={{ borderColor: `rgba(${p.rgb},0.15)` }}>
+                <Link href={`/orders?company=${company.id}`}>
+                  <button
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                    style={{
+                      background: isActive
+                        ? `linear-gradient(135deg, rgba(${p.rgb},0.18) 0%, rgba(${p.rgb2},0.10) 100%)`
+                        : "rgba(255,255,255,0.04)",
+                      border: `1px solid rgba(${p.rgb},${isActive ? "0.4" : "0.15"})`,
+                      color: isActive ? `rgba(${p.rgb},1)` : "rgba(255,255,255,0.3)",
+                      boxShadow: isActive ? `0 0 12px rgba(${p.rgb},0.12)` : "none",
+                    }}
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    عرض شحنات {company.name}
+                  </button>
+                </Link>
+              </div>
+
               <CompanyManifests company={company} allCompanies={companies ?? []} canShipping={canManifests} />
             </div>
             );
