@@ -42,6 +42,15 @@ export default function FinanceShippingInvoices() {
   const { brand } = useBrand();
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   // ── جيب الفواتير المالية ──────────────────────────────────────────────────
   const { data: invoices = [], isLoading } = useQuery<any[]>({
@@ -114,6 +123,148 @@ export default function FinanceShippingInvoices() {
   const totalPaid = invoices
     .filter(i => i.status === "paid")
     .reduce((s, i) => s + safeNum(i.netDue), 0);
+
+  // ── طباعة فواتير متعددة بتخطيط 2×2 ──────────────────────────────────────
+  const handlePrintSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const selected = invoices.filter(i => selectedIds.has(i.id));
+
+    const logoUrl = await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < data.data.length; i += 4) {
+          const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+          if (r < 40 && g < 40 && b < 40) data.data[i+3] = 0;
+        }
+        ctx.putImageData(data, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => resolve(`${window.location.origin}/logo.jpg`);
+      img.src = `${window.location.origin}/logo.jpg`;
+    });
+
+    const STATUS_AR: Record<string, string> = {
+      pending:"قيد الانتظار", warehouse_ready:"جاهزة للشحن", in_shipping:"قيد الشحن",
+      received:"استلم", partial_received:"استلم جزئي", returned:"مرتجع",
+      delivered:"استلم", waiting:"انتظار", cancelled:"ملغية", delayed:"مؤجل",
+    };
+    const fmtEN = (n: any) =>
+      new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(n || 0));
+
+    // جيب شحنات كل فاتورة
+    const invoicesData = await Promise.all(selected.map(async (inv) => {
+      let shipments: any[] = [];
+      if (inv.manifestId) {
+        try {
+          const manifest = await apiFetch<any>(`/shipping-manifests/${inv.manifestId}`);
+          shipments = manifest?.orders ?? manifest?.shipments ?? [];
+        } catch {}
+      }
+      return { inv, shipments };
+    }));
+
+    // اعمل HTML لكل فاتورة
+    const invoiceCards = invoicesData.map(({ inv, shipments }) => {
+      const company = companies.find((c: any) => c.id === inv.shippingCompanyId);
+      const dateLabel = inv.createdAt ? format(new Date(inv.createdAt), "yyyy/MM/dd") : "";
+      const totalShippingFees = shipments.reduce((s: number, sh: any) => s + Number(sh.shippingFee || 0), 0);
+      const totalCodAmount    = shipments.reduce((s: number, sh: any) => s + Number(sh.codAmount   || 0), 0);
+      const netDue     = Number(inv.netDue    || 0);
+      const paidAmount = Number(inv.paidAmount || 0);
+      const remaining  = netDue - paidAmount;
+      const rowsHtml = shipments.slice(0, 12).map((s: any, idx: number) => {
+        const statusAr = STATUS_AR[s.status] ?? s.status ?? "—";
+        const receiverName = s.receiverName || s.customerName || "—";
+        const city = s.receiverCity || s.city || "—";
+        const shippingFee = Number(s.shippingFee || 0);
+        const totalAmount = Number(s.totalAmount || 0) || shippingFee + Number(s.codAmount || 0);
+        const isRet = s.status === "returned";
+        return `<tr class="${isRet ? "ret" : ""}">
+          <td>${idx + 1}</td>
+          <td class="name">${receiverName}</td>
+          <td>${city}</td>
+          <td><span class="badge">${statusAr}</span></td>
+          <td>${fmtEN(shippingFee)}</td>
+          <td class="tot">${fmtEN(totalAmount)}</td>
+        </tr>`;
+      }).join("");
+
+      const statusAr = inv.status === "paid" ? "مدفوعة" : inv.status === "verified" ? "تم التحقق" : inv.status === "disputed" ? "متنازع" : "انتظار";
+
+      return `
+        <div class="inv-card">
+          <div class="inv-header">
+            <div>
+              <div class="inv-title">فاتورة شحن</div>
+              <div class="inv-meta">${inv.invoiceNumber} · ${company?.name ?? "—"} · ${dateLabel}</div>
+              <div class="inv-meta">عدد الشحنات: ${shipments.length} · الحالة: ${statusAr}</div>
+            </div>
+            <img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/>
+          </div>
+          <table>
+            <thead><tr>
+              <th>#</th><th class="name">المستلم</th><th>المحافظة</th><th>الحالة</th><th>رسوم الشحن</th><th>الإجمالي</th>
+            </tr></thead>
+            <tbody>${rowsHtml}${shipments.length > 12 ? `<tr><td colspan="6" style="text-align:center;color:#888;font-style:italic">... و${shipments.length - 12} شحنة أخرى</td></tr>` : ""}</tbody>
+          </table>
+          <div class="summary">
+            <div class="s-row"><span>إجمالي رسوم الشحن</span><span>${fmtEN(totalShippingFees)} ج</span></div>
+            <div class="s-row"><span>إجمالي COD</span><span>${fmtEN(totalCodAmount)} ج</span></div>
+            <div class="s-row total"><span>صافي المستحق</span><span class="green">${fmtEN(netDue)} ج</span></div>
+          </div>
+        </div>`;
+    }).join("");
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<title>طباعة الفواتير المحددة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
+body{font-family:'Cairo',Arial,sans-serif;background:#fff;direction:rtl}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;width:100%;height:100vh}
+.inv-card{border:1.5px solid #ccc;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;overflow:hidden;page-break-inside:avoid}
+.inv-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1.5px solid #ddd;padding-bottom:6px;margin-bottom:4px}
+.inv-title{font-size:13px;font-weight:900;color:#111}
+.inv-meta{font-size:9px;color:#555;font-weight:600;line-height:1.6}
+.logo{width:48px;height:48px;object-fit:contain}
+table{width:100%;border-collapse:collapse;font-size:8px}
+thead tr{background:#222;color:#fff}
+th{padding:3px 4px;font-size:8px;font-weight:700;text-align:center}
+th.name{text-align:right}
+td{padding:3px 4px;text-align:center;font-size:8px;color:#333;border-bottom:1px solid #eee}
+td.name{text-align:right;font-weight:700}
+td.tot{font-weight:900}
+tr.ret td{color:#aaa;text-decoration:line-through}
+.badge{font-size:7px;padding:1px 4px;border-radius:10px;background:#f3f4f6;color:#374151;font-weight:700}
+.summary{margin-top:auto;border-top:1.5px solid #ddd;padding-top:4px}
+.s-row{display:flex;justify-content:space-between;font-size:8px;padding:2px 0;color:#555}
+.s-row.total{font-size:10px;font-weight:900;color:#111;border-top:1px solid #ccc;padding-top:3px;margin-top:2px}
+.green{color:#16a34a}
+@media print{
+  body{background:#fff}
+  .grid{padding:6px;gap:8px;height:auto}
+}
+</style>
+</head>
+<body>
+<div class="grid">
+${invoiceCards}
+</div>
+<script>window.onload=()=>window.print();<\/script>
+</body></html>`);
+    printWindow.document.close();
+  };
 
   // الفاتورة المراد حذفها (للعرض في الـ dialog)
   const invoiceToDelete = invoices.find(i => i.id === deleteConfirmId);
@@ -421,12 +572,27 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             الفواتير المالية المُنشأة تلقائياً عند إقفال بيانات الشحن
           </p>
         </div>
-        <Link href="/shipping">
-          <Button variant="outline" className="gap-2 border-border">
-            <LinkIcon className="w-4 h-4" />
-            إدارة بيانات الشحن
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handlePrintSelected}
+              className="flex items-center gap-2 h-9 px-4 rounded-xl font-bold text-sm transition-all"
+              style={{
+                background: "rgba(99,102,241,0.15)",
+                border: "1.5px solid rgba(99,102,241,0.40)",
+                color: "#818cf8",
+              }}>
+              <Printer className="w-4 h-4" />
+              طباعة المحدد ({selectedIds.size})
+            </button>
+          )}
+          <Link href="/shipping">
+            <Button variant="outline" className="gap-2 border-border">
+              <LinkIcon className="w-4 h-4" />
+              إدارة بيانات الشحن
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* بطاقات الملخص */}
@@ -567,6 +733,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3">
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(inv.id)}
+                      onChange={() => toggleSelect(inv.id)}
+                      className="w-4 h-4 rounded cursor-pointer shrink-0 mt-3"
+                      style={{ accentColor: "#6366f1" }}
+                    />
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                       style={{ background: st.solid, border: `1px solid ${st.glow.replace("0.25","0.40")}` }}>
                       <Truck className="w-5 h-5" style={{ color: st.color }} />
