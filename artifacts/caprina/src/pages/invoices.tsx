@@ -412,17 +412,15 @@ export default function Invoices() {
     <div class="party-box">
       <div class="party-title">📤 المرسل</div>
       <div class="party-name">${sh.senderName || "—"}</div>
-      ${sh.senderPhone ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${sh.senderPhone}</span></div>` : ""}
-      ${sh.senderPhone2 ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${sh.senderPhone2}</span></div>` : ""}
+      ${[sh.senderPhone, sh.senderPhone2].filter(Boolean).length ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${[sh.senderPhone, sh.senderPhone2].filter(Boolean).join("  -  ")}</span></div>` : ""}
       ${sh.senderCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${sh.senderCity}</span></div>` : ""}
     </div>
     <div class="party-box receiver">
       <div class="party-title">📦 المستلم</div>
       <div class="party-name">${sh.receiverName || "—"}</div>
-      ${sh.receiverPhone ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${sh.receiverPhone}</span></div>` : ""}
-      ${sh.receiverPhone2 ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${sh.receiverPhone2}</span></div>` : ""}
+      ${[sh.receiverPhone, sh.receiverPhone2].filter(Boolean).length ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${[sh.receiverPhone, sh.receiverPhone2].filter(Boolean).join("  -  ")}</span></div>` : ""}
       ${sh.receiverCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${sh.receiverCity}</span></div>` : ""}
-      ${sh.receiverAddress ? `<div class="party-row"><span class="icon">🏠</span><span class="val">${sh.receiverAddress}</span></div>` : ""}
+      ${sh.receiverAddress ? `<div class="party-row"><span class="icon">🏠</span><span class="val addr">${sh.receiverAddress}</span></div>` : ""}
     </div>
   </div>
   <div class="details-row">
@@ -432,12 +430,11 @@ export default function Invoices() {
     <div class="detail-box highlight"><div class="d-label">الإجمالي</div><div class="d-value">${fmtCurr(totalAmount)}</div></div>
   </div>
   ${codAmount > 0 ? `
-  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:5px">
+  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:4px">
     <div class="detail-box" style="background:#fffbeb;border-color:#f59e0b"><div class="d-label" style="color:#92400e">مبلغ COD</div><div class="d-value" style="color:#b45309">${fmtCurr(codAmount)}</div></div>
     ${insuranceFee > 0 ? `<div class="detail-box"><div class="d-label">رسوم التأمين</div><div class="d-value">${fmtCurr(insuranceFee)}</div></div>` : `<div></div>`}
   </div>` : ""}
   ${sh.notes ? `<div class="notes-box"><div class="n-title">ملاحظات</div><div class="n-text">${sh.notes}</div></div>` : ""}
-  ${tracking !== "—" ? `<div class="barcode-area"><div class="b-label">رقم التتبع</div><div class="barcode-num">${tracking}</div></div>` : ""}
   <div class="footer">
     <span>شحنة رقم: <strong>${shipNum}</strong>${sh.assignedUserName ? ` &nbsp;|&nbsp; المندوب: <strong>${sh.assignedUserName}</strong>` : ""}</span>
     <span class="date">طُبع في: ${dateLabel}</span>
@@ -464,53 +461,51 @@ export default function Invoices() {
 body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;direction:rtl;font-size:15px}
 .sheet{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2mm;width:297mm;height:210mm;padding:2mm;box-sizing:border-box;page-break-after:always}
 .sheet:last-child{page-break-after:auto}
-.page{border:2px solid #111;border-radius:2mm;padding:10px 11px;background:#fff;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-.header{display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:3px solid #111;margin-bottom:7px}
-.header-title{font-size:18px;font-weight:900;letter-spacing:-0.5px}
-.header-title span{font-size:9px;font-weight:700;color:#555;display:block;margin-top:2px}
-.logo{width:38px;height:38px;object-fit:contain;border-radius:4px}
-.tracking-bar{background:#111;color:#fff;border-radius:5px;padding:5px 8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;gap:6px;flex-wrap:wrap}
+.page{border:1.5px solid #111;border-radius:2mm;padding:8px 9px;background:#fff;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.header{display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;border-bottom:2.5px solid #111;margin-bottom:5px}
+.header-title{font-size:16px;font-weight:900;letter-spacing:-0.5px}
+.header-title span{font-size:8px;font-weight:700;color:#555;display:block;margin-top:2px}
+.logo{width:32px;height:32px;object-fit:contain;border-radius:4px}
+.tracking-bar{background:#111;color:#fff;border-radius:5px;padding:4px 7px;display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:6px;flex-wrap:wrap}
 .tracking-item{text-align:center}
-.tracking-item .t-label{font-size:7.5px;color:#ccc;font-weight:700;margin-bottom:1px}
-.tracking-item .t-value{font-size:11px;font-weight:900;color:#fff}
-.tracking-item .t-value.highlight{color:#f0c040;font-size:14px}
+.tracking-item .t-label{font-size:7px;color:#ccc;font-weight:700;margin-bottom:1px}
+.tracking-item .t-value{font-size:10px;font-weight:900;color:#fff}
+.tracking-item .t-value.highlight{color:#f0c040;font-size:13px}
 .tracking-item .t-value.green{color:#4ade80}
-.parties{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
-.party-box{border:1.5px solid #111;border-radius:3px;padding:6px 7px}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px}
+.party-box{border:1.5px solid #111;border-radius:3px;padding:5px 6px}
 .party-box.receiver{border-width:2px}
-.party-title{font-size:7.5px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e0e0e0}
-.party-name{font-size:14px;font-weight:900;color:#111;margin-bottom:3px;line-height:1.2}
-.party-row{display:flex;align-items:center;gap:3px;font-size:9.5px;font-weight:800;color:#333;margin-bottom:2px}
-.party-row .icon{font-size:9.5px;flex-shrink:0}
-.party-row .val{font-size:11px;font-weight:900;color:#111}
+.party-title{font-size:7px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;padding-bottom:1px;border-bottom:1px solid #e0e0e0}
+.party-name{font-size:13px;font-weight:900;color:#111;margin-bottom:2px;line-height:1.15}
+.party-row{display:flex;align-items:center;gap:3px;font-size:9px;font-weight:800;color:#333;margin-bottom:1px}
+.party-row .icon{font-size:9px;flex-shrink:0}
+.party-row .val{font-size:10px;font-weight:900;color:#111}
 .party-row .val.phone{direction:ltr;display:inline-block}
-.details-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px}
-.detail-box{border:1px solid #ddd;border-radius:2px;padding:5px 4px;text-align:center;background:#fafafa}
-.detail-box .d-label{font-size:7.5px;font-weight:800;color:#666;margin-bottom:2px}
-.detail-box .d-value{font-size:13px;font-weight:900;color:#111}
+.party-row .val.addr{font-size:8.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.details-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:4px}
+.detail-box{border:1px solid #ddd;border-radius:2px;padding:4px;text-align:center;background:#fafafa}
+.detail-box .d-label{font-size:7px;font-weight:800;color:#666;margin-bottom:1px}
+.detail-box .d-value{font-size:12px;font-weight:900;color:#111}
 .detail-box.highlight{background:#111;border-color:#111}
 .detail-box.highlight .d-label{color:#aaa}
-.detail-box.highlight .d-value{color:#f0c040;font-size:13.5px}
-.notes-box{border:1px dashed #ccc;border-radius:3px;padding:4px 7px;margin-bottom:5px;font-size:9.5px;font-weight:800;color:#333;line-height:1.4}
-.notes-box .n-title{font-size:7.5px;font-weight:800;color:#888;margin-bottom:2px}
-.notes-box .n-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
-.barcode-area{border:1.5px solid #111;border-radius:3px;padding:5px 9px;text-align:center;margin-bottom:5px;background:#fafafa}
-.barcode-area .b-label{font-size:7.5px;font-weight:800;color:#666;margin-bottom:1px}
-.barcode-num{font-size:20px;font-weight:900;letter-spacing:3px;color:#111;font-family:monospace}
-.footer{border-top:1.5px solid #ddd;padding-top:5px;margin-top:auto;display:flex;justify-content:space-between;align-items:center;font-size:9.5px;font-weight:800;color:#555}
-.footer .date{font-size:8.5px}
+.detail-box.highlight .d-value{color:#f0c040;font-size:12.5px}
+.notes-box{border:1px dashed #ccc;border-radius:3px;padding:3px 6px;margin-bottom:3px;font-size:9px;font-weight:800;color:#333;line-height:1.3}
+.notes-box .n-title{font-size:7px;font-weight:800;color:#888;margin-bottom:1px}
+.notes-box .n-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;word-break:break-word}
+.footer{border-top:1.5px solid #ddd;padding-top:3px;margin-top:auto;display:flex;justify-content:space-between;align-items:center;font-size:9px;font-weight:800;color:#555}
+.footer .date{font-size:8px}
 @media print{
   @page{size:A4 landscape;margin:0}
   html,body{width:297mm;height:210mm;overflow:hidden}
   .sheet{width:297mm;height:210mm;padding:2mm;gap:2mm}
-  .page{padding:9px 10px}
-  .header-title{font-size:17px}
-  .logo{width:34px;height:34px}
-  .tracking-bar{padding:4px 7px;margin-bottom:6px}
-  .tracking-item .t-value{font-size:10.5px}
-  .tracking-item .t-value.highlight{font-size:13px}
-  .footer{padding-top:4px;font-size:9px}
-  .header,.tracking-bar,.parties,.details-row,.notes-box,.barcode-area{page-break-inside:avoid}
+  .page{padding:7px 8px}
+  .header-title{font-size:15px}
+  .logo{width:28px;height:28px}
+  .tracking-bar{padding:3px 6px;margin-bottom:4px}
+  .tracking-item .t-value{font-size:9.5px}
+  .tracking-item .t-value.highlight{font-size:12px}
+  .footer{padding-top:3px;font-size:8.5px}
+  .header,.tracking-bar,.parties,.details-row,.notes-box{page-break-inside:avoid}
 }
 </style>
 </head>
