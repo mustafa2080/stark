@@ -9,6 +9,7 @@ import { Truck, CheckCircle, Clock, AlertCircle, ArrowRight, Package, RotateCcw,
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Link, useLocation } from "wouter";
+import { useBrand } from "@/contexts/BrandContext";
 
 const STATUS_LABELS: Record<string, { label: string; color: string; solid: string; glow: string }> = {
   pending:  { label: "في انتظار التسوية", color: "#F59E0B", glow: "rgba(245,158,11,0.25)",  solid: "rgba(245,158,11,0.15)",  },
@@ -38,6 +39,7 @@ export default function FinanceShippingInvoices() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const { brand } = useBrand();
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
@@ -116,7 +118,7 @@ export default function FinanceShippingInvoices() {
   // الفاتورة المراد حذفها (للعرض في الـ dialog)
   const invoiceToDelete = invoices.find(i => i.id === deleteConfirmId);
 
-  // ── طباعة فواتير الشحن 2×2 ────────────────────────────────────────────────
+  // ── طباعة فاتورة بيع لكل شحنة (نفس تصميم فاتورة العميل) ───────────────────
   const handlePrintInvoice = async (inv: any) => {
     const logoUrl = await new Promise<string>((resolve) => {
       const img = new Image();
@@ -132,8 +134,8 @@ export default function FinanceShippingInvoices() {
       img.src = `${window.location.origin}/logo.jpg`;
     });
 
-    const fmtCurr = (n: any) =>
-      new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n || 0));
+    const fmtEN = (n: any) =>
+      new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(n || 0));
 
     let shipments: any[] = [];
     if (inv.manifestId) {
@@ -156,67 +158,89 @@ export default function FinanceShippingInvoices() {
       delivered:"استلم", waiting:"انتظار", cancelled:"ملغية", delayed:"مؤجل",
     };
 
-    const buildCard = (s: any) => {
+    // بناء صفحة فاتورة بيع واحدة لكل شحنة (نفس تصميم فاتورة العميل في تفاصيل الشحنة)
+    const buildInvoicePage = (s: any) => {
       const shipNum  = s.shipmentNumber ?? s.shipment_number ?? `#${String(s.id).padStart(4,"0")}`;
-      const tracking = s.trackingNumber  ?? s.tracking_number ?? "—";
-      const dateStr  = s.createdAt ? format(new Date(s.createdAt), "yyyy/MM/dd") : "";
-      const statusAr = STATUS_AR[s.status] ?? s.status ?? "—";
-      const shippingFee = Number(s.shippingFee || 0);
-      const codAmount   = Number(s.codAmount   || 0);
-      const total       = Number(s.totalAmount || 0) || (shippingFee + codAmount);
+      const dateStr  = s.createdAt ? format(new Date(s.createdAt), "yyyy/MM/dd HH:mm") : "";
+      const isRet    = s.status === "returned";
+
+      const quantity   = Number(s.pieces ?? s.quantity ?? 1);
+      const unitPrice  = Number(s.unitPrice ?? s.codAmount ?? 0);
+      const itemTotal  = Number(s.totalPrice ?? s.codAmount ?? (quantity * unitPrice));
+      const shippingCost = Math.abs(Number(s.shippingFee ?? s.shippingCost ?? 0));
+      const variantLabel = [s.color, s.size].filter(Boolean).join(" / ") || "—";
+      const productName  = s.product ?? s.description ?? "—";
 
       return `
-<div class="card">
-  <div class="card-header">
-    <div>
-      <div class="card-title">بوليصة شحن</div>
-      <div class="card-sub">${shipNum} | ${dateStr}</div>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="inv-title">فاتورة بيع</div>
+      <div class="inv-meta">
+        رقم الشحنة: ${shipNum}<br>
+        التاريخ: ${dateStr}<br>
+        1 منتج / ${quantity} قطعة
+      </div>
     </div>
-    <img class="card-logo" src="${logoUrl}" alt="" onerror="this.style.display='none'"/>
-  </div>
-  <div class="track-bar">
-    <div class="t-item"><div class="t-lbl">التتبع</div><div class="t-val hi">${tracking}</div></div>
-    <div class="t-item"><div class="t-lbl">الحالة</div><div class="t-val gr">${statusAr}</div></div>
-    <div class="t-item"><div class="t-lbl">رسوم</div><div class="t-val">${fmtCurr(shippingFee)}</div></div>
-    <div class="t-item"><div class="t-lbl">الإجمالي</div><div class="t-val hi">${fmtCurr(total)}</div></div>
-  </div>
-  <div class="parties">
-    <div class="party">
-      <div class="p-title">📤 المرسل</div>
-      <div class="p-name">${s.senderName || "—"}</div>
-      ${s.senderPhone ? `<div class="p-row">📞 <span dir="ltr">${s.senderPhone}</span></div>` : ""}
-      ${s.senderCity  ? `<div class="p-row">📍 ${s.senderCity}</div>` : ""}
-    </div>
-    <div class="party recv">
-      <div class="p-title">📦 المستلم</div>
-      <div class="p-name">${s.receiverName || "—"}</div>
-      ${s.receiverPhone   ? `<div class="p-row">📞 <span dir="ltr">${s.receiverPhone}</span></div>` : ""}
-      ${s.receiverCity    ? `<div class="p-row">📍 ${s.receiverCity}</div>` : ""}
-      ${s.receiverAddress ? `<div class="p-row">🏠 ${s.receiverAddress}</div>` : ""}
+    <div class="header-right">
+      <img class="logo" src="${logoUrl}" alt="" onerror="this.style.display='none'"/>
     </div>
   </div>
-  ${(s.pieces || s.description || codAmount > 0) ? `<div class="details-row">
-    ${s.description ? `<div class="d-box"><div class="d-lbl">الوصف</div><div class="d-val small">${s.description}</div></div>` : ""}
-    ${s.pieces      ? `<div class="d-box"><div class="d-lbl">القطع</div><div class="d-val">${s.pieces}</div></div>` : ""}
-    ${codAmount > 0 ? `<div class="d-box cod"><div class="d-lbl">COD</div><div class="d-val">${fmtCurr(codAmount)}</div></div>` : ""}
-  </div>` : ""}
-  ${s.notes ? `<div class="notes">${s.notes}</div>` : ""}
-  <div class="card-footer">
-    <span>${inv.invoiceNumber}</span>
-    <span dir="ltr" class="barcode">${tracking !== "—" ? tracking : ""}</span>
+
+  <!-- CLIENT -->
+  <div class="client-box">
+    <div class="client-col">
+      <div class="client-row"><span class="label">العميل:</span>${s.receiverName ?? s.customerName ?? "—"}</div>
+      <div class="client-row"><span class="label">المحافظة:</span>${s.receiverCity ?? s.city ?? "—"}</div>
+    </div>
+    <div class="client-col" style="text-align:left">
+      <div class="client-row"><span class="label">الهاتف:</span><span style="direction:ltr;display:inline-block">${s.receiverPhone ?? s.phone ?? "—"}</span></div>
+      <div class="client-row"><span class="label">العنوان:</span>${s.receiverAddress ?? s.address ?? "—"}</div>
+    </div>
   </div>
+
+  <!-- PRODUCTS TABLE -->
+  <table>
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th style="text-align:right">المنتج</th>
+        <th>اللون / المقاس</th>
+        <th>الكمية</th>
+        <th>سعر الوحدة</th>
+        <th>الإجمالي</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="${isRet ? "row-returned" : ""}">
+        <td class="num">1</td>
+        <td class="name">${productName}</td>
+        <td>${variantLabel}</td>
+        <td class="num">${quantity}</td>
+        <td>${fmtEN(unitPrice)}</td>
+        <td class="num">${fmtEN(itemTotal)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- SUMMARY -->
+  <div class="summary-wrap">
+    <div class="summary-table">
+      <div class="s-row"><span class="s-lbl">إجمالي المنتجات</span><span class="s-val">${fmtEN(itemTotal)}</span></div>
+      <div class="s-row"><span class="s-lbl">تكلفة الشحن</span><span class="s-val">${fmtEN(shippingCost)}</span></div>
+      <div class="s-row"><span class="s-lbl">الإجمالي الكلي</span><span class="s-val">${fmtEN(itemTotal + shippingCost)}</span></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">${inv.invoiceNumber} — شكراً لتعاملكم معنا</div>
+
 </div>`;
     };
 
-    const chunks: any[][] = [];
-    for (let i = 0; i < shipments.length; i += 4) chunks.push(shipments.slice(i, i + 4));
-
-    const pagesHtml = chunks.map(group => `
-<div class="print-page">
-  <div class="grid-2x2">
-    ${group.map(buildCard).join("")}
-  </div>
-</div>`).join("");
+    const pagesHtml = shipments.map(buildInvoicePage).join("");
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
@@ -225,52 +249,70 @@ export default function FinanceShippingInvoices() {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8"/>
-<title>فواتير شحن — ${inv.invoiceNumber}</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>فواتير بيع — ${inv.invoiceNumber}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
-body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;direction:rtl}
-.print-page{width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;page-break-after:always}
-.grid-2x2{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:6mm;width:198mm;height:285mm;padding:4mm}
-.card{border:2px solid #111;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;overflow:hidden;font-size:9px}
-.card-header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #111;padding-bottom:5px;margin-bottom:2px}
-.card-title{font-size:13px;font-weight:900}
-.card-sub{font-size:8px;color:#555;font-weight:600;margin-top:2px}
-.card-logo{width:38px;height:38px;object-fit:contain;border-radius:4px}
-.track-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;background:#111;border-radius:4px;padding:4px 6px}
-.t-item{text-align:center}
-.t-lbl{font-size:7px;color:#aaa;font-weight:600;margin-bottom:1px}
-.t-val{font-size:9px;font-weight:900;color:#fff}
-.t-val.hi{color:#f0c040;font-size:10px}
-.t-val.gr{color:#4ade80}
-.parties{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.party{border:1.5px solid #ddd;border-radius:4px;padding:5px 6px}
-.party.recv{border-color:#111;border-width:2px}
-.p-title{font-size:7px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #eee;padding-bottom:2px;margin-bottom:3px}
-.p-name{font-size:12px;font-weight:900;color:#111;margin-bottom:2px;line-height:1.2}
-.p-row{font-size:8px;font-weight:700;color:#333;margin-bottom:1px}
-.details-row{display:flex;gap:4px}
-.d-box{border:1px solid #ddd;border-radius:3px;padding:3px 5px;text-align:center;flex:1}
-.d-box.cod{background:#fffbeb;border-color:#f59e0b}
-.d-lbl{font-size:7px;font-weight:700;color:#666;margin-bottom:1px}
-.d-val{font-size:10px;font-weight:900;color:#111}
-.d-val.small{font-size:8px}
-.notes{border:1px dashed #ccc;border-radius:3px;padding:3px 5px;font-size:8px;color:#444;line-height:1.5}
-.card-footer{border-top:1.5px solid #ddd;padding-top:4px;display:flex;justify-content:space-between;align-items:center;font-size:8px;font-weight:700;color:#555;margin-top:auto}
-.barcode{font-family:monospace;font-size:11px;font-weight:900;letter-spacing:2px;color:#111}
-@media print{@page{size:A4 portrait;margin:0}body{margin:0}.print-page{page-break-after:always;page-break-inside:avoid}}
+body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;font-size:15px;direction:rtl}
+.page{max-width:860px;margin:24px auto;background:#fff;padding:32px 36px;page-break-after:always}
+.page:last-child{page-break-after:auto}
+
+/* ── HEADER ── */
+.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #ddd;margin-bottom:18px}
+.header-left .inv-title{font-size:26px;font-weight:900;color:#111;margin-bottom:6px}
+.header-left .inv-meta{font-size:14px;color:#555;line-height:2;font-weight:600}
+.header-right .logo{width:140px;height:140px;border-radius:12px;object-fit:contain;border:none;background:transparent;margin-top:16px}
+
+/* ── CLIENT BOX ── */
+.client-box{border:1px solid #ccc;border-radius:6px;padding:14px 20px;margin-bottom:18px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.client-col{display:flex;flex-direction:column;gap:6px}
+.client-row{font-size:15px;color:#222;font-weight:700}
+.client-row span.label{color:#555;font-weight:600;margin-left:4px}
+
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;margin-bottom:18px}
+thead tr{background:#333;color:#fff}
+th{padding:12px 10px;font-size:15px;font-weight:800;text-align:center}
+th:nth-child(2){text-align:right}
+tbody tr{border-bottom:1px solid #e0e0e0}
+tbody tr:last-child{border-bottom:2px solid #ccc}
+td{padding:11px 10px;text-align:center;font-size:15px;font-weight:600;color:#222}
+td.name{font-weight:800;text-align:right}
+td.num{font-weight:800}
+tr.row-returned td{color:#aaa;text-decoration:line-through}
+
+/* ── SUMMARY ── */
+.summary-wrap{display:flex;justify-content:flex-start}
+.summary-table{width:360px;border:1px solid #ccc;border-radius:6px;overflow:hidden}
+.s-row{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:15px;border-bottom:1px solid #e4e4e4}
+.s-row:last-child{border:none;background:#2a2a2a;color:#fff;font-size:17px;font-weight:900;padding:13px 16px}
+.s-row:last-child .s-val{color:#f0c040}
+.s-lbl{font-weight:600;color:#444}
+.s-row:last-child .s-lbl{color:#ddd;font-weight:700}
+.s-val{font-weight:800;color:#111}
+
+/* ── FOOTER ── */
+.footer{margin-top:30px;padding-top:12px;border-top:1px solid #ddd;text-align:center;font-size:14px;font-weight:600;color:#666}
+
+@media print{
+  body{background:#fff}
+  .page{margin:0;padding:20px 24px;max-width:none}
+}
 </style>
 </head>
 <body>${pagesHtml}</body></html>`);
 
     printWindow.document.close();
-    if ((printWindow as any).document.fonts?.ready) {
-      (printWindow as any).document.fonts.ready.then(() => {
-        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 400);
-      });
-    } else {
-      setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1400);
-    }
+    printWindow.onload = () => {
+      if ((printWindow as any).document.fonts?.ready) {
+        (printWindow as any).document.fonts.ready.then(() => {
+          setTimeout(() => { printWindow.focus(); printWindow.print(); }, 300);
+        });
+      } else {
+        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1200);
+      }
+    };
   };
 
   return (
@@ -543,7 +585,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                           border: "1px solid rgba(99,102,241,0.30)",
                           color: "#6366F1",
                         }}
-                        title="طباعة بوالص الشحن (2×2)"
+                        title="طباعة فواتير البيع"
                         onClick={() => handlePrintInvoice(inv)}>
                         <Printer className="w-3.5 h-3.5" />
                       </button>
