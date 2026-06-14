@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { shippingApi, manifestsApi, type ShippingCompany, type ShippingManifestListItem, type ManifestCompanyStats } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -218,6 +218,7 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
   const [expanded, setExpanded] = useState(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showBlockedAlert, setShowBlockedAlert] = useState(false);
+  const [, navigate] = useLocation();
 
   const { data: manifests } = useQuery({
     queryKey: ["shipping-manifests", company.id],
@@ -233,6 +234,11 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
     } else {
       setShowNewDialog(true);
     }
+  };
+
+  // بعد إنشاء البيان — انقل لصفحة الشركة مباشرةً
+  const handleManifestCreated = () => {
+    navigate(`/shipping/company/${company.id}`);
   };
 
   return (
@@ -310,6 +316,7 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
           company={company}
           allCompanies={allCompanies}
           onClose={() => setShowNewDialog(false)}
+          onCreated={handleManifestCreated}
         />
       )}
     </div>
