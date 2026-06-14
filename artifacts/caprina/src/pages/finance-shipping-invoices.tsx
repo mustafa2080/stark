@@ -231,37 +231,80 @@ export default function FinanceShippingInvoices() {
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
-body{font-family:'Cairo',Arial,sans-serif;background:#fff;direction:rtl}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;width:100%;height:100vh}
-.inv-card{border:1.5px solid #ccc;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;overflow:hidden;page-break-inside:avoid}
-.inv-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1.5px solid #ddd;padding-bottom:6px;margin-bottom:4px}
-.inv-title{font-size:13px;font-weight:900;color:#111}
-.inv-meta{font-size:9px;color:#555;font-weight:600;line-height:1.6}
-.logo{width:48px;height:48px;object-fit:contain}
-table{width:100%;border-collapse:collapse;font-size:8px}
-thead tr{background:#222;color:#fff}
-th{padding:3px 4px;font-size:8px;font-weight:700;text-align:center}
+html,body{width:100%;height:100%;font-family:'Cairo',Arial,sans-serif;background:#fff;direction:rtl}
+
+/* شاشة: معاينة قبل الطباعة */
+.page{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
+  gap:10px;
+  padding:14px;
+  width:297mm;
+  height:210mm;
+  margin:auto;
+  background:#fff;
+}
+
+/* كارت الفاتورة */
+.inv-card{
+  border:1.5px solid #ddd;
+  border-radius:6px;
+  padding:8px 10px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  overflow:hidden;
+  background:#fff;
+}
+
+/* هيدر */
+.inv-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #222;padding-bottom:5px;margin-bottom:4px}
+.inv-title{font-size:11px;font-weight:900;color:#111;margin-bottom:2px}
+.inv-meta{font-size:7.5px;color:#555;font-weight:600;line-height:1.5}
+.logo{width:38px;height:38px;object-fit:contain}
+
+/* شريط ملون */
+.color-bar{height:3px;background:linear-gradient(90deg,#111,#555);border-radius:2px;margin-bottom:4px}
+
+/* جدول */
+table{width:100%;border-collapse:collapse;flex:1}
+thead tr{background:#1a1a1a;color:#fff}
+th{padding:3px 4px;font-size:7px;font-weight:700;text-align:center;white-space:nowrap}
 th.name{text-align:right}
-td{padding:3px 4px;text-align:center;font-size:8px;color:#333;border-bottom:1px solid #eee}
-td.name{text-align:right;font-weight:700}
-td.tot{font-weight:900}
-tr.ret td{color:#aaa;text-decoration:line-through}
-.badge{font-size:7px;padding:1px 4px;border-radius:10px;background:#f3f4f6;color:#374151;font-weight:700}
-.summary{margin-top:auto;border-top:1.5px solid #ddd;padding-top:4px}
-.s-row{display:flex;justify-content:space-between;font-size:8px;padding:2px 0;color:#555}
-.s-row.total{font-size:10px;font-weight:900;color:#111;border-top:1px solid #ccc;padding-top:3px;margin-top:2px}
+td{padding:2.5px 4px;text-align:center;font-size:7px;color:#333;border-bottom:1px solid #f0f0f0}
+td.name{text-align:right;font-weight:700;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.tot{font-weight:900;color:#111}
+tr:nth-child(even) td{background:#fafafa}
+tr.ret td{color:#bbb;text-decoration:line-through}
+.badge{font-size:6.5px;padding:1px 4px;border-radius:8px;background:#f3f4f6;color:#374151;font-weight:700;white-space:nowrap}
+
+/* ملخص */
+.summary{border-top:1.5px solid #222;padding-top:4px;margin-top:auto}
+.s-row{display:flex;justify-content:space-between;font-size:7.5px;padding:1.5px 0;color:#555;font-weight:600}
+.s-row.total{font-size:9px;font-weight:900;color:#111;border-top:1px solid #ccc;margin-top:2px;padding-top:2px}
 .green{color:#16a34a}
+
+/* طباعة: A4 landscape، 4 فواتير في صفحة واحدة */
+@page{size:A4 landscape;margin:0}
 @media print{
-  body{background:#fff}
-  .grid{padding:6px;gap:8px;height:auto}
+  html,body{width:297mm;height:210mm;overflow:hidden}
+  .page{
+    width:297mm;
+    height:210mm;
+    padding:8mm;
+    gap:6mm;
+    page-break-after:always;
+  }
+  .inv-card{border-color:#ccc}
 }
 </style>
 </head>
 <body>
-<div class="grid">
+<div class="page">
 ${invoiceCards}
 </div>
-<script>window.onload=()=>window.print();<\/script>
+<script>window.onload=()=>{setTimeout(()=>window.print(),800);}<\/script>
 </body></html>`);
     printWindow.document.close();
   };
@@ -269,7 +312,7 @@ ${invoiceCards}
   // الفاتورة المراد حذفها (للعرض في الـ dialog)
   const invoiceToDelete = invoices.find(i => i.id === deleteConfirmId);
 
-  // ── طباعة فاتورة شحن بتصميم فاتورة البيع ──────────────────────────────────
+  // ── طباعة فاتورة شحن منفردة ──────────────────────────────────────────────
   const handlePrintInvoice = async (inv: any) => {
     const logoUrl = await new Promise<string>((resolve) => {
       const img = new Image();
