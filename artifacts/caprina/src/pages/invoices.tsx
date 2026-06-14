@@ -534,8 +534,6 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
     };
   };
 
-  const autoPrintTriggeredRef = useRef(false);
-
   useEffect(() => {
     if (!preselectedInvoiceNumber || autoPrintTriggeredRef.current) return;
     if (isLoading || isDirectInvoiceLoading || !invoiceGroups.length) return;
