@@ -836,24 +836,10 @@ export default function Orders() {
   });
   const inManifestSet = new Set(inManifestData?.ids ?? []);
 
-  // ── شركات الشحن — للفلتر ─────────────────────────────────────────────────
-  const { data: shippingCompanies = [] } = useQuery<any[]>({
-    queryKey: ["shipping-companies-list"],
-    queryFn: () => shippingApi.list(),
-    staleTime: 5 * 60_000,
-  });
-
   const filtered = (Array.isArray(orders) ? orders : []).filter((o: any) => {
     if (customerSearch && !o.senderName?.toLowerCase().includes(customerSearch.toLowerCase()) &&
         !o.receiverName?.toLowerCase().includes(customerSearch.toLowerCase())) return false;
     if (totalSearch && !String(Math.round(Number(o.totalAmount || 0))).includes(totalSearch)) return false;
-    if (filterShippingCo !== "all") {
-      if (filterShippingCo === "__none__") {
-        if (o.shippingCompanyId) return false;
-      } else {
-        if (String(o.shippingCompanyId) !== filterShippingCo) return false;
-      }
-    }
     return true;
   });
 
@@ -910,7 +896,7 @@ export default function Orders() {
     });
   }, [colFilteredRows, sortCol, sortDir, getColVal]);
 
-  const hasActiveFilter = search || customerSearch || status !== "all" || dateFrom || dateTo || filterShippingCo !== "all";
+  const hasActiveFilter = search || customerSearch || status !== "all" || dateFrom || dateTo;
 
   const clearFilters = () => {
     setSearch(""); setCustomerSearch(""); setStatus("all"); setDateFrom(""); setDateTo("");
@@ -1426,35 +1412,6 @@ export default function Orders() {
                 <SelectItem value="partial_received">استلم جزئي</SelectItem>
               </SelectContent>
             </Select>
-            {/* ── فلتر شركة الشحن ── */}
-            {shippingCompanies.length > 0 && (
-              <Select value={filterShippingCo} onValueChange={setFilterShippingCo}>
-                <SelectTrigger className={`w-full sm:w-52 bg-card h-9 text-sm transition-colors ${filterShippingCo !== "all" ? "border-primary/60 text-primary" : ""}`}>
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <SelectValue placeholder="كل شركات الشحن" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">كل شركات الشحن</SelectItem>
-                  <SelectItem value="__none__">بدون شركة شحن</SelectItem>
-                  {shippingCompanies.map((co: any) => (
-                    <SelectItem key={co.id} value={String(co.id)}>
-                      <div className="flex items-center gap-2">
-                        {co.logo && co.logo.startsWith("data:") ? (
-                          <img src={co.logo} className="w-5 h-5 rounded-full object-cover border border-border/50 shrink-0" alt={co.name} />
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                            <Truck className="w-2.5 h-2.5 text-primary/60" />
-                          </div>
-                        )}
-                        <span>{co.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
           </div>
 
           {/* ── الصف الثاني: تاريخ من + زر فلتر + مسح ── */}
@@ -1749,28 +1706,6 @@ export default function Orders() {
                             </div>
                           )}
                           </div>
-                        </TableCell>
-                        {/* ── شركة الشحن — قابلة للنقر ── */}
-                        <TableCell className="text-center p-1">
-                          {(() => {
-                            const co = shippingCompanies.find((c: any) => c.id === (order as any).shippingCompanyId);
-                            if (!co) return <span className="text-[10px] text-muted-foreground/40">—</span>;
-                            return (
-                              <a
-                                href={`/shipping/company/${co.id}`}
-                                onClick={e => { e.stopPropagation(); window.location.href = `/shipping/company/${co.id}`; }}
-                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-primary/5 border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-colors cursor-pointer group"
-                                title={`عرض ${co.name}`}
-                              >
-                                {co.logo && co.logo.startsWith("data:") ? (
-                                  <img src={co.logo} className="w-4 h-4 rounded-full object-cover shrink-0" alt={co.name} />
-                                ) : (
-                                  <Truck className="w-3 h-3 text-primary/60 shrink-0" />
-                                )}
-                                <span className="text-[10px] font-semibold text-primary/80 group-hover:text-primary leading-none whitespace-nowrap max-w-[80px] truncate">{co.name}</span>
-                              </a>
-                            );
-                          })()}
                         </TableCell>
                         <TableCell className="text-center p-1">
                           {canWhatsApp && (
