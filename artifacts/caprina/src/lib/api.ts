@@ -1472,3 +1472,64 @@ export const shipmentsApi = {
   stats: () => apiFetch<any>("/shipments/stats"),
   track: (number: string) => apiFetch<Shipment>(`/shipments/track/${encodeURIComponent(number)}`),
 };
+
+// ─── Shipment Manifests API ───────────────────────────────────────────────────
+export interface ShipmentManifestListItem {
+  id: number;
+  manifestNumber: string;
+  shippingCompanyId: number;
+  companyName: string;
+  companyLogo: string | null;
+  status: "open" | "closed";
+  notes: string | null;
+  invoicePrice: string | null;
+  shipmentCount: number;
+  createdAt: string;
+  closedAt: string | null;
+}
+
+export interface ShipmentManifestDetail {
+  id: number;
+  manifestNumber: string;
+  shippingCompanyId: number;
+  status: "open" | "closed";
+  notes: string | null;
+  invoicePrice: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  company: { id: number; name: string; logo: string | null } | null;
+  items: Array<{
+    id: number;
+    manifestId: number;
+    shipmentId: number;
+    deliveryStatus: "pending" | "delivered" | "returned" | "delayed";
+    deliveryNote: string | null;
+    returnReceived: 0 | 1 | null;
+    deliveredAt: string | null;
+    shipment: Shipment | null;
+  }>;
+  stats: { total: number; delivered: number; returned: number; pending: number; delayed: number };
+}
+
+export const shipmentManifestsApi = {
+  list: (companyId?: number) =>
+    apiFetch<ShipmentManifestListItem[]>(`/shipment-manifests${companyId ? `?companyId=${companyId}` : ""}`),
+  get: (id: number) =>
+    apiFetch<ShipmentManifestDetail>(`/shipment-manifests/${id}`),
+  create: (data: { shippingCompanyId: number; shipmentIds: number[]; notes?: string }) =>
+    apiFetch<{ id: number; manifestNumber: string; shipmentCount: number }>(
+      "/shipment-manifests", { method: "POST", body: JSON.stringify(data) }
+    ),
+  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; returnReceived?: boolean | null }) =>
+    apiFetch<{ success: boolean }>(`/shipment-manifests/${manifestId}/items/${shipmentId}`, {
+      method: "PATCH", body: JSON.stringify(data),
+    }),
+  update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null }) =>
+    apiFetch<{ success: boolean }>(`/shipment-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  delete: (id: number) =>
+    apiFetch<{ success: boolean }>(`/shipment-manifests/${id}`, { method: "DELETE" }),
+  companyStats: (companyId: number) =>
+    apiFetch<{ total: number; delivered: number; returned: number; pending: number; deliveryRate: number; manifestCount: number }>(
+      `/shipping-companies/${companyId}/shipment-stats`
+    ),
+};
