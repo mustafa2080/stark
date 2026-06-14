@@ -110,18 +110,46 @@ export default function TrackResultPage() {
         <div className="w-full max-w-lg lg:max-w-2xl flex flex-col gap-4 sm:gap-5">
 
           {/* Status card */}
-          <div className="rounded-2xl p-4 sm:p-6 text-center"
-            style={{ background: cfg.bg, border: `1px solid ${cfg.color}33` }}>
-            <StatusIcon size={40} className="mx-auto mb-3" style={{ color: cfg.color }} />
-            <p className="text-xl sm:text-2xl font-black mb-1 break-words" style={{ color: cfg.color }}>{cfg.label}</p>
-            <p className="text-xs text-white/40 break-all">
-              {shipment.trackingNumber || shipment.shipmentNumber}
-            </p>
+          <div className="rounded-2xl p-4 sm:p-6 text-center relative overflow-hidden"
+            style={{
+              background: `linear-gradient(135deg, ${cfg.color}1a 0%, rgba(255,255,255,0.04) 35%, rgba(0,0,0,0.3) 100%)`,
+              border: `1px solid ${cfg.color}55`,
+              boxShadow: `0 0 40px ${cfg.color}26, 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)`,
+            }}>
+            {/* shine overlay */}
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: "linear-gradient(120deg, rgba(255,255,255,0.06) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.04) 100%)" }} />
+            <div className="relative">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mx-auto mb-3"
+                style={{
+                  background: `linear-gradient(135deg, ${cfg.color}33 0%, rgba(255,255,255,0.08) 50%, ${cfg.color}11 100%)`,
+                  border: `1px solid ${cfg.color}66`,
+                  boxShadow: `0 0 24px ${cfg.color}40, inset 0 1px 0 rgba(255,255,255,0.15)`,
+                }}>
+                <StatusIcon size={32} style={{ color: cfg.color, filter: `drop-shadow(0 0 8px ${cfg.color}99)` }} />
+              </div>
+              <p className="text-xl sm:text-2xl font-black mb-1 break-words"
+                style={{
+                  background: `linear-gradient(135deg, #fff 0%, ${cfg.color} 50%, #fff 100%)`,
+                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+                  filter: `drop-shadow(0 0 12px ${cfg.color}55)`,
+                }}>{cfg.label}</p>
+              <p className="text-xs text-white/40 break-all tracking-wider">
+                {shipment.trackingNumber || shipment.shipmentNumber}
+              </p>
+            </div>
           </div>
 
           {/* Progress steps */}
           {shipment.status !== "returned" && (
-            <div className="rounded-2xl p-3 sm:p-5" style={{ background: "#111", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="rounded-2xl p-3 sm:p-5 relative overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, rgba(200,210,220,0.08) 0%, rgba(255,255,255,0.03) 40%, rgba(160,180,200,0.06) 70%, rgba(0,0,0,0.3) 100%)",
+                border: "1px solid rgba(200,220,240,0.15)",
+                boxShadow: `0 0 30px ${cfg.color}18, 0 8px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -1px 0 rgba(0,0,0,0.3)`,
+              }}>
+              {/* metallic sheen */}
+              <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(110deg, rgba(255,255,255,0.07) 0%, transparent 35%, transparent 65%, rgba(255,255,255,0.04) 100%)" }} />
               <div className="flex items-center justify-between">
                 {STEPS.map((step, i) => {
                   const done    = i <= cfg.step;
@@ -132,23 +160,27 @@ export default function TrackResultPage() {
                       <div className="relative flex items-center w-full">
                         {i > 0 && (
                           <div className="flex-1 h-px mr-1"
-                            style={{ background: i <= cfg.step ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.1)" }} />
+                            style={{ background: i <= cfg.step ? `linear-gradient(90deg, rgba(255,255,255,0.5), ${cfg.color}99)` : "rgba(255,255,255,0.1)" }} />
                         )}
                         <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
                           style={{
-                            background: done ? (current ? cfg.color : "rgba(255,255,255,0.15)") : "rgba(255,255,255,0.05)",
-                            border: `1.5px solid ${done ? cfg.color : "rgba(255,255,255,0.1)"}`,
-                            boxShadow: current ? `0 0 12px ${cfg.color}66` : "none",
+                            background: done
+                              ? (current
+                                  ? `linear-gradient(135deg, ${cfg.color} 0%, #fff 50%, ${cfg.color} 100%)`
+                                  : "linear-gradient(135deg, rgba(255,255,255,0.35), rgba(255,255,255,0.1))")
+                              : "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+                            border: `1.5px solid ${done ? (current ? cfg.color : "rgba(255,255,255,0.3)") : "rgba(255,255,255,0.08)"}`,
+                            boxShadow: current ? `0 0 16px ${cfg.color}99, inset 0 1px 0 rgba(255,255,255,0.4)` : (done ? "inset 0 1px 0 rgba(255,255,255,0.2)" : "none"),
                           }}>
-                          <Icon size={13} className="sm:hidden" style={{ color: done ? (current ? "#fff" : "rgba(255,255,255,0.7)") : "rgba(255,255,255,0.2)" }} />
-                          <Icon size={14} className="hidden sm:block" style={{ color: done ? (current ? "#fff" : "rgba(255,255,255,0.7)") : "rgba(255,255,255,0.2)" }} />
+                          <Icon size={13} className="sm:hidden" style={{ color: done ? (current ? "#000" : "rgba(255,255,255,0.85)") : "rgba(255,255,255,0.2)" }} />
+                          <Icon size={14} className="hidden sm:block" style={{ color: done ? (current ? "#000" : "rgba(255,255,255,0.85)") : "rgba(255,255,255,0.2)" }} />
                         </div>
                         {i < STEPS.length - 1 && (
                           <div className="flex-1 h-px ml-1"
-                            style={{ background: i < cfg.step ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.1)" }} />
+                            style={{ background: i < cfg.step ? `linear-gradient(90deg, ${cfg.color}99, rgba(255,255,255,0.5))` : "rgba(255,255,255,0.1)" }} />
                         )}
                       </div>
-                      <span className="text-center break-words px-0.5" style={{ fontSize: 8, color: done ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)", lineHeight: 1.2 }}>
+                      <span className="text-center break-words px-0.5" style={{ fontSize: 8, color: done ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.2)", lineHeight: 1.2 }}>
                         {step.label}
                       </span>
                     </div>
@@ -159,7 +191,14 @@ export default function TrackResultPage() {
           )}
 
           {/* Details */}
-          <div className="rounded-2xl p-4 sm:p-5 flex flex-col gap-4" style={{ background: "#111", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="rounded-2xl p-4 sm:p-5 flex flex-col gap-4 relative overflow-hidden"
+            style={{
+              background: "linear-gradient(160deg, rgba(180,195,215,0.07) 0%, rgba(255,255,255,0.025) 30%, rgba(100,120,140,0.04) 60%, rgba(0,0,0,0.35) 100%)",
+              border: "1px solid rgba(180,200,220,0.12)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.25)",
+            }}>
+            {/* metallic sheen */}
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(115deg, rgba(255,255,255,0.05) 0%, transparent 40%, transparent 70%, rgba(255,255,255,0.03) 100%)" }} />
             <p className="text-xs text-white/30 font-bold tracking-widest border-b border-white/5 pb-3">تفاصيل الشحنة</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
