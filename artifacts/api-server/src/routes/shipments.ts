@@ -246,6 +246,23 @@ router.get("/shipments", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /shipments/parcel-pricing (alias for /parcel-type-pricing) ──────────
+router.get("/shipments/parcel-pricing", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cond = tenantId !== null
+      ? or(eq(parcelTypePricingTable.tenantId, tenantId), isNull(parcelTypePricingTable.tenantId))
+      : undefined;
+    const rows = await db.select().from(parcelTypePricingTable).where(cond).orderBy(parcelTypePricingTable.parcelType);
+    const seen = new Set<string>();
+    const result = rows.filter(r => {
+      if (r.tenantId !== null && r.tenantId !== undefined) { seen.add(r.parcelType); return true; }
+      return !seen.has(r.parcelType);
+    });
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: "خطأ في استرجاع أسعار الطرود" }); }
+});
+
 // ─── GET /shipments/stats ─────────────────────────────────────────────────────
 router.get("/shipments/stats", async (req, res): Promise<void> => {
   try {
