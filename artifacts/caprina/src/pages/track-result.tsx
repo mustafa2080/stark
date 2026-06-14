@@ -5,8 +5,8 @@ import { Navbar, Footer } from "./home";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
-  | "waiting" | "confirmed" | "picked_up" | "in_transit"
-  | "out_for_delivery" | "delivered" | "delayed" | "returned" | "cancelled";
+  | "pending" | "warehouse_ready" | "in_shipping" | "received"
+  | "partial_received" | "delayed" | "returned";
 
 interface Shipment {
   id: number;
@@ -27,28 +27,22 @@ interface Shipment {
   updatedAt?: string;
 }
 
-// ─── Status config ────────────────────────────────────────────────────────────
+// ─── Status config — تتطابق مع DB schema (نفس enum في shipments-page.tsx) ─────
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number }> = {
-  waiting:          { label: "في الانتظار",      color: "#a0a0a0", bg: "rgba(160,160,160,0.1)", icon: Clock,         step: 0 },
-  pending:          { label: "قيد المعالجة",     color: "#a0a0a0", bg: "rgba(160,160,160,0.1)", icon: Clock,         step: 0 },
-  confirmed:        { label: "تم التأكيد",       color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: CheckCircle,   step: 1 },
-  picked_up:        { label: "تم الاستلام",      color: "#a78bfa", bg: "rgba(167,139,250,0.1)", icon: Package,       step: 2 },
-  warehouse_ready:  { label: "جاهزة للشحن",      color: "#a78bfa", bg: "rgba(167,139,250,0.1)", icon: Package,       step: 2 },
-  in_transit:       { label: "جاري الشحن",       color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Truck,         step: 3 },
-  out_for_delivery: { label: "خرج للتوصيل",      color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: MapPin,        step: 4 },
-  delivered:        { label: "تم التسليم",       color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 5 },
-  delayed:          { label: "متأخر",            color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: AlertTriangle, step: 3 },
-  returned:         { label: "مرتجع",            color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: 3 },
-  cancelled:        { label: "ملغي",             color: "#ef4444", bg: "rgba(239,68,68,0.1)",   icon: XCircle,       step: 0 },
+  pending:          { label: "قيد الانتظار",        color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: 1 },
+  in_shipping:      { label: "قيد الشحن",           color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 2 },
+  received:         { label: "تم الاستلام",         color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 3 },
+  partial_received: { label: "استلام جزئي",         color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 3 },
+  delayed:          { label: "مؤجل",                color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: AlertTriangle, step: 2 },
+  returned:         { label: "مرتجع",               color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: 2 },
 };
 
 const STEPS = [
-  { label: "تم التسجيل",   icon: Package },
-  { label: "تم التأكيد",   icon: CheckCircle },
-  { label: "تم الاستلام",  icon: Package },
-  { label: "جاري الشحن",   icon: Truck },
-  { label: "خرج للتوصيل", icon: MapPin },
-  { label: "تم التسليم",   icon: CheckCircle },
+  { label: "قيد الانتظار",        icon: Clock },
+  { label: "قيد الشحن في المخزن", icon: Package },
+  { label: "قيد الشحن",           icon: Truck },
+  { label: "تم الاستلام",         icon: CheckCircle },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -69,7 +63,7 @@ export default function TrackResultPage() {
       .catch(err => { setError(typeof err === "string" ? err : "لم يتم العثور على الشحنة"); setLoading(false); });
   }, [params.number]);
 
-  const cfg = shipment ? (STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.waiting) : null;
+  const cfg = shipment ? (STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.pending) : null;
   const StatusIcon = cfg?.icon ?? Package;
 
   const [darkMode, setDarkMode] = useState(true);
@@ -126,7 +120,7 @@ export default function TrackResultPage() {
           </div>
 
           {/* Progress steps */}
-          {shipment.status !== "cancelled" && shipment.status !== "returned" && (
+          {shipment.status !== "returned" && (
             <div className="rounded-2xl p-5" style={{ background: "#111", border: "1px solid rgba(255,255,255,0.07)" }}>
               <div className="flex items-center justify-between">
                 {STEPS.map((step, i) => {
