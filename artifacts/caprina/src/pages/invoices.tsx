@@ -377,7 +377,7 @@ export default function Invoices() {
 
     const buildPage = (sh: any) => {
       const shipNum  = sh.shipmentNumber ?? `SHP#${String(sh.id).padStart(4,"0")}`;
-      const tracking = sh.trackingNumber || sh.tracking_number || "—";
+      const tracking = sh.trackingNumber || sh.tracking_number || shipNum;
       const dateLabel = sh.createdAt ? format(new Date(sh.createdAt), "yyyy/MM/dd HH:mm") : "";
       const paymentMethodAr = sh.paymentMethod === "cod" ? "عند الاستلام" : sh.paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً";
       const shippingFee  = Number(sh.shippingFee  || 0);
