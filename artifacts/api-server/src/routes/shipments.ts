@@ -246,6 +246,16 @@ router.get("/shipments", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /shipments/zones (alias for /shipment-zones) ───────────────────────
+router.get("/shipments/zones", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cond = tenantId !== null ? eq(shipmentZonesTable.tenantId, tenantId) : undefined;
+    const rows = await db.select().from(shipmentZonesTable).where(cond).orderBy(shipmentZonesTable.name);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: "خطأ في استرجاع المناطق" }); }
+});
+
 // ─── GET /shipments/parcel-pricing (alias for /parcel-type-pricing) ──────────
 router.get("/shipments/parcel-pricing", async (req, res): Promise<void> => {
   try {
