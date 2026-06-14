@@ -118,7 +118,7 @@ export default function FinanceShippingInvoices() {
   // الفاتورة المراد حذفها (للعرض في الـ dialog)
   const invoiceToDelete = invoices.find(i => i.id === deleteConfirmId);
 
-  // ── طباعة بوليصة شحن لكل شحنة (نفس تصميم بوليصة الشحن في تفاصيل الشحنة) ──
+  // ── طباعة فاتورة شحن بتصميم فاتورة البيع ──────────────────────────────────
   const handlePrintInvoice = async (inv: any) => {
     const logoUrl = await new Promise<string>((resolve) => {
       const img = new Image();
@@ -128,14 +128,20 @@ export default function FinanceShippingInvoices() {
         canvas.width = img.width; canvas.height = img.height;
         const ctx = canvas.getContext("2d")!;
         ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < data.data.length; i += 4) {
+          const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+          if (r < 40 && g < 40 && b < 40) data.data[i+3] = 0;
+        }
+        ctx.putImageData(data, 0, 0);
         resolve(canvas.toDataURL("image/png"));
       };
       img.onerror = () => resolve(`${window.location.origin}/logo.jpg`);
       img.src = `${window.location.origin}/logo.jpg`;
     });
 
-    const fmtCurr = (n: any) =>
-      new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n || 0));
+    const fmtEN = (n: any) =>
+      new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(n || 0));
 
     let shipments: any[] = [];
     if (inv.manifestId) {
@@ -158,124 +164,36 @@ export default function FinanceShippingInvoices() {
       delivered:"استلم", waiting:"انتظار", cancelled:"ملغية", delayed:"مؤجل",
     };
 
-    // بناء صفحة بوليصة شحن واحدة لكل شحنة (نفس تصميم بوليصة الشحن في تفاصيل الشحنة)
-    const buildInvoicePage = (s: any) => {
+    const dateLabel = inv.createdAt ? format(new Date(inv.createdAt), "yyyy/MM/dd HH:mm") : format(new Date(), "yyyy/MM/dd HH:mm");
+
+    // صفوف الشحنات
+    const rowsHtml = shipments.map((s: any, idx: number) => {
       const shipNum  = s.shipmentNumber ?? s.shipment_number ?? `#${String(s.id).padStart(4,"0")}`;
       const tracking = s.trackingNumber ?? s.tracking_number ?? "—";
-      const dateLabel = s.createdAt ? format(new Date(s.createdAt), "yyyy/MM/dd HH:mm") : "";
       const statusAr = STATUS_AR[s.status] ?? s.status ?? "—";
-      const paymentMethodAr = s.paymentMethod === "cod" ? "عند الاستلام" : s.paymentMethod === "prepaid" ? "مدفوع مسبقاً" : (s.paymentMethod ? "لاحقاً" : "—");
-
-      const shippingFee  = Number(s.shippingFee  || 0);
-      const codAmount    = Number(s.codAmount    || 0);
-      const insuranceFee = Number(s.insuranceFee || 0);
-      const storedTotal  = Number(s.totalAmount  || 0);
-      const totalAmount  = storedTotal > 0 ? storedTotal : shippingFee + codAmount + insuranceFee;
-
+      const receiverName = s.receiverName || s.customerName || "—";
+      const city = s.receiverCity || s.city || "—";
+      const shippingFee = Number(s.shippingFee || 0);
+      const codAmount   = Number(s.codAmount   || 0);
+      const totalAmount = Number(s.totalAmount || 0) || shippingFee + codAmount;
+      const isRet = s.status === "returned";
       return `
-<div class="page">
+        <tr class="${isRet ? "row-returned" : ""}">
+          <td>${idx + 1}</td>
+          <td class="name">${receiverName}</td>
+          <td>${city}</td>
+          <td>${tracking}</td>
+          <td><span class="status-badge">${statusAr}</span></td>
+          <td>${fmtEN(shippingFee)}</td>
+          <td class="total-cell">${fmtEN(totalAmount)}</td>
+        </tr>`;
+    }).join("");
 
-  <!-- HEADER -->
-  <div class="header">
-    <div class="header-title">
-      بوليصة شحن
-      <span>رقم الشحنة: ${shipNum} &nbsp;|&nbsp; ${dateLabel}</span>
-    </div>
-    <img class="logo" src="${logoUrl}" alt="Logo" onerror="this.style.display='none'"/>
-  </div>
-
-  <!-- TRACKING BAR -->
-  <div class="tracking-bar">
-    <div class="tracking-item">
-      <div class="t-label">رقم التتبع</div>
-      <div class="t-value highlight">${tracking}</div>
-    </div>
-    <div class="tracking-item">
-      <div class="t-label">شركة الشحن</div>
-      <div class="t-value">${s.shippingCompanyName || "—"}</div>
-    </div>
-    <div class="tracking-item">
-      <div class="t-label">طريقة الدفع</div>
-      <div class="t-value">${paymentMethodAr}</div>
-    </div>
-    <div class="tracking-item">
-      <div class="t-label">الحالة</div>
-      <div class="t-value green">${statusAr}</div>
-    </div>
-  </div>
-
-  <!-- PARTIES -->
-  <div class="parties">
-    <!-- المرسل -->
-    <div class="party-box">
-      <div class="party-title">📤 المرسل</div>
-      <div class="party-name">${s.senderName || "—"}</div>
-      ${s.senderPhone ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${s.senderPhone}</span></div>` : ""}
-      ${s.senderPhone2 ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${s.senderPhone2}</span></div>` : ""}
-      ${s.senderCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${s.senderCity}</span></div>` : ""}
-    </div>
-    <!-- المستلم -->
-    <div class="party-box receiver">
-      <div class="party-title">📦 المستلم</div>
-      <div class="party-name">${s.receiverName || s.customerName || "—"}</div>
-      ${(s.receiverPhone || s.phone) ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${s.receiverPhone || s.phone}</span></div>` : ""}
-      ${s.receiverPhone2 ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${s.receiverPhone2}</span></div>` : ""}
-      ${(s.receiverCity || s.city) ? `<div class="party-row"><span class="icon">📍</span><span class="val">${s.receiverCity || s.city}</span></div>` : ""}
-      ${(s.receiverAddress || s.address) ? `<div class="party-row"><span class="icon">🏠</span><span class="val">${s.receiverAddress || s.address}</span></div>` : ""}
-    </div>
-  </div>
-
-  <!-- DETAILS -->
-  <div class="details-row">
-    <div class="detail-box">
-      <div class="d-label">نوع الشحنة</div>
-      <div class="d-value">${s.parcelType || "—"}</div>
-    </div>
-    <div class="detail-box">
-      <div class="d-label">${s.weight ? "الوزن" : "عدد القطع"}</div>
-      <div class="d-value">${s.weight ? `${s.weight} كجم` : (s.pieces || "—")}</div>
-    </div>
-    <div class="detail-box">
-      <div class="d-label">رسوم الشحن</div>
-      <div class="d-value">${fmtCurr(shippingFee)}</div>
-    </div>
-    <div class="detail-box highlight">
-      <div class="d-label">الإجمالي</div>
-      <div class="d-value">${fmtCurr(totalAmount)}</div>
-    </div>
-  </div>
-
-  ${codAmount > 0 ? `
-  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
-    <div class="detail-box" style="background:#fffbeb;border-color:#f59e0b">
-      <div class="d-label" style="color:#92400e">مبلغ COD</div>
-      <div class="d-value" style="color:#b45309">${fmtCurr(codAmount)}</div>
-    </div>
-    ${insuranceFee > 0 ? `<div class="detail-box"><div class="d-label">رسوم التأمين</div><div class="d-value">${fmtCurr(insuranceFee)}</div></div>` : `<div></div>`}
-  </div>` : ""}
-
-  ${s.notes ? `
-  <div class="notes-box">
-    <div class="n-title">ملاحظات</div>
-    ${s.notes}
-  </div>` : ""}
-
-  ${tracking !== "—" ? `
-  <div class="barcode-area">
-    <div class="b-label">رقم التتبع</div>
-    <div class="barcode-num">${tracking}</div>
-  </div>` : ""}
-
-  <!-- FOOTER -->
-  <div class="footer">
-    <span>شحنة رقم: <strong>${shipNum}</strong>${s.assignedUserName ? ` &nbsp;|&nbsp; المندوب: <strong>${s.assignedUserName}</strong>` : ""}</span>
-    <span class="date">طُبع في: ${dateLabel}</span>
-  </div>
-
-</div>`;
-    };
-
-    const pagesHtml = shipments.map(buildInvoicePage).join("");
+    const totalShippingFees = shipments.reduce((s: number, sh: any) => s + Number(sh.shippingFee || 0), 0);
+    const totalCodAmount    = shipments.reduce((s: number, sh: any) => s + Number(sh.codAmount   || 0), 0);
+    const netDue   = Number(inv.netDue   || 0);
+    const paidAmount = Number(inv.paidAmount || 0);
+    const remaining  = netDue - paidAmount;
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
@@ -284,96 +202,147 @@ export default function FinanceShippingInvoices() {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8"/>
-<title>فواتير شحن — ${inv.invoiceNumber}</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>فاتورة شحن — ${inv.invoiceNumber}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}
-body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;direction:rtl;font-size:15px}
-.page{max-width:800px;margin:20px auto;padding:28px 32px;background:#fff;page-break-after:always}
-.page:last-child{page-break-after:auto}
+body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;font-size:15px;direction:rtl}
+.page{max-width:900px;margin:24px auto;background:#fff;padding:32px 36px}
 
-/* HEADER */
-.header{display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:3px solid #111;margin-bottom:20px}
-.header-title{font-size:28px;font-weight:900;letter-spacing:-0.5px}
-.header-title span{font-size:16px;font-weight:600;color:#555;display:block;margin-top:4px}
-.logo{width:90px;height:90px;object-fit:contain;border-radius:8px}
+/* ── HEADER ── */
+.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #ddd;margin-bottom:18px}
+.header-left .inv-title{font-size:26px;font-weight:900;color:#111;margin-bottom:6px}
+.header-left .inv-meta{font-size:14px;color:#555;line-height:2;font-weight:600}
+.header-right .logo{width:140px;height:140px;border-radius:12px;object-fit:contain;border:none;background:transparent;margin-top:16px}
 
-/* TRACKING BAR */
-.tracking-bar{background:#111;color:#fff;border-radius:8px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:16px;flex-wrap:wrap}
-.tracking-item{text-align:center}
-.tracking-item .t-label{font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px}
-.tracking-item .t-value{font-size:17px;font-weight:900;color:#fff}
-.tracking-item .t-value.highlight{color:#f0c040;font-size:20px}
-.tracking-item .t-value.green{color:#4ade80}
+/* ── INFO BAR ── */
+.info-bar{background:#111;color:#fff;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:16px;flex-wrap:wrap}
+.info-item{text-align:center}
+.info-item .i-label{font-size:11px;color:#aaa;font-weight:600;margin-bottom:3px}
+.info-item .i-value{font-size:16px;font-weight:900;color:#fff}
+.info-item .i-value.highlight{color:#f0c040}
+.info-item .i-value.green{color:#4ade80}
 
-/* PARTIES */
-.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
-.party-box{border:2px solid #111;border-radius:8px;padding:16px 18px}
-.party-box.receiver{border-color:#111;border-width:3px}
-.party-title{font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e0e0e0}
-.party-name{font-size:22px;font-weight:900;color:#111;margin-bottom:8px;line-height:1.3}
-.party-row{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#333;margin-bottom:5px}
-.party-row .icon{font-size:14px;flex-shrink:0}
-.party-row .val{font-size:15px;font-weight:800;color:#111}
-.party-row .val.phone{direction:ltr;display:inline-block}
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;margin-bottom:18px}
+thead tr{background:#333;color:#fff}
+th{padding:11px 10px;font-size:14px;font-weight:800;text-align:center}
+th:nth-child(2){text-align:right}
+tbody tr{border-bottom:1px solid #e0e0e0}
+tbody tr:last-child{border-bottom:2px solid #ccc}
+td{padding:10px 10px;text-align:center;font-size:14px;font-weight:600;color:#222}
+td.name{font-weight:800;text-align:right}
+td.total-cell{font-weight:900;color:#111}
+tr.row-returned td{color:#aaa;text-decoration:line-through}
+.status-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700;background:#f3f4f6;color:#374151}
 
-/* DETAILS ROW */
-.details-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
-.detail-box{border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center;background:#fafafa}
-.detail-box .d-label{font-size:11px;font-weight:700;color:#666;margin-bottom:6px}
-.detail-box .d-value{font-size:18px;font-weight:900;color:#111}
-.detail-box.highlight{background:#111;border-color:#111}
-.detail-box.highlight .d-label{color:#aaa}
-.detail-box.highlight .d-value{color:#f0c040;font-size:22px}
+/* ── SUMMARY ── */
+.summary-wrap{display:flex;justify-content:flex-start;margin-bottom:18px}
+.summary-table{width:400px;border:1px solid #ccc;border-radius:6px;overflow:hidden}
+.s-row{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:15px;border-bottom:1px solid #e4e4e4}
+.s-row:last-child{border:none;background:#2a2a2a;color:#fff;font-size:17px;font-weight:900;padding:13px 16px}
+.s-row:last-child .s-val{color:#f0c040}
+.s-lbl{font-weight:600;color:#444}
+.s-row:last-child .s-lbl{color:#ddd;font-weight:700}
+.s-val{font-weight:800;color:#111}
+.s-val.green{color:#1a7a4a}
+.s-val.red{color:#c0392b}
 
-/* NOTES */
-.notes-box{border:2px dashed #ccc;border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:14px;font-weight:700;color:#333;line-height:1.8}
-.notes-box .n-title{font-size:12px;font-weight:700;color:#888;margin-bottom:4px}
-
-/* BARCODE AREA */
-.barcode-area{border:2px solid #111;border-radius:8px;padding:14px 20px;text-align:center;margin-bottom:20px;background:#fafafa}
-.barcode-area .b-label{font-size:12px;font-weight:700;color:#666;margin-bottom:6px}
-.barcode-num{font-size:30px;font-weight:900;letter-spacing:4px;color:#111;font-family:monospace}
-
-/* FOOTER */
-.footer{border-top:2px solid #ddd;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:#555}
-.footer .date{font-size:12px}
+/* ── FOOTER ── */
+.footer{margin-top:30px;padding-top:12px;border-top:1px solid #ddd;text-align:center;font-size:14px;font-weight:600;color:#666}
 
 @media print{
-  @page{size:A4;margin:10mm 12mm}
-  body{font-size:11px}
-  .page{margin:0;padding:0;max-width:none}
-  .header{padding-bottom:8px;margin-bottom:10px}
-  .header-title{font-size:20px}
-  .logo{width:60px;height:60px}
-  .tracking-bar{padding:8px 14px;margin-bottom:10px;gap:10px}
-  .tracking-item .t-label{font-size:9px}
-  .tracking-item .t-value{font-size:13px}
-  .tracking-item .t-value.highlight{font-size:15px}
-  .parties{gap:10px;margin-bottom:10px}
-  .party-box{padding:10px 12px}
-  .party-name{font-size:17px;margin-bottom:5px}
-  .party-row{font-size:12px;margin-bottom:3px}
-  .party-row .val{font-size:13px}
-  .details-row{gap:6px;margin-bottom:10px}
-  .detail-box{padding:8px}
-  .detail-box .d-label{font-size:9px;margin-bottom:3px}
-  .detail-box .d-value{font-size:14px}
-  .detail-box.highlight .d-value{font-size:16px}
-  .notes-box{padding:8px 12px;margin-bottom:10px;font-size:12px}
-  .barcode-area{padding:8px 14px;margin-bottom:10px}
-  .barcode-num{font-size:22px;letter-spacing:3px}
-  .footer{padding-top:8px;font-size:11px}
-  .header,.tracking-bar,.parties,.details-row,.notes-box,.barcode-area{page-break-inside:avoid}
+  body{background:#fff}
+  .page{margin:0;padding:20px 24px;max-width:none}
 }
 </style>
 </head>
-<body>${pagesHtml}</body></html>`);
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="inv-title">فاتورة شحن</div>
+      <div class="inv-meta">
+        رقم الفاتورة: ${inv.invoiceNumber}<br>
+        شركة الشحن: ${inv.shippingCompanyName || "—"}<br>
+        التاريخ: ${dateLabel}<br>
+        عدد الشحنات: ${shipments.length}
+      </div>
+    </div>
+    <div class="header-right">
+      <img class="logo" src="${logoUrl}" alt="Logo" onerror="this.style.display='none'"/>
+    </div>
+  </div>
+
+  <!-- INFO BAR -->
+  <div class="info-bar">
+    <div class="info-item">
+      <div class="i-label">شركة الشحن</div>
+      <div class="i-value">${inv.shippingCompanyName || "—"}</div>
+    </div>
+    <div class="info-item">
+      <div class="i-label">عدد الشحنات</div>
+      <div class="i-value highlight">${shipments.length}</div>
+    </div>
+    <div class="info-item">
+      <div class="i-label">إجمالي رسوم الشحن</div>
+      <div class="i-value">${fmtEN(totalShippingFees)}</div>
+    </div>
+    <div class="info-item">
+      <div class="i-label">إجمالي COD</div>
+      <div class="i-value">${fmtEN(totalCodAmount)}</div>
+    </div>
+    <div class="info-item">
+      <div class="i-label">الحالة</div>
+      <div class="i-value green">${inv.status === "paid" ? "مدفوعة" : inv.status === "verified" ? "تم التحقق" : inv.status === "disputed" ? "متنازع" : "انتظار"}</div>
+    </div>
+  </div>
+
+  <!-- SHIPMENTS TABLE -->
+  <table>
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th style="text-align:right">المستلم</th>
+        <th>المحافظة</th>
+        <th>رقم التتبع</th>
+        <th>الحالة</th>
+        <th>رسوم الشحن</th>
+        <th>الإجمالي</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+
+  <!-- SUMMARY -->
+  <div class="summary-wrap">
+    <div class="summary-table">
+      <div class="s-row"><span class="s-lbl">إجمالي مستحق</span><span class="s-val">${fmtEN(netDue)}</span></div>
+      <div class="s-row"><span class="s-lbl">المدفوع</span><span class="s-val green">${fmtEN(paidAmount)}</span></div>
+      <div class="s-row"><span class="s-lbl">المتبقي</span><span class="s-val ${remaining > 0 ? "red" : "green"}">${fmtEN(remaining)}</span></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">طُبع في: ${format(new Date(), "yyyy/MM/dd HH:mm")}</div>
+
+</div>
+</body></html>`);
 
     printWindow.document.close();
-    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1200);
+    printWindow.onload = () => {
+      if ((printWindow as any).document.fonts?.ready) {
+        (printWindow as any).document.fonts.ready.then(() => {
+          setTimeout(() => { printWindow.focus(); printWindow.print(); }, 300);
+        });
+      } else {
+        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1200);
+      }
+    };
   };
-
   return (
     <div className="space-y-5 animate-in fade-in duration-500" dir="rtl">
 
