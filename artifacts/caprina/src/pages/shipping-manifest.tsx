@@ -5,6 +5,7 @@ import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   shipmentManifestsApi,
+  shipmentsApi,
   apiFetch,
   type ShipmentManifestDetail as ShippingManifestDetail,
   type ManifestOrder,
@@ -2687,22 +2688,18 @@ function ExportDialog({
   );
 }
 
-// ─── Add Orders Dialog ────────────────────────────────────────────────────────
-type OrderRow = {
-  id: number; customerName: string; phone: string | null;
-  product: string; color: string | null; size: string | null;
-  quantity: number; totalPrice: number; status: string;
-};
-
+// ─── Add Shipments Dialog ─────────────────────────────────────────────────────
 function AddOrdersToManifestDialog({
   manifestId,
   manifestNumber,
+  companyId,
   existingOrderIds,
   onClose,
   onAdded,
 }: {
   manifestId: number;
   manifestNumber: string;
+  companyId: number;
   existingOrderIds: Set<number>;
   onClose: () => void;
   onAdded: () => void;
@@ -2712,21 +2709,19 @@ function AddOrdersToManifestDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  // جيب كل الشحنات بدون grouping عشان الـ dialog
-  const { data: allAvailableOrders, isLoading } = useQuery({
-    queryKey: ["orders-for-manifest-dialog"],
-    queryFn: async () => {
-      return await apiFetch<OrderRow[]>(`/orders/for-manifest-dialog`);
-    },
+  const AVAILABLE_STATUSES = ["waiting", "confirmed", "delayed"];
+
+  const { data: shipmentsData, isLoading } = useQuery({
+    queryKey: ["shipments-available-for-manifest", companyId],
+    queryFn: () => shipmentsApi.list({ shippingCompanyId: companyId, limit: 500 }),
     staleTime: 10000,
   });
 
-
-
   const addMutation = useMutation({
-    mutationFn: () => manifestsApi.addOrders(manifestId, Array.from(selectedIds)),
+    mutationFn: () => shipmentManifestsApi.addShipments(manifestId, Array.from(selectedIds)),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["orders-in-manifest-ids"] });
+      queryClient.invalidateQueries({ queryKey: ["shipment-manifest", manifestId] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", companyId] });
       toast({ title: `✅ تمت الإضافة`, description: `تم إضافة ${res.added} شحنة للبيان ${res.manifestNumber}` });
       onAdded();
       onClose();
@@ -2735,31 +2730,21 @@ function AddOrdersToManifestDialog({
       toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  // IDs الطلبات اللي في بيانات مفتوحة تانية (غير بياننا الحالي)
-  const inOtherManifestIds = new Set<number>();
-
   const available = useMemo(() => {
-    if (!allAvailableOrders) return [];
-    // نزيل التكرار بالـ id (ممكن يجي نفس الأوردر من أكتر من status query)
-    const seen = new Set<number>();
-    return allAvailableOrders.filter(o => {
-      if (seen.has(o.id)) return false;
-      seen.add(o.id);
-      // استبعد الموجودين في البيان الحالي
-      if (existingOrderIds.has(o.id)) return false;
-      // استبعد اللي في بيانات مفتوحة تانية (in_shipping في بيان تاني)
-      if (inOtherManifestIds.has(o.id)) return false;
-      return true;
-    });
-  }, [allAvailableOrders, existingOrderIds, inOtherManifestIds]);
+    return (shipmentsData?.data ?? []).filter(s =>
+      AVAILABLE_STATUSES.includes(s.status) && !existingOrderIds.has(s.id)
+    );
+  }, [shipmentsData, existingOrderIds]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return available;
     const q = search.toLowerCase();
-    return available.filter(o =>
-      o.customerName.toLowerCase().includes(q) ||
-      o.product.toLowerCase().includes(q) ||
-      (o.phone && o.phone.includes(q))
+    return available.filter(s =>
+      s.receiverName?.toLowerCase().includes(q) ||
+      s.shipmentNumber?.toLowerCase().includes(q) ||
+      (s.receiverPhone && s.receiverPhone.includes(q)) ||
+      (s.receiverCity && s.receiverCity.toLowerCase().includes(q)) ||
+      (s.trackingNumber && s.trackingNumber.toLowerCase().includes(q))
     );
   }, [available, search]);
 
@@ -2767,7 +2752,7 @@ function AddOrdersToManifestDialog({
     if (selectedIds.size === filtered.length && filtered.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filtered.map(o => o.id)));
+      setSelectedIds(new Set(filtered.map(s => s.id)));
     }
   };
 
@@ -2787,7 +2772,7 @@ function AddOrdersToManifestDialog({
             <div className="relative flex-1">
               <Search className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
               <Input
-                placeholder="بحث بالاسم / المنتج / الهاتف..."
+                placeholder="بحث بالاسم / رقم الشحنة / الهاتف / المدينة..."
                 className="h-9 text-sm bg-background pr-8"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -2814,7 +2799,7 @@ function AddOrdersToManifestDialog({
             </div>
           )}
 
-          {/* Orders list */}
+          {/* Shipments list */}
           <div className="overflow-y-auto flex-1 border border-border rounded-md">
             {isLoading ? (
               <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">جاري تحميل الشحنات...</div>
@@ -2828,50 +2813,41 @@ function AddOrdersToManifestDialog({
             ) : (
               <>
                 {/* Header */}
-                <div className="grid grid-cols-[auto_1fr_1fr_70px_80px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
+                <div className="grid grid-cols-[auto_1fr_1fr_80px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
                   <div className="w-5" />
-                  <div>العميل</div>
-                  <div>المنتج / المواصفات</div>
-                  <div className="text-center">الكمية</div>
-                  <div className="text-left">الإجمالي</div>
+                  <div>المستلم</div>
+                  <div>رقم الشحنة / المدينة</div>
+                  <div className="text-left">المبلغ</div>
                 </div>
                 {/* Rows */}
-                {filtered.map(order => {
-                  const invoiceGroupIds = (order as any).invoiceNumber
-                    ? available.filter((o: any) => o.invoiceNumber === (order as any).invoiceNumber).map(o => o.id)
-                    : [order.id];
-                  const isGroupSelected = invoiceGroupIds.every(id => selectedIds.has(id));
+                {filtered.map(s => {
+                  const isSelected = selectedIds.has(s.id);
                   return (
                     <div
-                      key={order.id}
-                      className={`grid grid-cols-[auto_1fr_1fr_70px_80px] gap-0 items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isGroupSelected ? "bg-primary/5" : ""}`}
+                      key={s.id}
+                      className={`grid grid-cols-[auto_1fr_1fr_80px] gap-0 items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                       onClick={() => {
                         const next = new Set(selectedIds);
-                        if (isGroupSelected) invoiceGroupIds.forEach(id => next.delete(id));
-                        else invoiceGroupIds.forEach(id => next.add(id));
+                        if (isSelected) next.delete(s.id); else next.add(s.id);
                         setSelectedIds(next);
                       }}
                     >
                       <div className="w-5 flex items-center">
-                        <Checkbox checked={isGroupSelected} onCheckedChange={() => {}} />
+                        <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                       </div>
                       <div className="min-w-0 pr-2">
-                        <p className="font-semibold text-xs truncate">{order.customerName}</p>
+                        <p className="font-semibold text-xs truncate">{s.receiverName}</p>
                         <p className="text-muted-foreground text-[10px]">
-                          #{order.id.toString().padStart(4, "0")}
-                          {order.phone && ` · ${order.phone}`}
+                          {s.receiverPhone ?? ""}
                         </p>
                       </div>
                       <div className="min-w-0 pr-2">
-                        <p className="text-xs truncate">{order.product}</p>
-                        {(order.color || order.size) && (
-                          <p className="text-muted-foreground text-[10px]">
-                            {[order.color, order.size].filter(Boolean).join(" / ")}
-                          </p>
+                        <p className="text-xs truncate">{s.shipmentNumber}</p>
+                        {s.receiverCity && (
+                          <p className="text-muted-foreground text-[10px]">{s.receiverCity}</p>
                         )}
                       </div>
-                      <div className="text-center text-xs font-bold">{order.quantity}</div>
-                      <div className="text-left text-xs font-bold text-primary">{formatCurrency(order.totalPrice)}</div>
+                      <div className="text-left text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
                     </div>
                   );
                 })}
@@ -4280,10 +4256,11 @@ export default function ShippingManifestPage() {
         />
       )}
 
-      {showAddOrdersDialog && manifest && (
+      {showAddOrdersDialog && manifest && rawManifest && (
         <AddOrdersToManifestDialog
           manifestId={id}
           manifestNumber={manifest.manifestNumber}
+          companyId={rawManifest.shippingCompanyId}
           existingOrderIds={new Set(manifest.orders.map(o => o.id))}
           onClose={() => setShowAddOrdersDialog(false)}
           onAdded={refetch}
