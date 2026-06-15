@@ -4154,8 +4154,8 @@ export default function ShippingManifestPage() {
         )}
       </Card>
 
-      {/* ─── P&L Summary (financials only — hidden in print) ─── */}
-      {canViewFinancials && (() => {
+      {/* P&L مخفي للـ shipment manifests — الشحنات مش فيها revenue/cost */}
+      {false && canViewFinancials && (() => {
         // تكلفة الشحن الفعلية = اليدوية لو موجودة، وإلا من الطلبيات
         const effectiveShipping = manifest.manualShippingCost ?? s.totalShippingCost;
         // صافي الربح = إيرادات − تكلفة بضاعة − تكلفة شحن فعلية
