@@ -3701,7 +3701,7 @@ export default function ShippingManifestPage() {
           >
             <Download className="w-3 h-3" />تصدير
           </Button>
-          {/* إضافة طلبيات — أدمن فقط + البيان مفتوح */}
+          {/* إضافة شحنات — أدمن فقط + البيان مفتوح */}
           {isAdmin && !isLocked && (
             <Button
               variant="outline"
@@ -3709,7 +3709,7 @@ export default function ShippingManifestPage() {
               className="h-8 text-xs gap-1 border-primary/50 text-primary hover:bg-primary/10"
               onClick={() => setShowAddOrdersDialog(true)}
             >
-              <PackagePlus className="w-3 h-3" />إضافة طلبيات
+              <PackagePlus className="w-3 h-3" />إضافة شحنات
             </Button>
           )}
           {/* إغلاق / فتح البيان — أدمن فقط */}
