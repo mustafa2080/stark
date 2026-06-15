@@ -184,7 +184,7 @@ const ProductPerformance    = lazy(() => import("@/pages/product-performance"));
 const UsersPage             = lazy(() => import("@/pages/users"));
 const AuditLogsPage         = lazy(() => import("@/pages/audit-logs"));
 const ShippingManifestPage  = lazy(() => import("@/pages/shipping-manifest"));
-const ShipmentManifestDetailPage = lazy(() => import("@/pages/shipment-manifest-detail"));
+const ShipmentManifestDetailPage = lazy(() => import("@/pages/shipping-manifest"));
 const ShippingCompanyDetail = lazy(() => import("@/pages/shipping-company-detail"));
 const WarehousesPage        = lazy(() => import("@/pages/warehouses"));
 const TeamPerformancePage   = lazy(() => import("@/pages/team-performance"));

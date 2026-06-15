@@ -2995,6 +2995,7 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
 export default function ShippingManifestPage() {
   const params = useParams();
   const id = Number(params.id);
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/shipping/shipment-manifests/')) { window.location.replace('/shipping'); return null; }
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canViewFinancials, isAdmin } = useAuth();
