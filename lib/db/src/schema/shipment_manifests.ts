@@ -27,6 +27,7 @@ export const shipmentManifestItemsTable = mysqlTable("shipment_manifest_items", 
   deliveryNote:   text("delivery_note"),
   deliveredAt:    datetime("delivered_at"),
   returnReceived: int("return_received"), // 1=تم الاستلام، 0=مازال في شركة الشحن
+  returnReason:   varchar("return_reason", { length: 100 }), // سبب الإرجاع (لو deliveryStatus = returned)
   addedAt:        datetime("added_at").notNull(),
 });
 

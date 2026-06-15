@@ -191,13 +191,14 @@ function OrderDeliveryRow({
         finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
       }
       if (isShipmentManifest) {
-        // shipment manifests: only deliveryStatus, deliveryNote, returnReceived supported
+        // shipment manifests: deliveryStatus, deliveryNote, returnReceived, returnReason
         const allowed = ["pending","delivered","returned","delayed"] as const;
         const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"returned"|"delayed" : "pending";
         return shipmentManifestsApi.updateItem(manifestId, order.id, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
           returnReceived: status === "returned" ? returnReceived : null,
+          returnReason: status === "returned" ? (returnReason || null) : null,
         });
       }
       return manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -839,6 +840,7 @@ function InvoiceGroupDeliveryRow({
             deliveryStatus: "pending",
             deliveryNote: null,
             returnReceived: null,
+            returnReason: null,
           });
         } else {
           await manifestsApi.cancelOrder(manifestId, order.id);
@@ -914,6 +916,7 @@ function InvoiceGroupDeliveryRow({
             deliveryStatus: safeSt,
             deliveryNote: bulkNote.trim() || null,
             returnReceived: safeSt === "returned" ? bulkReturnReceived : null,
+            returnReason: safeSt === "returned" ? (bulkReturnReason.trim() || null) : null,
           });
         } else {
           await manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -3100,7 +3103,7 @@ export default function ShippingManifestPage() {
         returnReceived: item.returnReceived,
         addedAt: rawManifest.createdAt,
         partialQuantity: null,
-        returnReason: null,
+        returnReason: item.returnReason ?? null,
       } as any;
     });
     const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;

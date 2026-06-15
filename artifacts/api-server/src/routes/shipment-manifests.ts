@@ -229,6 +229,7 @@ const UpdateItemSchema = z.object({
   deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed"]),
   deliveryNote:   z.string().nullish(),
   returnReceived: z.boolean().nullish(),
+  returnReason:   z.string().nullish(),
 });
 
 router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Promise<void> => {
@@ -242,6 +243,7 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       .set({
         deliveryStatus: body.deliveryStatus,
         deliveryNote:   body.deliveryNote ?? null,
+        returnReason:   body.returnReason ?? null,
         returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
         deliveredAt:    body.deliveryStatus === "delivered" ? now : undefined,
       })

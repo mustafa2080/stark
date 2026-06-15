@@ -1526,7 +1526,7 @@ export const shipmentManifestsApi = {
     apiFetch<{ id: number; manifestNumber: string; shipmentCount: number }>(
       "/shipment-manifests", { method: "POST", body: JSON.stringify(data) }
     ),
-  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; returnReceived?: boolean | null }) =>
+  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; returnReceived?: boolean | null; returnReason?: string | null }) =>
     apiFetch<{ success: boolean }>(`/shipment-manifests/${manifestId}/items/${shipmentId}`, {
       method: "PATCH", body: JSON.stringify(data),
     }),
