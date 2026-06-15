@@ -2233,11 +2233,13 @@ const STATUS_SORT_PRIORITY: Record<string, number> = {
 
 // ─── Status label helper ──────────────────────────────────────────────────────
 const STATUS_LABEL_AR: Record<string, string> = {
-  delivered:        "مسلَّم",
-  returned:         "مرتجع",
-  postponed:        "مؤجل",
-  partial_received: "استلم جزئي",
-  pending:          "قيد الانتظار",
+  delivered:          "مسلَّم",
+  returned:           "مرتجع",
+  postponed:          "مؤجل",
+  delayed:            "مؤجل",
+  partial_received:   "استلم جزئي",
+  partial_delivered:  "مسلَّم جزئي",
+  pending:            "قيد الانتظار",
 };
 
 function getManifestGroupKey(order: ManifestOrder) {
@@ -2269,7 +2271,9 @@ function ExportDialog({
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
     postponed: 4,
+    delayed: 4,
     partial_received: 3,
+    partial_delivered: 3,
     pending: 2,
     delivered: 1,
   };
@@ -2286,7 +2290,7 @@ function ExportDialog({
     (group) => groupManifestStatus(group) === "postponed"
   ).length;
   const groupedPartialCount = groupedManifestOrders.filter(
-    (group) => groupManifestStatus(group) === "partial_received"
+    (group) => ["partial_received", "partial_delivered"].includes(groupManifestStatus(group))
   ).length;
   const groupedPendingCount = groupedManifestOrders.filter(
     (group) => groupManifestStatus(group) === "pending"
@@ -2298,7 +2302,7 @@ function ExportDialog({
     .filter(o => o.deliveryStatus === "delivered")
     .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
   const partialGross = safeOrders
-    .filter(o => o.deliveryStatus === "partial_received")
+    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
       const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
       if (returnReceived == null) return sum;
@@ -2359,7 +2363,9 @@ function ExportDialog({
     const groupPriority: Record<string, number> = {
       returned: 5,
       postponed: 4,
+      delayed: 4,
       partial_received: 3,
+      partial_delivered: 3,
       pending: 2,
       delivered: 1,
     };
@@ -2372,7 +2378,7 @@ function ExportDialog({
     const groupedTotal = groupedOrders.length;
     const groupedDelivered = groupedOrders.filter((group) => groupStatus(group) === "delivered").length;
     const groupedReturned = groupedOrders.filter((group) => groupStatus(group) === "returned").length;
-    const groupedPartial = groupedOrders.filter((group) => groupStatus(group) === "partial_received").length;
+    const groupedPartial = groupedOrders.filter((group) => ["partial_received", "partial_delivered"].includes(groupStatus(group))).length;
     const groupedPostponed = groupedOrders.filter((group) => groupStatus(group) === "postponed").length;
     const groupedPending = groupedOrders.filter((group) => groupStatus(group) === "pending").length;
     const groupedCompleted = groupedDelivered;

@@ -1504,14 +1504,16 @@ export interface ShipmentManifestDetail {
     id: number;
     manifestId: number;
     shipmentId: number;
-    deliveryStatus: "pending" | "delivered" | "returned" | "delayed";
+    deliveryStatus: "pending" | "delivered" | "returned" | "delayed" | "partial_delivered";
     deliveryNote: string | null;
     returnReceived: 0 | 1 | null;
     deliveredAt: string | null;
+    partialQuantity: number | null;
+    returnReason: string | null;
     shipment: Shipment | null;
   }>;
   stats: {
-    total: number; delivered: number; returned: number; pending: number; delayed: number;
+    total: number; delivered: number; returned: number; pending: number; delayed: number; partial: number;
     totalRevenue: number; totalCost: number; totalShippingCost: number;
     returnLosses: number; netProfit: number; deliveredGross: number;
   };
