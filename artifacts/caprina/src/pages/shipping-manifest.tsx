@@ -3589,7 +3589,7 @@ export default function ShippingManifestPage() {
             const isSingleStatus = statuses.length === 1;
             const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
             const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
-            const totalPrice = group.reduce((sum, o) => sum + o.totalPrice, 0);
+            const totalPrice = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
             const productsText = group.map((o) => {
               const variant = [o.color, o.size].filter(Boolean).join(" / ");
               return variant ? `${o.product} (${variant}) ×${o.quantity}` : `${o.product} ×${o.quantity}`;
@@ -3605,7 +3605,7 @@ export default function ShippingManifestPage() {
                 <td className="mp-td-ltr">{rep.phone ?? "—"}</td>
                 <td>{productsText}</td>
                 <td className="mp-td-center mp-td-bold">{totalQty}</td>
-                <td className="mp-td-center mp-td-bold">{totalPrice.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center mp-td-bold">{Number(totalPrice || 0).toLocaleString("ar-EG")} ج</td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
               </tr>
@@ -3618,7 +3618,7 @@ export default function ShippingManifestPage() {
       <div className="mp-totals">
         <div className="mp-total-card">
           <div className="mp-total-lbl">إجمالي المحصَّل</div>
-          <div className="mp-total-val">{totalCollected.toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val">{Number(totalCollected || 0).toLocaleString("ar-EG")} ج.م</div>
         </div>
         <div className="mp-total-card">
           <div className="mp-total-lbl">رسوم الشحن</div>
@@ -3626,7 +3626,7 @@ export default function ShippingManifestPage() {
         </div>
         <div className="mp-total-card mp-total-highlight">
           <div className="mp-total-lbl">الصافي المستحق</div>
-          <div className="mp-total-val mp-total-green">{(totalCollected - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-green">{Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")} ج.م</div>
         </div>
         {manifest.invoicePrice != null && (
           <div className="mp-total-card">
