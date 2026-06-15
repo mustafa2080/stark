@@ -285,6 +285,56 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
   }
 });
 
+// ─── POST /shipment-manifests/:id/add-shipments ──────────────────────────────
+router.post("/shipment-manifests/:id/add-shipments", async (req, res): Promise<void> => {
+  try {
+    const manifestId  = Number(req.params.id);
+    const { shipmentIds } = req.body as { shipmentIds: number[] };
+
+    if (!Array.isArray(shipmentIds) || shipmentIds.length === 0) {
+      res.status(400).json({ error: "يجب إرسال قائمة شحنات" });
+      return;
+    }
+
+    const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, manifestId));
+    if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+    if (manifest.status === "closed") { res.status(400).json({ error: "البيان مغلق" }); return; }
+
+    const now = new Date();
+
+    // استبعد الشحنات الموجودة في البيان
+    const existing = await db.select({ shipmentId: shipmentManifestItemsTable.shipmentId })
+      .from(shipmentManifestItemsTable)
+      .where(eq(shipmentManifestItemsTable.manifestId, manifestId));
+    const existingIds = new Set(existing.map(e => e.shipmentId));
+    const newIds = shipmentIds.filter(id => !existingIds.has(id));
+
+    if (newIds.length === 0) {
+      res.json({ added: 0, manifestNumber: manifest.manifestNumber });
+      return;
+    }
+
+    await db.insert(shipmentManifestItemsTable).values(
+      newIds.map(sid => ({
+        manifestId,
+        shipmentId:     sid,
+        deliveryStatus: "pending",
+        addedAt:        now,
+      }))
+    );
+
+    // حدّث حالة الشحنات → in_transit
+    await db.update(shipmentsTable)
+      .set({ status: "in_transit", updatedAt: now })
+      .where(inArray(shipmentsTable.id, newIds));
+
+    res.json({ added: newIds.length, manifestNumber: manifest.manifestNumber });
+  } catch (e) {
+    console.error("[POST /shipment-manifests/:id/add-shipments]", e);
+    res.status(500).json({ error: "خطأ في إضافة الشحنات" });
+  }
+});
+
 // ─── DELETE /shipment-manifests/:id ──────────────────────────────────────────
 router.delete("/shipment-manifests/:id", async (req, res): Promise<void> => {
   try {

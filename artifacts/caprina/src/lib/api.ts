@@ -1530,6 +1530,11 @@ export const shipmentManifestsApi = {
     apiFetch<{ success: boolean }>(`/shipment-manifests/${manifestId}/items/${shipmentId}`, {
       method: "PATCH", body: JSON.stringify(data),
     }),
+  addShipments: (manifestId: number, shipmentIds: number[]) =>
+    apiFetch<{ added: number; manifestNumber: string }>(
+      `/shipment-manifests/${manifestId}/add-shipments`,
+      { method: "POST", body: JSON.stringify({ shipmentIds }) }
+    ),
   update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null }) =>
     apiFetch<{ success: boolean }>(`/shipment-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (id: number) =>
