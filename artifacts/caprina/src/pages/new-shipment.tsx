@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck } from "lucide-react";
+import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Truck } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch, warehousesApi, usersApi } from "@/lib/api";
+import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
+
+interface ShippingCompany { id: number; name: string }
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
@@ -64,6 +66,7 @@ export default function NewShipmentPage() {
     paymentMethod: "cod" as PaymentMethod,
     codAmount: "", notes: "",
     adSource: "", adCampaign: "", warehouseId: "", assignedUserId: "",
+    shippingCompanyId: "",
   });
 
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -73,6 +76,7 @@ export default function NewShipmentPage() {
   const { data: clients = [] }       = useQuery<ShipmentClient[]>({ queryKey: ["clients-list-basic"],  queryFn: () => apiFetch<any[]>("/finance/clients").then(d => (d || []).filter((c: any) => c && typeof c.name === "string" && c.name.trim() !== "")) });
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
+  const { data: shippingCompanies = [] } = useQuery<ShippingCompany[]>({ queryKey: ["shipping-companies-list"], queryFn: () => apiFetch("/shipping-companies") });
 
   const selectedZone    = zones.find(z => String(z.id) === form.zoneId);
   const selectedPricing = parcelPricing.find(p => p.parcelType === form.parcelType);
@@ -124,6 +128,7 @@ export default function NewShipmentPage() {
       adCampaign:      form.adCampaign || undefined,
       warehouseId:     form.warehouseId ? Number(form.warehouseId) : undefined,
       assignedUserId:  form.assignedUserId ? Number(form.assignedUserId) : undefined,
+      shippingCompanyId: form.shippingCompanyId ? Number(form.shippingCompanyId) : undefined,
       status:          "waiting",
     });
   }
@@ -297,6 +302,16 @@ export default function NewShipmentPage() {
             <div>
               <Label className="text-xs font-bold mb-1.5 block">اسم الحملة</Label>
               <Input className="text-sm h-10 bg-card" placeholder="Summer 2025..." value={form.adCampaign} onChange={e => set("adCampaign", e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Truck className="w-3 h-3" /> شركة الشحن</Label>
+              <Select value={form.shippingCompanyId || "none"} onValueChange={v => set("shippingCompanyId", v === "none" ? "" : v)}>
+                <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر شركة الشحن" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— غير محدد —</SelectItem>
+                  {shippingCompanies.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Warehouse className="w-3 h-3" /> المخزن</Label>
