@@ -2734,7 +2734,7 @@ function AddOrdersToManifestDialog({
     mutationFn: () => manifestsApi.addOrders(manifestId, Array.from(selectedIds)),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["orders-in-manifest-ids"] });
-      toast({ title: `✅ تمت الإضافة`, description: `تم إضافة ${res.added} طلبية للبيان ${res.manifestNumber}` });
+      toast({ title: `✅ تمت الإضافة`, description: `تم إضافة ${res.added} شحنة للبيان ${res.manifestNumber}` });
       onAdded();
       onClose();
     },
@@ -2790,7 +2790,7 @@ function AddOrdersToManifestDialog({
         <DialogHeader>
           <DialogTitle className="text-right flex items-center gap-2">
             <PackagePlus className="w-4 h-4 text-primary" />
-            إضافة طلبيات إلى البيان — {manifestNumber}
+            إضافة شحنات إلى البيان — {manifestNumber}
           </DialogTitle>
         </DialogHeader>
 
@@ -2808,7 +2808,7 @@ function AddOrdersToManifestDialog({
             </div>
             {!isLoading && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {available.length} طلبية متاحة
+                {available.length} شحنة متاحة
               </span>
             )}
           </div>
@@ -2830,12 +2830,12 @@ function AddOrdersToManifestDialog({
           {/* Orders list */}
           <div className="overflow-y-auto flex-1 border border-border rounded-md">
             {isLoading ? (
-              <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">جاري تحميل الطلبيات...</div>
+              <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">جاري تحميل الشحنات...</div>
             ) : filtered.length === 0 ? (
               <div className="p-10 text-center">
                 <PackagePlus className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                 <p className="text-sm text-muted-foreground">
-                  {available.length === 0 ? "لا توجد طلبيات قيد الشحن متاحة للإضافة" : "لا توجد نتائج تطابق البحث"}
+                  {available.length === 0 ? "لا توجد شحنات متاحة للإضافة" : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
             ) : (
@@ -2900,7 +2900,7 @@ function AddOrdersToManifestDialog({
             disabled={addMutation.isPending || selectedIds.size === 0}
           >
             <PackagePlus className="w-3.5 h-3.5" />
-            {addMutation.isPending ? "جاري الإضافة..." : `إضافة ${selectedIds.size > 0 ? selectedIds.size + " طلبيات" : ""}`}
+            {addMutation.isPending ? "جاري الإضافة..." : `إضافة ${selectedIds.size > 0 ? selectedIds.size + " شحنات" : ""}`}
           </Button>
           <Button variant="outline" className="border-border" onClick={onClose}>إلغاء</Button>
         </DialogFooter>
