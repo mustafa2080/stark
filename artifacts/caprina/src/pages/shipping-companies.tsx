@@ -110,16 +110,35 @@ function CompanyStats({ companyId, canViewFinancials }: { companyId: number; can
     queryFn: () => manifestsApi.companyStats(companyId),
     staleTime: 30000,
   });
+  const { data: shipmentStats } = useQuery({
+    queryKey: ["company-shipment-stats", companyId],
+    queryFn: () => shipmentManifestsApi.companyStats(companyId),
+    staleTime: 30000,
+  });
   const { data: manifests } = useQuery({
     queryKey: ["shipping-manifests", companyId],
     queryFn: () => manifestsApi.list(companyId),
     staleTime: 10000,
   });
   const openManifest = manifests?.find(m => m.status === "open") ?? null;
-  if (!stats) return null;
+  if (!stats && !shipmentStats) return null;
+
+  // ─── دمج إحصائيات نظام الطلبات (القديم) ونظام الشحنات (الجديد) ─────────────
+  const merged = {
+    delivered:     (stats?.delivered ?? 0)     + (shipmentStats?.delivered ?? 0),
+    partial:       ((stats as any)?.partial ?? 0) + (shipmentStats?.partial ?? 0),
+    returned:      (stats?.returned ?? 0)      + (shipmentStats?.returned ?? 0),
+    total:         (stats?.total ?? 0)         + (shipmentStats?.total ?? 0),
+    netProfit:     (stats?.netProfit ?? 0)     + (shipmentStats?.netProfit ?? 0),
+    manifestCount: (stats?.manifestCount ?? 0) + (shipmentStats?.manifestCount ?? 0),
+  };
+  const deliveryRate = merged.total > 0
+    ? Math.round(((merged.delivered + merged.partial) / merged.total) * 100)
+    : 0;
+
   return (
     <div className="mt-4 pt-4 border-t border-border space-y-3">
-      <DeliveryBar rate={stats.deliveryRate} />
+      <DeliveryBar rate={deliveryRate} />
       {/* صف: مسلم | مسلم جزئي | مرتجع */}
       <div className="grid grid-cols-3 gap-2 text-center">
         {/* مسلم */}
@@ -127,21 +146,21 @@ function CompanyStats({ companyId, canViewFinancials }: { companyId: number; can
           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]" />
           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]" />
           <p className="text-[10px] text-emerald-300/70 mb-0.5">مُسلَّم</p>
-          <p className="text-sm font-black text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.8)]">{stats.delivered}</p>
+          <p className="text-sm font-black text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.8)]">{merged.delivered}</p>
         </div>
         {/* مسلم جزئي */}
         <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg p-2 relative">
           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_2px_rgba(45,212,191,0.6)]" />
           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_2px_rgba(45,212,191,0.6)]" />
           <p className="text-[10px] text-teal-300/70 mb-0.5">مُسلَّم جزئي</p>
-          <p className="text-sm font-black text-teal-400 drop-shadow-[0_0_6px_rgba(45,212,191,0.8)]">{(stats as any).partial ?? 0}</p>
+          <p className="text-sm font-black text-teal-400 drop-shadow-[0_0_6px_rgba(45,212,191,0.8)]">{merged.partial}</p>
         </div>
         {/* مرتجع */}
         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 relative">
           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_6px_2px_rgba(248,113,113,0.6)]" />
           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_6px_2px_rgba(248,113,113,0.6)]" />
           <p className="text-[10px] text-red-300/70 mb-0.5">مُرتجَع</p>
-          <p className="text-sm font-black text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]">{stats.returned}</p>
+          <p className="text-sm font-black text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]">{merged.returned}</p>
         </div>
       </div>
       {/* قسم البيان الحالي */}
@@ -188,15 +207,15 @@ function CompanyStats({ companyId, canViewFinancials }: { companyId: number; can
       {canViewFinancials && (
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">صافي الربح / الخسارة</span>
-          <span className={`font-black ${stats.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {stats.netProfit >= 0 ? <TrendingUp className="inline w-3 h-3 mr-0.5" /> : <TrendingDown className="inline w-3 h-3 mr-0.5" />}
-            {formatCurrency(Math.abs(stats.netProfit))}
+          <span className={`font-black ${merged.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {merged.netProfit >= 0 ? <TrendingUp className="inline w-3 h-3 mr-0.5" /> : <TrendingDown className="inline w-3 h-3 mr-0.5" />}
+            {formatCurrency(Math.abs(merged.netProfit))}
           </span>
         </div>
       )}
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">عدد البيانات</span>
-        <span className="font-bold">{stats.manifestCount}</span>
+        <span className="font-bold">{merged.manifestCount}</span>
       </div>
     </div>
   );

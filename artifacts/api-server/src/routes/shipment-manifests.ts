@@ -374,7 +374,9 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
       .from(shipmentManifestsTable)
       .where(and(
         eq(shipmentManifestsTable.shippingCompanyId, companyId),
-        tenantId ? eq(shipmentManifestsTable.tenantId, tenantId) : undefined,
+        tenantId !== null
+          ? or(eq(shipmentManifestsTable.tenantId, tenantId), isNull(shipmentManifestsTable.tenantId))
+          : undefined,
       ));
 
     const manifestIds = manifests.map(m => m.id);
@@ -386,11 +388,46 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
 
     const delivered = items.filter(i => i.deliveryStatus === "delivered").length;
     const returned  = items.filter(i => i.deliveryStatus === "returned").length;
-    const pending   = items.filter(i => i.deliveryStatus === "pending").length;
+    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
+    const pending   = items.filter(i => i.deliveryStatus === "pending" || i.deliveryStatus === "delayed").length;
     const total     = items.length;
-    const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+    const deliveryRate = total > 0 ? Math.round(((delivered + partial) / total) * 100) : 0;
 
-    res.json({ total, delivered, returned, pending, deliveryRate, manifestCount: manifests.length });
+    // ─── حسابات مالية (P&L) من بيانات الشحنات نفسها ─────────────────────────
+    let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
+    if (items.length) {
+      const shipmentIds = items.map(i => i.shipmentId);
+      const shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+      const shipmentMap = new Map(shipments.map(s => [s.id, s]));
+
+      for (const item of items) {
+        const shipment = shipmentMap.get(item.shipmentId);
+        if (!shipment) continue;
+        const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
+        const shipping = Number(shipment.shippingFee ?? 0);
+        const cost     = Number(shipment.costPrice ?? 0);
+
+        if (item.deliveryStatus === "delivered") {
+          totalRevenue += cod;
+          deliveredGross += cod;
+          totalCost += cost;
+          totalShippingCost += shipping;
+        } else if (item.deliveryStatus === "returned") {
+          returnLosses += shipping;
+        } else {
+          totalShippingCost += shipping;
+        }
+      }
+    }
+    const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
+
+    res.json({
+      total, delivered, partial, returned, pending,
+      deliveryRate,
+      totalRevenue, totalCost, totalShippingCost, returnLosses,
+      netProfit, deliveredGross,
+      manifestCount: manifests.length,
+    });
   } catch (e) {
     console.error("[GET /shipping-companies/:id/shipment-stats]", e);
     res.status(500).json({ error: "خطأ في جلب الإحصائيات" });

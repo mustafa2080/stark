@@ -1540,7 +1540,7 @@ export const shipmentManifestsApi = {
   delete: (id: number) =>
     apiFetch<{ success: boolean }>(`/shipment-manifests/${id}`, { method: "DELETE" }),
   companyStats: (companyId: number) =>
-    apiFetch<{ total: number; delivered: number; returned: number; pending: number; deliveryRate: number; manifestCount: number }>(
+    apiFetch<ManifestCompanyStats & { partial: number }>(
       `/shipping-companies/${companyId}/shipment-stats`
     ),
 };
