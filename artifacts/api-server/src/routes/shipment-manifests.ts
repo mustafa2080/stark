@@ -31,7 +31,9 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
     const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
 
     const where = and(
-      tenantId ? eq(shipmentManifestsTable.tenantId, tenantId) : undefined,
+      tenantId !== null
+        ? eq(shipmentManifestsTable.tenantId, tenantId)
+        : isNull(shipmentManifestsTable.tenantId),
       companyId ? eq(shipmentManifestsTable.shippingCompanyId, companyId) : undefined,
     );
 
@@ -170,7 +172,9 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
       .where(and(
         eq(shipmentManifestsTable.shippingCompanyId, body.shippingCompanyId),
         eq(shipmentManifestsTable.status, "open"),
-        tenantId ? eq(shipmentManifestsTable.tenantId, tenantId) : undefined,
+        tenantId !== null
+          ? eq(shipmentManifestsTable.tenantId, tenantId)
+          : isNull(shipmentManifestsTable.tenantId),
       ));
     if (existing) {
       res.status(409).json({ error: "يوجد بيان مفتوح بالفعل لهذه الشركة" });
