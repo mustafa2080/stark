@@ -1,0 +1,26 @@
+2161: 
+2162: function getManifestGroupKey(order: ManifestOrder) {
+2163:   return (order as any).invoiceNumber?.trim() || `${order.customerName}__${order.phone ?? ""}__${order.address ?? ""}`;
+2164: }
+2165: 
+2166: function groupManifestOrders(orders: ManifestOrder[]) {
+2167:   const groupMap = new Map<string, ManifestOrder[]>();
+2168:   orders.forEach((order) => {
+2169:     const key = getManifestGroupKey(order);
+2170:     if (!groupMap.has(key)) groupMap.set(key, []);
+2171:     groupMap.get(key)!.push(order);
+2172:   });
+2173:   return Array.from(groupMap.values());
+2174: }
+2175: 
+2176: // ─── Export Dialog (Excel + PDF) ──────────────────────────────────────────────
+2177: function ExportDialog({
+2178:   manifest,
+2179:   onClose,
+2180: }: {
+2181:   manifest: ShippingManifestDetail;
+2182:   onClose: () => void;
+2183: }) {
+2184:   const s = manifest.stats;
+2185:   const effectiveShipping = manifest.manualShippingCost ?? s.totalShippingCost;
+2186:   const { brand } = useBrand();

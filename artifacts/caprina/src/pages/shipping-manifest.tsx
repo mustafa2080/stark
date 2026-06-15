@@ -2087,15 +2087,15 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const effectiveShipping = manifest.manualShippingCost ?? s.totalShippingCost;
-                const due = s.deliveredGross - effectiveShipping;
+                const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
+                const due = (s?.deliveredGross ?? 0) - effectiveShipping;
                 return (
                   <>
                     <p className="font-black text-lg text-primary">
                       {formatCurrency(due)}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      إيرادات مستلمة ({formatCurrency(s.deliveredGross)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
+                      إيرادات مستلمة ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
                     </p>
                   </>
                 );
@@ -2182,9 +2182,9 @@ function ExportDialog({
   onClose: () => void;
 }) {
   const s = manifest.stats;
-  const effectiveShipping = manifest.manualShippingCost ?? s.totalShippingCost;
+  const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
   const { brand } = useBrand();
-  const groupedManifestOrders = groupManifestOrders(manifest.orders);
+  const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
     postponed: 4,
@@ -2242,8 +2242,8 @@ function ExportDialog({
     const brandTagline = brand.tagline || "";
     const manifestDate = format(new Date(manifest.createdAt), "yyyy/MM/dd");
     const printDate = format(new Date(), "yyyy/MM/dd HH:mm");
-    const groupedOrders = groupManifestOrders(manifest.orders);
-    const fmtMoney = (n: number) => `${n.toLocaleString("ar-EG")} ج.م`;
+    const groupedOrders = groupManifestOrders(manifest.orders ?? []);
+    const fmtMoney = (n: number) => `${Number(n ?? 0).toLocaleString("ar-EG")} ج.م`;
 
     const C = {
       bg: "FF0F172A",
@@ -2626,15 +2626,15 @@ function ExportDialog({
             <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border">
               <div className="text-center">
                 <p className="text-[9px] text-muted-foreground mb-0.5">محصَّل</p>
-                <p className="text-xs font-black text-emerald-400">{totalCollected.toLocaleString("ar-EG")} ج</p>
+                <p className="text-xs font-black text-emerald-400">{Number(totalCollected || 0).toLocaleString("ar-EG")} ج</p>
               </div>
               <div className="text-center border-x border-border">
                 <p className="text-[9px] text-muted-foreground mb-0.5">شحن</p>
-                <p className="text-xs font-black text-amber-400">−{effectiveShipping.toLocaleString("ar-EG")} ج</p>
+                <p className="text-xs font-black text-amber-400">−{Number(effectiveShipping || 0).toLocaleString("ar-EG")} ج</p>
               </div>
               <div className="text-center">
                 <p className="text-[9px] text-muted-foreground mb-0.5">صافي</p>
-                <p className="text-xs font-black text-primary">{netDue.toLocaleString("ar-EG")} ج</p>
+                <p className="text-xs font-black text-primary">{Number(netDue || 0).toLocaleString("ar-EG")} ج</p>
               </div>
             </div>
           </div>
@@ -3475,7 +3475,7 @@ export default function ShippingManifestPage() {
   const pendingOrders = manifest.orders.filter(
     (o) => o.deliveryStatus === "pending"
   ).length;
-  const groupedManifestOrders = groupManifestOrders(manifest.orders);
+  const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
     postponed: 4,
