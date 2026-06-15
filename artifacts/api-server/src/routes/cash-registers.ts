@@ -79,7 +79,10 @@ cashRegistersRouter.post("/", async (req, res) => {
       } catch (e) { console.error("[cash-register create main]", e); }
     }
     res.json({ success: true, id: newId });
-  } catch (err) { res.status(500).json({ error: "فشل إنشاء الخزنة" }); }
+  } catch (err: any) {
+    console.error("[POST /cash-registers]", err);
+    res.status(500).json({ error: "فشل إنشاء الخزنة", detail: err?.message ?? String(err) });
+  }
 });
 
 // ─── GET smart-alerts, analytics, alerts ─────────────────────────────────────
