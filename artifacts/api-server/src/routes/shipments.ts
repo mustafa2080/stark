@@ -61,6 +61,7 @@ const CreateShipmentSchema = z.object({
   declaredValue:   z.coerce.number().default(0),
   paymentMethod:   z.enum(["cod", "prepaid", "deferred"]).default("cod"),
   codAmount:       z.coerce.number().default(0),
+  costPrice:       z.coerce.number().default(0),
   shippingFee:     z.coerce.number().default(0),
   insuranceFee:    z.coerce.number().default(0),
   totalAmount:     z.coerce.number().default(0),
@@ -197,6 +198,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
           declaredValue:    shipmentsTable.declaredValue,
           paymentMethod:    shipmentsTable.paymentMethod,
           codAmount:        shipmentsTable.codAmount,
+          costPrice:        shipmentsTable.costPrice,
           shippingFee:      shipmentsTable.shippingFee,
           insuranceFee:     shipmentsTable.insuranceFee,
           totalAmount:      shipmentsTable.totalAmount,
@@ -437,6 +439,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.description      !== undefined) updateData.description      = d.description;
     if (d.paymentMethod    !== undefined) updateData.paymentMethod    = d.paymentMethod;
     if (d.codAmount        !== undefined) updateData.codAmount        = String(d.codAmount);
+    if (d.costPrice        !== undefined) updateData.costPrice        = String(d.costPrice);
     if (d.shippingFee      !== undefined) updateData.shippingFee      = String(d.shippingFee);
     if (d.insuranceFee     !== undefined) updateData.insuranceFee     = String(d.insuranceFee);
     if (d.totalAmount      !== undefined) updateData.totalAmount      = String(d.totalAmount);
@@ -484,6 +487,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.description       !== undefined) updateData.description       = d.description;
     if (d.paymentMethod     !== undefined) updateData.paymentMethod     = d.paymentMethod;
     if (d.codAmount         !== undefined) updateData.codAmount         = String(d.codAmount);
+    if (d.costPrice         !== undefined) updateData.costPrice         = String(d.costPrice);
     if (d.shippingFee       !== undefined) updateData.shippingFee       = String(d.shippingFee);
     if (d.insuranceFee      !== undefined) updateData.insuranceFee      = String(d.insuranceFee);
     if (d.totalAmount       !== undefined) updateData.totalAmount       = String(d.totalAmount);

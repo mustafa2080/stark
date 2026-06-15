@@ -1426,6 +1426,7 @@ export interface Shipment {
   zoneGovernorate: string | null;
   paymentMethod: "cod" | "prepaid" | "deferred";
   codAmount: string;
+  costPrice: string | null;
   shippingFee: string;
   totalAmount: string;
   collectedAmount: string;

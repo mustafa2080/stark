@@ -115,10 +115,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       if (!shipment) continue;
       const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
       const shipping = Number(shipment.shippingFee ?? 0);
+      const cost     = Number(shipment.costPrice ?? 0);
 
       if (item.deliveryStatus === "delivered") {
         totalRevenue += cod;
         deliveredGross += cod;
+        totalCost += cost;
         totalShippingCost += shipping;
       } else if (item.deliveryStatus === "returned") {
         // مرتجع كامل → خسارة شحن فقط

@@ -3121,16 +3121,7 @@ export default function ShippingManifestPage() {
         returnReason: null,
       } as any;
     });
-    // ─── حسابات بطاقة التسوية — من بيانات الشحنات الفعلية ───────────────────
-    const totalCODAll = orders.reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
-    const deliveredGross = orders
-      .filter(o => o.deliveryStatus === "delivered")
-      .reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
-    const returnLosses = orders
-      .filter(o => o.deliveryStatus === "returned")
-      .reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
-    const sumShippingFees = orders.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0);
-    const manualShippingCost = rawManifest.invoicePrice ? parseFloat(rawManifest.invoicePrice) : null;
+    const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
 
     return {
       ...rawManifest,
@@ -3140,22 +3131,7 @@ export default function ShippingManifestPage() {
       invoiceNotes: rawManifest.notes ?? null,
       manualShippingCost,
       orders,
-      stats: {
-        total: rawManifest.stats.total,
-        delivered: rawManifest.stats.delivered,
-        returned: rawManifest.stats.returned,
-        pending: rawManifest.stats.pending,
-        postponed: 0,
-        partial_received: 0,
-        delayed: rawManifest.stats.delayed,
-        totalCollected: 0,
-        totalShippingCost: manualShippingCost ?? sumShippingFees,
-        netProfit: 0,
-        deliveredGross,
-        totalRevenue: totalCODAll,
-        totalCost: 0,
-        returnLosses,
-      },
+      stats: rawManifest.stats,
     };
   }, [rawManifest]);
 

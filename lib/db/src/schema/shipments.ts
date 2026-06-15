@@ -78,6 +78,7 @@ export const shipmentsTable = mysqlTable("shipments", {
   // ── البيانات المالية ────────────────────────────────────────────────────
   paymentMethod:   varchar("payment_method", { length: 30 }).notNull().default("cod"),
   codAmount:       decimal("cod_amount",   { precision: 12, scale: 2 }).default("0"), // مبلغ التحصيل عند الاستلام
+  costPrice:       decimal("cost_price",    { precision: 12, scale: 2 }).default("0"), // تكلفة البضاعة
   shippingFee:     decimal("shipping_fee", { precision: 10, scale: 2 }).default("0"), // رسوم الشحن الإجمالية
   insuranceFee:    decimal("insurance_fee",{ precision: 10, scale: 2 }).default("0"), // رسوم التأمين
   totalAmount:     decimal("total_amount", { precision: 12, scale: 2 }).default("0"), // الإجمالي = codAmount + shippingFee + ...
