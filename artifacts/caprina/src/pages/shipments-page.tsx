@@ -1508,7 +1508,7 @@ export default function Orders() {
                           return null;
                         })()}
                         {order.status === "delayed" && (() => {
-                          const reason = o.notes as string | null | undefined;
+                          const reason = (order as any).notes as string | null | undefined;
                           if (!reason) return null;
                           return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-violet-400 dark:text-violet-300">⏸ {reason}</span>;
                         })()}
@@ -1516,7 +1516,7 @@ export default function Orders() {
                           const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                           const pq = (order as any).partialQuantity as number | null | undefined;
                           const qty = (order as any).quantity as number | undefined;
-                          const reason = o.notes as string | null | undefined;
+                          const reason = (order as any).notes as string | null | undefined;
                           return (
                             <span className="inline-flex flex-col gap-0 text-[9px] font-bold leading-tight">
                               {pq != null && qty != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {pq} من {qty}</span>}
@@ -1527,7 +1527,7 @@ export default function Orders() {
                           );
                         })()}
                         {order.status === "returned" && (() => {
-                          const reason = o.notes as string | null | undefined;
+                          const reason = (order as any).notes as string | null | undefined;
                           if (!reason) return null;
                           return <span className="inline-flex items-center gap-0.5 text-[9px] text-red-600 dark:text-red-400"><RotateCcw className="w-2.5 h-2.5 shrink-0" />{reason}</span>;
                         })()}
