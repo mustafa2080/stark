@@ -265,7 +265,7 @@ function OrderDeliveryRow({
         </div>
         {/* Qty */}
         <div className="text-center font-bold">
-          {order.deliveryStatus === "partial_received" && order.partialQuantity ? (
+          {(order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered") && order.partialQuantity ? (
             <span>
               <span className="text-teal-400">{order.partialQuantity}</span>
               <span className="text-muted-foreground">/{order.quantity}</span>
@@ -324,6 +324,18 @@ function OrderDeliveryRow({
               )}
               <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
             </>
+          )}
+          {/* sub-status لمسلَّم جزئي (shipment) */}
+          {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
+            <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">
+              ✓ {order.partialQuantity}/{order.quantity} مُسلَّم
+            </p>
+          )}
+          {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (
+            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+          )}
+          {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived === 1 && (
+            <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ الباقي في المخزن</p>
           )}
           {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && !editing && (
             <p className="text-[10px] text-orange-400 mt-0.5 font-semibold truncate max-w-[110px]">
@@ -733,9 +745,9 @@ function InvoiceGroupDeliveryRow({
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
-  // السعر الفعلي: لو partial_received احسب الجزء المستلم فقط
+  // السعر الفعلي: لو partial_received أو partial_delivered احسب الجزء المستلم فقط
   const totalPrice = group.reduce((s, o) => {
-    if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
+    if ((o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity != null) {
       return s + o.unitPrice * o.partialQuantity;
     }
     return s + o.totalPrice;
@@ -1040,7 +1052,7 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* Qty */}
           <div className="text-center font-bold">
-            {displayStatus === "partial_received" ? (
+            {(displayStatus === "partial_received" || displayStatus === "partial_delivered") ? (
               <span>
                 <span className="text-teal-400">{displayTotalPartialQty}</span>
                 <span className="text-muted-foreground">/{totalQty}</span>
@@ -1063,20 +1075,20 @@ function InvoiceGroupDeliveryRow({
                 </Badge>
                 {group.map(o => {
                   const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
-                  const label = o.deliveryStatus === "partial_received" && o.partialQuantity
+                  const label = (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity
                     ? `${o.product} ×${o.partialQuantity}/${o.quantity}`
                     : `${o.product}`;
                   return (
                     <p key={o.id} className={`text-[9px] truncate max-w-[110px] font-medium ${opt.color}`}>
                       {o.deliveryStatus === "delivered" ? "✓" :
                        o.deliveryStatus === "returned" ? "✕" :
-                       o.deliveryStatus === "partial_received" ? "◑" :
+                       (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") ? "◑" :
                        (o.deliveryStatus === "postponed" || o.deliveryStatus === "delayed") ? "⏸" : "○"} {label}
                     </p>
                   );
                 })}
               </div>
-            ) : displayStatus === "partial_received" ? (
+            ) : (displayStatus === "partial_received" || displayStatus === "partial_delivered") ? (
               <div className="flex flex-col gap-0.5">
                 <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
                   {displayOpt.label} ({displayTotalPartialQty}/{totalQty})
