@@ -1800,10 +1800,10 @@ function InvoicePriceEditor({
 function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { manifest: ShippingManifestDetail; onSaved: () => void; isShipmentManifest?: boolean }) {
   const { toast } = useToast();
   const s = manifest.stats;
-  const invoicePrice = manifest.invoicePrice ?? 0;
+  const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
 
   // تكلفة الشحن الفعلية = اليدوية لو موجودة، وإلا من الأوردرات
-  const effectiveShippingCost = manifest.manualShippingCost ?? s.totalShippingCost;
+  const effectiveShippingCost = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0);
   const hasManualCost = manifest.manualShippingCost != null;
 
   const deliveredTotal = s.deliveredGross;
@@ -2211,10 +2211,12 @@ function ExportDialog({
     (group) => groupManifestStatus(group) === "pending"
   ).length;
 
-  const deliveredGross = manifest.orders
+  const safeOrders = manifest.orders ?? [];
+
+  const deliveredGross = safeOrders
     .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + o.totalPrice, 0);
-  const partialGross = manifest.orders
+    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+  const partialGross = safeOrders
     .filter(o => o.deliveryStatus === "partial_received")
     .reduce((sum, o) => {
       const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
@@ -3508,11 +3510,11 @@ export default function ShippingManifestPage() {
     }
   };
 
-  const deliveredGross = manifest.orders
+  const deliveredGross = (manifest.orders ?? [])
     .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + o.totalPrice, 0);
+    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
 
-  const partialGross = manifest.orders
+  const partialGross = (manifest.orders ?? [])
     .filter(o => o.deliveryStatus === "partial_received")
     .reduce((sum, o) => {
       const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
@@ -3620,16 +3622,16 @@ export default function ShippingManifestPage() {
         </div>
         <div className="mp-total-card">
           <div className="mp-total-lbl">رسوم الشحن</div>
-          <div className="mp-total-val mp-total-orange">{(manifest.manualShippingCost ?? s.totalShippingCost).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-orange">{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")} ج.م</div>
         </div>
         <div className="mp-total-card mp-total-highlight">
           <div className="mp-total-lbl">الصافي المستحق</div>
-          <div className="mp-total-val mp-total-green">{(totalCollected - (manifest.manualShippingCost ?? s.totalShippingCost)).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-green">{(totalCollected - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")} ج.م</div>
         </div>
         {manifest.invoicePrice != null && (
           <div className="mp-total-card">
             <div className="mp-total-lbl">سعر الفاتورة المتفق</div>
-            <div className="mp-total-val mp-total-blue">{manifest.invoicePrice.toLocaleString("ar-EG")} ج.م</div>
+            <div className="mp-total-val mp-total-blue">{Number(manifest.invoicePrice).toLocaleString("ar-EG")} ج.م</div>
           </div>
         )}
       </div>
@@ -4155,7 +4157,7 @@ export default function ShippingManifestPage() {
         const totalCOD        = manifest.orders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const shippingCost    = manifest.manualShippingCost ?? manifest.orders.reduce((s, o) => s + (o.shippingCost ?? 0), 0);
+        const shippingCost    = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? manifest.orders.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0));
         const netAmount       = deliveredCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
