@@ -93,8 +93,19 @@ const DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; b
   { value: "returned",         label: "مرتجع",           color: "text-red-700     dark:text-red-400",                             bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
 ];
 
-const deliveryOpt = (v: DeliveryStatus) =>
-  DELIVERY_OPTIONS.find((o) => o.value === v) ?? DELIVERY_OPTIONS[0];
+// ─── خيارات حالة التسليم لبيانات الشحنات (shipment manifests) ────────────────
+// النظام الجديد بيدعم 4 حالات فقط: pending | delivered | delayed | returned
+const SHIPMENT_DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
+  { value: "pending",   label: "قيد الانتظار", color: "text-muted-foreground",                                 bg: "border-border" },
+  { value: "delivered", label: "مسلَّم ✓",      color: "text-emerald-700 dark:text-emerald-400",                bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
+  { value: "delayed",   label: "مؤجل",          color: "text-orange-700  dark:text-orange-400",                 bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  { value: "returned",  label: "مرتجع",         color: "text-red-700     dark:text-red-400",                    bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
+];
+
+const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false) => {
+  const list = isShipmentManifest ? SHIPMENT_DELIVERY_OPTIONS : DELIVERY_OPTIONS;
+  return list.find((o) => o.value === v) ?? list[0];
+};
 
 function OrderDeliveryRow({
   order,
@@ -210,7 +221,7 @@ function OrderDeliveryRow({
       toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  const opt = deliveryOpt(order.deliveryStatus);
+  const opt = deliveryOpt(order.deliveryStatus, isShipmentManifest);
   const needsNote = status === "postponed" || status === "returned" || status === "delayed";
   const needsPartial = status === "partial_received";
 
@@ -476,7 +487,10 @@ function OrderDeliveryRow({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {DELIVERY_OPTIONS.filter((o) => o.value !== "partial_received" || order.quantity > 1).map((o) => (
+                  {(isShipmentManifest
+                    ? SHIPMENT_DELIVERY_OPTIONS
+                    : DELIVERY_OPTIONS.filter((o) => o.value !== "partial_received" || order.quantity > 1)
+                  ).map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-xs">
                       <span className={o.color}>{o.label}</span>
                     </SelectItem>
@@ -735,7 +749,7 @@ function InvoiceGroupDeliveryRow({
     : hasMixedPartial
       ? "partial_received"
       : "pending";
-  const groupOpt = deliveryOpt(groupStatus);
+  const groupOpt = deliveryOpt(groupStatus, isShipmentManifest);
   const hasMultipleStatuses = statuses.length > 1;
 
   // الحالة المعروضة: لو في وضع تعديل أو بعد حفظ (قبل refetch) → نعرض bulkStatus، غير كده نعرض groupStatus
@@ -775,7 +789,7 @@ function InvoiceGroupDeliveryRow({
   // الكميات المعروضة: لو في وضع التعديل أو بعد حفظ فوري → من state، وإلا من server
   // الحالة المعروضة في الـ UI (خارج وضع التعديل): لما pendingSaveRef موجود نعرض bulkStatus (الحالة المحفوظة) لحد ما يجي الـ refetch
   const displayStatus: DeliveryStatus = (bulkEditing || pendingSaveRef.current !== null) ? bulkStatus : groupStatus;
-  const displayOpt = deliveryOpt(displayStatus);
+  const displayOpt = deliveryOpt(displayStatus, isShipmentManifest);
 
   const displayPartialQtyMap: Record<number, number> = Object.fromEntries(
     group.map(o => {
@@ -930,7 +944,7 @@ function InvoiceGroupDeliveryRow({
     onError: (e: any) =>
       toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
-  const needsBulkNote = bulkStatus === "postponed" || bulkStatus === "returned";
+  const needsBulkNote = bulkStatus === "postponed" || bulkStatus === "returned" || bulkStatus === "delayed";
 
   // products summary
   const productsText = group.map(o => {
@@ -1039,7 +1053,7 @@ function InvoiceGroupDeliveryRow({
                   حالات متعددة
                 </Badge>
                 {group.map(o => {
-                  const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus);
+                  const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
                   const label = o.deliveryStatus === "partial_received" && o.partialQuantity
                     ? `${o.product} ×${o.partialQuantity}/${o.quantity}`
                     : `${o.product}`;
@@ -1048,7 +1062,7 @@ function InvoiceGroupDeliveryRow({
                       {o.deliveryStatus === "delivered" ? "✓" :
                        o.deliveryStatus === "returned" ? "✕" :
                        o.deliveryStatus === "partial_received" ? "◑" :
-                       o.deliveryStatus === "postponed" ? "⏸" : "○"} {label}
+                       (o.deliveryStatus === "postponed" || o.deliveryStatus === "delayed") ? "⏸" : "○"} {label}
                     </p>
                   );
                 })}
@@ -1290,12 +1304,15 @@ function InvoiceGroupDeliveryRow({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {DELIVERY_OPTIONS.filter((o) => {
-                      if (o.value !== "partial_received") return true;
-                      // أظهر "استلام جزئي" فقط لو الكمية الكلية للمجموعة أكتر من 1
-                      const totalQty = group.reduce((s, o) => s + (o.quantity ?? 1), 0);
-                      return totalQty > 1;
-                    }).map((o) => (
+                    {(isShipmentManifest
+                      ? SHIPMENT_DELIVERY_OPTIONS
+                      : DELIVERY_OPTIONS.filter((o) => {
+                          if (o.value !== "partial_received") return true;
+                          // أظهر "استلام جزئي" فقط لو الكمية الكلية للمجموعة أكتر من 1
+                          const totalQty = group.reduce((s, o) => s + (o.quantity ?? 1), 0);
+                          return totalQty > 1;
+                        })
+                    ).map((o) => (
                       <SelectItem key={o.value} value={o.value} className="text-xs">
                         <span className={o.color}>{o.label}</span>
                       </SelectItem>

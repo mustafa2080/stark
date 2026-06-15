@@ -683,7 +683,7 @@ export interface MovementTotals {
 }
 
 // ─── Shipping Manifests API ─────────────────────────────────────────────────
-export type DeliveryStatus = "pending" | "delivered" | "postponed" | "partial_received" | "returned";
+export type DeliveryStatus = "pending" | "delivered" | "postponed" | "partial_received" | "returned" | "delayed";
 
 export interface ShippingManifestListItem {
   id: number;
