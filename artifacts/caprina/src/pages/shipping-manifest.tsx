@@ -3469,6 +3469,7 @@ export default function ShippingManifestPage() {
     returned: 5,
     postponed: 4,
     partial_received: 3,
+    partial_delivered: 3,
     pending: 2,
     delivered: 1,
   };
@@ -3478,8 +3479,10 @@ export default function ShippingManifestPage() {
         ? order.deliveryStatus
         : worst,
     group[0]?.deliveryStatus ?? "pending");
-  const groupedPostponedCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "postponed").length;
-  const groupedPartialCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "partial_received").length;
+  const isPartialStatus = (st: string) => st === "partial_received" || st === "partial_delivered";
+  const isPostponedStatus = (st: string) => st === "postponed" || st === "delayed";
+  const groupedPostponedCount = groupedManifestOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
+  const groupedPartialCount = groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
   const groupedPendingCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
   const groupedDeliveredCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
   const groupedReturnedCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "returned").length;
@@ -3494,7 +3497,9 @@ export default function ShippingManifestPage() {
       case "delivered":        return { label: "مسلَّم",         cls: "st-d" };
       case "returned":         return { label: "مرتجع",           cls: "st-r" };
       case "postponed":        return { label: "مؤجل",            cls: "st-p" };
+      case "delayed":          return { label: "مؤجل",            cls: "st-p" };
       case "partial_received": return { label: "جزئي",            cls: "st-x" };
+      case "partial_delivered":return { label: "جزئي",            cls: "st-x" };
       default:                 return { label: "قيد الانتظار",   cls: "st-n" };
     }
   };
