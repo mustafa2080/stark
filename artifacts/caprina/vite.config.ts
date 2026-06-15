@@ -46,8 +46,6 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        // ✅ يحافظ على النصوص العربية بدون unicode escape
-        charset: "utf8",
         manualChunks: {
           "vendor-react":  ["react", "react-dom"],
           "vendor-query":  ["@tanstack/react-query"],
