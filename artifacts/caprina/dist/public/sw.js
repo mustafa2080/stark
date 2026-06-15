@@ -22,7 +22,15 @@ function isCacheable(response) {
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then((cache) =>
+        Promise.all(
+          PRECACHE_URLS.map((url) =>
+            fetch(url).then((res) => {
+              if (isCacheable(res)) return cache.put(url, res);
+            }).catch(() => {})
+          )
+        )
+      )
       .then(() => self.skipWaiting())
   );
 });
