@@ -2721,12 +2721,7 @@ function AddOrdersToManifestDialog({
     staleTime: 10000,
   });
 
-  // جيب الطلبات اللي في بيانات مفتوحة تانية عشان نمنعها من الإضافة مرة تانية
-  const { data: inManifestData } = useQuery({
-    queryKey: ["in-manifest-ids"],
-    queryFn: () => apiFetch<{ ids: number[] }>("/orders/in-manifest-ids"),
-    staleTime: 10000,
-  });
+
 
   const addMutation = useMutation({
     mutationFn: () => manifestsApi.addOrders(manifestId, Array.from(selectedIds)),
@@ -2741,13 +2736,7 @@ function AddOrdersToManifestDialog({
   });
 
   // IDs الطلبات اللي في بيانات مفتوحة تانية (غير بياننا الحالي)
-  const inOtherManifestIds = useMemo(() => {
-    if (!inManifestData) return new Set<number>();
-    const manifestSet = new Set(inManifestData.ids);
-    // الموجودين في البيان الحالي مش "تاني" — شيلهم من الـ set
-    existingOrderIds.forEach(id => manifestSet.delete(id));
-    return manifestSet;
-  }, [inManifestData, existingOrderIds]);
+  const inOtherManifestIds = new Set<number>();
 
   const available = useMemo(() => {
     if (!allAvailableOrders) return [];
