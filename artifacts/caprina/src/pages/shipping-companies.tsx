@@ -17,12 +17,13 @@ import { Plus, Truck, Edit2, Trash2, Phone, Globe, ToggleLeft, ToggleRight, File
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد
-const AVAILABLE_SHIPMENT_STATUSES = ["waiting", "confirmed", "delayed"];
+const AVAILABLE_SHIPMENT_STATUSES = ["waiting", "confirmed", "delayed", "warehouse_ready"];
 
 const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   waiting: "🏠 ما زال في المخزن",
   confirmed: "مؤكدة",
   delayed: "متأخرة",
+  warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
 const emptyForm = { name: "", phone: "", website: "", notes: "", logo: "", isActive: true };
