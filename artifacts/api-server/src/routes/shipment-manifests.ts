@@ -6,6 +6,8 @@ import {
   shipmentManifestItemsTable,
   shipmentsTable,
   shippingCompaniesTable,
+  cashRegistersTable,
+  cashTransactionsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -273,6 +275,76 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
   }
 });
 
+// ─── تحويل إيراد البيان للخزنة عند الإغلاق ──────────────────────────────────
+async function createTreasuryEntryOnClose(
+  manifest: typeof shipmentManifestsTable.$inferSelect,
+  items: (typeof shipmentManifestItemsTable.$inferSelect)[],
+  userId: number | null,
+  userName: string | null,
+): Promise<void> {
+  const now = new Date();
+
+  // جيب الشحنات لمعرفة سعر كل شحنة
+  const shipmentIds = items.map(i => i.shipmentId);
+  const shipments = shipmentIds.length > 0
+    ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+    : [];
+  const shipmentMap = new Map(shipments.map(s => [s.id, s]));
+
+  let grossRevenue = 0;
+
+  for (const item of items) {
+    const shipment = shipmentMap.get(item.shipmentId);
+    if (!shipment) continue;
+    const price = Number(shipment.totalPrice ?? shipment.shippingFee ?? 0);
+
+    if (item.deliveryStatus === "delivered") {
+      grossRevenue += price;
+    } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+      // لو الشحنة مسلمة جزئياً → نحسب نسبة من السعر
+      const qty = Number(shipment.quantity ?? 1);
+      const unitPrice = qty > 0 ? price / qty : price;
+      grossRevenue += unitPrice * Number(item.partialQuantity);
+    }
+    // returned / delayed / pending → مش بيتحسب
+  }
+
+  if (grossRevenue <= 0) return;
+
+  // جيب الخزنة الرئيسية
+  const [mainRegister] = await db
+    .select()
+    .from(cashRegistersTable)
+    .where(and(eq(cashRegistersTable.type, "main"), eq(cashRegistersTable.isActive, true)))
+    .limit(1);
+
+  if (!mainRegister) return;
+
+  const balanceBefore = Number(mainRegister.balance ?? 0);
+  const balanceAfter  = balanceBefore + grossRevenue;
+
+  const [company] = await db.select().from(shippingCompaniesTable)
+    .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
+
+  await db.insert(cashTransactionsTable).values({
+    registerId:      mainRegister.id,
+    type:            "shipping_transfer" as any,
+    amount:          String(grossRevenue),
+    balanceBefore:   String(balanceBefore),
+    balanceAfter:    String(balanceAfter),
+    description:     `تحصيل بيان شحنات ${manifest.manifestNumber} - ${company?.name ?? ""}`,
+    referenceNumber: manifest.manifestNumber,
+    transactionDate: now,
+    createdByUserId: userId,
+    createdByName:   userName,
+    createdAt:       now,
+  });
+
+  await db.update(cashRegistersTable)
+    .set({ balance: String(balanceAfter), updatedAt: now })
+    .where(eq(cashRegistersTable.id, mainRegister.id));
+}
+
 // ─── PATCH /shipment-manifests/:id  (قفل/فتح البيان) ────────────────────────
 router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
   try {
@@ -289,6 +361,23 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
         ...(body.status === "open"   ? { closedAt: null } : {}),
       })
       .where(eq(shipmentManifestsTable.id, id));
+
+    // ── تحويل الإيراد للخزنة عند الإغلاق ──────────────────────────────────
+    if (body.status === "closed") {
+      try {
+        const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
+        if (manifest) {
+          const items = await db.select().from(shipmentManifestItemsTable)
+            .where(eq(shipmentManifestItemsTable.manifestId, id));
+          const userId   = (req as any).user?.id   ?? null;
+          const userName = (req as any).user?.name ?? null;
+          await createTreasuryEntryOnClose(manifest, items, userId, userName);
+        }
+      } catch (err) {
+        console.error("[PATCH /shipment-manifests/:id] treasury entry error:", err);
+        // لا نوقف الـ response — البيان اتقفل بنجاح حتى لو الخزنة فيها مشكلة
+      }
+    }
 
     res.json({ success: true });
   } catch (e) {
