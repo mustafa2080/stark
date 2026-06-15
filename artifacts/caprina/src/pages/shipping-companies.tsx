@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { shippingApi, manifestsApi, type ShippingCompany, type ShippingManifestListItem, type ManifestCompanyStats } from "@/lib/api";
+import { shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type ShippingManifestListItem, type ManifestCompanyStats, type Shipment } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -16,26 +16,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Truck, Edit2, Trash2, Phone, Globe, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon } from "lucide-react";
 import { format } from "date-fns";
 
-const BASE = "/api";
-function getToken() { return localStorage.getItem("caprina_token"); }
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(`${BASE}${path}`, { headers: { "Content-Type": "application/json", ...authHeader, ...options?.headers }, ...options });
-  if (res.status === 204) return undefined as unknown as T;
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data as T;
-}
+// الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد
+const AVAILABLE_SHIPMENT_STATUSES = ["waiting", "confirmed", "delayed"];
 
-type OrderRow = {
-  id: number; customerName: string; phone: string | null;
-  product: string; color: string | null; size: string | null;
-  quantity: number; totalPrice: number; status: string;
-  shippingCompanyId: number | null; createdAt: string;
-  invoiceNumber: string | null;
-  _groupIds?: number[];
-  _groupCount?: number;
+const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
+  waiting: "انتظار",
+  confirmed: "مؤكدة",
+  delayed: "متأخرة",
 };
 
 const emptyForm = { name: "", phone: "", website: "", notes: "", logo: "", isActive: true };
@@ -226,10 +213,18 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
     staleTime: 10000,
   });
 
+  // بيانات شحن الشحنات (النظام الجديد) — نتحقق من وجود بيان مفتوح قبل السماح بإنشاء بيان جديد
+  const { data: shipmentManifests } = useQuery({
+    queryKey: ["shipment-manifests", company.id],
+    queryFn: () => shipmentManifestsApi.list(company.id),
+    staleTime: 10000,
+  });
+
   const openManifest = manifests?.find(m => m.status === "open");
+  const openShipmentManifest = shipmentManifests?.find(m => m.status === "open");
 
   const handleNewManifest = () => {
-    if (openManifest) {
+    if (openShipmentManifest) {
       setShowBlockedAlert(true);
     } else {
       setShowNewDialog(true);
@@ -264,9 +259,9 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
               لا يمكن إنشاء بيان جديد
             </AlertDialogTitle>
             <AlertDialogDescription className="text-right space-y-2">
-              <span className="block">يوجد بيان مفتوح حالياً لشركة <strong>{company.name}</strong>:</span>
+              <span className="block">يوجد بيان شحن مفتوح حالياً لشركة <strong>{company.name}</strong>:</span>
               <span className="block font-bold text-foreground">
-                {openManifest?.manifestNumber} — {openManifest?.orderCount} طلبية
+                {openShipmentManifest?.manifestNumber} — {openShipmentManifest?.shipmentCount} شحنة
               </span>
               <span className="block text-muted-foreground">
                 يرجى تقفيل البيان الحالي أولاً قبل إنشاء بيان جديد.
@@ -275,7 +270,7 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel>إغلاق</AlertDialogCancel>
-            {openManifest && (
+            {openShipmentManifest && (
               <AlertDialogAction
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => { setShowBlockedAlert(false); setExpanded(true); }}
@@ -332,7 +327,7 @@ export function CreateManifestDialog({
   company: ShippingCompany;
   allCompanies: ShippingCompany[];
   onClose: () => void;
-  onCreated?: (manifest: { id: number; manifestNumber: string; orderCount: number }) => void;
+  onCreated?: (manifest: { id: number; manifestNumber: string; shipmentCount: number }) => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -340,134 +335,73 @@ export function CreateManifestDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
 
-  const companyMap = useMemo(() => {
-    const m: Record<number, string> = {};
-    for (const c of allCompanies) m[c.id] = c.name;
-    return m;
-  }, [allCompanies]);
-
-  const { data: warehouseReadyOrders, isLoading: isLoadingWR } = useQuery({
-    queryKey: ["orders-warehouse-ready-all"],
-    queryFn: () => apiFetch<OrderRow[]>(`/orders?status=warehouse_ready`),
+  // الشحنات الخاصة بشركة الشحن دي
+  const { data, isLoading } = useQuery({
+    queryKey: ["shipments-available-for-manifest", company.id],
+    queryFn: () => shipmentsApi.list({ shippingCompanyId: company.id, limit: 200 }),
   });
 
-  const { data: delayedOrders, isLoading: isLoadingDelayed } = useQuery({
-    queryKey: ["orders-delayed-all"],
-    queryFn: () => apiFetch<OrderRow[]>(`/orders?status=delayed`),
-  });
-
-  // جيب الطلبات اللي في بيانات مفتوحة عشان نستبعدها
-  const { data: inManifestData } = useQuery({
-    queryKey: ["orders-in-manifest-ids"],
-    queryFn: () => apiFetch<{ ids: number[] }>("/orders/in-manifest-ids"),
-    staleTime: 10000,
-  });
-
-  const isLoading = isLoadingWR || isLoadingDelayed;
-
-  // الطلبات المتاحة: warehouse_ready + delayed فقط — مع استبعاد اللي في بيانات مفتوحة
-  const allAvailableOrders = useMemo(() => {
-    const all = [
-      ...(warehouseReadyOrders ?? []),
-      ...(delayedOrders ?? []),
-    ];
-    const inManifestIds = inManifestData ? new Set(inManifestData.ids) : new Set<number>();
-    // إزالة التكرار
-    const seen = new Set<number>();
-    return all.filter(o => {
-      if (seen.has(o.id)) return false;
-      seen.add(o.id);
-      // استبعد اللي في بيانات شحن مفتوحة
-      if (inManifestIds.has(o.id)) return false;
-      return true;
-    });
-  }, [warehouseReadyOrders, delayedOrders, inManifestData]);
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      manifestsApi.create({
-        shippingCompanyId: company.id,
-        orderIds: Array.from(selectedIds),
-        notes: notes.trim() || undefined,
-      }),
-    onSuccess: (manifest) => {
-      queryClient.invalidateQueries({ queryKey: ["shipping-manifests", company.id] });
-      queryClient.invalidateQueries({ queryKey: ["company-stats", company.id] });
-      queryClient.invalidateQueries({ queryKey: ["orders-in-shipping-all"] });
-      queryClient.invalidateQueries({ queryKey: ["orders-pending-all"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
-      queryClient.invalidateQueries({ queryKey: ["variants"] });
-      queryClient.invalidateQueries({ queryKey: ["variants-all"] });
-      queryClient.invalidateQueries({ queryKey: ["orders-in-manifest-ids"] });
-      toast({
-        title: "تم إنشاء البيان",
-        description: `${manifest.manifestNumber} — ${manifest.orderCount} طلبية`,
-      });
-      if (onCreated) {
-        onCreated({ id: manifest.id, manifestNumber: manifest.manifestNumber, orderCount: manifest.orderCount });
-      } else {
-        onClose();
-      }
-    },
-    onError: (e: any) =>
-      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
-  });
-
-  // ── تجميع الطلبات بنفس invoiceNumber في سطر واحد ─────────────────────────
-  const groupedOrders = useMemo(() => {
-    if (!allAvailableOrders.length) return [];
-    const groups = new Map<string, OrderRow>();
-    for (const o of allAvailableOrders) {
-      const key = o.invoiceNumber ?? `solo-${o.id}`;
-      if (!groups.has(key)) {
-        groups.set(key, { ...o, _groupIds: [o.id], _groupCount: 1 });
-      } else {
-        const g = groups.get(key)!;
-        g._groupIds = [...(g._groupIds ?? [g.id]), o.id];
-        g._groupCount = (g._groupCount ?? 1) + 1;
-        g.quantity += o.quantity;
-        g.totalPrice += o.totalPrice;
-        if (!g.product.includes(o.product)) {
-          g.product = g.product + " + " + o.product;
-        }
-      }
-    }
-    return Array.from(groups.values());
-  }, [allAvailableOrders]);
+  // الشحنات المتاحة: waiting / confirmed / delayed فقط
+  const availableShipments = useMemo(() => {
+    return (data?.data ?? []).filter((s: Shipment) => AVAILABLE_SHIPMENT_STATUSES.includes(s.status));
+  }, [data]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return groupedOrders;
+    if (!search.trim()) return availableShipments;
     const q = search.toLowerCase();
-    return groupedOrders.filter(
-      (o) =>
-        o.customerName.toLowerCase().includes(q) ||
-        o.product.toLowerCase().includes(q) ||
-        (o.phone && o.phone.includes(q)) ||
-        (o.invoiceNumber && o.invoiceNumber.toLowerCase().includes(q))
+    return availableShipments.filter((s: Shipment) =>
+      s.receiverName?.toLowerCase().includes(q) ||
+      s.shipmentNumber?.toLowerCase().includes(q) ||
+      (s.receiverPhone && s.receiverPhone.includes(q)) ||
+      (s.trackingNumber && s.trackingNumber.toLowerCase().includes(q)) ||
+      (s.receiverCity && s.receiverCity.toLowerCase().includes(q))
     );
-  }, [groupedOrders, search]);
+  }, [availableShipments, search]);
 
   const toggleAll = () => {
-    const allSelected = filtered.every(o => (o._groupIds ?? [o.id]).every(id => selectedIds.has(id)));
-    if (allSelected && filtered.length > 0) {
-      setSelectedIds(new Set());
+    if (filtered.length > 0 && filtered.every((s: Shipment) => selectedIds.has(s.id))) {
+      const next = new Set(selectedIds);
+      filtered.forEach((s: Shipment) => next.delete(s.id));
+      setSelectedIds(next);
     } else {
       const next = new Set(selectedIds);
-      filtered.forEach(o => (o._groupIds ?? [o.id]).forEach(id => next.add(id)));
+      filtered.forEach((s: Shipment) => next.add(s.id));
       setSelectedIds(next);
     }
   };
 
+  const toggleOne = (id: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      shipmentManifestsApi.create({
+        shippingCompanyId: company.id,
+        shipmentIds: Array.from(selectedIds),
+        notes: notes.trim() || undefined,
+      }),
+    onSuccess: (manifest) => {
+      queryClient.invalidateQueries({ queryKey: ["shipment-manifests", company.id] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", company.id] });
+      queryClient.invalidateQueries({ queryKey: ["company-shipments", company.id] });
+      queryClient.invalidateQueries({ queryKey: ["company-stats", company.id] });
+      toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.shipmentCount} شحنة` });
+      if (onCreated) onCreated(manifest);
+      else onClose();
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent
-        className="bg-card border-border max-w-3xl max-h-[90vh] flex flex-col"
-        dir="rtl"
-      >
+      <DialogContent className="bg-card border-border max-w-3xl max-h-[90vh] flex flex-col" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-right flex items-center gap-2">
             <Truck className="w-4 h-4 text-primary" />
-            إنشاء بيان شحن — {company.name}
+            إنشاء بيان شحن شحنات — {company.name}
           </DialogTitle>
         </DialogHeader>
 
@@ -477,7 +411,7 @@ export function CreateManifestDialog({
             <div className="relative flex-1">
               <Search className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
               <Input
-                placeholder="بحث بالاسم / المنتج / الهاتف..."
+                placeholder="بحث بالاسم / رقم الشحنة / الهاتف..."
                 className="h-9 text-sm bg-background pr-8"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -485,7 +419,7 @@ export function CreateManifestDialog({
             </div>
             {!isLoading && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {groupedOrders.length} فاتورة ({allAvailableOrders.length} طلبية)
+                {availableShipments.length} شحنة متاحة
               </span>
             )}
           </div>
@@ -495,132 +429,79 @@ export function CreateManifestDialog({
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 <Checkbox
-                  checked={
-                    filtered.every(o => (o._groupIds ?? [o.id]).every(id => selectedIds.has(id))) && filtered.length > 0
-                  }
+                  checked={filtered.length > 0 && filtered.every((s: Shipment) => selectedIds.has(s.id))}
                   onCheckedChange={toggleAll}
                 />
                 <span className="text-xs text-muted-foreground">
-                  تحديد الكل ({filtered.length} فاتورة)
+                  تحديد الكل ({filtered.length} شحنة)
                 </span>
               </div>
               <span className="text-xs font-bold text-primary">
-                {selectedIds.size} طلبية ({filtered.filter(o => (o._groupIds ?? [o.id]).every(id => selectedIds.has(id))).length} فاتورة)
+                {selectedIds.size} شحنة محددة
               </span>
             </div>
           )}
 
-          {/* Orders table */}
+          {/* Shipments table */}
           <div className="overflow-y-auto flex-1 border border-border rounded-md">
             {isLoading ? (
               <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">
-                جاري تحميل الطلبيات...
+                جاري تحميل الشحنات...
               </div>
             ) : filtered.length === 0 ? (
               <div className="p-10 text-center">
                 <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                 <p className="text-sm text-muted-foreground">
-                  {allAvailableOrders.length === 0
-                    ? "لا توجد طلبيات متاحة حالياً (قيد الانتظار أو جاهزة للشحن)"
+                  {availableShipments.length === 0
+                    ? "لا توجد شحنات متاحة حالياً (انتظار / مؤكدة / متأخرة) لهذه الشركة"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
             ) : (
               <>
                 {/* Table header */}
-                <div className="grid grid-cols-[auto_1fr_1fr_80px_80px_90px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
+                <div className="grid grid-cols-[auto_1fr_1fr_90px_90px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
                   <div className="w-5" />
-                  <div>العميل</div>
-                  <div>المنتج</div>
-                  <div className="text-center">الكمية</div>
-                  <div className="text-left">الإجمالي</div>
-                  <div>شركة الشحن</div>
+                  <div>المستلم</div>
+                  <div>المدينة</div>
+                  <div className="text-left">قيمة COD</div>
+                  <div>الحالة</div>
                 </div>
                 {/* Rows */}
-                {filtered.map((order) => {
-                  const assignedCompany = order.shippingCompanyId ? companyMap[order.shippingCompanyId] : null;
-                  // استخدم _groupIds لو موجودة (فاتورة متعددة المنتجات)
-                  const groupIds = order._groupIds ?? [order.id];
-                  const isGroupSelected = groupIds.every(id => selectedIds.has(id));
+                {filtered.map((s: Shipment) => {
+                  const isSelected = selectedIds.has(s.id);
                   return (
                     <div
-                      key={order.id}
-                      className={`grid grid-cols-[auto_1fr_1fr_80px_80px_90px] gap-0 items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isGroupSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
-                      onClick={() => {
-                        const next = new Set(selectedIds);
-                        if (isGroupSelected) groupIds.forEach(id => next.delete(id));
-                        else groupIds.forEach(id => next.add(id));
-                        setSelectedIds(next);
-                      }}
+                      key={s.id}
+                      className={`grid grid-cols-[auto_1fr_1fr_90px_90px] gap-0 items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
+                      onClick={() => toggleOne(s.id)}
                     >
                       <div className="w-5 flex items-center">
-                        <Checkbox checked={isGroupSelected} onCheckedChange={() => {}} />
+                        <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                       </div>
-                      {/* Customer */}
+                      {/* Receiver */}
                       <div className="min-w-0 pr-2">
-                        <p className="text-xs font-semibold truncate">
-                          {order.customerName}
-                        </p>
+                        <p className="text-xs font-semibold truncate">{s.receiverName}</p>
                         <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          {order.invoiceNumber ? (
-                            <span className="font-mono text-primary/70">{order.invoiceNumber}</span>
-                          ) : (
-                            <span className="font-mono">#{order.id.toString().padStart(4, "0")}</span>
-                          )}
-                          <span className={`px-1 rounded text-[9px] font-bold ${
-                            order.status === "warehouse_ready"
-                              ? "bg-teal-500/15 text-teal-400"
-                              : order.status === "delayed"
-                              ? "bg-blue-500/15 text-blue-400"
-                              : "bg-amber-500/15 text-amber-400"
-                          }`}>
-                            {order.status === "warehouse_ready"
-                              ? "🏠 ما زال في المخزن"
-                              : order.status === "delayed"
-                              ? "مؤجل"
-                              : "معلق"}
-                          </span>
-                          {order._groupCount && order._groupCount > 1 && (
-                            <span className="bg-primary/15 text-primary px-1 rounded text-[9px] font-bold">{order._groupCount} منتجات</span>
-                          )}
-                          {order.phone && (
-                            <span className="text-muted-foreground/70">· {order.phone}</span>
+                          <span className="font-mono text-primary/70">{s.shipmentNumber}</span>
+                          {s.receiverPhone && (
+                            <span className="text-muted-foreground/70">· {s.receiverPhone}</span>
                           )}
                         </p>
                       </div>
-                      {/* Product */}
+                      {/* City */}
                       <div className="min-w-0 pr-2">
-                        <p className="text-xs truncate">{order.product}</p>
-                        {order._groupCount && order._groupCount > 1 ? (
-                          <p className="text-[10px] text-muted-foreground">إجمالي {order.quantity} قطعة</p>
-                        ) : (order.color || order.size) ? (
-                          <p className="text-[10px] text-muted-foreground truncate">
-                            {[order.color, order.size].filter(Boolean).join(" / ")}
-                          </p>
-                        ) : null}
+                        <p className="text-xs truncate">{s.receiverCity || "—"}</p>
                       </div>
-                      {/* Qty */}
-                      <div className="text-center text-xs font-bold">
-                        {order.quantity}
-                      </div>
-                      {/* Price */}
+                      {/* COD */}
                       <div className="text-left text-xs font-bold">
-                        {formatCurrency(order.totalPrice)}
+                        {formatCurrency(Number(s.codAmount || 0))}
                       </div>
-                      {/* Assigned company */}
+                      {/* Status */}
                       <div>
-                        {assignedCompany ? (
-                          <Badge
-                            variant="outline"
-                            className={`text-[9px] font-bold border truncate max-w-[85px] ${assignedCompany === company.name ? "border-primary/50 bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
-                          >
-                            {assignedCompany}
-                          </Badge>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/50">
-                            غير محدد
-                          </span>
-                        )}
+                        <Badge variant="outline" className="text-[9px] font-bold border truncate max-w-[85px]">
+                          {SHIPMENT_STATUS_LABELS_LOCAL[s.status] ?? s.status}
+                        </Badge>
                       </div>
                     </div>
                   );
@@ -649,7 +530,7 @@ export function CreateManifestDialog({
             >
               {createMutation.isPending
                 ? "جاري الإنشاء..."
-                : `إنشاء البيان (${filtered.filter(o => (o._groupIds ?? [o.id]).every(id => selectedIds.has(id))).length} فاتورة — ${selectedIds.size} طلبية)`}
+                : `إنشاء البيان (${selectedIds.size} شحنة)`}
             </Button>
             <Button
               variant="outline"
