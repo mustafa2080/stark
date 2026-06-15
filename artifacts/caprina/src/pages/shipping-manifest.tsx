@@ -1797,7 +1797,7 @@ function InvoicePriceEditor({
   );
 }
 
-function SettlementCard({ manifest, onSaved }: { manifest: ShippingManifestDetail; onSaved: () => void }) {
+function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { manifest: ShippingManifestDetail; onSaved: () => void; isShipmentManifest?: boolean }) {
   const { toast } = useToast();
   const s = manifest.stats;
   const invoicePrice = manifest.invoicePrice ?? 0;
@@ -1820,7 +1820,9 @@ function SettlementCard({ manifest, onSaved }: { manifest: ShippingManifestDetai
     mutationFn: (val: string) => {
       const parsed = val.trim() === "" ? null : parseFloat(val);
       if (parsed !== null && isNaN(parsed)) throw new Error("قيمة غير صحيحة");
-      return manifestsApi.update(manifest.id, { manualShippingCost: parsed });
+      return isShipmentManifest
+        ? shipmentManifestsApi.update(manifest.id, { invoicePrice: parsed })
+        : manifestsApi.update(manifest.id, { manualShippingCost: parsed });
     },
     onSuccess: () => {
       toast({ title: "تم حفظ تكلفة الشحن" });
@@ -3119,12 +3121,24 @@ export default function ShippingManifestPage() {
         returnReason: null,
       } as any;
     });
+    // ─── حسابات بطاقة التسوية — من بيانات الشحنات الفعلية ───────────────────
+    const totalCODAll = orders.reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
+    const deliveredGross = orders
+      .filter(o => o.deliveryStatus === "delivered")
+      .reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
+    const returnLosses = orders
+      .filter(o => o.deliveryStatus === "returned")
+      .reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
+    const sumShippingFees = orders.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0);
+    const manualShippingCost = rawManifest.invoicePrice ? parseFloat(rawManifest.invoicePrice) : null;
+
     return {
       ...rawManifest,
       companyName: rawManifest.company?.name ?? '—',
       companyPhone: null as string | null,
       companyLogo: rawManifest.company?.logo ?? null,
-      manualShippingCost: rawManifest.invoicePrice ? parseFloat(rawManifest.invoicePrice) : null,
+      invoiceNotes: rawManifest.notes ?? null,
+      manualShippingCost,
       orders,
       stats: {
         total: rawManifest.stats.total,
@@ -3135,8 +3149,12 @@ export default function ShippingManifestPage() {
         partial_received: 0,
         delayed: rawManifest.stats.delayed,
         totalCollected: 0,
-        totalShippingCost: rawManifest.invoicePrice ? parseFloat(rawManifest.invoicePrice) : 0,
+        totalShippingCost: manualShippingCost ?? sumShippingFees,
         netProfit: 0,
+        deliveredGross,
+        totalRevenue: totalCODAll,
+        totalCost: 0,
+        returnLosses,
       },
     };
   }, [rawManifest]);
@@ -3929,8 +3947,8 @@ export default function ShippingManifestPage() {
         </Card>
       )}
 
-      {/* Settlement Card مخفي للـ shipment manifests */}
-      {/* {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} />} */}
+      {/* ─── Settlement Card ─── */}
+      {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} isShipmentManifest={true} />}
 
       {/* ─── Orders Table ─── */}
       <Card className="border-border bg-card overflow-visible print:break-inside-avoid">

@@ -108,6 +108,28 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const pending   = items.filter(i => i.deliveryStatus === "pending").length;
     const delayed   = items.filter(i => i.deliveryStatus === "delayed").length;
 
+    // ─── حسابات مالية (P&L) ───────────────────────────────────────────────
+    let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
+    for (const item of items) {
+      const shipment = shipmentMap[item.shipmentId];
+      if (!shipment) continue;
+      const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
+      const shipping = Number(shipment.shippingFee ?? 0);
+
+      if (item.deliveryStatus === "delivered") {
+        totalRevenue += cod;
+        deliveredGross += cod;
+        totalShippingCost += shipping;
+      } else if (item.deliveryStatus === "returned") {
+        // مرتجع كامل → خسارة شحن فقط
+        totalShippingCost += shipping;
+      } else {
+        // pending / delayed → الشحنة لسه عند الشحن
+        totalShippingCost += shipping;
+      }
+    }
+    const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
+
     const [company] = await db.select().from(shippingCompaniesTable)
       .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
 
@@ -115,7 +137,11 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       ...manifest,
       company: company ?? null,
       items: enrichedItems,
-      stats: { total: items.length, delivered, returned, pending, delayed },
+      stats: {
+        total: items.length, delivered, returned, pending, delayed,
+        totalRevenue, totalCost, totalShippingCost, returnLosses,
+        netProfit, deliveredGross,
+      },
     });
   } catch (e) {
     console.error("[GET /shipment-manifests/:id]", e);

@@ -1508,7 +1508,12 @@ export interface ShipmentManifestDetail {
     deliveredAt: string | null;
     shipment: Shipment | null;
   }>;
-  stats: { total: number; delivered: number; returned: number; pending: number; delayed: number };
+  stats: {
+    total: number; delivered: number; returned: number; pending: number; delayed: number;
+    totalRevenue: number; totalCost: number; totalShippingCost: number;
+    returnLosses: number; netProfit: number; deliveredGross: number;
+  };
+  manualShippingCost?: number | null;
 }
 
 export const shipmentManifestsApi = {
