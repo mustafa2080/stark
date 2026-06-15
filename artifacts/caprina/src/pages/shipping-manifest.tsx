@@ -2709,7 +2709,7 @@ function AddOrdersToManifestDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const AVAILABLE_STATUSES = ["waiting", "confirmed", "delayed"];
+  const AVAILABLE_STATUSES = ["waiting", "confirmed", "delayed", "in_transit"];
 
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["shipments-available-for-manifest", companyId],
