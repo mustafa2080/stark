@@ -70,6 +70,7 @@ const CreateShipmentSchema = z.object({
   internalNotes:   z.string().nullish(),
   returnReason:    z.string().nullish(),
   returnNote:      z.string().nullish(),
+  partialQuantity: z.coerce.number().int().nullish(),
   status:          z.string().default("waiting"),
 });
 
@@ -214,6 +215,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
           internalNotes:    shipmentsTable.internalNotes,
           returnReason:     shipmentsTable.returnReason,
           returnNote:       shipmentsTable.returnNote,
+          partialQuantity:  shipmentsTable.partialQuantity,
           estimatedDelivery: shipmentsTable.estimatedDelivery,
           actualDelivery:   shipmentsTable.actualDelivery,
           createdAt:        shipmentsTable.createdAt,
@@ -451,6 +453,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.internalNotes    !== undefined) updateData.internalNotes    = d.internalNotes;
     if (d.returnReason     !== undefined) updateData.returnReason     = d.returnReason;
     if (d.returnNote       !== undefined) updateData.returnNote       = d.returnNote;
+    if (d.partialQuantity  !== undefined) updateData.partialQuantity  = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
 
     const cond = tenantId !== null
@@ -501,6 +504,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.internalNotes     !== undefined) updateData.internalNotes     = d.internalNotes;
     if (d.returnReason      !== undefined) updateData.returnReason      = d.returnReason;
     if (d.returnNote        !== undefined) updateData.returnNote        = d.returnNote;
+    if (d.partialQuantity   !== undefined) updateData.partialQuantity   = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
