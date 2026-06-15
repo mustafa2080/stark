@@ -226,8 +226,9 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
 
 // ─── PATCH /shipment-manifests/:id/items/:shipmentId ─────────────────────────
 const UpdateItemSchema = z.object({
-  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed"]),
+  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed", "partial_delivered"]),
   deliveryNote:   z.string().nullish(),
+  partialQuantity: z.number().int().nullish(),
   returnReceived: z.boolean().nullish(),
   returnReason:   z.string().nullish(),
 });
@@ -243,9 +244,10 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       .set({
         deliveryStatus: body.deliveryStatus,
         deliveryNote:   body.deliveryNote ?? null,
+        partialQuantity: body.partialQuantity ?? null,
         returnReason:   body.returnReason ?? null,
         returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
-        deliveredAt:    body.deliveryStatus === "delivered" ? now : undefined,
+        deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
       })
       .where(and(
         eq(shipmentManifestItemsTable.manifestId, manifestId),
@@ -257,6 +259,7 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       delivered: "delivered",
       returned:  "returned",
       delayed:   "delayed",
+      partial_delivered: "delivered",
       pending:   "in_transit",
     };
     await db.update(shipmentsTable)
@@ -409,7 +412,7 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
         const shipping = Number(shipment.shippingFee ?? 0);
         const cost     = Number(shipment.costPrice ?? 0);
 
-        if (item.deliveryStatus === "delivered") {
+        if (item.deliveryStatus === "delivered" || item.deliveryStatus === "partial_delivered") {
           totalRevenue += cod;
           deliveredGross += cod;
           totalCost += cost;

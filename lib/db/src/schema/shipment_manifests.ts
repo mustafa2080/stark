@@ -25,6 +25,7 @@ export const shipmentManifestItemsTable = mysqlTable("shipment_manifest_items", 
   deliveryStatus: varchar("delivery_status", { length: 50 }).notNull().default("pending"),
   // pending | delivered | returned | partial_delivered | delayed
   deliveryNote:   text("delivery_note"),
+  partialQuantity: int("partial_quantity"), // الكمية المستلمة فعليًا (لو deliveryStatus = partial_delivered)
   deliveredAt:    datetime("delivered_at"),
   returnReceived: int("return_received"), // 1=تم الاستلام، 0=مازال في شركة الشحن
   returnReason:   varchar("return_reason", { length: 100 }), // سبب الإرجاع (لو deliveryStatus = returned)

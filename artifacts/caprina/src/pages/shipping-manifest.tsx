@@ -94,10 +94,11 @@ const DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; b
 ];
 
 // ─── خيارات حالة التسليم لبيانات الشحنات (shipment manifests) ────────────────
-// النظام الجديد بيدعم 4 حالات فقط: pending | delivered | delayed | returned
+// النظام يدعم 5 حالات: pending | delivered | partial_delivered | delayed | returned
 const SHIPMENT_DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
   { value: "pending",   label: "قيد الانتظار", color: "text-muted-foreground",                                 bg: "border-border" },
   { value: "delivered", label: "مسلَّم ✓",      color: "text-emerald-700 dark:text-emerald-400",                bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
+  { value: "partial_delivered", label: "مسلَّم جزئي", color: "text-teal-700 dark:text-teal-400",               bg: "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20" },
   { value: "delayed",   label: "مؤجل",          color: "text-orange-700  dark:text-orange-400",                 bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
   { value: "returned",  label: "مرتجع",         color: "text-red-700     dark:text-red-400",                    bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
 ];
@@ -177,7 +178,7 @@ function OrderDeliveryRow({
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (status === "partial_received") {
+      if (status === "partial_received" || status === "partial_delivered") {
         const qty = parseInt(partialQty);
         if (partialQty === "" || partialQty === null || partialQty === undefined || isNaN(qty) || qty < 0) {
           throw new Error("يجب إدخال الكمية المستلمة أولاً");
@@ -187,16 +188,20 @@ function OrderDeliveryRow({
         }
       }
       let finalNote = note.trim() || null;
-      if (status === "partial_received" && partialProduct.trim()) {
+      if ((status === "partial_received" || status === "partial_delivered") && partialProduct.trim()) {
         finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
       }
       if (isShipmentManifest) {
-        // shipment manifests: deliveryStatus, deliveryNote, returnReceived, returnReason
-        const allowed = ["pending","delivered","returned","delayed"] as const;
-        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"returned"|"delayed" : "pending";
+        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
+        const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
+        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
         return shipmentManifestsApi.updateItem(manifestId, order.id, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
+          partialQuantity:
+            safeStatus === "partial_delivered" && partialQty !== "" && partialQty !== null && partialQty !== undefined
+              ? parseInt(partialQty)
+              : null,
           returnReceived: status === "returned" ? returnReceived : null,
           returnReason: status === "returned" ? (returnReason || null) : null,
         });
@@ -224,12 +229,12 @@ function OrderDeliveryRow({
 
   const opt = deliveryOpt(order.deliveryStatus, isShipmentManifest);
   const needsNote = status === "postponed" || status === "returned" || status === "delayed";
-  const needsPartial = status === "partial_received";
+  const needsPartial = status === "partial_received" || status === "partial_delivered";
 
   const hasChanges =
     status !== order.deliveryStatus ||
     note !== (order.deliveryNote ?? "") ||
-    (status === "partial_received" &&
+    ((status === "partial_received" || status === "partial_delivered") &&
       partialQty !== (order.partialQuantity?.toString() ?? "")) ||
     (status === "partial_received" &&
       partialReturnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
@@ -874,35 +879,35 @@ function InvoiceGroupDeliveryRow({
         let finalStatus: DeliveryStatus = bulkStatus;
         let finalPartialQty: number | null = null;
 
-        if (isMulti && bulkStatus === "partial_received") {
+        if (isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered")) {
           // فاتورة متعددة + partial: كل منتج له كميته المستقلة من partialQtyMap
           const key = order.id;
           const val = partialQtyMap[key];
           const parsed = (val !== "" && val !== undefined && val !== null) ? parseInt(val) : null;
           if (parsed !== null && !isNaN(parsed) && parsed >= 0) {
-            finalStatus = "partial_received";
+            finalStatus = bulkStatus;
             finalPartialQty = parsed;
           } else if (order.partialQuantity && order.partialQuantity > 0) {
             // مفيش قيمة جديدة → نستخدم الكمية الموجودة في DB (مش نغير الحالة)
-            finalStatus = "partial_received";
+            finalStatus = bulkStatus;
             finalPartialQty = order.partialQuantity;
           } else {
             // مفيش قيمة خالص → نفضل على نفس الحالة القديمة (مش نبعت pending)
             finalStatus = (order.deliveryStatus as DeliveryStatus) ?? bulkStatus;
             finalPartialQty = null;
           }
-        } else if (isPerItemMode && bulkStatus !== "partial_received") {
+        } else if (isPerItemMode && bulkStatus !== "partial_received" && bulkStatus !== "partial_delivered") {
           // فاتورة متعددة + حالة أخرى: كل منتج له حالته المستقلة من perOrderStatus
           const key = order.id;
           finalStatus = perOrderStatus[key] ?? bulkStatus;
-          if (finalStatus === "partial_received") {
+          if (finalStatus === "partial_received" || finalStatus === "partial_delivered") {
             const val = partialQtyMap[key];
             finalPartialQty = (val !== "" && val !== undefined) ? parseInt(val) : null;
           }
         } else {
           // فاتورة منتج واحد
           finalStatus = bulkStatus;
-          if (finalStatus === "partial_received") {
+          if (finalStatus === "partial_received" || finalStatus === "partial_delivered") {
             const key = order.id;
             const val = partialQtyMap[key];
             finalPartialQty = (val !== "" && val !== undefined) ? parseInt(val) : null;
@@ -910,11 +915,12 @@ function InvoiceGroupDeliveryRow({
         }
 
         if (isShipmentManifest) {
-          const allowedSt = ["pending","delivered","returned","delayed"] as const;
-          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"returned"|"delayed" : "pending";
+          const allowedSt = ["pending","delivered","partial_delivered","returned","delayed"] as const;
+          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
           await shipmentManifestsApi.updateItem(manifestId, order.id, {
             deliveryStatus: safeSt,
             deliveryNote: bulkNote.trim() || null,
+            partialQuantity: safeSt === "partial_delivered" ? finalPartialQty : null,
             returnReceived: safeSt === "returned" ? bulkReturnReceived : null,
             returnReason: safeSt === "returned" ? (bulkReturnReason.trim() || null) : null,
           });
@@ -1324,7 +1330,7 @@ function InvoiceGroupDeliveryRow({
                 </Select>
               </div>
               {/* منتج واحد: خانة الكمية في نفس الصف */}
-              {!isMulti && bulkStatus === "partial_received" && group[0] && (
+              {!isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
                 <div>
                   <Label className="text-[10px] mb-1 block text-muted-foreground">
                     الكمية المستلمة (من {group[0].quantity}) <span className="text-destructive font-bold">*</span>
@@ -1346,8 +1352,8 @@ function InvoiceGroupDeliveryRow({
               )}
             </div>
 
-            {/* ── فاتورة متعددة + partial_received: اعرض كل منتج على حدة ── */}
-            {isMulti && bulkStatus === "partial_received" && (
+            {/* ── فاتورة متعددة + partial_received/partial_delivered: اعرض كل منتج على حدة ── */}
+            {isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && (
               <div className="flex flex-col gap-2 border border-teal-300 dark:border-teal-700 rounded-md p-2.5 bg-teal-50 dark:bg-teal-900/20">
                 <Label className="text-[10px] font-bold text-teal-700 dark:text-teal-400">
                   حدد الكمية المستلمة لكل منتج
@@ -1633,10 +1639,10 @@ function InvoiceGroupDeliveryRow({
                   (needsBulkNote && !bulkNote.trim()) ||
                   (bulkStatus === "returned" && bulkReturnReceived === null) ||
                   (bulkStatus === "partial_received" && partialReturnReceived === null) ||
-                  (!isPerItemMode && bulkStatus === "partial_received" && group[0] && (
+                  (!isPerItemMode && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
                     partialQtyMap[group[0].id] === "" || partialQtyMap[group[0].id] === undefined
                   )) ||
-                  (isMulti && bulkStatus === "partial_received" && !group.some(o => {
+                  (isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && !group.some(o => {
                     const val = partialQtyMap[o.id];
                     return val !== "" && val !== undefined && val !== null && parseInt(val) > 0;
                   })) ||
@@ -3102,7 +3108,7 @@ export default function ShippingManifestPage() {
         deliveredAt: item.deliveredAt,
         returnReceived: item.returnReceived,
         addedAt: rawManifest.createdAt,
-        partialQuantity: null,
+        partialQuantity: item.partialQuantity ?? null,
         returnReason: item.returnReason ?? null,
       } as any;
     });

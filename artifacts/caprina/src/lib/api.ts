@@ -683,7 +683,7 @@ export interface MovementTotals {
 }
 
 // ─── Shipping Manifests API ─────────────────────────────────────────────────
-export type DeliveryStatus = "pending" | "delivered" | "postponed" | "partial_received" | "returned" | "delayed";
+export type DeliveryStatus = "pending" | "delivered" | "postponed" | "partial_received" | "returned" | "delayed" | "partial_delivered";
 
 export interface ShippingManifestListItem {
   id: number;
@@ -1526,7 +1526,7 @@ export const shipmentManifestsApi = {
     apiFetch<{ id: number; manifestNumber: string; shipmentCount: number }>(
       "/shipment-manifests", { method: "POST", body: JSON.stringify(data) }
     ),
-  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; returnReceived?: boolean | null; returnReason?: string | null }) =>
+  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; partialQuantity?: number | null; returnReceived?: boolean | null; returnReason?: string | null }) =>
     apiFetch<{ success: boolean }>(`/shipment-manifests/${manifestId}/items/${shipmentId}`, {
       method: "PATCH", body: JSON.stringify(data),
     }),
