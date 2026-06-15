@@ -1508,9 +1508,9 @@ export default function Orders() {
                           return null;
                         })()}
                         {order.status === "delayed" && (() => {
-                          const dn = (order as any).delayNote as string | null | undefined;
-                          if (!dn) return null;
-                          return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-blue-600 dark:text-blue-400">⏸ {dn}</span>;
+                          const dn = (order as any).delayNote as string | null | undefined
+                            || (order as any).notes as string | null | undefined;
+                          return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-violet-400 dark:text-violet-300">⏸ {dn || "تحت التسليم"}</span>;
                         })()}
                         {order.status === "partial_received" && (() => {
                           const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
@@ -1524,9 +1524,13 @@ export default function Orders() {
                             </span>
                           );
                         })()}
-                        {order.status === "returned" && retReason && (
-                          <span className="text-[9px] text-red-600 dark:text-red-400">{retReason === "other" && retNote ? retNote : returnReasonLabel(retReason)}</span>
-                        )}
+                        {order.status === "returned" && (() => {
+                          const displayReason = retReason
+                            ? (retReason === "other" && retNote ? retNote : returnReasonLabel(retReason))
+                            : ((order as any).notes as string | null | undefined) || null;
+                          if (!displayReason) return null;
+                          return <span className="inline-flex items-center gap-0.5 text-[9px] text-red-600 dark:text-red-400"><RotateCcw className="w-2.5 h-2.5 shrink-0" />{displayReason}</span>;
+                        })()}
                         <span className="text-[9px] text-muted-foreground mr-auto">{format(new Date(order.createdAt), "MM/dd")}</span>
                       </div>
                     </div>
@@ -1671,11 +1675,11 @@ export default function Orders() {
                             return null;
                           })()}
                           {order.status === "delayed" && (() => {
-                            const dn = (order as any).delayNote as string | null | undefined;
-                            if (!dn) return null;
+                            const dn = (order as any).delayNote as string | null | undefined
+                              || (order as any).notes as string | null | undefined;
                             return (
                               <div className="flex items-center justify-center gap-0.5 mt-1">
-                                <span className="text-[9px] font-bold text-violet-400 dark:text-violet-300 leading-none">⏸ {dn}</span>
+                                <span className="text-[9px] font-bold text-violet-400 dark:text-violet-300 leading-none">⏸ {dn || "تحت التسليم"}</span>
                               </div>
                             );
                           })()}
@@ -1691,14 +1695,20 @@ export default function Orders() {
                               </div>
                             );
                           })()}
-                          {order.status === "returned" && retReason && (
-                            <div className="flex items-center justify-center gap-0.5">
-                              <RotateCcw className="w-2.5 h-2.5 text-red-500 shrink-0" />
-                              <span className="text-[9px] text-red-600 dark:text-red-400 leading-none">
-                                {retReason === "other" && retNote ? retNote : returnReasonLabel(retReason)}
-                              </span>
-                            </div>
-                          )}
+                          {order.status === "returned" && (() => {
+                            const displayReason = retReason
+                              ? (retReason === "other" && retNote ? retNote : returnReasonLabel(retReason))
+                              : ((order as any).notes as string | null | undefined) || null;
+                            if (!displayReason) return null;
+                            return (
+                              <div className="flex items-center justify-center gap-0.5">
+                                <RotateCcw className="w-2.5 h-2.5 text-red-500 shrink-0" />
+                                <span className="text-[9px] text-red-600 dark:text-red-400 leading-none">
+                                  {displayReason}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           </div>
                         </TableCell>
                         <TableCell className="text-center p-1">
