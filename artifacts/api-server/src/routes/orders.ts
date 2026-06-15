@@ -648,6 +648,32 @@ router.delete("/orders/archived/purge", async (req, res): Promise<void> => {
 
 // ظ¤ظ¤ظ¤ Orders in manifest ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤ظ¤
 
+// ── جيب كل الأوردرات بدون grouping عشان الـ AddOrdersToManifestDialog ──
+router.get("/orders/for-manifest-dialog", async (req, res): Promise<void> => {
+  const tenantId = getTenantId(req);
+  const conditions: any[] = [isNull(ordersTable.deletedAt)];
+  if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
+
+  const rows = await db
+    .select({
+      id: ordersTable.id,
+      customerName: ordersTable.customerName,
+      product: ordersTable.product,
+      phone: ordersTable.phone,
+      quantity: ordersTable.quantity,
+      totalPrice: ordersTable.totalPrice,
+      status: ordersTable.status,
+      color: ordersTable.color,
+      size: ordersTable.size,
+      invoiceNumber: ordersTable.invoiceNumber,
+    })
+    .from(ordersTable)
+    .where(and(...conditions))
+    .orderBy(desc(ordersTable.createdAt));
+
+  res.json(rows);
+});
+
 router.get("/orders/in-manifest-ids", async (_req, res): Promise<void> => {
   const openManifests = await db.select({ id: shippingManifestsTable.id }).from(shippingManifestsTable).where(eq(shippingManifestsTable.status, "open"));
   if (openManifests.length === 0) { res.json({ ids: [] }); return; }

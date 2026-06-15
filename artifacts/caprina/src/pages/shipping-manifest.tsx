@@ -2712,11 +2712,11 @@ function AddOrdersToManifestDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  // جيب كل الشحنات عشان المستخدم يقدر يبحث ويضيف أي شحنة
+  // جيب كل الشحنات بدون grouping عشان الـ dialog
   const { data: allAvailableOrders, isLoading } = useQuery({
-    queryKey: ["orders-available-for-manifest"],
+    queryKey: ["orders-for-manifest-dialog"],
     queryFn: async () => {
-      return await apiFetch<OrderRow[]>(`/orders`);
+      return await apiFetch<OrderRow[]>(`/orders/for-manifest-dialog`);
     },
     staleTime: 10000,
   });
