@@ -3695,6 +3695,20 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             </FormControl>
                           </FormItem>
                         )} />
+                        <FormField control={form.control} name="shippingCompanyId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" />شركة الشحن</FormLabel>
+                            <Select value={field.value?.toString() || "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر شركة" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">بدون</SelectItem>
+                                {shippingCompanies?.filter((c: any) => c.isActive).map((c: any) => (
+                                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
                       </div>
                     </div>
 
