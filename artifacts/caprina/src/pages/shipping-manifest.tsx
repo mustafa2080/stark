@@ -4293,7 +4293,7 @@ export default function ShippingManifestPage() {
         />
       )}
 
-      {showAddOrdersDialog && manifest && false && (
+      {showAddOrdersDialog && manifest && (
         <AddOrdersToManifestDialog
           manifestId={id}
           manifestNumber={manifest.manifestNumber}
