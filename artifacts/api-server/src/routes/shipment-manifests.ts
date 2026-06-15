@@ -48,19 +48,33 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
       .where(where)
       .orderBy(desc(shipmentManifestsTable.createdAt));
 
-    // جيب عدد الشحنات لكل بيان
+    // جيب عدد الشحنات لكل بيان مع تفصيل الحالات
     const ids = manifests.map(m => m.id);
     let countMap: Record<number, number> = {};
+    let statusCountMap: Record<number, { pending: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
     if (ids.length) {
       const counts = await db
         .select({
           manifestId: shipmentManifestItemsTable.manifestId,
+          deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
           cnt: count(),
         })
         .from(shipmentManifestItemsTable)
         .where(inArray(shipmentManifestItemsTable.manifestId, ids))
-        .groupBy(shipmentManifestItemsTable.manifestId);
-      counts.forEach(r => { countMap[r.manifestId] = Number(r.cnt); });
+        .groupBy(shipmentManifestItemsTable.manifestId, shipmentManifestItemsTable.deliveryStatus);
+
+      counts.forEach(r => {
+        const mid = r.manifestId;
+        countMap[mid] = (countMap[mid] ?? 0) + Number(r.cnt);
+        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
+        const st = r.deliveryStatus ?? "pending";
+        const n = Number(r.cnt);
+        if (st === "pending") statusCountMap[mid].pending += n;
+        else if (st === "delayed") statusCountMap[mid].delayed += n;
+        else if (st === "returned") statusCountMap[mid].returned += n;
+        else if (st === "delivered") statusCountMap[mid].delivered += n;
+        else if (st === "partial_delivered") statusCountMap[mid].partial += n;
+      });
     }
 
     // جيب اسم الشركة
@@ -72,6 +86,7 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
     const result = manifests.map(m => ({
       ...m,
       shipmentCount: countMap[m.id] ?? 0,
+      statusCounts: statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
       companyName: coMap[m.shippingCompanyId]?.name ?? "",
       companyLogo: coMap[m.shippingCompanyId]?.logo ?? null,
     }));

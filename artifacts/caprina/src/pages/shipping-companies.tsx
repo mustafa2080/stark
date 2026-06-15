@@ -120,7 +120,15 @@ function CompanyStats({ companyId, canViewFinancials }: { companyId: number; can
     queryFn: () => manifestsApi.list(companyId),
     staleTime: 10000,
   });
+  const { data: shipmentManifests } = useQuery({
+    queryKey: ["shipment-manifests", companyId],
+    queryFn: () => shipmentManifestsApi.list(companyId),
+    staleTime: 10000,
+  });
   const openManifest = manifests?.find(m => m.status === "open") ?? null;
+  const openShipmentManifest = shipmentManifests?.find(m => m.status === "open") ?? null;
+  // البيان المفتوح الفعلي — نظام الشحنات له الأولوية
+  const activeManifest = openShipmentManifest ?? openManifest;
   if (!stats && !shipmentStats) return null;
 
   // ─── دمج إحصائيات نظام الطلبات (القديم) ونظام الشحنات (الجديد) ─────────────
@@ -166,36 +174,36 @@ function CompanyStats({ companyId, canViewFinancials }: { companyId: number; can
       {/* قسم البيان الحالي */}
       <div className="bg-muted/20 border border-border/40 rounded-lg p-2">
         <p className="text-[10px] text-muted-foreground text-center mb-1.5">البيان الحالي</p>
-        {openManifest ? (
+        {activeManifest ? (
           <div className="space-y-1.5">
-            <p className="text-sm font-black text-amber-400 text-center drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]">• {openManifest.orderCount} •</p>
+            <p className="text-sm font-black text-amber-400 text-center drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]">• {(activeManifest as any).shipmentCount ?? (activeManifest as any).orderCount ?? 0} •</p>
             <div className="grid grid-cols-4 gap-1">
               {/* قيد الانتظار */}
               <div className="flex flex-col items-center bg-blue-500/10 border border-blue-500/20 rounded-lg py-1.5 px-0.5 relative">
                 <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-blue-400 shadow-[0_0_5px_1px_rgba(96,165,250,0.7)]" />
                 <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-blue-400 shadow-[0_0_5px_1px_rgba(96,165,250,0.7)]" />
-                <span className="text-[11px] font-black text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.9)]">{openManifest.pendingCount ?? 0}</span>
+                <span className="text-[11px] font-black text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.9)]">{(activeManifest as any).statusCounts?.pending ?? (activeManifest as any).pendingCount ?? 0}</span>
                 <span className="text-[7px] text-muted-foreground leading-tight text-center mt-0.5">قيد الانتظار</span>
               </div>
               {/* شحنات مؤجلة */}
               <div className="flex flex-col items-center bg-amber-500/10 border border-amber-500/20 rounded-lg py-1.5 px-0.5 relative">
                 <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-amber-400 shadow-[0_0_5px_1px_rgba(251,191,36,0.7)]" />
                 <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-amber-400 shadow-[0_0_5px_1px_rgba(251,191,36,0.7)]" />
-                <span className="text-[11px] font-black text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.9)]">{openManifest.postponedCount ?? 0}</span>
+                <span className="text-[11px] font-black text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.9)]">{(activeManifest as any).statusCounts?.delayed ?? (activeManifest as any).postponedCount ?? 0}</span>
                 <span className="text-[7px] text-muted-foreground leading-tight text-center mt-0.5">شحنات مؤجلة</span>
               </div>
               {/* شحنات مرتجعة */}
               <div className="flex flex-col items-center bg-red-500/10 border border-red-500/20 rounded-lg py-1.5 px-0.5 relative">
                 <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-red-400 shadow-[0_0_5px_1px_rgba(248,113,113,0.7)]" />
                 <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-red-400 shadow-[0_0_5px_1px_rgba(248,113,113,0.7)]" />
-                <span className="text-[11px] font-black text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.9)]">{openManifest.returnedCount ?? 0}</span>
+                <span className="text-[11px] font-black text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.9)]">{(activeManifest as any).statusCounts?.returned ?? (activeManifest as any).returnedCount ?? 0}</span>
                 <span className="text-[7px] text-muted-foreground leading-tight text-center mt-0.5">شحنات مرتجعة</span>
               </div>
               {/* توصيل جزئي */}
               <div className="flex flex-col items-center bg-teal-500/10 border border-teal-500/20 rounded-lg py-1.5 px-0.5 relative">
                 <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-teal-400 shadow-[0_0_5px_1px_rgba(45,212,191,0.7)]" />
                 <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-teal-400 shadow-[0_0_5px_1px_rgba(45,212,191,0.7)]" />
-                <span className="text-[11px] font-black text-teal-400 drop-shadow-[0_0_5px_rgba(45,212,191,0.9)]">{(openManifest as any).partialCount ?? 0}</span>
+                <span className="text-[11px] font-black text-teal-400 drop-shadow-[0_0_5px_rgba(45,212,191,0.9)]">{(activeManifest as any).statusCounts?.partial ?? (activeManifest as any).partialCount ?? 0}</span>
                 <span className="text-[7px] text-muted-foreground leading-tight text-center mt-0.5">مرتجع جزئي</span>
               </div>
             </div>

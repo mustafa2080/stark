@@ -1485,6 +1485,7 @@ export interface ShipmentManifestListItem {
   notes: string | null;
   invoicePrice: string | null;
   shipmentCount: number;
+  statusCounts: { pending: number; delayed: number; returned: number; delivered: number; partial: number };
   createdAt: string;
   closedAt: string | null;
 }
