@@ -20,7 +20,7 @@ import { format } from "date-fns";
 const AVAILABLE_SHIPMENT_STATUSES = ["waiting", "confirmed", "delayed"];
 
 const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
-  waiting: "انتظار",
+  waiting: "🏠 ما زال في المخزن",
   confirmed: "مؤكدة",
   delayed: "متأخرة",
 };
