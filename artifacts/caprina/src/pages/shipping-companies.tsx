@@ -341,9 +341,12 @@ export function CreateManifestDialog({
     queryFn: () => shipmentsApi.list({ shippingCompanyId: company.id, limit: 200 }),
   });
 
+  // كل شحنات الشركة (بدون فلتر حالة) — لمعرفة إجمالي الشحنات المرتبطة بها
+  const allCompanyShipments = data?.data ?? [];
+
   // الشحنات المتاحة: waiting / confirmed / delayed فقط
   const availableShipments = useMemo(() => {
-    return (data?.data ?? []).filter((s: Shipment) => AVAILABLE_SHIPMENT_STATUSES.includes(s.status));
+    return allCompanyShipments.filter((s: Shipment) => AVAILABLE_SHIPMENT_STATUSES.includes(s.status));
   }, [data]);
 
   const filtered = useMemo(() => {
@@ -453,7 +456,9 @@ export function CreateManifestDialog({
                 <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                 <p className="text-sm text-muted-foreground">
                   {availableShipments.length === 0
-                    ? "لا توجد شحنات متاحة حالياً (انتظار / مؤكدة / متأخرة) لهذه الشركة"
+                    ? allCompanyShipments.length === 0
+                      ? "لا توجد شحنات لهذه الشركة حالياً — يمكنك إضافة شحنات جديدة لها من قسم الشحنات"
+                      : "لا توجد شحنات بحالة (انتظار / مؤكدة / متأخرة) جاهزة للبيان — باقي شحنات الشركة في حالات أخرى (تم الاستلام / في الطريق / تم التسليم...)"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
