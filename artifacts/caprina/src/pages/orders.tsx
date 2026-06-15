@@ -899,9 +899,11 @@ export default function Orders() {
                         })()}
                         {order.status === "delayed" && (() => {
                           const dn = (order as any).delayNote as string | null | undefined;
-                          if (!dn) return null;
-                          return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-blue-600 dark:text-blue-400">⏸ {dn}</span>;
+                          return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-blue-600 dark:text-blue-400">▐ {dn || "تحت التسليم"}</span>;
                         })()}
+                        {order.status === "in_shipping" && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-500 dark:text-sky-400">🚚 تحت التسليم</span>
+                        )}
                         {order.status === "partial_received" && (() => {
                           const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                           const pq = (order as any).partialQuantity as number | null | undefined;
@@ -1174,13 +1176,17 @@ export default function Orders() {
                           })()}
                           {order.status === "delayed" && (() => {
                             const dn = (order as any).delayNote as string | null | undefined;
-                            if (!dn) return null;
                             return (
                               <div className="flex items-center justify-center gap-0.5 mt-1">
-                                <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 leading-none">⏸ {dn}</span>
+                                <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 leading-none">▐ {dn || "تحت التسليم"}</span>
                               </div>
                             );
                           })()}
+                          {order.status === "in_shipping" && (
+                            <div className="flex items-center justify-center gap-0.5 mt-1">
+                              <span className="text-[9px] font-bold text-sky-500 dark:text-sky-400 leading-none">🚚 تحت التسليم</span>
+                            </div>
+                          )}
                           {order.status === "partial_received" && (() => {
                             const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                             const pq = (order as any).partialQuantity as number | null | undefined;
