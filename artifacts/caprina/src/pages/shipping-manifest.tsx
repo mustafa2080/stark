@@ -2056,7 +2056,11 @@ function CloseConfirmDialog({
   // احسب الإحصائيات على مستوى الفواتير (مش الطلبات الفردية)
   const invoiceStatusMap = useMemo(() => {
     const map = new Map<string, string>();
-    const priority: Record<string, number> = { returned: 5, postponed: 4, partial_received: 3, pending: 2, delivered: 1 };
+    const priority: Record<string, number> = {
+      returned: 5, postponed: 4, delayed: 4,
+      partial_received: 3, partial_delivered: 3,
+      pending: 2, delivered: 1,
+    };
     for (const o of manifest.orders) {
       const key = (o as any).invoiceNumber?.trim() || `solo-${o.id}`;
       const existing = map.get(key);
@@ -2071,9 +2075,9 @@ function CloseConfirmDialog({
     let pending = 0, postponed = 0, returned = 0, partial = 0, delivered = 0;
     for (const status of invoiceStatusMap.values()) {
       if (status === "pending") pending++;
-      else if (status === "postponed") postponed++;
+      else if (status === "postponed" || status === "delayed") postponed++;
       else if (status === "returned") returned++;
-      else if (status === "partial_received") partial++;
+      else if (status === "partial_received" || status === "partial_delivered") partial++;
       else if (status === "delivered") delivered++;
     }
     return { pending, postponed, returned, partial, delivered };
@@ -2136,13 +2140,15 @@ function CloseConfirmDialog({
                 {invoiceCounts.partial}
               </p>
               {(() => {
-                const partialOrders = manifest.orders.filter(o => o.deliveryStatus === "partial_received");
+                const partialOrders = manifest.orders.filter(o =>
+                  o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
+                );
                 const totalPartialReturned = partialOrders.reduce((sum, o) => {
                   const delivered = o.partialQuantity ?? 0;
                   const remaining = o.quantity - delivered;
                   return sum + (remaining > 0 ? remaining : 0);
                 }, 0);
-                const atShipping = partialOrders.filter(o => (o as any).returnReceived === 0).length;
+                const atShipping = partialOrders.filter(o => (o as any).returnReceived !== 1).length;
                 const atWarehouse = partialOrders.filter(o => (o as any).returnReceived === 1).length;
                 return (
                   <>

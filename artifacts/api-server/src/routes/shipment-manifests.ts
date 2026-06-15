@@ -114,6 +114,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const returned  = items.filter(i => i.deliveryStatus === "returned").length;
     const pending   = items.filter(i => i.deliveryStatus === "pending").length;
     const delayed   = items.filter(i => i.deliveryStatus === "delayed").length;
+    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     // ─── حسابات مالية (P&L) ───────────────────────────────────────────────
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
@@ -129,11 +130,18 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         deliveredGross += cod;
         totalCost += cost;
         totalShippingCost += shipping;
+      } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+        const qty = Number(shipment.quantity ?? 1);
+        const unitCod = qty > 0 ? cod / qty : cod;
+        const unitCost = qty > 0 ? cost / qty : cost;
+        const partialCod = unitCod * Number(item.partialQuantity);
+        totalRevenue += partialCod;
+        deliveredGross += partialCod;
+        totalCost += unitCost * Number(item.partialQuantity);
+        totalShippingCost += shipping;
       } else if (item.deliveryStatus === "returned") {
-        // مرتجع كامل → خسارة شحن فقط
         totalShippingCost += shipping;
       } else {
-        // pending / delayed → الشحنة لسه عند الشحن
         totalShippingCost += shipping;
       }
     }
@@ -147,7 +155,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       company: company ?? null,
       items: enrichedItems,
       stats: {
-        total: items.length, delivered, returned, pending, delayed,
+        total: items.length, delivered, returned, pending, delayed, partial,
         totalRevenue, totalCost, totalShippingCost, returnLosses,
         netProfit, deliveredGross,
       },
