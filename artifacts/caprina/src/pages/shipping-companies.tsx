@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type ShippingManifestListItem, type ManifestCompanyStats, type Shipment } from "@/lib/api";
+import { shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type ShippingManifestListItem, type ShipmentManifestListItem, type ManifestCompanyStats, type Shipment } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -232,9 +232,9 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
     }
   };
 
-  // بعد إنشاء البيان — انقل لصفحة الشركة مباشرةً
-  const handleManifestCreated = () => {
-    navigate(`/shipping/company/${company.id}`);
+  // بعد إنشاء البيان — انقل لصفحة تفاصيل البيان مباشرةً
+  const handleManifestCreated = (manifest: { id: number; manifestNumber: string; shipmentCount: number }) => {
+    navigate(`/shipping/shipment-manifests/${manifest.id}`);
   };
 
   return (
@@ -285,24 +285,46 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
 
       {expanded && (
         <div className="mt-2 space-y-1.5">
-          {!manifests ? (
-            <p className="text-xs text-muted-foreground text-center py-3">جاري التحميل...</p>
-          ) : manifests.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-3">لا توجد بيانات شحن بعد</p>
-          ) : (
-            manifests.map(m => (
-              <Link key={m.id} href={`/shipping/manifests/${m.id}`}>
-                <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors">
-                  <div>
-                    <p className="text-xs font-bold">{m.manifestNumber}</p>
-                    <p className="text-[10px] text-muted-foreground">{format(new Date(m.createdAt), "yyyy/MM/dd")} · {m.orderCount} طلب</p>
+          {/* بيانات الشحنات (النظام الجديد) */}
+          {shipmentManifests && shipmentManifests.length > 0 && (
+            <>
+              <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide px-1">بيانات الشحنات</p>
+              {shipmentManifests.map(m => (
+                <Link key={`sm-${m.id}`} href={`/shipping/shipment-manifests/${m.id}`}>
+                  <div className="flex items-center justify-between p-2.5 rounded-md bg-primary/5 hover:bg-primary/10 cursor-pointer transition-colors border border-primary/10">
+                    <div>
+                      <p className="text-xs font-bold">{m.manifestNumber}</p>
+                      <p className="text-[10px] text-muted-foreground">{format(new Date(m.createdAt), "yyyy/MM/dd")} · {m.shipmentCount} شحنة</p>
+                    </div>
+                    <Badge variant="outline" className={`text-[9px] font-bold border ${m.status === "open" ? "border-blue-700 bg-blue-900/20 text-blue-400" : "border-emerald-700 bg-emerald-900/20 text-emerald-400"}`}>
+                      {m.status === "open" ? "مفتوح" : "مغلق"}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className={`text-[9px] font-bold border ${m.status === "open" ? "border-blue-700 bg-blue-900/20 text-blue-400" : "border-emerald-700 bg-emerald-900/20 text-emerald-400"}`}>
-                    {m.status === "open" ? "مفتوح" : "مغلق"}
-                  </Badge>
-                </div>
-              </Link>
-            ))
+                </Link>
+              ))}
+            </>
+          )}
+          {/* بيانات الطلبات (النظام القديم) */}
+          {manifests && manifests.length > 0 && (
+            <>
+              <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide px-1 mt-2">بيانات الطلبات</p>
+              {manifests.map(m => (
+                <Link key={`m-${m.id}`} href={`/shipping/manifests/${m.id}`}>
+                  <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors">
+                    <div>
+                      <p className="text-xs font-bold">{m.manifestNumber}</p>
+                      <p className="text-[10px] text-muted-foreground">{format(new Date(m.createdAt), "yyyy/MM/dd")} · {m.orderCount} طلب</p>
+                    </div>
+                    <Badge variant="outline" className={`text-[9px] font-bold border ${m.status === "open" ? "border-blue-700 bg-blue-900/20 text-blue-400" : "border-emerald-700 bg-emerald-900/20 text-emerald-400"}`}>
+                      {m.status === "open" ? "مفتوح" : "مغلق"}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+            </>
+          )}
+          {(!shipmentManifests || shipmentManifests.length === 0) && (!manifests || manifests.length === 0) && (
+            <p className="text-xs text-muted-foreground text-center py-3">لا توجد بيانات شحن بعد</p>
           )}
         </div>
       )}
