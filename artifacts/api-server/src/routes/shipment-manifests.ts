@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, inArray, sql, count, isNull } from "drizzle-orm";
+import { eq, desc, and, inArray, sql, count, isNull, or } from "drizzle-orm";
 import {
   db,
   shipmentManifestsTable,
@@ -32,7 +32,7 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
 
     const where = and(
       tenantId !== null
-        ? eq(shipmentManifestsTable.tenantId, tenantId)
+        ? or(eq(shipmentManifestsTable.tenantId, tenantId), isNull(shipmentManifestsTable.tenantId))
         : isNull(shipmentManifestsTable.tenantId),
       companyId ? eq(shipmentManifestsTable.shippingCompanyId, companyId) : undefined,
     );
@@ -173,7 +173,7 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
         eq(shipmentManifestsTable.shippingCompanyId, body.shippingCompanyId),
         eq(shipmentManifestsTable.status, "open"),
         tenantId !== null
-          ? eq(shipmentManifestsTable.tenantId, tenantId)
+          ? or(eq(shipmentManifestsTable.tenantId, tenantId), isNull(shipmentManifestsTable.tenantId))
           : isNull(shipmentManifestsTable.tenantId),
       ));
     if (existing) {

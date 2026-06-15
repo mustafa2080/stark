@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { eq, desc, and, inArray, isNull } from "drizzle-orm";
+import { eq, desc, and, inArray, isNull, or } from "drizzle-orm";
 import { db, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, ordersTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
@@ -21,9 +21,10 @@ const UpdateSchema = CreateSchema.partial();
 
 router.get("/shipping-companies", async (req, res): Promise<void> => {
   const tenantId = getTenantId(req);
-  const companies = tenantId !== null
-    ? await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId)).orderBy(desc(shippingCompaniesTable.createdAt))
-    : await db.select().from(shippingCompaniesTable).where(isNull(shippingCompaniesTable.tenantId)).orderBy(desc(shippingCompaniesTable.createdAt));
+  const where = tenantId !== null
+    ? or(eq(shippingCompaniesTable.tenantId, tenantId), isNull(shippingCompaniesTable.tenantId))
+    : isNull(shippingCompaniesTable.tenantId);
+  const companies = await db.select().from(shippingCompaniesTable).where(where).orderBy(desc(shippingCompaniesTable.createdAt));
   res.json(companies);
 });
 
