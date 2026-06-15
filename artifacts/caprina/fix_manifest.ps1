@@ -1,13 +1,17 @@
 $f = 'C:\Users\musta\Desktop\pro\stark\stark\artifacts\caprina\src\pages\shipping-manifest.tsx'
 $c = [System.IO.File]::ReadAllText($f)
-$search = 'export default function ShippingManifestPage() {'
-$idx = $c.IndexOf($search)
-Write-Host "idx=$idx"
-if ($idx -ge 0) {
-  $insert = "`r`n  const params = useParams();`r`n  const id = Number(params.id);`r`n  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/shipping/shipment-manifests/')) { window.location.replace('/shipping'); return null; }"
-  $old = $search + "`r`n  const params = useParams();`r`n  const id = Number(params.id);"
-  $new = $search + $insert
-  $c2 = $c.Replace($old, $new)
-  [System.IO.File]::WriteAllText($f, $c2)
-  Write-Host 'done'
-} else { Write-Host 'not found' }
+
+# 1. غيّر الـ import
+$c = $c.Replace(
+  "  manifestsApi,`r`n  apiFetch,`r`n  type ShippingManifestDetail,`r`n  type ManifestOrder,`r`n  type DeliveryStatus,",
+  "  shipmentManifestsApi,`r`n  apiFetch,`r`n  type ShipmentManifestDetail as ShippingManifestDetail,`r`n  type ManifestOrder,`r`n  type DeliveryStatus,"
+)
+
+# 2. غيّر الـ useQuery
+$c = $c.Replace(
+  "    queryFn: () => manifestsApi.get(id),",
+  "    queryFn: () => shipmentManifestsApi.get(id),"
+)
+
+[System.IO.File]::WriteAllText($f, $c)
+Write-Host "done"

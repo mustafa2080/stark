@@ -4,9 +4,9 @@ import ExcelJS from "exceljs";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  manifestsApi,
+  shipmentManifestsApi,
   apiFetch,
-  type ShippingManifestDetail,
+  type ShipmentManifestDetail as ShippingManifestDetail,
   type ManifestOrder,
   type DeliveryStatus,
 } from "@/lib/api";
@@ -2995,7 +2995,6 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
 export default function ShippingManifestPage() {
   const params = useParams();
   const id = Number(params.id);
-  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/shipping/shipment-manifests/')) { window.location.replace('/shipping'); return null; }
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canViewFinancials, isAdmin } = useAuth();
@@ -3038,7 +3037,7 @@ export default function ShippingManifestPage() {
 
   const { data: manifest, isLoading, error } = useQuery({
     queryKey: ["shipping-manifest", id],
-    queryFn: () => manifestsApi.get(id),
+    queryFn: () => shipmentManifestsApi.get(id),
     enabled: !isNaN(id),
   });
 
