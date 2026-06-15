@@ -101,12 +101,14 @@ function OrderDeliveryRow({
   locked,
   onSaved,
   hideAction = false,
+  isShipmentManifest = false,
 }: {
   order: ManifestOrder;
   manifestId: number;
   locked: boolean;
   onSaved: () => void;
   hideAction?: boolean;
+  isShipmentManifest?: boolean;
 }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -175,6 +177,16 @@ function OrderDeliveryRow({
       let finalNote = note.trim() || null;
       if (status === "partial_received" && partialProduct.trim()) {
         finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
+      }
+      if (isShipmentManifest) {
+        // shipment manifests: only deliveryStatus, deliveryNote, returnReceived supported
+        const allowed = ["pending","delivered","returned","delayed"] as const;
+        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"returned"|"delayed" : "pending";
+        return shipmentManifestsApi.updateItem(manifestId, order.id, {
+          deliveryStatus: safeStatus,
+          deliveryNote: finalNote,
+          returnReceived: status === "returned" ? returnReceived : null,
+        });
       }
       return manifestsApi.updateOrderDelivery(manifestId, order.id, {
         deliveryStatus: status,
@@ -683,6 +695,7 @@ function InvoiceGroupDeliveryRow({
   rowIndex = 0,
   selected = false,
   onToggleSelect,
+  isShipmentManifest = false,
 }: {
   group: ManifestOrder[];
   manifestId: number;
@@ -691,6 +704,7 @@ function InvoiceGroupDeliveryRow({
   rowIndex?: number;
   selected?: boolean;
   onToggleSelect?: (groupKey: string) => void;
+  isShipmentManifest?: boolean;
 }) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
@@ -805,7 +819,15 @@ function InvoiceGroupDeliveryRow({
   const cancelGroupMutation = useMutation({
     mutationFn: async () => {
       for (const order of group) {
-        await manifestsApi.cancelOrder(manifestId, order.id);
+        if (isShipmentManifest) {
+          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+            deliveryStatus: "pending",
+            deliveryNote: null,
+            returnReceived: null,
+          });
+        } else {
+          await manifestsApi.cancelOrder(manifestId, order.id);
+        }
       }
     },
     onSuccess: () => {
@@ -870,13 +892,23 @@ function InvoiceGroupDeliveryRow({
           }
         }
 
-        await manifestsApi.updateOrderDelivery(manifestId, order.id, {
-          deliveryStatus: finalStatus,
-          deliveryNote: bulkNote.trim() || null,
-          partialQuantity: finalPartialQty,
-          ...(finalStatus === 'partial_received' ? { partialReturnReceived: partialReturnReceived ?? false } : {}),
-          ...(finalStatus === 'returned' ? { returnReceived: bulkReturnReceived, returnReason: bulkReturnReason || null } : {}),
-        });
+        if (isShipmentManifest) {
+          const allowedSt = ["pending","delivered","returned","delayed"] as const;
+          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"returned"|"delayed" : "pending";
+          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+            deliveryStatus: safeSt,
+            deliveryNote: bulkNote.trim() || null,
+            returnReceived: safeSt === "returned" ? bulkReturnReceived : null,
+          });
+        } else {
+          await manifestsApi.updateOrderDelivery(manifestId, order.id, {
+            deliveryStatus: finalStatus,
+            deliveryNote: bulkNote.trim() || null,
+            partialQuantity: finalPartialQty,
+            ...(finalStatus === 'partial_received' ? { partialReturnReceived: partialReturnReceived ?? false } : {}),
+            ...(finalStatus === 'returned' ? { returnReceived: bulkReturnReceived, returnReason: bulkReturnReason || null } : {}),
+          });
+        }
       }
     },
     onSuccess: () => {
@@ -1659,11 +1691,13 @@ function InvoicePriceEditor({
   manifestId,
   current,
   currentNotes,
+  isShipmentManifest = false,
   onSaved,
 }: {
   manifestId: number;
   current: number | null;
   currentNotes: string | null;
+  isShipmentManifest?: boolean;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
@@ -1673,10 +1707,15 @@ function InvoicePriceEditor({
 
   const mutation = useMutation({
     mutationFn: () =>
-      manifestsApi.update(manifestId, {
-        invoicePrice: price ? parseFloat(price) : null,
-        invoiceNotes: notes.trim() || null,
-      }),
+      isShipmentManifest
+        ? shipmentManifestsApi.update(manifestId, {
+            invoicePrice: price ? parseFloat(price) : null,
+            notes: notes.trim() || null,
+          })
+        : manifestsApi.update(manifestId, {
+            invoicePrice: price ? parseFloat(price) : null,
+            invoiceNotes: notes.trim() || null,
+          }),
     onSuccess: () => {
       toast({ title: "تم حفظ سعر الفاتورة" });
       setEditing(false);
@@ -3035,11 +3074,72 @@ export default function ShippingManifestPage() {
   // ─── نظام التحديد (Bulk Selection) ─────────────────────────────────────────
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
 
-  const { data: manifest, isLoading, error } = useQuery({
+  const { data: rawManifest, isLoading, error } = useQuery({
     queryKey: ["shipping-manifest", id],
     queryFn: () => shipmentManifestsApi.get(id),
     enabled: !isNaN(id),
   });
+
+  // Adapter: convert ShipmentManifestDetail to ShippingManifestDetail-compatible shape
+  const manifest = useMemo(() => {
+    if (!rawManifest) return undefined;
+    const orders: ManifestOrder[] = (rawManifest.items ?? []).map((item) => {
+      const sh = item.shipment;
+      const codAmt = sh ? parseFloat(sh.codAmount ?? '0') : 0;
+      return {
+        id: item.shipmentId,
+        manifestOrderId: item.id,
+        invoiceNumber: sh?.shipmentNumber ?? `S-${item.shipmentId}`,
+        customerName: sh?.receiverName ?? '—',
+        customerPhone: sh?.receiverPhone ?? null,
+        phone: sh?.receiverPhone ?? null,
+        city: sh?.receiverCity ?? sh?.zoneGovernorate ?? null,
+        product: sh ? `${sh.shipmentNumber}${sh.trackingNumber ? ` (${sh.trackingNumber})` : ''}` : '—',
+        quantity: 1,
+        total: codAmt,
+        totalPrice: codAmt,
+        cost: null,
+        shippingCost: sh ? parseFloat(sh.shippingFee ?? '0') : null,
+        status: sh?.status ?? 'pending',
+        notes: sh?.notes ?? null,
+        color: null,
+        size: null,
+        source: null,
+        createdAt: sh?.createdAt ?? rawManifest.createdAt,
+        updatedAt: sh?.updatedAt ?? null,
+        assignedUserId: sh?.assignedUserId ?? null,
+        createdByUserId: null,
+        shippingCompanyId: sh?.shippingCompanyId ?? rawManifest.shippingCompanyId,
+        deliveryStatus: item.deliveryStatus as DeliveryStatus,
+        deliveryNote: item.deliveryNote,
+        deliveredAt: item.deliveredAt,
+        returnReceived: item.returnReceived,
+        addedAt: rawManifest.createdAt,
+        partialQuantity: null,
+        returnReason: null,
+      } as any;
+    });
+    return {
+      ...rawManifest,
+      companyName: rawManifest.company?.name ?? '—',
+      companyPhone: null as string | null,
+      companyLogo: rawManifest.company?.logo ?? null,
+      manualShippingCost: rawManifest.invoicePrice ? parseFloat(rawManifest.invoicePrice) : null,
+      orders,
+      stats: {
+        total: rawManifest.stats.total,
+        delivered: rawManifest.stats.delivered,
+        returned: rawManifest.stats.returned,
+        pending: rawManifest.stats.pending,
+        postponed: 0,
+        partial_received: 0,
+        delayed: rawManifest.stats.delayed,
+        totalCollected: 0,
+        totalShippingCost: rawManifest.invoicePrice ? parseFloat(rawManifest.invoicePrice) : 0,
+        netProfit: 0,
+      },
+    };
+  }, [rawManifest]);
 
   // ─── Search filter — real-time, no popover ────────────────────────────────
   const filteredManifestOrders = useMemo(() => {
@@ -3201,7 +3301,7 @@ export default function ShippingManifestPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: { status: "open" | "closed" }) =>
-      manifestsApi.update(id, data),
+      shipmentManifestsApi.update(id, data),
     onSuccess: (result: any) => {
       refetch();
       setShowCloseDialog(false);
@@ -3225,7 +3325,7 @@ export default function ShippingManifestPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => manifestsApi.delete(id),
+    mutationFn: () => shipmentManifestsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shipping-manifests"] });
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
@@ -3821,15 +3921,16 @@ export default function ShippingManifestPage() {
             <InvoicePriceEditor
               manifestId={id}
               current={manifest.invoicePrice}
-              currentNotes={manifest.invoiceNotes}
+              currentNotes={(manifest as any).invoiceNotes ?? null}
+              isShipmentManifest={true}
               onSaved={refetch}
             />
           </div>
         </Card>
       )}
 
-      {/* ─── Settlement Card ─── */}
-      {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} />}
+      {/* Settlement Card مخفي للـ shipment manifests */}
+      {/* {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} />} */}
 
       {/* ─── Orders Table ─── */}
       <Card className="border-border bg-card overflow-visible print:break-inside-avoid">
@@ -4041,6 +4142,7 @@ export default function ShippingManifestPage() {
                     rowIndex={index}
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
+                    isShipmentManifest={true}
                   />
                   ))}
                   </div>
@@ -4193,7 +4295,7 @@ export default function ShippingManifestPage() {
         />
       )}
 
-      {showAddOrdersDialog && manifest && (
+      {showAddOrdersDialog && manifest && false && (
         <AddOrdersToManifestDialog
           manifestId={id}
           manifestNumber={manifest.manifestNumber}
