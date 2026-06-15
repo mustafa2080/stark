@@ -48,6 +48,7 @@ cashRegistersRouter.get("/", async (req, res) => {
 cashRegistersRouter.post("/", async (req, res) => {
   try {
     const { name, type = "branch", description, initialBalance = 0, isDefault = false } = req.body as any;
+    const safeBalance = parseFloat(initialBalance) || 0;
     const now = new Date();
 
     // لو الخزنة الجديدة هتبقى default → اشيل الـ default من أي خزنة تانية
@@ -57,15 +58,15 @@ cashRegistersRouter.post("/", async (req, res) => {
         .where(eq(cashRegistersTable.isDefault, true));
     }
 
-    const [result] = await db.insert(cashRegistersTable).values({ name, type, description, balance: String(initialBalance), isDefault: isDefault ? true : false, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now, updatedAt: now });
+    const [result] = await db.insert(cashRegistersTable).values({ name, type, description: description || null, balance: String(safeBalance), isDefault: isDefault ? true : false, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now, updatedAt: now });
     const newId = (result as any).insertId;
-    if (parseFloat(initialBalance) > 0) {
-      await db.insert(cashTransactionsTable).values({ registerId: newId, type: "deposit", amount: String(initialBalance), balanceBefore: "0", balanceAfter: String(initialBalance), description: "رصيد افتتاحي", transactionDate: now, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now });
+    if (safeBalance > 0) {
+      await db.insert(cashTransactionsTable).values({ registerId: newId, type: "deposit", amount: String(safeBalance), balanceBefore: "0", balanceAfter: String(safeBalance), description: "رصيد افتتاحي", transactionDate: now, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now });
     }
     if (type === "main") {
       try {
         const pendingInvoices = await db.select().from(shippingFinancialInvoicesTable).where(eq(shippingFinancialInvoicesTable.status, "pending"));
-        let runningBalance = parseFloat(String(initialBalance));
+        let runningBalance = safeBalance;
         for (const inv of pendingInvoices) {
           const totalDue = Number(inv.netDue ?? 0); const alreadyPaid = Number(inv.paidAmount ?? 0); const remaining = totalDue - alreadyPaid;
           if (remaining <= 0) continue;
@@ -75,7 +76,7 @@ cashRegistersRouter.post("/", async (req, res) => {
           await db.insert(cashTransactionsTable).values({ registerId: newId, type: "shipping_transfer" as any, amount: String(remaining), balanceBefore: String(balanceBefore), balanceAfter: String(balanceAfter), description: `تحصيل بيان شحن ${manifest?.manifestNumber ?? inv.invoiceNumber} - ${company?.name ?? ""}`, referenceNumber: inv.invoiceNumber, transactionDate: now, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now });
           await db.update(shippingFinancialInvoicesTable).set({ status: "paid", paidAmount: String(totalDue), paidAt: now, updatedAt: now }).where(eq(shippingFinancialInvoicesTable.id, inv.id));
         }
-        if (runningBalance !== parseFloat(String(initialBalance))) await db.update(cashRegistersTable).set({ balance: String(runningBalance), updatedAt: now }).where(eq(cashRegistersTable.id, newId));
+        if (runningBalance !== safeBalance) await db.update(cashRegistersTable).set({ balance: String(runningBalance), updatedAt: now }).where(eq(cashRegistersTable.id, newId));
       } catch (e) { console.error("[cash-register create main]", e); }
     }
     res.json({ success: true, id: newId });
