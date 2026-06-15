@@ -21,10 +21,14 @@ const UpdateSchema = CreateSchema.partial();
 
 router.get("/shipping-companies", async (req, res): Promise<void> => {
   const tenantId = getTenantId(req);
+  // tenantId === null يعني super_admin → يشوف كل الشركات بدون فلتر
   const where = tenantId !== null
     ? or(eq(shippingCompaniesTable.tenantId, tenantId), isNull(shippingCompaniesTable.tenantId))
-    : isNull(shippingCompaniesTable.tenantId);
-  const companies = await db.select().from(shippingCompaniesTable).where(where).orderBy(desc(shippingCompaniesTable.createdAt));
+    : undefined;
+  const query = db.select().from(shippingCompaniesTable);
+  const companies = where
+    ? await query.where(where).orderBy(desc(shippingCompaniesTable.createdAt))
+    : await query.orderBy(desc(shippingCompaniesTable.createdAt));
   res.json(companies);
 });
 

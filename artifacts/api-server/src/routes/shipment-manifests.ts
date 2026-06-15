@@ -30,10 +30,13 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
     const tenantId = getTenantId(req);
     const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
 
+    // tenantId === null يعني super_admin → بدون فلتر tenant
+    const tenantCondition = tenantId !== null
+      ? or(eq(shipmentManifestsTable.tenantId, tenantId), isNull(shipmentManifestsTable.tenantId))
+      : undefined;
+
     const where = and(
-      tenantId !== null
-        ? or(eq(shipmentManifestsTable.tenantId, tenantId), isNull(shipmentManifestsTable.tenantId))
-        : isNull(shipmentManifestsTable.tenantId),
+      tenantCondition,
       companyId ? eq(shipmentManifestsTable.shippingCompanyId, companyId) : undefined,
     );
 
@@ -174,7 +177,7 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
         eq(shipmentManifestsTable.status, "open"),
         tenantId !== null
           ? or(eq(shipmentManifestsTable.tenantId, tenantId), isNull(shipmentManifestsTable.tenantId))
-          : isNull(shipmentManifestsTable.tenantId),
+          : undefined,
       ));
     if (existing) {
       res.status(409).json({ error: "يوجد بيان مفتوح بالفعل لهذه الشركة" });
