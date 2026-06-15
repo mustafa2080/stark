@@ -2020,7 +2020,10 @@ export default function OrderDetail() {
       : id;
     updateOrder.mutate({ id: partialTargetId, data: { status: "partial_received", partialQuantity: pQty } }, {
       onSuccess: (updated) => {
-        queryClient.setQueryData(getGetOrderQueryKey(id), updated);
+        queryClient.setQueryData(["shipment-detail", id], (old: any) => old ? { ...old, status: "partial_received", partialQuantity: pQty } : old);
+        queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] });
+        queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+        queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
         invalidateAll();
         setShowPartialInput(false);
         setPartialQty("");
