@@ -94,6 +94,8 @@ export const shipmentsTable = mysqlTable("shipments", {
   // ── ميتا ───────────────────────────────────────────────────────────────
   notes:           text("notes"),
   internalNotes:   text("internal_notes"),       // ملاحظات داخلية
+  returnReason:    varchar("return_reason", { length: 100 }),  // سبب الإرجاع
+  returnNote:      text("return_note"),                         // ملاحظة الإرجاع (لو other)
   estimatedDelivery: datetime("estimated_delivery"), // تاريخ التسليم المتوقع
   actualDelivery:  datetime("actual_delivery"),  // تاريخ التسليم الفعلي
   deletedAt:       datetime("deleted_at"),

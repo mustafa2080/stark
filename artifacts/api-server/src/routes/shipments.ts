@@ -68,6 +68,8 @@ const CreateShipmentSchema = z.object({
   shippingCompanyId: z.number().int().positive().nullish(),
   notes:           z.string().nullish(),
   internalNotes:   z.string().nullish(),
+  returnReason:    z.string().nullish(),
+  returnNote:      z.string().nullish(),
   status:          z.string().default("waiting"),
 });
 
@@ -210,6 +212,8 @@ router.get("/shipments", async (req, res): Promise<void> => {
           createdByName:    shipmentsTable.createdByName,
           notes:            shipmentsTable.notes,
           internalNotes:    shipmentsTable.internalNotes,
+          returnReason:     shipmentsTable.returnReason,
+          returnNote:       shipmentsTable.returnNote,
           estimatedDelivery: shipmentsTable.estimatedDelivery,
           actualDelivery:   shipmentsTable.actualDelivery,
           createdAt:        shipmentsTable.createdAt,
@@ -445,6 +449,8 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.totalAmount      !== undefined) updateData.totalAmount      = String(d.totalAmount);
     if (d.notes            !== undefined) updateData.notes            = d.notes;
     if (d.internalNotes    !== undefined) updateData.internalNotes    = d.internalNotes;
+    if (d.returnReason     !== undefined) updateData.returnReason     = d.returnReason;
+    if (d.returnNote       !== undefined) updateData.returnNote       = d.returnNote;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
 
     const cond = tenantId !== null
@@ -493,6 +499,8 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.totalAmount       !== undefined) updateData.totalAmount       = String(d.totalAmount);
     if (d.notes             !== undefined) updateData.notes             = d.notes;
     if (d.internalNotes     !== undefined) updateData.internalNotes     = d.internalNotes;
+    if (d.returnReason      !== undefined) updateData.returnReason      = d.returnReason;
+    if (d.returnNote        !== undefined) updateData.returnNote        = d.returnNote;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))

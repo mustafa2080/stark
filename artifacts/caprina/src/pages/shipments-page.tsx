@@ -1527,7 +1527,9 @@ export default function Orders() {
                           );
                         })()}
                         {order.status === "returned" && (() => {
-                          const reason = (order as any).notes as string | null | undefined;
+                          const rr = (order as any).returnReason as string | null | undefined;
+                          const rn = (order as any).returnNote as string | null | undefined;
+                          const reason = rr ? (rr === "other" && rn ? rn : returnReasonLabel(rr)) : null;
                           if (!reason) return null;
                           return <span className="inline-flex items-center gap-0.5 text-[9px] text-red-600 dark:text-red-400"><RotateCcw className="w-2.5 h-2.5 shrink-0" />{reason}</span>;
                         })()}
@@ -1679,7 +1681,9 @@ export default function Orders() {
                             );
                           })()}
                           {order.status === "returned" && (() => {
-                            const reason = o.notes as string | null | undefined;
+                            const rr = o.returnReason as string | null | undefined;
+                            const rn = o.returnNote as string | null | undefined;
+                            const reason = rr ? (rr === "other" && rn ? rn : returnReasonLabel(rr)) : null;
                             if (!reason) return null;
                             return (
                               <div className="flex items-center justify-center gap-0.5 mt-1">
