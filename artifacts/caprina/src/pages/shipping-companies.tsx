@@ -385,15 +385,21 @@ export function CreateManifestDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
 
-  // شحنات حالتها waiting (قيد الشحن في المخزن) — من كل الشركات بدون فلتر
+  // شحنات قيد الشحن في المخزن (waiting + warehouse_ready) — من كل الشركات بدون فلتر
   const { data, isLoading } = useQuery({
-    queryKey: ["shipments-available-for-manifest", "waiting"],
-    queryFn: () => shipmentsApi.list({ status: "waiting", limit: 500 }),
+    queryKey: ["shipments-available-for-manifest", "waiting+warehouse_ready"],
+    queryFn: async () => {
+      const [waiting, warehouseReady] = await Promise.all([
+        shipmentsApi.list({ status: "waiting", limit: 500 }),
+        shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
+      ]);
+      return [...(waiting?.data ?? []), ...(warehouseReady?.data ?? [])];
+    },
   });
 
-  const allCompanyShipments = data?.data ?? [];
+  const allCompanyShipments = data ?? [];
 
-  // لا نحتاج فلتر إضافي — الباكند يُرجع waiting فقط
+  // لا نحتاج فلتر إضافي — الكويري برجع waiting + warehouse_ready بس
   const availableShipments = allCompanyShipments as Shipment[];
 
   const filtered = useMemo(() => {
