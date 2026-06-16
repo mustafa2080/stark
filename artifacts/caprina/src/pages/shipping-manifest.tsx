@@ -4352,7 +4352,7 @@ export default function ShippingManifestPage() {
           manifestId={id}
           manifestNumber={manifest.manifestNumber}
           companyId={rawManifest.shippingCompanyId}
-          existingOrderIds={new Set(manifest.orders.map(o => o.id))}
+          existingOrderIds={new Set(manifest.orders.map(o => o.shipmentId ?? o.id))}
           onClose={() => setShowAddOrdersDialog(false)}
           onAdded={refetch}
         />
