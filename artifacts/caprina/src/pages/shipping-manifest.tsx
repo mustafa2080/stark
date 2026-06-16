@@ -2795,7 +2795,7 @@ function AddOrdersToManifestDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const AVAILABLE_STATUSES = ["waiting", "confirmed", "delayed", "in_transit"];
+  const AVAILABLE_STATUSES = ["warehouse_ready"];
 
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["shipments-available-for-manifest", companyId],
@@ -2893,7 +2893,7 @@ function AddOrdersToManifestDialog({
               <div className="p-10 text-center">
                 <PackagePlus className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                 <p className="text-sm text-muted-foreground">
-                  {available.length === 0 ? "لا توجد شحنات متاحة للإضافة" : "لا توجد نتائج تطابق البحث"}
+                  {available.length === 0 ? "لا توجد شحنات بحالة (قيد الشحن في المخزن) جاهزة للبيان" : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
             ) : (
