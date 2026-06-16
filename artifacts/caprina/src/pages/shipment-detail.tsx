@@ -4271,15 +4271,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   </div>
                 )}
 
-                {/* زرار إضافة أول منتج لو مفيش items */}
-                {shipmentItems.length === 0 && isAdmin && (
-                  <div className="mt-3 flex justify-center">
-                    <button type="button" onClick={() => setShowAddProduct(true)}
-                      className="flex items-center gap-2 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-4 py-2.5 rounded-lg transition-colors">
-                      <Plus className="w-3.5 h-3.5" />إضافة منتج للشحنة
-                    </button>
-                  </div>
-                )}
+                {/* زرار إضافة أول منتج لو مفيش items — محذوف (الزرار الرئيسي فوق) */}
               </CardContent>
             </Card>
           )}
