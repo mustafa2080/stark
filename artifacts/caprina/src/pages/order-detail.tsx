@@ -414,7 +414,7 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
                 </div>
               )}
               </div>
-            </div>
+            </>
           )}
         </div>
 
