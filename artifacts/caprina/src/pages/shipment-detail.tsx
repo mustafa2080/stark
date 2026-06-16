@@ -4271,43 +4271,35 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 </Card>
               );
             }
-            const costPrice = (order as any).costPrice as number | null;
-            const shippingCost = (order as any).shippingCost as number | null;
-            if (!costPrice) return null;
-            const qty = order.status === "partial_received" && order.partialQuantity ? order.partialQuantity : order.quantity;
-            const isReturned = order.status === "returned";
-            const returnRec = (order as any).returnReceived;
-            const isReturnedToStock = isReturned && (returnRec === 1 || returnRec === true);
-            const isReturnedLost = isReturned && !isReturnedToStock;
-            const revenue = isReturned ? 0 : qty * order.unitPrice;
-            const cost = isReturnedToStock ? 0 : qty * costPrice;
-            const shipping = Math.abs(shippingCost ?? 0);
-            const netProfit = revenue - cost - shipping;
-            const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
-            const isPositive = netProfit >= 0;
+            // تحليل الربحية للشحنة: COD - shippingFee - insuranceFee = صافي للمرسل
+            const cod         = Number((order as any).codAmount    ?? 0);
+            const shippingFee = Number((order as any).shippingFee  ?? 0);
+            const insurance   = Number((order as any).insuranceFee ?? 0);
+            const isReturned  = order.status === "returned";
+            const net         = isReturned ? -(shippingFee + insurance) : cod - shippingFee - insurance;
+            const isPositive  = net >= 0;
             return (
-              <Card className={`border ${isReturnedLost ? "border-red-900/50 bg-red-900/5" : isReturnedToStock ? "border-amber-900/50 bg-amber-900/5" : isPositive ? "border-emerald-900/50 bg-emerald-900/5" : "border-red-900/50 bg-red-900/5"}`}>
+              <Card className={`border ${isPositive && !isReturned ? "border-emerald-900/50 bg-emerald-900/5" : "border-red-900/50 bg-red-900/5"}`}>
                 <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
                   <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    {isReturnedToStock ? <TrendingUp className="w-3.5 h-3.5 text-amber-400" /> : isPositive && !isReturned ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                    {isPositive && !isReturned ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
                     تحليل الربحية
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-4 pt-3 space-y-2 text-xs">
-                  {isReturnedLost && <div className="p-2 bg-red-900/20 rounded text-red-400 text-[10px] font-semibold border border-red-900/30">مرتجع — خسارة كاملة</div>}
-                  {isReturnedToStock && <div className="p-2 bg-amber-900/20 rounded text-amber-400 text-[10px] font-semibold border border-amber-900/30">↩ رجع للمخزن — خسارة الشحن فقط</div>}
-                  <div className="flex justify-between"><span className="text-muted-foreground">الإيرادات</span><span className="text-primary font-semibold">{formatCurrency(revenue)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">تكلفة البضاعة</span><span className="text-amber-400">-{formatCurrency(cost)}</span></div>
-                  {shipping > 0 && <div className="flex justify-between"><span className="text-muted-foreground">تكلفة الشحن</span><span className="text-orange-400">-{formatCurrency(shipping)}</span></div>}
+                  {isReturned && <div className="p-2 bg-red-900/20 rounded text-red-400 text-[10px] font-semibold border border-red-900/30">⚠ الشحنة مرتجعة</div>}
+                  <div className="flex justify-between"><span className="text-muted-foreground">مبلغ COD</span><span className="text-primary font-semibold">{formatCurrency(cod)}</span></div>
+                  {shippingFee > 0 && <div className="flex justify-between"><span className="text-muted-foreground">رسوم الشحن</span><span className="text-orange-400">-{formatCurrency(shippingFee)}</span></div>}
+                  {insurance > 0 && <div className="flex justify-between"><span className="text-muted-foreground">رسوم التأمين</span><span className="text-orange-400">-{formatCurrency(insurance)}</span></div>}
                   <Separator />
                   <div className="flex justify-between items-center pt-1">
-                    <span className="font-bold">الربح الصافي</span>
-                    <span className={`font-black text-base ${isPositive && !isReturned ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(netProfit)}</span>
+                    <span className="font-bold">الصافي للمرسل</span>
+                    <span className={`font-black text-base ${isPositive && !isReturned ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(net)}</span>
                   </div>
-                  {revenue > 0 && (
+                  {cod > 0 && !isReturned && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">هامش الربح</span>
-                      <span className={`font-bold ${margin >= 20 ? "text-emerald-400" : margin >= 10 ? "text-amber-400" : "text-red-400"}`}>{margin}%</span>
+                      <span className="text-muted-foreground">نسبة الاستقطاع</span>
+                      <span className="font-bold text-amber-400">{Math.round(((shippingFee + insurance) / cod) * 100)}%</span>
                     </div>
                   )}
                 </CardContent>
