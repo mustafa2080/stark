@@ -1514,7 +1514,7 @@ export default function Orders() {
                         })()}
                         {order.status === "partial_received" && (() => {
                           const pq = (order as any).partialQuantity as number | null | undefined;
-                          const qty = (order as any).quantity as number | undefined;
+                          const qty = ((order as any).pieces ?? (order as any).quantity) as number | undefined;
                           return (
                             <span className="inline-flex flex-col gap-0 text-[9px] font-bold leading-tight">
                               {pq != null && qty != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {pq} من {qty}</span>}
@@ -1690,7 +1690,7 @@ export default function Orders() {
                           })()}
                           {order.status === "partial_received" && (() => {
                             const pq = o.partialQuantity as number | null | undefined;
-                            const qty = o.quantity as number | undefined;
+                            const qty = (o.pieces ?? o.quantity) as number | undefined;
                             return (
                               <div className="flex flex-col items-center gap-0 mt-1 text-[9px] font-bold leading-tight">
                                 {pq != null && qty != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {pq} من {qty}</span>}
