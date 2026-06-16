@@ -93,7 +93,6 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const updateOrder = useUpdateOrder();
   const { data: products = [] } = useQuery({ queryKey: ["products"], queryFn: productsApi.list });
   const { data: allVariants = [] } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
   const { data: warehouses = [] } = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
@@ -167,15 +166,15 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
         toast({ title: "خطأ", description: "اختر لون ومقاس.", variant: "destructive" });
         return;
       }
-      await updateOrder.mutateAsync({
-        id: order.id,
-        data: {
+      await apiFetch(`/shipments/${order.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
           productId: selectedProduct.id,
           variantId,
           warehouseId: warehouseId ?? null,
           pieces: row.quantity,
           description: selectedProduct.name + (row.color ? ` - ${row.color}` : "") + (row.size ? ` / ${row.size}` : ""),
-        } as any,
+        }),
       });
       await queryClient.invalidateQueries({ queryKey: ["shipment-detail", String(order.id)] });
       await queryClient.invalidateQueries({ queryKey: ["shipments"] });
