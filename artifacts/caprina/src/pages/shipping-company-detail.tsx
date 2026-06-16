@@ -731,20 +731,15 @@ function CreateShipmentManifestDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
 
-  // شحنات قيد الشحن في المخزن (waiting + warehouse_ready) — من كل الشركات بدون فلتر
+  // شحنات قيد الشحن في المخزن فقط (warehouse_ready) — من كل الشركات بدون فلتر
+  // ملاحظة: "waiting" = قيد الانتظار (حالة مختلفة تماماً) — مش المقصود هنا
   const { data, isLoading } = useQuery({
-    queryKey: ["shipments-available-for-manifest", "waiting+warehouse_ready"],
-    queryFn: async () => {
-      const [waiting, warehouseReady] = await Promise.all([
-        shipmentsApi.list({ status: "waiting", limit: 500 }),
-        shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
-      ]);
-      return [...(waiting?.data ?? []), ...(warehouseReady?.data ?? [])];
-    },
+    queryKey: ["shipments-available-for-manifest", "warehouse_ready"],
+    queryFn: () => shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
   });
 
-  // الكويري برجع waiting + warehouse_ready بس — لا نحتاج فلتر إضافي
-  const availableShipments = (data ?? []) as any[];
+  // الكويري برجع warehouse_ready بس — لا نحتاج فلتر إضافي
+  const availableShipments = (data?.data ?? []) as any[];
 
   const filtered = useMemo(() => {
     if (!search.trim()) return availableShipments;
