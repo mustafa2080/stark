@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
-import { db, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn } from "../lib/inventory.js";
@@ -773,6 +773,100 @@ router.post("/parcel-type-pricing/init", async (req, res): Promise<void> => {
     }
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: "خطأ في التهيئة" }); }
+});
+
+// ─── Shipment Items CRUD ─────────────────────────────────────────────────────
+
+const ShipmentItemSchema = z.object({
+  productId:   z.number().int().positive().nullish(),
+  variantId:   z.number().int().positive().nullish(),
+  warehouseId: z.number().int().positive().nullish(),
+  product:     z.string().nullish(),
+  color:       z.string().nullish(),
+  size:        z.string().nullish(),
+  quantity:    z.coerce.number().int().min(1).default(1),
+  unitPrice:   z.coerce.number().min(0).default(0),
+  costPrice:   z.coerce.number().min(0).default(0),
+  notes:       z.string().nullish(),
+});
+
+// GET /shipments/:id/items
+router.get("/shipments/:id/items", async (req, res): Promise<void> => {
+  try {
+    const shipmentId = Number(req.params.id);
+    const tenantId   = getTenantId(req);
+    const items = await db
+      .select()
+      .from(shipmentItemsTable)
+      .where(and(
+        eq(shipmentItemsTable.shipmentId, shipmentId),
+        tenantId !== null ? eq(shipmentItemsTable.tenantId, tenantId) : undefined as any,
+      ))
+      .orderBy(shipmentItemsTable.createdAt);
+    res.json(items);
+  } catch (e) { res.status(500).json({ error: "خطأ في استرجاع بنود الشحنة" }); }
+});
+
+// POST /shipments/:id/items
+router.post("/shipments/:id/items", async (req, res): Promise<void> => {
+  try {
+    const shipmentId = Number(req.params.id);
+    const tenantId   = getTenantId(req);
+    const body = ShipmentItemSchema.parse(req.body);
+    const now  = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const totalPrice = body.quantity * body.unitPrice;
+    const [result] = await db.insert(shipmentItemsTable).values({
+      shipmentId,
+      tenantId,
+      productId:   body.productId ?? null,
+      variantId:   body.variantId ?? null,
+      warehouseId: body.warehouseId ?? null,
+      product:     body.product ?? null,
+      color:       body.color ?? null,
+      size:        body.size ?? null,
+      quantity:    body.quantity,
+      unitPrice:   String(body.unitPrice),
+      costPrice:   String(body.costPrice),
+      totalPrice:  String(totalPrice),
+      notes:       body.notes ?? null,
+      createdAt:   now as any,
+      updatedAt:   now as any,
+    });
+    const newItem = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, (result as any).insertId)).limit(1);
+    res.status(201).json(newItem[0]);
+  } catch (e: any) {
+    if (e?.name === "ZodError") { res.status(400).json({ error: e.errors }); return; }
+    res.status(500).json({ error: "خطأ في إضافة البند" });
+  }
+});
+
+// PATCH /shipments/:id/items/:itemId
+router.patch("/shipments/:id/items/:itemId", async (req, res): Promise<void> => {
+  try {
+    const itemId   = Number(req.params.itemId);
+    const tenantId = getTenantId(req);
+    const body = ShipmentItemSchema.partial().parse(req.body);
+    const now  = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const updateData: any = { ...body, updatedAt: now };
+    if (body.quantity !== undefined && body.unitPrice !== undefined) {
+      updateData.totalPrice = String(body.quantity * body.unitPrice);
+    }
+    await db.update(shipmentItemsTable).set(updateData).where(eq(shipmentItemsTable.id, itemId));
+    const updated = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, itemId)).limit(1);
+    res.json(updated[0]);
+  } catch (e: any) {
+    if (e?.name === "ZodError") { res.status(400).json({ error: e.errors }); return; }
+    res.status(500).json({ error: "خطأ في تحديث البند" });
+  }
+});
+
+// DELETE /shipments/:id/items/:itemId
+router.delete("/shipments/:id/items/:itemId", async (req, res): Promise<void> => {
+  try {
+    const itemId = Number(req.params.itemId);
+    await db.delete(shipmentItemsTable).where(eq(shipmentItemsTable.id, itemId));
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: "خطأ في حذف البند" }); }
 });
 
 export default router;

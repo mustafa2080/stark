@@ -354,7 +354,55 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
 
           {/* Price */}
           {selectedProduct && (
-            <div className="grid grid-cols-2 gap-3">
+            <>
+              {/* ── Preview Card ── */}
+              <div className="rounded-xl border border-primary/20 bg-card overflow-hidden">
+                <div className="px-3 py-2 bg-primary/5 border-b border-primary/10 flex items-center gap-1.5">
+                  <Package className="w-3 h-3 text-primary" />
+                  <span className="text-[10px] font-black text-primary uppercase tracking-widest">معاينة المنتج</span>
+                </div>
+                <div className="p-3 flex items-start gap-3">
+                  {/* صورة المنتج */}
+                  {selectedProduct.image ? (
+                    <img src={selectedProduct.image} alt={selectedProduct.name}
+                      className="w-16 h-16 rounded-lg object-cover border border-border shrink-0 shadow-sm" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-muted/30 border border-border flex items-center justify-center shrink-0">
+                      <Package className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <p className="font-black text-sm">{selectedProduct.name}</p>
+                    {/* Variants preview */}
+                    {hasVariants && variantRows.filter(r => r.color && r.size).length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {variantRows.filter(r => r.color && r.size).map((r, i) => (
+                          <div key={i} className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] bg-muted px-2 py-0.5 rounded font-bold">{r.color}</span>
+                            <span className="text-[10px] bg-muted px-2 py-0.5 rounded font-bold">{r.size}</span>
+                            <span className="text-[10px] text-muted-foreground">× {r.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : !hasVariants ? (
+                      <span className="text-[10px] text-muted-foreground">كمية: {variantRows[0]?.quantity ?? 1}</span>
+                    ) : (
+                      <span className="text-[10px] text-amber-500">اختر لون ومقاس أولاً</span>
+                    )}
+                    {unitPrice > 0 && (
+                      <p className="text-sm font-black text-primary">
+                        {new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(
+                          unitPrice * (hasVariants
+                            ? variantRows.filter(r => r.color && r.size).reduce((s, r) => s + r.quantity, 0)
+                            : (variantRows[0]?.quantity ?? 1))
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium mb-1.5 block">سعر البيع (ج.م) *</label>
                 <Input type="number" min={0} value={unitPrice || ""} onChange={e => setUnitPrice(Number(e.target.value))} className="h-9 text-sm" />

@@ -111,3 +111,32 @@ export const shipmentsTable = mysqlTable("shipments", {
 
 export type InsertShipment = typeof shipmentsTable.$inferInsert;
 export type Shipment       = typeof shipmentsTable.$inferSelect;
+
+// ─── بنود الشحنة (منتجات متعددة لكل شحنة) ────────────────────────────────────
+export const shipmentItemsTable = mysqlTable("shipment_items", {
+  id:          int("id").primaryKey().autoincrement(),
+  shipmentId:  int("shipment_id").notNull(),
+  tenantId:    int("tenant_id"),
+
+  productId:   int("product_id"),
+  variantId:   int("variant_id"),
+  warehouseId: int("warehouse_id"),
+  product:     varchar("product", { length: 255 }),
+  color:       varchar("color",   { length: 100 }),
+  size:        varchar("size",    { length: 100 }),
+
+  quantity:    int("quantity").notNull().default(1),
+  unitPrice:   decimal("unit_price",  { precision: 12, scale: 2 }).default("0"),
+  costPrice:   decimal("cost_price",  { precision: 12, scale: 2 }).default("0"),
+  totalPrice:  decimal("total_price", { precision: 12, scale: 2 }).default("0"),
+
+  inventoryDeducted: int("inventory_deducted").default(0),
+  inventoryReturned: int("inventory_returned").default(0),
+
+  notes:       text("notes"),
+  createdAt:   datetime("created_at").notNull(),
+  updatedAt:   datetime("updated_at").notNull(),
+});
+
+export type InsertShipmentItem = typeof shipmentItemsTable.$inferInsert;
+export type ShipmentItem       = typeof shipmentItemsTable.$inferSelect;

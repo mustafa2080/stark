@@ -166,24 +166,28 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
         toast({ title: "خطأ", description: "اختر لون ومقاس.", variant: "destructive" });
         return;
       }
-      await apiFetch(`/shipments/${order.id}`, {
-        method: "PATCH",
+      await apiFetch(`/shipments/${order.id}/items`, {
+        method: "POST",
         body: JSON.stringify({
-          productId: selectedProduct.id,
+          productId:   selectedProduct.id,
           variantId,
           warehouseId: warehouseId ?? null,
-          pieces: row.quantity,
-          description: selectedProduct.name + (row.color ? ` - ${row.color}` : "") + (row.size ? ` / ${row.size}` : ""),
+          product:     selectedProduct.name,
+          color:       row.color || null,
+          size:        row.size  || null,
+          quantity:    row.quantity,
+          unitPrice:   unitPrice ?? 0,
+          costPrice:   costPrice ?? 0,
         }),
       });
+      await queryClient.invalidateQueries({ queryKey: ["shipment-items", order.id] });
       await queryClient.invalidateQueries({ queryKey: ["shipment-detail", String(order.id)] });
-      await queryClient.invalidateQueries({ queryKey: ["shipments"] });
-      toast({ title: "تم ربط المنتج", description: `${selectedProduct.name} اترتبط بالشحنة.` });
+      toast({ title: "تم إضافة المنتج", description: `${selectedProduct.name} اتضاف للشحنة.` });
       reset();
       onOpenChange(false);
       onSuccess();
     } catch (e: any) {
-      toast({ title: "خطأ", description: e?.message || "فشل الربط.", variant: "destructive" });
+      toast({ title: "خطأ", description: e?.message || "فشل الإضافة.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -1876,6 +1880,12 @@ export default function OrderDetail() {
   const { data: allVariants } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
   const { data: warehouses }        = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }             = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
+  // بنود المنتجات المرتبطة بالشحنة
+  const { data: shipmentItems = [] } = useQuery({
+    queryKey: ["shipment-items", id],
+    queryFn:  () => apiFetch<any[]>(`/shipments/${id}/items`),
+    enabled:  !!id,
+  });
   // الشحنات مش عندها manifest — معطل
   const manifestStatus = null;
   const invoiceManifestStatus = null;
@@ -4111,6 +4121,117 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground mb-1">ملاحظات</p>
                     <div className="bg-muted/20 p-3 rounded text-sm border border-border">{order.notes}</div>
+                  </div>
+                )}
+
+                {/* ── منتجات الشحنة ── */}
+                {shipmentItems.length > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                        <Package className="w-3 h-3" />منتجات الشحنة ({shipmentItems.length})
+                      </p>
+                      {isAdmin && (
+                        <button type="button" onClick={() => setShowAddProduct(true)}
+                          className="flex items-center gap-1 text-[10px] font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-2 py-1 rounded transition-colors">
+                          <Plus className="w-3 h-3" />إضافة منتج
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      {(shipmentItems as any[]).map((item: any, idx: number) => {
+                        const productImg = (products as any[] ?? []).find((p: any) => p.id === item.productId)?.image ?? null;
+                        const unitPrice  = Number(item.unitPrice ?? 0);
+                        const totalPrice = Number(item.totalPrice ?? (unitPrice * (item.quantity ?? 1)));
+                        const isBulk     = Number(item.quantity ?? 1) > 1;
+                        return (
+                          <div key={item.id} className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+                            <div className="flex items-center gap-4 p-4">
+                              {/* صورة المنتج */}
+                              <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-sm">
+                                {productImg ? (
+                                  <img src={productImg} alt={item.product} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Package className="w-8 h-8 opacity-25 text-muted-foreground" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* تفاصيل المنتج */}
+                              <div className="flex-1 min-w-0 space-y-3">
+                                <div>
+                                  <p className="text-[10px] text-muted-foreground mb-1">المنتج</p>
+                                  <h3 className="text-base sm:text-lg font-black text-foreground leading-tight truncate">{item.product || "—"}</h3>
+                                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                    {item.size && <Badge variant="outline" className="text-xs border-border">{item.size}</Badge>}
+                                    {isBulk && <Badge variant="outline" className="text-xs border-border">جملة</Badge>}
+                                    <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
+                                      {statusLabels[order.status] || order.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+
+                                {/* الأرقام */}
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div className="bg-primary/10 border border-primary/30 rounded-xl p-2 sm:p-3 text-center">
+                                    <p className="text-[10px] text-primary/70 mb-1">الإجمالي</p>
+                                    <p className="text-base sm:text-xl font-black text-primary">{formatCurrency(totalPrice)}</p>
+                                  </div>
+                                  <div className="bg-muted/50 rounded-xl p-2 sm:p-3 text-center">
+                                    <p className="text-[10px] text-muted-foreground mb-1">سعر الوحدة</p>
+                                    <p className="text-sm sm:text-lg font-black text-foreground">{formatCurrency(unitPrice)}</p>
+                                  </div>
+                                  <div className="bg-muted/50 rounded-xl p-3 text-center">
+                                    <p className="text-[10px] text-muted-foreground mb-1">الكمية</p>
+                                    <p className="text-lg sm:text-2xl font-black text-foreground">{item.quantity}</p>
+                                  </div>
+                                </div>
+
+                                {item.notes && (
+                                  <div className="bg-muted/40 rounded-lg px-3 py-2 border border-border/50">
+                                    <p className="text-[10px] text-muted-foreground mb-0.5">ملاحظات</p>
+                                    <p className="text-xs text-foreground">{item.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* حذف */}
+                              {isAdmin && (
+                                <button type="button"
+                                  onClick={async () => {
+                                    await apiFetch(`/shipments/${order.id}/items/${item.id}`, { method: "DELETE" });
+                                    queryClient.invalidateQueries({ queryKey: ["shipment-items", id] });
+                                    toast({ title: "تم الحذف" });
+                                  }}
+                                  className="shrink-0 self-start p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* إجمالي المنتجات */}
+                      {shipmentItems.length > 1 && (
+                        <div className="flex justify-between items-center px-3 py-2 rounded-lg bg-primary/10 border border-primary/30 mt-1">
+                          <span className="text-xs font-bold text-primary">إجمالي المنتجات</span>
+                          <span className="text-sm font-black text-primary">
+                            {formatCurrency((shipmentItems as any[]).reduce((s, i) => s + Number(i.totalPrice ?? 0), 0))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* زرار إضافة أول منتج لو مفيش items */}
+                {shipmentItems.length === 0 && isAdmin && (
+                  <div className="mt-3 flex justify-center">
+                    <button type="button" onClick={() => setShowAddProduct(true)}
+                      className="flex items-center gap-2 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-4 py-2.5 rounded-lg transition-colors">
+                      <Plus className="w-3.5 h-3.5" />إضافة منتج للشحنة
+                    </button>
                   </div>
                 )}
               </CardContent>
