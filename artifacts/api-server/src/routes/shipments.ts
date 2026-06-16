@@ -795,13 +795,12 @@ router.get("/shipments/:id/items", async (req, res): Promise<void> => {
   try {
     const shipmentId = Number(req.params.id);
     const tenantId   = getTenantId(req);
+    const conditions = [eq(shipmentItemsTable.shipmentId, shipmentId)];
+    if (tenantId !== null) conditions.push(eq(shipmentItemsTable.tenantId, tenantId) as any);
     const items = await db
       .select()
       .from(shipmentItemsTable)
-      .where(and(
-        eq(shipmentItemsTable.shipmentId, shipmentId),
-        tenantId !== null ? eq(shipmentItemsTable.tenantId, tenantId) : undefined as any,
-      ))
+      .where(and(...conditions))
       .orderBy(shipmentItemsTable.createdAt);
     res.json(items);
   } catch (e) { res.status(500).json({ error: "خطأ في استرجاع بنود الشحنة" }); }
