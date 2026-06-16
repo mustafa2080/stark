@@ -29,6 +29,7 @@ export const inventoryMovementsTable = mysqlTable("inventory_movements", {
   type: varchar("type", { length: 10 }).notNull(),
   reason: varchar("reason", { length: 50 }).notNull(),
   orderId: int("order_id"),
+  shipmentId: int("shipment_id"),
   fromLocation: varchar("from_location", { length: 255 }),
   toLocation: varchar("to_location", { length: 255 }),
   notes: text("notes"),

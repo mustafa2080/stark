@@ -92,12 +92,16 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
   open: boolean; onOpenChange: (v: boolean) => void; order: any; onSuccess: () => void;
 }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const updateOrder = useUpdateOrder();
   const { data: products = [] } = useQuery({ queryKey: ["products"], queryFn: productsApi.list });
   const { data: allVariants = [] } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
+  const { data: warehouses = [] } = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { canViewFinancials } = useAuth();
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [variantRows, setVariantRows] = useState<{ color: string; size: string; quantity: number }[]>([{ color: "", size: "", quantity: 1 }]);
+  const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [unitPrice, setUnitPrice] = useState(0);
   const [costPrice, setCostPrice] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,7 +128,7 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
   const reset = () => {
     setSelectedProduct(null);
     setVariantRows([{ color: "", size: "", quantity: 1 }]);
-    setUnitPrice(0); setCostPrice(null);
+    setUnitPrice(0); setCostPrice(null); setWarehouseId(null);
     setSearchQuery(""); setSearchOpen(false);
   };
 
@@ -153,39 +157,32 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
     if (!selectedProduct) return;
     setIsSubmitting(true);
     try {
-      const filledRows = hasVariants ? variantRows.filter(r => r.color && r.size) : variantRows;
-      if (filledRows.length === 0) {
-        toast({ title: "خطأ", description: "اختر لون ومقاس على الأقل.", variant: "destructive" });
+      const row = variantRows[0];
+      const variantId = hasVariants
+        ? (productVariants.find((v: any) => v.color === row.color && v.size === row.size)?.id ?? null)
+        : null;
+      if (hasVariants && (!row.color || !row.size)) {
+        toast({ title: "خطأ", description: "اختر لون ومقاس.", variant: "destructive" });
         return;
       }
-      const items = filledRows.map(r => ({
-        product: selectedProduct.name,
-        color: r.color || null,
-        size: r.size || null,
-        quantity: r.quantity,
-        unitPrice,
-        costPrice: costPrice ?? null,
-        productId: selectedProduct.id,
-        variantId: hasVariants
-          ? (productVariants.find((v: any) => v.color === r.color && v.size === r.size)?.id ?? null)
-          : null,
-      }));
-      await ordersApi.batchCreate({
-        invoiceNumber: order.invoiceNumber ?? undefined,
-        customerName: order.customerName,
-        phone: order.phone ?? null,
-        city: order.city ?? null,
-        address: order.address ?? null,
-        shippingCompanyId: order.shippingCompanyId ?? null,
-        notes: null,
-        items,
+      await updateOrder.mutateAsync({
+        id: order.id,
+        data: {
+          productId: selectedProduct.id,
+          variantId,
+          warehouseId: warehouseId ?? null,
+          pieces: row.quantity,
+          description: selectedProduct.name + (row.color ? ` - ${row.color}` : "") + (row.size ? ` / ${row.size}` : ""),
+        } as any,
       });
-      toast({ title: "تم إضافة المنتج", description: `${selectedProduct.name} اتضاف للفاتورة بنجاح.` });
+      await queryClient.invalidateQueries({ queryKey: ["shipment-detail", String(order.id)] });
+      await queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      toast({ title: "تم ربط المنتج", description: `${selectedProduct.name} اترتبط بالشحنة.` });
       reset();
       onOpenChange(false);
       onSuccess();
     } catch (e: any) {
-      toast({ title: "خطأ", description: e?.message || "فشل الإضافة.", variant: "destructive" });
+      toast({ title: "خطأ", description: e?.message || "فشل الربط.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -201,7 +198,7 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
-            <Plus className="w-4 h-4 text-primary" />إضافة منتج لنفس الفاتورة
+            <Plus className="w-4 h-4 text-primary" />ربط منتج بالشحنة
           </DialogTitle>
         </DialogHeader>
 
@@ -355,6 +352,23 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
             </div>
           )}
 
+          {/* Warehouse */}
+          {selectedProduct && (
+            <div>
+              <label className="text-xs font-medium mb-1.5 block">المخزن *</label>
+              <select
+                value={warehouseId ?? ""}
+                onChange={e => setWarehouseId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full h-9 text-sm rounded-md border border-input bg-card px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">اختر مخزن...</option>
+                {(warehouses as any[]).map((w: any) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Price */}
           {selectedProduct && (
             <div className="grid grid-cols-2 gap-3">
@@ -375,9 +389,9 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
         <DialogFooter className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={() => { reset(); onOpenChange(false); }} className="flex-1">إلغاء</Button>
           <Button size="sm" onClick={handleSubmit}
-            disabled={isSubmitting || !selectedProduct || unitPrice <= 0}
+            disabled={isSubmitting || !selectedProduct}
             className="flex-1 gap-1">
-            <Plus className="w-3 h-3" />{isSubmitting ? "جاري الإضافة..." : "إضافة للفاتورة"}
+            <Plus className="w-3 h-3" />{isSubmitting ? "جاري الربط..." : "ربط بالشحنة"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2096,17 +2110,6 @@ export default function OrderDetail() {
       ? editProdVariants.find((v: any) => v.color === editRow.color && v.size === editRow.size)
       : null;
 
-    const extraData = editSelectedProduct
-      ? {
-          product: editSelectedProduct.name,
-          color: editVariant?.color ?? (editRow.color || null),
-          size: editVariant?.size ?? (editRow.size || null),
-          quantity: editHasVariants ? editRow.quantity : values.quantity,
-          productId: editSelectedProduct.id,
-          variantId: editVariant?.id ?? null,
-        }
-      : {};
-
     // map order form fields → shipment fields
     updateOrder.mutate({ id, data: {
       receiverName:      values.customerName,
@@ -2118,6 +2121,9 @@ export default function OrderDetail() {
       codAmount:         values.codAmount ?? null,
       description:       values.product ?? null,
       pieces:            values.quantity ?? null,
+      productId:         editSelectedProduct ? editSelectedProduct.id : undefined,
+      variantId:         editSelectedProduct ? (editVariant?.id ?? null) : undefined,
+      warehouseId:       values.warehouseId ?? null,
       shippingFee:       values.shippingCost ?? null,
       shippingCompanyId: values.shippingCompanyId || null,
       trackingNumber:    values.trackingNumber || null,

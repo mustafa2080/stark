@@ -314,6 +314,7 @@ export async function recordMovement(data: {
   variantId?: number | null;
   warehouseId?: number | null;
   orderId?: number | null;
+  shipmentId?: number | null;
   fromLocation?: string | null;
   toLocation?: string | null;
   notes?: string | null;
@@ -329,6 +330,7 @@ export async function recordMovement(data: {
     variantId: data.variantId ?? null,
     warehouseId: data.warehouseId ?? null,
     orderId: data.orderId ?? null,
+    shipmentId: data.shipmentId ?? null,
     fromLocation: data.fromLocation ?? null,
     toLocation: data.toLocation ?? null,
     notes: data.notes ?? null,
@@ -596,6 +598,7 @@ export async function processToShipping(
   },
   qty: number,
   orderId?: number | null,
+  shipmentId?: number | null,
 ): Promise<void> {
   if (qty <= 0) return;
   const { variantId, productId } = await resolveInventoryTarget(order);
@@ -635,6 +638,7 @@ export async function processToShipping(
     variantId: resolvedShipping.variantId,
     warehouseId: usedWhId,
     orderId,
+    shipmentId,
     notes: "تحويل لشركة الشحن",
   });
 }
@@ -653,6 +657,7 @@ export async function reverseShipping(
   },
   qty: number,
   orderId?: number | null,
+  shipmentId?: number | null,
 ): Promise<void> {
   if (qty <= 0) return;
   // لو الطلب مش مرتبط بمخزن محدد → تخطى عملية المخزون (طلبات قديمة بدون warehouse_id)
@@ -693,6 +698,7 @@ export async function reverseShipping(
     variantId: resolvedRevShip.variantId,
     warehouseId: usedWhId,
     orderId,
+    shipmentId,
     notes: "إرجاع من شركة الشحن للمخزن",
   });
 }

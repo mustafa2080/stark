@@ -3,6 +3,7 @@ import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
 import { db, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { processToShipping, reverseShipping, processReturn } from "../lib/inventory.js";
 
 const router: IRouter = Router();
 
@@ -71,6 +72,9 @@ const CreateShipmentSchema = z.object({
   returnReason:    z.string().nullish(),
   returnNote:      z.string().nullish(),
   partialQuantity: z.coerce.number().int().nullish(),
+  productId:       z.number().int().positive().nullish(),
+  variantId:       z.number().int().positive().nullish(),
+  warehouseId:     z.number().int().positive().nullish(),
   status:          z.string().default("waiting"),
 });
 
@@ -99,6 +103,57 @@ async function generateShipmentNumber(tenantId: number | null): Promise<string> 
   const last = rows[0]?.n;
   const seq  = last ? (parseInt(last.slice(-4)) + 1) : 1;
   return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+// ─── ربط الشحنة بالمخزون: خصم/إرجاع تلقائي حسب الحالة ────────────────────────
+type ShipmentRow = typeof shipmentsTable.$inferSelect;
+
+async function syncShipmentInventory(
+  before: ShipmentRow,
+  afterPatch: Record<string, any>,
+): Promise<void> {
+  // الشحنة الناتجة بعد التحديث (لمعرفة الحالة/الكمية النهائية)
+  const after: ShipmentRow = { ...before, ...afterPatch };
+
+  const hasInventoryLink = !!(after.productId || after.variantId);
+  if (!hasInventoryLink) return; // الشحنة غير مرتبطة بمنتج → لا شيء يخص المخزون
+
+  const totalPieces = Number(after.pieces ?? 1);
+  const orderShape = {
+    productId:   after.productId ?? null,
+    variantId:   after.variantId ?? null,
+    product:     after.description ?? null,
+    color:       null,
+    size:        null,
+    warehouseId: after.warehouseId ?? null,
+  };
+
+  // 1) أول مرة يتربط المنتج بالشحنة (أو لسه متخصوم) و الحالة لسه مش مرتجعة بالكامل
+  //    → اخصم كمية القطع من المخزن (مرة واحدة فقط)
+  const wasDeducted = !!before.inventoryDeducted;
+  if (!wasDeducted) {
+    await processToShipping(orderShape, totalPieces, null, before.id);
+    afterPatch.inventoryDeducted = 1;
+  }
+
+  // 2) تحول لحالة "مرتجع" → رجّع كل القطع للمخزن (لو لسه ماترجعتش)
+  const newStatus = afterPatch.status as string | undefined;
+  const wasReturned = !!before.inventoryReturned;
+
+  if (newStatus === "returned" && !wasReturned) {
+    await reverseShipping(orderShape, totalPieces, null, before.id);
+    afterPatch.inventoryReturned = 1;
+  }
+
+  // 3) استلام جزئي → الباقي (الفرق بين القطع الكلية والمستلمة) يرجع فوراً للمخزن
+  if (newStatus === "partial_received") {
+    const receivedQty = Number(afterPatch.partialQuantity ?? after.partialQuantity ?? 0);
+    const remaining = totalPieces - receivedQty;
+    if (remaining > 0 && !wasReturned) {
+      await reverseShipping(orderShape, remaining, null, before.id);
+      afterPatch.inventoryReturned = 1; // يمنع تكرار الإرجاع لو الحالة اتعدلت تاني لنفس partial
+    }
+  }
 }
 
 // ─── GET /shipments/track/:number (public — no auth) ──────────────────────────
@@ -216,6 +271,11 @@ router.get("/shipments", async (req, res): Promise<void> => {
           returnReason:     shipmentsTable.returnReason,
           returnNote:       shipmentsTable.returnNote,
           partialQuantity:  shipmentsTable.partialQuantity,
+          productId:        shipmentsTable.productId,
+          variantId:        shipmentsTable.variantId,
+          warehouseId:      shipmentsTable.warehouseId,
+          inventoryDeducted: shipmentsTable.inventoryDeducted,
+          inventoryReturned: shipmentsTable.inventoryReturned,
           estimatedDelivery: shipmentsTable.estimatedDelivery,
           actualDelivery:   shipmentsTable.actualDelivery,
           createdAt:        shipmentsTable.createdAt,
@@ -383,6 +443,9 @@ router.post("/shipments", async (req, res): Promise<void> => {
       weight:          d.weight      ? String(d.weight) : undefined,
       pieces:          d.pieces,
       description:     d.description ?? undefined,
+      productId:       d.productId   ?? undefined,
+      variantId:       d.variantId   ?? undefined,
+      warehouseId:     d.warehouseId ?? undefined,
       declaredValue:   String(d.declaredValue),
       paymentMethod:   d.paymentMethod,
       codAmount:       String(d.codAmount),
@@ -400,7 +463,18 @@ router.post("/shipments", async (req, res): Promise<void> => {
     });
 
     const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
-    const newShipment = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, insertId)).limit(1);
+    let newShipment = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, insertId)).limit(1);
+
+    // لو الشحنة اتعملت مرتبطة بمنتج من البداية → اخصم من المخزون فوراً
+    if (newShipment[0]) {
+      const invPatch: any = {};
+      await syncShipmentInventory(newShipment[0], invPatch);
+      if (Object.keys(invPatch).length) {
+        await db.update(shipmentsTable).set(invPatch).where(eq(shipmentsTable.id, insertId));
+        newShipment = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, insertId)).limit(1);
+      }
+    }
+
     res.status(201).json(newShipment[0]);
   } catch (e) {
     console.error("[POST /shipments]", e);
@@ -415,6 +489,9 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     const id = parseInt(req.params.id);
     const parsed = UpdateShipmentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+    const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+    if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
 
     const d = parsed.data;
     const updateData: any = { updatedAt: new Date() };
@@ -443,6 +520,9 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.weight           !== undefined) updateData.weight           = d.weight ? String(d.weight) : null;
     if (d.pieces           !== undefined) updateData.pieces           = d.pieces;
     if (d.description      !== undefined) updateData.description      = d.description;
+    if (d.productId        !== undefined) updateData.productId        = d.productId;
+    if (d.variantId        !== undefined) updateData.variantId        = d.variantId;
+    if (d.warehouseId      !== undefined) updateData.warehouseId      = d.warehouseId;
     if (d.paymentMethod    !== undefined) updateData.paymentMethod    = d.paymentMethod;
     if (d.codAmount        !== undefined) updateData.codAmount        = String(d.codAmount);
     if (d.costPrice        !== undefined) updateData.costPrice        = String(d.costPrice);
@@ -455,6 +535,9 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.returnNote       !== undefined) updateData.returnNote       = d.returnNote;
     if (d.partialQuantity  !== undefined) updateData.partialQuantity  = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
+
+    // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
+    await syncShipmentInventory(existingShipment, updateData);
 
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
@@ -476,6 +559,10 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     const id = parseInt(req.params.id);
     const parsed = UpdateShipmentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+    const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+    if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+
     const d = parsed.data;
     const updateData: any = { updatedAt: new Date() };
     if (d.status            !== undefined) updateData.status            = d.status;
@@ -494,6 +581,9 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.weight            !== undefined) updateData.weight            = d.weight ? String(d.weight) : null;
     if (d.pieces            !== undefined) updateData.pieces            = d.pieces;
     if (d.description       !== undefined) updateData.description       = d.description;
+    if (d.productId         !== undefined) updateData.productId         = d.productId;
+    if (d.variantId         !== undefined) updateData.variantId         = d.variantId;
+    if (d.warehouseId       !== undefined) updateData.warehouseId       = d.warehouseId;
     if (d.paymentMethod     !== undefined) updateData.paymentMethod     = d.paymentMethod;
     if (d.codAmount         !== undefined) updateData.codAmount         = String(d.codAmount);
     if (d.costPrice         !== undefined) updateData.costPrice         = String(d.costPrice);
@@ -506,6 +596,10 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.returnNote        !== undefined) updateData.returnNote        = d.returnNote;
     if (d.partialQuantity   !== undefined) updateData.partialQuantity   = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
+
+    // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
+    await syncShipmentInventory(existingShipment, updateData);
+
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);

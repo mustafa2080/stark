@@ -73,6 +73,9 @@ export const shipmentsTable = mysqlTable("shipments", {
   weight:          decimal("weight", { precision: 8, scale: 2 }), // الوزن (كجم)
   pieces:          int("pieces").default(1),                     // عدد القطع
   description:     text("description"),                          // وصف الشحنة
+  productId:       int("product_id"),                             // المنتج المرتبط بالشحنة (اختياري)
+  variantId:       int("variant_id"),                             // المتغير (لون/مقاس) المرتبط (اختياري)
+  warehouseId:     int("warehouse_id"),                           // المخزن المخصوم منه (اختياري)
   declaredValue:   decimal("declared_value", { precision: 12, scale: 2 }).default("0"), // القيمة المعلنة
 
   // ── البيانات المالية ────────────────────────────────────────────────────
@@ -97,6 +100,8 @@ export const shipmentsTable = mysqlTable("shipments", {
   returnReason:    varchar("return_reason", { length: 100 }),  // سبب الإرجاع
   returnNote:      text("return_note"),                         // ملاحظة الإرجاع (لو other)
   partialQuantity: int("partial_quantity"),                     // الكمية المستلمة جزئياً
+  inventoryDeducted: int("inventory_deducted").default(0),       // 1 = تم خصم المخزون لهذه الشحنة
+  inventoryReturned: int("inventory_returned").default(0),       // 1 = تم إرجاع المخزون (مرتجع/جزئي)
   estimatedDelivery: datetime("estimated_delivery"), // تاريخ التسليم المتوقع
   actualDelivery:  datetime("actual_delivery"),  // تاريخ التسليم الفعلي
   deletedAt:       datetime("deleted_at"),
