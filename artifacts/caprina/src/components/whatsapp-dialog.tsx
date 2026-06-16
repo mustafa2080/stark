@@ -233,7 +233,7 @@ interface ShipmentDialogProps {
 
 const SHIPMENT_STATUS_LABELS: Record<string, string> = {
   waiting: "في الانتظار", confirmed: "مؤكدة", picked_up: "تم الاستلام",
-  in_transit: "في الطريق", out_for_delivery: "خرجت للتسليم",
+  in_transit: "قيد الشحن", out_for_delivery: "خرجت للتسليم",
   delivered: "مُسلَّمة", delayed: "متأخرة", returned: "مرتجعة", cancelled: "ملغاة",
 };
 

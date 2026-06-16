@@ -385,13 +385,13 @@ export function CreateManifestDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
 
-  // الشحنات الخاصة بشركة الشحن دي
+  // كل الشحنات المتاحة من كل الشركات (بدون فلتر shippingCompanyId)
   const { data, isLoading } = useQuery({
-    queryKey: ["shipments-available-for-manifest", company.id],
-    queryFn: () => shipmentsApi.list({ shippingCompanyId: company.id, limit: 200 }),
+    queryKey: ["shipments-available-for-manifest"],
+    queryFn: () => shipmentsApi.list({ limit: 200 }),
   });
 
-  // كل شحنات الشركة (بدون فلتر حالة) — لمعرفة إجمالي الشحنات المرتبطة بها
+  // كل الشحنات (بدون فلتر حالة) — لمعرفة إجمالي الشحنات المتاحة
   const allCompanyShipments = data?.data ?? [];
 
   // الشحنات المتاحة: waiting / confirmed / delayed فقط
@@ -438,7 +438,7 @@ export function CreateManifestDialog({
       }),
     onSuccess: (manifest) => {
       queryClient.invalidateQueries({ queryKey: ["shipment-manifests", company.id] });
-      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", company.id] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest"] });
       queryClient.invalidateQueries({ queryKey: ["company-shipments", company.id] });
       queryClient.invalidateQueries({ queryKey: ["company-stats", company.id] });
       toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.shipmentCount} شحنة` });
@@ -507,8 +507,8 @@ export function CreateManifestDialog({
                 <p className="text-sm text-muted-foreground">
                   {availableShipments.length === 0
                     ? allCompanyShipments.length === 0
-                      ? "لا توجد شحنات لهذه الشركة حالياً — يمكنك إضافة شحنات جديدة لها من قسم الشحنات"
-                      : "لا توجد شحنات بحالة (انتظار / مؤكدة / متأخرة) جاهزة للبيان — باقي شحنات الشركة في حالات أخرى (تم الاستلام / في الطريق / تم التسليم...)"
+                      ? "لا توجد شحنات حالياً — يمكنك إضافة شحنات جديدة من قسم الشحنات"
+                      : "لا توجد شحنات بحالة (انتظار / مؤكدة / متأخرة) جاهزة للبيان — باقي الشحنات في حالات أخرى (تم الاستلام / قيد الشحن / تم التسليم...)"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>

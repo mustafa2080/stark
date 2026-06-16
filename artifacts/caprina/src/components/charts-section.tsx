@@ -36,7 +36,7 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
   waiting:          { label: "انتظار",                  color: "#eab308", bg: "#eab30818" },
   confirmed:        { label: "مؤكدة",                   color: "#14b8a6", bg: "#14b8a618" },
   picked_up:        { label: "قيد الشحن في المخزن",    color: "#14b8a6", bg: "#14b8a618" },
-  in_transit:       { label: "في الطريق",               color: "#3b82f6", bg: "#3b82f618" },
+  in_transit:       { label: "قيد الشحن",               color: "#3b82f6", bg: "#3b82f618" },
   out_for_delivery: { label: "خرجت للتسليم",            color: "#f59e0b", bg: "#f59e0b18" },
   delivered:        { label: "استلم",                   color: "#22c55e", bg: "#22c55e18" },
   delayed:          { label: "مؤجل",                    color: "#8b5cf6", bg: "#8b5cf618" },

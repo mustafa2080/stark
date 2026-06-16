@@ -46,7 +46,7 @@ const shipmentStatusLabels: Record<string, string> = {
   waiting:          "انتظار",
   confirmed:        "مؤكدة",
   picked_up:        "تم الاستلام",
-  in_transit:       "في الطريق",
+  in_transit:       "قيد الشحن",
   out_for_delivery: "خرجت للتسليم",
   delivered:        "تم التسليم",
   delayed:          "متأخرة",

@@ -489,7 +489,7 @@ export default function ShippingCompanyDetailPage() {
                 };
                 const statusLabels: Record<string, string> = {
                   waiting: "انتظار", confirmed: "مؤكد", picked_up: "تم الاستلام",
-                  warehouse_ready: "جاهز", in_transit: "في الطريق", in_shipping: "في الشحن",
+                  warehouse_ready: "جاهز", in_transit: "قيد الشحن", in_shipping: "في الشحن",
                   out_for_delivery: "خرج للتسليم", delivered: "مسلَّم", received: "مستلم",
                   returned: "مرتجع", cancelled: "ملغي",
                 };
@@ -735,8 +735,8 @@ function CreateShipmentManifestDialog({
   const AVAILABLE_STATUSES = ["waiting", "confirmed", "delayed"];
 
   const { data, isLoading } = useQuery({
-    queryKey: ["shipments-available-for-manifest", company.id],
-    queryFn: () => shipmentsApi.list({ shippingCompanyId: company.id, limit: 200 }),
+    queryKey: ["shipments-available-for-manifest"],
+    queryFn: () => shipmentsApi.list({ limit: 200 }),
   });
 
   const availableShipments = useMemo(() => {
@@ -782,7 +782,7 @@ function CreateShipmentManifestDialog({
       }),
     onSuccess: (manifest) => {
       queryClient.invalidateQueries({ queryKey: ["shipment-manifests", company.id] });
-      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", company.id] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest"] });
       queryClient.invalidateQueries({ queryKey: ["company-shipments", company.id] });
       toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.shipmentCount} شحنة` });
       if (onCreated) onCreated(manifest);
@@ -840,7 +840,7 @@ function CreateShipmentManifestDialog({
                 <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                 <p className="text-sm text-muted-foreground">
                   {availableShipments.length === 0
-                    ? "لا توجد شحنات متاحة حالياً لهذه الشركة (انتظار / مؤكدة / متأخرة)"
+                    ? "لا توجد شحنات متاحة حالياً (انتظار / مؤكدة / متأخرة)"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
