@@ -368,6 +368,85 @@ async function createTreasuryEntryOnClose(
     .where(eq(cashRegistersTable.id, mainRegister.id));
 }
 
+// ─── ترحيل الكمية المتبقية من الشحنات (partial_delivered) لبيان جديد ────────
+async function rolloverPartialShipments(
+  closedManifest: typeof shipmentManifestsTable.$inferSelect,
+  items: (typeof shipmentManifestItemsTable.$inferSelect)[],
+): Promise<void> {
+  const partialItems = items.filter(i => i.deliveryStatus === "partial_delivered" && i.partialQuantity != null);
+  if (partialItems.length === 0) return;
+
+  const shipmentIds = partialItems.map(i => i.shipmentId);
+  const shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+  const shipmentMap = new Map(shipments.map(s => [s.id, s]));
+
+  const remainders = partialItems
+    .map(item => {
+      const shipment = shipmentMap.get(item.shipmentId);
+      if (!shipment) return null;
+      const totalPieces = Number(shipment.pieces ?? 1);
+      const received = Number(item.partialQuantity ?? 0);
+      const remaining = totalPieces - received;
+      return remaining > 0 ? { shipmentId: item.shipmentId, remaining } : null;
+    })
+    .filter((r): r is { shipmentId: number; remaining: number } => r !== null);
+
+  if (remainders.length === 0) return;
+
+  const now = new Date();
+
+  const [openManifest] = await db
+    .select()
+    .from(shipmentManifestsTable)
+    .where(and(
+      eq(shipmentManifestsTable.shippingCompanyId, closedManifest.shippingCompanyId),
+      eq(shipmentManifestsTable.status, "open"),
+    ));
+
+  let targetManifestId: number;
+
+  if (openManifest) {
+    targetManifestId = openManifest.id;
+  } else {
+    const manifestNumber = await generateManifestNumber(closedManifest.shippingCompanyId);
+    const [result] = await db.insert(shipmentManifestsTable).values({
+      tenantId:          closedManifest.tenantId,
+      manifestNumber,
+      shippingCompanyId: closedManifest.shippingCompanyId,
+      status:            "open",
+      notes:             "بيان مرحّل تلقائياً — استلام جزئي",
+      createdAt:         now,
+    });
+    targetManifestId = (result as any).insertId as number;
+  }
+
+  const existing = await db
+    .select({ shipmentId: shipmentManifestItemsTable.shipmentId })
+    .from(shipmentManifestItemsTable)
+    .where(and(
+      eq(shipmentManifestItemsTable.manifestId, targetManifestId),
+      inArray(shipmentManifestItemsTable.shipmentId, remainders.map(r => r.shipmentId)),
+    ));
+  const existingIds = new Set(existing.map(e => e.shipmentId));
+  const toInsert = remainders.filter(r => !existingIds.has(r.shipmentId));
+
+  if (toInsert.length > 0) {
+    await db.insert(shipmentManifestItemsTable).values(
+      toInsert.map(r => ({
+        manifestId:     targetManifestId,
+        shipmentId:     r.shipmentId,
+        deliveryStatus: "pending",
+        deliveryNote:   `باقي من استلام جزئي (${r.remaining} قطعة) — بيان ${closedManifest.manifestNumber}`,
+        addedAt:        now,
+      }))
+    );
+
+    await db.update(shipmentsTable)
+      .set({ status: "in_transit", updatedAt: now })
+      .where(inArray(shipmentsTable.id, toInsert.map(r => r.shipmentId)));
+  }
+}
+
 // ─── PATCH /shipment-manifests/:id  (قفل/فتح البيان) ────────────────────────
 router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
   try {
@@ -395,6 +474,9 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           const userId   = (req as any).user?.id   ?? null;
           const userName = (req as any).user?.name ?? null;
           await createTreasuryEntryOnClose(manifest, items, userId, userName);
+
+          // ترحيل الباقي من الشحنات المستلمة جزئياً لبيان جديد (إيراد صفر حتى يُستلم)
+          await rolloverPartialShipments(manifest, items);
         }
       } catch (err) {
         console.error("[PATCH /shipment-manifests/:id] treasury entry error:", err);
