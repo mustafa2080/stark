@@ -812,7 +812,7 @@ router.post("/shipments/:id/items", async (req, res): Promise<void> => {
     const shipmentId = Number(req.params.id);
     const tenantId   = getTenantId(req);
     const body = ShipmentItemSchema.parse(req.body);
-    const now  = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const now = new Date();
     const totalPrice = body.quantity * body.unitPrice;
     const [result] = await db.insert(shipmentItemsTable).values({
       shipmentId,
@@ -828,8 +828,8 @@ router.post("/shipments/:id/items", async (req, res): Promise<void> => {
       costPrice:   String(body.costPrice),
       totalPrice:  String(totalPrice),
       notes:       body.notes ?? null,
-      createdAt:   now as any,
-      updatedAt:   now as any,
+      createdAt:   now,
+      updatedAt:   now,
     });
     const newItem = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, (result as any).insertId)).limit(1);
     res.status(201).json(newItem[0]);
