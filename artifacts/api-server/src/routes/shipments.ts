@@ -834,8 +834,9 @@ router.post("/shipments/:id/items", async (req, res): Promise<void> => {
     const newItem = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, (result as any).insertId)).limit(1);
     res.status(201).json(newItem[0]);
   } catch (e: any) {
+    console.error("[POST /shipments/:id/items]", e);
     if (e?.name === "ZodError") { res.status(400).json({ error: e.errors }); return; }
-    res.status(500).json({ error: "خطأ في إضافة البند" });
+    res.status(500).json({ error: "خطأ في إضافة البند", detail: e?.message });
   }
 });
 
