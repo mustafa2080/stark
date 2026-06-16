@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
 
-interface ShippingCompany { id: number; name: string }
+interface ShippingCompany { id: number; name: string; isActive?: boolean }
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
@@ -270,6 +270,37 @@ export default function NewShipmentPage() {
         {/* ملاحظات */}
         <div><Label className="text-xs font-bold mb-1.5 block">ملاحظات</Label><Input className="text-sm" placeholder="أي تعليمات خاصة..." value={form.notes} onChange={e => set("notes", e.target.value)} /></div>
 
+        {/* شركة الشحن */}
+        <section className="space-y-4 rounded-xl border border-sky-900/40 bg-sky-900/5 p-4">
+          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
+            <Truck className="w-3.5 h-3.5 text-sky-400" /> مناديب STARK — شركة الشحن
+          </h3>
+          <div>
+            <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Truck className="w-3 h-3" /> شركة الشحن <span className="text-red-500">*</span></Label>
+            <Select value={form.shippingCompanyId || "none"} onValueChange={v => set("shippingCompanyId", v === "none" ? "" : v)}>
+              <SelectTrigger className="text-sm h-10 bg-card">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-3.5 h-3.5 text-sky-400" />
+                  <SelectValue placeholder="اختر شركة الشحن..." />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— غير محدد —</SelectItem>
+                {shippingCompanies.filter(c => c.isActive !== false).map(c => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-3 h-3 text-sky-400" />
+                      <span>{c.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!form.shippingCompanyId && <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">⚠ اختر شركة الشحن لربط الشحنة بالبيان</p>}
+            {form.shippingCompanyId && <p className="text-[10px] text-sky-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />تم تحديد شركة الشحن — ستظهر الشحنة في بيانات هذه الشركة</p>}
+          </div>
+        </section>
+
         {/* تتبع الإعلان والفريق */}
         <section className="space-y-4 rounded-xl border border-purple-900/40 bg-purple-900/5 p-4">
           <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
@@ -302,16 +333,6 @@ export default function NewShipmentPage() {
             <div>
               <Label className="text-xs font-bold mb-1.5 block">اسم الحملة</Label>
               <Input className="text-sm h-10 bg-card" placeholder="Summer 2025..." value={form.adCampaign} onChange={e => set("adCampaign", e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Truck className="w-3 h-3" /> شركة الشحن</Label>
-              <Select value={form.shippingCompanyId || "none"} onValueChange={v => set("shippingCompanyId", v === "none" ? "" : v)}>
-                <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر شركة الشحن" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— غير محدد —</SelectItem>
-                  {shippingCompanies.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Warehouse className="w-3 h-3" /> المخزن</Label>
