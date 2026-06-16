@@ -413,6 +413,7 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
                   <Input type="number" min={0} value={costPrice ?? ""} onChange={e => setCostPrice(e.target.value ? Number(e.target.value) : null)} className="h-9 text-sm" />
                 </div>
               )}
+              </div>
             </div>
           )}
         </div>
