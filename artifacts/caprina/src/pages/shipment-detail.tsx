@@ -110,20 +110,22 @@ function AddProductDialog({ open, onOpenChange, order, onSuccess }: {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
 
+  // افتح الـ dropdown تلقائي لما الـ dialog يفتح
+  useEffect(() => {
+    if (open && !selectedProduct) {
+      setSearchOpen(true);
+    }
+  }, [open]);
+
   const productVariants = allVariants.filter((v: any) => v.productId === selectedProduct?.id);
   const availableColors = [...new Set(productVariants.map((v: any) => v.color))] as string[];
   const hasVariants = productVariants.length > 0;
 
   const filteredProducts = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    const inStock = (products as any[]).filter((p: any) => {
-      const variants = (allVariants as any[]).filter((v: any) => v.productId === p.id);
-      return variants.length > 0
-        ? variants.some((v: any) => (v.totalQuantity ?? 0) > 0)
-        : (p.totalQuantity ?? 0) > 0;
-    });
-    return (q ? inStock.filter((p: any) => p.name?.toLowerCase().includes(q)) : inStock).slice(0, 20);
-  }, [searchQuery, products, allVariants]);
+    const allProds = (products as any[]);
+    return (q ? allProds.filter((p: any) => p.name?.toLowerCase().includes(q)) : allProds).slice(0, 20);
+  }, [searchQuery, products]);
 
   const reset = () => {
     setSelectedProduct(null);
