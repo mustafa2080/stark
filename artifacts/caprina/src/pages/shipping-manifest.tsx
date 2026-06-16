@@ -2799,7 +2799,7 @@ function AddOrdersToManifestDialog({
 
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["shipments-available-for-manifest", companyId],
-    queryFn: () => shipmentsApi.list({ shippingCompanyId: companyId, limit: 500 }),
+    queryFn: () => shipmentsApi.list({ shippingCompanyId: companyId, status: "warehouse_ready", limit: 500 }),
     staleTime: 10000,
   });
 
