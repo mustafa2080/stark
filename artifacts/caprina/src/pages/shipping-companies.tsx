@@ -16,11 +16,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Truck, Edit2, Trash2, Phone, Globe, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon } from "lucide-react";
 import { format } from "date-fns";
 
-// الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد
-const AVAILABLE_SHIPMENT_STATUSES = ["waiting", "confirmed", "delayed", "warehouse_ready"];
+// الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
+const AVAILABLE_SHIPMENT_STATUSES = ["waiting"];
 
 const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
-  waiting: "🏠 ما زال في المخزن",
+  waiting: "🏠 قيد الشحن في المخزن",
   confirmed: "مؤكدة",
   delayed: "متأخرة",
   warehouse_ready: "🏠 قيد الشحن في المخزن",
@@ -394,7 +394,7 @@ export function CreateManifestDialog({
   // كل الشحنات (بدون فلتر حالة) — لمعرفة إجمالي الشحنات المتاحة
   const allCompanyShipments = data?.data ?? [];
 
-  // الشحنات المتاحة: waiting / confirmed / delayed فقط
+  // الشحنات المتاحة: قيد الشحن في المخزن (waiting) فقط
   const availableShipments = useMemo(() => {
     return allCompanyShipments.filter((s: Shipment) => AVAILABLE_SHIPMENT_STATUSES.includes(s.status));
   }, [data]);
@@ -508,7 +508,7 @@ export function CreateManifestDialog({
                   {availableShipments.length === 0
                     ? allCompanyShipments.length === 0
                       ? "لا توجد شحنات حالياً — يمكنك إضافة شحنات جديدة من قسم الشحنات"
-                      : "لا توجد شحنات بحالة (انتظار / مؤكدة / متأخرة) جاهزة للبيان — باقي الشحنات في حالات أخرى (تم الاستلام / قيد الشحن / تم التسليم...)"
+                      : "لا توجد شحنات قيد الشحن في المخزن جاهزة للبيان — باقي الشحنات في حالات أخرى (مؤكدة / تم الاستلام / قيد الشحن / تم التسليم...)"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>

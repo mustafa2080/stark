@@ -731,8 +731,8 @@ function CreateShipmentManifestDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
 
-  // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن جديد
-  const AVAILABLE_STATUSES = ["waiting", "confirmed", "delayed"];
+  // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن جديد — قيد الشحن في المخزن فقط
+  const AVAILABLE_STATUSES = ["waiting"];
 
   const { data, isLoading } = useQuery({
     queryKey: ["shipments-available-for-manifest"],
@@ -840,7 +840,7 @@ function CreateShipmentManifestDialog({
                 <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                 <p className="text-sm text-muted-foreground">
                   {availableShipments.length === 0
-                    ? "لا توجد شحنات متاحة حالياً (انتظار / مؤكدة / متأخرة)"
+                    ? "لا توجد شحنات قيد الشحن في المخزن حالياً"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
@@ -855,7 +855,7 @@ function CreateShipmentManifestDialog({
                 </div>
                 {filtered.map((s: any) => {
                   const isSelected = selectedIds.has(s.id);
-                  const STATUS_LABELS: Record<string, string> = { waiting: "انتظار", confirmed: "مؤكدة", delayed: "متأخرة" };
+                  const STATUS_LABELS: Record<string, string> = { waiting: "قيد الشحن في المخزن", confirmed: "مؤكدة", delayed: "متأخرة" };
                   const STATUS_COLORS: Record<string, string> = {
                     waiting: "border-amber-700 bg-amber-900/20 text-amber-400",
                     confirmed: "border-blue-700 bg-blue-900/20 text-blue-400",
