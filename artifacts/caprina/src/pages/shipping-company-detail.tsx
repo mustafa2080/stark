@@ -731,17 +731,14 @@ function CreateShipmentManifestDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
 
-  // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن جديد — قيد الشحن في المخزن فقط
-  const AVAILABLE_STATUSES = ["waiting"];
-
+  // شحنات حالتها waiting (قيد الشحن في المخزن) — من كل الشركات بدون فلتر
   const { data, isLoading } = useQuery({
-    queryKey: ["shipments-available-for-manifest"],
-    queryFn: () => shipmentsApi.list({ limit: 200 }),
+    queryKey: ["shipments-available-for-manifest", "waiting"],
+    queryFn: () => shipmentsApi.list({ status: "waiting", limit: 500 }),
   });
 
-  const availableShipments = useMemo(() => {
-    return (data?.data ?? []).filter((s: any) => AVAILABLE_STATUSES.includes(s.status));
-  }, [data]);
+  // الباكند يُرجع waiting فقط — لا نحتاج فلتر إضافي
+  const availableShipments = (data?.data ?? []) as any[];
 
   const filtered = useMemo(() => {
     if (!search.trim()) return availableShipments;
@@ -782,7 +779,7 @@ function CreateShipmentManifestDialog({
       }),
     onSuccess: (manifest) => {
       queryClient.invalidateQueries({ queryKey: ["shipment-manifests", company.id] });
-      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest"] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", "waiting"] });
       queryClient.invalidateQueries({ queryKey: ["company-shipments", company.id] });
       toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.shipmentCount} شحنة` });
       if (onCreated) onCreated(manifest);
