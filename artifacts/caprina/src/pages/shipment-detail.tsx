@@ -3911,7 +3911,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             </Card>
 
             {/* ── Grid: الملخص المالي + المنتجات ── */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
               {/* يسار — الملخص المالي */}
               <Card className="border-primary/30 bg-card">
@@ -3956,64 +3956,88 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 </CardContent>
               </Card>
 
-              {/* يمين — منتجات الشحنة */}
-              <Card className="border-border bg-card">
-                <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
-                  <CardTitle className="text-sm font-bold flex items-center justify-between">
-                    <span className="flex items-center gap-2"><Package className="w-3.5 h-3.5" />منتجات الشحنة</span>
-                    <Badge variant="outline" className="text-xs">{shipmentItems.length} {shipmentItems.length === 1 ? "منتج" : "منتجات"}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 space-y-3">
+              {/* منتجات الشحنة — عرض كامل */}
+              <div className="md:col-span-2">
+                {/* هيدر */}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Package className="w-4 h-4 text-primary" />
+                    </div>
+                    منتجات الشحنة
+                    <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{shipmentItems.length}</span>
+                  </h3>
+                  {isAdmin && (
+                    <button type="button" onClick={() => setShowAddProduct(true)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
+                      <Plus className="w-3.5 h-3.5" />إضافة منتج
+                    </button>
+                  )}
+                </div>
+
+                {/* بطاقات المنتجات */}
+                <div className="space-y-3">
                   {shipmentItems.length === 0 ? (
-                    <div className="text-center py-6 text-muted-foreground text-xs">لا توجد منتجات مضافة</div>
+                    <div className="text-center py-10 text-muted-foreground text-xs border border-dashed border-border rounded-xl">لا توجد منتجات مضافة</div>
                   ) : (
                     (shipmentItems as any[]).map((item: any) => {
                       const productImg = (products as any[] ?? []).find((p: any) => p.id === item.productId)?.image ?? null;
                       const unitPrice  = Number(item.unitPrice ?? 0);
                       const totalItem  = Number(item.totalPrice ?? unitPrice * (item.quantity ?? 1));
                       return (
-                        <div key={item.id} className="rounded-xl border border-border bg-muted/10 overflow-hidden">
-                          <div className="flex items-center gap-3 p-3">
-                            {/* صورة */}
-                            <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-border/60 bg-muted">
+                        <div key={item.id} className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+                          <div className="flex items-center gap-4 p-4">
+                            {/* صورة كبيرة */}
+                            <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-sm">
                               {productImg ? (
                                 <img src={productImg} alt={item.product} className="w-full h-full object-cover" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <Package className="w-6 h-6 opacity-25" />
+                                  <Package className="w-8 h-8 opacity-25 text-muted-foreground" />
                                 </div>
                               )}
                             </div>
-                            {/* بيانات */}
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-sm font-black truncate">{item.product || "—"}</h3>
-                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                {item.size && <Badge variant="outline" className="text-[9px]">{item.size}</Badge>}
-                                {item.color && <Badge variant="outline" className="text-[9px]">{item.color}</Badge>}
-                                {Number(item.quantity) > 1 && <Badge variant="outline" className="text-[9px]">جملة</Badge>}
-                                <Badge className={`text-[9px] font-bold px-2 py-0.5 ${statusClasses[order.status] || ""}`}>
-                                  {statusLabels[order.status] || order.status}
-                                </Badge>
-                              </div>
-                              {item.notes && <p className="text-[10px] text-muted-foreground mt-1 truncate">{item.notes}</p>}
-                            </div>
-                            {/* أسعار */}
-                            <div className="shrink-0 text-center space-y-1">
+
+                            {/* تفاصيل المنتج */}
+                            <div className="flex-1 min-w-0 space-y-3">
                               <div>
-                                <p className="text-[9px] text-muted-foreground">الكمية</p>
-                                <p className="text-base font-black">{item.quantity}</p>
+                                <p className="text-[10px] text-muted-foreground mb-1">المنتج</p>
+                                <h2 className="text-base sm:text-lg font-black text-foreground leading-tight">{item.product || "—"}</h2>
+                                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                  <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
+                                    {statusLabels[order.status] || order.status}
+                                  </Badge>
+                                  {item.color && <Badge variant="outline" className="text-xs border-border">{item.color}</Badge>}
+                                  {item.size && <Badge variant="outline" className="text-xs border-border">{item.size}</Badge>}
+                                  {Number(item.quantity) > 1 && <Badge variant="outline" className="text-xs border-border">جملة</Badge>}
+                                </div>
                               </div>
-                              <div>
-                                <p className="text-[9px] text-muted-foreground">سعر الوحدة</p>
-                                <p className="text-xs font-semibold">{formatCurrency(unitPrice)}</p>
+
+                              {/* الأرقام */}
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-muted/50 rounded-xl p-3 text-center">
+                                  <p className="text-[10px] text-muted-foreground mb-1">الكمية</p>
+                                  <p className="text-lg sm:text-2xl font-black text-foreground">{item.quantity}</p>
+                                </div>
+                                <div className="bg-muted/50 rounded-xl p-2 sm:p-3 text-center">
+                                  <p className="text-[10px] text-muted-foreground mb-1">سعر الوحدة</p>
+                                  <p className="text-sm sm:text-lg font-black text-foreground">{formatCurrency(unitPrice)}</p>
+                                </div>
+                                <div className="bg-primary/10 border border-primary/30 rounded-xl p-2 sm:p-3 text-center">
+                                  <p className="text-[10px] text-primary/70 mb-1">الإجمالي</p>
+                                  <p className="text-base sm:text-xl font-black text-primary">{formatCurrency(totalItem)}</p>
+                                </div>
                               </div>
-                              <div className="bg-primary/10 rounded-lg px-2 py-1 mt-1">
-                                <p className="text-[9px] text-muted-foreground">الإجمالي</p>
-                                <p className="text-sm font-black text-primary">{formatCurrency(totalItem)}</p>
-                              </div>
+
+                              {item.notes && (
+                                <div className="bg-muted/40 rounded-lg px-3 py-2 border border-border/50">
+                                  <p className="text-[10px] text-muted-foreground mb-0.5">ملاحظات</p>
+                                  <p className="text-xs text-foreground">{item.notes}</p>
+                                </div>
+                              )}
                             </div>
-                            {/* حذف */}
+
+                            {/* زرار حذف */}
                             {isAdmin && (
                               <button type="button"
                                 onClick={async () => {
@@ -4022,7 +4046,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                                   toast({ title: "تم الحذف" });
                                 }}
                                 className="shrink-0 self-start p-1.5 rounded hover:bg-red-900/30 text-red-500 transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -4030,22 +4054,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       );
                     })
                   )}
+
                   {shipmentItems.length > 1 && (
-                    <div className="flex justify-between items-center px-3 py-2 rounded-lg bg-primary/10 border border-primary/30">
-                      <span className="text-xs font-bold text-primary">إجمالي المنتجات</span>
-                      <span className="text-sm font-black text-primary">
+                    <div className="flex justify-between items-center px-4 py-3 rounded-xl bg-primary/10 border border-primary/30">
+                      <span className="text-sm font-bold text-primary">إجمالي المنتجات</span>
+                      <span className="text-base font-black text-primary">
                         {formatCurrency((shipmentItems as any[]).reduce((s, i) => s + Number(i.totalPrice ?? 0), 0))}
                       </span>
                     </div>
                   )}
-                  {isAdmin && (
-                    <button type="button" onClick={() => setShowAddProduct(true)}
-                      className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-2 py-2 rounded-lg transition-colors">
-                      <Plus className="w-3 h-3" />إضافة منتج
-                    </button>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
 
             {/* ملاحظات */}
