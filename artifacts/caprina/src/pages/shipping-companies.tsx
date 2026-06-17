@@ -448,12 +448,13 @@ export function CreateManifestDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-card border-border max-w-3xl max-h-[90vh] flex flex-col" dir="rtl">
+      <DialogContent className="bg-card border-border w-[94vw] sm:w-full max-w-3xl max-h-[90vh] flex flex-col p-4 sm:p-6" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-right flex items-center gap-2">
-            <Truck className="w-4 h-4 text-primary" />
-            إنشاء بيان شحن شحنات — {company.name}
+          <DialogTitle className="text-right flex items-center gap-2 pr-8 text-base sm:text-lg">
+            <Truck className="w-4 h-4 text-primary shrink-0" />
+            إنشاء بيان شحن جديد
           </DialogTitle>
+          <p className="text-xs text-muted-foreground text-right truncate pr-8">{company.name}</p>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col gap-3 mt-2">
@@ -512,8 +513,8 @@ export function CreateManifestDialog({
               </div>
             ) : (
               <>
-                {/* Table header */}
-                <div className="grid grid-cols-[auto_1fr_1fr_90px_90px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
+                {/* Table header — desktop only */}
+                <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_90px_90px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
                   <div className="w-5" />
                   <div>المستلم</div>
                   <div>المدينة</div>
@@ -526,35 +527,63 @@ export function CreateManifestDialog({
                   return (
                     <div
                       key={s.id}
-                      className={`grid grid-cols-[auto_1fr_1fr_90px_90px] gap-0 items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
                       onClick={() => toggleOne(s.id)}
+                      className={`border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
                     >
-                      <div className="w-5 flex items-center">
-                        <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                      {/* Desktop row */}
+                      <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_90px_90px] gap-0 items-center px-3 py-2.5">
+                        <div className="w-5 flex items-center">
+                          <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                        </div>
+                        {/* Receiver */}
+                        <div className="min-w-0 pr-2">
+                          <p className="text-xs font-semibold truncate">{s.receiverName}</p>
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <span className="font-mono text-primary/70">{s.shipmentNumber}</span>
+                            {s.receiverPhone && (
+                              <span className="text-muted-foreground/70">· {s.receiverPhone}</span>
+                            )}
+                          </p>
+                        </div>
+                        {/* City */}
+                        <div className="min-w-0 pr-2">
+                          <p className="text-xs truncate">{s.receiverCity || "—"}</p>
+                        </div>
+                        {/* COD */}
+                        <div className="text-left text-xs font-bold">
+                          {formatCurrency(Number(s.codAmount || 0))}
+                        </div>
+                        {/* Status */}
+                        <div>
+                          <Badge variant="outline" className="text-[9px] font-bold border truncate max-w-[85px]">
+                            {SHIPMENT_STATUS_LABELS_LOCAL[s.status] ?? s.status}
+                          </Badge>
+                        </div>
                       </div>
-                      {/* Receiver */}
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs font-semibold truncate">{s.receiverName}</p>
-                        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          <span className="font-mono text-primary/70">{s.shipmentNumber}</span>
-                          {s.receiverPhone && (
-                            <span className="text-muted-foreground/70">· {s.receiverPhone}</span>
-                          )}
-                        </p>
-                      </div>
-                      {/* City */}
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs truncate">{s.receiverCity || "—"}</p>
-                      </div>
-                      {/* COD */}
-                      <div className="text-left text-xs font-bold">
-                        {formatCurrency(Number(s.codAmount || 0))}
-                      </div>
-                      {/* Status */}
-                      <div>
-                        <Badge variant="outline" className="text-[9px] font-bold border truncate max-w-[85px]">
-                          {SHIPMENT_STATUS_LABELS_LOCAL[s.status] ?? s.status}
-                        </Badge>
+
+                      {/* Mobile card */}
+                      <div className="flex sm:hidden items-start gap-2.5 px-3 py-3">
+                        <div className="pt-0.5 shrink-0">
+                          <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-semibold truncate">{s.receiverName}</p>
+                            <Badge variant="outline" className="text-[9px] font-bold border shrink-0">
+                              {SHIPMENT_STATUS_LABELS_LOCAL[s.status] ?? s.status}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap">
+                            <span className="font-mono text-primary/70">{s.shipmentNumber}</span>
+                            {s.receiverPhone && (
+                              <span className="text-muted-foreground/70">· {s.receiverPhone}</span>
+                            )}
+                          </p>
+                          <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
+                            <span className="text-muted-foreground truncate">{s.receiverCity || "—"}</span>
+                            <span className="font-bold shrink-0">{formatCurrency(Number(s.codAmount || 0))}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -575,9 +604,9 @@ export function CreateManifestDialog({
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Button
-              className="flex-1 h-9 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+              className="w-full sm:flex-1 h-10 sm:h-9 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={() => createMutation.mutate()}
               disabled={selectedIds.size === 0 || createMutation.isPending}
             >
@@ -587,7 +616,7 @@ export function CreateManifestDialog({
             </Button>
             <Button
               variant="outline"
-              className="h-9 text-sm border-border"
+              className="w-full sm:w-auto h-10 sm:h-9 text-sm border-border"
               onClick={onClose}
             >
               إلغاء
