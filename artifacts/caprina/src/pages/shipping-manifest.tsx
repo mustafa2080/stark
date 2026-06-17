@@ -730,6 +730,7 @@ function InvoiceGroupDeliveryRow({
   selected = false,
   onToggleSelect,
   isShipmentManifest = false,
+  courierShippingCost = null,
 }: {
   group: ManifestOrder[];
   manifestId: number;
@@ -739,6 +740,7 @@ function InvoiceGroupDeliveryRow({
   selected?: boolean;
   onToggleSelect?: (groupKey: string) => void;
   isShipmentManifest?: boolean;
+  courierShippingCost?: number | null;
 }) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
@@ -987,7 +989,7 @@ function InvoiceGroupDeliveryRow({
         {/* Desktop row */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_160px] min-w-[1000px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Customer */}
@@ -1050,13 +1052,23 @@ function InvoiceGroupDeliveryRow({
               <span className="text-muted-foreground/40">—</span>
             )}
           </div>
-          {/* الإجمالي (COD - fee) */}
+          {/* تكلفة الشحنة (courier cost) */}
           <div className="text-center px-2 flex items-center justify-center">
-            {(rep as any).shippingCost != null ? (
-              <span className="font-bold text-primary">{formatCurrency(totalPrice - (rep as any).shippingCost)}</span>
+            {courierShippingCost != null ? (
+              <span className="text-amber-500 font-semibold">{formatCurrency(courierShippingCost)}</span>
             ) : (
-              <span className="font-bold text-primary">{formatCurrency(totalPrice)}</span>
+              <span className="text-muted-foreground/40">—</span>
             )}
+          </div>
+          {/* الإجمالي (COD - fee - courier) */}
+          <div className="text-center px-2 flex items-center justify-center">
+            {(() => {
+              const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+              const courier = courierShippingCost != null ? Number(courierShippingCost) : 0;
+              return (
+                <span className="font-bold text-primary">{formatCurrency(totalPrice - fee - courier)}</span>
+              );
+            })()}
           </div>
           {/* الحالة + زرار التقفيل */}
           <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
@@ -3202,6 +3214,7 @@ export default function ShippingManifestPage() {
         totalPrice: codAmt,
         cost: null,
         shippingCost: sh ? parseFloat(sh.shippingFee ?? '0') : null,
+        courierCost: sh ? parseFloat(sh.costPrice ?? '0') : null,
         status: sh?.status ?? 'pending',
         notes: sh?.notes ?? null,
         color: null,
@@ -4146,7 +4159,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_160px] min-w-[1000px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── عمود العميل ─── */}
                   <div className="relative flex items-center">
@@ -4199,7 +4212,11 @@ export default function ShippingManifestPage() {
                   <div className="flex items-center justify-center gap-1 px-2 h-9">
                     سعر الشحن
                   </div>
-                  {/* ─── الإجمالي (COD - fee) ─── */}
+                  {/* ─── تكلفة الشحنة (courier cost) ─── */}
+                  <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">
+                    تكلفة الشحنة
+                  </div>
+                  {/* ─── الإجمالي (COD - fee - courier) ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9">
                     الإجمالي
                   </div>
@@ -4236,6 +4253,7 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
+                    courierShippingCost={(group[0] as any).courierCost ?? null}
                   />
                   ))}
                   </div>
