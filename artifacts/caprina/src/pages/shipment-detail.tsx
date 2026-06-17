@@ -3911,24 +3911,32 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             </Card>
 
             {/* ── منتجات الشحنة ── */}
-            <div>
-                {/* هيدر */}
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Package className="w-4 h-4 text-primary" />
-                    </div>
-                    منتجات الشحنة
-                    <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{shipmentItems.length}</span>
-                  </h3>
-                  {isAdmin && (
-                    <button type="button" onClick={() => setShowAddProduct(true)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
-                      <Plus className="w-3.5 h-3.5" />إضافة منتج
-                    </button>
+            <Card className="border-border bg-card overflow-hidden">
+              {/* Header احترافي */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center">
+                    <Package className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">منتجات الشحنة</p>
+                    <p className="text-[10px] text-muted-foreground">{shipmentItems.length} {shipmentItems.length === 1 ? "منتج" : "منتجات"}</p>
+                  </div>
+                  {shipmentItems.length > 0 && (
+                    <span className="text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
+                      {shipmentItems.length}
+                    </span>
                   )}
                 </div>
+                {isAdmin && (
+                  <button type="button" onClick={() => setShowAddProduct(true)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
+                    <Plus className="w-3.5 h-3.5" />إضافة منتج
+                  </button>
+                )}
+              </div>
 
+              <CardContent className="p-3">
                 {/* بطاقات المنتجات */}
                 <div className="space-y-3">
                   {shipmentItems.length === 0 ? (
@@ -4018,7 +4026,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </div>
                   )}
                 </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* ملاحظات */}
             {order.notes && (
