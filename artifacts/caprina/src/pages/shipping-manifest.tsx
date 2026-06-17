@@ -2832,9 +2832,11 @@ function AddOrdersToManifestDialog({
   // "picked_up" قيمة قديمة فالداتابيز بنفس تسمية "قيد الشحن في المخزن" — لازم تتحسب كمان
   const AVAILABLE_STATUSES = ["warehouse_ready", "picked_up"];
 
+  // ملحوظة: متعمد عدم تحديد shippingCompanyId — أي شحنة "قيد الشحن في المخزن" بتظهر هنا
+  // بغض النظر عن شركة الشحن المرتبطة بيها، عشان تقدر تنقلها لأي بيان.
   const { data: shipmentsData, isLoading } = useQuery({
-    queryKey: ["shipments-available-for-manifest", companyId],
-    queryFn: () => shipmentsApi.list({ shippingCompanyId: companyId, status: "warehouse_ready", limit: 500 }),
+    queryKey: ["shipments-available-for-manifest"],
+    queryFn: () => shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
     staleTime: 10000,
   });
 
@@ -2842,7 +2844,7 @@ function AddOrdersToManifestDialog({
     mutationFn: () => shipmentManifestsApi.addShipments(manifestId, Array.from(selectedIds)),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["shipment-manifest", manifestId] });
-      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest"] });
       toast({ title: `✅ تمت الإضافة`, description: `تم إضافة ${res.added} شحنة للبيان ${res.manifestNumber}` });
       onAdded();
       onClose();
