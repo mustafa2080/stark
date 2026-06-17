@@ -82,7 +82,13 @@ function ZonesMultiSelect({
           <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-50 mr-2" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start" dir="rtl" onInteractOutside={() => setOpen(false)}>
+      <PopoverContent
+        className="w-[280px] p-0"
+        align="start"
+        dir="rtl"
+        onInteractOutside={e => e.preventDefault()}
+        onOpenAutoFocus={e => e.preventDefault()}
+      >
         <div className="p-2 border-b border-border">
           <div className="relative">
             <Search className="absolute right-2 top-2 w-3.5 h-3.5 text-muted-foreground" />
@@ -103,9 +109,10 @@ function ZonesMultiSelect({
               return (
                 <div
                   key={zone.id}
+                  data-zone-item="true"
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                   onMouseDown={e => e.preventDefault()}
-                  onClick={e => { e.stopPropagation(); toggle(zone.id); }}
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); toggle(zone.id); }}
                 >
                   <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-primary border-primary" : "border-border"}`}>
                     {isSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
@@ -133,6 +140,18 @@ function ZonesMultiSelect({
             </Button>
           </div>
         )}
+        {/* زر تم — لإغلاق الـ dropdown بعد الانتهاء من الاختيار */}
+        <div className="p-2 border-t border-border">
+          <Button
+            size="sm"
+            className="w-full h-7 text-xs font-bold"
+            onClick={() => setOpen(false)}
+            type="button"
+          >
+            <Check className="w-3 h-3 mr-1" />
+            تم ({value.length} زون)
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );
