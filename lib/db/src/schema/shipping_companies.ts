@@ -8,6 +8,7 @@ export const shippingCompaniesTable = mysqlTable("shipping_companies", {
   name: varchar("name", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 50 }),
   website: varchar("website", { length: 255 }),
+  zoneId: int("zone_id"),
   notes: text("notes"),
   logo: text("logo"), // base64 data URL للوجو الشركة
   isActive: boolean("is_active").notNull().default(true),

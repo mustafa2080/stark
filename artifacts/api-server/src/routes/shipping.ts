@@ -12,6 +12,7 @@ const CreateSchema = z.object({
   name: z.string().min(1),
   phone: z.string().nullish(),
   website: z.string().nullish(),
+  zoneId: z.number().int().nullish(),
   notes: z.string().nullish(),
   logo: z.string().nullish(),
   isActive: z.boolean().default(true),
