@@ -1023,32 +1023,29 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* Products */}
           <div className="min-w-0 px-3">
-            {isMulti ? (
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  className="text-right w-full"
-                  onClick={() => setExpanded(!expanded)}
-                >
-                  <p className="text-primary text-[10px] font-bold flex items-center gap-1">
-                    {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    {group.length} منتجات داخل الطلب
+            <div className="space-y-1">
+              <button
+                type="button"
+                className="text-right w-full"
+                onClick={() => setExpanded(!expanded)}
+              >
+                <p className="text-primary text-[10px] font-bold flex items-center gap-1">
+                  {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {isMulti ? `${group.length} منتجات داخل الطلب` : rep.product}
+                </p>
+                {isMulti ? (
+                  <p className="text-muted-foreground text-[10px] truncate">
+                    {expanded ? "إخفاء المنتجات" : productsText}
                   </p>
+                ) : (
+                  (rep.color || rep.size) && (
                     <p className="text-muted-foreground text-[10px] truncate">
-                      {expanded ? "إخفاء المنتجات" : productsText}
+                      {[rep.color, rep.size].filter(Boolean).join(" / ")}
                     </p>
-                </button>
-              </div>
-            ) : (
-              <>
-                <p className="truncate">{rep.product}</p>
-                {(rep.color || rep.size) && (
-                  <p className="text-muted-foreground text-[10px]">
-                    {[rep.color, rep.size].filter(Boolean).join(" / ")}
-                  </p>
+                  )
                 )}
-              </>
-            )}
+              </button>
+            </div>
           </div>
           {/* Qty */}
           <div className="text-center font-bold">
@@ -1238,20 +1235,17 @@ function InvoiceGroupDeliveryRow({
           {/* Row 2: products + qty + price */}
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              {isMulti ? (
-                <button type="button" className="text-right w-full" onClick={() => setExpanded(!expanded)}>
-                  <p className="text-primary text-[10px] font-bold flex items-center gap-1">
-                    {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    {group.length} منتجات
-                  </p>
+              <button type="button" className="text-right w-full" onClick={() => setExpanded(!expanded)}>
+                <p className="text-primary text-[10px] font-bold flex items-center gap-1">
+                  {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {isMulti ? `${group.length} منتجات` : rep.product}
+                </p>
+                {isMulti ? (
                   <p className="text-muted-foreground text-[10px] truncate">{expanded ? "إخفاء المنتجات" : productsText}</p>
-                </button>
-              ) : (
-                <>
-                  <p className="truncate">{rep.product}</p>
-                  {(rep.color || rep.size) && <p className="text-muted-foreground text-[10px]">{[rep.color, rep.size].filter(Boolean).join(" / ")}</p>}
-                </>
-              )}
+                ) : (
+                  (rep.color || rep.size) && <p className="text-muted-foreground text-[10px] truncate">{[rep.color, rep.size].filter(Boolean).join(" / ")}</p>
+                )}
+              </button>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="font-bold">{totalQty}</span>
@@ -1729,7 +1723,7 @@ function InvoiceGroupDeliveryRow({
       </div>
 
       {/* Expanded: product cards */}
-      {expanded && isMulti && (
+      {expanded && (
         <div className="px-4 pb-3 pt-1 flex flex-col gap-1.5 bg-muted/5 border-t border-border/20">
           {group.map((order) => {
             const variant = [order.color, order.size].filter(Boolean).join(" / ");
