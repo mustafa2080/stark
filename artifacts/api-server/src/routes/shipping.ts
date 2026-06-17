@@ -42,7 +42,13 @@ router.post("/shipping-companies", async (req, res): Promise<void> => {
     const now = new Date();
     now.setMilliseconds(0); // MySQL DATETIME لا يدعم milliseconds
     const insertResult = await db.insert(shippingCompaniesTable).values({
-      ...parsed.data,
+      name: parsed.data.name,
+      phone: parsed.data.phone ?? null,
+      website: parsed.data.website ?? null,
+      zoneId: parsed.data.zoneId ?? null,
+      notes: parsed.data.notes ?? null,
+      logo: parsed.data.logo ?? null,
+      isActive: parsed.data.isActive ?? true,
       ...(tenantId !== null ? { tenantId } : {}),
       createdAt: now,
     });
