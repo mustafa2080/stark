@@ -3508,12 +3508,15 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   return (
                     <div key={item.id} className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
                       <div className="flex items-center gap-4 p-4">
-                        <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-sm">
+                        <div className="group relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-border/70 bg-gradient-to-br from-muted to-muted/60 shadow-md ring-1 ring-black/5 transition-all duration-300 hover:shadow-lg hover:border-primary/40 hover:scale-[1.03]">
                           {productImg ? (
-                            <img src={productImg} alt={item.product} className="w-full h-full object-cover" />
+                            <>
+                              <img src={productImg} alt={item.product} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent" />
+                            </>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-8 h-8 opacity-25 text-muted-foreground" />
+                              <Package className="w-9 h-9 opacity-25 text-muted-foreground" />
                             </div>
                           )}
                         </div>
