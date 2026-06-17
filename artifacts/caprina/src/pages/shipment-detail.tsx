@@ -3910,54 +3910,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </CardContent>
             </Card>
 
-            {/* ── Grid: الملخص المالي + المنتجات ── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-              {/* يسار — الملخص المالي */}
-              <Card className="border-primary/30 bg-card">
-                <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
-                  <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
-                    $ الملخص المالي
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-4 pt-3 space-y-2 text-sm">
-                  {shipmentItems.length > 0 ? (
-                    <>
-                      {(shipmentItems as any[]).map((item: any) => (
-                        <div key={item.id} className="flex justify-between text-xs">
-                          <span className="text-muted-foreground truncate max-w-[60%]">
-                            {item.product}{item.color ? ` — ${item.color}` : ""}{item.size ? ` / ${item.size}` : ""}
-                          </span>
-                          <span className="font-semibold">{formatCurrency(Number(item.unitPrice ?? 0))} × {item.quantity}</span>
-                        </div>
-                      ))}
-                      <Separator />
-                    </>
-                  ) : (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">سعر الوحدة</span>
-                      <span className="font-semibold">{formatCurrency(order.price ?? 0)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">الكمية</span>
-                    <span>x {order.quantity}</span>
-                  </div>
-                  {((order as any).shippingCost ?? (order as any).shippingFee ?? 0) > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">الشحن</span>
-                      <span className="text-orange-400">{formatCurrency((order as any).shippingCost ?? (order as any).shippingFee ?? 0)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center pt-1 border-t border-border">
-                    <span className="font-bold text-sm">الإجمالي</span>
-                    <span className="font-black text-lg text-primary">{formatCurrency(order.totalPrice)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* منتجات الشحنة — عرض كامل */}
-              <div className="md:col-span-2">
+            {/* ── منتجات الشحنة ── */}
+            <div>
                 {/* هيدر */}
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -4064,7 +4018,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </div>
                   )}
                 </div>
-              </div>
             </div>
 
             {/* ملاحظات */}
