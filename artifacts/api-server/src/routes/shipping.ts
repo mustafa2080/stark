@@ -12,8 +12,9 @@ const CreateSchema = z.object({
   name: z.string().min(1),
   phone: z.string().nullish(),
   website: z.string().nullish(),
-  zoneId: z.number().int().nullish(),   // قديم — للتوافق مع الكود القديم
-  zoneIds: z.array(z.number().int()).nullish(), // جديد — مصفوفة زونات متعددة
+  zoneId: z.number().int().nullish(),
+  zoneIds: z.array(z.number().int()).nullish(),
+  shippingCost: z.number().min(0).nullish(), // تكلفة الشحن لكل شحنة
   notes: z.string().nullish(),
   logo: z.string().nullish(),
   isActive: z.boolean().default(true),
@@ -46,8 +47,9 @@ router.post("/shipping-companies", async (req, res): Promise<void> => {
       name: parsed.data.name,
       phone: parsed.data.phone ?? null,
       website: parsed.data.website ?? null,
-      zoneId: parsed.data.zoneId ?? (parsed.data.zoneIds?.[0] ?? null), // أول زون كـ fallback للكود القديم
+      zoneId: parsed.data.zoneId ?? (parsed.data.zoneIds?.[0] ?? null),
       zoneIds: parsed.data.zoneIds?.length ? JSON.stringify(parsed.data.zoneIds) : null,
+      shippingCost: parsed.data.shippingCost != null ? String(parsed.data.shippingCost) : null,
       notes: parsed.data.notes ?? null,
       logo: parsed.data.logo ?? null,
       isActive: parsed.data.isActive ?? true,
@@ -239,10 +241,12 @@ router.patch("/shipping-companies/:id", async (req, res): Promise<void> => {
   const updatePayload: Record<string, any> = { ...parsed.data };
   if (parsed.data.zoneIds !== undefined) {
     updatePayload.zoneIds = parsed.data.zoneIds?.length ? JSON.stringify(parsed.data.zoneIds) : null;
-    // حدّث zoneId (القديم) بأول زون في المصفوفة للتوافق مع الكود القديم
     if (!('zoneId' in parsed.data)) {
       updatePayload.zoneId = parsed.data.zoneIds?.[0] ?? null;
     }
+  }
+  if (parsed.data.shippingCost !== undefined) {
+    updatePayload.shippingCost = parsed.data.shippingCost != null ? String(parsed.data.shippingCost) : null;
   }
 
   await db.update(shippingCompaniesTable).set(updatePayload).where(eq(shippingCompaniesTable.id, id));

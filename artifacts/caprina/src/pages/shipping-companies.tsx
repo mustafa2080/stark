@@ -27,7 +27,7 @@ const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
-const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], notes: "", logo: "", isActive: true };
+const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], shippingCost: "", notes: "", logo: "", isActive: true };
 const formatCurrency = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
 // ─── Multi-Select للزونات ────────────────────────────────────────────────────
@@ -852,7 +852,16 @@ export default function ShippingCompanies() {
       parsedZoneIds = [(c as any).zoneId];
     }
     setEditingCompany(c);
-    setForm({ name: c.name, phone: c.phone ?? "", website: c.website ?? "", zoneIds: parsedZoneIds, notes: c.notes ?? "", logo: c.logo ?? "", isActive: c.isActive });
+    setForm({
+      name: c.name,
+      phone: c.phone ?? "",
+      website: c.website ?? "",
+      zoneIds: parsedZoneIds,
+      shippingCost: (c as any).shippingCost != null ? String((c as any).shippingCost) : "",
+      notes: c.notes ?? "",
+      logo: c.logo ?? "",
+      isActive: c.isActive,
+    });
     setDialogOpen(true);
   };
 
@@ -863,7 +872,8 @@ export default function ShippingCompanies() {
       phone: form.phone || null,
       website: form.website || null,
       zoneIds: form.zoneIds.length > 0 ? form.zoneIds : null,
-      zoneId: form.zoneIds[0] ?? null,  // للتوافق مع النظام القديم
+      zoneId: form.zoneIds[0] ?? null,
+      shippingCost: form.shippingCost !== "" ? Number(form.shippingCost) : null,
       notes: form.notes || null,
       logo: form.logo || null,
     };
@@ -989,6 +999,15 @@ export default function ShippingCompanies() {
 
               <div className="mt-3 space-y-1.5 relative">
                 {company.phone && <p className="text-xs text-muted-foreground flex items-center gap-2"><Phone className="w-3 h-3" />{company.phone}</p>}
+                {(company as any).shippingCost != null && (
+                  <p className="text-xs flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-primary">ج.م</span>
+                    <span className="text-muted-foreground">تكلفة الشحن:</span>
+                    <span className="font-bold" style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}>
+                      {formatCurrency(Number((company as any).shippingCost))} / طلب
+                    </span>
+                  </p>
+                )}
                 {company.website && (
                   <p className="text-xs text-muted-foreground flex items-center gap-2"><Globe className="w-3 h-3" />
                     <a href={company.website} target="_blank" rel="noreferrer" className="hover:underline" style={{ color: `rgba(${p.rgb},0.85)` }}>{company.website}</a>
@@ -1028,6 +1047,21 @@ export default function ShippingCompanies() {
               <div>
                 <Label className="text-xs mb-1.5 block flex items-center gap-1"><Phone className="w-3 h-3" />الهاتف</Label>
                 <Input placeholder="05xxxxxxxx" className="h-9 text-sm bg-background" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-primary">ج.م</span>
+                  تكلفة الشحن / طلب
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="0.00"
+                  className="h-9 text-sm bg-background"
+                  value={form.shippingCost}
+                  onChange={e => setForm(f => ({ ...f, shippingCost: e.target.value }))}
+                />
               </div>
               <div className="col-span-2">
                 <Label className="text-xs mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" />الزونات (يمكن اختيار أكثر من زون)</Label>
