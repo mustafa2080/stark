@@ -13,8 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -27,8 +27,116 @@ const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
-const emptyForm = { name: "", phone: "", website: "", zoneId: "", notes: "", logo: "", isActive: true };
+const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], notes: "", logo: "", isActive: true };
 const formatCurrency = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+
+// ─── Multi-Select للزونات ────────────────────────────────────────────────────
+function ZonesMultiSelect({
+  value,
+  onChange,
+  zones,
+}: {
+  value: number[];
+  onChange: (ids: number[]) => void;
+  zones: { id: number; name: string; governorate?: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() =>
+    zones.filter(z =>
+      !search.trim() ||
+      z.name.toLowerCase().includes(search.toLowerCase()) ||
+      (z.governorate?.toLowerCase().includes(search.toLowerCase()) ?? false)
+    ), [zones, search]);
+
+  const toggle = (id: number) => {
+    onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
+  };
+
+  const selectedLabels = value
+    .map(id => zones.find(z => z.id === id))
+    .filter(Boolean)
+    .map(z => z!.name);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          className="h-auto min-h-9 w-full justify-between bg-background border-input text-sm font-normal"
+          type="button"
+        >
+          <div className="flex flex-wrap gap-1 py-0.5">
+            {value.length === 0 ? (
+              <span className="text-muted-foreground">اختر الزونات...</span>
+            ) : (
+              selectedLabels.map(label => (
+                <Badge key={label} variant="secondary" className="text-[10px] py-0 px-1.5 h-5">
+                  {label}
+                </Badge>
+              ))
+            )}
+          </div>
+          <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-50 mr-2" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start" dir="rtl">
+        <div className="p-2 border-b border-border">
+          <div className="relative">
+            <Search className="absolute right-2 top-2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              placeholder="بحث في الزونات..."
+              className="h-8 text-xs pr-7 bg-background"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="max-h-52 overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">لا توجد نتائج</p>
+          ) : (
+            filtered.map(zone => {
+              const isSelected = value.includes(zone.id);
+              return (
+                <div
+                  key={zone.id}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                  onClick={() => toggle(zone.id)}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-primary border-primary" : "border-border"}`}>
+                    {isSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{zone.name}</p>
+                    {zone.governorate && <p className="text-[10px] text-muted-foreground">{zone.governorate}</p>}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {value.length > 0 && (
+          <div className="p-2 border-t border-border">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-7 text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => onChange([])}
+              type="button"
+            >
+              <XIcon className="w-3 h-3 mr-1" />
+              مسح الكل ({value.length})
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 
 /** أيقونة شركة الشحن — صورة دائرية أو Truck fallback */
 function CompanyAvatar({ logo, name, size = "md" }: { logo?: string | null; name: string; size?: "sm" | "md" | "lg" }) {
@@ -715,7 +823,18 @@ export default function ShippingCompanies() {
   });
 
   const openAdd = () => { setEditingCompany(null); setForm(emptyForm); setDialogOpen(true); };
-  const openEdit = (c: ShippingCompany) => { setEditingCompany(c); setForm({ name: c.name, phone: c.phone ?? "", website: c.website ?? "", zoneId: (c as any).zoneId ? String((c as any).zoneId) : "", notes: c.notes ?? "", logo: c.logo ?? "", isActive: c.isActive }); setDialogOpen(true); };
+  const openEdit = (c: ShippingCompany) => {
+    // استرجاع zoneIds: إما من الحقل الجديد أو fallback على zoneId القديم
+    let parsedZoneIds: number[] = [];
+    if ((c as any).zoneIds) {
+      try { parsedZoneIds = JSON.parse((c as any).zoneIds); } catch {}
+    } else if ((c as any).zoneId) {
+      parsedZoneIds = [(c as any).zoneId];
+    }
+    setEditingCompany(c);
+    setForm({ name: c.name, phone: c.phone ?? "", website: c.website ?? "", zoneIds: parsedZoneIds, notes: c.notes ?? "", logo: c.logo ?? "", isActive: c.isActive });
+    setDialogOpen(true);
+  };
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
@@ -723,7 +842,8 @@ export default function ShippingCompanies() {
       ...form,
       phone: form.phone || null,
       website: form.website || null,
-      zoneId: form.zoneId ? Number(form.zoneId) : null,
+      zoneIds: form.zoneIds.length > 0 ? form.zoneIds : null,
+      zoneId: form.zoneIds[0] ?? null,  // للتوافق مع النظام القديم
       notes: form.notes || null,
       logo: form.logo || null,
     };
@@ -889,20 +1009,18 @@ export default function ShippingCompanies() {
                 <Label className="text-xs mb-1.5 block flex items-center gap-1"><Phone className="w-3 h-3" />الهاتف</Label>
                 <Input placeholder="05xxxxxxxx" className="h-9 text-sm bg-background" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
               </div>
-              <div>
-                <Label className="text-xs mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" />الزون</Label>
-                <Select value={form.zoneId} onValueChange={v => setForm(f => ({ ...f, zoneId: v }))}>
-                  <SelectTrigger className="h-9 text-sm bg-background">
-                    <SelectValue placeholder="اختر الزون..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {zones.map(z => (
-                      <SelectItem key={z.id} value={String(z.id)}>
-                        {z.name}{z.governorate ? ` — ${z.governorate}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="col-span-2">
+                <Label className="text-xs mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" />الزونات (يمكن اختيار أكثر من زون)</Label>
+                <ZonesMultiSelect
+                  value={form.zoneIds}
+                  onChange={ids => setForm(f => ({ ...f, zoneIds: ids }))}
+                  zones={zones}
+                />
+                {form.zoneIds.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {form.zoneIds.length} زون محدد
+                  </p>
+                )}
               </div>
             </div>
             <div>

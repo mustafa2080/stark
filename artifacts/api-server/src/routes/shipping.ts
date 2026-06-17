@@ -12,7 +12,8 @@ const CreateSchema = z.object({
   name: z.string().min(1),
   phone: z.string().nullish(),
   website: z.string().nullish(),
-  zoneId: z.number().int().nullish(),
+  zoneId: z.number().int().nullish(),   // قديم — للتوافق مع الكود القديم
+  zoneIds: z.array(z.number().int()).nullish(), // جديد — مصفوفة زونات متعددة
   notes: z.string().nullish(),
   logo: z.string().nullish(),
   isActive: z.boolean().default(true),
@@ -45,7 +46,8 @@ router.post("/shipping-companies", async (req, res): Promise<void> => {
       name: parsed.data.name,
       phone: parsed.data.phone ?? null,
       website: parsed.data.website ?? null,
-      zoneId: parsed.data.zoneId ?? null,
+      zoneId: parsed.data.zoneId ?? (parsed.data.zoneIds?.[0] ?? null), // أول زون كـ fallback للكود القديم
+      zoneIds: parsed.data.zoneIds?.length ? JSON.stringify(parsed.data.zoneIds) : null,
       notes: parsed.data.notes ?? null,
       logo: parsed.data.logo ?? null,
       isActive: parsed.data.isActive ?? true,
@@ -233,7 +235,17 @@ router.patch("/shipping-companies/:id", async (req, res): Promise<void> => {
   const parsed = UpdateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  await db.update(shippingCompaniesTable).set(parsed.data).where(eq(shippingCompaniesTable.id, id));
+  // بناء الـ update payload مع دعم zoneIds
+  const updatePayload: Record<string, any> = { ...parsed.data };
+  if (parsed.data.zoneIds !== undefined) {
+    updatePayload.zoneIds = parsed.data.zoneIds?.length ? JSON.stringify(parsed.data.zoneIds) : null;
+    // حدّث zoneId (القديم) بأول زون في المصفوفة للتوافق مع الكود القديم
+    if (!('zoneId' in parsed.data)) {
+      updatePayload.zoneId = parsed.data.zoneIds?.[0] ?? null;
+    }
+  }
+
+  await db.update(shippingCompaniesTable).set(updatePayload).where(eq(shippingCompaniesTable.id, id));
   const [company] = await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, id));
   if (!company) { res.status(404).json({ error: "Company not found" }); return; }
   res.json(company);
