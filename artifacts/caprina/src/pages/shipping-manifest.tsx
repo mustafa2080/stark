@@ -1059,8 +1059,8 @@ function InvoiceGroupDeliveryRow({
               <span className="font-bold text-primary">{formatCurrency(totalPrice)}</span>
             )}
           </div>
-          {/* Status */}
-          <div className="px-3">
+          {/* الحالة + زرار التقفيل */}
+          <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
             {hasMultipleStatuses && !hasMixedPartial ? (
               <div className="flex flex-col gap-0.5">
                 <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground">
@@ -1147,27 +1147,13 @@ function InvoiceGroupDeliveryRow({
                 )}
               </div>
             )}
-          </div>
-          {/* Added At */}
-          <div className="px-2 text-center">
-            {rep.addedAt ? (
-              <p className="text-[9px] text-muted-foreground leading-tight">
-                {format(new Date((rep as any).addedAt), "MM/dd")}
-                <br />
-                <span className="text-[8px] opacity-70">{format(new Date((rep as any).addedAt), "HH:mm")}</span>
-              </p>
-            ) : (
-              <p className="text-[9px] text-muted-foreground/40">—</p>
-            )}
-          </div>
-          {/* Action */}
-          <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+            {/* زرار التقفيل داخل عمود الحالة */}
             {!locked && (
               bulkEditing ? (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-[10px] px-1.5 text-muted-foreground"
+                  className="h-6 text-[10px] px-1.5 text-muted-foreground mt-1 self-start"
                   onClick={() => setBulkEditing(false)}
                 >
                   <X className="w-3 h-3" />
@@ -1176,17 +1162,16 @@ function InvoiceGroupDeliveryRow({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
-                  onClick={() => { 
-                    setBulkEditing(true); 
-                    setBulkStatus(groupStatus); 
-                    setBulkNote(rep.deliveryNote ?? ""); 
-                    setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""]))); 
-                    setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus]))); 
-                    setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null); 
-                    // لو partial_received وreturnReceived غير محدد → default false (مازال عند الشحن)
+                  className="h-6 text-[10px] px-1.5 text-primary hover:text-primary mt-1 self-start"
+                  onClick={() => {
+                    setBulkEditing(true);
+                    setBulkStatus(groupStatus);
+                    setBulkNote(rep.deliveryNote ?? "");
+                    setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
+                    setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+                    setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
                     const existingPartialReturn = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null;
-                    setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn); 
+                    setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn);
                   }}
                 >
                   <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
