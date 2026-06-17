@@ -508,7 +508,7 @@ function OrderDeliveryRow({
                 </SelectTrigger>
                 <SelectContent>
                   {(isShipmentManifest
-                    ? SHIPMENT_DELIVERY_OPTIONS
+                    ? SHIPMENT_DELIVERY_OPTIONS.filter((o) => o.value !== "pending")
                     : DELIVERY_OPTIONS.filter((o) => o.value !== "partial_received" || order.quantity > 1)
                   ).map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-xs">
@@ -1318,7 +1318,7 @@ function InvoiceGroupDeliveryRow({
                   </SelectTrigger>
                   <SelectContent>
                     {(isShipmentManifest
-                      ? SHIPMENT_DELIVERY_OPTIONS
+                      ? SHIPMENT_DELIVERY_OPTIONS.filter((o) => o.value !== "pending")
                       : DELIVERY_OPTIONS.filter((o) => {
                           if (o.value !== "partial_received") return true;
                           // أظهر "استلام جزئي" فقط لو الكمية الكلية للمجموعة أكتر من 1
