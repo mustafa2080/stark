@@ -3978,47 +3978,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           {!isEditing && (
             <div className="space-y-4">
 
-            {/* ── هيدر الشحنة ── */}
-            <Card className="border-border bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-muted-foreground">شحنة</span>
-                    <span className="font-black text-base">{(order as any).trackingNumber || `#${order.id}`}</span>
-                    {(order as any).invoiceNumber && (
-                      <span className="text-xs text-muted-foreground font-mono">{(order as any).invoiceNumber}</span>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-xl font-black text-primary">{formatCurrency(order.totalPrice)}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {format(new Date(order.createdAt), "yyyy/MM/dd · HH:mm")}
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">العميل</p>
-                    <p className="font-semibold">{(order as any).senderName || order.customerName || <span className="text-muted-foreground">—</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />الواتس</p>
-                    <p className="font-semibold">{(order as any).senderPhone || order.phone || <span className="text-muted-foreground">—</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />المحافظة</p>
-                    <p className="font-semibold">{(order as any).governorate || <span className="text-muted-foreground">—</span>}</p>
-                  </div>
-                  {((order as any).senderAddress || order.address) && (
-                    <div className="sm:col-span-3">
-                      <p className="text-xs text-muted-foreground mb-1">العنوان</p>
-                      <p className="font-semibold text-xs">{(order as any).senderAddress || order.address}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* ملاحظات */}
             {order.notes && (
               <div className="bg-muted/20 p-3 rounded text-sm border border-border">
