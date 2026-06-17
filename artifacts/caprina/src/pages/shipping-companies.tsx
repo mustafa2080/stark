@@ -54,7 +54,7 @@ function LogoUploader({ value, onChange }: { value: string; onChange: (v: string
   };
   return (
     <div>
-      <Label className="text-xs mb-1.5 block flex items-center gap-1"><ImagePlus className="w-3 h-3" />لوجو الشركة</Label>
+      <Label className="text-xs mb-1.5 block flex items-center gap-1"><ImagePlus className="w-3 h-3" />صورة المندوب</Label>
       <div className="flex items-center gap-3">
         {value ? (
           <div className="relative shrink-0">
@@ -669,7 +669,7 @@ export default function ShippingCompanies() {
   const openEdit = (c: ShippingCompany) => { setEditingCompany(c); setForm({ name: c.name, phone: c.phone ?? "", website: c.website ?? "", notes: c.notes ?? "", logo: c.logo ?? "", isActive: c.isActive }); setDialogOpen(true); };
 
   const handleSubmit = () => {
-    if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم الشركة مطلوب.", variant: "destructive" }); return; }
+    if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
     const data = {
       ...form,
       phone: form.phone || null,
@@ -687,12 +687,12 @@ export default function ShippingCompanies() {
     <div className="space-y-5 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">شركات الشحن</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">إدارة شركاء الشحن وبيانات التسليم</p>
+          <h1 className="text-2xl font-bold">إدارة مناديب الشحن</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">إدارة مناديب الشحن وبيانات التسليم</p>
         </div>
         {can("shipping.edit") && (
           <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
-            <Plus className="w-4 h-4" />إضافة شركة
+            <Plus className="w-4 h-4" />إضافة مندوب
           </Button>
         )}
       </div>
@@ -706,7 +706,7 @@ export default function ShippingCompanies() {
             boxShadow: "0 0 24px rgba(96,165,250,0.15), 0 4px 12px rgba(96,165,250,0.1), inset 0 1px 0 rgba(255,255,255,0.06)",
           }}>
           <span className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-10" style={{ background: "radial-gradient(circle, rgba(96,165,250,1) 0%, transparent 70%)" }} />
-          <p className="text-xs text-muted-foreground">إجمالي الشركات</p>
+          <p className="text-xs text-muted-foreground">إجمالي المناديب</p>
           <p className="text-2xl font-bold mt-1" style={{ color: "rgba(96,165,250,1)" }}>{companies?.length ?? 0}</p>
         </div>
         <div className="relative overflow-hidden rounded-2xl p-4"
@@ -816,9 +816,9 @@ export default function ShippingCompanies() {
       ) : (
         <Card className="border-border p-12 text-center">
           <Truck className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
-          <p className="font-bold">لا توجد شركات شحن</p>
-          <p className="text-sm text-muted-foreground mt-1">أضف شركات الشحن التي تتعامل معها.</p>
-          {canEdit && <Button onClick={openAdd} className="mt-4 gap-2 text-sm"><Plus className="w-4 h-4" />إضافة شركة</Button>}
+          <p className="font-bold">لا يوجد مناديب شحن</p>
+          <p className="text-sm text-muted-foreground mt-1">أضف مناديب الشحن الذين تتعامل معهم.</p>
+          {canEdit && <Button onClick={openAdd} className="mt-4 gap-2 text-sm"><Plus className="w-4 h-4" />إضافة مندوب</Button>}
         </Card>
       )}
 
@@ -826,13 +826,13 @@ export default function ShippingCompanies() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-card border-border max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle className="text-right">{editingCompany ? "تعديل شركة الشحن" : "إضافة شركة شحن"}</DialogTitle>
+            <DialogTitle className="text-right">{editingCompany ? "تعديل بيانات المندوب" : "إضافة مندوب شحن"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2">
             <LogoUploader value={form.logo} onChange={v => setForm(f => ({ ...f, logo: v }))} />
             <div>
-              <Label className="text-xs mb-1.5 block">اسم الشركة *</Label>
-              <Input placeholder="مثال: أرامكس، DHL" className="h-9 text-sm bg-background" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <Label className="text-xs mb-1.5 block">اسم المندوب *</Label>
+              <Input placeholder="مثال: أحمد محمد، محمود علي" className="h-9 text-sm bg-background" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -849,7 +849,7 @@ export default function ShippingCompanies() {
               <Textarea placeholder="معلومات إضافية..." className="min-h-[70px] text-sm resize-none bg-background" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
             <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-md">
-              <span className="text-xs font-medium">حالة الشركة</span>
+              <span className="text-xs font-medium">حالة المندوب</span>
               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 mr-auto" onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}>
                 {form.isActive ? <><ToggleRight className="w-4 h-4 text-emerald-400" />نشط</> : <><ToggleLeft className="w-4 h-4" />موقف</>}
               </Button>
@@ -870,7 +870,7 @@ export default function ShippingCompanies() {
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف شركة الشحن "{deleteCompany?.name}"؟ لا يمكن التراجع عن هذا الإجراء.
+              هل أنت متأكد من حذف المندوب "{deleteCompany?.name}"؟ لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
