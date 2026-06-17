@@ -3867,413 +3867,207 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             </Form>
           )}
           {!isEditing && (
+            <div className="space-y-4">
+
+            {/* ── هيدر الشحنة ── */}
             <Card className="border-border bg-card">
-              <CardHeader className="pb-3 pt-4 px-4 border-b border-border">
-                <CardTitle className="text-sm font-bold">تفاصيل الشحنة</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground">شحنة</span>
+                    <span className="font-black text-base">{(order as any).trackingNumber || `#${order.id}`}</span>
+                    {(order as any).invoiceNumber && (
+                      <span className="text-xs text-muted-foreground font-mono">{(order as any).invoiceNumber}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-xl font-black text-primary">{formatCurrency(order.totalPrice)}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {format(new Date(order.createdAt), "yyyy/MM/dd · HH:mm")}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">المرسل</p>
+                    <p className="text-xs text-muted-foreground mb-1">العميل</p>
                     <p className="font-semibold">{(order as any).senderName || order.customerName || <span className="text-muted-foreground">—</span>}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />هاتف المرسل</p>
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />الواتس</p>
                     <p className="font-semibold">{(order as any).senderPhone || order.phone || <span className="text-muted-foreground">—</span>}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />المحافظة</p>
+                    <p className="font-semibold">{(order as any).governorate || <span className="text-muted-foreground">—</span>}</p>
+                  </div>
                   {((order as any).senderAddress || order.address) && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />عنوان المرسل</p>
-                      <p className="font-semibold">{(order as any).senderAddress || order.address}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">المستلم</p>
-                    <p className="font-semibold">{(order as any).receiverName || <span className="text-muted-foreground">—</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" />هاتف المستلم</p>
-                    <p className="font-semibold">{(order as any).receiverPhone || <span className="text-muted-foreground">—</span>}</p>
-                  </div>
-                  {(order as any).receiverAddress && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />عنوان المستلم</p>
-                      <p className="font-semibold">{(order as any).receiverAddress}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">الوصف</p>
-                    <p className="font-semibold">{(order as any).description || order.product || <span className="text-muted-foreground">—</span>}</p>
-                    {((order as any).color || (order as any).size) && (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        {(order as any).color && <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{(order as any).color}</Badge>}
-                        {(order as any).size && <Badge variant="outline" className="text-[9px] border-primary/40 text-primary font-bold">{(order as any).size}</Badge>}
-                      </div>
-                    )}
-                    {/* Stock badge: show current inventory for this product/variant */}
-                    {(() => {
-                      const orderColor = (order as any).color as string | null;
-                      const orderSize = (order as any).size as string | null;
-                      const orderProductId = (order as any).productId as number | null;
-                      const orderVariantId = (order as any).variantId as number | null;
-
-                      // Match by variantId first
-                      if (orderVariantId && allVariants) {
-                        const v = allVariants.find(v => v.id === orderVariantId);
-                        if (v) {
-                          const avail = v.totalQuantity - v.reservedQuantity - v.soldQuantity;
-                          const isLow = avail <= v.lowStockThreshold;
-                          return (
-                            <div className="mt-1.5">
-                              <Badge variant="outline" className={`text-[9px] font-bold border ${avail === 0 ? "border-red-700 text-red-400" : isLow ? "border-amber-700 text-amber-400" : "border-emerald-700 text-emerald-400"}`}>
-                                <Package className="w-2.5 h-2.5 ml-1" />
-                                المخزون: {avail} وحدة
-                              </Badge>
-                            </div>
-                          );
-                        }
-                      }
-
-                      // Match by productId
-                      if (orderProductId && products) {
-                        const p = products.find(p => p.id === orderProductId);
-                        if (p) {
-                          // If has color/size, try to match variant
-                          if ((orderColor || orderSize) && allVariants) {
-                            const v = allVariants.find(v =>
-                              v.productId === orderProductId &&
-                              (!orderColor || v.color === orderColor) &&
-                              (!orderSize || v.size === orderSize)
-                            );
-                            if (v) {
-                              const avail = v.totalQuantity - v.reservedQuantity - v.soldQuantity;
-                              const isLow = avail <= v.lowStockThreshold;
-                              return (
-                                <div className="mt-1.5">
-                                  <Badge variant="outline" className={`text-[9px] font-bold border ${avail === 0 ? "border-red-700 text-red-400" : isLow ? "border-amber-700 text-amber-400" : "border-emerald-700 text-emerald-400"}`}>
-                                    <Package className="w-2.5 h-2.5 ml-1" />
-                                    المخزون: {avail} وحدة
-                                  </Badge>
-                                </div>
-                              );
-                            }
-                          }
-                          // Product-level stock (no variants)
-                          if (!allVariants?.some(v => v.productId === orderProductId)) {
-                            const avail = p.totalQuantity - p.reservedQuantity - p.soldQuantity;
-                            const isLow = avail <= p.lowStockThreshold;
-                            return (
-                              <div className="mt-1.5">
-                                <Badge variant="outline" className={`text-[9px] font-bold border ${avail === 0 ? "border-red-700 text-red-400" : isLow ? "border-amber-700 text-amber-400" : "border-emerald-700 text-emerald-400"}`}>
-                                  <Package className="w-2.5 h-2.5 ml-1" />
-                                  المخزون: {avail} وحدة
-                                </Badge>
-                              </div>
-                            );
-                          }
-                        }
-                      }
-
-                      return null;
-                    })()}
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">الكمية</p>
-                    <p className="font-semibold">{order.quantity} وحدة</p>
-                    {/* حالة المنتج — المرتجع يعتمد على order مباشرة (بغض النظر عن وجود بيان شحن) */}
-                    {(() => {
-                      // لو الطلب مرتجع: اعتمد على order.returnReceived دائماً
-                      if (order.status === "returned") {
-                        const returnRec = (order as any).returnReceived;
-                        return (
-                          <div className="mt-1.5 flex flex-col gap-1">
-                            {(returnRec === 1 || returnRec === true) ? (
-                              <Badge variant="outline" className="text-[9px] font-bold border-emerald-700 text-emerald-400 w-fit">
-                                <CheckCircle2 className="w-2.5 h-2.5 ml-1" />تم الاستلام — رجع للمخزن
-                              </Badge>
-                            ) : (
-                              <>
-                                <Badge variant="outline" className="text-[9px] font-bold border-red-600 text-red-400 w-fit">
-                                  ↩ مرتجع
-                                </Badge>
-                                {(returnRec === 0 || returnRec === false) && (
-                                  <Badge variant="outline" className="text-[9px] font-bold border-orange-600 text-orange-400 w-fit">
-                                    <Clock className="w-2.5 h-2.5 ml-1" />مازال عند شركة الشحن
-                                  </Badge>
-                                )}
-                                {(returnRec === 1 || returnRec === true) && (
-                                  <Badge variant="outline" className="text-[9px] font-bold border-emerald-600 text-emerald-400 w-fit">
-                                    <CheckCircle2 className="w-2.5 h-2.5 ml-1" />في المخزن
-                                  </Badge>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        );
-                      }
-                      // باقي الحالات تعتمد على بيان الشحن
-                      if (!manifestStatus) return null;
-                      const ds = manifestStatus.deliveryStatus;
-                      const pQty = manifestStatus.partialQuantity;
-                      if (ds === "delivered") return (
-                        <div className="mt-1.5 flex flex-col gap-1">
-                          <Badge variant="outline" className="text-[9px] font-bold border-emerald-600 text-emerald-400 w-fit">
-                            <CheckCircle2 className="w-2.5 h-2.5 ml-1" />تم التسليم ✓
-                          </Badge>
-                        </div>
-                      );
-                      if (ds === "partial_received") return (
-                        <div className="mt-1.5 flex flex-col gap-1">
-                          <Badge variant="outline" className="text-[9px] font-bold border-teal-600 text-teal-400 w-fit">
-                            ◑ استُلم جزئياً — {pQty ?? "؟"} من {order.quantity}
-                          </Badge>
-                          <Badge variant="outline" className="text-[9px] font-bold border-amber-600 text-amber-400 w-fit">
-                            🚚 الباقي ({(pQty != null ? order.quantity - pQty : "؟")}) مازال عند الشحن
-                          </Badge>
-                        </div>
-                      );
-                      if (ds === "postponed") return (
-                        <div className="mt-1.5">
-                          <Badge variant="outline" className="text-[9px] font-bold border-orange-600 text-orange-400 w-fit">
-                            ⏳ مؤجل
-                          </Badge>
-                        </div>
-                      );
-                      if (ds === "pending") return (
-                        <div className="mt-1.5">
-                          <Badge variant="outline" className="text-[9px] font-bold border-blue-600 text-blue-400 w-fit">
-                            🚚 قيد الشحن
-                          </Badge>
-                        </div>
-                      );
-                      return null;
-                    })()}
-                  </div>
-                  {order.partialQuantity && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">المستلم جزئياً</p>
-                      <p className="font-semibold text-purple-400">{order.partialQuantity} وحدة</p>
-                    </div>
-                  )}
-                  {shippingCompany && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">شركة الشحن</p>
-                      <p className="font-semibold">{shippingCompany.name}</p>
+                    <div className="sm:col-span-3">
+                      <p className="text-xs text-muted-foreground mb-1">العنوان</p>
+                      <p className="font-semibold text-xs">{(order as any).senderAddress || order.address}</p>
                     </div>
                   )}
                 </div>
-
-                {/* Return reason section */}
-                {order.status === "returned" && orderReturnReason && (
-                  <div className="mt-2 p-3 rounded border border-red-900 bg-red-900/10">
-                    <p className="text-xs text-red-400 font-bold mb-1 flex items-center gap-1">
-                      <RotateCcw className="w-3 h-3" />سبب الإرجاع
-                    </p>
-                    <p className="text-sm font-semibold text-red-300">
-                      {returnReasonLabel(orderReturnReason)}
-                    </p>
-                    {orderReturnNote && (
-                      <p className="text-xs text-muted-foreground mt-1">{orderReturnNote}</p>
-                    )}
-                  </div>
-                )}
-
-                {/* ── منتجات الفاتورة الأخرى (أفقي) ── */}
-                {otherInvoiceOrders.length > 0 && (
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-                        <Package className="w-3 h-3" />منتجات الفاتورة ({otherInvoiceOrders.length + 1} منتجات)
-                      </p>
-                      {false && (
-                        <button
-                          type="button"
-                          onClick={() => setShowAddProduct(true)}
-                          className="flex items-center gap-1 text-[10px] font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-2 py-1 rounded transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />إضافة منتج
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-                      {/* الطلب الحالي */}
-                      <div className="flex-shrink-0 w-80 flex flex-col justify-between rounded-md px-3 py-3 border-2 border-primary/40 bg-primary/5">
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-[9px] text-primary font-bold bg-primary/20 px-2 py-0.5 rounded">← هذا الطلب</span>
-                          </div>
-                          <span className="text-sm font-bold text-primary block mb-2">{order.product}</span>
-                          {((order as any).color || (order as any).size) && (
-                            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                              {(order as any).color && <Badge className="text-[9px] bg-primary/20 text-primary border-primary/30">{(order as any).color}</Badge>}
-                              {(order as any).size && <Badge className="text-[9px] bg-primary text-white">{(order as any).size}</Badge>}
-                            </div>
-                          )}
-                        </div>
-                        <div className="border-t border-primary/20 pt-2 mt-2">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-[9px] text-muted-foreground">الكمية</span>
-                            <span className="text-sm font-bold text-primary">{order.quantity} وحدة</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[9px] text-muted-foreground">الإجمالي</span>
-                            <span className="text-sm font-black text-primary">{formatCurrency(order.totalPrice)}</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* باقي المنتجات في الفاتورة */}
-                      {otherInvoiceOrders.map((o: any) => (
-                        <div key={o.id} className="flex-shrink-0 w-80 flex flex-col justify-between rounded-md px-3 py-3 border border-border/60 bg-muted/10 hover:bg-muted/20 transition-colors">
-                          <div>
-                            <span className="text-sm font-bold text-foreground block mb-2">{o.product}</span>
-                            {(o.color || o.size) && (
-                              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                                {o.color && <Badge variant="outline" className="text-[9px]">{o.color}</Badge>}
-                                {o.size && <Badge variant="outline" className="text-[9px] font-bold">{o.size}</Badge>}
-                              </div>
-                            )}
-                            <Badge variant="outline" className={`text-[9px] font-bold ${statusClasses[o.status] || ""}`}>
-                              {statusLabels[o.status] || o.status}
-                            </Badge>
-                          </div>
-                          <div className="border-t border-border/40 pt-2 mt-2">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-[9px] text-muted-foreground">الكمية</span>
-                              <span className="text-sm font-bold">{o.quantity} وحدة</span>
-                            </div>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-[9px] text-muted-foreground">الإجمالي</span>
-                              <span className="text-sm font-bold">{formatCurrency(o.totalPrice)}</span>
-                            </div>
-                            <Link href={`/orders/${o.id}`}>
-                              <span className="text-[9px] text-primary hover:underline cursor-pointer block">عرض التفاصيل ←</span>
-                            </Link>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {/* إجمالي الفاتورة */}
-                    <div className="flex items-center justify-between rounded-md px-3 py-2 bg-gradient-to-l from-primary/20 to-primary/5 border border-primary/40 mt-2">
-                      <span className="text-sm font-bold text-primary">إجمالي الفاتورة</span>
-                      <span className="text-lg font-black text-primary">
-                        {formatCurrency([...invoiceOrders].reduce((s: number, o: any) => s + (o.totalPrice ?? 0), 0))}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {order.notes && (
-                  <div className="mt-2">
-                    <p className="text-xs text-muted-foreground mb-1">ملاحظات</p>
-                    <div className="bg-muted/20 p-3 rounded text-sm border border-border">{order.notes}</div>
-                  </div>
-                )}
-
-                {/* ── منتجات الشحنة ── */}
-                {shipmentItems.length > 0 && (
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-                        <Package className="w-3 h-3" />منتجات الشحنة ({shipmentItems.length})
-                      </p>
-                      {isAdmin && (
-                        <button type="button" onClick={() => setShowAddProduct(true)}
-                          className="flex items-center gap-1 text-[10px] font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-2 py-1 rounded transition-colors">
-                          <Plus className="w-3 h-3" />إضافة منتج
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      {(shipmentItems as any[]).map((item: any, idx: number) => {
-                        const productImg = (products as any[] ?? []).find((p: any) => p.id === item.productId)?.image ?? null;
-                        const unitPrice  = Number(item.unitPrice ?? 0);
-                        const totalPrice = Number(item.totalPrice ?? (unitPrice * (item.quantity ?? 1)));
-                        const isBulk     = Number(item.quantity ?? 1) > 1;
-                        return (
-                          <div key={item.id} className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-                            <div className="flex items-center gap-4 p-4">
-                              {/* صورة المنتج */}
-                              <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-sm">
-                                {productImg ? (
-                                  <img src={productImg} alt={item.product} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <Package className="w-8 h-8 opacity-25 text-muted-foreground" />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* تفاصيل المنتج */}
-                              <div className="flex-1 min-w-0 space-y-3">
-                                <div>
-                                  <p className="text-[10px] text-muted-foreground mb-1">المنتج</p>
-                                  <h3 className="text-base sm:text-lg font-black text-foreground leading-tight truncate">{item.product || "—"}</h3>
-                                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                                    {item.size && <Badge variant="outline" className="text-xs border-border">{item.size}</Badge>}
-                                    {isBulk && <Badge variant="outline" className="text-xs border-border">جملة</Badge>}
-                                    <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
-                                      {statusLabels[order.status] || order.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-
-                                {/* الأرقام */}
-                                <div className="grid grid-cols-3 gap-3">
-                                  <div className="bg-primary/10 border border-primary/30 rounded-xl p-2 sm:p-3 text-center">
-                                    <p className="text-[10px] text-primary/70 mb-1">الإجمالي</p>
-                                    <p className="text-base sm:text-xl font-black text-primary">{formatCurrency(totalPrice)}</p>
-                                  </div>
-                                  <div className="bg-muted/50 rounded-xl p-2 sm:p-3 text-center">
-                                    <p className="text-[10px] text-muted-foreground mb-1">سعر الوحدة</p>
-                                    <p className="text-sm sm:text-lg font-black text-foreground">{formatCurrency(unitPrice)}</p>
-                                  </div>
-                                  <div className="bg-muted/50 rounded-xl p-3 text-center">
-                                    <p className="text-[10px] text-muted-foreground mb-1">الكمية</p>
-                                    <p className="text-lg sm:text-2xl font-black text-foreground">{item.quantity}</p>
-                                  </div>
-                                </div>
-
-                                {item.notes && (
-                                  <div className="bg-muted/40 rounded-lg px-3 py-2 border border-border/50">
-                                    <p className="text-[10px] text-muted-foreground mb-0.5">ملاحظات</p>
-                                    <p className="text-xs text-foreground">{item.notes}</p>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* حذف */}
-                              {isAdmin && (
-                                <button type="button"
-                                  onClick={async () => {
-                                    await apiFetch(`/shipments/${order.id}/items/${item.id}`, { method: "DELETE" });
-                                    queryClient.invalidateQueries({ queryKey: ["shipment-items", id] });
-                                    toast({ title: "تم الحذف" });
-                                  }}
-                                  className="shrink-0 self-start p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {/* إجمالي المنتجات */}
-                      {shipmentItems.length > 1 && (
-                        <div className="flex justify-between items-center px-3 py-2 rounded-lg bg-primary/10 border border-primary/30 mt-1">
-                          <span className="text-xs font-bold text-primary">إجمالي المنتجات</span>
-                          <span className="text-sm font-black text-primary">
-                            {formatCurrency((shipmentItems as any[]).reduce((s, i) => s + Number(i.totalPrice ?? 0), 0))}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* زرار إضافة أول منتج لو مفيش items — محذوف (الزرار الرئيسي فوق) */}
               </CardContent>
             </Card>
+
+            {/* ── Grid: الملخص المالي + المنتجات ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* يسار — الملخص المالي */}
+              <Card className="border-primary/30 bg-card">
+                <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
+                  <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
+                    $ الملخص المالي
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-3 space-y-2 text-sm">
+                  {shipmentItems.length > 0 ? (
+                    <>
+                      {(shipmentItems as any[]).map((item: any) => (
+                        <div key={item.id} className="flex justify-between text-xs">
+                          <span className="text-muted-foreground truncate max-w-[60%]">
+                            {item.product}{item.color ? ` — ${item.color}` : ""}{item.size ? ` / ${item.size}` : ""}
+                          </span>
+                          <span className="font-semibold">{formatCurrency(Number(item.unitPrice ?? 0))} × {item.quantity}</span>
+                        </div>
+                      ))}
+                      <Separator />
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">سعر الوحدة</span>
+                      <span className="font-semibold">{formatCurrency(order.price ?? 0)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">الكمية</span>
+                    <span>x {order.quantity}</span>
+                  </div>
+                  {((order as any).shippingCost ?? (order as any).shippingFee ?? 0) > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">الشحن</span>
+                      <span className="text-orange-400">{formatCurrency((order as any).shippingCost ?? (order as any).shippingFee ?? 0)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1 border-t border-border">
+                    <span className="font-bold text-sm">الإجمالي</span>
+                    <span className="font-black text-lg text-primary">{formatCurrency(order.totalPrice)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* يمين — منتجات الشحنة */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-2 pt-4 px-4 border-b border-border">
+                  <CardTitle className="text-sm font-bold flex items-center justify-between">
+                    <span className="flex items-center gap-2"><Package className="w-3.5 h-3.5" />منتجات الشحنة</span>
+                    <Badge variant="outline" className="text-xs">{shipmentItems.length} {shipmentItems.length === 1 ? "منتج" : "منتجات"}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 space-y-3">
+                  {shipmentItems.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground text-xs">لا توجد منتجات مضافة</div>
+                  ) : (
+                    (shipmentItems as any[]).map((item: any) => {
+                      const productImg = (products as any[] ?? []).find((p: any) => p.id === item.productId)?.image ?? null;
+                      const unitPrice  = Number(item.unitPrice ?? 0);
+                      const totalItem  = Number(item.totalPrice ?? unitPrice * (item.quantity ?? 1));
+                      return (
+                        <div key={item.id} className="rounded-xl border border-border bg-muted/10 overflow-hidden">
+                          <div className="flex items-center gap-3 p-3">
+                            {/* صورة */}
+                            <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-border/60 bg-muted">
+                              {productImg ? (
+                                <img src={productImg} alt={item.product} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Package className="w-6 h-6 opacity-25" />
+                                </div>
+                              )}
+                            </div>
+                            {/* بيانات */}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-sm font-black truncate">{item.product || "—"}</h3>
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                {item.size && <Badge variant="outline" className="text-[9px]">{item.size}</Badge>}
+                                {item.color && <Badge variant="outline" className="text-[9px]">{item.color}</Badge>}
+                                {Number(item.quantity) > 1 && <Badge variant="outline" className="text-[9px]">جملة</Badge>}
+                                <Badge className={`text-[9px] font-bold px-2 py-0.5 ${statusClasses[order.status] || ""}`}>
+                                  {statusLabels[order.status] || order.status}
+                                </Badge>
+                              </div>
+                              {item.notes && <p className="text-[10px] text-muted-foreground mt-1 truncate">{item.notes}</p>}
+                            </div>
+                            {/* أسعار */}
+                            <div className="shrink-0 text-center space-y-1">
+                              <div>
+                                <p className="text-[9px] text-muted-foreground">الكمية</p>
+                                <p className="text-base font-black">{item.quantity}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] text-muted-foreground">سعر الوحدة</p>
+                                <p className="text-xs font-semibold">{formatCurrency(unitPrice)}</p>
+                              </div>
+                              <div className="bg-primary/10 rounded-lg px-2 py-1 mt-1">
+                                <p className="text-[9px] text-muted-foreground">الإجمالي</p>
+                                <p className="text-sm font-black text-primary">{formatCurrency(totalItem)}</p>
+                              </div>
+                            </div>
+                            {/* حذف */}
+                            {isAdmin && (
+                              <button type="button"
+                                onClick={async () => {
+                                  await apiFetch(`/shipments/${order.id}/items/${item.id}`, { method: "DELETE" });
+                                  queryClient.invalidateQueries({ queryKey: ["shipment-items", id] });
+                                  toast({ title: "تم الحذف" });
+                                }}
+                                className="shrink-0 self-start p-1.5 rounded hover:bg-red-900/30 text-red-500 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  {shipmentItems.length > 1 && (
+                    <div className="flex justify-between items-center px-3 py-2 rounded-lg bg-primary/10 border border-primary/30">
+                      <span className="text-xs font-bold text-primary">إجمالي المنتجات</span>
+                      <span className="text-sm font-black text-primary">
+                        {formatCurrency((shipmentItems as any[]).reduce((s, i) => s + Number(i.totalPrice ?? 0), 0))}
+                      </span>
+                    </div>
+                  )}
+                  {isAdmin && (
+                    <button type="button" onClick={() => setShowAddProduct(true)}
+                      className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-2 py-2 rounded-lg transition-colors">
+                      <Plus className="w-3 h-3" />إضافة منتج
+                    </button>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ملاحظات */}
+            {order.notes && (
+              <div className="bg-muted/20 p-3 rounded text-sm border border-border">
+                <p className="text-xs text-muted-foreground mb-1">ملاحظات</p>
+                {order.notes}
+              </div>
+            )}
+
+            {/* سبب الإرجاع */}
+            {order.status === "returned" && orderReturnReason && (
+              <div className="p-3 rounded border border-red-900 bg-red-900/10">
+                <p className="text-xs text-red-400 font-bold mb-1 flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3" />سبب الإرجاع
+                </p>
+                <p className="text-sm font-semibold text-red-300">{returnReasonLabel(orderReturnReason)}</p>
+                {orderReturnNote && <p className="text-xs text-muted-foreground mt-1">{orderReturnNote}</p>}
+              </div>
+            )}
+
+            </div>
           )}
         </div>
 
