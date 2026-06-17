@@ -20,10 +20,10 @@ import { format } from "date-fns";
 const AVAILABLE_SHIPMENT_STATUSES = ["waiting"];
 
 const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
-  waiting: "🏠 قيد الشحن في المخزن",
+  waiting: "🏠 قيد الشحن",
   confirmed: "مؤكدة",
   delayed: "متأخرة",
-  warehouse_ready: "🏠 قيد الشحن في المخزن",
+  warehouse_ready: "🏠 قيد الشحن",
 };
 
 const emptyForm = { name: "", phone: "", website: "", notes: "", logo: "", isActive: true };
@@ -514,12 +514,12 @@ export function CreateManifestDialog({
             ) : (
               <>
                 {/* Table header — desktop only */}
-                <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_90px_90px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
+                <div className="hidden sm:grid sm:grid-cols-[auto_2fr_1fr_100px_80px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
                   <div className="w-5" />
-                  <div>المستلم</div>
-                  <div>المدينة</div>
-                  <div className="text-left">قيمة COD</div>
-                  <div>الحالة</div>
+                  <div className="pr-2">المستلم</div>
+                  <div className="pr-2">المدينة</div>
+                  <div className="text-center">قيمة COD</div>
+                  <div className="text-center">الحالة</div>
                 </div>
                 {/* Rows */}
                 {filtered.map((s: Shipment) => {
@@ -531,7 +531,7 @@ export function CreateManifestDialog({
                       className={`border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
                     >
                       {/* Desktop row */}
-                      <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_90px_90px] gap-0 items-center px-3 py-2.5">
+                      <div className="hidden sm:grid sm:grid-cols-[auto_2fr_1fr_100px_80px] gap-0 items-center px-3 py-2.5">
                         <div className="w-5 flex items-center">
                           <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                         </div>
@@ -550,12 +550,12 @@ export function CreateManifestDialog({
                           <p className="text-xs truncate">{s.receiverCity || "—"}</p>
                         </div>
                         {/* COD */}
-                        <div className="text-left text-xs font-bold">
+                        <div className="text-center text-xs font-bold">
                           {formatCurrency(Number(s.codAmount || 0))}
                         </div>
                         {/* Status */}
-                        <div>
-                          <Badge variant="outline" className="text-[9px] font-bold border truncate max-w-[85px]">
+                        <div className="flex justify-center">
+                          <Badge variant="outline" className="text-[9px] font-bold border max-w-[75px] truncate justify-center">
                             {SHIPMENT_STATUS_LABELS_LOCAL[s.status] ?? s.status}
                           </Badge>
                         </div>
