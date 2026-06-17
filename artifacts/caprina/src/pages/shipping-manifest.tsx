@@ -3214,7 +3214,6 @@ export default function ShippingManifestPage() {
         totalPrice: codAmt,
         cost: null,
         shippingCost: sh ? parseFloat(sh.shippingFee ?? '0') : null,
-        courierCost: sh ? parseFloat(sh.costPrice ?? '0') : null,
         status: sh?.status ?? 'pending',
         notes: sh?.notes ?? null,
         color: null,
@@ -4253,7 +4252,7 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
-                    courierShippingCost={(group[0] as any).courierCost ?? null}
+                    courierShippingCost={rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null}
                   />
                   ))}
                   </div>
