@@ -2418,18 +2418,21 @@ function ExportDialog({
     ws1.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
     ws1.pageMargins = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.35, header: 0.15, footer: 0.15 };
     ws1.columns = [
-      { key: "idx", width: 16 },
-      { key: "invoice", width: 20 },
-      { key: "customer", width: 20 },
-      { key: "phone", width: 16 },
-      { key: "products", width: 35 },
-      { key: "qty", width: 12 },
-      { key: "total", width: 12 },
-      { key: "status", width: 14 },
-      { key: "note", width: 26 },
+      { key: "idx",        width: 6  },
+      { key: "customer",   width: 20 },
+      { key: "phone",      width: 14 },
+      { key: "gov",        width: 14 },
+      { key: "address",    width: 30 },
+      { key: "sender",     width: 18 },
+      { key: "cod",        width: 14 },
+      { key: "fee",        width: 12 },
+      { key: "net",        width: 14 },
+      { key: "status",     width: 14 },
+      { key: "note",       width: 24 },
+      { key: "invoice",    width: 16 },
     ];
 
-    ws1.mergeCells("A1:I1");
+    ws1.mergeCells("A1:L1");
     setCell(ws1.getCell("A1"), `${brandName}${brandTagline ? `  ·  ${brandTagline}` : ""}`, {
       fill: C.bg,
       font: { bold: true, size: 16, color: { argb: C.gold } },
@@ -2438,7 +2441,7 @@ function ExportDialog({
     });
     ws1.getRow(1).height = 28;
 
-    ws1.mergeCells("A2:I2");
+    ws1.mergeCells("A2:L2");
     setCell(ws1.getCell("A2"), `بيان الشحن — ${manifest.manifestNumber}   |   ${manifest.companyName}   |   ${manifestDate}`, {
       fill: C.bg,
       font: { bold: true, size: 12, color: { argb: C.gold } },
@@ -2447,7 +2450,7 @@ function ExportDialog({
     });
     ws1.getRow(2).height = 24;
 
-    ws1.mergeCells("A3:I3");
+    ws1.mergeCells("A3:L3");
     setCell(ws1.getCell("A3"), `طُبع: ${printDate}   |   إجمالي المسلَّم: ${groupedCompleted} من ${groupedTotal}   |   نسبة التسليم: ${groupedDeliveryRate}%`, {
       fill: C.panel,
       font: { size: 10, color: { argb: "FF6B7280" } },
@@ -2456,11 +2459,11 @@ function ExportDialog({
     });
     ws1.getRow(3).height = 22;
 
-    ws1.mergeCells("A4:I4");
+    ws1.mergeCells("A4:L4");
     setCell(ws1.getCell("A4"), "", { fill: C.bg, border: C.bg });
     ws1.getRow(4).height = 8;
 
-    const headers = ["#", "رقم الفاتورة", "اسم العميل", "الهاتف", "المنتجات", "الكمية الكلية", "الإجمالي", "حالة التسليم", "ملاحظة"];
+    const headers = ["#", "اسم العميل", "الهاتف", "المحافظة", "العنوان", "الشركة الراسلة", "سعر الشحنة", "سعر الشحن", "الإجمالي", "حالة التسليم", "ملاحظة", "رقم الشحنة"];
     const headerRow = ws1.getRow(5);
     headerRow.values = headers;
     headerRow.height = 24;
@@ -2475,15 +2478,10 @@ function ExportDialog({
 
     groupedOrders.forEach((group, idx) => {
       const rep = group[0];
-      const invoiceNum = (rep as any).invoiceNumber?.trim() || `${rep.customerName}-${idx + 1}`;
-      const totalQty = group.reduce((sum, order) => sum + order.quantity, 0);
-      const totalPrice = group.reduce((sum, order) => sum + order.totalPrice, 0);
-      const productsText = group
-        .map((order) => {
-          const variant = [order.color, order.size].filter(Boolean).join("/");
-          return variant ? `${order.product} (${variant}) ×${order.quantity}` : `${order.product} ×${order.quantity}`;
-        })
-        .join("\n");
+      const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
+      const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
+      const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+      const net = cod - fee;
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
       const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
       const deliveryLabel = statuses.length === 1
@@ -2494,60 +2492,92 @@ function ExportDialog({
       const baseFont = { color: { argb: C.darkText } };
 
       const row = ws1.getRow(idx + 6);
-      row.height = 30;
+      row.height = 32;
+      // 1: #
       setCell(row.getCell(1), idx + 1, {
         fill: baseFill,
         font: { bold: true, color: { argb: C.darkText } },
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
       });
-      setCell(row.getCell(2), invoiceNum, {
+      // 2: اسم العميل
+      setCell(row.getCell(2), rep.customerName, {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.darkText } },
+        align: { horizontal: "right", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 3: الهاتف
+      setCell(row.getCell(3), rep.phone ?? "—", {
+        fill: baseFill,
+        font: baseFont,
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 4: المحافظة
+      setCell(row.getCell(4), rep.city ?? "—", {
+        fill: baseFill,
+        font: baseFont,
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 5: العنوان
+      setCell(row.getCell(5), (rep as any).address ?? "—", {
+        fill: baseFill,
+        font: { size: 9, color: { argb: C.darkText } },
+        align: { horizontal: "right", vertical: "middle", wrapText: true },
+        border: "FFD1D5DB",
+      });
+      // 6: الشركة الراسلة
+      setCell(row.getCell(6), (rep as any).senderName ?? "—", {
         fill: baseFill,
         font: { bold: true, color: { argb: C.blue } },
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
       });
-      setCell(row.getCell(3), rep.customerName, {
+      // 7: سعر الشحنة (COD)
+      setCell(row.getCell(7), cod, {
         fill: baseFill,
-        font: baseFont,
-        align: { horizontal: "right", vertical: "middle" },
-        border: "FFD1D5DB",
-      });
-      setCell(row.getCell(4), rep.phone ?? "—", {
-        fill: baseFill,
-        font: baseFont,
-        align: { horizontal: "center", vertical: "middle" },
-        border: "FFD1D5DB",
-      });
-      setCell(row.getCell(5), productsText, {
-        fill: baseFill,
-        font: { color: { argb: C.darkText } },
-        align: { horizontal: "right", vertical: "middle", wrapText: true },
-        border: "FFD1D5DB",
-      });
-      setCell(row.getCell(6), totalQty, {
-        fill: baseFill,
-        font: { bold: true, color: { argb: C.darkText } },
-        align: { horizontal: "center", vertical: "middle" },
-        border: "FFD1D5DB",
-      });
-      setCell(row.getCell(7), totalPrice, {
-        fill: baseFill,
-        font: { bold: true, color: { argb: C.darkText } },
+        font: { bold: true, color: { argb: C.green } },
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
         numFmt: '#,##0 "ج.م"',
       });
-      setCell(row.getCell(8), deliveryLabel, {
+      // 8: سعر الشحن (fee)
+      setCell(row.getCell(8), fee > 0 ? fee : "—", {
+        fill: baseFill,
+        font: { color: { argb: C.amber } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+        numFmt: fee > 0 ? '#,##0 "ج.م"' : undefined,
+      });
+      // 9: الإجمالي (net)
+      setCell(row.getCell(9), net, {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.blue } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+        numFmt: '#,##0 "ج.م"',
+      });
+      // 10: الحالة
+      setCell(row.getCell(10), deliveryLabel, {
         fill: deliveryStatus === "delivered" ? C.greenBg : deliveryStatus === "returned" ? C.redBg : deliveryStatus === "partial_received" ? C.tealBg : deliveryStatus === "postponed" ? C.amberBg : C.grayBg,
         font: { bold: true, color: { argb: deliveryStatus === "delivered" ? C.green : deliveryStatus === "returned" ? C.red : deliveryStatus === "partial_received" ? C.teal : deliveryStatus === "postponed" ? C.amber : C.gray } },
         align: { horizontal: "center", vertical: "middle" },
         border: deliveryStatus === "delivered" ? C.green : deliveryStatus === "returned" ? C.red : deliveryStatus === "partial_received" ? C.teal : deliveryStatus === "postponed" ? C.amber : "FFCBD5E1",
       });
-      setCell(row.getCell(9), notes || "", {
+      // 11: ملاحظة
+      setCell(row.getCell(11), notes || "", {
         fill: baseFill,
         font: baseFont,
         align: { horizontal: "right", vertical: "middle", wrapText: true },
+        border: "FFD1D5DB",
+      });
+      // 12: رقم الشحنة
+      setCell(row.getCell(12), invoiceNum, {
+        fill: baseFill,
+        font: { color: { argb: C.gray } },
+        align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
       });
     });
@@ -2578,7 +2608,7 @@ function ExportDialog({
         align: { horizontal: "center", vertical: "middle", wrapText: false, shrinkToFit: true },
         border: "FFF59E0B",
       });
-      for (const col of ["D", "E", "F", "G", "H", "I"]) {
+      for (const col of ["D", "E", "F", "G", "H", "I", "J", "K", "L"]) {
         setCell(ws1.getCell(`${col}${item.row}`), "", {
           fill: C.grayBg,
           border: "FFF59E0B",
@@ -3646,14 +3676,16 @@ export default function ShippingManifestPage() {
       <table className="mp-table">
         <thead>
           <tr>
-            <th style={{ width: "5%" }}>#</th>
-            <th style={{ width: "18%" }}>العميل</th>
-            <th style={{ width: "13%" }}>الهاتف</th>
-            <th style={{ width: "27%" }}>المنتج / المواصفات</th>
-            <th style={{ width: "7%" }}>الكمية</th>
-            <th style={{ width: "12%" }}>الإجمالي</th>
-            <th style={{ width: "10%" }}>الحالة</th>
-            <th style={{ width: "8%" }}>ملاحظة</th>
+            <th style={{ width: "4%" }}>#</th>
+            <th style={{ width: "14%" }}>العميل</th>
+            <th style={{ width: "8%" }}>المحافظة</th>
+            <th style={{ width: "20%" }}>العنوان</th>
+            <th style={{ width: "12%" }}>الراسل</th>
+            <th style={{ width: "10%" }}>سعر الشحنة</th>
+            <th style={{ width: "9%" }}>سعر الشحن</th>
+            <th style={{ width: "9%" }}>الإجمالي</th>
+            <th style={{ width: "8%" }}>الحالة</th>
+            <th style={{ width: "6%" }}>ملاحظة</th>
           </tr>
         </thead>
         <tbody>
@@ -3663,23 +3695,23 @@ export default function ShippingManifestPage() {
             const isSingleStatus = statuses.length === 1;
             const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
             const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
-            const totalPrice = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-            const productsText = group.map((o) => {
-              const variant = [o.color, o.size].filter(Boolean).join(" / ");
-              return variant ? `${o.product} (${variant}) ×${o.quantity}` : `${o.product} ×${o.quantity}`;
-            }).join("، ");
+            const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+            const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+            const net = cod - fee;
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
                 <td className="mp-td-center mp-num">{idx + 1}</td>
                 <td className="mp-td-bold">
                   {rep.customerName}
-                  <div className="mp-sub">{(rep as any).invoiceNumber?.trim() || `#${rep.id.toString().padStart(4, "0")}`}</div>
+                  <div className="mp-sub">{rep.phone ?? ""}</div>
                 </td>
-                <td className="mp-td-ltr">{rep.phone ?? "—"}</td>
-                <td>{productsText}</td>
-                <td className="mp-td-center mp-td-bold">{totalQty}</td>
-                <td className="mp-td-center mp-td-bold">{Number(totalPrice || 0).toLocaleString("ar-EG")} ج</td>
+                <td>{rep.city ?? "—"}</td>
+                <td style={{ fontSize: "8.5pt" }}>{(rep as any).address ?? "—"}</td>
+                <td style={{ fontSize: "8.5pt" }}>{(rep as any).senderName ?? "—"}</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center" style={{ color: "#d97706" }}>{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: "#1d4ed8" }}>{net.toLocaleString("ar-EG")} ج</td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
               </tr>
