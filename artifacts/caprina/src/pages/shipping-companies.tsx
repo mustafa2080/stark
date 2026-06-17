@@ -44,14 +44,58 @@ function CompanyAvatar({ logo, name, size = "md" }: { logo?: string | null; name
 }
 
 /** حقل رفع اللوجو */
+/** يضغط ويصغّر الصورة قبل تحويلها لـ base64 — يمنع خطأ 500 الناتج عن تجاوز
+ *  max_allowed_packet في MySQL عند رفع صور موبايل عالية الدقة بدون ضغط */
+function resizeAndCompressImage(file: File, maxDim = 320, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxDim) { height = Math.round((height * maxDim) / width); width = maxDim; }
+        } else {
+          if (height > maxDim) { width = Math.round((width * maxDim) / height); height = maxDim; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas غير مدعوم")); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => reject(new Error("تعذّر قراءة الصورة"));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error("تعذّر قراءة الملف"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function LogoUploader({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { toast } = useToast();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(reader.result as string);
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "خطأ", description: "يجب اختيار ملف صورة (PNG, JPG, WEBP).", variant: "destructive" });
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const compressed = await resizeAndCompressImage(file);
+      onChange(compressed);
+    } catch (err: any) {
+      toast({ title: "خطأ", description: err?.message ?? "تعذّر معالجة الصورة.", variant: "destructive" });
+    } finally {
+      setIsProcessing(false);
+      // تصفير قيمة input عشان يقدر المستخدم يختار نفس الملف تاني لو احتاج
+      e.target.value = "";
+    }
   };
   return (
     <div>
@@ -77,11 +121,11 @@ function LogoUploader({ value, onChange }: { value: string; onChange: (v: string
           </div>
         )}
         <div className="flex-1">
-          <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1.5 w-full" onClick={() => inputRef.current?.click()}>
+          <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1.5 w-full" disabled={isProcessing} onClick={() => inputRef.current?.click()}>
             <ImagePlus className="w-3.5 h-3.5" />
-            {value ? "تغيير الصورة" : "رفع صورة"}
+            {isProcessing ? "جاري المعالجة..." : value ? "تغيير الصورة" : "رفع صورة"}
           </Button>
-          <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG, WEBP — الصورة ستظهر دائرية</p>
+          <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG, WEBP — يتم ضغط الصورة وتصغيرها تلقائياً</p>
         </div>
       </div>
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
