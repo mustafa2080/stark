@@ -82,7 +82,7 @@ function ZonesMultiSelect({
           <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-50 mr-2" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start" dir="rtl">
+      <PopoverContent className="w-[280px] p-0" align="start" dir="rtl" onInteractOutside={() => setOpen(false)}>
         <div className="p-2 border-b border-border">
           <div className="relative">
             <Search className="absolute right-2 top-2 w-3.5 h-3.5 text-muted-foreground" />
@@ -104,7 +104,8 @@ function ZonesMultiSelect({
                 <div
                   key={zone.id}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
-                  onClick={() => toggle(zone.id)}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={e => { e.stopPropagation(); toggle(zone.id); }}
                 >
                   <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-primary border-primary" : "border-border"}`}>
                     {isSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
