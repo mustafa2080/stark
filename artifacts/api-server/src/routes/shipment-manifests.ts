@@ -544,7 +544,18 @@ router.post("/shipment-manifests/:id/add-shipments", async (req, res): Promise<v
       .from(shipmentManifestItemsTable)
       .where(eq(shipmentManifestItemsTable.manifestId, manifestId));
     const existingIds = new Set(existing.map(e => e.shipmentId));
-    const newIds = shipmentIds.filter(id => !existingIds.has(id));
+    const candidateIds = shipmentIds.filter(id => !existingIds.has(id));
+
+    if (candidateIds.length === 0) {
+      res.json({ added: 0, manifestNumber: manifest.manifestNumber });
+      return;
+    }
+
+    // اتأكد إن الشحنات لسه "قيد الشحن في المخزن" فعلياً (مش picked_up أو أي حالة تانية)
+    const candidates = await db.select({ id: shipmentsTable.id, status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(inArray(shipmentsTable.id, candidateIds));
+    const newIds = candidates.filter(c => c.status === "warehouse_ready").map(c => c.id);
 
     if (newIds.length === 0) {
       res.json({ added: 0, manifestNumber: manifest.manifestNumber });

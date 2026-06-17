@@ -738,8 +738,11 @@ function CreateShipmentManifestDialog({
     queryFn: () => shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
   });
 
-  // الكويري برجع warehouse_ready بس — لا نحتاج فلتر إضافي
-  const availableShipments = (data?.data ?? []) as any[];
+  // فلتر صارم: الباك إند بيوسّع "warehouse_ready" ليشمل "picked_up" برضه (alias قديم
+  // لأغراض تانية)، فلازم نتأكد إننا بنعرض فقط الشحنات اللي لسه فعلياً في المخزن.
+  const availableShipments = ((data?.data ?? []) as any[]).filter(
+    (s) => s.status === "warehouse_ready"
+  );
 
   const filtered = useMemo(() => {
     if (!search.trim()) return availableShipments;

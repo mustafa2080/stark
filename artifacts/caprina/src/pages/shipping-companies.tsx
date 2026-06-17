@@ -394,8 +394,12 @@ export function CreateManifestDialog({
 
   const allCompanyShipments = data?.data ?? [];
 
-  // لا نحتاج فلتر إضافي — الكويري برجع warehouse_ready بس
-  const availableShipments = allCompanyShipments as Shipment[];
+  // فلتر صارم على المستوى ده: الباك إند بيوسّع "warehouse_ready" ليشمل "picked_up" برضه
+  // (alias قديم لأغراض تانية)، فلازم نتأكد إننا بنعرض فقط الشحنات اللي لسه فعلياً
+  // "قيد الشحن في المخزن" ولسه ماتسلمتش من شركة الشحن.
+  const availableShipments = (allCompanyShipments as Shipment[]).filter(
+    (s) => s.status === "warehouse_ready"
+  );
 
   const filtered = useMemo(() => {
     if (!search.trim()) return availableShipments;
