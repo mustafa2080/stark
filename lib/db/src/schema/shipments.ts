@@ -132,6 +132,7 @@ export const shipmentItemsTable = mysqlTable("shipment_items", {
 
   inventoryDeducted: int("inventory_deducted").default(0),
   inventoryReturned: int("inventory_returned").default(0),
+  receivedQuantity: int("received_quantity"), // الكمية المستلمة فعلياً (تُملأ وقت الاستلام الجزئي)
 
   notes:       text("notes"),
   createdAt:   datetime("created_at").notNull(),

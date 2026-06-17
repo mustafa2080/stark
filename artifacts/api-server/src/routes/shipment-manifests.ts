@@ -12,6 +12,8 @@ import {
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { syncShipmentInventory } from "./shipments.js";
+import { syncShipmentItemsInventory } from "../lib/inventory.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -256,6 +258,7 @@ const UpdateItemSchema = z.object({
   partialQuantity: z.number().int().nullish(),
   returnReceived: z.boolean().nullish(),
   returnReason:   z.string().nullish(),
+  itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
 });
 
 router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Promise<void> => {
@@ -287,8 +290,36 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       partial_delivered: "delivered",
       pending:   "in_transit",
     };
+
+    // ربط المخزون: لو الحالة "مرتجع" أو "استلام جزئي" → نفس منطق صفحة الشحنة مباشرة
+    // (deliveryStatus بتاع البيان بيستخدم "partial_delivered"، نظام المخزون بيتوقع "partial_received")
+    const inventoryStatus =
+      body.deliveryStatus === "returned"          ? "returned" :
+      body.deliveryStatus === "partial_delivered" ? "partial_received" :
+      undefined;
+
+    const shipmentPatch: Record<string, any> = {
+      status: statusMap[body.deliveryStatus] ?? "in_transit",
+      updatedAt: now,
+    };
+    if (body.partialQuantity != null) shipmentPatch.partialQuantity = body.partialQuantity;
+
+    if (inventoryStatus) {
+      const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, shipmentId)).limit(1);
+      if (existingShipment) {
+        // منتج واحد (single product) على الشحنة نفسها — afterPatch.status هنا للمخزون فقط
+        // (مش نفس status اللي هيتسجل فعليًا)، فبنستخدم نسخة مؤقتة ونلقط الفلاجز اللي ضافها
+        const invPatch: Record<string, any> = { ...shipmentPatch, status: inventoryStatus };
+        await syncShipmentInventory(existingShipment, invPatch);
+        if (invPatch.inventoryDeducted != null) shipmentPatch.inventoryDeducted = invPatch.inventoryDeducted;
+        if (invPatch.inventoryReturned != null) shipmentPatch.inventoryReturned = invPatch.inventoryReturned;
+        // منتجات متعددة (shipment_items) على الشحنة
+        await syncShipmentItemsInventory(shipmentId, inventoryStatus, body.itemReceivedQuantities ?? undefined);
+      }
+    }
+
     await db.update(shipmentsTable)
-      .set({ status: statusMap[body.deliveryStatus] ?? "in_transit", updatedAt: now })
+      .set(shipmentPatch)
       .where(eq(shipmentsTable.id, shipmentId));
 
     res.json({ success: true });

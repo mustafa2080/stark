@@ -1,5 +1,5 @@
 import { eq, like, and, sum } from "drizzle-orm";
-import { db, productsTable, productVariantsTable, inventoryMovementsTable, warehouseStockTable, warehousesTable } from "@workspace/db";
+import { db, productsTable, productVariantsTable, inventoryMovementsTable, warehouseStockTable, warehousesTable, shipmentItemsTable } from "@workspace/db";
 import type { MovementReason } from "@workspace/db";
 
 /**
@@ -741,3 +741,104 @@ export async function updateMovementReason(
 
 // Legacy exports
 export const RESERVED_STATUSES: string[] = [];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SHIPMENT ITEMS — ربط بنود الشحنة (منتجات متعددة) بالمخزون
+//
+//  يُستخدم من routes/shipments.ts (تعديل مباشر للشحنة) ومن
+//  routes/shipment-manifests.ts (تعديل حالة التسليم من جوه "البيان") — نفس
+//  الدالة في المكانين عشان السلوك يفضل متطابق دايماً.
+//
+//  1. خصم تلقائي: كل بند لسه ماخصمش (inventoryDeducted=0) → يُخصم من المخزن.
+//     (idempotent — آمن نستدعيها كل مرة، مش بتخصم مرتين لنفس البند)
+//  2. لو newStatus === "returned" → رجّع كل الكمية لكل بند لسه ما رجعش.
+//  3. لو newStatus === "partial_received" → رجّع الفرق (الكمية - المستلم)
+//     لكل بند حسب itemReceivedQuantities[itemId]، وسجّل receivedQuantity.
+// ═══════════════════════════════════════════════════════════════════════════════
+export async function syncShipmentItemsInventory(
+  shipmentId: number,
+  newStatus?: string | null,
+  itemReceivedQuantities?: Record<number, number>,
+): Promise<void> {
+  const items = await db
+    .select()
+    .from(shipmentItemsTable)
+    .where(eq(shipmentItemsTable.shipmentId, shipmentId));
+
+  if (items.length === 0) return;
+
+  // ── 1. خصم أولي لأي بند لسه ماخصمش ────────────────────────────────────────
+  for (const item of items) {
+    if (item.inventoryDeducted) continue;
+    if (!item.productId && !item.variantId) continue;
+    await processToShipping(
+      {
+        productId: item.productId,
+        variantId: item.variantId,
+        product: item.product,
+        color: item.color,
+        size: item.size,
+        warehouseId: item.warehouseId,
+      },
+      item.quantity,
+      null,
+      shipmentId,
+    );
+    await db.update(shipmentItemsTable)
+      .set({ inventoryDeducted: 1, updatedAt: new Date() })
+      .where(eq(shipmentItemsTable.id, item.id));
+  }
+
+  // ── 2. مرتجع كامل → رجّع كل بند لسه ما رجعش ────────────────────────────────
+  if (newStatus === "returned") {
+    for (const item of items) {
+      if (item.inventoryReturned) continue;
+      if (!item.productId && !item.variantId) continue;
+      await reverseShipping(
+        {
+          productId: item.productId,
+          variantId: item.variantId,
+          product: item.product,
+          color: item.color,
+          size: item.size,
+          warehouseId: item.warehouseId,
+        },
+        item.quantity,
+        null,
+        shipmentId,
+      );
+      await db.update(shipmentItemsTable)
+        .set({ inventoryReturned: 1, receivedQuantity: 0, updatedAt: new Date() })
+        .where(eq(shipmentItemsTable.id, item.id));
+    }
+    return;
+  }
+
+  // ── 3. استلام جزئي → رجّع الفرق لكل بند حسب الكمية المستلمة منه ────────────
+  if (newStatus === "partial_received") {
+    for (const item of items) {
+      if (item.inventoryReturned) continue;
+      if (!item.productId && !item.variantId) continue;
+      const received = Math.max(0, Number(itemReceivedQuantities?.[item.id] ?? 0));
+      const remaining = Math.max(0, item.quantity - received);
+      if (remaining > 0) {
+        await reverseShipping(
+          {
+            productId: item.productId,
+            variantId: item.variantId,
+            product: item.product,
+            color: item.color,
+            size: item.size,
+            warehouseId: item.warehouseId,
+          },
+          remaining,
+          null,
+          shipmentId,
+        );
+      }
+      await db.update(shipmentItemsTable)
+        .set({ inventoryReturned: 1, receivedQuantity: received, updatedAt: new Date() })
+        .where(eq(shipmentItemsTable.id, item.id));
+    }
+  }
+}

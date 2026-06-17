@@ -3,7 +3,7 @@ import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
 import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { processToShipping, reverseShipping, processReturn } from "../lib/inventory.js";
+import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
 
 const router: IRouter = Router();
 
@@ -76,12 +76,24 @@ const CreateShipmentSchema = z.object({
   variantId:       z.number().int().positive().nullish(),
   warehouseId:     z.number().int().positive().nullish(),
   status:          z.string().default("waiting"),
+  items: z.array(z.object({
+    productId:   z.number().int().positive().nullish(),
+    variantId:   z.number().int().positive().nullish(),
+    warehouseId: z.number().int().positive().nullish(),
+    product:     z.string().nullish(),
+    color:       z.string().nullish(),
+    size:        z.string().nullish(),
+    quantity:    z.coerce.number().int().min(1).default(1),
+    unitPrice:   z.coerce.number().min(0).default(0),
+    costPrice:   z.coerce.number().min(0).default(0),
+  })).nullish(),
 });
 
 const UpdateShipmentSchema = CreateShipmentSchema.partial().extend({
   status: z.string().nullish(),
   trackingNumber: z.string().nullish(),
   collectedAmount: z.coerce.number().nullish(),
+  itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
 });
 
 // ─── توليد رقم شحنة تلقائي ────────────────────────────────────────────────────
@@ -106,9 +118,9 @@ async function generateShipmentNumber(tenantId: number | null): Promise<string> 
 }
 
 // ─── ربط الشحنة بالمخزون: خصم/إرجاع تلقائي حسب الحالة ────────────────────────
-type ShipmentRow = typeof shipmentsTable.$inferSelect;
+export type ShipmentRow = typeof shipmentsTable.$inferSelect;
 
-async function syncShipmentInventory(
+export async function syncShipmentInventory(
   before: ShipmentRow,
   afterPatch: Record<string, any>,
 ): Promise<void> {
@@ -465,14 +477,38 @@ router.post("/shipments", async (req, res): Promise<void> => {
     const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
     let newShipment = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, insertId)).limit(1);
 
-    // لو الشحنة اتعملت مرتبطة بمنتج من البداية → اخصم من المخزون فوراً
+    // لو فيه منتجات متعددة (items) → أضفهم لجدول shipment_items
+    if (d.items && d.items.length > 0) {
+      await db.insert(shipmentItemsTable).values(
+        d.items.map((it) => ({
+          shipmentId:  insertId,
+          tenantId:    tenantId ?? null,
+          productId:   it.productId ?? null,
+          variantId:   it.variantId ?? null,
+          warehouseId: it.warehouseId ?? d.warehouseId ?? null,
+          product:     it.product ?? null,
+          color:       it.color ?? null,
+          size:        it.size ?? null,
+          quantity:    it.quantity,
+          unitPrice:   String(it.unitPrice),
+          costPrice:   String(it.costPrice),
+          totalPrice:  String(it.quantity * it.unitPrice),
+          createdAt:   now,
+          updatedAt:   now,
+        }))
+      );
+    }
+
+    // لو الشحنة اتعملت مرتبطة بمنتج من البداية (single product أو items) → اخصم من المخزون فوراً
     if (newShipment[0]) {
       const invPatch: any = {};
       await syncShipmentInventory(newShipment[0], invPatch);
       if (Object.keys(invPatch).length) {
         await db.update(shipmentsTable).set(invPatch).where(eq(shipmentsTable.id, insertId));
-        newShipment = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, insertId)).limit(1);
       }
+      // خصم بنود المنتجات المتعددة (items)
+      await syncShipmentItemsInventory(insertId, newShipment[0].status);
+      newShipment = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, insertId)).limit(1);
     }
 
     res.status(201).json(newShipment[0]);
@@ -538,6 +574,12 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
 
     // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
     await syncShipmentInventory(existingShipment, updateData);
+    // ربط مخزون بنود الشحنة المتعددة (items) — لو الحالة اتغيرت لمرتجع/استلام جزئي
+    await syncShipmentItemsInventory(
+      id,
+      updateData.status ?? existingShipment.status,
+      d.itemReceivedQuantities ?? undefined,
+    );
 
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
@@ -599,6 +641,12 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
 
     // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
     await syncShipmentInventory(existingShipment, updateData);
+    // ربط مخزون بنود الشحنة المتعددة (items) — لو الحالة اتغيرت لمرتجع/استلام جزئي
+    await syncShipmentItemsInventory(
+      id,
+      updateData.status ?? existingShipment.status,
+      d.itemReceivedQuantities ?? undefined,
+    );
 
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
@@ -832,7 +880,12 @@ router.post("/shipments/:id/items", async (req, res): Promise<void> => {
       updatedAt:   now,
     });
     const newItem = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, (result as any).insertId)).limit(1);
-    res.status(201).json(newItem[0]);
+
+    // اخصم من المخزون فوراً (نفس منطق الشحنة وقت الإنشاء)
+    await syncShipmentItemsInventory(shipmentId);
+    const refreshed = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, (result as any).insertId)).limit(1);
+
+    res.status(201).json(refreshed[0] ?? newItem[0]);
   } catch (e: any) {
     console.error("[POST /shipments/:id/items]", e);
     if (e?.name === "ZodError") { res.status(400).json({ error: e.errors }); return; }
@@ -843,15 +896,45 @@ router.post("/shipments/:id/items", async (req, res): Promise<void> => {
 // PATCH /shipments/:id/items/:itemId
 router.patch("/shipments/:id/items/:itemId", async (req, res): Promise<void> => {
   try {
+    const shipmentId = Number(req.params.id);
     const itemId   = Number(req.params.itemId);
     const tenantId = getTenantId(req);
     const body = ShipmentItemSchema.partial().parse(req.body);
     const now  = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+    const [existingItem] = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, itemId)).limit(1);
+
     const updateData: any = { ...body, updatedAt: now };
     if (body.quantity !== undefined && body.unitPrice !== undefined) {
       updateData.totalPrice = String(body.quantity * body.unitPrice);
     }
+
+    // لو البند خصم من المخزون قبل كده وفيه تعديل على المنتج/الكمية/المخزن
+    // → رجّع الكمية القديمة أولاً، بعدين خصم الجديدة (تتعمل تلقائي تحت)
+    const touchesInventoryFields = body.productId !== undefined || body.variantId !== undefined
+      || body.warehouseId !== undefined || body.quantity !== undefined;
+    if (existingItem?.inventoryDeducted && touchesInventoryFields && !existingItem.inventoryReturned) {
+      await reverseShipping(
+        {
+          productId: existingItem.productId,
+          variantId: existingItem.variantId,
+          product: existingItem.product,
+          color: existingItem.color,
+          size: existingItem.size,
+          warehouseId: existingItem.warehouseId,
+        },
+        existingItem.quantity,
+        null,
+        shipmentId,
+      );
+      updateData.inventoryDeducted = 0;
+    }
+
     await db.update(shipmentItemsTable).set(updateData).where(eq(shipmentItemsTable.id, itemId));
+
+    // اخصم تاني حسب البيانات الجديدة لو لسه مخصومة
+    await syncShipmentItemsInventory(shipmentId);
+
     const updated = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, itemId)).limit(1);
     res.json(updated[0]);
   } catch (e: any) {
@@ -863,7 +946,26 @@ router.patch("/shipments/:id/items/:itemId", async (req, res): Promise<void> => 
 // DELETE /shipments/:id/items/:itemId
 router.delete("/shipments/:id/items/:itemId", async (req, res): Promise<void> => {
   try {
+    const shipmentId = Number(req.params.id);
     const itemId = Number(req.params.itemId);
+
+    const [existingItem] = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.id, itemId)).limit(1);
+    if (existingItem?.inventoryDeducted && !existingItem.inventoryReturned) {
+      await reverseShipping(
+        {
+          productId: existingItem.productId,
+          variantId: existingItem.variantId,
+          product: existingItem.product,
+          color: existingItem.color,
+          size: existingItem.size,
+          warehouseId: existingItem.warehouseId,
+        },
+        existingItem.quantity,
+        null,
+        shipmentId,
+      );
+    }
+
     await db.delete(shipmentItemsTable).where(eq(shipmentItemsTable.id, itemId));
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: "خطأ في حذف البند" }); }
