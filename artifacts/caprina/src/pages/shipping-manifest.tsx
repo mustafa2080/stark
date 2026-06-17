@@ -2829,7 +2829,8 @@ function AddOrdersToManifestDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const AVAILABLE_STATUSES = ["warehouse_ready"];
+  // "picked_up" قيمة قديمة فالداتابيز بنفس تسمية "قيد الشحن في المخزن" — لازم تتحسب كمان
+  const AVAILABLE_STATUSES = ["warehouse_ready", "picked_up"];
 
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["shipments-available-for-manifest", companyId],
