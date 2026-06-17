@@ -96,13 +96,12 @@ const DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; b
 // ─── خيارات حالة التسليم لبيانات الشحنات (shipment manifests) ────────────────
 // تشمل كل قيم DeliveryStatus السبعة لتجنب الرجوع للقيمة الافتراضية الخاطئة (fallback)
 const SHIPMENT_DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
-  { value: "pending",   label: "قيد الانتظار", color: "text-muted-foreground",                                 bg: "border-border" },
-  { value: "delivered", label: "مسلَّم ✓",      color: "text-emerald-700 dark:text-emerald-400",                bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
-  { value: "partial_delivered", label: "مسلَّم جزئي", color: "text-teal-700 dark:text-teal-400",               bg: "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20" },
-  { value: "partial_received", label: "استلم جزئي", color: "text-teal-700 dark:text-teal-400",                 bg: "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20" },
-  { value: "postponed", label: "قيد الشحن",     color: "text-orange-700  dark:text-orange-400",                 bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
-  { value: "delayed",   label: "مؤجل",          color: "text-orange-700  dark:text-orange-400",                 bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
-  { value: "returned",  label: "مرتجع",         color: "text-red-700     dark:text-red-400",                    bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
+  { value: "pending",           label: "قيد الانتظار", color: "text-muted-foreground",                                 bg: "border-border" },
+  { value: "delivered",         label: "مسلَّم ✓",      color: "text-emerald-700 dark:text-emerald-400",                bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
+  { value: "partial_delivered", label: "مسلَّم جزئي",   color: "text-teal-700 dark:text-teal-400",                     bg: "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20" },
+  { value: "postponed",         label: "قيد الشحن",     color: "text-orange-700  dark:text-orange-400",                bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  { value: "delayed",           label: "مؤجل",          color: "text-orange-700  dark:text-orange-400",                bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  { value: "returned",          label: "مرتجع",         color: "text-red-700     dark:text-red-400",                   bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
 ];
 
 const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false) => {
