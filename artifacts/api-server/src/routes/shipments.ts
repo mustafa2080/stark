@@ -660,20 +660,78 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
   }
 });
 
+// ─── DELETE /shipments/bulk — حذف شحنات متعددة (MUST be before /:id) ──────────
+router.delete("/shipments/bulk", async (req, res): Promise<void> => {
+  try {
+    const { ids } = req.body as { ids: number[] };
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: "ids مطلوبة" });
+      return;
+    }
+    const now = new Date();
+
+    const existing = await db
+      .select()
+      .from(shipmentsTable)
+      .where(and(inArray(shipmentsTable.id, ids), isNull(shipmentsTable.deletedAt)));
+
+    let deleted = 0;
+    let skipped = 0;
+
+    for (const sh of existing) {
+      if (sh.status === "received") {
+        skipped++;
+        continue;
+      }
+      if (sh.inventoryDeducted && !sh.inventoryReturned) {
+        try {
+          await reverseShipping(
+            { productId: null, variantId: null, product: "", color: null, size: null, warehouseId: null },
+            0, null, sh.id
+          );
+        } catch (_) {}
+      }
+      await db.update(shipmentsTable)
+        .set({ deletedAt: now } as any)
+        .where(eq(shipmentsTable.id, sh.id));
+      deleted++;
+    }
+
+    res.json({ deleted, skipped });
+  } catch (e: any) {
+    res.status(500).json({ error: "خطأ في الحذف الجماعي" });
+  }
+});
+
+// ─── PATCH /shipments/bulk-status — تغيير حالة شحنات متعددة (MUST be before /:id) ──
+router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
+  try {
+    const { ids, status } = req.body as { ids: number[]; status: string };
+    if (!Array.isArray(ids) || ids.length === 0 || !status) {
+      res.status(400).json({ error: "ids و status مطلوبة" });
+      return;
+    }
+    const now = new Date();
+
+    await db.update(shipmentsTable)
+      .set({ status: status as any, updatedAt: now } as any)
+      .where(inArray(shipmentsTable.id, ids));
+
+    res.json({ updated: ids.length });
+  } catch (e: any) {
+    res.status(500).json({ error: "خطأ في تحديث الحالة" });
+  }
+});
+
 // ─── DELETE /shipments/:id (soft delete) ──────────────────────────────────────
 router.delete("/shipments/:id", async (req, res): Promise<void> => {
-  // تجنب التعارض مع routes اللي بعدين زي /bulk
-  if (isNaN(parseInt(req.params.id))) {
-    res.status(404).json({ error: "not found" });
-    return;
-  }
   try {
     const tenantId = getTenantId(req);
     const id = parseInt(req.params.id);
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);
-    const result = await db.update(shipmentsTable).set({ deletedAt: new Date(), updatedAt: new Date() }).where(cond);
+    await db.update(shipmentsTable).set({ deletedAt: new Date(), updatedAt: new Date() }).where(cond);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "خطأ في حذف الشحنة" });
@@ -974,73 +1032,6 @@ router.delete("/shipments/:id/items/:itemId", async (req, res): Promise<void> =>
     await db.delete(shipmentItemsTable).where(eq(shipmentItemsTable.id, itemId));
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: "خطأ في حذف البند" }); }
-});
-
-// DELETE /shipments/bulk — حذف شحنات متعددة
-router.delete("/shipments/bulk", async (req, res): Promise<void> => {
-  try {
-    const { ids } = req.body as { ids: number[] };
-    if (!Array.isArray(ids) || ids.length === 0) {
-      res.status(400).json({ error: "ids مطلوبة" });
-      return;
-    }
-    const now = new Date();
-
-    // جيب الشحنات الموجودة
-    const existing = await db
-      .select()
-      .from(shipmentsTable)
-      .where(and(inArray(shipmentsTable.id, ids), isNull(shipmentsTable.deletedAt)));
-
-    let deleted = 0;
-    let skipped = 0;
-
-    for (const sh of existing) {
-      // لو الشحنة في بيان مفتوح — تخطّيها
-      if (sh.status === "received") {
-        skipped++;
-        continue;
-      }
-      // إرجاع المخزون لو الشحنة كانت مخصومة
-      if (sh.inventoryDeducted && !sh.inventoryReturned) {
-        try {
-          await reverseShipping(
-            { productId: null, variantId: null, product: "", color: null, size: null, warehouseId: null },
-            0, null, sh.id
-          );
-        } catch (_) {}
-      }
-      // soft delete
-      await db.update(shipmentsTable)
-        .set({ deletedAt: now } as any)
-        .where(eq(shipmentsTable.id, sh.id));
-      deleted++;
-    }
-
-    res.json({ deleted, skipped });
-  } catch (e: any) {
-    res.status(500).json({ error: "خطأ في الحذف الجماعي" });
-  }
-});
-
-// PATCH /shipments/bulk-status — تغيير حالة شحنات متعددة
-router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
-  try {
-    const { ids, status } = req.body as { ids: number[]; status: string };
-    if (!Array.isArray(ids) || ids.length === 0 || !status) {
-      res.status(400).json({ error: "ids و status مطلوبة" });
-      return;
-    }
-    const now = new Date();
-
-    await db.update(shipmentsTable)
-      .set({ status: status as any, updatedAt: now } as any)
-      .where(inArray(shipmentsTable.id, ids));
-
-    res.json({ updated: ids.length });
-  } catch (e: any) {
-    res.status(500).json({ error: "خطأ في تحديث الحالة" });
-  }
 });
 
 export default router;
