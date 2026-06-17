@@ -988,18 +988,17 @@ export default function Orders() {
     setIsBulkDeleting(true);
     try {
       const token = localStorage.getItem("caprina_token");
-      const res = await fetch("/api/orders/bulk", {
+      const res = await fetch("/api/shipments/bulk", {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ids: Array.from(selectedIds) }),
       });
       const data = await res.json();
-      await queryClient.refetchQueries({ queryKey: ["orders-list"] });
-      queryClient.invalidateQueries({ queryKey: ["archived-orders"] });
+      await queryClient.refetchQueries({ queryKey: ["shipments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
       queryClient.invalidateQueries({ queryKey: ["analytics-charts"] });
-      queryClient.invalidateQueries({ queryKey: ["orders-summary"] });
-      const skippedMsg = data.skipped > 0 ? ` (${data.skipped} محظور — مسلّمة)` : "";
-      toast({ title: `تم حذف ${data.deleted} طلب ✅`, description: `تم حذف الطلبات بنجاح${skippedMsg}` });
+      const skippedMsg = data.skipped > 0 ? ` (${data.skipped} محظور — مستلمة)` : "";
+      toast({ title: `تم حذف ${data.deleted} شحنة ✅`, description: `تم حذف الشحنات بنجاح${skippedMsg}` });
       exitBulkMode();
     } catch {
       toast({ title: "خطأ", description: "فشل حذف الطلبات", variant: "destructive" });
@@ -1024,28 +1023,22 @@ export default function Orders() {
       return;
     }
     setIsBulkUpdating(true);
-    let done = 0;
-    let failed = 0;
-    const ids = Array.from(selectedIds);
-    for (const id of ids) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          updateOrder.mutate(
-            { id, data: { status: newStatus as any } },
-            { onSuccess: () => resolve(), onError: () => reject() }
-          );
-        });
-        done++;
-      } catch {
-        failed++;
-      }
+    try {
+      const token = localStorage.getItem("caprina_token");
+      const res = await fetch("/api/shipments/bulk-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: Array.from(selectedIds), status: newStatus }),
+      });
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics-charts"] });
+      const label = statusLabels[newStatus] ?? newStatus;
+      toast({ title: `تم تحديث ${data.updated} شحنة ✅`, description: `تم تغيير الحالة إلى «${label}»` });
+    } catch {
+      toast({ title: "خطأ", description: "فشل تحديث الحالة", variant: "destructive" });
     }
-    queryClient.invalidateQueries({ queryKey: ["orders-list"] });
-    queryClient.invalidateQueries({ queryKey: ["analytics-charts"] });
-    queryClient.invalidateQueries({ queryKey: ["orders-summary"] });
-    const label = statusLabels[newStatus] ?? newStatus;
-    const failedMsg = failed > 0 ? ` (${failed} فشل)` : "";
-    toast({ title: `تم تحديث ${done} طلب ✅`, description: `تم تغيير الحالة إلى «${label}»${failedMsg}` });
     setPendingBulkStatus(null);
     exitBulkMode();
     setIsBulkUpdating(false);
