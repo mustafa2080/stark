@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type ShippingManifestListItem, type ShipmentManifestListItem, type ManifestCompanyStats, type Shipment } from "@/lib/api";
+import { shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, apiFetch, type ShippingCompany, type ShippingManifestListItem, type ShipmentManifestListItem, type ManifestCompanyStats, type Shipment } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -26,7 +27,7 @@ const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
-const emptyForm = { name: "", phone: "", website: "", notes: "", logo: "", isActive: true };
+const emptyForm = { name: "", phone: "", website: "", zoneId: "", notes: "", logo: "", isActive: true };
 const formatCurrency = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
 /** أيقونة شركة الشحن — صورة دائرية أو Truck fallback */
@@ -646,6 +647,10 @@ export default function ShippingCompanies() {
   const [form, setForm] = useState(emptyForm);
 
   const { data: companies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
+  const { data: zones = [] } = useQuery<{ id: number; name: string; governorate?: string; price: number }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipments/zones"),
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: typeof emptyForm) => shippingApi.create(data),
@@ -666,7 +671,7 @@ export default function ShippingCompanies() {
   });
 
   const openAdd = () => { setEditingCompany(null); setForm(emptyForm); setDialogOpen(true); };
-  const openEdit = (c: ShippingCompany) => { setEditingCompany(c); setForm({ name: c.name, phone: c.phone ?? "", website: c.website ?? "", notes: c.notes ?? "", logo: c.logo ?? "", isActive: c.isActive }); setDialogOpen(true); };
+  const openEdit = (c: ShippingCompany) => { setEditingCompany(c); setForm({ name: c.name, phone: c.phone ?? "", website: c.website ?? "", zoneId: (c as any).zoneId ? String((c as any).zoneId) : "", notes: c.notes ?? "", logo: c.logo ?? "", isActive: c.isActive }); setDialogOpen(true); };
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
@@ -674,6 +679,7 @@ export default function ShippingCompanies() {
       ...form,
       phone: form.phone || null,
       website: form.website || null,
+      zoneId: form.zoneId ? Number(form.zoneId) : null,
       notes: form.notes || null,
       logo: form.logo || null,
     };
@@ -840,8 +846,19 @@ export default function ShippingCompanies() {
                 <Input placeholder="05xxxxxxxx" className="h-9 text-sm bg-background" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
               </div>
               <div>
-                <Label className="text-xs mb-1.5 block flex items-center gap-1"><Globe className="w-3 h-3" />الموقع</Label>
-                <Input placeholder="https://..." className="h-9 text-sm bg-background" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} />
+                <Label className="text-xs mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" />الزون</Label>
+                <Select value={form.zoneId} onValueChange={v => setForm(f => ({ ...f, zoneId: v }))}>
+                  <SelectTrigger className="h-9 text-sm bg-background">
+                    <SelectValue placeholder="اختر الزون..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zones.map(z => (
+                      <SelectItem key={z.id} value={String(z.id)}>
+                        {z.name}{z.governorate ? ` — ${z.governorate}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
