@@ -662,13 +662,18 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
 
 // ─── DELETE /shipments/:id (soft delete) ──────────────────────────────────────
 router.delete("/shipments/:id", async (req, res): Promise<void> => {
+  // تجنب التعارض مع routes اللي بعدين زي /bulk
+  if (isNaN(parseInt(req.params.id))) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
   try {
     const tenantId = getTenantId(req);
     const id = parseInt(req.params.id);
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);
-    await db.update(shipmentsTable).set({ deletedAt: new Date(), updatedAt: new Date() }).where(cond);
+    const result = await db.update(shipmentsTable).set({ deletedAt: new Date(), updatedAt: new Date() }).where(cond);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "خطأ في حذف الشحنة" });
