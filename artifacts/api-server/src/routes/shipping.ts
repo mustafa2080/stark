@@ -38,14 +38,21 @@ router.post("/shipping-companies", async (req, res): Promise<void> => {
   const parsed = CreateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const insertResult = await db.insert(shippingCompaniesTable).values({
-    ...parsed.data,
-    ...(tenantId !== null ? { tenantId } : {}),
-    createdAt: new Date(),
-  });
-  const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
-  const [company] = await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, insertId));
-  res.status(201).json(company);
+  try {
+    const now = new Date();
+    now.setMilliseconds(0); // MySQL DATETIME لا يدعم milliseconds
+    const insertResult = await db.insert(shippingCompaniesTable).values({
+      ...parsed.data,
+      ...(tenantId !== null ? { tenantId } : {}),
+      createdAt: now,
+    });
+    const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
+    const [company] = await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, insertId));
+    res.status(201).json(company);
+  } catch (err: any) {
+    console.error("[POST /shipping-companies] DB error:", err?.message ?? err);
+    res.status(500).json({ error: err?.message ?? "Database error" });
+  }
 });
 
 

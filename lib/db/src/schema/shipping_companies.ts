@@ -1,4 +1,4 @@
-import { mysqlTable, text, int, boolean, datetime, varchar } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, int, boolean, datetime, varchar, longtext } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,7 +10,7 @@ export const shippingCompaniesTable = mysqlTable("shipping_companies", {
   website: varchar("website", { length: 255 }),
   zoneId: int("zone_id"),
   notes: text("notes"),
-  logo: text("logo"), // base64 data URL للوجو الشركة
+  logo: longtext("logo"), // base64 data URL للوجو الشركة
   isActive: boolean("is_active").notNull().default(true),
   createdAt: datetime("created_at").notNull(),
 });
