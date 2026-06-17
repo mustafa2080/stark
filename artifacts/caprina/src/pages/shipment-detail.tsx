@@ -3495,12 +3495,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 </span>
               )}
             </div>
-            {isAdmin && (
-              <button type="button" onClick={() => setShowAddProduct(true)}
-                className="flex items-center gap-1.5 text-xs font-bold text-primary border border-dashed border-primary/40 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
-                <Plus className="w-3.5 h-3.5" />إضافة منتج
-              </button>
-            )}
           </div>
           <CardContent className="p-3">
             <div className="space-y-3">
