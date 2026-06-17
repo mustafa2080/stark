@@ -984,7 +984,11 @@ function InvoiceGroupDeliveryRow({
         }}
       >
         {/* Desktop row */}
-        <div dir="rtl" className="hidden md:grid grid-cols-[minmax(140px,1fr)_minmax(120px,1fr)_minmax(140px,1fr)_60px_90px_160px_90px_80px] min-w-[860px] gap-0 items-start py-2.5 text-xs">
+        <div
+          dir="rtl"
+          className="hidden md:grid grid-cols-[minmax(140px,1fr)_minmax(120px,1fr)_minmax(140px,1fr)_60px_90px_160px_90px_80px] min-w-[860px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+        >
           {/* Customer */}
           <div className="min-w-0 px-3 flex items-start gap-2">
             {onToggleSelect && (
@@ -1024,27 +1028,21 @@ function InvoiceGroupDeliveryRow({
           {/* Products */}
           <div className="min-w-0 px-3">
             <div className="space-y-1">
-              <button
-                type="button"
-                className="text-right w-full"
-                onClick={() => setExpanded(!expanded)}
-              >
-                <p className="text-primary text-[10px] font-bold flex items-center gap-1">
-                  {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  {isMulti ? `${group.length} منتجات داخل الطلب` : rep.product}
+              <p className="text-primary text-[10px] font-bold flex items-center gap-1">
+                {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {isMulti ? `${group.length} منتجات داخل الطلب` : rep.product}
+              </p>
+              {isMulti ? (
+                <p className="text-muted-foreground text-[10px] truncate">
+                  {expanded ? "إخفاء المنتجات" : productsText}
                 </p>
-                {isMulti ? (
+              ) : (
+                (rep.color || rep.size) && (
                   <p className="text-muted-foreground text-[10px] truncate">
-                    {expanded ? "إخفاء المنتجات" : productsText}
+                    {[rep.color, rep.size].filter(Boolean).join(" / ")}
                   </p>
-                ) : (
-                  (rep.color || rep.size) && (
-                    <p className="text-muted-foreground text-[10px] truncate">
-                      {[rep.color, rep.size].filter(Boolean).join(" / ")}
-                    </p>
-                  )
-                )}
-              </button>
+                )
+              )}
             </div>
           </div>
           {/* Qty */}
@@ -1165,7 +1163,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* Action */}
-          <div className="flex justify-end">
+          <div className="flex justify-end" onClick={e => e.stopPropagation()}>
             {!locked && (
               bulkEditing ? (
                 <Button
@@ -1201,7 +1199,7 @@ function InvoiceGroupDeliveryRow({
         </div>
 
         {/* Mobile card (md:hidden) */}
-        <div className="md:hidden px-3 py-2.5 text-xs flex flex-col gap-2">
+        <div className="md:hidden px-3 py-2.5 text-xs flex flex-col gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           {/* Row 1: customer + status badge */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2 min-w-0">
@@ -1235,17 +1233,15 @@ function InvoiceGroupDeliveryRow({
           {/* Row 2: products + qty + price */}
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <button type="button" className="text-right w-full" onClick={() => setExpanded(!expanded)}>
-                <p className="text-primary text-[10px] font-bold flex items-center gap-1">
-                  {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  {isMulti ? `${group.length} منتجات` : rep.product}
-                </p>
-                {isMulti ? (
-                  <p className="text-muted-foreground text-[10px] truncate">{expanded ? "إخفاء المنتجات" : productsText}</p>
-                ) : (
-                  (rep.color || rep.size) && <p className="text-muted-foreground text-[10px] truncate">{[rep.color, rep.size].filter(Boolean).join(" / ")}</p>
-                )}
-              </button>
+              <p className="text-primary text-[10px] font-bold flex items-center gap-1">
+                {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {isMulti ? `${group.length} منتجات` : rep.product}
+              </p>
+              {isMulti ? (
+                <p className="text-muted-foreground text-[10px] truncate">{expanded ? "إخفاء المنتجات" : productsText}</p>
+              ) : (
+                (rep.color || rep.size) && <p className="text-muted-foreground text-[10px] truncate">{[rep.color, rep.size].filter(Boolean).join(" / ")}</p>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="font-bold">{totalQty}</span>
@@ -1284,7 +1280,7 @@ function InvoiceGroupDeliveryRow({
           {displayStatus === "partial_received" && (rep as any).returnReceived === 0 && <p className="text-[10px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>}
           {/* Action button */}
           {!locked && (
-            <div className="flex justify-end">
+            <div className="flex justify-end" onClick={e => e.stopPropagation()}>
               {bulkEditing ? (
                 <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground" onClick={() => setBulkEditing(false)}>
                   <X className="w-3 h-3" />
@@ -1724,29 +1720,71 @@ function InvoiceGroupDeliveryRow({
 
       {/* Expanded: product cards */}
       {expanded && (
-        <div className="px-4 pb-3 pt-1 flex flex-col gap-1.5 bg-muted/5 border-t border-border/20">
+        <div className="px-4 pb-3 pt-1 flex flex-col gap-2 bg-muted/5 border-t border-border/20">
           {group.map((order) => {
             const variant = [order.color, order.size].filter(Boolean).join(" / ");
+            const unitPrice = order.quantity > 0 ? order.totalPrice / order.quantity : 0;
+            const opt = deliveryOpt(order.deliveryStatus as DeliveryStatus, isShipmentManifest);
+            const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
             return (
               <div
                 key={order.id}
-                className="flex items-center justify-between rounded-md border border-border/40 bg-background/60 px-3 py-1.5"
+                className="rounded-lg border border-border/50 bg-background/60 px-3 py-2.5 flex flex-col gap-1.5"
               >
-                {/* اسم المنتج + المواصفات */}
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold truncate">{order.product}</p>
-                  {variant && (
-                    <p className="text-[10px] text-muted-foreground">{variant}</p>
-                  )}
+                {/* رأس الكارت: اسم المنتج + حالة التسليم */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold truncate">{order.product || "—"}</p>
+                    {variant && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{variant}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${opt.bg} ${opt.color}`}>
+                    {opt.label}
+                  </Badge>
                 </div>
-                {/* الكمية */}
-                <div className="text-xs font-bold text-muted-foreground mx-3 shrink-0">
-                  {order.quantity}x
+
+                {/* صف الأرقام: الكمية / سعر الوحدة / الإجمالي */}
+                <div className="grid grid-cols-3 gap-2 text-center bg-muted/30 rounded-md py-1.5">
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">الكمية</p>
+                    <p className="text-xs font-bold">
+                      {isPartial && order.partialQuantity != null ? (
+                        <>
+                          <span className="text-teal-500">{order.partialQuantity}</span>
+                          <span className="text-muted-foreground">/{order.quantity}</span>
+                        </>
+                      ) : order.quantity}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">سعر الوحدة</p>
+                    <p className="text-xs font-bold">{formatCurrency(unitPrice)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">الإجمالي</p>
+                    <p className="text-xs font-bold text-primary">{formatCurrency(order.totalPrice)}</p>
+                  </div>
                 </div>
-                {/* السعر */}
-                <div className="text-xs font-bold text-primary shrink-0">
-                  {formatCurrency(order.totalPrice)}
-                </div>
+
+                {/* بيانات إضافية: رقم الفاتورة + تاريخ الإضافة */}
+                {(order.invoiceNumber || (order as any).addedAt) && (
+                  <div className="flex items-center gap-2 flex-wrap text-[9px] text-muted-foreground">
+                    {order.invoiceNumber && (
+                      <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">{order.invoiceNumber}</span>
+                    )}
+                    {(order as any).addedAt && (
+                      <span>أُضيف {format(new Date((order as any).addedAt), "yyyy/MM/dd HH:mm")}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* ملاحظة التسليم الخاصة بهذا المنتج */}
+                {order.deliveryNote && (
+                  <p className="text-[10px] text-orange-400 font-medium">
+                    ⏸ {order.deliveryNote}
+                  </p>
+                )}
               </div>
             );
           })}
