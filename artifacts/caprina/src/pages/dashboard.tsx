@@ -565,106 +565,6 @@ function DashShippingCompanyRow({ company, allStats, allManifests, canViewFinanc
   );
 }
 
-// ─── Tracking Search Card ───────────────────────────────────────────────────────
-const STATUS_ICONS: Record<string, any> = {
-  pending:          Clock,
-  warehouse_ready:  PackageCheck,
-  in_shipping:      Truck,
-  received:         CheckCircle2,
-  partial_received: AlertTriangle,
-  delayed:          AlertOctagon,
-  returned:         RefreshCw,
-};
-
-function TrackingSearchCard() {
-  const [trackingInput, setTrackingInput] = useState("");
-  const [searchedNumber, setSearchedNumber] = useState<string | null>(null);
-  const { data: shipment, isLoading, isError, error } = useQuery({
-    queryKey: ["shipment-track", searchedNumber],
-    queryFn: () => apiFetch<any>(`/shipments/track/${encodeURIComponent(searchedNumber!)}`),
-    enabled: !!searchedNumber,
-    retry: false,
-    staleTime: 0,
-  });
-
-  const handleSearch = () => {
-    const val = trackingInput.trim();
-    if (!val) return;
-    setSearchedNumber(val);
-  };
-
-  const status = shipment?.status as string | undefined;
-  const StatusIcon = status ? (STATUS_ICONS[status] ?? Package) : null;
-  const statusLabel = status ? (STATUS_LABELS[status] ?? status) : null;
-  const statusClass = status ? (STATUS_CLASSES[status] ?? "bg-muted text-muted-foreground border-border") : "";
-
-  return (
-    <Card className="border-border">
-      <CardContent className="p-3 sm:p-4 space-y-2.5">
-        <p className="text-[11px] sm:text-xs font-bold text-muted-foreground flex items-center gap-1.5">
-          <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-          البحث برقم التتبع
-        </p>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={trackingInput}
-            onChange={(e) => setTrackingInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
-            placeholder="رقم التتبع أو رقم الشحنة"
-            dir="ltr"
-            className="flex-1 min-w-0 px-3 py-2 rounded-md border border-border bg-muted/30 text-xs sm:text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <button
-            onClick={handleSearch}
-            disabled={!trackingInput.trim() || isLoading}
-            className="shrink-0 flex items-center gap-1.5 bg-primary text-primary-foreground px-3 sm:px-4 py-2 rounded-md text-[11px] sm:text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-            <span>بحث</span>
-          </button>
-        </div>
-
-        {isError && (
-          <div className="flex items-center gap-2 rounded-md border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[11px] sm:text-xs font-bold text-red-600 dark:text-red-400">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            {(error as any)?.message || "لم يتم العثور على شحنة بهذا الرقم"}
-          </div>
-        )}
-
-        {shipment && !isError && (
-          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">رقم الشحنة</p>
-                <p className="text-xs sm:text-sm font-black truncate" dir="ltr">
-                  {shipment.shipmentNumber ?? `SHP#${String(shipment.id).padStart(4, "0")}`}
-                </p>
-              </div>
-              {statusLabel && (
-                <Badge variant="outline" className={`text-[10px] sm:text-xs font-bold border flex items-center gap-1 ${statusClass}`}>
-                  {StatusIcon && <StatusIcon className="w-3 h-3" />}
-                  {statusLabel}
-                </Badge>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">المستلم</p>
-                <p className="text-[11px] sm:text-xs font-bold truncate">{shipment.receiverName || "—"}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">المدينة</p>
-                <p className="text-[11px] sm:text-xs font-bold truncate">{shipment.receiverCity || "—"}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function Dashboard() {
   const { isAdmin, canViewFinancials, can } = useAuth();
   // ── Dashboard permission shortcuts ───────────────────────────────────
@@ -917,23 +817,14 @@ export default function Dashboard() {
               ))}
             </div>
           )}
-          <Link href="/smart">
+          <Link href="/smart" className="mr-auto sm:mr-0">
             <button className="flex items-center gap-1 border border-primary/30 text-primary hover:bg-primary/5 px-2 sm:px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-colors">
               <Brain className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span>ذكاء</span>
             </button>
           </Link>
-          <Link href="/orders/new" className="mr-auto sm:mr-0">
-            <button className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-[10px] sm:text-sm font-bold hover:bg-primary/90 transition-colors whitespace-nowrap">
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>طلب جديد</span>
-            </button>
-          </Link>
         </div>
       </div>
-
-      {/* === البحث برقم التتبع === */}
-      <TrackingSearchCard />
 
       {/* === تحذير متابعة الشحن === */}
       {shippingFollowup.length > 0 && (() => {
