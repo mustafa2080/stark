@@ -1002,9 +1002,9 @@ export default function ShippingCompanies() {
                 {(company as any).shippingCost != null && (
                   <p className="text-xs flex items-center gap-2">
                     <span className="text-[10px] font-bold text-primary">ج.م</span>
-                    <span className="text-muted-foreground">تكلفة الشحن:</span>
+                    <span className="text-muted-foreground">تكلفة الشحنة:</span>
                     <span className="font-bold" style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}>
-                      {formatCurrency(Number((company as any).shippingCost))} / طلب
+                      {formatCurrency(Number((company as any).shippingCost))}
                     </span>
                   </p>
                 )}
@@ -1051,7 +1051,7 @@ export default function ShippingCompanies() {
               <div>
                 <Label className="text-xs mb-1.5 block flex items-center gap-1">
                   <span className="text-[10px] font-bold text-primary">ج.م</span>
-                  تكلفة الشحن / طلب
+                  تكلفة الشحنة
                 </Label>
                 <Input
                   type="number"
