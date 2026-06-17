@@ -988,7 +988,7 @@ function InvoiceGroupDeliveryRow({
         {/* Desktop row */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[minmax(140px,1fr)_minmax(120px,1fr)_minmax(140px,1fr)_60px_90px_160px_90px_80px] min-w-[860px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_160px] min-w-[1000px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Customer */}
@@ -1015,52 +1015,48 @@ function InvoiceGroupDeliveryRow({
               </div>
             </div>
           </div>
-          {/* المحافظة / العنوان */}
-          <div className="min-w-0 px-3">
-            {rep.city && (
+          {/* المحافظة */}
+          <div className="min-w-0 px-3 flex items-center">
+            {rep.city ? (
               <p className="font-semibold text-[10px] truncate">{rep.city}</p>
-            )}
-            {rep.address && (
-              <p className="text-muted-foreground text-[10px] truncate">{rep.address}</p>
-            )}
-            {!rep.city && !rep.address && (
+            ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
-          {/* Products */}
-          <div className="min-w-0 px-3">
-            <div className="space-y-1">
-              <p className="text-primary text-[10px] font-bold flex items-center gap-1">
-                {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                {isMulti ? `${group.length} منتجات داخل الطلب` : rep.product}
-              </p>
-              {isMulti ? (
-                <p className="text-muted-foreground text-[10px] truncate">
-                  {expanded ? "إخفاء المنتجات" : productsText}
-                </p>
-              ) : (
-                (rep.color || rep.size) && (
-                  <p className="text-muted-foreground text-[10px] truncate">
-                    {[rep.color, rep.size].filter(Boolean).join(" / ")}
-                  </p>
-                )
-              )}
-            </div>
+          {/* العنوان التفصيلي */}
+          <div className="min-w-0 px-3 flex items-start">
+            {(rep as any).address ? (
+              <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{(rep as any).address}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
           </div>
-          {/* Qty */}
-          <div className="text-center font-bold">
-            {(displayStatus === "partial_received" || displayStatus === "partial_delivered") ? (
-              <span>
-                <span className="text-teal-400">{displayTotalPartialQty}</span>
-                <span className="text-muted-foreground">/{totalQty}</span>
-              </span>
-            ) : totalQty}
+          {/* الشركة الراسلة */}
+          <div className="min-w-0 px-3 flex items-center">
+            {(rep as any).senderName ? (
+              <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
           </div>
-          {/* Price */}
-          <div className="text-left font-bold px-3">
-            {formatCurrency(totalPrice)}
-            {totalPrice !== totalFullPrice && (
-              <p className="text-[9px] text-muted-foreground font-normal line-through">{formatCurrency(totalFullPrice)}</p>
+          {/* سعر الشحنة (COD) */}
+          <div className="text-left font-bold px-3 flex items-center">
+            <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
+          </div>
+          {/* سعر الشحن (fee) */}
+          <div className="text-center px-2 flex items-center justify-center">
+            {(rep as any).shippingCost != null ? (
+              <span className="text-orange-400 font-semibold">{formatCurrency((rep as any).shippingCost)}</span>
+            ) : (
+              <span className="text-muted-foreground/40">—</span>
+            )}
+          </div>
+          {/* الإجمالي (COD - fee) */}
+          <div className="text-center px-2 flex items-center justify-center">
+            {(rep as any).shippingCost != null ? (
+              <span className="font-bold text-primary">{formatCurrency(totalPrice - (rep as any).shippingCost)}</span>
+            ) : (
+              <span className="font-bold text-primary">{formatCurrency(totalPrice)}</span>
             )}
           </div>
           {/* Status */}
@@ -3184,6 +3180,8 @@ export default function ShippingManifestPage() {
         customerPhone: sh?.receiverPhone ?? null,
         phone: sh?.receiverPhone ?? null,
         city: sh?.receiverCity ?? sh?.zoneGovernorate ?? null,
+        address: sh?.receiverAddress ?? null,
+        senderName: sh?.senderName ?? null,
         product: sh ? `${sh.shipmentNumber}${sh.trackingNumber ? ` (${sh.trackingNumber})` : ''}` : '—',
         quantity: 1,
         total: codAmt,
@@ -4132,9 +4130,9 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(140px,1fr)_minmax(120px,1fr)_minmax(140px,1fr)_60px_90px_160px_90px_80px] min-w-[860px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_160px] min-w-[1000px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
-                  {/* ─── عمود العميل — checkbox + نص/سيرش ─── */}
+                  {/* ─── عمود العميل ─── */}
                   <div className="relative flex items-center">
                     <div className="flex items-center px-3 shrink-0">
                       <Checkbox
@@ -4149,61 +4147,53 @@ export default function ShippingManifestPage() {
                       {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                     </div>
                   </div>
-                  {/* ─── عمود المحافظة / العنوان ─── */}
+                  {/* ─── المحافظة ─── */}
                   <div className="flex items-center justify-between gap-1 px-3 h-9">
                     <div className="flex items-center gap-1.5">
-                      <span className="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
-                        <svg className="w-2.5 h-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
-                      </span>
+                      <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
                       المحافظة
                     </div>
                     {showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
-                  {/* ─── عمود المنتج — نص ثابت ─── */}
-                  <div className="flex items-center justify-between gap-1 px-3 h-9">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
-                        <Package className="w-2.5 h-2.5 opacity-50" />
-                      </span>
-                      المنتج
-                    </div>
-                    {showColFilters && <ColFilterBtn col="product" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                  {/* ─── العنوان التفصيلي ─── */}
+                  <div className="flex items-center gap-1.5 px-3 h-9">
+                    <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
+                    العنوان
                   </div>
-                  {/* ─── الكمية ─── */}
-                  <div className="flex items-center justify-center gap-1 h-9">
-                    الكمية
-                    {showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                  {/* ─── الشركة الراسلة ─── */}
+                  <div className="flex items-center gap-1.5 px-3 h-9">
+                    <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                    الراسل
                   </div>
-                  {/* ─── عمود الإجمالي ─── */}
+                  {/* ─── سعر الشحنة (COD) ─── */}
                   <div className="flex items-center justify-between gap-1 px-3 h-9">
                     {!showColFilters
                       ? <input
                           value={manifestTotalSearch}
                           onChange={e => setManifestTotalSearch(e.target.value)}
-                          placeholder="الإجمالي..."
+                          placeholder="COD..."
                           className="w-full h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
                           dir="rtl"
                         />
-                      : <span className="font-bold">الإجمالي</span>
+                      : <span className="font-bold">سعر الشحنة</span>
                     }
                     {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
-                  {/* ─── حالة التسليم ─── */}
+                  {/* ─── سعر الشحن (fee) ─── */}
+                  <div className="flex items-center justify-center gap-1 px-2 h-9">
+                    سعر الشحن
+                  </div>
+                  {/* ─── الإجمالي (COD - fee) ─── */}
+                  <div className="flex items-center justify-center gap-1 px-2 h-9">
+                    الإجمالي
+                  </div>
+                  {/* ─── الحالة ─── */}
                   <div className="flex items-center gap-1 px-2 h-9">
                     <span className="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
                       <CheckCircle2 className="w-2.5 h-2.5 opacity-50" />
                     </span>
                     <span className="shrink-0">الحالة</span>
                     {showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
-                  </div>
-                  {/* ─── تاريخ الإضافة ─── */}
-                  <div className="flex items-center justify-center gap-1 h-9 px-1">
-                    <span className="shrink-0 text-[9px] opacity-60">تاريخ الإضافة</span>
-                    {showColFilters && <ColFilterBtn col="date" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
-                  </div>
-                  {/* ─── حالة الطلب ─── */}
-                  <div className="flex items-center justify-center h-9 text-[9px] opacity-60 px-3">
-                    الحالة
                   </div>
                 </div>
                 {displayGroups.length === 0 && colFilterHasActive ? (
