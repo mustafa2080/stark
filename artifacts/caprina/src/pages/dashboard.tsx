@@ -4,7 +4,7 @@ import { useGetOrdersSummary, useGetRecentOrders } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { ChartsSection, WeeklyBars, ChartCard, StatusDonutWithOrders, ShipmentStatusDonut } from "@/components/charts-section";
+import { ChartsSection, WeeklyBars, ChartCard, StatusDonutWithOrders, ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -649,6 +649,13 @@ export default function Dashboard() {
     refetchOnWindowFocus: true,
     refetchInterval: 15_000,
   });
+  const { data: shipmentChartsData } = useQuery({
+    queryKey: ["analytics-shipment-charts"],
+    queryFn: analyticsApi.shipmentCharts,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
+  });
   const { data: productPerformance = [], isLoading: isPerfLoading } = useQuery<any[]>({
     queryKey: ["analytics-product-performance"],
     queryFn: analyticsApi.productPerformance,
@@ -1038,7 +1045,7 @@ export default function Dashboard() {
       {/* === VISUAL CHARTS === */}
       {chartsData ? (
         <div className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
             <ChartCard
               title="توزيع حالات الشحنات"
               dot="#06b6d4"
@@ -1093,129 +1100,69 @@ export default function Dashboard() {
             </ChartCard>
 
             <ChartCard
-              title="الطلبيات الأسبوعية"
+              title="الشحنات الأسبوعية"
               subtitle="الأسبوع الحالي والأسبوع الماضي والشهر الحالي"
-              dot="#f59e0b"
+              dot="#3b82f6"
               glassStyle
             >
-              <WeeklyBars
-                data={chartsData?.weeklySales ?? []}
-                monthlySales={chartsData?.monthlySales}
-                weekComparison={chartsData?.weekComparison}
-              />
+              <WeeklyShipmentBars data={shipmentChartsData} />
+            </ChartCard>
 
-              {/* مبيعات العملاء التجاريين */}
-              {(() => {
-                // حساب نطاق التاريخ بناءً على الفترة المختارة
-                const now = new Date();
-                let startDate: Date;
-                let endDate: Date;
-                let labelText: string;
-                let daysCount: number;
-
-                if (clientPeriod === "thisWeek") {
-                  // الأسبوع الحالي: من الأحد (أو الاثنين) لليوم
-                  const day = now.getDay(); // 0=sun
-                  startDate = new Date(now); startDate.setDate(now.getDate() - day); startDate.setHours(0,0,0,0);
-                  endDate = new Date(now); endDate.setHours(23,59,59,999);
-                  daysCount = day + 1;
-                  labelText = "الأسبوع الحالي";
-                } else if (clientPeriod === "lastWeek") {
-                  // الأسبوع الماضي: 7 أيام قبل بداية الأسبوع الحالي
-                  const day = now.getDay();
-                  endDate = new Date(now); endDate.setDate(now.getDate() - day - 1); endDate.setHours(23,59,59,999);
-                  startDate = new Date(endDate); startDate.setDate(endDate.getDate() - 6); startDate.setHours(0,0,0,0);
-                  daysCount = 7;
-                  labelText = "الأسبوع الماضي";
-                } else {
-                  // الشهر الحالي
-                  startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0,0,0,0);
-                  endDate = new Date(now); endDate.setHours(23,59,59,999);
-                  daysCount = now.getDate();
-                  labelText = "الشهر الحالي";
-                }
-
-                // بناء slots بعدد أيام الفترة
-                const days: Record<string, number> = {};
-                for (let i = daysCount - 1; i >= 0; i--) {
-                  const d = new Date(endDate); d.setDate(endDate.getDate() - i);
-                  const key = `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
-                  days[key] = 0;
-                }
-
-                // فلترة الطلبات بناءً على الفترة
-                saleOrders.forEach((o: any) => {
-                  try {
-                    const d = new Date(o.createdAt);
-                    if (d >= startDate && d <= endDate) {
-                      const key = `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
-                      if (key in days) days[key] += parseFloat(o.totalAmount ?? "0");
-                    }
-                  } catch {}
-                });
-
-                const clientChartData = Object.entries(days).map(([date, value]) => ({ date, value }));
-                const totalSales = clientChartData.reduce((s, d) => s + d.value, 0);
-                if (saleOrders.length === 0) return null;
-
-                const periodBtns: { key: "thisWeek" | "lastWeek" | "thisMonth"; label: string }[] = [
-                  { key: "thisWeek",  label: "الأسبوع الحالي" },
-                  { key: "lastWeek",  label: "الماضي" },
-                  { key: "thisMonth", label: "الشهر الحالي" },
-                ];
-
-                return (
-                  <div className="mt-4 pt-4 border-t border-border/40">
-                    {/* Header + أزرار الفترة */}
-                    <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                      <p className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-primary inline-block" />
-                        مبيعات العملاء التجاريين
-                      </p>
-                      <div className="flex gap-1">
-                        {periodBtns.map(btn => (
-                          <button
-                            key={btn.key}
-                            onClick={() => setClientPeriod(btn.key)}
-                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full transition-all border ${
-                              clientPeriod === btn.key
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "border-border text-muted-foreground hover:border-primary/50 hover:text-primary"
-                            }`}
-                          >
-                            {btn.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* الرقم الإجمالي */}
-                    <p className="text-xl font-black text-primary mb-0">
-                      {new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(totalSales)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mb-2">{labelText}</p>
-
-                    {/* الرسم البياني */}
-                    <ResponsiveContainer width="100%" height={130}>
-                      <AreaChart data={clientChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="dashSalesGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(43,74%,50%)" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="hsl(43,74%,50%)" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                        <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
-                        <Tooltip
-                          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
-                          formatter={(v: any) => [new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(v), "المبيعات"]}
-                        />
-                        <Area type="monotone" dataKey="value" stroke="hsl(43,74%,50%)" strokeWidth={2} fill="url(#dashSalesGrad)" dot={{ fill: "hsl(43,74%,50%)", r: 3 }} activeDot={{ r: 5 }} />
-                      </AreaChart>
-                    </ResponsiveContainer>
+            {/* ── الكارت الثالث: ملخص حالات الشحنات ── */}
+            <ChartCard
+              title="ملخص الشحنات"
+              subtitle="توزيع الحالات الإجمالي"
+              dot="#8b5cf6"
+            >
+              {shipmentsStatus && shipmentsStatus.total > 0 ? (
+                <div className="space-y-2">
+                  {/* الإجمالي */}
+                  <div className="flex items-center justify-between px-1 pb-2 border-b border-border/50">
+                    <span className="text-xs text-muted-foreground">إجمالي الشحنات</span>
+                    <span className="text-2xl font-black text-foreground">{shipmentsStatus.total}</span>
                   </div>
-                );
-              })()}
+                  {/* الحالات */}
+                  <div className="space-y-1.5">
+                    {shipmentsStatus.statusBreakdown
+                      .sort((a: any, b: any) => b.count - a.count)
+                      .slice(0, 8)
+                      .map((s: any) => {
+                        const cfgMap: Record<string, { label: string; color: string }> = {
+                          pending:          { label: "قيد الانتظار",          color: "#eab308" },
+                          warehouse_ready:  { label: "قيد الشحن في المخزن",  color: "#14b8a6" },
+                          in_shipping:      { label: "قيد الشحن",             color: "#3b82f6" },
+                          out_for_delivery: { label: "خرجت للتسليم",          color: "#f59e0b" },
+                          received:         { label: "استلم",                 color: "#22c55e" },
+                          partial_delivered:{ label: "استلم جزئي",            color: "#06b6d4" },
+                          returned:         { label: "مرتجع",                 color: "#ef4444" },
+                          cancelled:        { label: "ملغية",                 color: "#6b7280" },
+                          delayed:          { label: "مؤجل",                  color: "#8b5cf6" },
+                          delivered:        { label: "تم التسليم",            color: "#22c55e" },
+                          in_transit:       { label: "قيد الشحن",             color: "#3b82f6" },
+                          picked_up:        { label: "قيد الشحن في المخزن",  color: "#14b8a6" },
+                        };
+                        const cfg = cfgMap[s.status] ?? { label: s.status, color: "#94a3b8" };
+                        return (
+                          <div key={s.status} className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+                            <span className="text-xs text-foreground flex-1 truncate">{cfg.label}</span>
+                            <span className="text-xs font-black shrink-0" style={{ color: cfg.color }}>{s.count}</span>
+                            <div className="w-16 h-1.5 rounded-full overflow-hidden bg-muted/40 shrink-0">
+                              <div className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${s.pct}%`, background: cfg.color }} />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground shrink-0 w-7 text-right">{s.pct}%</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-40 gap-2">
+                  <span className="text-3xl opacity-20">🚚</span>
+                  <span className="text-xs text-muted-foreground">لا توجد شحنات بعد</span>
+                </div>
+              )}
             </ChartCard>
           </div>
         </div>
