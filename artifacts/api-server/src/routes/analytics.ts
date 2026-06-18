@@ -2195,7 +2195,7 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
     function buildDays(start: Date, end: Date) {
       const days: { date: string; label: string; count: number; codAmount: number }[] = [];
       const cur = new Date(start);
-      const DAY_LABELS = ["أح", "إث", "ثل", "أر", "خم", "جم", "سب"];
+      const DAY_LABELS = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
       while (cur <= end) {
         const dateStr = localDateStr(cur);
         const dayLabel = DAY_LABELS[cur.getDay()];

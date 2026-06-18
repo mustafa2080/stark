@@ -1132,17 +1132,29 @@ function ShipmentXTick({ x, y, payload, enriched }: any) {
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const item = (enriched ?? []).find((d: any) => d.label === payload.value);
   const isToday = item?.date === todayStr;
+  const [dayName, mmdd] = String(payload.value).split(" ");
   return (
     <g transform={`translate(${x},${y})`}>
       <text
-        x={0} y={0} dy={14}
+        x={0} y={0} dy={13}
         textAnchor="middle"
         fontSize={isToday ? 10 : 9}
         fontWeight={isToday ? 800 : 400}
         fill={isToday ? GLASS_BAR_COLOR : "hsl(var(--muted-foreground))"}
         style={{ userSelect: "none" }}
       >
-        {payload.value}
+        {dayName}
+      </text>
+      <text
+        x={0} y={0} dy={25}
+        textAnchor="middle"
+        fontSize={8}
+        fontWeight={isToday ? 700 : 400}
+        fill={isToday ? GLASS_BAR_COLOR : "hsl(var(--muted-foreground))"}
+        opacity={0.75}
+        style={{ userSelect: "none" }}
+      >
+        {mmdd}
       </text>
     </g>
   );
