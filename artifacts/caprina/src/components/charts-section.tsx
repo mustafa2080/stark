@@ -1119,22 +1119,7 @@ export { WeeklyBars };
 // ─── WeeklyShipmentBars ───────────────────────────────────────────────────────
 // نفس شكل WeeklyBars لكن مخصص للشحنات (count بدل orders, codAmount بدل revenue)
 
-const SHIPMENT_STATUS_CFG: Record<string, { label: string; color: string }> = {
-  waiting:          { label: "انتظار",            color: "#eab308" },
-  confirmed:        { label: "مؤكدة",             color: "#14b8a6" },
-  picked_up:        { label: "قيد الشحن",         color: "#14b8a6" },
-  in_transit:       { label: "قيد الشحن",         color: "#3b82f6" },
-  out_for_delivery: { label: "خرجت للتسليم",      color: "#f59e0b" },
-  delivered:        { label: "تم التسليم",        color: "#22c55e" },
-  delayed:          { label: "مؤجل",              color: "#8b5cf6" },
-  returned:         { label: "مرتجع",             color: "#ef4444" },
-  cancelled:        { label: "ملغية",             color: "#6b7280" },
-  pending:          { label: "قيد الانتظار",      color: "#eab308" },
-  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#14b8a6" },
-  in_shipping:      { label: "قيد الشحن",         color: "#3b82f6" },
-  received:         { label: "استلم",             color: "#22c55e" },
-  partial_received: { label: "استلم جزئي",        color: "#06b6d4" },
-};
+// SHIPMENT_STATUS_CFG معرّف بالفعل في السطر 66 كـ alias لـ STATUS_CFG
 
 type ShipmentView = "current" | "prev" | "monthly";
 const SHIPMENT_VIEW_TABS: { id: ShipmentView; label: string; emoji: string; color: string }[] = [
