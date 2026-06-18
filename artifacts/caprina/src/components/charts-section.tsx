@@ -1129,7 +1129,7 @@ const SHIPMENT_VIEW_TABS: { id: ShipmentView; label: string; emoji: string; colo
 ];
 
 function ShipmentXTick({ x, y, payload, enriched }: any) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const item = (enriched ?? []).find((d: any) => d.label === payload.value);
   const isToday = item?.date === todayStr;
   return (
@@ -1172,7 +1172,7 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
   data: ShipmentChartsData | undefined | null;
 }) {
   const [view, setView] = React.useState<ShipmentView>("current");
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
   const weeklyEnriched  = useMemo(() =>
     (data?.weeklyShipments  ?? []).map(d => ({ ...d, isToday: d.date === todayStr })),
@@ -1278,11 +1278,11 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
         </div>
         <div style={{ height: 220 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={activeData} margin={{ top: 10, right: 8, left: -22, bottom: 48 }} barCategoryGap="30%">
+            <LineChart data={activeData} margin={{ top: 10, right: 8, left: -22, bottom: 48 }}>
               <defs>
-                <linearGradient id="shipBarGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor={activeColor} stopOpacity={0.95} />
-                  <stop offset="100%" stopColor={activeColor} stopOpacity={0.40} />
+                <linearGradient id="shipLineGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor={activeColor} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={activeColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="2 5" stroke="hsl(var(--border))" vertical={false} />
@@ -1291,17 +1291,31 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
                 axisLine={false} tickLine={false} interval={0} />
               <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 axisLine={false} tickLine={false} allowDecimals={false} domain={[0, yMax]} />
-              <Tooltip content={<ShipmentBarTip />} cursor={{ fill: `${activeColor}11` }} />
-              <Bar dataKey="count" fill="url(#shipBarGrad)" radius={[6, 6, 2, 2]}>
-                {activeData.map((entry, i) => (
-                  <Cell
-                    key={`cell-${i}`}
-                    fill={entry.isToday ? activeColor : `${activeColor}88`}
-                    style={entry.isToday ? { filter: `drop-shadow(0 0 8px ${activeColor}99)` } : {}}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
+              <Tooltip content={<ShipmentBarTip />} cursor={{ stroke: activeColor, strokeWidth: 1, strokeOpacity: 0.3 }} />
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke={activeColor}
+                strokeWidth={2.5}
+                fill="url(#shipLineGrad)"
+                dot={(props: any) => {
+                  const { cx, cy, payload, index } = props;
+                  const isToday = payload.isToday;
+                  return (
+                    <circle
+                      key={`dot-${index}`}
+                      cx={cx} cy={cy}
+                      r={isToday ? 5 : 3}
+                      fill={isToday ? activeColor : "hsl(var(--card))"}
+                      stroke={activeColor}
+                      strokeWidth={isToday ? 2 : 1.5}
+                      style={isToday ? { filter: `drop-shadow(0 0 6px ${activeColor}99)` } : {}}
+                    />
+                  );
+                }}
+                activeDot={{ r: 6, fill: activeColor, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
 

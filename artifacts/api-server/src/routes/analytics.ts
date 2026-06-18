@@ -2153,6 +2153,10 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
       : isNull(shipmentsTable.deletedAt);
 
+    // ─── تحويل أي تاريخ لصيغة YYYY-MM-DD بتوقيت القاهرة (يمنع انزلاق اليوم بسبب UTC) ───
+    const localDateStr = (d: Date): string =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+
     const now = new Date();
 
     // ─── الأسبوع الحالي (من الأحد حتى اليوم) ────────────────────────────────
@@ -2193,7 +2197,7 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
       const cur = new Date(start);
       const DAY_LABELS = ["أح", "إث", "ثل", "أر", "خم", "جم", "سب"];
       while (cur <= end) {
-        const dateStr = cur.toISOString().split("T")[0];
+        const dateStr = localDateStr(cur);
         const dayLabel = DAY_LABELS[cur.getDay()];
         const mmdd = `${String(cur.getMonth() + 1).padStart(2, "0")}/${String(cur.getDate()).padStart(2, "0")}`;
         days.push({ date: dateStr, label: dayLabel + " " + mmdd, count: 0, codAmount: 0 });
@@ -2208,7 +2212,7 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
 
     // ─── تعبئة البيانات ───────────────────────────────────────────────────────
     for (const s of allShipments) {
-      const dateStr = new Date(s.createdAt).toISOString().split("T")[0];
+      const dateStr = localDateStr(new Date(s.createdAt));
       const cod = Number(s.codAmount ?? 0);
 
       for (const arr of [weekDays, prevWeekDays, monthDays]) {
@@ -2228,7 +2232,7 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
     // ─── توزيع حالات الشحنات للأسبوع الحالي ─────────────────────────────────
     const statusMap: Record<string, number> = {};
     for (const s of allShipments) {
-      const dateStr = new Date(s.createdAt).toISOString().split("T")[0];
+      const dateStr = localDateStr(new Date(s.createdAt));
       const isThisWeek = weekDays.some(d => d.date === dateStr);
       if (isThisWeek) {
         statusMap[s.status] = (statusMap[s.status] ?? 0) + 1;
