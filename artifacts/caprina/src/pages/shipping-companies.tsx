@@ -1008,6 +1008,44 @@ export default function ShippingCompanies() {
                     </span>
                   </p>
                 )}
+                {(() => {
+                  // استخراج zoneIds من الشركة
+                  let zIds: number[] = [];
+                  if ((company as any).zoneIds) {
+                    try { zIds = JSON.parse((company as any).zoneIds); } catch {}
+                  } else if ((company as any).zoneId) {
+                    zIds = [(company as any).zoneId];
+                  }
+                  if (!zIds.length) return null;
+                  const zoneNames = zIds
+                    .map(id => zones.find(z => z.id === id))
+                    .filter(Boolean);
+                  if (!zoneNames.length) return null;
+                  return (
+                    <div className="flex items-start gap-2 pt-1">
+                      <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground" />
+                      <div className="flex flex-wrap gap-1">
+                        {zoneNames.map(z => (
+                          <span
+                            key={z!.id}
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border"
+                            style={isActive ? {
+                              background: `rgba(${p.rgb},0.12)`,
+                              borderColor: `rgba(${p.rgb},0.35)`,
+                              color: `rgba(${p.rgb},1)`,
+                            } : {
+                              background: "rgba(255,255,255,0.04)",
+                              borderColor: "rgba(255,255,255,0.12)",
+                              color: "rgba(255,255,255,0.5)",
+                            }}
+                          >
+                            {z!.name}{z!.governorate ? ` · ${z!.governorate}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {company.website && (
                   <p className="text-xs text-muted-foreground flex items-center gap-2"><Globe className="w-3 h-3" />
                     <a href={company.website} target="_blank" rel="noreferrer" className="hover:underline" style={{ color: `rgba(${p.rgb},0.85)` }}>{company.website}</a>
