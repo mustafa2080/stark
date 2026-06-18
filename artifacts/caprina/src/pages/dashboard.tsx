@@ -1045,7 +1045,8 @@ export default function Dashboard() {
       {/* === VISUAL CHARTS === */}
       {chartsData ? (
         <div className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+          {/* الصف الأول: الدونات + ملخص الحالات */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             <ChartCard
               title="توزيع حالات الشحنات"
               dot="#06b6d4"
@@ -1099,16 +1100,7 @@ export default function Dashboard() {
               )}
             </ChartCard>
 
-            <ChartCard
-              title="الشحنات الأسبوعية"
-              subtitle="الأسبوع الحالي والأسبوع الماضي والشهر الحالي"
-              dot="#3b82f6"
-              glassStyle
-            >
-              <WeeklyShipmentBars data={shipmentChartsData} />
-            </ChartCard>
-
-            {/* ── الكارت الثالث: ملخص حالات الشحنات ── */}
+            {/* ── الكارت الثاني: ملخص حالات الشحنات ── */}
             <ChartCard
               title="ملخص الشحنات"
               subtitle="توزيع الحالات الإجمالي"
@@ -1165,6 +1157,15 @@ export default function Dashboard() {
               )}
             </ChartCard>
           </div>
+
+          {/* الصف الثاني: الشحنات الأسبوعية (عرض كامل) */}
+          <ChartCard
+            title="الشحنات الأسبوعية"
+            subtitle="الأسبوع الحالي والأسبوع الماضي والشهر الحالي"
+            dot="#3b82f6"
+          >
+            <WeeklyShipmentBars data={shipmentChartsData} />
+          </ChartCard>
         </div>
       ) : (
         <ChartsSection />

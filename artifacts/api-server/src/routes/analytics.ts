@@ -2140,4 +2140,118 @@ router.get("/analytics/shipments-status", requireAuth, async (req, res): Promise
   }
 });
 
+// ─── GET /analytics/shipment-charts ──────────────────────────────────────────
+// بيانات الشحنات الأسبوعية والشهرية للداشبورد
+router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `shipment-charts:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const now = new Date();
+
+    // ─── الأسبوع الحالي (من الأحد حتى اليوم) ────────────────────────────────
+    const dayOfWeek = now.getDay(); // 0=sun
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - dayOfWeek);
+    weekStart.setHours(0, 0, 0, 0);
+
+    // ─── الأسبوع الماضي ───────────────────────────────────────────────────────
+    const prevWeekEnd = new Date(weekStart);
+    prevWeekEnd.setDate(weekStart.getDate() - 1);
+    prevWeekEnd.setHours(23, 59, 59, 999);
+    const prevWeekStart = new Date(prevWeekEnd);
+    prevWeekStart.setDate(prevWeekEnd.getDate() - 6);
+    prevWeekStart.setHours(0, 0, 0, 0);
+
+    // ─── الشهر الحالي ─────────────────────────────────────────────────────────
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+    // جلب كل الشحنات من بداية الشهر الحالي وما قبله (أسبوعان)
+    const fromDate = prevWeekStart < monthStart ? prevWeekStart : monthStart;
+
+    const allShipments = await db
+      .select({
+        id: shipmentsTable.id,
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+        codAmount: shipmentsTable.codAmount,
+        shippingFee: shipmentsTable.shippingFee,
+        collectedAmount: shipmentsTable.collectedAmount,
+      })
+      .from(shipmentsTable)
+      .where(and(cond, gte(shipmentsTable.createdAt, fromDate)));
+
+    // ─── helper: بناء array أيام ──────────────────────────────────────────────
+    function buildDays(start: Date, end: Date) {
+      const days: { date: string; label: string; count: number; codAmount: number }[] = [];
+      const cur = new Date(start);
+      const DAY_LABELS = ["أح", "إث", "ثل", "أر", "خم", "جم", "سب"];
+      while (cur <= end) {
+        const dateStr = cur.toISOString().split("T")[0];
+        const dayLabel = DAY_LABELS[cur.getDay()];
+        const mmdd = `${String(cur.getMonth() + 1).padStart(2, "0")}/${String(cur.getDate()).padStart(2, "0")}`;
+        days.push({ date: dateStr, label: dayLabel + " " + mmdd, count: 0, codAmount: 0 });
+        cur.setDate(cur.getDate() + 1);
+      }
+      return days;
+    }
+
+    const weekDays     = buildDays(weekStart, now);
+    const prevWeekDays = buildDays(prevWeekStart, prevWeekEnd);
+    const monthDays    = buildDays(monthStart, now);
+
+    // ─── تعبئة البيانات ───────────────────────────────────────────────────────
+    for (const s of allShipments) {
+      const dateStr = new Date(s.createdAt).toISOString().split("T")[0];
+      const cod = Number(s.codAmount ?? 0);
+
+      for (const arr of [weekDays, prevWeekDays, monthDays]) {
+        const day = arr.find(d => d.date === dateStr);
+        if (day) { day.count++; day.codAmount += cod; }
+      }
+    }
+
+    // ─── إحصائيات المقارنة بين الأسبوعين ─────────────────────────────────────
+    const thisWeekTotal  = weekDays.reduce((s, d) => s + d.count, 0);
+    const prevWeekTotal  = prevWeekDays.reduce((s, d) => s + d.count, 0);
+    const thisWeekCod    = weekDays.reduce((s, d) => s + d.codAmount, 0);
+    const prevWeekCod    = prevWeekDays.reduce((s, d) => s + d.codAmount, 0);
+    const countChange    = prevWeekTotal > 0 ? Math.round(((thisWeekTotal - prevWeekTotal) / prevWeekTotal) * 100) : null;
+    const codChange      = prevWeekCod   > 0 ? Math.round(((thisWeekCod   - prevWeekCod)   / prevWeekCod)   * 100) : null;
+
+    // ─── توزيع حالات الشحنات للأسبوع الحالي ─────────────────────────────────
+    const statusMap: Record<string, number> = {};
+    for (const s of allShipments) {
+      const dateStr = new Date(s.createdAt).toISOString().split("T")[0];
+      const isThisWeek = weekDays.some(d => d.date === dateStr);
+      if (isThisWeek) {
+        statusMap[s.status] = (statusMap[s.status] ?? 0) + 1;
+      }
+    }
+
+    const result = {
+      weeklyShipments:  weekDays,
+      monthlyShipments: monthDays,
+      weekComparison: {
+        thisWeek: { count: thisWeekTotal, codAmount: thisWeekCod },
+        prevWeek: { count: prevWeekTotal, codAmount: prevWeekCod, days: prevWeekDays },
+        countChange,
+        codChange,
+      },
+      statusBreakdownThisWeek: Object.entries(statusMap).map(([status, count]) => ({ status, count })),
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

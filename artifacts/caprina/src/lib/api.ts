@@ -539,6 +539,19 @@ export interface ChartsData {
   weekComparison: WeekComparison;
 }
 
+export interface ShipmentDayItem { date: string; label: string; count: number; codAmount: number; }
+export interface ShipmentChartsData {
+  weeklyShipments: ShipmentDayItem[];
+  monthlyShipments: ShipmentDayItem[];
+  weekComparison: {
+    thisWeek: { count: number; codAmount: number };
+    prevWeek: { count: number; codAmount: number; days: ShipmentDayItem[] };
+    countChange: number | null;
+    codChange: number | null;
+  };
+  statusBreakdownThisWeek: { status: string; count: number }[];
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -566,6 +579,7 @@ export const analyticsApi = {
     apiFetch<{ month: string; days: ChartDayItem[]; totalOrders: number; totalRevenue: number; daysCount: number; avgPerDay: string }>(
       `/analytics/monthly-sales${month ? `?month=${month}` : ""}`
     ),
+  shipmentCharts: () => apiFetch<ShipmentChartsData>("/analytics/shipment-charts"),
 };
 
 export interface BatchCreateOrderBody {
