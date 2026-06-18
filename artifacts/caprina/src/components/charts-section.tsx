@@ -1,7 +1,7 @@
 import React, { useState, useMemo, memo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useListOrders } from "@workspace/api-client-react";
-import { analyticsApi, apiFetch, type ChartsData, type ChartDayItem } from "@/lib/api";
+import { analyticsApi, apiFetch, type ChartsData, type ChartDayItem, type ShipmentChartsData } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
@@ -1116,6 +1116,261 @@ export function FilteredOrdersList({ status }: { status: string }) {
 // ─── Exported Weekly Bars (standalone) ───────────────────────────────────────
 export { WeeklyBars };
 
+// ─── WeeklyShipmentBars ───────────────────────────────────────────────────────
+// نفس شكل WeeklyBars لكن مخصص للشحنات (count بدل orders, codAmount بدل revenue)
+
+const SHIPMENT_STATUS_CFG: Record<string, { label: string; color: string }> = {
+  waiting:          { label: "انتظار",            color: "#eab308" },
+  confirmed:        { label: "مؤكدة",             color: "#14b8a6" },
+  picked_up:        { label: "قيد الشحن",         color: "#14b8a6" },
+  in_transit:       { label: "قيد الشحن",         color: "#3b82f6" },
+  out_for_delivery: { label: "خرجت للتسليم",      color: "#f59e0b" },
+  delivered:        { label: "تم التسليم",        color: "#22c55e" },
+  delayed:          { label: "مؤجل",              color: "#8b5cf6" },
+  returned:         { label: "مرتجع",             color: "#ef4444" },
+  cancelled:        { label: "ملغية",             color: "#6b7280" },
+  pending:          { label: "قيد الانتظار",      color: "#eab308" },
+  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#14b8a6" },
+  in_shipping:      { label: "قيد الشحن",         color: "#3b82f6" },
+  received:         { label: "استلم",             color: "#22c55e" },
+  partial_received: { label: "استلم جزئي",        color: "#06b6d4" },
+};
+
+type ShipmentView = "current" | "prev" | "monthly";
+const SHIPMENT_VIEW_TABS: { id: ShipmentView; label: string; emoji: string; color: string }[] = [
+  { id: "current", label: "الأسبوع الحالي", emoji: "📅", color: "#FFD54F" },
+  { id: "prev",    label: "الأسبوع الماضي", emoji: "⏪", color: "#7E57C2" },
+  { id: "monthly", label: "الشهر الحالي",   emoji: "📆", color: "#26A69A" },
+];
+
+function ShipmentXTick({ x, y, payload, enriched }: any) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const item = (enriched ?? []).find((d: any) => d.label === payload.value);
+  const isToday = item?.date === todayStr;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={0} y={0} dy={14}
+        textAnchor="middle"
+        fontSize={isToday ? 10 : 9}
+        fontWeight={isToday ? 800 : 400}
+        fill={isToday ? GLASS_BAR_COLOR : "hsl(var(--muted-foreground))"}
+        style={{ userSelect: "none" }}
+      >
+        {payload.value}
+      </text>
+    </g>
+  );
+}
+
+function ShipmentBarTip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{
+      background: "rgba(20,20,30,0.95)", border: "1px solid rgba(255,255,255,0.12)",
+      borderRadius: 12, padding: "8px 14px", fontSize: 12, direction: "rtl",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+    }}>
+      <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: 4 }}>{d.label}</p>
+      <p style={{ color: GLASS_BAR_COLOR, fontWeight: 800 }}>{d.count} شحنة</p>
+      {d.codAmount > 0 && (
+        <p style={{ color: GLASS_GREEN, fontSize: 11 }}>COD: {d.codAmount.toLocaleString("ar-EG")} ج.م</p>
+      )}
+    </div>
+  );
+}
+
+export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
+  data,
+}: {
+  data: ShipmentChartsData | undefined | null;
+}) {
+  const [view, setView] = React.useState<ShipmentView>("current");
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const weeklyEnriched  = useMemo(() =>
+    (data?.weeklyShipments  ?? []).map(d => ({ ...d, isToday: d.date === todayStr })),
+    [data, todayStr]
+  );
+  const prevWeekEnriched = useMemo(() =>
+    (data?.weekComparison?.prevWeek?.days ?? []).map(d => ({ ...d, isToday: false })),
+    [data]
+  );
+  const monthlyEnriched = useMemo(() =>
+    (data?.monthlyShipments ?? []).map(d => ({ ...d, isToday: d.date === todayStr })),
+    [data, todayStr]
+  );
+
+  const activeData = view === "current" ? weeklyEnriched : view === "prev" ? prevWeekEnriched : monthlyEnriched;
+
+  const totalCount   = activeData.reduce((s, d) => s + d.count, 0);
+  const totalCod     = activeData.reduce((s, d) => s + d.codAmount, 0);
+  const peakDay      = activeData.reduce((a, b) => b.count > a.count ? b : a, activeData[0] ?? { label: "—", count: 0, codAmount: 0, date: "", isToday: false });
+  const maxCount     = Math.max(...activeData.map(d => d.count), 1);
+  const yMax         = Math.ceil(maxCount / 5) * 5 + 2;
+  const wc           = data?.weekComparison;
+  const activeColor  = view === "current" ? GLASS_BAR_COLOR : view === "prev" ? GLASS_PURPLE : GLASS_GREEN;
+
+  const statCards = [
+    {
+      label: "إجمالي الشحنات",
+      value: String(totalCount),
+      color: activeColor,
+      glow: `${activeColor}44`,
+      background: `linear-gradient(135deg, ${activeColor}33 0%, ${activeColor}11 52%, rgba(255,255,255,0.08) 100%)`,
+    },
+    {
+      label: "أكثر يوم",
+      value: peakDay.count > 0 ? peakDay.label : "—",
+      subValue: peakDay.count > 0 ? `${peakDay.count} شحنة` : undefined,
+      color: GLASS_GREEN,
+      glow: "rgba(38,166,154,0.28)",
+      background: "linear-gradient(135deg, rgba(38,166,154,0.44) 0%, rgba(38,166,154,0.18) 52%, rgba(255,255,255,0.08) 100%)",
+    },
+    {
+      label: "COD الإجمالي",
+      value: totalCod > 0 ? totalCod.toLocaleString("ar-EG") + " ج.م" : "—",
+      color: GLASS_ORANGE,
+      glow: "rgba(255,183,77,0.28)",
+      background: "linear-gradient(135deg, rgba(255,183,77,0.40) 0%, rgba(255,183,77,0.16) 52%, rgba(255,255,255,0.08) 100%)",
+    },
+  ];
+
+  return (
+    <div className="space-y-5 rounded-[26px] p-4 sm:p-5 bg-card dark:bg-[rgba(30,30,30,0.88)] light:bg-card"
+      dir="rtl"
+      style={{ border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.10)" }}>
+
+      {/* Filter Tabs */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", direction: "rtl" }}>
+        {SHIPMENT_VIEW_TABS.map(tab => {
+          const isActive = view === tab.id;
+          return (
+            <button key={tab.id} onClick={() => setView(tab.id)} style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "5px 14px", borderRadius: 20,
+              border: `1.5px solid ${isActive ? tab.color : "hsl(var(--border))"}`,
+              background: isActive ? `${tab.color}22` : "hsl(var(--muted)/0.5)",
+              color: isActive ? tab.color : "hsl(var(--muted-foreground))",
+              fontSize: 11, fontWeight: isActive ? 800 : 500,
+              cursor: "pointer",
+              boxShadow: isActive ? `0 0 12px ${tab.color}44` : "none",
+              transition: "all 0.2s ease", whiteSpace: "nowrap",
+            }}>
+              <span style={{ fontSize: 12 }}>{tab.emoji}</span>
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {statCards.map(card => (
+          <div key={card.label} className="relative overflow-hidden rounded-[18px] px-4 py-3.5 text-center"
+            style={{ background: card.background, border: `1px solid ${card.glow}`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.18), 0 10px 24px ${card.glow}`, backdropFilter: "blur(12px)" }}>
+            <div className="absolute inset-x-6 top-0 h-px opacity-80"
+              style={{ background: `linear-gradient(90deg, transparent, ${card.color}, transparent)` }} />
+            <p className="text-[11px] font-bold tracking-tight text-foreground/80">{card.label}</p>
+            <p className="mt-1 truncate text-xl font-black sm:text-2xl"
+              style={{ color: card.color, textShadow: `0 0 14px ${card.color}88` }}>{card.value}</p>
+            {card.subValue && <p className="mt-0.5 text-[10px] font-semibold text-foreground/60">{card.subValue}</p>}
+          </div>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div className="rounded-[22px] px-2 py-3 sm:px-3"
+        style={{ background: "hsl(var(--muted)/0.3)", border: "1px solid hsl(var(--border))" }}>
+        <div className="mb-3 px-2">
+          <p className="text-[11px] font-bold text-foreground/80">
+            {view === "current" ? "شحنات الأسبوع الحالي" : view === "prev" ? "شحنات الأسبوع الماضي" : "شحنات الشهر الحالي"}
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            {view === "current" ? "من بداية الأسبوع حتى اليوم" : view === "prev" ? "بيانات الأسبوع السابق" : "من أول الشهر حتى اليوم"}
+          </p>
+        </div>
+        <div style={{ height: 220 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={activeData} margin={{ top: 10, right: 8, left: -22, bottom: 48 }} barCategoryGap="30%">
+              <defs>
+                <linearGradient id="shipBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor={activeColor} stopOpacity={0.95} />
+                  <stop offset="100%" stopColor={activeColor} stopOpacity={0.40} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="2 5" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="label"
+                tick={(props: any) => <ShipmentXTick {...props} enriched={activeData} />}
+                axisLine={false} tickLine={false} interval={0} />
+              <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false} tickLine={false} allowDecimals={false} domain={[0, yMax]} />
+              <Tooltip content={<ShipmentBarTip />} cursor={{ fill: `${activeColor}11` }} />
+              <Bar dataKey="count" fill="url(#shipBarGrad)" radius={[6, 6, 2, 2]}>
+                {activeData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={entry.isToday ? activeColor : `${activeColor}88`}
+                    style={entry.isToday ? { filter: `drop-shadow(0 0 8px ${activeColor}99)` } : {}}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* مقارنة الأسبوعين */}
+        {view === "prev" && wc && (
+          <div className="mt-4 grid grid-cols-3 gap-2 px-2">
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-[9px] text-muted-foreground">هذا الأسبوع</p>
+              <p className="text-base font-black" style={{ color: GLASS_BAR_COLOR }}>{wc.thisWeek.count}</p>
+              <p className="text-[9px] text-muted-foreground">شحنة</p>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-[9px] text-muted-foreground">الأسبوع الماضي</p>
+              <p className="text-base font-black" style={{ color: GLASS_PURPLE }}>{wc.prevWeek.count}</p>
+              <p className="text-[9px] text-muted-foreground">شحنة</p>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-[9px] text-muted-foreground">التغيير</p>
+              <p className="text-base font-black"
+                style={{ color: wc.countChange == null ? "hsl(var(--muted-foreground))" : wc.countChange >= 0 ? GLASS_GREEN : "#ef4444" }}>
+                {wc.countChange == null ? "—" : `${wc.countChange >= 0 ? "+" : ""}${wc.countChange}%`}
+              </p>
+              <p className="text-[9px] text-muted-foreground">نسبة التغيير</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* توزيع الحالات */}
+      {view === "current" && data?.statusBreakdownThisWeek && data.statusBreakdownThisWeek.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <p className="text-[10px] font-bold text-muted-foreground px-1">توزيع الحالات هذا الأسبوع</p>
+          <div className="flex flex-wrap gap-1.5">
+            {data.statusBreakdownThisWeek
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 8)
+              .map(s => {
+                const cfg = SHIPMENT_STATUS_CFG[s.status] ?? { label: s.status, color: "#94a3b8" };
+                return (
+                  <span key={s.status}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border"
+                    style={{ background: `${cfg.color}18`, borderColor: `${cfg.color}44`, color: cfg.color }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: cfg.color }} />
+                    {cfg.label} · {s.count}
+                  </span>
+                );
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ─── Exported Chart Card Wrapper ─────────────────────────────────────────────
 export { ChartCard };
 
@@ -1326,6 +1581,14 @@ export function ChartsSection() {
     refetchOnWindowFocus: true,
   });
 
+  const { data: shipmentChartsData } = useQuery({
+    queryKey: ["analytics-shipment-charts"],
+    queryFn: analyticsApi.shipmentCharts,
+    staleTime: 0,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+  });
+
   if (isLoading) return <Skeleton />;
   if (!data) return null;
 
@@ -1364,17 +1627,13 @@ export function ChartsSection() {
           }
         </ChartCard>
 
-        {/* 2 — Weekly Bar */}
+        {/* 2 — Weekly Shipments Bar */}
         <ChartCard
-          title="الطلبيات الأسبوعية"
+          title="الشحنات الأسبوعية"
           subtitle="الأسبوع الحالي والأسبوع الماضي والشهر الحالي"
-          dot="#f59e0b"
+          dot="#3b82f6"
         >
-          <WeeklyBars
-            data={data.weeklySales}
-            monthlySales={data.monthlySales}
-            weekComparison={data.weekComparison}
-          />
+          <WeeklyShipmentBars data={shipmentChartsData} />
         </ChartCard>
 
         {/* 3 — Ad Sources */}
