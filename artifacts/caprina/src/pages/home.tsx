@@ -274,13 +274,15 @@ function HeroSection() {
 
 // ─── Tracking Section ─────────────────────────────────────────────────────────
 function TrackingSection({ darkMode }: { darkMode: boolean }) {
-  const [trackingNum, setTrackingNum] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
   const [, navigate] = useLocation();
 
   const handleTrack = () => {
-    const q = trackingNum.trim();
-    if (!q) return;
-    navigate(`/track/${encodeURIComponent(q)}`);
+    const n = clientName.trim();
+    const p = clientPhone.trim();
+    if (!n || !p) return;
+    navigate(`/track-client?name=${encodeURIComponent(n)}&phone=${encodeURIComponent(p)}`);
   };
   const steps = [
     { icon: FileText, label: "تم التسجيل" },
@@ -319,32 +321,43 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
           تتبع الشحنة
         </h2>
-        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>يمكنك تتبع شحنتك ومعرفة حالتها الدائمة في أي وقت</p>
-        <div className="flex gap-3 max-w-lg mx-auto mb-10">
-          <input
-            type="text"
-            value={trackingNum}
-            onChange={e => setTrackingNum(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-            placeholder="أدخل رقم التتبع مثال: 1TRK12345678"
-            className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
-            style={{
-              background: "rgba(255,255,255,0.12)",
-              border: "1.5px solid rgba(255,255,255,0.6)",
-              boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
-            }}
-            onFocus={e => {
-              e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)";
-              e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)";
-            }}
-            onBlur={e => {
-              e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)";
-              e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)";
-            }}
-          />
-          <button onClick={handleTrack} className="font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm whitespace-nowrap text-black hover:scale-105"
+        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل الاسم التجاري ورقم الهاتف لمعرفة حالة شحنتك</p>
+        <div className="flex flex-col gap-3 max-w-lg mx-auto mb-10">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={clientName}
+              onChange={e => setClientName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
+              placeholder="الاسم التجاري للعميل"
+              className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "1.5px solid rgba(255,255,255,0.6)",
+                boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
+              }}
+              onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
+              onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
+            />
+            <input
+              type="tel"
+              value={clientPhone}
+              onChange={e => setClientPhone(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
+              placeholder="رقم الهاتف"
+              className="w-40 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "1.5px solid rgba(255,255,255,0.6)",
+                boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
+              }}
+              onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
+              onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
+            />
+          </div>
+          <button onClick={handleTrack} className="w-full font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm text-black hover:scale-105"
             style={{ background: "linear-gradient(135deg, #ffffff 0%, #d8d8d8 100%)", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.3)" }}>
-            تتبع
+            تتبع الشحنة
           </button>
         </div>
         <div className="flex items-center justify-center gap-2 flex-wrap">

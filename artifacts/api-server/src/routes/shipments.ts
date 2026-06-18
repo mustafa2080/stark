@@ -38,6 +38,45 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
   }
 });
 
+// ─── Public: البحث بالاسم التجاري + رقم الفون ────────────────────────────────
+publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promise<void> => {
+  try {
+    const name  = (req.query.name  as string | undefined)?.trim();
+    const phone = (req.query.phone as string | undefined)?.trim();
+
+    if (!name || !phone) {
+      res.status(400).json({ error: "يرجى إدخال اسم العميل ورقم الهاتف" });
+      return;
+    }
+
+    const rows = await db
+      .select()
+      .from(shipmentsTable)
+      .where(
+        and(
+          isNull(shipmentsTable.deletedAt),
+          like(shipmentsTable.senderName, `%${name}%`),
+          or(
+            eq(shipmentsTable.senderPhone,  phone),
+            eq(shipmentsTable.senderPhone2, phone),
+          )
+        )
+      )
+      .orderBy(desc(shipmentsTable.id))
+      .limit(20);
+
+    if (!rows.length) {
+      res.status(404).json({ error: "لم يتم العثور على شحنات لهذا العميل" });
+      return;
+    }
+    res.set("Cache-Control", "no-store");
+    res.json(rows);
+  } catch (e) {
+    console.error("[GET /shipments/track-by-client]", e);
+    res.status(500).json({ error: "خطأ في البحث" });
+  }
+});
+
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 const CreateShipmentSchema = z.object({
   clientId:        z.number().int().positive().nullish(),

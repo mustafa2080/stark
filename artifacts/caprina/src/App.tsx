@@ -223,6 +223,7 @@ const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
 const ContractPage          = lazy(() => import("@/pages/contract"));
 const ShipmentsSettingsPage = lazy(() => import("@/pages/shipments"));
 const TrackResultPage       = lazy(() => import("@/pages/track-result"));
+const TrackClientPage       = lazy(() => import("@/pages/track-client"));
 const ClientsShowcasePage   = lazy(() => import("@/pages/clients-showcase"));
 
 // ─── Global QueryClient with smart caching defaults ──────────────────────────
@@ -516,6 +517,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/track/:number" component={TrackResultPage} />
+          <Route path="/track-client" component={TrackClientPage} />
           <Route path="/contract" component={ContractPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
