@@ -275,38 +275,40 @@ function HeroSection() {
 
 // ─── Tracking Section ─────────────────────────────────────────────────────────
 function TrackingSection({ darkMode }: { darkMode: boolean }) {
-  const [clientName, setClientName] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
+  const [trackInput, setTrackInput] = useState("");
   const [isTracking, setIsTracking] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  // تحويل الأرقام العربية/الفارسية لإنجليزية، وإزالة أي حرف غير رقمي
+  // تحويل الأرقام العربية/الفارسية لإنجليزية
   const toEnglishDigits = (value: string) =>
     value.replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
          .replace(/[۰-۹]/g, d => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 
-  const handlePhoneChange = (raw: string) => {
-    const normalized = toEnglishDigits(raw).replace(/[^0-9]/g, "");
-    setClientPhone(normalized.slice(0, 11));
-  };
-
   const isValidEgyptianPhone = (p: string) => /^01[0-9]{9}$/.test(p);
 
   const handleTrack = () => {
-    const n = clientName.trim();
-    const p = clientPhone.trim();
+    const raw = toEnglishDigits(trackInput.trim());
 
-    if (!n) {
-      toast({ variant: "destructive", title: "بيانات ناقصة", description: "من فضلك أدخل الاسم التجاري للعميل" });
+    if (!raw) {
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "اكتب الاسم التجاري ورقم الهاتف مفصولين بـ -  مثال: محمد للتجارة - 01012345678" });
       return;
     }
-    if (n.length < 2) {
-      toast({ variant: "destructive", title: "اسم غير صالح", description: "الاسم التجاري قصير جدًا" });
+    if (!raw.includes("-")) {
+      toast({ variant: "destructive", title: "صيغة غير صحيحة", description: "افصل بين الاسم والرقم بشرطة -  مثال: محمد للتجارة - 01012345678" });
+      return;
+    }
+
+    const dashIndex = raw.indexOf("-");
+    const n = raw.slice(0, dashIndex).trim();
+    const p = raw.slice(dashIndex + 1).replace(/[^0-9]/g, "").trim();
+
+    if (!n || n.length < 2) {
+      toast({ variant: "destructive", title: "اسم غير صالح", description: "من فضلك أدخل الاسم التجاري للعميل قبل الشرطة" });
       return;
     }
     if (!p) {
-      toast({ variant: "destructive", title: "بيانات ناقصة", description: "من فضلك أدخل رقم الهاتف" });
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "من فضلك أدخل رقم الهاتف بعد الشرطة" });
       return;
     }
     if (!isValidEgyptianPhone(p)) {
@@ -354,45 +356,25 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
           تتبع الشحنة
         </h2>
-        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل الاسم التجاري ورقم الهاتف لمعرفة حالة شحنتك</p>
+        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل الاسم التجاري ورقم الهاتف مفصولين بشرطة لمعرفة حالة شحنتك</p>
         <div className="flex flex-col gap-3 max-w-lg mx-auto mb-10">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              value={clientName}
-              onChange={e => setClientName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-              placeholder="الاسم التجاري للعميل"
-              disabled={isTracking}
-              className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
-              style={{
-                background: "rgba(255,255,255,0.12)",
-                border: "1.5px solid rgba(255,255,255,0.6)",
-                boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
-              }}
-              onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
-              onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
-            />
-            <input
-              type="tel"
-              inputMode="numeric"
-              value={clientPhone}
-              onChange={e => handlePhoneChange(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-              placeholder="01XXXXXXXXX"
-              maxLength={11}
-              disabled={isTracking}
-              dir="ltr"
-              className="sm:w-44 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 text-center disabled:opacity-50"
-              style={{
-                background: "rgba(255,255,255,0.12)",
-                border: "1.5px solid rgba(255,255,255,0.6)",
-                boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
-              }}
-              onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
-              onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
-            />
-          </div>
+          <input
+            type="text"
+            value={trackInput}
+            onChange={e => setTrackInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
+            placeholder="الاسم التجاري - رقم الهاتف   مثال: محمد للتجارة - 01012345678"
+            disabled={isTracking}
+            dir="rtl"
+            className="w-full rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
+            style={{
+              background: "rgba(255,255,255,0.12)",
+              border: "1.5px solid rgba(255,255,255,0.6)",
+              boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
+            }}
+            onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
+            onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
+          />
           <button
             onClick={handleTrack}
             disabled={isTracking}

@@ -425,7 +425,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register" && location !== "/contract" && !location.startsWith("/track/")) return <Redirect to="/" />;
+  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register" && location !== "/contract" && location !== "/track-client" && !location.startsWith("/track/")) return <Redirect to="/" />;
 
   // ── Subscription expired check ──
   if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
@@ -504,7 +504,7 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/contract" || location.startsWith("/track/")) {
+  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/contract" || location === "/track-client" || location.startsWith("/track/")) {
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد (بس مش من /contract)
     if (user && (location === "/" || location === "/login" || location === "/register")) {
