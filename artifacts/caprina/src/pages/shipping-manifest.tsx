@@ -3677,14 +3677,19 @@ export default function ShippingManifestPage() {
   const pendingOrders = manifest.orders.filter(
     (o) => o.deliveryStatus === "pending"
   ).length;
-  // بضاعة لسه عند شركة الشحن (مرتجع/جزئي ما تم استلامه) تُستبعد من كل الكروت والإحصائيات
-  // لأنها مش "طلبية" فعلية في البيان ده، هتترحّل أو تتعامل معها في حاوية مستقلة
-  const ordersExcludingPendingShipping = (manifest.orders ?? []).filter((o) => {
-    const isStillAtShipping =
-      (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-      (o as any).returnReceived !== 1;
-    return !isStillAtShipping;
-  });
+  // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
+  // (مرتجع أو جزئي مرحَّل ولم يُستلم بعد)
+  const isStillAtShipping = (o: typeof manifest.orders[number]) =>
+    (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+    (o as any).returnReceived !== 1;
+
+  // ─── للـ P&L والإجمالي: نستبعد البضاعة اللي لسه عند الشحن ───
+  const ordersExcludingPendingShipping = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o));
+
+  // ─── للعدادات (مرتجع / جزئي / مؤجل): نحسب على كل الطلبيات ───
+  // البضاعة عند الشحن تظهر في عداد الحالة بتاعتها (مرتجع/جزئي)
+  // لكن مش في الإجمالي ولا في الـ P&L
+  const allGroupedOrders = groupManifestOrders(manifest.orders ?? []);
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
@@ -3702,16 +3707,20 @@ export default function ShippingManifestPage() {
     group[0]?.deliveryStatus ?? "pending");
   const isPartialStatus = (st: string) => st === "partial_received" || st === "partial_delivered";
   const isPostponedStatus = (st: string) => st === "postponed" || st === "delayed";
-  const groupedPostponedCount = groupedManifestOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
-  const groupedPartialCount = groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
-  const groupedPendingCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
+
+  // عدادات الحالات: من كل الطلبيات (شاملة البضاعة عند الشحن)
+  const groupedPostponedCount = allGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
+  const groupedPartialCount   = allGroupedOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  const groupedReturnedCount  = allGroupedOrders.filter((group) => groupManifestStatus(group) === "returned").length;
+
+  // عدادات الإجمالي والتسليم والمعلق: من الطلبيات المفلترة (بدون البضاعة عند الشحن)
+  const groupedPendingCount   = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
   const groupedDeliveredCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
-  const groupedReturnedCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "returned").length;
-  const groupedTotalCount = groupedManifestOrders.length;
-  const groupedCompletedCount = groupedDeliveredCount + groupedPartialCount;
-  const groupedDeliveryRate = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
-  const screenDeliveryRate = groupedTotalCount > 0 ? Math.round((groupedDeliveredCount / groupedTotalCount) * 100) : 0;
-  const groupedPendingOrders = groupedPendingCount;
+  const groupedTotalCount     = groupedManifestOrders.length;
+  const groupedCompletedCount = groupedDeliveredCount + groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  const groupedDeliveryRate   = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
+  const screenDeliveryRate    = groupedTotalCount > 0 ? Math.round((groupedDeliveredCount / groupedTotalCount) * 100) : 0;
+  const groupedPendingOrders  = groupedPendingCount;
 
   const statusLabel = (st: DeliveryStatus) => {
     switch (st) {
@@ -4258,7 +4267,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── عمود العميل ─── */}
                   <div className="relative flex items-center">
@@ -4442,14 +4451,8 @@ export default function ShippingManifestPage() {
 
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
-        // بضاعة لسه عند شركة الشحن (مرتجع/جزئي ما تم استلامه) تُستبعد من حسابات الـ P&L
-        // لأنها مش مُسجَّلة كخسارة/ربح فعلي لحد ما يتم استلامها أو ترحيلها فعليًا
-        const ordersForPnl = manifest.orders.filter(o => {
-          const isStillAtShipping =
-            (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-            (o as any).returnReceived !== 1;
-          return !isStillAtShipping;
-        });
+        // نستخدم نفس helper isStillAtShipping المعرّف فوق
+        const ordersForPnl = ordersExcludingPendingShipping;
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
