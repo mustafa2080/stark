@@ -26,7 +26,7 @@ import {
 
 // ── helpers ───────────────────────────────────────────────────────────────
 const fmt = (n: string | number) =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n));
+  new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Number(n));
 
 // ── types ─────────────────────────────────────────────────────────────────
 type ClientType = "normal" | "commercial" | "vip";
@@ -426,18 +426,29 @@ export default function FinanceClients() {
       .then(() => qc.invalidateQueries({ queryKey: ["finance-clients"] }));
 
   // ── KPI ─────────────────────────────────────────────────────────────────
-  const totalSales   = clients.reduce((s, c) => s + parseFloat(c.totalSales ?? "0"), 0);
   const totalOrders  = allOrders.length;
   const totalClients = clients.length;
   const totalInvoices = clients.reduce((s, c) => s + (c.totalOrders ?? 0), 0);
 
-  // ── أفضل العملاء ────────────────────────────────────────────────────────
+  // ── أفضل العملاء (حسب عدد الشحنات هذا الشهر) ───────────────────────────
+  const monthlyShipmentsByClient = useMemo(() => {
+    const now = new Date();
+    const counts: Record<string, number> = {};
+    allOrders.forEach(o => {
+      const d = new Date(o.createdAt);
+      if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+        counts[o.clientName] = (counts[o.clientName] ?? 0) + 1;
+      }
+    });
+    return counts;
+  }, [allOrders]);
+
   const topClients = useMemo(() =>
-    [...clients].sort((a, b) => parseFloat(b.totalSales ?? "0") - parseFloat(a.totalSales ?? "0")).slice(0, 5),
-    [clients]
+    [...clients].sort((a, b) => (monthlyShipmentsByClient[b.name] ?? 0) - (monthlyShipmentsByClient[a.name] ?? 0)).slice(0, 5),
+    [clients, monthlyShipmentsByClient]
   );
 
-  // ── رسم بياني — مبيعات آخر 7 أيام من الأوردرات ─────────────────────────
+  // ── رسم بياني — عدد الشحنات آخر 7 أيام من الأوردرات ────────────────────
   const chartData = useMemo(() => {
     const days: Record<string, number> = {};
     for (let i = 6; i >= 0; i--) {
@@ -446,7 +457,7 @@ export default function FinanceClients() {
     }
     allOrders.forEach(o => {
       const key = format(new Date(o.createdAt), "MM/dd");
-      if (key in days) days[key] += parseFloat(o.totalAmount ?? "0");
+      if (key in days) days[key] += 1;
     });
     return Object.entries(days).map(([date, value]) => ({ date, value }));
   }, [allOrders]);
@@ -502,7 +513,7 @@ export default function FinanceClients() {
           { label: "إجمالي العملاء",    value: totalClients, sub: `+${clients.filter(c => { const d = new Date(c.createdAt); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length} هذا الشهر`, icon: <Users className="w-6 h-6" />, color: "text-foreground" },
           { label: "إجمالي أوامر البيع", value: totalOrders,  sub: `+${allOrders.filter(o => { const d = new Date(o.createdAt); const now = new Date(); return d.getMonth() === now.getMonth(); }).length} هذا الشهر`, icon: <ShoppingCart className="w-6 h-6" />, color: "text-foreground" },
           { label: "إجمالي الفواتير",   value: totalInvoices, sub: `+${Math.round(totalInvoices * 0.15)} هذا الشهر`, icon: <Receipt className="w-6 h-6" />, color: "text-foreground" },
-          { label: "إجمالي المبيعات",   value: fmt(totalSales), sub: `+15% هذا الشهر`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
+          { label: "إجمالي الشحنات",    value: totalInvoices, sub: `+${Math.round(totalInvoices * 0.15)} هذا الشهر`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
         ].map((kpi, i) => (
           <Card key={i} className="border-border bg-card p-4">
             <div className="flex items-center justify-between mb-2">
@@ -541,7 +552,7 @@ export default function FinanceClients() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold truncate">{c.name}</p>
                 </div>
-                <p className="text-xs font-black text-primary shrink-0">{fmt(c.totalSales ?? 0)}</p>
+                <p className="text-xs font-black text-primary shrink-0">{monthlyShipmentsByClient[c.name] ?? 0} شحنة</p>
               </div>
             ))}
           </div>
@@ -553,7 +564,7 @@ export default function FinanceClients() {
         {/* الرسم البياني */}
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-bold text-sm">مبيعات العملاء التجاريين</h2>
+            <h2 className="font-bold text-sm">شحنات العملاء التجاريون</h2>
             {/* Dropdown اختيار نوع الرسم */}
             <div className="relative" ref={chartDropRef}>
               <button
@@ -616,7 +627,7 @@ export default function FinanceClients() {
               )}
             </div>
           </div>
-          <p className="text-2xl font-black text-primary mb-0.5">{fmt(totalSales)}</p>
+          <p className="text-2xl font-black text-primary mb-0.5">{chartData.reduce((s, d) => s + d.value, 0)} شحنة</p>
           <p className="text-[11px] text-primary mb-3">آخر 7 أيام</p>
           <ResponsiveContainer width="100%" height={160}>
             {chartView === "area" ? (
@@ -631,7 +642,7 @@ export default function FinanceClients() {
                 <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: any) => [fmt(v), "المبيعات"]}
+                  formatter={(v: any) => [v, "الشحنات"]}
                 />
                 <Area type="monotone" dataKey="value" stroke="hsl(43,74%,50%)" strokeWidth={2} fill="url(#salesGrad)" dot={{ fill: "hsl(43,74%,50%)", r: 3 }} activeDot={{ r: 5 }} />
               </AreaChart>
@@ -641,7 +652,7 @@ export default function FinanceClients() {
                 <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: any) => [fmt(v), "المبيعات"]}
+                  formatter={(v: any) => [v, "الشحنات"]}
                   cursor={{ fill: "hsl(var(--muted))", opacity: 0.2 }}
                 />
                 <Bar dataKey="value" radius={[4,4,0,0]}>
