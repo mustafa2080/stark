@@ -49,13 +49,13 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       return;
     }
 
-    // مطابقة تامة للاسم والرقم — نتيجة واحدة بس للراسل ده
+    // اسم الراسل (senderName) + رقم المستلم (receiverPhone) — مطابقة تامة
     const conditions = [
       isNull(shipmentsTable.deletedAt),
       eq(shipmentsTable.senderName, name),
       or(
-        eq(shipmentsTable.senderPhone,  phone),
-        eq(shipmentsTable.senderPhone2, phone),
+        eq(shipmentsTable.receiverPhone,  phone),
+        eq(shipmentsTable.receiverPhone2, phone),
       ) as any,
     ];
 

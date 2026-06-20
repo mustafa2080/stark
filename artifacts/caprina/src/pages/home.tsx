@@ -344,7 +344,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
           تتبع الشحنة
         </h2>
-        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل اسم الراسل ورقم هاتفه لمعرفة حالة شحنتك</p>
+        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل اسم الراسل ورقم هاتفك أنت لمعرفة حالة شحنتك</p>
         <div className="flex flex-col gap-3 max-w-lg mx-auto mb-10">
           <input
             type="text"
@@ -368,7 +368,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             value={senderPhone}
             onChange={e => setSenderPhone(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-            placeholder="رقم هاتف الراسل   مثال: 01012345678"
+            placeholder="رقم هاتفك أنت   مثال: 01012345678"
             disabled={isTracking}
             dir="ltr"
             className="w-full rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
