@@ -4491,8 +4491,8 @@ export default function ShippingManifestPage() {
         if (pendingReturnOrders.length === 0) return null;
         return (
           <div
-            className="rounded-xl border border-red-600/50 bg-red-950/20 p-4 print:hidden"
-            style={{ boxShadow: "0 0 18px 2px rgba(220,38,38,0.25), 0 0 4px 1px rgba(220,38,38,0.15)" }}
+            className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4 print:hidden"
+            style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
           >
             <div className="flex items-center gap-2 mb-3">
               <span className="text-base">🚚</span>
