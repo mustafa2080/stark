@@ -40,8 +40,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function TrackClientPage() {
-  const [location, navigate] = useLocation();
-  const params = new URLSearchParams(location.split("?")[1] ?? "");
+  const [, navigate] = useLocation();
+  const params = new URLSearchParams(window.location.search);
   const name  = params.get("name")  ?? "";
   const phone = params.get("phone") ?? "";
 
