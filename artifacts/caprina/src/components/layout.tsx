@@ -33,8 +33,7 @@ const ALL_NAV = [
   { href: "/my-dashboard",      label: "لوحتي",              icon: LayoutDashboard, exact: true, permission: null, section: null, employeeOnly: true,  iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/",                  label: "لوحة التحكم",        icon: LayoutDashboard, exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-blue-400",       group: "dashboard"    },
   { href: "/shipments",         label: "المناطق",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "inventory"    },
-  { href: "/clients-showcase",  label: "عملاؤنا",             icon: Users,                       permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-purple-400",     group: "dashboard"    },
-  { href: "/finance/clients",   label: "العملاء التجاريون",   icon: UserCheck,                   permission: "finance.view",            section: "section_dashboard",          iconColor: "text-cyan-400",       group: "dashboard"    },
+  { href: "/finance/clients",   label: "العملاء التجاريون",   icon: UserCheck,                   permission: "finance.view",            section: "section_dashboard",          iconColor: "text-cyan-400",       group: "clients_business" },
   { href: "/orders",            label: "الشحنات",             icon: Package,                     permission: "orders.view",             section: "section_orders",             iconColor: "text-orange-400",     group: "orders"       },
   { href: "/shipments/new",     label: "شحنة جديدة",            icon: Plus,                        permission: "orders.create",           section: "section_new_order",          iconColor: "text-emerald-400",    group: "orders"       },
   { href: "/invoices",          label: "فواتير الشحن",             icon: FileText,                    permission: "invoices.view",           section: "section_invoices",           iconColor: "text-yellow-400",     group: "orders"       },
@@ -55,6 +54,7 @@ const ALL_NAV = [
   { href: "/import",            label: "استيراد Excel",       icon: Upload,                      permission: "tools.import",            section: "section_import",             iconColor: "text-amber-400",      group: "tools"        },
   { href: "/export",            label: "تصدير البيانات",      icon: Download,                    permission: "tools.export",            section: "section_export_data",        iconColor: "text-orange-300",     group: "tools"        },
   { href: "/archive",           label: "الأرشيف",             icon: Archive,                     permission: "section_archive",         section: "section_archive",            iconColor: "text-stone-400",      group: "tools"        },
+  { href: "/clients-showcase",  label: "عملاؤنا",             icon: Users,                       permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-purple-400",     group: "tools"        },
   { href: "/whatsapp",          label: "إعدادات واتساب",     icon: WhatsAppIcon,                permission: "settings.whatsapp",       section: "section_whatsapp",           iconColor: "text-[#25D366]",      group: "settings"     },
   { href: "/audit-logs",        label: "سجل التعديلات",       icon: Shield,                      permission: "settings.audit",          section: "section_audit",              iconColor: "text-red-400",        group: "settings"     },
 ];
@@ -558,6 +558,12 @@ export default function Layout({ children }: LayoutProps) {
               </NavGroup>
             )}
 
+            {visibleNav.some(i => i.group === "clients_business") && (
+              <NavGroup label="العملاء التجاريون" icon={UserCheck} iconColor="text-cyan-400" location={location} prefixes={["/finance/clients"]} isOpen={openGroup === "clients_business"} onToggle={() => toggleGroup("clients_business", visibleNav.find(i => i.group === "clients_business")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "clients_business")?.href} groupKey="clients_business">
+                {visibleNav.filter(i => i.group === "clients_business").map(item => <NavItem key={item.href} item={item} location={location} sub />)}
+              </NavGroup>
+            )}
+
             {visibleNav.some(i => i.group === "analytics") && (
               <NavGroup label="التحليلات" icon={BarChart3} iconColor="text-pink-400" location={location} prefixes={["/product-performance","/smart","/ads-analytics","/team-performance","/sessions-report","/finance/cash/analytics"]} isOpen={openGroup === "analytics"} onToggle={() => toggleGroup("analytics", visibleNav.find(i => i.group === "analytics")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "analytics")?.href} groupKey="analytics">
                 {visibleNav.filter(i => i.group === "analytics").map(item => <NavItem key={item.href+item.label} item={item} location={location} sub />)}
@@ -565,7 +571,7 @@ export default function Layout({ children }: LayoutProps) {
             )}
 
             {(true) && (
-              <NavGroup label="الماليات" icon={DollarSign} iconColor="text-emerald-400" location={location} prefixes={["/finance"]} excludePrefixes={["/finance/cash/analytics"]} isOpen={openGroup === "finance"} onToggle={() => toggleGroup("finance", FINANCE_NAV[0]?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={FINANCE_NAV[0]?.href} groupKey="finance">
+              <NavGroup label="الماليات" icon={DollarSign} iconColor="text-emerald-400" location={location} prefixes={["/finance"]} excludePrefixes={["/finance/cash/analytics","/finance/clients"]} isOpen={openGroup === "finance"} onToggle={() => toggleGroup("finance", FINANCE_NAV[0]?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={FINANCE_NAV[0]?.href} groupKey="finance">
                 {FINANCE_NAV.map((item) => {
                   const isActive = location === item.href;
                   const Icon = item.icon;
@@ -601,7 +607,7 @@ export default function Layout({ children }: LayoutProps) {
             )}
 
             {visibleNav.some(i => i.group === "tools") && (
-              <NavGroup label="الأدوات" icon={Upload} iconColor="text-amber-400" location={location} prefixes={["/import","/export","/archive"]} isOpen={openGroup === "tools"} onToggle={() => toggleGroup("tools", visibleNav.find(i => i.group === "tools")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "tools")?.href} groupKey="tools">
+              <NavGroup label="الأدوات" icon={Upload} iconColor="text-amber-400" location={location} prefixes={["/import","/export","/archive","/clients-showcase"]} isOpen={openGroup === "tools"} onToggle={() => toggleGroup("tools", visibleNav.find(i => i.group === "tools")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "tools")?.href} groupKey="tools">
                 {visibleNav.filter(i => i.group === "tools").map(item => <NavItem key={item.href} item={item} location={location} sub />)}
               </NavGroup>
             )}
