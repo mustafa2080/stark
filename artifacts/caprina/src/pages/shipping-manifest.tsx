@@ -4347,6 +4347,82 @@ export default function ShippingManifestPage() {
         )}
       </Card>
 
+      {/* ─── حاوية المرتجعات والجزئي لسه عند شركة الشحن ─── */}
+      {(() => {
+        const pendingReturnOrders = (manifest.orders ?? []).filter(o =>
+          (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+          (o as any).returnReceived !== 1
+        );
+        if (pendingReturnOrders.length === 0) return null;
+        return (
+          <div
+            className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4 print:hidden"
+            style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-base">🚚</span>
+              <h2 className="font-bold text-sm text-red-400">
+                بضاعة لسه عند شركة الشحن ({pendingReturnOrders.length})
+              </h2>
+              <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {pendingReturnOrders.map(order => {
+                const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
+                const deliveredQty = order.partialQuantity ?? 0;
+                const remainingQty = isPartial ? (order.quantity - deliveredQty) : order.quantity;
+                const rr = (order as any).returnReceived;
+                const isAtShipping = rr === 0 || rr === null;
+                return (
+                  <div
+                    key={order.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs truncate text-foreground">{order.customerName}</span>
+                        {order.phone && (
+                          <span className="text-[10px] text-muted-foreground">{order.phone}</span>
+                        )}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
+                          {isPartial ? "جزئي" : "مرتجع"}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                        {order.product}
+                        {(order.color || order.size) && ` — ${[order.color, order.size].filter(Boolean).join(" / ")}`}
+                      </p>
+                      <p className="text-[10px] font-semibold text-red-400 mt-0.5">
+                        {isPartial
+                          ? `كمية باقية عند الشحن: ${remainingQty} من ${order.quantity}`
+                          : `كمية مرتجعة: ${order.quantity}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <ReturnReceivedButton
+                        manifestId={id}
+                        order={order}
+                        received={true}
+                        onSaved={refetch}
+                        locked={isLocked}
+                      />
+                      <ReturnReceivedButton
+                        manifestId={id}
+                        order={order}
+                        received={false}
+                        onSaved={refetch}
+                        locked={isLocked}
+                        currentlyAtShipping={isAtShipping}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
         const deliveredOrders = manifest.orders.filter(o => o.deliveryStatus === "delivered");
@@ -4481,82 +4557,6 @@ export default function ShippingManifestPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* ─── حاوية المرتجعات والجزئي لسه عند شركة الشحن ─── */}
-      {(() => {
-        const pendingReturnOrders = (manifest.orders ?? []).filter(o =>
-          (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-          (o as any).returnReceived !== 1
-        );
-        if (pendingReturnOrders.length === 0) return null;
-        return (
-          <div
-            className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4 print:hidden"
-            style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-base">🚚</span>
-              <h2 className="font-bold text-sm text-red-400">
-                بضاعة لسه عند شركة الشحن ({pendingReturnOrders.length})
-              </h2>
-              <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {pendingReturnOrders.map(order => {
-                const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
-                const deliveredQty = order.partialQuantity ?? 0;
-                const remainingQty = isPartial ? (order.quantity - deliveredQty) : order.quantity;
-                const rr = (order as any).returnReceived;
-                const isAtShipping = rr === 0 || rr === null;
-                return (
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-medium text-xs truncate text-foreground">{order.customerName}</span>
-                        {order.phone && (
-                          <span className="text-[10px] text-muted-foreground">{order.phone}</span>
-                        )}
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
-                          {isPartial ? "جزئي" : "مرتجع"}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                        {order.product}
-                        {(order.color || order.size) && ` — ${[order.color, order.size].filter(Boolean).join(" / ")}`}
-                      </p>
-                      <p className="text-[10px] font-semibold text-red-400 mt-0.5">
-                        {isPartial
-                          ? `كمية باقية عند الشحن: ${remainingQty} من ${order.quantity}`
-                          : `كمية مرتجعة: ${order.quantity}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5 shrink-0">
-                      <ReturnReceivedButton
-                        manifestId={id}
-                        order={order}
-                        received={true}
-                        onSaved={refetch}
-                        locked={isLocked}
-                      />
-                      <ReturnReceivedButton
-                        manifestId={id}
-                        order={order}
-                        received={false}
-                        onSaved={refetch}
-                        locked={isLocked}
-                        currentlyAtShipping={isAtShipping}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ─── Add Orders Dialog ─── */}
       {showExportDialog && manifest && (
