@@ -49,13 +49,13 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       return;
     }
 
-    // البحث بـ اسم المستلم + رقم المستلم → كل عميل يشوف شحنته هو بس
+    // البحث بـ اسم الراسل + رقمه → المستلم يدخل اسم الشركة اللي بعتله + رقمها
     const conditions = [
       isNull(shipmentsTable.deletedAt),
-      like(shipmentsTable.receiverName, `%${name}%`),
+      like(shipmentsTable.senderName, `%${name}%`),
       or(
-        eq(shipmentsTable.receiverPhone,  phone),
-        eq(shipmentsTable.receiverPhone2, phone),
+        eq(shipmentsTable.senderPhone,  phone),
+        eq(shipmentsTable.senderPhone2, phone),
       ) as any,
     ];
 
