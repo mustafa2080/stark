@@ -849,6 +849,7 @@ export interface Warehouse {
   totalUnits: number;
   skuCount: number;
   orderCount: number;
+  shipmentCount: number;
   createdAt: string;
   updatedAt: string;
 }

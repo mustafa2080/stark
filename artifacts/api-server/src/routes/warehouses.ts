@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, desc, count, isNull } from "drizzle-orm";
+import { eq, and, or, desc, count, isNull, inArray } from "drizzle-orm";
 import {
   db,
   warehousesTable,
@@ -8,6 +8,7 @@ import {
   productVariantsTable,
   inventoryMovementsTable,
   ordersTable,
+  shipmentsTable,
 } from "@workspace/db";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
@@ -120,7 +121,17 @@ router.get("/warehouses", async (req, res): Promise<void> => {
         .from(ordersTable)
         .where(eq(ordersTable.warehouseId, w.id));
 
-      return { ...w, totalUnits, skuCount, orderCount: Number(orderCountRow?.cnt ?? 0) };
+      // عدد الشحنات قيد الشحن (حالات نشطة) المرتبطة بهذا المخزن
+      const [shipmentCountRow] = await db
+        .select({ cnt: count() })
+        .from(shipmentsTable)
+        .where(and(
+          eq(shipmentsTable.warehouseId, w.id),
+          isNull(shipmentsTable.deletedAt),
+          inArray(shipmentsTable.status, ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"]),
+        ));
+
+      return { ...w, totalUnits, skuCount, orderCount: Number(orderCountRow?.cnt ?? 0), shipmentCount: Number(shipmentCountRow?.cnt ?? 0) };
     })
   );
 

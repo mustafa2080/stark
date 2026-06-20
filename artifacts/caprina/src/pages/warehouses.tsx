@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench } from "lucide-react";
+import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -693,9 +693,14 @@ export default function WarehousesPage() {
                   <p className="text-base font-bold">{w.skuCount}</p>
                   <p className="text-[9px] text-muted-foreground mt-0.5">صنف</p>
                 </div>
-                <div className="bg-muted/20 rounded-md p-2">
-                  <p className="text-base font-bold">{w.orderCount}</p>
-                  <p className="text-[9px] text-muted-foreground mt-0.5">طلب</p>
+                <div className={`rounded-md p-2 ${w.shipmentCount > 0 ? "bg-amber-500/10" : "bg-muted/20"}`}>
+                  <div className="flex items-center justify-center gap-1">
+                    {w.shipmentCount > 0 && <Truck className="w-3 h-3 text-amber-500" />}
+                    <p className={`text-base font-bold ${w.shipmentCount > 0 ? "text-amber-500" : ""}`}>
+                      {w.shipmentCount ?? 0}
+                    </p>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">قيد الشحن</p>
                 </div>
               </div>
               {w.notes && <p className="text-[10px] text-muted-foreground border-t border-border pt-2">{w.notes}</p>}
