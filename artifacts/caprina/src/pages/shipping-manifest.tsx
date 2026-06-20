@@ -991,7 +991,7 @@ function InvoiceGroupDeliveryRow({
         {/* Desktop row */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Customer */}
@@ -1027,7 +1027,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* العنوان التفصيلي */}
-          <div className="min-w-0 px-3 flex items-start">
+          <div className="hidden lg:flex min-w-0 px-3 items-start">
             {(rep as any).address ? (
               <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{(rep as any).address}</p>
             ) : (
@@ -1035,7 +1035,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* الشركة الراسلة */}
-          <div className="min-w-0 px-3 flex items-center">
+          <div className="hidden lg:flex min-w-0 px-3 items-center">
             {(rep as any).senderName ? (
               <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
             ) : (
@@ -4241,7 +4241,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── عمود العميل ─── */}
                   <div className="relative flex items-center">
@@ -4267,12 +4267,12 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── العنوان التفصيلي ─── */}
-                  <div className="flex items-center gap-1.5 px-3 h-9">
+                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
                     <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
                     العنوان
                   </div>
                   {/* ─── الشركة الراسلة ─── */}
-                  <div className="flex items-center gap-1.5 px-3 h-9">
+                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
                     <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
                     الراسل
                   </div>
