@@ -3677,7 +3677,15 @@ export default function ShippingManifestPage() {
   const pendingOrders = manifest.orders.filter(
     (o) => o.deliveryStatus === "pending"
   ).length;
-  const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
+  // بضاعة لسه عند شركة الشحن (مرتجع/جزئي ما تم استلامه) تُستبعد من كل الكروت والإحصائيات
+  // لأنها مش "طلبية" فعلية في البيان ده، هتترحّل أو تتعامل معها في حاوية مستقلة
+  const ordersExcludingPendingShipping = (manifest.orders ?? []).filter((o) => {
+    const isStillAtShipping =
+      (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+      (o as any).returnReceived !== 1;
+    return !isStillAtShipping;
+  });
+  const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
     postponed: 4,
@@ -4434,12 +4442,20 @@ export default function ShippingManifestPage() {
 
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
-        const deliveredOrders = manifest.orders.filter(o => o.deliveryStatus === "delivered");
-        const returnedOrders  = manifest.orders.filter(o => o.deliveryStatus === "returned");
-        const totalCOD        = manifest.orders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        // بضاعة لسه عند شركة الشحن (مرتجع/جزئي ما تم استلامه) تُستبعد من حسابات الـ P&L
+        // لأنها مش مُسجَّلة كخسارة/ربح فعلي لحد ما يتم استلامها أو ترحيلها فعليًا
+        const ordersForPnl = manifest.orders.filter(o => {
+          const isStillAtShipping =
+            (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+            (o as any).returnReceived !== 1;
+          return !isStillAtShipping;
+        });
+        const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
+        const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
+        const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const shippingCost    = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? manifest.orders.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0));
+        const shippingCost    = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0));
         const netAmount       = deliveredCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
@@ -4447,7 +4463,7 @@ export default function ShippingManifestPage() {
             <Card className="border-border bg-card p-4">
               <p className="text-xs text-muted-foreground mb-1">إجمالي COD</p>
               <p className="text-lg font-black text-emerald-400">{formatCurrency(totalCOD)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{manifest.orders.length} شحنة</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
               <p className="text-xs text-emerald-400 mb-1">COD المُسلَّم</p>

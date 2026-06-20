@@ -155,19 +155,26 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
-        const qty = Number(shipment.quantity ?? 1);
-        const unitCod = qty > 0 ? cod / qty : cod;
-        const unitCost = qty > 0 ? cost / qty : cost;
-        const partialCod = unitCod * Number(item.partialQuantity);
-        totalRevenue += partialCod;
-        deliveredGross += partialCod;
-        totalCost += unitCost * Number(item.partialQuantity);
-        totalShippingCost += shipping;
-        deliveredShippingFees += shipping;
+        // returnReceived === 1 → الجزء الباقي تم استلامه فعليًا (إيراد كامل على الكمية المستلمة)
+        // returnReceived !== 1 (0 أو null) → لسه عند شركة الشحن، إيراد صفر مؤقتًا لحد ما يتم الاستلام
+        if ((item as any).returnReceived === 1) {
+          const qty = Number(shipment.quantity ?? 1);
+          const unitCod = qty > 0 ? cod / qty : cod;
+          const unitCost = qty > 0 ? cost / qty : cost;
+          const partialCod = unitCod * Number(item.partialQuantity);
+          totalRevenue += partialCod;
+          deliveredGross += partialCod;
+          totalCost += unitCost * Number(item.partialQuantity);
+          totalShippingCost += shipping;
+          deliveredShippingFees += shipping;
+        }
       } else if (item.deliveryStatus === "returned") {
-        totalShippingCost += shipping;
+        // مرتجع لسه عند شركة الشحن (returnReceived !== 1) → خسارة شحن صفر مؤقتًا لحد ما يتم الاستلام فعليًا
+        if ((item as any).returnReceived === 1) {
+          totalShippingCost += shipping;
+        }
       } else {
-        totalShippingCost += shipping;
+        // pending/delayed → لسه عند شركة الشحن، مفيش تكلفة شحن تُحسب عليه دلوقتي
       }
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
