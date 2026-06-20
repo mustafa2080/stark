@@ -49,10 +49,10 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       return;
     }
 
-    // البحث بـ اسم الراسل + رقمه → المستلم يدخل اسم الشركة اللي بعتله + رقمها
+    // مطابقة تامة للاسم والرقم — نتيجة واحدة بس للراسل ده
     const conditions = [
       isNull(shipmentsTable.deletedAt),
-      like(shipmentsTable.senderName, `%${name}%`),
+      eq(shipmentsTable.senderName, name),
       or(
         eq(shipmentsTable.senderPhone,  phone),
         eq(shipmentsTable.senderPhone2, phone),
