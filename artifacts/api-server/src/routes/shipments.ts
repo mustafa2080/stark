@@ -49,19 +49,57 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       return;
     }
 
-    const rows = await db
-      .select()
-      .from(shipmentsTable)
+    // ── خطوة 1: ابحث عن العميل التجاري في clientsTable بالاسم + الفون ──────
+    const matchedClients = await db
+      .select({ id: clientsTable.id })
+      .from(clientsTable)
       .where(
         and(
-          isNull(shipmentsTable.deletedAt),
-          like(shipmentsTable.senderName, `%${name}%`),
+          like(clientsTable.name, `%${name}%`),
           or(
-            eq(shipmentsTable.senderPhone,  phone),
-            eq(shipmentsTable.senderPhone2, phone),
+            eq(clientsTable.phone,  phone),
+            eq(clientsTable.phone2, phone),
           )
         )
       )
+      .limit(10);
+
+    const clientIds = matchedClients.map(c => c.id);
+
+    // ── خطوة 2: جيب الشحنات المرتبطة بالعميل التجاري أو بـ senderName/phone ──
+    const conditions = [
+      isNull(shipmentsTable.deletedAt),
+    ];
+
+    if (clientIds.length > 0) {
+      // ابحث عن طريق clientId أو senderName+phone
+      conditions.push(
+        or(
+          inArray(shipmentsTable.clientId, clientIds),
+          and(
+            like(shipmentsTable.senderName, `%${name}%`),
+            or(
+              eq(shipmentsTable.senderPhone,  phone),
+              eq(shipmentsTable.senderPhone2, phone),
+            )
+          )
+        ) as any
+      );
+    } else {
+      // مفيش عميل تجاري بالاسم ده → ابحث بـ senderName + phone فقط
+      conditions.push(
+        like(shipmentsTable.senderName, `%${name}%`),
+        or(
+          eq(shipmentsTable.senderPhone,  phone),
+          eq(shipmentsTable.senderPhone2, phone),
+        ) as any
+      );
+    }
+
+    const rows = await db
+      .select()
+      .from(shipmentsTable)
+      .where(and(...conditions))
       .orderBy(desc(shipmentsTable.id))
       .limit(20);
 
