@@ -291,11 +291,11 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
     const raw = toEnglishDigits(trackInput.trim());
 
     if (!raw) {
-      toast({ variant: "destructive", title: "بيانات ناقصة", description: "اكتب الاسم التجاري ورقم الهاتف مفصولين بـ -  مثال: محمد للتجارة - 01012345678" });
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "اكتب اسم المستلم ورقم هاتفه مفصولين بـ -  مثال: محمد احمد - 01012345678" });
       return;
     }
     if (!raw.includes("-")) {
-      toast({ variant: "destructive", title: "صيغة غير صحيحة", description: "افصل بين الاسم والرقم بشرطة -  مثال: محمد للتجارة - 01012345678" });
+      toast({ variant: "destructive", title: "صيغة غير صحيحة", description: "افصل بين الاسم والرقم بشرطة -  مثال: محمد احمد - 01012345678" });
       return;
     }
 
@@ -304,7 +304,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
     const p = raw.slice(dashIndex + 1).replace(/[^0-9]/g, "").trim();
 
     if (!n || n.length < 2) {
-      toast({ variant: "destructive", title: "اسم غير صالح", description: "من فضلك أدخل الاسم التجاري للعميل قبل الشرطة" });
+      toast({ variant: "destructive", title: "اسم غير صالح", description: "من فضلك أدخل اسم المستلم قبل الشرطة" });
       return;
     }
     if (!p) {
@@ -356,14 +356,14 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
           style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
           تتبع الشحنة
         </h2>
-        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل الاسم التجاري ورقم الهاتف مفصولين بشرطة لمعرفة حالة شحنتك</p>
+        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل اسم المستلم ورقم هاتفه مفصولين بشرطة لمعرفة حالة الشحنة</p>
         <div className="flex flex-col gap-3 max-w-lg mx-auto mb-10">
           <input
             type="text"
             value={trackInput}
             onChange={e => setTrackInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-            placeholder="الاسم التجاري - رقم الهاتف   مثال: محمد للتجارة - 01012345678"
+            placeholder="اسم المستلم - رقم الهاتف   مثال: محمد احمد - 01012345678"
             disabled={isTracking}
             dir="rtl"
             className="w-full rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
