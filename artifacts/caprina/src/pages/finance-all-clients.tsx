@@ -402,11 +402,10 @@ export default function AllClientsPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
           { label: "إجمالي العملاء",    value: clients.length, sub: `${activeCount} نشط`, icon: <Users className="w-5 h-5" />,       color: "text-foreground" },
           { label: "إجمالي الشحنات",    value: totalOrders, sub: `محصَّل ${fmt(totalPaid)}`, icon: <TrendingUp className="w-5 h-5" />, color: "text-primary" },
-          { label: "إجمالي الطلبات",    value: totalOrders,     sub: `متوسط ${clients.length ? Math.round(totalOrders / clients.length) : 0} طلب/عميل`, icon: <ShoppingCart className="w-5 h-5" />, color: "text-foreground" },
           { label: "المتبقي غير محصَّل", value: fmt(totalSales - totalPaid), sub: `${clients.length ? Math.round((totalPaid / totalSales) * 100) || 0 : 0}% نسبة التحصيل`, icon: <Receipt className="w-5 h-5" />, color: "text-amber-400" },
         ].map((k, i) => (
           <Card key={i} className="border-border bg-card p-4">
@@ -471,13 +470,10 @@ export default function AllClientsPage() {
               ? <ColumnFilter label="المدينة" options={cityOptions} selected={filterCity} onChange={v => { setFilterCity(v); setPage(1); }} />
               : <span>المدينة</span>}
           </div>
-          <div className="col-span-2 flex items-center gap-1">
+          <div className="col-span-3 flex items-center gap-1">
             {showFilters
               ? <ColumnFilter label="شروط الدفع" options={paymentTermsOptions} selected={filterPaymentTerms} onChange={v => { setFilterPaymentTerms(v); setPage(1); }} />
               : <span>شروط الدفع</span>}
-          </div>
-          <div className="col-span-1 flex items-center gap-1">
-            <SortBtn col="totalOrders" label="الطلبات" />
           </div>
           <div className="col-span-1 flex items-center gap-1">
             <SortBtn col="totalOrders" label="الشحنات" />
@@ -532,13 +528,8 @@ export default function AllClientsPage() {
               </div>
 
               {/* شروط الدفع */}
-              <div className="col-span-2">
+              <div className="col-span-3">
                 <span className="text-[10px] bg-muted/30 rounded-full px-2 py-0.5">{c.paymentTerms ?? "—"}</span>
-              </div>
-
-              {/* الطلبات */}
-              <div className="col-span-1">
-                <span className="text-xs font-bold">{c.totalOrders ?? 0}</span>
               </div>
 
               {/* الشحنات */}
