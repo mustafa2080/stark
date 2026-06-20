@@ -50,52 +50,54 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
     }
 
     // ── خطوة 1: ابحث عن العميل التجاري في clientsTable بالاسم فقط ──────────
-    // (الفون اللي بيدخله المستخدم هو فون المرسل في الشحنة، مش بالضرورة فون العميل في clientsTable)
     const matchedClients = await db
-      .select({ id: clientsTable.id })
+      .select({ id: clientsTable.id, phone: clientsTable.phone, phone2: clientsTable.phone2 })
       .from(clientsTable)
-      .where(
-        like(clientsTable.name, `%${name}%`)
-      )
+      .where(like(clientsTable.name, `%${name}%`))
       .limit(10);
 
     const clientIds = matchedClients.map(c => c.id);
 
-    // ── خطوة 2: جيب الشحنات المرتبطة بالعميل التجاري أو بـ senderName/phone ──
-    const conditions = [
-      isNull(shipmentsTable.deletedAt),
-    ];
+    // ── خطوة 2: جيب الشحنات ──────────────────────────────────────────────────
+    // الفون اللي بيدخله المستخدم ممكن يكون:
+    //   أ) senderPhone في الشحنة (فون الراسل)
+    //   ب) receiverPhone في الشحنة (فون المستلم)
+    //   ج) phone في clientsTable (فون العميل التجاري)
+    // بنقبل الثلاثة عشان نضمن نلاقي الشحنة
+
+    const conditions = [isNull(shipmentsTable.deletedAt)];
+
+    // فونات العملاء التجاريين المتطابقين مع الاسم
+    const clientPhones = matchedClients
+      .flatMap(c => [c.phone, c.phone2])
+      .filter(Boolean) as string[];
+
+    // كل الفونات اللي هنبحث بيها (فون المستخدم + فونات العميل التجاري)
+    const allPhones = Array.from(new Set([phone, ...clientPhones]));
+
+    const phoneCondition = or(
+      ...allPhones.flatMap(p => [
+        eq(shipmentsTable.senderPhone,   p),
+        eq(shipmentsTable.senderPhone2,  p),
+        eq(shipmentsTable.receiverPhone, p),
+        eq(shipmentsTable.receiverPhone2, p),
+      ])
+    );
 
     if (clientIds.length > 0) {
-      // العميل التجاري موجود → جيب شحناته بـ clientId أو (senderName + phone)
       conditions.push(
         or(
-          // شحنات مرتبطة بالعميل التجاري مباشرةً (بصرف النظر عن الفون)
-          and(
-            inArray(shipmentsTable.clientId, clientIds),
-            or(
-              eq(shipmentsTable.senderPhone,  phone),
-              eq(shipmentsTable.senderPhone2, phone),
-            )
-          ),
-          // أو شحنات senderName يطابق الاسم + فون مطابق
-          and(
-            like(shipmentsTable.senderName, `%${name}%`),
-            or(
-              eq(shipmentsTable.senderPhone,  phone),
-              eq(shipmentsTable.senderPhone2, phone),
-            )
-          )
+          // شحنات مرتبطة بـ clientId مباشرةً
+          inArray(shipmentsTable.clientId, clientIds),
+          // أو senderName يطابق + أي فون مطابق
+          and(like(shipmentsTable.senderName, `%${name}%`), phoneCondition as any),
         ) as any
       );
     } else {
-      // مفيش عميل تجاري بالاسم ده → ابحث بـ senderName + phone فقط
+      // مفيش عميل تجاري → ابحث بـ senderName + أي فون
       conditions.push(
         like(shipmentsTable.senderName, `%${name}%`),
-        or(
-          eq(shipmentsTable.senderPhone,  phone),
-          eq(shipmentsTable.senderPhone2, phone),
-        ) as any
+        phoneCondition as any,
       );
     }
 
