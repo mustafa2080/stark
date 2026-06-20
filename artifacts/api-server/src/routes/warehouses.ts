@@ -225,6 +225,65 @@ router.get("/warehouses/:id", async (req, res): Promise<void> => {
   res.json({ ...warehouse, stock });
 });
 
+// ─── Get warehouse shipments ───────────────────────────────────────────────────
+router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const statusFilter = req.query.status as string | undefined;
+
+  const ACTIVE_STATUSES = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"];
+
+  const conditions: any[] = [
+    eq(shipmentsTable.warehouseId, id),
+    isNull(shipmentsTable.deletedAt),
+  ];
+
+  if (statusFilter === "active") {
+    conditions.push(inArray(shipmentsTable.status, ACTIVE_STATUSES));
+  } else if (statusFilter === "delivered") {
+    conditions.push(inArray(shipmentsTable.status, ["delivered"]));
+  } else if (statusFilter === "returned") {
+    conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled"]));
+  }
+  // بدون فلتر = كل الشحنات
+
+  const shipments = await db
+    .select({
+      id:             shipmentsTable.id,
+      shipmentNumber: shipmentsTable.shipmentNumber,
+      trackingNumber: shipmentsTable.trackingNumber,
+      senderName:     shipmentsTable.senderName,
+      receiverName:   shipmentsTable.receiverName,
+      receiverCity:   shipmentsTable.receiverCity,
+      status:         shipmentsTable.status,
+      codAmount:      shipmentsTable.codAmount,
+      shippingFee:    shipmentsTable.shippingFee,
+      pieces:         shipmentsTable.pieces,
+      createdAt:      shipmentsTable.createdAt,
+      deliveredAt:    shipmentsTable.actualDelivery,
+    })
+    .from(shipmentsTable)
+    .where(and(...conditions))
+    .orderBy(desc(shipmentsTable.createdAt))
+    .limit(200);
+
+  // إحصائيات سريعة
+  const allForStats = await db
+    .select({ status: shipmentsTable.status })
+    .from(shipmentsTable)
+    .where(and(eq(shipmentsTable.warehouseId, id), isNull(shipmentsTable.deletedAt)));
+
+  const stats = {
+    total:     allForStats.length,
+    active:    allForStats.filter(s => ACTIVE_STATUSES.includes(s.status)).length,
+    delivered: allForStats.filter(s => s.status === "delivered").length,
+    returned:  allForStats.filter(s => ["returned", "cancelled"].includes(s.status)).length,
+  };
+
+  res.json({ shipments, stats });
+});
+
 // ─── Update ────────────────────────────────────────────────────────────────────
 router.patch("/warehouses/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);

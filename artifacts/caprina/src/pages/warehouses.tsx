@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "wouter";
-import { warehousesApi, type Warehouse as WarehouseType, type WarehouseDetail, productsApi, variantsApi } from "@/lib/api";
+import { warehousesApi, apiFetch, type Warehouse as WarehouseType, type WarehouseDetail, productsApi, variantsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/use-debounce";
 
@@ -97,11 +97,29 @@ function WarehouseFormDialog({
 function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; onClose: () => void; canEdit: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"stock" | "shipments">("stock");
+  const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"active" | "delivered" | "returned" | "all">("active");
+
   const { data: warehouse, isLoading } = useQuery({
     queryKey: ["warehouses", warehouseId],
     queryFn: () => warehousesApi.get(warehouseId),
     staleTime: 0,
     refetchInterval: 5000,
+  });
+
+  const { data: warehouseShipments, isLoading: loadingShipments } = useQuery({
+    queryKey: ["warehouse-shipments", warehouseId, shipmentStatusFilter],
+    queryFn: () => apiFetch<{
+      shipments: {
+        id: number; shipmentNumber: string | null; trackingNumber: string | null;
+        senderName: string; receiverName: string; receiverCity: string | null;
+        status: string; codAmount: string | null; shippingFee: string | null;
+        pieces: number | null; createdAt: string; deliveredAt: string | null;
+      }[];
+      stats: { total: number; active: number; delivered: number; returned: number };
+    }>(`/warehouses/${warehouseId}/shipments?status=${shipmentStatusFilter}`),
+    staleTime: 30_000,
+    refetchInterval: activeTab === "shipments" ? 30_000 : false,
   });
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list, staleTime: 0 });
   const { data: allVariants } = useQuery({ queryKey: ["variants-all"], queryFn: variantsApi.listAll, staleTime: 0, refetchInterval: 5000 });
@@ -278,6 +296,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
 
   if (isLoading) return <div className="text-center py-8 text-muted-foreground text-sm">جاري التحميل...</div>;
 
+  const stats = warehouseShipments?.stats;
+
   return (
     <div className="space-y-4" dir="rtl">
 
@@ -294,10 +314,40 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
             {warehouse?.address && <p className="text-xs text-muted-foreground">{warehouse.address}</p>}
           </div>
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handlePrint}>
-          <Printer className="w-3.5 h-3.5" />طباعة الجرد
-        </Button>
+        {activeTab === "stock" && (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handlePrint}>
+            <Printer className="w-3.5 h-3.5" />طباعة الجرد
+          </Button>
+        )}
       </div>
+
+      {/* ── Tabs ── */}
+      <div className="flex items-center gap-1 bg-muted/20 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveTab("stock")}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "stock" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Package className="w-3.5 h-3.5" />المخزون
+        </button>
+        <button
+          onClick={() => setActiveTab("shipments")}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "shipments" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Truck className="w-3.5 h-3.5" />الشحنات
+          {(stats?.active ?? 0) > 0 && (
+            <span className="bg-amber-500 text-white rounded-full w-4 h-4 text-[9px] font-black flex items-center justify-center">
+              {stats!.active}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* ══════════════ TAB: المخزون ══════════════ */}
+      {activeTab === "stock" && (<>
 
       {/* ── الأربع مربعات ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -526,6 +576,89 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
           </TableBody>
         </Table>
       </div>
+    </>)}
+
+      {/* ══════════════ TAB: الشحنات ══════════════ */}
+      {activeTab === "shipments" && (
+        <div className="space-y-4">
+
+          {/* إحصائيات سريعة */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "الكل",        value: stats?.total ?? 0,     key: "all",       color: "text-foreground",  bg: "bg-muted/20" },
+              { label: "قيد الشحن",   value: stats?.active ?? 0,    key: "active",    color: "text-amber-500",   bg: "bg-amber-500/10" },
+              { label: "مسلّمة",      value: stats?.delivered ?? 0, key: "delivered", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+              { label: "مرتجعة",      value: stats?.returned ?? 0,  key: "returned",  color: "text-red-500",     bg: "bg-red-500/10" },
+            ].map(s => (
+              <button
+                key={s.key}
+                onClick={() => setShipmentStatusFilter(s.key as any)}
+                className={`rounded-xl p-3 text-center transition-all border ${
+                  shipmentStatusFilter === s.key
+                    ? `${s.bg} border-current ${s.color}`
+                    : "bg-muted/10 border-border hover:border-primary/30"
+                }`}
+              >
+                <p className={`text-xl font-black ${shipmentStatusFilter === s.key ? s.color : ""}`}>{s.value}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* جدول الشحنات */}
+          <Card className="border-border bg-card">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 border-b border-border bg-muted/5 text-[10px] font-bold text-muted-foreground">
+              <span className="col-span-2">رقم الشحنة</span>
+              <span className="col-span-2">المُرسِل</span>
+              <span className="col-span-2">المستلم</span>
+              <span className="col-span-2">المدينة</span>
+              <span className="col-span-1 text-center">القطع</span>
+              <span className="col-span-2">الحالة</span>
+              <span className="col-span-1">التاريخ</span>
+            </div>
+
+            {loadingShipments ? (
+              <div className="py-10 text-center text-muted-foreground text-xs animate-pulse">جاري التحميل...</div>
+            ) : !warehouseShipments?.shipments.length ? (
+              <div className="py-12 text-center">
+                <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
+                <p className="text-xs text-muted-foreground">لا توجد شحنات في هذه الفئة</p>
+              </div>
+            ) : warehouseShipments.shipments.map(s => {
+              const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
+                waiting:          { label: "انتظار",          color: "text-slate-400",   bg: "bg-slate-500/10" },
+                confirmed:        { label: "مؤكدة",           color: "text-blue-400",    bg: "bg-blue-500/10" },
+                picked_up:        { label: "تم الاستلام",     color: "text-indigo-400",  bg: "bg-indigo-500/10" },
+                in_transit:       { label: "في الطريق",       color: "text-amber-400",   bg: "bg-amber-500/10" },
+                out_for_delivery: { label: "خرجت للتسليم",    color: "text-orange-400",  bg: "bg-orange-500/10" },
+                delivered:        { label: "تم التسليم",      color: "text-emerald-400", bg: "bg-emerald-500/10" },
+                delayed:          { label: "متأخرة",          color: "text-yellow-400",  bg: "bg-yellow-500/10" },
+                returned:         { label: "مرتجع",           color: "text-red-400",     bg: "bg-red-500/10" },
+                cancelled:        { label: "ملغية",           color: "text-red-300",     bg: "bg-red-400/10" },
+              };
+              const st = STATUS_MAP[s.status] ?? { label: s.status, color: "text-muted-foreground", bg: "bg-muted/20" };
+              return (
+                <div key={s.id} className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border/50 hover:bg-muted/10 transition-colors items-center text-xs">
+                  <div className="col-span-2 font-bold text-primary truncate">{s.shipmentNumber ?? `#${s.id}`}</div>
+                  <div className="col-span-2 truncate">{s.senderName}</div>
+                  <div className="col-span-2 truncate">{s.receiverName}</div>
+                  <div className="col-span-2 text-muted-foreground truncate">{s.receiverCity ?? "—"}</div>
+                  <div className="col-span-1 text-center font-bold">{s.pieces ?? 1}</div>
+                  <div className="col-span-2">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${st.bg} ${st.color}`}>
+                      {st.label}
+                    </span>
+                  </div>
+                  <div className="col-span-1 text-muted-foreground text-[10px]">
+                    {new Date(s.createdAt).toLocaleDateString("ar-EG", { month: "numeric", day: "numeric" })}
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      )}
+
     </div>
   );
 }
