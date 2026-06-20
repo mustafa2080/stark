@@ -687,7 +687,8 @@ function OrderDeliveryRow({
                 (needsNote && !note.trim()) ||
                 (needsPartial && (partialQty === "")) ||
                 (needsPartial && parseInt(partialQty) > order.quantity) ||
-                (status === "returned" && returnReceived === null)
+                (status === "returned" && returnReceived === null) ||
+                (status === "partial_received" && partialReturnReceived === null)
               }
             >
               <Save className="w-3 h-3" />
