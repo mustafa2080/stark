@@ -449,11 +449,11 @@ async function getOrCreateOpenManifest(
 }
 
 // ─── ترحيل الشحنات لبيان جديد عند إغلاق البيان ───────────────────────────────
-// 1) استلام جزئي (partial_delivered): الكمية المتبقية تترحّل كصف جديد (pending) بملاحظة توضيحية
-// 2) مؤجل (delayed): يترحّل كصف جديد (pending) — زي الطلبيات العادية المؤجلة، بدون تغيير الكمية
-// 3) مرتجع (returned) أو استلام جزئي لسه عند شركة الشحن (returnReceived != 1):
-//    يترحّل "زي ما هو تماماً" بدون أي تغيير — هيفضل ظاهر في حاوية "بضاعة لسه عند شركة الشحن"
-//    في البيان الجديد لحد ما اليوزر يضغط "تم الاستلام"
+// 1) مؤجل (delayed): يترحّل كصف pending جديد كامل في الجدول — الحالة الوحيدة اللي بتاخد صف جديد كامل
+// 2) مرتجع (returned) أو استلام جزئي (partial_delivered) لسه عند شركة الشحن (returnReceived != 1):
+//    يترحّل "زي ما هو تماماً" بدون أي تغيير في الجدول — بيفضل ظاهر في حاوية "بضاعة لسه عند شركة الشحن"
+//    بنفس بياناته (الملاحظات والكمية الجزئية) من بيان لبيان لحد ما اليوزر يضغط "تم الاستلام"
+//    (ده شامل الحالتين: لسه ولا اتستلمش خالص، أو اتستلم جزء وفضل جزء عند الشحن)
 async function rolloverPartialShipments(
   closedManifest: typeof shipmentManifestsTable.$inferSelect,
   items: (typeof shipmentManifestItemsTable.$inferSelect)[],
@@ -467,37 +467,18 @@ async function rolloverPartialShipments(
 } | null> {
   const now = new Date();
 
-  // ── 1) استلام جزئي: نحسب الكمية المتبقية ونرحّلها كصف pending جديد ─────────
-  const partialItems = items.filter(i => i.deliveryStatus === "partial_delivered" && i.partialQuantity != null);
-  let partialRemainders: { shipmentId: number; remaining: number }[] = [];
-  if (partialItems.length > 0) {
-    const shipmentIds = partialItems.map(i => i.shipmentId);
-    const shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
-    const shipmentMap = new Map(shipments.map(s => [s.id, s]));
-
-    partialRemainders = partialItems
-      .map(item => {
-        const shipment = shipmentMap.get(item.shipmentId);
-        if (!shipment) return null;
-        const totalPieces = Number(shipment.pieces ?? 1);
-        const received = Number(item.partialQuantity ?? 0);
-        const remaining = totalPieces - received;
-        return remaining > 0 ? { shipmentId: item.shipmentId, remaining } : null;
-      })
-      .filter((r): r is { shipmentId: number; remaining: number } => r !== null);
-  }
-
-  // ── 2) مؤجل: يترحّل كصف pending جديد زي ما هو ───────────────────────────────
+  // ── 1) مؤجل: يترحّل كصف pending جديد زي ما هو ───────────────────────────────
   const delayedItems = items.filter(i => i.deliveryStatus === "delayed");
 
-  // ── 3) مرتجع / استلام جزئي لسه عند شركة الشحن (بدون returnReceived) ────────
-  //    يترحّل بنفس بياناته بالظبط، بدون تغيير أي حاجة
+  // ── 2) مرتجع / استلام جزئي لسه عند شركة الشحن (بدون returnReceived) ────────
+  //    يترحّل بنفس بياناته بالظبط، بدون تغيير أي حاجة — يشمل الجزئي اللي لسه
+  //    عند الشحن كله أو جزء منه، الملاحظة والكمية الجزئية بتترحّل زي ما هي
   const stillAtShippingItems = items.filter(i =>
     (i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered") &&
     i.returnReceived !== 1
   );
 
-  const hasRollover = partialRemainders.length > 0 || delayedItems.length > 0 || stillAtShippingItems.length > 0;
+  const hasRollover = delayedItems.length > 0 || stillAtShippingItems.length > 0;
   if (!hasRollover) return null;
 
   const targetManifest = await getOrCreateOpenManifest(closedManifest, "بيان مرحّل تلقائياً");
@@ -512,27 +493,11 @@ async function rolloverPartialShipments(
 
   const rowsToInsert: (typeof shipmentManifestItemsTable.$inferInsert)[] = [];
   const shipmentIdsToMarkInTransit: number[] = [];
-  let partialCount = 0;
   let delayedCount = 0;
   let returnedStillAtShippingCount = 0;
   let partialStillAtShippingCount = 0;
 
-  // 1) استلام جزئي → صف pending جديد بالكمية المتبقية فقط
-  for (const r of partialRemainders) {
-    if (existingIds.has(r.shipmentId)) continue;
-    rowsToInsert.push({
-      manifestId:     targetManifestId,
-      shipmentId:     r.shipmentId,
-      deliveryStatus: "pending",
-      deliveryNote:   `باقي من استلام جزئي (${r.remaining} قطعة) — بيان ${closedManifest.manifestNumber}`,
-      addedAt:        now,
-    });
-    shipmentIdsToMarkInTransit.push(r.shipmentId);
-    existingIds.add(r.shipmentId);
-    partialCount++;
-  }
-
-  // 2) مؤجل → صف pending جديد (نفس الشحنة بالكامل)
+  // 1) مؤجل → صف pending جديد (نفس الشحنة بالكامل)
   for (const item of delayedItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
@@ -547,7 +512,7 @@ async function rolloverPartialShipments(
     delayedCount++;
   }
 
-  // 3) مرتجع / جزئي لسه عند الشحن → يترحّل زي ما هو بدون أي تغيير
+  // 2) مرتجع / جزئي لسه عند الشحن → يترحّل زي ما هو بدون أي تغيير (ملاحظات وكمية جزئية فقط)
   for (const item of stillAtShippingItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
@@ -582,7 +547,7 @@ async function rolloverPartialShipments(
     orderCount:              rowsToInsert.length,
     postponedCount:          delayedCount,
     returnedInShippingCount: returnedStillAtShippingCount,
-    partialInShippingCount:  partialCount + partialStillAtShippingCount,
+    partialInShippingCount:  partialStillAtShippingCount,
   };
 }
 
