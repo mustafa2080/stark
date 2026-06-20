@@ -69,7 +69,7 @@ const GLOW = {
 
 const fmt = (n: string | number) =>
   new Intl.NumberFormat("ar-EG", {
-    style: "currency", currency: "EGP", maximumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(Number(n));
 
 // ── شريط التقدم للفاتورة — زي DeliveryBar ──────────────────────────────────
@@ -289,9 +289,9 @@ export default function CommercialClientDetailPage() {
       // ══ سطرات 4-5: ملخص أرقام (4 بلوكات) ══
       const smColors  = ["FF0D9488","FF16A34A","FFDC2626","FF1D4ED8"];
       const smBGs     = ["FF0D3331","FF052E16","FF450A0A","FF1E3A5F"];
-      const smLabels  = ["إجمالي المبيعات","إجمالي المدفوع","المديونية",`تحقيق الهدف`];
-      const smVals    = [tSales, tPaid, tUnpaid, parseFloat(pct)];
-      const smFmts    = ['#,##0 "ج.م"','#,##0 "ج.م"','#,##0 "ج.م"','0.0"%"'];
+      const smLabels  = ["إجمالي الشحنات","إجمالي المدفوع","المديونية",`تحقيق الهدف`];
+      const smVals    = [data.orders.filter(o => ["delivered", "closed"].includes(o.status)).length, tPaid, tUnpaid, parseFloat(pct)];
+      const smFmts    = ['#,##0','#,##0','#,##0','0.0"%"'];
       const smCols    = [["A","B"],["C","D"],["E","F"],["G","G"]];
 
       smLabels.forEach((lbl, i) => {
@@ -364,9 +364,9 @@ export default function CommercialClientDetailPage() {
           bAll(cell, "FFD1D5DB");
         });
 
-        row.getCell(5).numFmt = '#,##0 "ج.م"';
-        row.getCell(6).numFmt = '#,##0 "ج.م"';
-        row.getCell(7).numFmt = '#,##0 "ج.م"';
+        row.getCell(5).numFmt = '#,##0';
+        row.getCell(6).numFmt = '#,##0';
+        row.getCell(7).numFmt = '#,##0';
 
         // لون خلية الحالة
         row.getCell(3).font = { name:"Arial", size:10, bold:true, color:{ argb: isProc ? "FFD97706" : "FF059669" } };
@@ -390,9 +390,9 @@ export default function CommercialClientDetailPage() {
         cell.alignment = { horizontal:"center", vertical:"middle" };
         bAll(cell, "FF60A5FA");
       });
-      totRow.getCell(5).numFmt = '#,##0 "ج.م"';
-      totRow.getCell(6).numFmt = '#,##0 "ج.م"';
-      totRow.getCell(7).numFmt = '#,##0 "ج.م"';
+      totRow.getCell(5).numFmt = '#,##0';
+      totRow.getCell(6).numFmt = '#,##0';
+      totRow.getCell(7).numFmt = '#,##0';
       if (tUnpaid > 0) totRow.getCell(7).font = { name:"Arial", size:11, bold:true, color:{ argb:"FFFBBF24" } };
       totRow.height = 26;
 
@@ -419,7 +419,7 @@ export default function CommercialClientDetailPage() {
     const tPaid   = parseFloat(data.totalPaid   ?? "0");
     const tUnpaid = Math.max(0, tSales - tPaid);
     const pct     = Math.min((tOrders / TARGET_VAL) * 100, 100).toFixed(1);
-    const fmtNum  = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+    const fmtNum  = (n: number) => new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(n);
     const statusMap: Record<string, string> = {
       draft: "مسودة", confirmed: "مؤكد", processing: "قيد التجهيز", delivered: "تم التسليم", closed: "مغلق",
     };
@@ -465,7 +465,7 @@ export default function CommercialClientDetailPage() {
   <p class="meta">تاريخ الطباعة: ${format(new Date(), "yyyy/MM/dd HH:mm")}</p>
   <div class="summary">
     <div class="stat"><div class="stat-label">إجمالي الفواتير</div><div class="stat-value">${data.orders.length}</div></div>
-    <div class="stat"><div class="stat-label">إجمالي المبيعات</div><div class="stat-value" style="color:#2dd4bf">${fmtNum(tSales)}</div></div>
+    <div class="stat"><div class="stat-label">إجمالي الشحنات</div><div class="stat-value" style="color:#2dd4bf">${data.orders.filter(o => ["delivered", "closed"].includes(o.status)).length}</div></div>
     <div class="stat"><div class="stat-label">المديونية</div><div class="stat-value" style="color:#f87171">${fmtNum(tUnpaid)}</div></div>
     <div class="stat">
       <div class="stat-label">تحقيق الهدف</div>
@@ -737,9 +737,9 @@ export default function CommercialClientDetailPage() {
             <p className="text-[10px] text-muted-foreground">{processingOrders.length} جارية · {deliveredOrders.length} مكتملة</p>
           </Card>
           <Card className="card-glow border-teal-900/40 p-3 text-center" style={GLOW.teal.style}>
-            <p className="text-[10px] text-teal-400 mb-0.5">إجمالي المبيعات</p>
-            <p className="text-xl font-black text-teal-400">{fmt(totalSales)}</p>
-            <p className="text-[10px] text-teal-600">{salesPct.toFixed(1)}% من الهدف</p>
+            <p className="text-[10px] text-teal-400 mb-0.5">إجمالي الشحنات</p>
+            <p className="text-xl font-black text-teal-400">{deliveredOrders.length}</p>
+            <p className="text-[10px] text-teal-600">شحنة مسلّمة</p>
           </Card>
           <Card className="card-glow border-red-900/40 p-3 text-center" style={GLOW.red.style}>
             <p className="text-[10px] text-red-400 mb-0.5">المديونية</p>
