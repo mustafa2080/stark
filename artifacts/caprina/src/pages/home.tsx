@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { trackingImg } from "../trackingImg";
 import { useLocation } from "wouter";
-import { Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LayoutDashboard } from "lucide-react";
+import { Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LayoutDashboard, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggleDarkMode: () => void }) {
@@ -276,12 +277,44 @@ function HeroSection() {
 function TrackingSection({ darkMode }: { darkMode: boolean }) {
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [isTracking, setIsTracking] = useState(false);
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+
+  // تحويل الأرقام العربية/الفارسية لإنجليزية، وإزالة أي حرف غير رقمي
+  const toEnglishDigits = (value: string) =>
+    value.replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+         .replace(/[۰-۹]/g, d => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
+
+  const handlePhoneChange = (raw: string) => {
+    const normalized = toEnglishDigits(raw).replace(/[^0-9]/g, "");
+    setClientPhone(normalized.slice(0, 11));
+  };
+
+  const isValidEgyptianPhone = (p: string) => /^01[0-9]{9}$/.test(p);
 
   const handleTrack = () => {
     const n = clientName.trim();
     const p = clientPhone.trim();
-    if (!n || !p) return;
+
+    if (!n) {
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "من فضلك أدخل الاسم التجاري للعميل" });
+      return;
+    }
+    if (n.length < 2) {
+      toast({ variant: "destructive", title: "اسم غير صالح", description: "الاسم التجاري قصير جدًا" });
+      return;
+    }
+    if (!p) {
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "من فضلك أدخل رقم الهاتف" });
+      return;
+    }
+    if (!isValidEgyptianPhone(p)) {
+      toast({ variant: "destructive", title: "رقم هاتف غير صحيح", description: "رقم الهاتف لازم يبدأ بـ 01 ويتكون من 11 رقم" });
+      return;
+    }
+
+    setIsTracking(true);
     navigate(`/track-client?name=${encodeURIComponent(n)}&phone=${encodeURIComponent(p)}`);
   };
   const steps = [
@@ -323,14 +356,15 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
         </h2>
         <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل الاسم التجاري ورقم الهاتف لمعرفة حالة شحنتك</p>
         <div className="flex flex-col gap-3 max-w-lg mx-auto mb-10">
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={clientName}
               onChange={e => setClientName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
               placeholder="الاسم التجاري للعميل"
-              className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
+              disabled={isTracking}
+              className="flex-1 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
               style={{
                 background: "rgba(255,255,255,0.12)",
                 border: "1.5px solid rgba(255,255,255,0.6)",
@@ -341,11 +375,15 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             />
             <input
               type="tel"
+              inputMode="numeric"
               value={clientPhone}
-              onChange={e => setClientPhone(e.target.value)}
+              onChange={e => handlePhoneChange(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-              placeholder="رقم الهاتف"
-              className="w-40 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300"
+              placeholder="01XXXXXXXXX"
+              maxLength={11}
+              disabled={isTracking}
+              dir="ltr"
+              className="sm:w-44 rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 text-center disabled:opacity-50"
               style={{
                 background: "rgba(255,255,255,0.12)",
                 border: "1.5px solid rgba(255,255,255,0.6)",
@@ -355,9 +393,19 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
               onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
             />
           </div>
-          <button onClick={handleTrack} className="w-full font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm text-black hover:scale-105"
+          <button
+            onClick={handleTrack}
+            disabled={isTracking}
+            className="w-full font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm text-black hover:scale-105 disabled:opacity-60 disabled:hover:scale-100 flex items-center justify-center gap-2"
             style={{ background: "linear-gradient(135deg, #ffffff 0%, #d8d8d8 100%)", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.3)" }}>
-            تتبع الشحنة
+            {isTracking ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                جاري البحث...
+              </>
+            ) : (
+              "بحث عن الشحنة"
+            )}
           </button>
         </div>
         <div className="flex items-center justify-center gap-2 flex-wrap">
