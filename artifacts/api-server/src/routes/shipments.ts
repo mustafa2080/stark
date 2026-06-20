@@ -49,18 +49,13 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       return;
     }
 
-    // ── خطوة 1: ابحث عن العميل التجاري في clientsTable بالاسم + الفون ──────
+    // ── خطوة 1: ابحث عن العميل التجاري في clientsTable بالاسم فقط ──────────
+    // (الفون اللي بيدخله المستخدم هو فون المرسل في الشحنة، مش بالضرورة فون العميل في clientsTable)
     const matchedClients = await db
       .select({ id: clientsTable.id })
       .from(clientsTable)
       .where(
-        and(
-          like(clientsTable.name, `%${name}%`),
-          or(
-            eq(clientsTable.phone,  phone),
-            eq(clientsTable.phone2, phone),
-          )
-        )
+        like(clientsTable.name, `%${name}%`)
       )
       .limit(10);
 
@@ -72,10 +67,18 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
     ];
 
     if (clientIds.length > 0) {
-      // ابحث عن طريق clientId أو senderName+phone
+      // العميل التجاري موجود → جيب شحناته بـ clientId أو (senderName + phone)
       conditions.push(
         or(
-          inArray(shipmentsTable.clientId, clientIds),
+          // شحنات مرتبطة بالعميل التجاري مباشرةً (بصرف النظر عن الفون)
+          and(
+            inArray(shipmentsTable.clientId, clientIds),
+            or(
+              eq(shipmentsTable.senderPhone,  phone),
+              eq(shipmentsTable.senderPhone2, phone),
+            )
+          ),
+          // أو شحنات senderName يطابق الاسم + فون مطابق
           and(
             like(shipmentsTable.senderName, `%${name}%`),
             or(
