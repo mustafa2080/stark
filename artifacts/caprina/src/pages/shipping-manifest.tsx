@@ -3333,7 +3333,15 @@ export default function ShippingManifestPage() {
   // ─── Search filter — real-time, no popover ────────────────────────────────
   const filteredManifestOrders = useMemo(() => {
     const orders = manifest?.orders ?? [];
-    const groups = groupManifestOrders(orders);
+    // ─── استبعاد المرتجع/الجزئي اللي لسه عند شركة الشحن من جدول الطلبيات ───────
+    // دول بيظهروا فقط في حاوية "بضاعة لسه عند شركة الشحن" تحت، مش في الجدول
+    const ordersWithoutPendingReturns = orders.filter(o => {
+      const isStillAtShipping =
+        (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+        (o as any).returnReceived !== 1;
+      return !isStillAtShipping;
+    });
+    const groups = groupManifestOrders(ordersWithoutPendingReturns);
     if (!manifestCustomerSearch && !manifestProductSearch && !manifestTotalSearch) return groups;
     const cLow = manifestCustomerSearch.toLowerCase();
     const pLow = manifestProductSearch.toLowerCase();
