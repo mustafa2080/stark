@@ -3500,6 +3500,7 @@ export default function ShippingManifestPage() {
         if (rolled.postponedCount > 0) parts.push(`${rolled.postponedCount} مؤجل`);
         if (rolled.pendingCount > 0) parts.push(`${rolled.pendingCount} قيد الانتظار`);
         if (rolled.returnedInShippingCount > 0) parts.push(`${rolled.returnedInShippingCount} مرتجع في الشحن`);
+        if (rolled.partialInShippingCount > 0) parts.push(`${rolled.partialInShippingCount} جزئي في الشحن`);
         const breakdown = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
         toast({
           title: "🔒 تم إغلاق البيان بنجاح",
@@ -4514,7 +4515,7 @@ export default function ShippingManifestPage() {
               <AlertDialogCancel onClick={() => setShowRolloverDialog(null)}>لاحقاً</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-emerald-700 hover:bg-emerald-600 text-white gap-1"
-                onClick={() => { window.location.href = `/shipping/manifests/${showRolloverDialog.id}`; }}
+                onClick={() => { window.location.href = `/shipping/shipment-manifests/${showRolloverDialog.id}`; }}
               >
                 <ArrowRight className="w-3.5 h-3.5" />
                 انتقل للبيان الجديد

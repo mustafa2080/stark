@@ -424,7 +424,7 @@ async function createTreasuryEntryOnClose(
 async function getOrCreateOpenManifest(
   closedManifest: typeof shipmentManifestsTable.$inferSelect,
   defaultNotes: string,
-): Promise<number> {
+): Promise<{ id: number; manifestNumber: string }> {
   const [openManifest] = await db
     .select()
     .from(shipmentManifestsTable)
@@ -433,7 +433,7 @@ async function getOrCreateOpenManifest(
       eq(shipmentManifestsTable.status, "open"),
     ));
 
-  if (openManifest) return openManifest.id;
+  if (openManifest) return { id: openManifest.id, manifestNumber: openManifest.manifestNumber };
 
   const manifestNumber = await generateManifestNumber(closedManifest.shippingCompanyId);
   const [result] = await db.insert(shipmentManifestsTable).values({
@@ -444,7 +444,8 @@ async function getOrCreateOpenManifest(
     notes:             defaultNotes,
     createdAt:         new Date(),
   });
-  return (result as any).insertId as number;
+  const newId = (result as any).insertId as number;
+  return { id: newId, manifestNumber };
 }
 
 // ─── ترحيل الشحنات لبيان جديد عند إغلاق البيان ───────────────────────────────
@@ -456,7 +457,14 @@ async function getOrCreateOpenManifest(
 async function rolloverPartialShipments(
   closedManifest: typeof shipmentManifestsTable.$inferSelect,
   items: (typeof shipmentManifestItemsTable.$inferSelect)[],
-): Promise<void> {
+): Promise<{
+  id: number;
+  manifestNumber: string;
+  orderCount: number;
+  postponedCount: number;
+  returnedInShippingCount: number;
+  partialInShippingCount: number;
+} | null> {
   const now = new Date();
 
   // ── 1) استلام جزئي: نحسب الكمية المتبقية ونرحّلها كصف pending جديد ─────────
@@ -490,9 +498,10 @@ async function rolloverPartialShipments(
   );
 
   const hasRollover = partialRemainders.length > 0 || delayedItems.length > 0 || stillAtShippingItems.length > 0;
-  if (!hasRollover) return;
+  if (!hasRollover) return null;
 
-  const targetManifestId = await getOrCreateOpenManifest(closedManifest, "بيان مرحّل تلقائياً");
+  const targetManifest = await getOrCreateOpenManifest(closedManifest, "بيان مرحّل تلقائياً");
+  const targetManifestId = targetManifest.id;
 
   // الشحنات اللي ممكن تتكرر بين الفئات (نادراً) — نمنع تكرار نفس shipmentId في نفس البيان
   const existing = await db
@@ -503,6 +512,10 @@ async function rolloverPartialShipments(
 
   const rowsToInsert: (typeof shipmentManifestItemsTable.$inferInsert)[] = [];
   const shipmentIdsToMarkInTransit: number[] = [];
+  let partialCount = 0;
+  let delayedCount = 0;
+  let returnedStillAtShippingCount = 0;
+  let partialStillAtShippingCount = 0;
 
   // 1) استلام جزئي → صف pending جديد بالكمية المتبقية فقط
   for (const r of partialRemainders) {
@@ -516,6 +529,7 @@ async function rolloverPartialShipments(
     });
     shipmentIdsToMarkInTransit.push(r.shipmentId);
     existingIds.add(r.shipmentId);
+    partialCount++;
   }
 
   // 2) مؤجل → صف pending جديد (نفس الشحنة بالكامل)
@@ -530,6 +544,7 @@ async function rolloverPartialShipments(
     });
     shipmentIdsToMarkInTransit.push(item.shipmentId);
     existingIds.add(item.shipmentId);
+    delayedCount++;
   }
 
   // 3) مرتجع / جزئي لسه عند الشحن → يترحّل زي ما هو بدون أي تغيير
@@ -546,18 +561,29 @@ async function rolloverPartialShipments(
       addedAt:         now,
     });
     existingIds.add(item.shipmentId);
+    if (item.deliveryStatus === "returned") returnedStillAtShippingCount++;
+    else partialStillAtShippingCount++;
     // الشحنة لسه فعلياً عند شركة الشحن، فمش بنغيّر حالتها في shipmentsTable
   }
 
-  if (rowsToInsert.length > 0) {
-    await db.insert(shipmentManifestItemsTable).values(rowsToInsert);
-  }
+  if (rowsToInsert.length === 0) return null;
+
+  await db.insert(shipmentManifestItemsTable).values(rowsToInsert);
 
   if (shipmentIdsToMarkInTransit.length > 0) {
     await db.update(shipmentsTable)
       .set({ status: "in_transit", updatedAt: now })
       .where(inArray(shipmentsTable.id, shipmentIdsToMarkInTransit));
   }
+
+  return {
+    id:                      targetManifestId,
+    manifestNumber:          targetManifest.manifestNumber,
+    orderCount:              rowsToInsert.length,
+    postponedCount:          delayedCount,
+    returnedInShippingCount: returnedStillAtShippingCount,
+    partialInShippingCount:  partialCount + partialStillAtShippingCount,
+  };
 }
 
 // ─── PATCH /shipment-manifests/:id  (قفل/فتح البيان) ────────────────────────
@@ -578,6 +604,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
       .where(eq(shipmentManifestsTable.id, id));
 
     // ── تحويل الإيراد للخزنة عند الإغلاق ──────────────────────────────────
+    let rolledOverManifest: any = null;
     if (body.status === "closed") {
       try {
         const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
@@ -590,7 +617,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
 
           // ترحيل الشحنات المعلّقة لبيان جديد: مؤجل (صف جديد) + استلام جزئي (الباقي كصف جديد)
           // + مرتجع/جزئي لسه عند الشحن (يترحّل زي ما هو بدون تغيير لحد ما يُستلم)
-          await rolloverPartialShipments(manifest, items);
+          rolledOverManifest = await rolloverPartialShipments(manifest, items);
         }
       } catch (err) {
         console.error("[PATCH /shipment-manifests/:id] treasury entry error:", err);
@@ -598,7 +625,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
       }
     }
 
-    res.json({ success: true });
+    res.json({ success: true, rolledOverManifest });
   } catch (e) {
     console.error("[PATCH /shipment-manifests/:id]", e);
     res.status(500).json({ error: "خطأ في تحديث البيان" });

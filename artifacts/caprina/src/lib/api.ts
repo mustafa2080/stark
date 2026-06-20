@@ -1557,7 +1557,17 @@ export const shipmentManifestsApi = {
       { method: "POST", body: JSON.stringify({ shipmentIds }) }
     ),
   update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null }) =>
-    apiFetch<{ success: boolean }>(`/shipment-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    apiFetch<{
+      success: boolean;
+      rolledOverManifest?: {
+        id: number;
+        manifestNumber: string;
+        orderCount: number;
+        postponedCount: number;
+        returnedInShippingCount: number;
+        partialInShippingCount: number;
+      } | null;
+    }>(`/shipment-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (id: number) =>
     apiFetch<{ success: boolean }>(`/shipment-manifests/${id}`, { method: "DELETE" }),
   companyStats: (companyId: number) =>
