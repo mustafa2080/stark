@@ -3162,7 +3162,7 @@ function ReturnReceivedButton({
   currentlyAtShipping?: boolean;
 }) {
   const { toast } = useToast();
-  const isPartial = order.deliveryStatus === "partial_received";
+  const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
   const currentRR = (order as any).returnReceived; // 0 | 1 | null
 
   // هل الزر ده هو الحالة الحالية (مظلَّل)؟
@@ -3172,13 +3172,11 @@ function ReturnReceivedButton({
 
   const mutation = useMutation({
     mutationFn: () =>
-      manifestsApi.updateOrderDelivery(manifestId, order.id, {
+      shipmentManifestsApi.updateItem(manifestId, order.id, {
         deliveryStatus: order.deliveryStatus,
-        deliveryNote: order.deliveryNote,
-        partialQuantity: order.partialQuantity ?? undefined,
-        ...(isPartial
-          ? { partialReturnReceived: received }
-          : { returnReceived: received }),
+        deliveryNote: order.deliveryNote ?? null,
+        partialQuantity: order.partialQuantity ?? null,
+        returnReceived: received,
       }),
     onSuccess: () => {
       toast({
@@ -4133,7 +4131,7 @@ export default function ShippingManifestPage() {
       {/* ─── حاوية المرتجعات والجزئي لسه عند شركة الشحن ─── */}
       {(() => {
         const pendingReturnOrders = (manifest.orders ?? []).filter(o =>
-          (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received") &&
+          (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
           (o as any).returnReceived !== 1
         );
         if (pendingReturnOrders.length === 0) return null;
@@ -4148,7 +4146,7 @@ export default function ShippingManifestPage() {
             </div>
             <div className="flex flex-col gap-2">
               {pendingReturnOrders.map(order => {
-                const isPartial = order.deliveryStatus === "partial_received";
+                const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
                 const deliveredQty = order.partialQuantity ?? 0;
                 const remainingQty = isPartial ? (order.quantity - deliveredQty) : order.quantity;
                 const rr = (order as any).returnReceived;

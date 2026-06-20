@@ -13,6 +13,7 @@ export const shipmentManifestsTable = mysqlTable("shipment_manifests", {
   invoicePrice:     decimal("invoice_price", { precision: 10, scale: 2 }),
   invoiceNotes:     text("invoice_notes"),
   manualShippingCost: decimal("manual_shipping_cost", { precision: 10, scale: 2 }),
+  courierCostManual: decimal("courier_cost_manual", { precision: 10, scale: 2 }), // تكلفة الشحنة للمندوب (تُدخل يدوياً على مستوى البيان)
   createdAt:        datetime("created_at").notNull(),
   closedAt:         datetime("closed_at"),
 });

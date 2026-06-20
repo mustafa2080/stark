@@ -134,7 +134,13 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     // ─── حسابات مالية (P&L) ───────────────────────────────────────────────
+    // الحقول:
+    //   cod      = قيمة الشحنة (COD) التي يدفعها العميل
+    //   shipping = رسوم الشحن (shippingFee) التي تأخذها شركة الشحن
+    //   cost     = تكلفة البضاعة (costPrice)
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
+    // إجمالي رسوم الشحن (shippingFee) للشحنات المسلَّمة — تُخصم من المستحق وتدخل في حساب الربح
+    let deliveredShippingFees = 0;
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
@@ -147,6 +153,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         deliveredGross += cod;
         totalCost += cost;
         totalShippingCost += shipping;
+        deliveredShippingFees += shipping;
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
         const qty = Number(shipment.quantity ?? 1);
         const unitCod = qty > 0 ? cod / qty : cod;
@@ -156,6 +163,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         deliveredGross += partialCod;
         totalCost += unitCost * Number(item.partialQuantity);
         totalShippingCost += shipping;
+        deliveredShippingFees += shipping;
       } else if (item.deliveryStatus === "returned") {
         totalShippingCost += shipping;
       } else {
@@ -163,6 +171,14 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       }
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
+
+    // ─── حسابات بيان التسوية الجديدة ───────────────────────────────────────
+    // تكلفة المندوب اليدوية على مستوى البيان (تُدخل من البطاقة)
+    const courierCostManual = manifest.courierCostManual != null ? Number(manifest.courierCostManual) : 0;
+    // صافي المستحق للشركة = إجمالي المسلَّم (COD) − تكلفة المندوب
+    const netDueToCompany   = deliveredGross - courierCostManual;
+    // صافي الربح الحقيقي = إجمالي رسوم الشحن − تكلفة المندوب
+    const realNetProfit     = deliveredShippingFees - courierCostManual;
 
     const [company] = await db.select().from(shippingCompaniesTable)
       .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
@@ -175,7 +191,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         total: items.length, delivered, returned, pending, delayed, partial,
         totalRevenue, totalCost, totalShippingCost, returnLosses,
         netProfit, deliveredGross,
+        // ── بيان التسوية الجديد ──
+        deliveredShippingFees,                       // إجمالي رسوم الشحن (shippingFee) للشحنات المسلَّمة
+        netDueToCompany,                             // صافي المستحق للشركة = المسلَّم − تكلفة المندوب
+        realNetProfit,                               // صافي الربح الحقيقي = رسوم الشحن − تكلفة المندوب
       },
+      courierCostManual: manifest.courierCostManual != null ? Number(manifest.courierCostManual) : null,
     });
   } catch (e) {
     console.error("[GET /shipment-manifests/:id]", e);
