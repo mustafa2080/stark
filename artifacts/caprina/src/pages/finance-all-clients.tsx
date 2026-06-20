@@ -20,7 +20,7 @@ import { apiFetch } from "@/lib/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const fmt = (n: string | number) =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n));
+  new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Number(n));
 
 // ── types ──────────────────────────────────────────────────────────────────
 type Client = {
@@ -405,7 +405,7 @@ export default function AllClientsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "إجمالي العملاء",    value: clients.length, sub: `${activeCount} نشط`, icon: <Users className="w-5 h-5" />,       color: "text-foreground" },
-          { label: "إجمالي المبيعات",   value: fmt(totalSales), sub: `محصَّل ${fmt(totalPaid)}`, icon: <TrendingUp className="w-5 h-5" />, color: "text-primary" },
+          { label: "إجمالي الشحنات",    value: totalOrders, sub: `محصَّل ${fmt(totalPaid)}`, icon: <TrendingUp className="w-5 h-5" />, color: "text-primary" },
           { label: "إجمالي الطلبات",    value: totalOrders,     sub: `متوسط ${clients.length ? Math.round(totalOrders / clients.length) : 0} طلب/عميل`, icon: <ShoppingCart className="w-5 h-5" />, color: "text-foreground" },
           { label: "المتبقي غير محصَّل", value: fmt(totalSales - totalPaid), sub: `${clients.length ? Math.round((totalPaid / totalSales) * 100) || 0 : 0}% نسبة التحصيل`, icon: <Receipt className="w-5 h-5" />, color: "text-amber-400" },
         ].map((k, i) => (
@@ -480,7 +480,7 @@ export default function AllClientsPage() {
             <SortBtn col="totalOrders" label="الطلبات" />
           </div>
           <div className="col-span-1 flex items-center gap-1">
-            <SortBtn col="totalSales" label="المبيعات" />
+            <SortBtn col="totalOrders" label="الشحنات" />
           </div>
           <div className="col-span-1 text-left">إجراءات</div>
         </div>
@@ -494,9 +494,6 @@ export default function AllClientsPage() {
             <p className="text-sm text-muted-foreground">لا يوجد عملاء مطابقون</p>
           </div>
         ) : pageData.map((c) => {
-          const sales  = parseFloat(c.totalSales ?? "0");
-          const paid   = parseFloat(c.totalPaid  ?? "0");
-          const pct    = sales > 0 ? Math.round((paid / sales) * 100) : 0;
           return (
             <div key={c.id}
               className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-border/50 hover:bg-muted/10 transition-colors items-center group">
@@ -544,17 +541,9 @@ export default function AllClientsPage() {
                 <span className="text-xs font-bold">{c.totalOrders ?? 0}</span>
               </div>
 
-              {/* المبيعات + نسبة تحصيل */}
+              {/* الشحنات */}
               <div className="col-span-1">
-                <p className="text-xs font-black text-primary">{fmt(sales)}</p>
-                {sales > 0 && (
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <div className="flex-1 h-1 bg-muted/30 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-[9px] text-muted-foreground">{pct}%</span>
-                  </div>
-                )}
+                <span className="text-xs font-bold">{c.totalOrders ?? 0}</span>
               </div>
 
               {/* إجراءات */}
