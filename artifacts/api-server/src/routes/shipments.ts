@@ -110,6 +110,7 @@ const CreateShipmentSchema = z.object({
   notes:           z.string().nullish(),
   internalNotes:   z.string().nullish(),
   returnReason:    z.string().nullish(),
+  returnReceived:  z.union([z.boolean(), z.literal(0), z.literal(1)]).nullish(),
   returnNote:      z.string().nullish(),
   partialQuantity: z.coerce.number().int().nullish(),
   productId:       z.number().int().positive().nullish(),
@@ -188,22 +189,33 @@ export async function syncShipmentInventory(
     afterPatch.inventoryDeducted = 1;
   }
 
-  // 2) تحول لحالة "مرتجع" → رجّع كل القطع للمخزن (لو لسه ماترجعتش)
+  // 2) تحول لحالة "مرتجع" → رجّع كل القطع للمخزن — فقط لما يتم تأكيد "تم الاستلام" فعليًا (returnReceived === 1)
+  //    لأن المرتجع لسه عند شركة الشحن لحد ما يتأكد استلامه
   const newStatus = afterPatch.status as string | undefined;
   const wasReturned = !!before.inventoryReturned;
 
-  if (newStatus === "returned" && !wasReturned) {
-    await reverseShipping(orderShape, totalPieces, null, before.id);
-    afterPatch.inventoryReturned = 1;
+  if (newStatus === "returned") {
+    const wasReturnReceived = before.returnReceived === 1;
+    const isReturnReceivedNow = afterPatch.returnReceived === 1;
+    if (isReturnReceivedNow && !wasReturnReceived && !wasReturned) {
+      await reverseShipping(orderShape, totalPieces, null, before.id);
+      afterPatch.inventoryReturned = 1;
+    }
   }
 
-  // 3) استلام جزئي → الباقي (الفرق بين القطع الكلية والمستلمة) يرجع فوراً للمخزن
+  // 3) استلام جزئي → الباقي (الفرق بين القطع الكلية والمستلمة) يرجع للمخزن
+  //    فقط لما يتم تأكيد "تم الاستلام" فعليًا (returnReceived === 1)، مش بمجرد تسجيل partial_received
+  //    لأن الكمية الباقية لسه عند شركة الشحن لحد ما يتأكد استلامها
   if (newStatus === "partial_received") {
-    const receivedQty = Number(afterPatch.partialQuantity ?? after.partialQuantity ?? 0);
-    const remaining = totalPieces - receivedQty;
-    if (remaining > 0 && !wasReturned) {
-      await reverseShipping(orderShape, remaining, null, before.id);
-      afterPatch.inventoryReturned = 1; // يمنع تكرار الإرجاع لو الحالة اتعدلت تاني لنفس partial
+    const wasReturnReceived = before.returnReceived === 1;
+    const isReturnReceivedNow = afterPatch.returnReceived === 1;
+    if (isReturnReceivedNow && !wasReturnReceived) {
+      const receivedQty = Number(afterPatch.partialQuantity ?? after.partialQuantity ?? 0);
+      const remaining = totalPieces - receivedQty;
+      if (remaining > 0 && !wasReturned) {
+        await reverseShipping(orderShape, remaining, null, before.id);
+        afterPatch.inventoryReturned = 1; // يمنع تكرار الإرجاع لو الحالة اتعدلت تاني لنفس partial
+      }
     }
   }
 }
@@ -321,6 +333,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
           notes:            shipmentsTable.notes,
           internalNotes:    shipmentsTable.internalNotes,
           returnReason:     shipmentsTable.returnReason,
+          returnReceived:   shipmentsTable.returnReceived,
           returnNote:       shipmentsTable.returnNote,
           partialQuantity:  shipmentsTable.partialQuantity,
           productId:        shipmentsTable.productId,
@@ -608,6 +621,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.notes            !== undefined) updateData.notes            = d.notes;
     if (d.internalNotes    !== undefined) updateData.internalNotes    = d.internalNotes;
     if (d.returnReason     !== undefined) updateData.returnReason     = d.returnReason;
+    if (d.returnReceived   !== undefined) updateData.returnReceived   = d.returnReceived === true || d.returnReceived === 1 ? 1 : (d.returnReceived === false || d.returnReceived === 0 ? 0 : null);
     if (d.returnNote       !== undefined) updateData.returnNote       = d.returnNote;
     if (d.partialQuantity  !== undefined) updateData.partialQuantity  = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
@@ -619,6 +633,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
       id,
       updateData.status ?? existingShipment.status,
       d.itemReceivedQuantities ?? undefined,
+      updateData.returnReceived === 1,
     );
 
     const cond = tenantId !== null
@@ -675,9 +690,17 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.notes             !== undefined) updateData.notes             = d.notes;
     if (d.internalNotes     !== undefined) updateData.internalNotes     = d.internalNotes;
     if (d.returnReason      !== undefined) updateData.returnReason      = d.returnReason;
+    if (d.returnReceived    !== undefined) updateData.returnReceived    = d.returnReceived === true || d.returnReceived === 1 ? 1 : (d.returnReceived === false || d.returnReceived === 0 ? 0 : null);
     if (d.returnNote        !== undefined) updateData.returnNote        = d.returnNote;
     if (d.partialQuantity   !== undefined) updateData.partialQuantity   = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
+
+    // لو الحالة الجديدة مش returned ولا partial_received ولم يُرسَل returnReceived صريحًا
+    // → نصفّره عشان ميفضلش متعلق بقيمة قديمة من حالة سابقة
+    const effectiveStatus = updateData.status ?? existingShipment.status;
+    if (d.returnReceived === undefined && effectiveStatus !== "returned" && effectiveStatus !== "partial_received") {
+      updateData.returnReceived = null;
+    }
 
     // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
     await syncShipmentInventory(existingShipment, updateData);
@@ -686,6 +709,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       id,
       updateData.status ?? existingShipment.status,
       d.itemReceivedQuantities ?? undefined,
+      updateData.returnReceived === 1,
     );
 
     const cond = tenantId !== null

@@ -310,12 +310,13 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         eq(shipmentManifestItemsTable.shipmentId, shipmentId),
       ));
 
-    // حدّث حالة الشحنة نفسها
+    // حدّث حالة الشحنة نفسها — partial_delivered (البيان) يقابل partial_received (شحنات) بنفس الاسم
+    // عشان عمود "الحالة" في صفحة الشحنات يفضل واحد ثابت، والفرق (لسه عند الشحن / في المخزن) بييجي من returnReceived
     const statusMap: Record<string, string> = {
       delivered: "delivered",
       returned:  "returned",
       delayed:   "delayed",
-      partial_delivered: "delivered",
+      partial_delivered: "partial_received",
       pending:   "in_transit",
     };
 
@@ -331,6 +332,14 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       updatedAt: now,
     };
     if (body.partialQuantity != null) shipmentPatch.partialQuantity = body.partialQuantity;
+    // returnReceived و returnReason بتاعين "مرتجع"/"استلام جزئي" — لازم ينعكسوا على جدول الشحنات
+    // عشان صفحة الشحنات تعرض نفس التاج (ما زال عند شركة الشحن / في المخزن) من البيان
+    if (body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered") {
+      shipmentPatch.returnReceived = body.returnReceived == null ? null : body.returnReceived ? 1 : 0;
+    } else {
+      shipmentPatch.returnReceived = null;
+    }
+    if (body.deliveryStatus === "returned") shipmentPatch.returnReason = body.returnReason ?? null;
 
     if (inventoryStatus) {
       const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, shipmentId)).limit(1);
@@ -342,7 +351,7 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         if (invPatch.inventoryDeducted != null) shipmentPatch.inventoryDeducted = invPatch.inventoryDeducted;
         if (invPatch.inventoryReturned != null) shipmentPatch.inventoryReturned = invPatch.inventoryReturned;
         // منتجات متعددة (shipment_items) على الشحنة
-        await syncShipmentItemsInventory(shipmentId, inventoryStatus, body.itemReceivedQuantities ?? undefined);
+        await syncShipmentItemsInventory(shipmentId, inventoryStatus, body.itemReceivedQuantities ?? undefined, body.returnReceived === true);
       }
     }
 

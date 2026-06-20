@@ -751,14 +751,17 @@ export const RESERVED_STATUSES: string[] = [];
 //
 //  1. خصم تلقائي: كل بند لسه ماخصمش (inventoryDeducted=0) → يُخصم من المخزن.
 //     (idempotent — آمن نستدعيها كل مرة، مش بتخصم مرتين لنفس البند)
-//  2. لو newStatus === "returned" → رجّع كل الكمية لكل بند لسه ما رجعش.
-//  3. لو newStatus === "partial_received" → رجّع الفرق (الكمية - المستلم)
+//  2. لو newStatus === "returned" و returnReceived === true → رجّع كل الكمية لكل بند لسه ما رجعش.
+//     (لو returnReceived لسه مش true → البضاعة لسه عند شركة الشحن، مفيش إرجاع للمخزن)
+//  3. لو newStatus === "partial_received" و returnReceived === true → رجّع الفرق (الكمية - المستلم)
 //     لكل بند حسب itemReceivedQuantities[itemId]، وسجّل receivedQuantity.
+//     (نفس المبدأ: لحد ما يتأكد الاستلام فعليًا، الكمية الباقية تفضل عند الشحن)
 // ═══════════════════════════════════════════════════════════════════════════════
 export async function syncShipmentItemsInventory(
   shipmentId: number,
   newStatus?: string | null,
   itemReceivedQuantities?: Record<number, number>,
+  returnReceived?: boolean | null,
 ): Promise<void> {
   const items = await db
     .select()
@@ -789,8 +792,9 @@ export async function syncShipmentItemsInventory(
       .where(eq(shipmentItemsTable.id, item.id));
   }
 
-  // ── 2. مرتجع كامل → رجّع كل بند لسه ما رجعش ────────────────────────────────
-  if (newStatus === "returned") {
+  // ── 2. مرتجع كامل → رجّع كل بند لسه ما رجعش — فقط لما يتأكد الاستلام فعليًا (returnReceived === true)
+  //     لأن المرتجع لسه عند شركة الشحن لحد ما يتأكد استلامه
+  if (newStatus === "returned" && returnReceived === true) {
     for (const item of items) {
       if (item.inventoryReturned) continue;
       if (!item.productId && !item.variantId) continue;
@@ -814,8 +818,9 @@ export async function syncShipmentItemsInventory(
     return;
   }
 
-  // ── 3. استلام جزئي → رجّع الفرق لكل بند حسب الكمية المستلمة منه ────────────
-  if (newStatus === "partial_received") {
+  // ── 3. استلام جزئي → رجّع الفرق لكل بند حسب الكمية المستلمة منه
+  //     فقط لما يتأكد الاستلام فعليًا (returnReceived === true)، مش بمجرد تسجيل partial_received
+  if (newStatus === "partial_received" && returnReceived === true) {
     for (const item of items) {
       if (item.inventoryReturned) continue;
       if (!item.productId && !item.variantId) continue;

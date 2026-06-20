@@ -98,6 +98,7 @@ export const shipmentsTable = mysqlTable("shipments", {
   notes:           text("notes"),
   internalNotes:   text("internal_notes"),       // ملاحظات داخلية
   returnReason:    varchar("return_reason", { length: 100 }),  // سبب الإرجاع
+  returnReceived:  int("return_received"),                      // 1=تم الاستلام في المخزن، 0/null=ما زال عند شركة الشحن (للـ returned و partial_received)
   returnNote:      text("return_note"),                         // ملاحظة الإرجاع (لو other)
   partialQuantity: int("partial_quantity"),                     // الكمية المستلمة جزئياً
   inventoryDeducted: int("inventory_deducted").default(0),       // 1 = تم خصم المخزون لهذه الشحنة
