@@ -20,7 +20,7 @@ import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, parseISO }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n: string | number) =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n));
+  new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Number(n));
 const fmtNum = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
 
 // ── Payment Donut ─────────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ function PaymentDonut({ data, total }: {
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"
           style={{ opacity: isActive ? 0 : 1, transition: "opacity 200ms ease" }}>
           <p className="text-4xl font-black text-foreground leading-none">{total}</p>
-          <p className="text-xs text-muted-foreground mt-1">إجمالي الفواتير</p>
+          <p className="text-xs text-muted-foreground mt-1">إجمالي الشحنات</p>
         </div>
 
         <ResponsiveContainer width="100%" height="100%">
@@ -286,8 +286,8 @@ export default function SalesReportPage() {
             <ArrowRight className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">تقرير المبيعات</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">تحليل شامل لأداء المبيعات والتحصيل</p>
+            <h1 className="text-2xl font-bold">تقرير الشحنات</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">تحليل شامل لأداء الشحنات والتحصيل</p>
           </div>
         </div>
         {/* Period Selector */}
@@ -304,12 +304,12 @@ export default function SalesReportPage() {
       {/* ── 6 KPI Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: "إجمالي الإيرادات", value: fmt(totalRevenue),  icon: <DollarSign className="w-5 h-5" />, color: "text-primary",      bg: "bg-primary/10" },
-          { label: "المحصَّل",         value: fmt(totalPaid),     icon: <TrendingUp className="w-5 h-5" />,  color: "text-emerald-400",   bg: "bg-emerald-900/20" },
-          { label: "المتبقي",          value: fmt(totalUnpaid),   icon: <TrendingDown className="w-5 h-5" />,color: "text-red-400",       bg: "bg-red-900/20" },
-          { label: "عدد الفواتير",     value: fmtNum(totalOrders),icon: <Receipt className="w-5 h-5" />,     color: "text-foreground",    bg: "bg-muted/30" },
-          { label: "نسبة التسليم",     value: `${deliveryRate}%`, icon: <Target className="w-5 h-5" />,      color: "text-amber-400",     bg: "bg-amber-900/20" },
-          { label: "متوسط الفاتورة",   value: fmt(avgOrderValue), icon: <BarChart2 className="w-5 h-5" />,   color: "text-blue-400",      bg: "bg-blue-900/20" },
+          { label: "إجمالي الشحنات",   value: fmtNum(totalOrders), icon: <ShoppingCart className="w-5 h-5" />, color: "text-primary",      bg: "bg-primary/10" },
+          { label: "إجمالي الإيرادات", value: fmt(totalRevenue),   icon: <DollarSign className="w-5 h-5" />,  color: "text-foreground",    bg: "bg-muted/30" },
+          { label: "المحصَّل",          value: fmt(totalPaid),      icon: <TrendingUp className="w-5 h-5" />,  color: "text-emerald-400",   bg: "bg-emerald-900/20" },
+          { label: "المتبقي",           value: fmt(totalUnpaid),    icon: <TrendingDown className="w-5 h-5" />,color: "text-red-400",       bg: "bg-red-900/20" },
+          { label: "نسبة التسليم",      value: `${deliveryRate}%`,  icon: <Target className="w-5 h-5" />,      color: "text-amber-400",     bg: "bg-amber-900/20" },
+          { label: "متوسط قيمة الشحنة", value: fmt(avgOrderValue),  icon: <BarChart2 className="w-5 h-5" />,   color: "text-blue-400",      bg: "bg-blue-900/20" },
         ].map((kpi, i) => (
           <Card key={i} className="border-border bg-card p-4">
             <div className={`w-9 h-9 rounded-xl ${kpi.bg} flex items-center justify-center mb-3 ${kpi.color}`}>
@@ -327,7 +327,7 @@ export default function SalesReportPage() {
         {/* Area chart */}
         <Card className="lg:col-span-2 border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-sm">المبيعات اليومية</h2>
+            <h2 className="font-bold text-sm">الشحنات اليومية</h2>
             <span className="text-[10px] text-muted-foreground">{PERIOD_OPTIONS.find(o=>o.key===period)?.label}</span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -400,7 +400,7 @@ export default function SalesReportPage() {
         {/* Order Status Bars */}
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-sm">حالة الطلبات</h2>
+            <h2 className="font-bold text-sm">حالة الشحنات</h2>
             <ShoppingCart className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="space-y-4">
@@ -438,14 +438,14 @@ export default function SalesReportPage() {
       {/* ── Recent Invoices Table ── */}
       <Card className="border-border bg-card">
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="font-bold text-sm">آخر الفواتير</h2>
+          <h2 className="font-bold text-sm">آخر الشحنات</h2>
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-border"
             onClick={() => navigate("/finance/sales")}>
             عرض الكل <ChevronLeft className="w-3 h-3" />
           </Button>
         </div>
         <div className="grid grid-cols-5 gap-2 px-4 py-2 text-[10px] font-bold text-muted-foreground border-b border-border bg-muted/5">
-          <span>رقم الفاتورة</span><span className="col-span-2">العميل</span><span>الإجمالي</span><span>حالة الدفع</span>
+          <span>رقم الشحنة</span><span className="col-span-2">العميل</span><span>الإجمالي</span><span>حالة الدفع</span>
         </div>
         <div>
           {filtered.slice(0, 8).map(o => {
@@ -477,7 +477,7 @@ export default function SalesReportPage() {
           {filtered.length === 0 && (
             <div className="py-10 text-center text-muted-foreground text-sm">
               <Receipt className="w-10 h-10 mx-auto mb-2 opacity-20" />
-              <p>لا توجد فواتير في هذه الفترة</p>
+              <p>لا توجد شحنات في هذه الفترة</p>
             </div>
           )}
         </div>
