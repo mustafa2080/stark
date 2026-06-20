@@ -954,7 +954,7 @@ router.get("/shipments/:id/items", async (req, res): Promise<void> => {
       .where(and(...conditions))
       .orderBy(shipmentItemsTable.createdAt);
     res.json(items);
-  } catch (e) { res.status(500).json({ error: "خطأ في استرجاع بنود الشحنة" }); }
+  } catch (e) { console.error("[GET /shipments/:id/items]", e); res.status(500).json({ error: "خطأ في استرجاع بنود الشحنة", detail: String(e) }); }
 });
 
 // POST /shipments/:id/items
