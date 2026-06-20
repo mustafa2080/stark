@@ -32,7 +32,7 @@ interface LayoutProps {
 const ALL_NAV = [
   { href: "/my-dashboard",      label: "لوحتي",              icon: LayoutDashboard, exact: true, permission: null, section: null, employeeOnly: true,  iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/",                  label: "لوحة التحكم",        icon: LayoutDashboard, exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-blue-400",       group: "dashboard"    },
-  { href: "/shipments",         label: "المناطق والأسعار",    icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "dashboard"    },
+  { href: "/shipments",         label: "المناطق",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "inventory"    },
   { href: "/clients-showcase",  label: "عملاؤنا",             icon: Users,                       permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-purple-400",     group: "dashboard"    },
   { href: "/finance/clients",   label: "العملاء التجاريون",   icon: UserCheck,                   permission: "finance.view",            section: "section_dashboard",          iconColor: "text-cyan-400",       group: "dashboard"    },
   { href: "/orders",            label: "الشحنات",             icon: Package,                     permission: "orders.view",             section: "section_orders",             iconColor: "text-orange-400",     group: "orders"       },
@@ -40,7 +40,7 @@ const ALL_NAV = [
   { href: "/invoices",          label: "فواتير الشحن",             icon: FileText,                    permission: "invoices.view",           section: "section_invoices",           iconColor: "text-yellow-400",     group: "orders"       },
   { href: "/shipping-followup", label: "متابعة الشحنات",        icon: Clock,                       permission: "section_shipping_followup", section: "section_shipping_followup",  iconColor: "text-cyan-400",       group: "orders"       },
   { href: "/shipping",          label: "مناديب STARK",         icon: Truck,                       permission: "shipping.view",           section: "section_shipping",           iconColor: "text-sky-400",        group: "shipping"     },
-  { href: "/inventory",         label: "المنتجات",            icon: Boxes,                       permission: "inventory.view",          section: "section_inventory",          iconColor: "text-violet-400",     group: "inventory"    },
+  { href: "/inventory",         label: "أنواع الشحنات وأسعارها", icon: Boxes,                       permission: "inventory.view",          section: "section_inventory",          iconColor: "text-violet-400",     group: "inventory"    },
   { href: "/warehouses",        label: "المخازن",             icon: Warehouse,                   permission: "inventory.view",          section: "section_warehouses",         iconColor: "text-indigo-400",     group: "inventory"    },
   { href: "/movements",         label: "حركات المخزون",       icon: Activity,                    permission: "inventory.movements",     section: "section_movements",          iconColor: "text-purple-400",     group: "inventory"    },
   { href: "/product-performance",label: "أداء المنتجات",     icon: BarChart3,                   permission: "analytics.products",      section: "section_product_performance", iconColor: "text-pink-400",      group: "analytics"    },
@@ -553,7 +553,7 @@ export default function Layout({ children }: LayoutProps) {
             )}
 
             {visibleNav.some(i => i.group === "inventory") && (
-              <NavGroup label="المنتجات والمخزون" icon={Boxes} iconColor="text-violet-400" location={location} prefixes={["/inventory","/warehouses","/movements"]} isOpen={openGroup === "inventory"} onToggle={() => toggleGroup("inventory", visibleNav.find(i => i.group === "inventory")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "inventory")?.href} groupKey="inventory">
+              <NavGroup label="المنتجات والمخزون" icon={Boxes} iconColor="text-violet-400" location={location} prefixes={["/shipments","/inventory","/warehouses","/movements"]} isOpen={openGroup === "inventory"} onToggle={() => toggleGroup("inventory", visibleNav.find(i => i.group === "inventory")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "inventory")?.href} groupKey="inventory">
                 {visibleNav.filter(i => i.group === "inventory").map(item => <NavItem key={item.href} item={item} location={location} sub />)}
               </NavGroup>
             )}
@@ -921,7 +921,7 @@ export default function Layout({ children }: LayoutProps) {
             { section: "section_dashboard",         href: "/",               icon: LayoutDashboard, rgb: "96,165,250",  label: "الرئيسية", exact: true },
             { section: "section_orders",            href: "/orders",         icon: Package,         rgb: "251,146,60",  label: "الطلبات"  },
             { section: "section_new_order",         href: "/orders/new",     icon: Plus,            rgb: "52,211,153",  label: "جديد"     },
-            { section: "section_inventory",         href: "/inventory",      icon: Boxes,           rgb: "167,139,250", label: "المنتجات" },
+            { section: "section_inventory",         href: "/inventory",      icon: Boxes,           rgb: "167,139,250", label: "الأنواع" },
             { section: "section_invoices",          href: "/invoices",       icon: FileText,        rgb: "250,204,21",  label: "فواتير الشحن" },
             { section: "section_finance",           href: "/finance",        icon: DollarSign,      rgb: "52,211,153",  label: "الماليات", permCheck: "finance.view" },
             { section: "section_smart_analytics",   href: "/smart",          icon: Brain,           rgb: "232,121,249", label: "ذكاء"    },

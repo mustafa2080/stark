@@ -1181,8 +1181,8 @@ export default function ShipmentsPage() {
   });
 
   const TABS = [
-    { key: "zones",    label: "المناطق والأسعار", icon: Globe,   count: zones.length },
-    { key: "pricing",  label: "أسعار الأنواع",    icon: Layers,  count: parcelPricing.length },
+    { key: "zones",    label: "المناطق",                    icon: Globe,   count: zones.length },
+    { key: "pricing",  label: "أنواع الشحنات وأسعارها",      icon: Layers,  count: parcelPricing.length },
   ] as const;
 
   return (
