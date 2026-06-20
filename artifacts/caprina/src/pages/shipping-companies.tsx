@@ -604,19 +604,49 @@ export function CreateManifestDialog({
     setSelectedIds(next);
   };
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["shipment-manifests", company.id] });
+    queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", "waiting"] });
+    queryClient.invalidateQueries({ queryKey: ["company-shipments", company.id] });
+    queryClient.invalidateQueries({ queryKey: ["company-stats", company.id] });
+  };
+
   const createMutation = useMutation({
-    mutationFn: () =>
-      shipmentManifestsApi.create({
-        shippingCompanyId: company.id,
-        shipmentIds: Array.from(selectedIds),
-        notes: notes.trim() || undefined,
-      }),
-    onSuccess: (manifest) => {
-      queryClient.invalidateQueries({ queryKey: ["shipment-manifests", company.id] });
-      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", "waiting"] });
-      queryClient.invalidateQueries({ queryKey: ["company-shipments", company.id] });
-      queryClient.invalidateQueries({ queryKey: ["company-stats", company.id] });
-      toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.shipmentCount} شحنة` });
+    mutationFn: async () => {
+      try {
+        return await shipmentManifestsApi.create({
+          shippingCompanyId: company.id,
+          shipmentIds: Array.from(selectedIds),
+          notes: notes.trim() || undefined,
+        });
+      } catch (err: any) {
+        // 409 = يوجد بيان مفتوح → أضف الشحنات له تلقائياً
+        if (err?.status === 409 || err?.message?.includes("409") || err?.message?.includes("مفتوح")) {
+          const manifests = await shipmentManifestsApi.list(company.id);
+          const openManifest = manifests.find((m: any) => m.status === "open");
+          if (!openManifest) throw err;
+          const result = await shipmentManifestsApi.addShipments(openManifest.id, Array.from(selectedIds));
+          // نرجع شكل مشابه لـ create response عشان onSuccess يشتغل
+          return {
+            id: openManifest.id,
+            manifestNumber: openManifest.manifestNumber,
+            shipmentCount: result.added,
+            _addedToExisting: true,
+          } as any;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (manifest: any) => {
+      invalidateAll();
+      if (manifest._addedToExisting) {
+        toast({
+          title: "تمت الإضافة للبيان المفتوح",
+          description: `${manifest.manifestNumber} — أُضيف ${manifest.shipmentCount} شحنة للبيان الموجود`,
+        });
+      } else {
+        toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.shipmentCount} شحنة` });
+      }
       if (onCreated) onCreated(manifest);
       else onClose();
     },

@@ -19,7 +19,11 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     throw new Error("غير مصرح");
   }
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`) as any;
+    err.status = res.status;
+    throw err;
+  }
   return data as T;
 }
 
