@@ -3707,13 +3707,14 @@ export default function ShippingManifestPage() {
     (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
     (o as any).returnReceived !== 1;
 
-  // ─── للـ P&L والإجمالي: نستبعد البضاعة اللي لسه عند الشحن ───
+  // ─── نستبعد البضاعة اللي اتأكد استلامها من شركة الشحن (returnReceived=1) ───
+  // من كل الحاويات: الإجمالي، عداد مرتجع/جزئي، الـ P&L، والـ COD
+  // بمجرد ما يتم تأكيد الاستلام، الشحنة دي تختفي خالص من البيان
+  // اللي يفضل ظاهر فقط: مؤجل + استلم جزئي اللي لسه returnReceived !== 1
   const ordersExcludingPendingShipping = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o));
 
-  // ─── للعدادات (مرتجع / جزئي / مؤجل): نحسب على كل الطلبيات ───
-  // البضاعة عند الشحن تظهر في عداد الحالة بتاعتها (مرتجع/جزئي)
-  // لكن مش في الإجمالي ولا في الـ P&L
-  const allGroupedOrders = groupManifestOrders(manifest.orders ?? []);
+  // ─── كل العدادات (مرتجع / جزئي / مؤجل / الإجمالي) بتتحسب من نفس القائمة المستبعد منها المُستلم ───
+  const allGroupedOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
@@ -3758,11 +3759,11 @@ export default function ShippingManifestPage() {
     }
   };
 
-  const deliveredGross = (manifest.orders ?? [])
+  const deliveredGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "delivered")
     .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
 
-  const partialGross = (manifest.orders ?? [])
+  const partialGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "partial_received")
     .reduce((sum, o) => {
       const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
