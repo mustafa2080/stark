@@ -1040,11 +1040,15 @@ function ParcelPricingTab() {
   const [newPrice, setNewPrice] = useState("");
   const [newImage, setNewImage] = useState<string | null>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
+  // حالة تعديل الصورة لكل كارد
+  const [editImgId, setEditImgId] = useState<number | null>(null);
+  const [editImgPreview, setEditImgPreview] = useState<string | null>(null);
+  const [savingImg, setSavingImg] = useState(false);
 
   // ── ضغط وتحويل الصورة لـ base64 ────────────────────────────────────────────
-  const handleImageFile = (file: File) => {
+  const compressImage = (file: File, onDone: (b64: string) => void, onStart?: () => void) => {
     if (!file.type.startsWith("image/")) return;
-    setUploadingImg(true);
+    onStart?.();
     const reader = new FileReader();
     reader.onload = (e) => {
       const src = e.target?.result as string;
@@ -1056,12 +1060,45 @@ function ParcelPricingTab() {
         canvas.width  = Math.round(img.width  * ratio);
         canvas.height = Math.round(img.height * ratio);
         canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        setNewImage(canvas.toDataURL("image/jpeg", 0.82));
-        setUploadingImg(false);
+        onDone(canvas.toDataURL("image/jpeg", 0.82));
       };
       img.src = src;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleImageFile = (file: File) =>
+    compressImage(file, (b64) => { setNewImage(b64); setUploadingImg(false); }, () => setUploadingImg(true));
+
+  // حفظ صورة نوع موجود
+  const handleSaveImage = async (id: number) => {
+    if (!editImgPreview) return;
+    setSavingImg(true);
+    try {
+      await apiFetch(`/parcel-type-pricing/${id}`, { method: "PUT", body: JSON.stringify({ imageUrl: editImgPreview }) });
+      qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] });
+      toast({ title: "تم حفظ الصورة ✅" });
+      setEditImgId(null); setEditImgPreview(null);
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingImg(false);
+    }
+  };
+
+  // حذف صورة نوع موجود
+  const handleRemoveImage = async (id: number) => {
+    setSavingImg(true);
+    try {
+      await apiFetch(`/parcel-type-pricing/${id}`, { method: "PUT", body: JSON.stringify({ imageUrl: null }) });
+      qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] });
+      toast({ title: "تم حذف الصورة" });
+      setEditImgId(null); setEditImgPreview(null);
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingImg(false);
+    }
   };
 
   const { data: pricing = [], isLoading } = useQuery({
@@ -1134,16 +1171,58 @@ function ParcelPricingTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {pricing.map(p => (
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
-                  {/* صورة أو إيموجي */}
-                  {p.imageUrl ? (
-                    <img src={p.imageUrl} alt={p.label ?? p.parcelType}
-                      className="w-10 h-10 rounded-lg object-cover shrink-0 border border-border" />
-                  ) : (
-                    <span className="text-2xl shrink-0 w-10 h-10 flex items-center justify-center">{ICONS[p.parcelType] ?? "📦"}</span>
-                  )}
+                  {/* صورة / إيموجي — قابل للضغط لتغيير الصورة */}
+                  <div className="relative group shrink-0">
+                    <input
+                      id={`img-edit-${p.id}`} type="file" accept="image/*" className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0]; if (!f) return;
+                        setEditImgId(p.id);
+                        compressImage(f, (b64) => setEditImgPreview(b64));
+                        e.target.value = "";
+                      }}
+                    />
+                    <div
+                      className="w-12 h-12 rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+                      onClick={() => document.getElementById(`img-edit-${p.id}`)?.click()}
+                      title="اضغط لتغيير الصورة"
+                    >
+                      {(editImgId === p.id && editImgPreview) ? (
+                        <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
+                      ) : p.imageUrl ? (
+                        <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.label ?? ""} />
+                      ) : (
+                        <span className="w-full h-full flex items-center justify-center text-2xl bg-muted/30">{ICONS[p.parcelType] ?? "📦"}</span>
+                      )}
+                    </div>
+                    <div className="absolute -bottom-1 -left-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ImageIcon className="w-2.5 h-2.5" />
+                    </div>
+                  </div>
+
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-foreground">{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</p>
                     <p className="text-[10px] text-muted-foreground">سعر إضافي على رسوم المنطقة</p>
+                    {/* أزرار حفظ/إلغاء الصورة */}
+                    {editImgId === p.id && editImgPreview && (
+                      <div className="flex gap-1.5 mt-1">
+                        <button
+                          className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5"
+                          onClick={() => handleSaveImage(p.id)} disabled={savingImg}>
+                          {savingImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : "✓ حفظ الصورة"}
+                        </button>
+                        <span className="text-muted-foreground text-[10px]">|</span>
+                        <button className="text-[10px] text-muted-foreground hover:text-foreground"
+                          onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إلغاء</button>
+                        {p.imageUrl && (
+                          <>
+                            <span className="text-muted-foreground text-[10px]">|</span>
+                            <button className="text-[10px] text-red-500 hover:text-red-600"
+                              onClick={() => handleRemoveImage(p.id)} disabled={savingImg}>حذف الصورة</button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Input
