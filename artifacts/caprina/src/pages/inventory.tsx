@@ -17,7 +17,7 @@ import {
   Layers, Tag, TrendingUp, DollarSign, Boxes, BarChart3, Search, PackagePlus, Archive,
   Filter, X, SortAsc, SortDesc, ChevronDown as ChevronDownIcon, Warehouse as WarehouseIcon, MapPin, Printer, ImagePlus, Trash,
   Truck, Clock3, RotateCcw, CheckCircle2, ArrowRight, PackageX, RefreshCw, TrendingDown, Eye,
-  AlertCircle, Zap, Target, Activity, PieChart, ShieldAlert, CircleDollarSign, PackageCheck
+  AlertCircle, Zap, Target, Activity, PieChart, ShieldAlert, CircleDollarSign, PackageCheck, Wallet
 } from "lucide-react";
 
 // ─── Product Image Upload ──────────────────────────────────────────────────────
@@ -318,21 +318,42 @@ function ShipmentInsightsTab() {
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [shipments]);
 
-  // ── أداء شركات الشحن ─────────────────────────────────────────────────────
+  // ── أداء شركات الشحن: scorecard مركّب (معدل تسليم + سرعة + معدل إرجاع) ────
   const companyPerf = useMemo(() => {
-    const m: Record<string, { total: number; delivered: number; returned: number; name: string }> = {};
+    const m: Record<string, { total: number; delivered: number; returned: number; name: string; deliveryHoursSum: number; deliveryHoursCount: number }> = {};
     for (const s of shipments) {
       const key  = String(s.shippingCompanyId ?? "بدون شركة");
       const name = s.shippingCompanyName || "بدون شركة";
-      if (!m[key]) m[key] = { total: 0, delivered: 0, returned: 0, name };
+      if (!m[key]) m[key] = { total: 0, delivered: 0, returned: 0, name, deliveryHoursSum: 0, deliveryHoursCount: 0 };
       m[key].total++;
-      if (s.status === "delivered") m[key].delivered++;
+      if (s.status === "delivered") {
+        m[key].delivered++;
+        // متوسط وقت التسليم = من إنشاء الشحنة لحد التسليم الفعلي
+        if (s.actualDelivery && s.createdAt) {
+          const hrs = (new Date(s.actualDelivery).getTime() - new Date(s.createdAt).getTime()) / (1000 * 60 * 60);
+          if (hrs >= 0 && hrs < 24 * 30) { // استبعاد قيم شاذة (أكتر من شهر = خطأ بيانات)
+            m[key].deliveryHoursSum += hrs;
+            m[key].deliveryHoursCount++;
+          }
+        }
+      }
       if (s.status === "returned")  m[key].returned++;
     }
-    return Object.values(m)
+    const list = Object.values(m)
       .filter(c => c.total >= 2)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 4);
+      .map(c => {
+        const closedCount = c.delivered + c.returned;
+        const deliveryRate = closedCount > 0 ? (c.delivered / closedCount) * 100 : 0;
+        const returnRate   = closedCount > 0 ? (c.returned  / closedCount) * 100 : 0;
+        const avgHours     = c.deliveryHoursCount > 0 ? c.deliveryHoursSum / c.deliveryHoursCount : null;
+        // score مركّب: معدل التسليم هو الأساس، وبننزل منه نقاط لو السرعة بطيئة (أكتر من 72 ساعة)
+        const speedPenalty = avgHours !== null && avgHours > 72 ? Math.min(20, (avgHours - 72) / 12) : 0;
+        const score = Math.max(0, deliveryRate - speedPenalty);
+        return { ...c, deliveryRate, returnRate, avgHours, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+    return list;
   }, [shipments]);
 
   // ── شحنات تحتاج action ────────────────────────────────────────────────────
@@ -487,11 +508,12 @@ function ShipmentInsightsTab() {
           )}
         </Card>
 
-        {/* أداء شركات الشحن */}
+        {/* أداء شركات الشحن — مرتبة من الأفضل للأقل (composite score) */}
         <Card className="border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-violet-50/50 dark:bg-violet-900/5">
             <Activity className="w-4 h-4 text-violet-500 shrink-0" />
             <span className="text-sm font-bold text-violet-600 dark:text-violet-400">أداء شركات الشحن</span>
+            <span className="text-[9px] text-muted-foreground mr-auto">مرتبة حسب الأداء</span>
           </div>
           {companyPerf.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2">
@@ -500,12 +522,12 @@ function ShipmentInsightsTab() {
             </div>
           ) : (
             <div className="divide-y divide-border/40">
-              {companyPerf.map(c => {
-                const rate = pct(c.delivered, c.total);
+              {companyPerf.map((c, idx) => {
+                const rate = Math.round(c.deliveryRate);
                 return (
                   <div key={c.name} className="flex items-center gap-3 px-4 py-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                      <Truck className="w-3.5 h-3.5 text-violet-500" />
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black ${idx === 0 ? "bg-amber-400/20 text-amber-500" : "bg-violet-500/10 text-violet-500"}`}>
+                      {idx === 0 ? "★" : `#${idx + 1}`}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
@@ -518,10 +540,16 @@ function ShipmentInsightsTab() {
                           style={{ width: `${rate}%` }}
                         />
                       </div>
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-[9px] text-muted-foreground">{c.total} شحنة</span>
                         <span className="text-[9px] text-emerald-500">{c.delivered} تسليم</span>
                         {c.returned > 0 && <span className="text-[9px] text-red-400">{c.returned} مرتجع</span>}
+                        {c.avgHours !== null && (
+                          <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                            <Clock3 className="w-2.5 h-2.5" />
+                            متوسط {formatAge(c.avgHours)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -613,6 +641,47 @@ const ACTIVE_STATUSES  = ["waiting", "confirmed", "picked_up", "in_transit", "ou
 const CLOSED_STATUSES  = ["delivered", "delayed", "returned", "cancelled"] as const;
 const ALL_SHIP_STATUSES = [...ACTIVE_STATUSES, ...CLOSED_STATUSES] as const;
 
+// ─── SLA: حدود الإنذار بالساعات لكل حالة (شركات الشحن الكبيرة بتفرّق هنا) ──────
+// كل حالة عندها "نافذة زمنية طبيعية" مختلفة — انتظار يومين طبيعي مش زي قيد الشحن يومين
+const SLA_HOURS: Partial<Record<string, { warn: number; critical: number }>> = {
+  waiting:          { warn: 24,  critical: 48  }, // المفروض تتأكد بسرعة
+  confirmed:        { warn: 24,  critical: 72  }, // المفروض تتسلم من المخزن بسرعة
+  picked_up:        { warn: 24,  critical: 48  }, // المفروض تطلع للشحن بسرعة
+  in_transit:       { warn: 72,  critical: 120 }, // 3-5 أيام نطاق طبيعي للشحن
+  out_for_delivery: { warn: 24,  critical: 48  }, // المفروض تتسلم في نفس اليوم تقريباً
+};
+
+const hoursSince = (dateStr: string | null | undefined): number => {
+  if (!dateStr) return 0;
+  const d = new Date(dateStr).getTime();
+  if (Number.isNaN(d)) return 0;
+  return (Date.now() - d) / (1000 * 60 * 60);
+};
+
+const formatAge = (hours: number): string => {
+  if (hours < 1) return "أقل من ساعة";
+  if (hours < 24) return `${Math.floor(hours)} س`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.floor(hours % 24);
+  return remHours > 0 ? `${days} ي ${remHours} س` : `${days} ي`;
+};
+
+// مستوى الخطورة بناءً على عمر الشحنة في حالتها الحالية
+type AgeLevel = "ok" | "warn" | "critical";
+const getAgeLevel = (status: string, hours: number): AgeLevel => {
+  const sla = SLA_HOURS[status];
+  if (!sla) return "ok"; // حالات نهائية (delivered/returned/cancelled/delayed) مالهاش SLA aging
+  if (hours >= sla.critical) return "critical";
+  if (hours >= sla.warn) return "warn";
+  return "ok";
+};
+
+const AGE_LEVEL_STYLE: Record<AgeLevel, string> = {
+  ok:       "text-muted-foreground",
+  warn:     "text-amber-600 dark:text-amber-400 font-bold",
+  critical: "text-red-600 dark:text-red-400 font-black animate-pulse",
+};
+
 function ShipmentWarehouseTab() {
   const [activeStatus, setActiveStatus] = useState<string>("in_transit");
   const [search,          setSearch]          = useState("");
@@ -620,6 +689,7 @@ function ShipmentWarehouseTab() {
   const [dateTo,          setDateTo]          = useState("");
   const [shippingCompany, setShippingCompany] = useState<string>("all");
   const [showFilters,     setShowFilters]     = useState(false);
+  const [slaOnly,         setSlaOnly]         = useState(false);
 
   // ── شركات الشحن للفلتر ────────────────────────────────────────────────────
   const { data: companies = [] } = useQuery({
@@ -667,9 +737,54 @@ function ShipmentWarehouseTab() {
   const deliveredCOD  = (shipMap.delivered ?? [])
     .reduce((s: number, sh: any) => s + (Number(sh.collectedAmount) || 0), 0);
 
+  // ── SLA: شحنات نشطة تجاوزت الحد الحرج (مرتبة من الأقدم) ──────────────────
+  const slaBreaches = useMemo(() => {
+    return ACTIVE_STATUSES
+      .flatMap(st => (shipMap[st] ?? []).map((sh: any) => ({
+        ...sh,
+        _ageHours: hoursSince(sh.updatedAt ?? sh.createdAt),
+        _ageLevel: getAgeLevel(sh.status, hoursSince(sh.updatedAt ?? sh.createdAt)),
+      })))
+      .filter((sh: any) => sh._ageLevel === "critical")
+      .sort((a: any, b: any) => b._ageHours - a._ageHours);
+  }, [shipMap]);
+  const slaBreachCount = slaBreaches.length;
+  const slaBreachCOD = slaBreaches.reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
+
+  // ── مطابقة الكاش: شحنات delivered لسه فلوسها متجمعتش بالكامل ─────────────
+  // الفرق هنا = إما الشركة لسه ما حولتش الكاش، أو فيه نقص تحصيل محتاج متابعة
+  const cashReconciliation = useMemo(() => {
+    const delivered = shipMap.delivered ?? [];
+    let pendingCOD = 0;       // مبلغ متوقع لسه ما اتأكدش وصوله بالكامل
+    let shortfallCount = 0;   // عدد الشحنات اللي فيها نقص تحصيل
+    const byCompany: Record<string, { name: string; outstanding: number; count: number }> = {};
+
+    for (const sh of delivered) {
+      const expected = Number(sh.codAmount) || 0;
+      const collected = Number(sh.collectedAmount) || 0;
+      const diff = expected - collected;
+      if (diff > 0.5) { // هامش بسيط لتفادي فروق التقريب
+        pendingCOD += diff;
+        shortfallCount += 1;
+        const key = sh.shippingCompanyName ?? "بدون شركة شحن";
+        if (!byCompany[key]) byCompany[key] = { name: key, outstanding: 0, count: 0 };
+        byCompany[key].outstanding += diff;
+        byCompany[key].count += 1;
+      }
+    }
+
+    const companiesRanked = Object.values(byCompany).sort((a, b) => b.outstanding - a.outstanding);
+    return { pendingCOD, shortfallCount, companiesRanked };
+  }, [shipMap.delivered]);
+
   // ── فلتر بحث client-side ─────────────────────────────────────────────────
   const activeShipments = useMemo(() => {
-    const base = shipMap[activeStatus] ?? [];
+    let base = shipMap[activeStatus] ?? [];
+    base = base.map((sh: any) => {
+      const ageHours = hoursSince(sh.updatedAt ?? sh.createdAt);
+      return { ...sh, _ageHours: ageHours, _ageLevel: getAgeLevel(sh.status, ageHours) };
+    });
+    if (slaOnly) base = base.filter((sh: any) => sh._ageLevel === "critical" || sh._ageLevel === "warn");
     if (!search.trim()) return base;
     const q = search.trim().toLowerCase();
     return base.filter((s: any) =>
@@ -681,7 +796,7 @@ function ShipmentWarehouseTab() {
       (s.shipmentNumber ?? "").toLowerCase().includes(q) ||
       (s.trackingNumber ?? "").toLowerCase().includes(q)
     );
-  }, [shipMap, activeStatus, search]);
+  }, [shipMap, activeStatus, search, slaOnly]);
 
   const activeTotalCOD = activeShipments.reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
   const activeFiltersCount = [dateFrom, dateTo, shippingCompany !== "all"].filter(Boolean).length;
@@ -691,7 +806,7 @@ function ShipmentWarehouseTab() {
     <div className="space-y-3 sm:space-y-4">
 
       {/* ── KPI Cards ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
 
         {/* نشطة */}
         <Card onClick={() => setActiveStatus("confirmed")}
@@ -750,7 +865,30 @@ function ShipmentWarehouseTab() {
             <span className="flex items-center gap-1 text-[9px] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />{shipMap.cancelled?.length ?? 0} ملغية</span>
           </div>
         </Card>
+
+        {/* تجاوزت SLA — أخطر كرت في الصفحة، بيقول "ده اللي محتاج تتصرف فيه دلوقتي" */}
+        <Card onClick={() => setSlaOnly(v => !v)}
+          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${slaOnly ? "ring-2 ring-rose-500" : ""} ${slaBreachCount > 0 ? "border-rose-300 dark:border-rose-700/50 bg-rose-50 dark:bg-rose-950/20" : "border-border bg-card"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${slaBreachCount > 0 ? "bg-rose-500/15" : "bg-muted/30"}`}>
+              <AlertCircle className={`w-4 h-4 ${slaBreachCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`} />
+            </div>
+            {slaBreachCount > 0 && <span className="text-[9px] font-bold bg-rose-100 dark:bg-rose-900/30 text-rose-600/70 px-1.5 py-0.5 rounded-full animate-pulse">عاجل</span>}
+          </div>
+          <p className={`text-2xl sm:text-3xl font-black ${slaBreachCount > 0 ? "text-rose-600 dark:text-rose-400" : ""}`}>{isLoading ? "—" : slaBreachCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">تجاوزت الوقت الطبيعي</p>
+          <p className="text-[10px] font-bold text-rose-600/70 mt-1 truncate">{isLoading ? "" : fc2(slaBreachCOD)}</p>
+        </Card>
       </div>
+
+      {/* SLA Filter Indicator */}
+      {slaOnly && (
+        <div className="flex items-center gap-2 rounded-lg border border-rose-300 dark:border-rose-700/50 bg-rose-50 dark:bg-rose-950/20 px-3 py-2 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>عرض الشحنات المتأخرة فقط (تحذير + عاجل)</span>
+          <button onClick={() => setSlaOnly(false)} className="mr-auto hover:underline">إلغاء الفلتر</button>
+        </div>
+      )}
 
       {/* ── Search + Filter Bar ──────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-2">
@@ -847,6 +985,9 @@ function ShipmentWarehouseTab() {
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">شركة الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
+                  {ACTIVE_STATUSES.includes(activeStatus as any) && (
+                    <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">العمر</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -880,6 +1021,13 @@ function ShipmentWarehouseTab() {
                           <span className="hidden sm:inline">{meta.label}</span>
                         </span>
                       </td>
+                      {ACTIVE_STATUSES.includes(activeStatus as any) && (
+                        <td className="px-3 py-2.5 hidden sm:table-cell whitespace-nowrap">
+                          <span className={`text-[11px] ${AGE_LEVEL_STYLE[sh._ageLevel as AgeLevel ?? "ok"]}`}>
+                            {formatAge(sh._ageHours ?? 0)}
+                          </span>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -888,6 +1036,38 @@ function ShipmentWarehouseTab() {
           </div>
         )}
       </Card>
+
+      {/* ── Cash Reconciliation: مطابقة الكاش مع شركات الشحن ──────────────── */}
+      {!isLoading && cashReconciliation.shortfallCount > 0 && (
+        <Card className="border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/10 overflow-hidden">
+          <div className="px-3 sm:px-4 py-2.5 border-b border-amber-200 dark:border-amber-800/40 flex items-center gap-2">
+            <Wallet className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="text-sm font-bold text-amber-700 dark:text-amber-400">مطابقة الكاش — شحنات مُسلَّمة وفلوسها ناقصة</span>
+            <span className="text-xs text-muted-foreground mr-auto">{cashReconciliation.shortfallCount} شحنة</span>
+          </div>
+          <div className="p-3 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between rounded-lg bg-card border border-border px-3 py-2.5">
+              <span className="text-[12px] font-bold text-muted-foreground">إجمالي الكاش المعلّق</span>
+              <span className="text-lg font-black text-amber-600 dark:text-amber-400">{fc2(cashReconciliation.pendingCOD)}</span>
+            </div>
+            {cashReconciliation.companiesRanked.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold text-muted-foreground">حسب شركة الشحن (الأكثر مديونية أولاً)</p>
+                {cashReconciliation.companiesRanked.slice(0, 6).map((c) => (
+                  <div key={c.name} className="flex items-center justify-between gap-2 rounded-lg bg-card/60 border border-border/60 px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Truck className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-[12px] font-semibold truncate">{c.name}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">({c.count} شحنة)</span>
+                    </div>
+                    <span className="text-[12px] font-black text-amber-600 dark:text-amber-400 shrink-0">{fc2(c.outstanding)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* ── Summary Footer ───────────────────────────────────────────────── */}
       {!isLoading && activeShipments.length > 0 && (
