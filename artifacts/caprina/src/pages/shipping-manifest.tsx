@@ -3494,6 +3494,10 @@ export default function ShippingManifestPage() {
     queryClient.invalidateQueries({ queryKey: ["smart-insights"] });
     queryClient.invalidateQueries({ queryKey: ["analytics-alerts"] });
     queryClient.invalidateQueries({ queryKey: ["variant-wh-stock"] });
+    // مزامنة حالة الشحنات: أي تغيير في البيان ينعكس فوراً على قسم الشحنات
+    queryClient.invalidateQueries({ queryKey: ["shipments"] });
+    queryClient.invalidateQueries({ queryKey: ["shipment-manifest"] });
+    queryClient.invalidateQueries({ queryKey: ["warehouse-shipments"] });
   }, [queryClient, id]);
 
   const updateMutation = useMutation({
