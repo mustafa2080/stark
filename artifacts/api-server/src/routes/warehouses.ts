@@ -552,7 +552,7 @@ router.post("/warehouses/repair-stock", async (req, res): Promise<void> => {
 // ─── Shipment Warehouse Endpoints ────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// GET /warehouses/:id/stats — إحصائيات مخزن معين (أنواع الطرود + أكتر عملاء)
+// GET /warehouses/:id/stats — إحصائيات مخزن معين
 router.get("/warehouses/:id/stats", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
@@ -566,37 +566,76 @@ router.get("/warehouses/:id/stats", requireAuth, async (req, res): Promise<void>
 
     const shipments = await db
       .select({
+        id:         shipmentsTable.id,
         status:     shipmentsTable.status,
         parcelType: shipmentsTable.parcelType,
         senderName: shipmentsTable.senderName,
+        createdAt:  shipmentsTable.createdAt,
+        updatedAt:  shipmentsTable.updatedAt,
       })
       .from(shipmentsTable)
       .where(and(...conditions));
 
-    // عدد بالحالة
-    const byStatus: Record<string, number> = {};
-    // عدد بنوع الطرد
+    const ACTIVE = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery", "warehouse_ready"];
+    const now = Date.now();
+    const MS_PER_DAY = 86_400_000;
+
+    // 1. عدد بنوع الطرد (الشحنات الـ active فقط)
     const byParcelType: Record<string, number> = {};
-    // أكتر عملاء (مرسلين)
+    // 2. أكتر عملاء
     const clientCount: Record<string, number> = {};
+    // 3. الشحنات المتأخرة > 7 أيام (active)
+    const staleShipments: { id: number; senderName: string; daysInWarehouse: number; parcelType: string | null }[] = [];
+    // 4. حركة الدخول/الخروج (آخر 30 يوم — grouped by day)
+    const inByDay:  Record<string, number> = {};
+    const outByDay: Record<string, number> = {};
 
     for (const s of shipments) {
-      byStatus[s.status] = (byStatus[s.status] ?? 0) + 1;
-      if (s.parcelType) byParcelType[s.parcelType] = (byParcelType[s.parcelType] ?? 0) + 1;
-      if (s.senderName) clientCount[s.senderName] = (clientCount[s.senderName] ?? 0) + 1;
+      const isActive = ACTIVE.includes(s.status);
+      const created  = new Date(s.createdAt).getTime();
+      const dayKey   = new Date(s.createdAt).toISOString().slice(0, 10);
+      const daysIn   = Math.floor((now - created) / MS_PER_DAY);
+      const isRecent = (now - created) < 30 * MS_PER_DAY;
+
+      // نوع الطرد (active فقط)
+      if (isActive && s.parcelType)
+        byParcelType[s.parcelType] = (byParcelType[s.parcelType] ?? 0) + 1;
+
+      // أكتر عملاء (كل الشحنات)
+      if (s.senderName)
+        clientCount[s.senderName] = (clientCount[s.senderName] ?? 0) + 1;
+
+      // شحنات متأخرة > 7 أيام
+      if (isActive && daysIn > 7)
+        staleShipments.push({ id: s.id, senderName: s.senderName ?? "—", daysInWarehouse: daysIn, parcelType: s.parcelType });
+
+      // حركة الدخول (كل الشحنات اللي دخلت في 30 يوم)
+      if (isRecent) inByDay[dayKey] = (inByDay[dayKey] ?? 0) + 1;
+
+      // حركة الخروج (delivered/returned في 30 يوم)
+      if (isRecent && (s.status === "delivered" || s.status === "returned"))
+        outByDay[dayKey] = (outByDay[dayKey] ?? 0) + 1;
     }
 
-    // ترتيب العملاء
     const topClients = Object.entries(clientCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
+      .sort((a, b) => b[1] - a[1]).slice(0, 10)
       .map(([name, count]) => ({ name, count }));
 
+    // حوّل حركة الـ 30 يوم لـ array مرتب
+    const allDays = new Set([...Object.keys(inByDay), ...Object.keys(outByDay)]);
+    const movement = Array.from(allDays).sort().map(day => ({
+      day,
+      in:  inByDay[day]  ?? 0,
+      out: outByDay[day] ?? 0,
+    }));
+
     res.json({
-      total: shipments.length,
-      byStatus,
+      total:      shipments.length,
+      byStatus:   Object.fromEntries(ACTIVE.map(s => [s, shipments.filter(x => x.status === s).length])),
       byParcelType,
       topClients,
+      staleShipments: staleShipments.sort((a, b) => b.daysInWarehouse - a.daysInWarehouse),
+      movement,
     });
   } catch (e) {
     console.error("[GET /warehouses/:id/stats]", e);

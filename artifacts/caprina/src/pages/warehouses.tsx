@@ -1285,26 +1285,26 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
           ) : (<>
 
             {/* ─── 1. تنبيه: شحنات أكتر من 7 أيام ─────────────────────────── */}
-            <Card className={`border-2 ${warehouseStats.staleShipments.length > 0 ? "border-red-400/60 bg-red-500/5" : "border-border bg-card"}`}>
+            <Card className={`border-2 ${(warehouseStats.staleShipments?.length ?? 0) > 0 ? "border-red-400/60 bg-red-500/5" : "border-border bg-card"}`}>
               <CardHeader className="pb-2 pt-3 px-4">
                 <CardTitle className="text-[11px] font-bold flex items-center gap-1.5">
-                  <AlertTriangle className={`w-3.5 h-3.5 ${warehouseStats.staleShipments.length > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+                  <AlertTriangle className={`w-3.5 h-3.5 ${(warehouseStats.staleShipments?.length ?? 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} />
                   شحنات متأخرة في المخزن (أكتر من 7 أيام)
-                  {warehouseStats.staleShipments.length > 0 && (
+                  {(warehouseStats.staleShipments?.length ?? 0) > 0 && (
                     <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                      {warehouseStats.staleShipments.length}
+                      {warehouseStats.staleShipments?.length}
                     </span>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-3 pt-0">
-                {warehouseStats.staleShipments.length === 0 ? (
+                {(warehouseStats.staleShipments?.length ?? 0) === 0 ? (
                   <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
                     ✅ لا توجد شحنات متأخرة — كل شيء طيب!
                   </p>
                 ) : (
                   <div className="space-y-1.5 mt-1">
-                    {warehouseStats.staleShipments.map(s => (
+                    {(warehouseStats.staleShipments ?? []).map(s => (
                       <div key={s.id} className="flex items-center justify-between text-[11px] bg-red-500/8 border border-red-400/20 rounded-md px-2.5 py-1.5">
                         <div className="flex items-center gap-2">
                           <Clock className="w-3 h-3 text-red-400 shrink-0" />
@@ -1333,11 +1333,11 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-0">
-                {Object.keys(warehouseStats.byParcelType).length === 0 ? (
+                {Object.keys(warehouseStats.byParcelType ?? {}).length === 0 ? (
                   <p className="text-[11px] text-muted-foreground text-center py-4">لا توجد شحنات نشطة بأنواع طرود مسجّلة</p>
                 ) : (() => {
-                  const total = Object.values(warehouseStats.byParcelType).reduce((s, n) => s + n, 0);
-                  const sorted = Object.entries(warehouseStats.byParcelType).sort((a, b) => b[1] - a[1]);
+                  const total = Object.values(warehouseStats.byParcelType ?? {}).reduce((s, n) => s + n, 0);
+                  const sorted = Object.entries(warehouseStats.byParcelType ?? {}).sort((a, b) => b[1] - a[1]);
                   const COLORS = ["bg-primary", "bg-sky-500", "bg-indigo-500", "bg-violet-500", "bg-amber-500", "bg-emerald-500", "bg-rose-500", "bg-orange-500"];
                   return (
                     <div className="space-y-2.5 mt-1">
@@ -1372,14 +1372,14 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-0">
-                {warehouseStats.movement.length === 0 ? (
+                {(warehouseStats.movement ?? []).length === 0 ? (
                   <p className="text-[11px] text-muted-foreground text-center py-4">لا توجد بيانات حركة في آخر 30 يوم</p>
                 ) : (() => {
-                  const maxVal = Math.max(...warehouseStats.movement.flatMap(d => [d.in, d.out]), 1);
-                  const totalIn  = warehouseStats.movement.reduce((s, d) => s + d.in, 0);
-                  const totalOut = warehouseStats.movement.reduce((s, d) => s + d.out, 0);
+                  const maxVal = Math.max(...(warehouseStats.movement ?? []).flatMap(d => [d.in, d.out]), 1);
+                  const totalIn  = (warehouseStats.movement ?? []).reduce((s, d) => s + d.in, 0);
+                  const totalOut = (warehouseStats.movement ?? []).reduce((s, d) => s + d.out, 0);
                   // نعرض آخر 14 يوم فقط عشان ميكونش مزحوم
-                  const recent = [...warehouseStats.movement].slice(-14);
+                  const recent = [...(warehouseStats.movement ?? [])].slice(-14);
                   return (
                     <>
                       {/* ملخص سريع */}

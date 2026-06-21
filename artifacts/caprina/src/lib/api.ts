@@ -916,6 +916,8 @@ export interface WarehouseStats {
   byStatus: Record<string, number>;
   byParcelType: Record<string, number>;
   topClients: { name: string; count: number }[];
+  staleShipments: { id: number; senderName: string; daysInWarehouse: number; parcelType: string | null }[];
+  movement: { day: string; in: number; out: number }[];
 }
 
 export interface WarehouseTransfer {
