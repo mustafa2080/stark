@@ -267,18 +267,24 @@ router.get("/shipments", async (req, res): Promise<void> => {
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
     conditions.push(isNull(shipmentsTable.deletedAt));
-    // map legacy statuses to new ones
-    const STATUS_ALIASES: Record<string, string[]> = {
-      warehouse_ready: ["warehouse_ready", "picked_up"],
-      in_shipping:     ["in_shipping", "in_transit", "out_for_delivery"],
-      received:        ["received", "delivered"],
-      pending:         ["pending", "waiting", "confirmed"],
-      returned:        ["returned", "cancelled"],
+    // حالات مترادفة — الداتابيز قد تحتوي أسماء قديمة وجديدة للنفس الحالة
+    // كل مجموعة = حالة واحدة منطقياً، الأول في المصفوفة هو الاسم الجديد المعتمد
+    const STATUS_GROUPS: Record<string, string[]> = {
+      waiting:          ["waiting", "pending"],
+      confirmed:        ["confirmed"],
+      picked_up:        ["picked_up", "warehouse_ready"],
+      in_transit:       ["in_transit", "in_shipping"],
+      out_for_delivery: ["out_for_delivery"],
+      delivered:        ["delivered", "received"],
+      partial_received: ["partial_received"],
+      delayed:          ["delayed"],
+      returned:         ["returned"],
+      cancelled:        ["cancelled"],
     };
     if (status && status !== "all") {
-      const aliases = STATUS_ALIASES[status];
-      if (aliases && aliases.length > 1) {
-        conditions.push(inArray(shipmentsTable.status, aliases));
+      const group = STATUS_GROUPS[status];
+      if (group && group.length > 1) {
+        conditions.push(inArray(shipmentsTable.status, group));
       } else {
         conditions.push(eq(shipmentsTable.status, status));
       }
