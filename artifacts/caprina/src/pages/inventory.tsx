@@ -1,7 +1,7 @@
-﻿import { useState } from "react";
+﻿import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { productsApi, variantsApi, analyticsApi, warehousesApi, type Product, type ProductVariant, type StockIntelligenceItem, type Warehouse, type VariantWarehouseStock } from "@/lib/api";
+import { productsApi, variantsApi, analyticsApi, warehousesApi, ordersApi, type Product, type ProductVariant, type StockIntelligenceItem, type Warehouse, type VariantWarehouseStock } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Plus, Package, AlertTriangle, Edit2, Trash2, ChevronDown, ChevronRight,
   Layers, Tag, TrendingUp, DollarSign, Boxes, BarChart3, Search, PackagePlus, Archive,
-  Filter, X, SortAsc, SortDesc, ChevronDown as ChevronDownIcon, Warehouse as WarehouseIcon, MapPin, Printer, ImagePlus, Trash
+  Filter, X, SortAsc, SortDesc, ChevronDown as ChevronDownIcon, Warehouse as WarehouseIcon, MapPin, Printer, ImagePlus, Trash,
+  Truck, Clock3, RotateCcw, CheckCircle2, ArrowRight, PackageX, RefreshCw, TrendingDown, Eye
 } from "lucide-react";
 
 // ─── Product Image Upload ──────────────────────────────────────────────────────
@@ -255,6 +256,278 @@ function printProductInventory(product: Product, variants: ProductVariant[], war
   win.onload = () => { win.print(); };
 }
 
+// ─── Shipment Warehouse Tab ───────────────────────────────────────────────────
+const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; icon: any }> = {
+  pending:          { label: "معلق",             color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-50 dark:bg-amber-900/10",   border: "border-amber-200 dark:border-amber-800/40",   icon: Clock3 },
+  warehouse_ready:  { label: "جاهز للشحن",       color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-50 dark:bg-blue-900/10",     border: "border-blue-200 dark:border-blue-800/40",     icon: Package },
+  in_shipping:      { label: "مع شركة الشحن",    color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-900/10", border: "border-violet-200 dark:border-violet-800/40", icon: Truck },
+  returned:         { label: "مرتجع كامل",        color: "text-red-600 dark:text-red-400",       bg: "bg-red-50 dark:bg-red-900/10",       border: "border-red-200 dark:border-red-800/40",       icon: RotateCcw },
+  partial_received: { label: "مرتجع جزئي",       color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-900/10", border: "border-orange-200 dark:border-orange-800/40", icon: PackageX },
+  received:         { label: "تم التسليم",        color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/10", border: "border-emerald-200 dark:border-emerald-800/40", icon: CheckCircle2 },
+};
+
+const fc2 = (n: number) =>
+  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+
+function ShipmentWarehouseTab() {
+  const [activeStatus, setActiveStatus] = useState<string>("warehouse_ready");
+  const [search, setSearch] = useState("");
+
+  // جلب الشحنات المعلقة (في المستودع)
+  const { data: pendingOrders = [], isLoading: l1 } = useQuery({
+    queryKey: ["orders-wh", "pending"],
+    queryFn: () => ordersApi.list({ status: "pending" }),
+    staleTime: 60_000,
+  });
+  const { data: warehouseReadyOrders = [], isLoading: l2 } = useQuery({
+    queryKey: ["orders-wh", "warehouse_ready"],
+    queryFn: () => ordersApi.list({ status: "warehouse_ready" }),
+    staleTime: 60_000,
+  });
+  const { data: inShippingOrders = [], isLoading: l3 } = useQuery({
+    queryKey: ["orders-wh", "in_shipping"],
+    queryFn: () => ordersApi.list({ status: "in_shipping" }),
+    staleTime: 60_000,
+  });
+  const { data: returnedOrders = [], isLoading: l4 } = useQuery({
+    queryKey: ["orders-wh", "returned"],
+    queryFn: () => ordersApi.list({ status: "returned" }),
+    staleTime: 60_000,
+  });
+  const { data: partialOrders = [], isLoading: l5 } = useQuery({
+    queryKey: ["orders-wh", "partial_received"],
+    queryFn: () => ordersApi.list({ status: "partial_received" }),
+    staleTime: 60_000,
+  });
+
+  const isLoading = l1 || l2 || l3 || l4 || l5;
+
+  const ordersMap: Record<string, any[]> = {
+    pending: pendingOrders,
+    warehouse_ready: warehouseReadyOrders,
+    in_shipping: inShippingOrders,
+    returned: returnedOrders,
+    partial_received: partialOrders,
+  };
+
+  // KPI summary
+  const inWarehouse   = pendingOrders.length + warehouseReadyOrders.length;
+  const inTransit     = inShippingOrders.length;
+  const returns       = returnedOrders.length + partialOrders.length;
+  const totalCOD      = [...pendingOrders, ...warehouseReadyOrders].reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+
+  // الشحنات المعروضة بناءً على التاب المختار
+  const activeOrders = (ordersMap[activeStatus] ?? []).filter((o: any) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      (o.customerName ?? "").toLowerCase().includes(s) ||
+      (o.city ?? "").toLowerCase().includes(s) ||
+      (o.product ?? "").toLowerCase().includes(s) ||
+      (o.phone ?? "").includes(s) ||
+      (o.invoiceNumber ?? "").toLowerCase().includes(s)
+    );
+  });
+
+  const tabOrder = ["warehouse_ready", "pending", "in_shipping", "returned", "partial_received"];
+
+  return (
+    <div className="space-y-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        {/* في المستودع */}
+        <Card className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10 p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
+              <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <span className="text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">مستودع</span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">{isLoading ? "..." : inWarehouse}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">شحنة في المستودع</p>
+          <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70 font-bold mt-0.5">{isLoading ? "" : fc2(totalCOD)} COD</p>
+        </Card>
+
+        {/* عند شركة الشحن */}
+        <Card className="border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/10 p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center">
+              <Truck className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <span className="text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full">تسليم</span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "..." : inTransit}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">شحنة في الطريق</p>
+          <p className="text-[10px] text-violet-600/70 dark:text-violet-400/70 font-bold mt-0.5">
+            {isLoading ? "" : fc2(inShippingOrders.reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0))} COD
+          </p>
+        </Card>
+
+        {/* المرتجعات */}
+        <Card className={`border p-3 sm:p-4 ${returns > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${returns > 0 ? "bg-red-500/15" : "bg-muted/30"}`}>
+              <RotateCcw className={`w-4 h-4 ${returns > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
+            </div>
+            {returns > 0 && <span className="text-[10px] font-bold text-red-600/70 dark:text-red-400/70 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full">تنبيه</span>}
+          </div>
+          <p className={`text-2xl sm:text-3xl font-black ${returns > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "..." : returns}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">شحنة مرتجعة</p>
+          <p className={`text-[10px] font-bold mt-0.5 ${returns > 0 ? "text-red-600/70 dark:text-red-400/70" : "text-muted-foreground"}`}>
+            {isLoading ? "" : `${returnedOrders.length} كامل · ${partialOrders.length} جزئي`}
+          </p>
+        </Card>
+
+        {/* معدل التسليم */}
+        <Card className="border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10 p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <span className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full">أداء</span>
+          </div>
+          {isLoading ? (
+            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">...</p>
+          ) : (() => {
+            const total = inWarehouse + inTransit + returns;
+            const rate = total === 0 ? 0 : Math.round((inTransit / total) * 100);
+            return (
+              <>
+                <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{rate}%</p>
+                <p className="text-[10px] text-muted-foreground mt-1">نسبة الشحنات الجارية</p>
+                <div className="w-full bg-emerald-200/50 dark:bg-emerald-800/30 rounded-full h-1 mt-1.5">
+                  <div className="bg-emerald-500 h-1 rounded-full transition-all" style={{ width: `${rate}%` }} />
+                </div>
+              </>
+            );
+          })()}
+        </Card>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {tabOrder.map(status => {
+          const meta = STATUS_META[status];
+          const Icon = meta.icon;
+          const count = ordersMap[status]?.length ?? 0;
+          const isActive = activeStatus === status;
+          return (
+            <button
+              key={status}
+              onClick={() => setActiveStatus(status)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                isActive
+                  ? `${meta.bg} ${meta.border} ${meta.color} shadow-sm`
+                  : "border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              {meta.label}
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${isActive ? meta.bg : "bg-muted"}`}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="بحث بالاسم أو المدينة أو الهاتف أو رقم الفاتورة..."
+          className="pr-9 h-9 text-sm bg-card border-border"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {/* Orders Table */}
+      <Card className="border-border bg-card overflow-hidden">
+        <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${STATUS_META[activeStatus]?.bg ?? ""} ${STATUS_META[activeStatus]?.border ?? ""}`}>
+          {(() => { const Icon = STATUS_META[activeStatus]?.icon; return Icon ? <Icon className={`w-4 h-4 ${STATUS_META[activeStatus]?.color}`} /> : null; })()}
+          <span className={`text-sm font-bold ${STATUS_META[activeStatus]?.color}`}>{STATUS_META[activeStatus]?.label}</span>
+          <span className="text-xs text-muted-foreground mr-auto">{activeOrders.length} شحنة</span>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16 gap-2">
+            <RefreshCw className="w-4 h-4 text-muted-foreground animate-spin" />
+            <span className="text-sm text-muted-foreground">جاري التحميل...</span>
+          </div>
+        ) : activeOrders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
+              <Package className="w-6 h-6 text-muted-foreground/50" />
+            </div>
+            <p className="text-sm font-bold text-muted-foreground">لا توجد شحنات</p>
+            <p className="text-xs text-muted-foreground/70">{search ? "جرب كلمة بحث مختلفة" : `لا توجد شحنات بحالة "${STATUS_META[activeStatus]?.label}"`}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-right px-4 py-2.5 text-[11px] font-bold text-muted-foreground">العميل</th>
+                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">المنتج</th>
+                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">المدينة</th>
+                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">COD</th>
+                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">شركة الشحن</th>
+                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">التاريخ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeOrders.map((order: any, idx: number) => (
+                  <tr
+                    key={order.id}
+                    className={`border-b border-border/50 transition-colors hover:bg-muted/20 ${idx % 2 === 0 ? "" : "bg-muted/5"}`}
+                  >
+                    <td className="px-4 py-2.5">
+                      <div>
+                        <p className="font-bold text-[12px] leading-tight">{order.customerName ?? "—"}</p>
+                        <p className="text-[10px] text-muted-foreground">{order.phone ?? ""}</p>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <p className="text-[11px] text-foreground/80 max-w-[120px] truncate" title={order.product}>{order.product ?? "—"}</p>
+                      {order.invoiceNumber && <p className="text-[9px] text-muted-foreground">{order.invoiceNumber}</p>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[11px] font-semibold">{order.city ?? "—"}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">{fc2(Number(order.cod) || 0)}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[11px] text-muted-foreground">{order.shippingCompanyName ?? "—"}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[10px] text-muted-foreground">
+                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* COD Summary Footer */}
+      {activeOrders.length > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 px-4 py-2.5 text-xs">
+          <span className="text-muted-foreground font-semibold">{activeOrders.length} شحنة</span>
+          <div className="flex items-center gap-4">
+            <span className="text-muted-foreground">إجمالي COD:</span>
+            <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">
+              {fc2(activeOrders.reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0))}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Inventory() {
   const { can, isAdmin } = useAuth();
@@ -266,6 +539,7 @@ export default function Inventory() {
   const canWarehouses  = isAdmin || can("inventory.warehouses");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"shipments" | "products">("shipments");
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
@@ -618,9 +892,11 @@ export default function Inventory() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">المخزون</h1>
-          <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">إدارة المنتجات • الألوان • المقاسات • التكاليف</p>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+            {activeTab === "shipments" ? "تتبع الشحنات • المستودع • المرتجعات" : "إدارة المنتجات • الألوان • المقاسات • التكاليف"}
+          </p>
         </div>
-        {canEdit && (
+        {activeTab === "products" && canEdit && (
           <Button onClick={openAddProduct} className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs sm:text-sm h-8 sm:h-9 px-3">
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden xs:inline">منتج جديد</span>
@@ -628,6 +904,38 @@ export default function Inventory() {
           </Button>
         )}
       </div>
+
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border w-fit">
+        <button
+          onClick={() => setActiveTab("shipments")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
+            activeTab === "shipments"
+              ? "bg-background shadow-sm border border-border text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Truck className="w-3.5 h-3.5" />
+          مستودع الشحنات
+        </button>
+        <button
+          onClick={() => setActiveTab("products")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
+            activeTab === "products"
+              ? "bg-background shadow-sm border border-border text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Boxes className="w-3.5 h-3.5" />
+          المنتجات
+        </button>
+      </div>
+
+      {/* Shipment Warehouse Tab */}
+      {activeTab === "shipments" && <ShipmentWarehouseTab />}
+
+      {/* Products Tab */}
+      {activeTab === "products" && (<>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
@@ -1384,6 +1692,7 @@ export default function Inventory() {
         </DialogContent>
       </Dialog>
 
+    </>)}
     </div>
   );
 }
