@@ -3703,15 +3703,21 @@ export default function ShippingManifestPage() {
   ).length;
   // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
   // (مرتجع أو جزئي مرحَّل ولم يُستلم بعد)
-  const isStillAtShipping = (o: typeof manifest.orders[number]) =>
-    (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-    (o as any).returnReceived !== 1;
+  const isStillAtShipping = (o: typeof manifest.orders[number]) => {
+    const rr = (o as any).returnReceived;
+    const isConfirmed = rr === 1 || rr === true || rr === "1";
+    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+      !isConfirmed;
+  };
 
-  // ─── نستبعد البضاعة اللي اتأكد استلامها من شركة الشحن (returnReceived=1) ───
-  // من كل الحاويات: الإجمالي، عداد مرتجع/جزئي، الـ P&L، والـ COD
-  // بمجرد ما يتم تأكيد الاستلام، الشحنة دي تختفي خالص من البيان
-  // اللي يفضل ظاهر فقط: مؤجل + استلم جزئي اللي لسه returnReceived !== 1
-  const ordersExcludingPendingShipping = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o));
+  // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها (returnReceived=1) — خالص مش في البيان
+  const isReturnConfirmed = (o: typeof manifest.orders[number]) => {
+    const rr = (o as any).returnReceived;
+    return rr === 1 || rr === true || rr === "1";
+  };
+  const ordersExcludingPendingShipping = (manifest.orders ?? []).filter(
+    (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
+  );
 
   // ─── كل العدادات (مرتجع / جزئي / مؤجل / الإجمالي) بتتحسب من نفس القائمة المستبعد منها المُستلم ───
   const allGroupedOrders = groupManifestOrders(ordersExcludingPendingShipping);
