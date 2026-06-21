@@ -3335,11 +3335,13 @@ export default function ShippingManifestPage() {
     const orders = manifest?.orders ?? [];
     // ─── استبعاد المرتجع/الجزئي اللي لسه عند شركة الشحن من جدول الطلبيات ───────
     // دول بيظهروا فقط في حاوية "بضاعة لسه عند شركة الشحن" تحت، مش في الجدول
+    // الشحنات المسلّمة (delivered) كمان بتختفي بعد تأكيد الاستلام
     const ordersWithoutPendingReturns = orders.filter(o => {
       const isStillAtShipping =
         (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
         (o as any).returnReceived !== 1;
-      return !isStillAtShipping;
+      const isDelivered = o.deliveryStatus === "delivered";
+      return !isStillAtShipping && !isDelivered;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
     if (!manifestCustomerSearch && !manifestProductSearch && !manifestTotalSearch) return groups;
