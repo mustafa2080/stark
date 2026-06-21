@@ -3337,9 +3337,11 @@ export default function ShippingManifestPage() {
     // دول بيظهروا فقط في حاوية "بضاعة لسه عند شركة الشحن" تحت، مش في الجدول
     // الشحنات المسلّمة (delivered) كمان بتختفي بعد تأكيد الاستلام
     const ordersWithoutPendingReturns = orders.filter(o => {
+      const rr = (o as any).returnReceived;
+      const isConfirmed = rr === 1 || rr === true;
       const isStillAtShipping =
         (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-        (o as any).returnReceived !== 1;
+        !isConfirmed;
       const isDelivered = o.deliveryStatus === "delivered";
       return !isStillAtShipping && !isDelivered;
     });
