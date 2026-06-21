@@ -3307,7 +3307,19 @@ export default function ShippingManifestPage() {
         assignedUserId: sh?.assignedUserId ?? null,
         createdByUserId: null,
         shippingCompanyId: sh?.shippingCompanyId ?? rawManifest.shippingCompanyId,
-        deliveryStatus: item.deliveryStatus as DeliveryStatus,
+        deliveryStatus: (() => {
+          // لو البيان لسه pending بس الشحنة نفسها اتغيرت → sync الحالة
+          if (item.deliveryStatus === "pending" && sh?.status) {
+            const statusMap: Record<string, string> = {
+              returned:         "returned",
+              partial_received: "partial_delivered",
+              delivered:        "delivered",
+              received:         "delivered",
+            };
+            return (statusMap[sh.status] ?? item.deliveryStatus) as DeliveryStatus;
+          }
+          return item.deliveryStatus as DeliveryStatus;
+        })(),
         deliveryNote: item.deliveryNote,
         deliveredAt: item.deliveredAt,
         returnReceived: item.returnReceived,
