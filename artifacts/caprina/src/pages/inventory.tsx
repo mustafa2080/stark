@@ -777,6 +777,42 @@ function ShipmentWarehouseTab() {
     return { pendingCOD, shortfallCount, companiesRanked };
   }, [shipMap.delivered]);
 
+  // ── Phase 4: تنبيهات استباقية ─────────────────────────────────────────────
+  // 1) شحنات ستتجاوز SLA خلال 24 ساعة القادمة (predictive — مش بس reactive)
+  const upcomingSlaWarnings = useMemo(() => {
+    return ACTIVE_STATUSES
+      .flatMap(st => (shipMap[st] ?? []).map((sh: any) => {
+        const ageHours = hoursSince(sh.updatedAt ?? sh.createdAt);
+        const sla = SLA_HOURS[sh.status];
+        if (!sla) return null;
+        const hoursLeft = sla.warn - ageHours;
+        // وارنينج: لسه في الـ warn zone ومتعديتهاش، وستعدّيها خلال 24 ساعة
+        if (hoursLeft > 0 && hoursLeft <= 24) return { ...sh, _hoursLeft: hoursLeft, _ageHours: ageHours };
+        return null;
+      }))
+      .filter(Boolean)
+      .sort((a: any, b: any) => a._hoursLeft - b._hoursLeft) as any[];
+  }, [shipMap]);
+
+  // 2) أنماط غريبة — شركة شحن معدل إرجاعها أعلى من المتوسط بـ 50%+ (من بيانات delivered+returned)
+  const anomalousCompanies = useMemo(() => {
+    // نجمع per-company: delivered count + returned count
+    const compMap: Record<string, { name: string; delivered: number; returned: number }> = {};
+    for (const sh of [...(shipMap.delivered ?? []), ...(shipMap.returned ?? [])]) {
+      const key = sh.shippingCompanyName ?? "بدون شركة";
+      if (!compMap[key]) compMap[key] = { name: key, delivered: 0, returned: 0 };
+      if (sh.status === "delivered") compMap[key].delivered += 1;
+      else compMap[key].returned += 1;
+    }
+    const entries = Object.values(compMap).filter(c => c.delivered + c.returned >= 5); // نحتاج على الأقل 5 شحنات عشان النسبة تبقى ذات معنى
+    if (entries.length < 2) return [];
+    const avgReturnRate = entries.reduce((s, c) => s + c.returned / (c.delivered + c.returned), 0) / entries.length;
+    return entries
+      .map(c => ({ ...c, returnRate: c.returned / (c.delivered + c.returned) }))
+      .filter(c => c.returnRate > avgReturnRate * 1.5 && c.returnRate > 0.1) // > 10% إرجاع وأعلى من المتوسط بـ 50%
+      .sort((a, b) => b.returnRate - a.returnRate);
+  }, [shipMap.delivered, shipMap.returned]);
+
   // ── فلتر بحث client-side ─────────────────────────────────────────────────
   const activeShipments = useMemo(() => {
     let base = shipMap[activeStatus] ?? [];
@@ -880,6 +916,69 @@ function ShipmentWarehouseTab() {
           <p className="text-[10px] font-bold text-rose-600/70 mt-1 truncate">{isLoading ? "" : fc2(slaBreachCOD)}</p>
         </Card>
       </div>
+
+      {/* ── Phase 4: لوحة التنبيهات الاستباقية ─────────────────────────── */}
+      {!isLoading && (upcomingSlaWarnings.length > 0 || anomalousCompanies.length > 0) && (
+        <div className="space-y-2">
+
+          {/* تنبيه 1: شحنات ستتجاوز الوقت المسموح خلال 24 ساعة */}
+          {upcomingSlaWarnings.length > 0 && (
+            <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/70 dark:bg-amber-950/15 overflow-hidden">
+              <div className="px-3 py-2 border-b border-amber-200 dark:border-amber-800/40 flex items-center gap-2">
+                <Zap className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="text-[12px] font-bold text-amber-700 dark:text-amber-400">تنبيه استباقي — شحنات ستتأخر خلال 24 ساعة القادمة</span>
+                <span className="mr-auto text-[10px] font-black bg-amber-200 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{upcomingSlaWarnings.length}</span>
+              </div>
+              <div className="divide-y divide-amber-100 dark:divide-amber-900/30">
+                {upcomingSlaWarnings.slice(0, 5).map((sh: any) => {
+                  const meta = SHIP_STATUS_META[sh.status];
+                  return (
+                    <div key={sh.id} className="flex items-center gap-2 px-3 py-2 hover:bg-amber-100/40 dark:hover:bg-amber-900/10 transition-colors">
+                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta?.dot ?? "bg-amber-400"}`} />
+                      <span className="text-[12px] font-semibold truncate flex-1">{sh.receiverName}</span>
+                      <span className="text-[10px] text-muted-foreground hidden sm:inline truncate">{sh.shippingCompanyName ?? "—"}</span>
+                      <span className={`text-[10px] font-bold shrink-0 px-2 py-0.5 rounded-full border ${meta?.bg ?? ""} ${meta?.border ?? ""} ${meta?.color ?? ""}`}>{meta?.label}</span>
+                      <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 shrink-0 tabular-nums">
+                        ⏱ {Math.ceil(sh._hoursLeft)} س
+                      </span>
+                    </div>
+                  );
+                })}
+                {upcomingSlaWarnings.length > 5 && (
+                  <div className="px-3 py-2 text-[11px] text-muted-foreground text-center">
+                    + {upcomingSlaWarnings.length - 5} شحنة أخرى
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* تنبيه 2: شركات شحن معدل إرجاعها مرتفع بشكل غير طبيعي */}
+          {anomalousCompanies.length > 0 && (
+            <div className="rounded-xl border border-rose-300 dark:border-rose-700/50 bg-rose-50/60 dark:bg-rose-950/15 overflow-hidden">
+              <div className="px-3 py-2 border-b border-rose-200 dark:border-rose-800/40 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span className="text-[12px] font-bold text-rose-700 dark:text-rose-400">نمط غير طبيعي — معدل إرجاع مرتفع</span>
+                <span className="mr-auto text-[10px] font-black bg-rose-200 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full">{anomalousCompanies.length} شركة</span>
+              </div>
+              <div className="divide-y divide-rose-100 dark:divide-rose-900/30">
+                {anomalousCompanies.map((c: any) => (
+                  <div key={c.name} className="flex items-center gap-2 px-3 py-2 hover:bg-rose-100/40 dark:hover:bg-rose-900/10 transition-colors">
+                    <Truck className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <span className="text-[12px] font-semibold truncate flex-1">{c.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] text-muted-foreground">{c.delivered + c.returned} شحنة</span>
+                      <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 tabular-nums">
+                        {Math.round(c.returnRate * 100)}% إرجاع
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* SLA Filter Indicator */}
       {slaOnly && (
