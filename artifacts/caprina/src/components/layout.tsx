@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { firstLogoBase64 } from "@/lib/first-logo";
 import { secondLogoBase64 } from "@/lib/second-logo";
-import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, ShoppingCart, ShoppingBag, Receipt, Building2, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin } from "lucide-react";
+import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, ShoppingCart, ShoppingBag, Receipt, Building2, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin, Layers } from "lucide-react";
 import { BrandFull, BrandLogoMark } from "@/components/brand-logo";
 import { BrandSettingsDialog } from "@/components/brand-settings-dialog";
 import { cn } from "@/lib/utils";
@@ -39,8 +39,9 @@ const ALL_NAV = [
   { href: "/invoices",          label: "فواتير الشحن",             icon: FileText,                    permission: "invoices.view",           section: "section_invoices",           iconColor: "text-yellow-400",     group: "orders"       },
   { href: "/shipping-followup", label: "متابعة الشحنات",        icon: Clock,                       permission: "section_shipping_followup", section: "section_shipping_followup",  iconColor: "text-cyan-400",       group: "orders"       },
   { href: "/shipping",          label: "مناديب STARK",         icon: Truck,                       permission: "shipping.view",           section: "section_shipping",           iconColor: "text-sky-400",        group: "shipping"     },
-  { href: "/inventory",         label: "المخزون", icon: Boxes,                       permission: "inventory.view",          section: "section_inventory",          iconColor: "text-violet-400",     group: "inventory"    },
-  { href: "/warehouses",        label: "المخازن",             icon: Warehouse,                   permission: "inventory.view",          section: "section_warehouses",         iconColor: "text-indigo-400",     group: "inventory"    },
+  { href: "/inventory",         label: "المخزون",               icon: Boxes,        permission: "inventory.view",          section: "section_inventory",          iconColor: "text-violet-400",     group: "inventory"    },
+  { href: "/parcel-types",      label: "أنواع الشحنات وأسعارها", icon: Layers,      permission: "inventory.view",          section: "section_inventory",          iconColor: "text-sky-400",        group: "inventory"    },
+  { href: "/warehouses",        label: "المخازن",               icon: Warehouse,    permission: "inventory.view",          section: "section_warehouses",         iconColor: "text-indigo-400",     group: "inventory"    },
   { href: "/movements",         label: "حركات المخزون",       icon: Activity,                    permission: "inventory.movements",     section: "section_movements",          iconColor: "text-purple-400",     group: "inventory"    },
   { href: "/product-performance",label: "أداء المنتجات",     icon: BarChart3,                   permission: "analytics.products",      section: "section_product_performance", iconColor: "text-pink-400",      group: "analytics"    },
   { href: "/smart",             label: "التحليل الذكي",       icon: Brain,                       permission: "analytics.smart",         section: "section_smart_analytics",    iconColor: "text-fuchsia-400",    group: "analytics"    },

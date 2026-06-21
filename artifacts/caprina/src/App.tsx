@@ -222,6 +222,7 @@ const ProfilePage           = lazy(() => import("@/pages/profile"));
 const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
 const ContractPage          = lazy(() => import("@/pages/contract"));
 const ShipmentsSettingsPage = lazy(() => import("@/pages/shipments"));
+const ParcelTypesPage       = lazy(() => import("@/pages/parcel-types"));
 const TrackResultPage       = lazy(() => import("@/pages/track-result"));
 const TrackClientPage       = lazy(() => import("@/pages/track-client"));
 const ClientsShowcasePage   = lazy(() => import("@/pages/clients-showcase"));
@@ -590,6 +591,7 @@ function Router() {
           <Route path="/profile" component={ProfilePage} />
           {/* Shipments */}
           <Route path="/shipments" component={() => <ProtectedRoute permission="dashboard.view" component={ShipmentsSettingsPage} />} />
+          <Route path="/parcel-types" component={() => <ProtectedRoute permission="inventory.view" component={ParcelTypesPage} />} />
           <Route path="/clients-showcase" component={() => <ProtectedRoute permission="dashboard.view" component={ClientsShowcasePage} />} />
           {/* Subscription Expired */}
           <Route path="/subscription-expired" component={SubscriptionExpired} />
