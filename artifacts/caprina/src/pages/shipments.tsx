@@ -1357,7 +1357,7 @@ export default function ShipmentsPage() {
 
   const TABS = [
     { key: "zones",    label: "المناطق",                    icon: Globe,   count: zones.length },
-    { key: "pricing",  label: "أنواع الشحنات وأسعارها",      icon: Layers,  count: parcelPricing.length },
+    { key: "pricing",  label: "المخزون",      icon: Layers,  count: parcelPricing.length },
   ] as const;
 
   return (
