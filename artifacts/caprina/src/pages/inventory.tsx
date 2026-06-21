@@ -629,6 +629,7 @@ const SHIP_STATUS_META: Record<string, { label: string; color: string; bg: strin
   in_transit:       { label: "قيد الشحن",      color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
   out_for_delivery: { label: "خرجت للتسليم",  color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/20",    border: "border-amber-200 dark:border-amber-700",       dot: "bg-amber-500",    icon: MapPin },
   delivered:        { label: "تم التسليم",     color: "text-emerald-600 dark:text-emerald-400",bg: "bg-emerald-50 dark:bg-emerald-900/20",border: "border-emerald-200 dark:border-emerald-700",   dot: "bg-emerald-500",  icon: CheckCircle2 },
+  partial_received: { label: "استلام جزئي",   color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
   delayed:          { label: "متأخرة",         color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-50 dark:bg-orange-900/20",  border: "border-orange-200 dark:border-orange-700",     dot: "bg-orange-500",   icon: AlertCircle },
   returned:         { label: "مرتجع",          color: "text-red-600 dark:text-red-400",        bg: "bg-red-50 dark:bg-red-900/20",        border: "border-red-200 dark:border-red-700",           dot: "bg-red-500",      icon: RotateCcw },
   cancelled:        { label: "ملغية",          color: "text-zinc-500 dark:text-zinc-400",      bg: "bg-zinc-100 dark:bg-zinc-800/40",     border: "border-zinc-300 dark:border-zinc-600",         dot: "bg-zinc-400",     icon: X },
@@ -638,7 +639,7 @@ const fc2 = (n: number | string) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
 const ACTIVE_STATUSES  = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"] as const;
-const CLOSED_STATUSES  = ["delivered", "delayed", "returned", "cancelled"] as const;
+const CLOSED_STATUSES  = ["delivered", "partial_received", "delayed", "returned", "cancelled"] as const;
 const ALL_SHIP_STATUSES = [...ACTIVE_STATUSES, ...CLOSED_STATUSES] as const;
 
 // ─── SLA: حدود الإنذار بالساعات لكل حالة (شركات الشحن الكبيرة بتفرّق هنا) ──────

@@ -26,7 +26,7 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
   | "waiting" | "confirmed" | "picked_up" | "in_transit"
-  | "out_for_delivery" | "delivered" | "delayed" | "returned" | "cancelled";
+  | "out_for_delivery" | "delivered" | "partial_received" | "delayed" | "returned" | "cancelled";
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
@@ -76,6 +76,7 @@ const STATUS_CFG: Record<ShipmentStatus, { label: string; icon: React.ElementTyp
   in_transit:       { label: "قيد الشحن",       icon: Truck,        cls: "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700"},
   out_for_delivery: { label: "خرجت للتسليم",   icon: MapPin,       cls: "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700"     },
   delivered:        { label: "تم التسليم",      icon: CheckCircle,  cls: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700"},
+  partial_received: { label: "استلام جزئي",    icon: Package,      cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700"              },
   delayed:          { label: "متأخرة",          icon: AlertTriangle,cls: "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-700"},
   returned:         { label: "مرتجع",           icon: RefreshCw,    cls: "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700"                },
   cancelled:        { label: "ملغية",           icon: XCircle,      cls: "bg-zinc-100 dark:bg-zinc-800/40 text-zinc-500 dark:text-zinc-400 border-zinc-300 dark:border-zinc-600"          },

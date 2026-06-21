@@ -2,15 +2,16 @@ import { mysqlTable, int, varchar, decimal, text, datetime } from "drizzle-orm/m
 
 // ─── حالات الشحنة ─────────────────────────────────────────────────────────────
 export const SHIPMENT_STATUSES = [
-  "waiting",          // انتظار
-  "confirmed",        // مؤكدة
-  "picked_up",        // تم الاستلام
-  "in_transit",       // في الطريق
-  "out_for_delivery", // خرجت للتسليم
-  "delivered",        // تم التسليم
-  "delayed",          // متأخرة
-  "returned",         // مرتجع
-  "cancelled",        // ملغية
+  "waiting",           // انتظار
+  "confirmed",         // مؤكدة
+  "picked_up",         // تم الاستلام
+  "in_transit",        // في الطريق
+  "out_for_delivery",  // خرجت للتسليم
+  "delivered",         // تم التسليم
+  "partial_received",  // استلام جزئي
+  "delayed",           // متأخرة
+  "returned",          // مرتجع
+  "cancelled",         // ملغية
 ] as const;
 export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 
@@ -21,6 +22,7 @@ export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
   in_transit:       "في الطريق",
   out_for_delivery: "خرجت للتسليم",
   delivered:        "تم التسليم",
+  partial_received: "استلام جزئي",
   delayed:          "متأخرة",
   returned:         "مرتجع",
   cancelled:        "ملغية",
