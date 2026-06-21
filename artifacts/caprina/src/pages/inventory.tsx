@@ -257,270 +257,419 @@ function printProductInventory(product: Product, variants: ProductVariant[], war
 }
 
 // ─── Shipment Warehouse Tab ───────────────────────────────────────────────────
-const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; icon: any }> = {
-  pending:          { label: "معلق",             color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-50 dark:bg-amber-900/10",   border: "border-amber-200 dark:border-amber-800/40",   icon: Clock3 },
-  warehouse_ready:  { label: "جاهز للشحن",       color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-50 dark:bg-blue-900/10",     border: "border-blue-200 dark:border-blue-800/40",     icon: Package },
-  in_shipping:      { label: "مع شركة الشحن",    color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-900/10", border: "border-violet-200 dark:border-violet-800/40", icon: Truck },
-  returned:         { label: "مرتجع كامل",        color: "text-red-600 dark:text-red-400",       bg: "bg-red-50 dark:bg-red-900/10",       border: "border-red-200 dark:border-red-800/40",       icon: RotateCcw },
-  partial_received: { label: "مرتجع جزئي",       color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-900/10", border: "border-orange-200 dark:border-orange-800/40", icon: PackageX },
-  received:         { label: "تم التسليم",        color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/10", border: "border-emerald-200 dark:border-emerald-800/40", icon: CheckCircle2 },
+const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; dot: string; icon: any }> = {
+  pending:          { label: "معلق",           color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/10",    border: "border-amber-200 dark:border-amber-800/40",    dot: "bg-amber-500",    icon: Clock3 },
+  warehouse_ready:  { label: "جاهز للشحن",     color: "text-blue-600 dark:text-blue-400",      bg: "bg-blue-50 dark:bg-blue-900/10",      border: "border-blue-200 dark:border-blue-800/40",      dot: "bg-blue-500",     icon: Package },
+  in_shipping:      { label: "مع شركة الشحن",  color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/10",  border: "border-violet-200 dark:border-violet-800/40",  dot: "bg-violet-500",   icon: Truck },
+  returned:         { label: "مرتجع كامل",      color: "text-red-600 dark:text-red-400",        bg: "bg-red-50 dark:bg-red-900/10",        border: "border-red-200 dark:border-red-800/40",        dot: "bg-red-500",      icon: RotateCcw },
+  partial_received: { label: "مرتجع جزئي",     color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-50 dark:bg-orange-900/10",  border: "border-orange-200 dark:border-orange-800/40",  dot: "bg-orange-500",   icon: PackageX },
 };
 
 const fc2 = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
+const ALL_STATUSES = ["pending", "warehouse_ready", "in_shipping", "returned", "partial_received"] as const;
+
 function ShipmentWarehouseTab() {
+  // ── Filters state ──────────────────────────────────────────────────────────
   const [activeStatus, setActiveStatus] = useState<string>("warehouse_ready");
-  const [search, setSearch] = useState("");
+  const [search,           setSearch]           = useState("");
+  const [dateFrom,         setDateFrom]         = useState("");
+  const [dateTo,           setDateTo]           = useState("");
+  const [shippingCompany,  setShippingCompany]  = useState("all");
+  const [showFilters,      setShowFilters]      = useState(false);
 
-  // جلب الشحنات المعلقة (في المستودع)
-  const { data: pendingOrders = [], isLoading: l1 } = useQuery({
-    queryKey: ["orders-wh", "pending"],
-    queryFn: () => ordersApi.list({ status: "pending" }),
-    staleTime: 60_000,
-  });
-  const { data: warehouseReadyOrders = [], isLoading: l2 } = useQuery({
-    queryKey: ["orders-wh", "warehouse_ready"],
-    queryFn: () => ordersApi.list({ status: "warehouse_ready" }),
-    staleTime: 60_000,
-  });
-  const { data: inShippingOrders = [], isLoading: l3 } = useQuery({
-    queryKey: ["orders-wh", "in_shipping"],
-    queryFn: () => ordersApi.list({ status: "in_shipping" }),
-    staleTime: 60_000,
-  });
-  const { data: returnedOrders = [], isLoading: l4 } = useQuery({
-    queryKey: ["orders-wh", "returned"],
-    queryFn: () => ordersApi.list({ status: "returned" }),
-    staleTime: 60_000,
-  });
-  const { data: partialOrders = [], isLoading: l5 } = useQuery({
-    queryKey: ["orders-wh", "partial_received"],
-    queryFn: () => ordersApi.list({ status: "partial_received" }),
-    staleTime: 60_000,
+  // ── جلب شركات الشحن للفلتر ────────────────────────────────────────────────
+  const { data: companies = [] } = useQuery({
+    queryKey: ["shipping-companies"],
+    queryFn: () => import("@/lib/api").then(m => m.shippingApi.list()),
+    staleTime: 5 * 60_000,
   });
 
-  const isLoading = l1 || l2 || l3 || l4 || l5;
+  // ── query params مشتركة بدون status ───────────────────────────────────────
+  const baseFilters = useMemo(() => ({
+    ...(dateFrom         ? { dateFrom }         : {}),
+    ...(dateTo           ? { dateTo }           : {}),
+    ...(shippingCompany !== "all" ? { shippingCompanyId: shippingCompany } : {}),
+  }), [dateFrom, dateTo, shippingCompany]);
 
-  const ordersMap: Record<string, any[]> = {
-    pending: pendingOrders,
-    warehouse_ready: warehouseReadyOrders,
-    in_shipping: inShippingOrders,
-    returned: returnedOrders,
-    partial_received: partialOrders,
-  };
+  // ── query واحدة لكل status (5 queries بالتوازي) ───────────────────────────
+  const queries = ALL_STATUSES.map(status =>
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useQuery({
+      queryKey: ["orders-wh", status, baseFilters],
+      queryFn:  () => ordersApi.list({ status, ...baseFilters } as any),
+      staleTime: 60_000,
+    })
+  );
 
-  // KPI summary
-  const inWarehouse   = pendingOrders.length + warehouseReadyOrders.length;
-  const inTransit     = inShippingOrders.length;
-  const returns       = returnedOrders.length + partialOrders.length;
-  const totalCOD      = [...pendingOrders, ...warehouseReadyOrders].reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+  const isLoading = queries.some(q => q.isLoading);
+  const ordersMap = Object.fromEntries(
+    ALL_STATUSES.map((s, i) => [s, queries[i].data ?? []])
+  ) as Record<string, any[]>;
 
-  // الشحنات المعروضة بناءً على التاب المختار
-  const activeOrders = (ordersMap[activeStatus] ?? []).filter((o: any) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
+  // ── KPI aggregations ───────────────────────────────────────────────────────
+  const inWarehouse  = (ordersMap.pending?.length ?? 0) + (ordersMap.warehouse_ready?.length ?? 0);
+  const inTransit    = ordersMap.in_shipping?.length ?? 0;
+  const returns      = (ordersMap.returned?.length ?? 0) + (ordersMap.partial_received?.length ?? 0);
+  const totalAll     = inWarehouse + inTransit + returns;
+  const warehouseCOD = [...(ordersMap.pending ?? []), ...(ordersMap.warehouse_ready ?? [])]
+    .reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+  const transitCOD   = (ordersMap.in_shipping ?? [])
+    .reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+  const returnsCOD   = [...(ordersMap.returned ?? []), ...(ordersMap.partial_received ?? [])]
+    .reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+
+  // ── فلترة بحث (client-side فوق الـ server results) ────────────────────────
+  const activeOrders = useMemo(() => {
+    const base = ordersMap[activeStatus] ?? [];
+    if (!search.trim()) return base;
+    const s = search.trim().toLowerCase();
+    return base.filter((o: any) =>
       (o.customerName ?? "").toLowerCase().includes(s) ||
       (o.city ?? "").toLowerCase().includes(s) ||
       (o.product ?? "").toLowerCase().includes(s) ||
       (o.phone ?? "").includes(s) ||
       (o.invoiceNumber ?? "").toLowerCase().includes(s)
     );
-  });
+  }, [ordersMap, activeStatus, search]);
 
-  const tabOrder = ["warehouse_ready", "pending", "in_shipping", "returned", "partial_received"];
+  const activeTotalCOD = activeOrders.reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+  const activeFiltersCount = [dateFrom, dateTo, shippingCompany !== "all"].filter(Boolean).length;
+
+  const clearFilters = () => { setDateFrom(""); setDateTo(""); setShippingCompany("all"); };
 
   return (
-    <div className="space-y-4">
-      {/* KPI Cards */}
+    <div className="space-y-3 sm:space-y-4">
+
+      {/* ── KPI Cards ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+
         {/* في المستودع */}
-        <Card className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10 p-3 sm:p-4">
+        <Card
+          onClick={() => setActiveStatus("warehouse_ready")}
+          className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10 p-3 sm:p-4 cursor-pointer transition-all hover:shadow-md hover:scale-[1.01] active:scale-100"
+        >
           <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
               <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <span className="text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">مستودع</span>
+            <span className="text-[9px] sm:text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">مستودع</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">{isLoading ? "..." : inWarehouse}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">شحنة في المستودع</p>
-          <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70 font-bold mt-0.5">{isLoading ? "" : fc2(totalCOD)} COD</p>
+          <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">{isLoading ? "—" : inWarehouse}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة في المستودع</p>
+          <p className="text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 mt-1 truncate">{isLoading ? "" : fc2(warehouseCOD)}</p>
         </Card>
 
         {/* عند شركة الشحن */}
-        <Card className="border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/10 p-3 sm:p-4">
+        <Card
+          onClick={() => setActiveStatus("in_shipping")}
+          className="border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/10 p-3 sm:p-4 cursor-pointer transition-all hover:shadow-md hover:scale-[1.01] active:scale-100"
+        >
           <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center shrink-0">
               <Truck className="w-4 h-4 text-violet-600 dark:text-violet-400" />
             </div>
-            <span className="text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full">تسليم</span>
+            <span className="text-[9px] sm:text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full">تسليم</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "..." : inTransit}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">شحنة في الطريق</p>
-          <p className="text-[10px] text-violet-600/70 dark:text-violet-400/70 font-bold mt-0.5">
-            {isLoading ? "" : fc2(inShippingOrders.reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0))} COD
-          </p>
+          <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "—" : inTransit}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة في الطريق</p>
+          <p className="text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 mt-1 truncate">{isLoading ? "" : fc2(transitCOD)}</p>
         </Card>
 
         {/* المرتجعات */}
-        <Card className={`border p-3 sm:p-4 ${returns > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"}`}>
+        <Card
+          onClick={() => setActiveStatus("returned")}
+          className={`border p-3 sm:p-4 cursor-pointer transition-all hover:shadow-md hover:scale-[1.01] active:scale-100 ${
+            returns > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"
+          }`}
+        >
           <div className="flex items-center justify-between mb-2">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${returns > 0 ? "bg-red-500/15" : "bg-muted/30"}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${returns > 0 ? "bg-red-500/15" : "bg-muted/30"}`}>
               <RotateCcw className={`w-4 h-4 ${returns > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
             </div>
-            {returns > 0 && <span className="text-[10px] font-bold text-red-600/70 dark:text-red-400/70 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full">تنبيه</span>}
+            {returns > 0 && (
+              <span className="text-[9px] sm:text-[10px] font-bold text-red-600/70 dark:text-red-400/70 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full animate-pulse">تنبيه</span>
+            )}
           </div>
-          <p className={`text-2xl sm:text-3xl font-black ${returns > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "..." : returns}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">شحنة مرتجعة</p>
-          <p className={`text-[10px] font-bold mt-0.5 ${returns > 0 ? "text-red-600/70 dark:text-red-400/70" : "text-muted-foreground"}`}>
-            {isLoading ? "" : `${returnedOrders.length} كامل · ${partialOrders.length} جزئي`}
+          <p className={`text-2xl sm:text-3xl font-black ${returns > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "—" : returns}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مرتجعة</p>
+          <p className={`text-[10px] font-bold mt-1 truncate ${returns > 0 ? "text-red-600/70 dark:text-red-400/70" : "text-muted-foreground"}`}>
+            {isLoading ? "" : fc2(returnsCOD)}
           </p>
         </Card>
 
-        {/* معدل التسليم */}
+        {/* نسبة التوزيع */}
         <Card className="border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10 p-3 sm:p-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+              <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <span className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full">أداء</span>
+            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full">توزيع</span>
           </div>
           {isLoading ? (
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">...</p>
-          ) : (() => {
-            const total = inWarehouse + inTransit + returns;
-            const rate = total === 0 ? 0 : Math.round((inTransit / total) * 100);
-            return (
-              <>
-                <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{rate}%</p>
-                <p className="text-[10px] text-muted-foreground mt-1">نسبة الشحنات الجارية</p>
-                <div className="w-full bg-emerald-200/50 dark:bg-emerald-800/30 rounded-full h-1 mt-1.5">
-                  <div className="bg-emerald-500 h-1 rounded-full transition-all" style={{ width: `${rate}%` }} />
-                </div>
-              </>
-            );
-          })()}
+            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">—</p>
+          ) : (
+            <>
+              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{totalAll}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">إجمالي نشط</p>
+              {/* mini stacked bar */}
+              <div className="flex w-full h-1.5 rounded-full overflow-hidden mt-2 gap-px">
+                {totalAll > 0 && <>
+                  <div className="bg-blue-500   transition-all" style={{ width: `${(inWarehouse/totalAll)*100}%` }} title={`مستودع ${inWarehouse}`} />
+                  <div className="bg-violet-500 transition-all" style={{ width: `${(inTransit/totalAll)*100}%`  }} title={`طريق ${inTransit}`} />
+                  <div className="bg-red-500    transition-all" style={{ width: `${(returns/totalAll)*100}%`    }} title={`مرتجع ${returns}`} />
+                </>}
+              </div>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span className="flex items-center gap-1 text-[9px] text-blue-600 dark:text-blue-400"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />{inWarehouse}</span>
+                <span className="flex items-center gap-1 text-[9px] text-violet-600 dark:text-violet-400"><span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />{inTransit}</span>
+                <span className="flex items-center gap-1 text-[9px] text-red-600 dark:text-red-400"><span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />{returns}</span>
+              </div>
+            </>
+          )}
         </Card>
       </div>
 
-      {/* Filter Tabs */}
+      {/* ── Filter Bar ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        {/* Search */}
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="اسم العميل · المدينة · الهاتف · رقم الفاتورة..."
+            className="pr-9 h-9 text-[12px] bg-card border-border w-full"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Filters toggle */}
+        <button
+          onClick={() => setShowFilters(v => !v)}
+          className={`flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12px] font-bold transition-all shrink-0 ${
+            showFilters || activeFiltersCount > 0
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-card border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">فلتر</span>
+          {activeFiltersCount > 0 && (
+            <span className="bg-white/20 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{activeFiltersCount}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Expanded Filters */}
+      {showFilters && (
+        <div className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+            {/* شركة الشحن */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
+                <Truck className="w-3 h-3" /> شركة الشحن
+              </label>
+              <select
+                value={shippingCompany}
+                onChange={e => setShippingCompany(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="all">الكل</option>
+                {companies.map((c: any) => (
+                  <option key={c.id} value={String(c.id)}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* من تاريخ */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
+                <Clock3 className="w-3 h-3" /> من تاريخ
+              </label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* إلى تاريخ */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
+                <Clock3 className="w-3 h-3" /> إلى تاريخ
+              </label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          </div>
+
+          {activeFiltersCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-destructive hover:underline"
+            >
+              <X className="w-3 h-3" /> مسح الفلاتر
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Status Tabs ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {tabOrder.map(status => {
-          const meta = STATUS_META[status];
-          const Icon = meta.icon;
+        {ALL_STATUSES.map(status => {
+          const meta  = STATUS_META[status];
+          const Icon  = meta.icon;
           const count = ordersMap[status]?.length ?? 0;
-          const isActive = activeStatus === status;
+          const isAct = activeStatus === status;
           return (
             <button
               key={status}
               onClick={() => setActiveStatus(status)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
-                isActive
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                isAct
                   ? `${meta.bg} ${meta.border} ${meta.color} shadow-sm`
-                  : "border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-border/80"
               }`}
             >
-              <Icon className="w-3 h-3" />
-              {meta.label}
-              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${isActive ? meta.bg : "bg-muted"}`}>{count}</span>
+              <Icon className="w-3 h-3 shrink-0" />
+              <span className="hidden xs:inline sm:inline">{meta.label}</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${isAct ? "bg-white/30 dark:bg-black/20" : "bg-muted"}`}>
+                {isLoading ? "…" : count}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-        <Input
-          placeholder="بحث بالاسم أو المدينة أو الهاتف أو رقم الفاتورة..."
-          className="pr-9 h-9 text-sm bg-card border-border"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-
-      {/* Orders Table */}
+      {/* ── Table Card ──────────────────────────────────────────────────── */}
       <Card className="border-border bg-card overflow-hidden">
-        <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${STATUS_META[activeStatus]?.bg ?? ""} ${STATUS_META[activeStatus]?.border ?? ""}`}>
-          {(() => { const Icon = STATUS_META[activeStatus]?.icon; return Icon ? <Icon className={`w-4 h-4 ${STATUS_META[activeStatus]?.color}`} /> : null; })()}
+        {/* Table header bar */}
+        <div className={`px-3 sm:px-4 py-2.5 border-b flex items-center gap-2 ${STATUS_META[activeStatus]?.bg} ${STATUS_META[activeStatus]?.border}`}>
+          {(() => { const Icon = STATUS_META[activeStatus]?.icon; return <Icon className={`w-4 h-4 shrink-0 ${STATUS_META[activeStatus]?.color}`} />; })()}
           <span className={`text-sm font-bold ${STATUS_META[activeStatus]?.color}`}>{STATUS_META[activeStatus]?.label}</span>
           <span className="text-xs text-muted-foreground mr-auto">{activeOrders.length} شحنة</span>
+          {isLoading && <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
         </div>
 
+        {/* Loading skeleton */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-16 gap-2">
-            <RefreshCw className="w-4 h-4 text-muted-foreground animate-spin" />
-            <span className="text-sm text-muted-foreground">جاري التحميل...</span>
+          <div className="p-4 space-y-2">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
+            ))}
           </div>
         ) : activeOrders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <div className="flex flex-col items-center justify-center py-14 gap-3 text-center px-4">
             <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
-              <Package className="w-6 h-6 text-muted-foreground/50" />
+              <Package className="w-6 h-6 text-muted-foreground/40" />
             </div>
             <p className="text-sm font-bold text-muted-foreground">لا توجد شحنات</p>
-            <p className="text-xs text-muted-foreground/70">{search ? "جرب كلمة بحث مختلفة" : `لا توجد شحنات بحالة "${STATUS_META[activeStatus]?.label}"`}</p>
+            <p className="text-xs text-muted-foreground/60">
+              {search ? `لا نتائج للبحث "${search}"` : `لا توجد شحنات بحالة "${STATUS_META[activeStatus]?.label}"`}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[520px]">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-right px-4 py-2.5 text-[11px] font-bold text-muted-foreground">العميل</th>
-                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">المنتج</th>
-                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">المدينة</th>
-                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">COD</th>
-                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">شركة الشحن</th>
-                  <th className="text-right px-3 py-2.5 text-[11px] font-bold text-muted-foreground">التاريخ</th>
+                  <th className="text-right px-3 sm:px-4 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">العميل</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">المنتج</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المدينة</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">COD</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">شركة الشحن</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">التاريخ</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
                 </tr>
               </thead>
               <tbody>
-                {activeOrders.map((order: any, idx: number) => (
-                  <tr
-                    key={order.id}
-                    className={`border-b border-border/50 transition-colors hover:bg-muted/20 ${idx % 2 === 0 ? "" : "bg-muted/5"}`}
-                  >
-                    <td className="px-4 py-2.5">
-                      <div>
-                        <p className="font-bold text-[12px] leading-tight">{order.customerName ?? "—"}</p>
+                {activeOrders.map((order: any, idx: number) => {
+                  const meta = STATUS_META[order.status] ?? STATUS_META["pending"];
+                  return (
+                    <tr
+                      key={order.id}
+                      className={`border-b border-border/40 transition-colors hover:bg-muted/20 ${idx % 2 !== 0 ? "bg-muted/5" : ""}`}
+                    >
+                      {/* العميل */}
+                      <td className="px-3 sm:px-4 py-2.5">
+                        <p className="font-bold text-[12px] leading-tight line-clamp-1">{order.customerName ?? "—"}</p>
                         <p className="text-[10px] text-muted-foreground">{order.phone ?? ""}</p>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <p className="text-[11px] text-foreground/80 max-w-[120px] truncate" title={order.product}>{order.product ?? "—"}</p>
-                      {order.invoiceNumber && <p className="text-[9px] text-muted-foreground">{order.invoiceNumber}</p>}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-[11px] font-semibold">{order.city ?? "—"}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">{fc2(Number(order.cod) || 0)}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-[11px] text-muted-foreground">{order.shippingCompanyName ?? "—"}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-[10px] text-muted-foreground">
-                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+
+                      {/* المنتج */}
+                      <td className="px-3 py-2.5 hidden sm:table-cell max-w-[130px]">
+                        <p className="text-[11px] truncate text-foreground/80" title={order.product}>{order.product ?? "—"}</p>
+                        {order.invoiceNumber && (
+                          <p className="text-[9px] text-muted-foreground">{order.invoiceNumber}</p>
+                        )}
+                      </td>
+
+                      {/* المدينة */}
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="text-[11px] font-semibold">{order.city ?? "—"}</span>
+                      </td>
+
+                      {/* COD */}
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">
+                          {fc2(Number(order.cod) || 0)}
+                        </span>
+                      </td>
+
+                      {/* شركة الشحن */}
+                      <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
+                        <span className="text-[11px] text-muted-foreground">{order.shippingCompanyName ?? "—"}</span>
+                      </td>
+
+                      {/* التاريخ */}
+                      <td className="px-3 py-2.5 hidden lg:table-cell whitespace-nowrap">
+                        <span className="text-[10px] text-muted-foreground">
+                          {order.createdAt
+                            ? new Date(order.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short", year: "2-digit" })
+                            : "—"}
+                        </span>
+                      </td>
+
+                      {/* الحالة badge */}
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${meta.bg} ${meta.border} ${meta.color}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
+                          <span className="hidden sm:inline">{meta.label}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
 
-      {/* COD Summary Footer */}
-      {activeOrders.length > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 px-4 py-2.5 text-xs">
-          <span className="text-muted-foreground font-semibold">{activeOrders.length} شحنة</span>
-          <div className="flex items-center gap-4">
+      {/* ── Summary Footer ───────────────────────────────────────────────── */}
+      {!isLoading && activeOrders.length > 0 && (
+        <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 rounded-xl border border-border bg-card/60 px-4 py-3 text-xs">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-muted-foreground">{activeOrders.length} شحنة</span>
+            {activeFiltersCount > 0 && (
+              <span className="text-muted-foreground/60">· بعد الفلتر</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             <span className="text-muted-foreground">إجمالي COD:</span>
-            <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">
-              {fc2(activeOrders.reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0))}
-            </span>
+            <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">{fc2(activeTotalCOD)}</span>
           </div>
         </div>
       )}

@@ -441,6 +441,7 @@ export interface StockIntelligenceItem {
   category: StockCategory;
   frozenCapital: number;
   potentialRevenue: number;
+  badge?: "fast" | "slow" | string;
 }
 
 export interface StockIntelligenceResponse {
