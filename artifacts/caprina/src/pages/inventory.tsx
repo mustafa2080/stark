@@ -594,86 +594,97 @@ function ShipmentInsightsTab() {
 }
 
 // ─── Shipment Warehouse Tab ───────────────────────────────────────────────────
-const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; dot: string; icon: any }> = {
-  pending:          { label: "معلق",           color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/10",    border: "border-amber-200 dark:border-amber-800/40",    dot: "bg-amber-500",    icon: Clock3 },
-  warehouse_ready:  { label: "جاهز للشحن",     color: "text-blue-600 dark:text-blue-400",      bg: "bg-blue-50 dark:bg-blue-900/10",      border: "border-blue-200 dark:border-blue-800/40",      dot: "bg-blue-500",     icon: Package },
-  in_shipping:      { label: "مع شركة الشحن",  color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/10",  border: "border-violet-200 dark:border-violet-800/40",  dot: "bg-violet-500",   icon: Truck },
-  returned:         { label: "مرتجع كامل",      color: "text-red-600 dark:text-red-400",        bg: "bg-red-50 dark:bg-red-900/10",        border: "border-red-200 dark:border-red-800/40",        dot: "bg-red-500",      icon: RotateCcw },
-  partial_received: { label: "مرتجع جزئي",     color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-50 dark:bg-orange-900/10",  border: "border-orange-200 dark:border-orange-800/40",  dot: "bg-orange-500",   icon: PackageX },
+const SHIP_STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; dot: string; icon: any }> = {
+  waiting:          { label: "انتظار",         color: "text-slate-600 dark:text-slate-300",    bg: "bg-slate-100 dark:bg-slate-800/40",   border: "border-slate-300 dark:border-slate-600",       dot: "bg-slate-500",    icon: Clock3 },
+  confirmed:        { label: "مؤكدة",          color: "text-blue-600 dark:text-blue-400",      bg: "bg-blue-50 dark:bg-blue-900/20",      border: "border-blue-200 dark:border-blue-700",         dot: "bg-blue-500",     icon: Package },
+  picked_up:        { label: "تم الاستلام",    color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
+  in_transit:       { label: "قيد الشحن",      color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
+  out_for_delivery: { label: "خرجت للتسليم",  color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/20",    border: "border-amber-200 dark:border-amber-700",       dot: "bg-amber-500",    icon: MapPin },
+  delivered:        { label: "تم التسليم",     color: "text-emerald-600 dark:text-emerald-400",bg: "bg-emerald-50 dark:bg-emerald-900/20",border: "border-emerald-200 dark:border-emerald-700",   dot: "bg-emerald-500",  icon: CheckCircle2 },
+  delayed:          { label: "متأخرة",         color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-50 dark:bg-orange-900/20",  border: "border-orange-200 dark:border-orange-700",     dot: "bg-orange-500",   icon: AlertCircle },
+  returned:         { label: "مرتجع",          color: "text-red-600 dark:text-red-400",        bg: "bg-red-50 dark:bg-red-900/20",        border: "border-red-200 dark:border-red-700",           dot: "bg-red-500",      icon: RotateCcw },
+  cancelled:        { label: "ملغية",          color: "text-zinc-500 dark:text-zinc-400",      bg: "bg-zinc-100 dark:bg-zinc-800/40",     border: "border-zinc-300 dark:border-zinc-600",         dot: "bg-zinc-400",     icon: X },
 };
 
-const fc2 = (n: number) =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+const fc2 = (n: number | string) =>
+  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
-const ALL_STATUSES = ["pending", "warehouse_ready", "in_shipping", "returned", "partial_received"] as const;
+const ACTIVE_STATUSES  = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"] as const;
+const CLOSED_STATUSES  = ["delivered", "delayed", "returned", "cancelled"] as const;
+const ALL_SHIP_STATUSES = [...ACTIVE_STATUSES, ...CLOSED_STATUSES] as const;
 
 function ShipmentWarehouseTab() {
-  // ── Filters state ──────────────────────────────────────────────────────────
-  const [activeStatus, setActiveStatus] = useState<string>("warehouse_ready");
-  const [search,           setSearch]           = useState("");
-  const [dateFrom,         setDateFrom]         = useState("");
-  const [dateTo,           setDateTo]           = useState("");
-  const [shippingCompany,  setShippingCompany]  = useState("all");
-  const [showFilters,      setShowFilters]      = useState(false);
+  const [activeStatus, setActiveStatus] = useState<string>("in_transit");
+  const [search,          setSearch]          = useState("");
+  const [dateFrom,        setDateFrom]        = useState("");
+  const [dateTo,          setDateTo]          = useState("");
+  const [shippingCompany, setShippingCompany] = useState<string>("all");
+  const [showFilters,     setShowFilters]     = useState(false);
 
-  // ── جلب شركات الشحن للفلتر ────────────────────────────────────────────────
+  // ── شركات الشحن للفلتر ────────────────────────────────────────────────────
   const { data: companies = [] } = useQuery({
-    queryKey: ["shipping-companies"],
-    queryFn: () => import("@/lib/api").then(m => m.shippingApi.list()),
+    queryKey: ["shipping-companies-wh"],
+    queryFn:  () => import("@/lib/api").then(m => m.shippingApi.list()),
     staleTime: 5 * 60_000,
   });
 
-  // ── query params مشتركة بدون status ───────────────────────────────────────
-  const baseFilters = useMemo(() => ({
-    ...(dateFrom         ? { dateFrom }         : {}),
-    ...(dateTo           ? { dateTo }           : {}),
-    ...(shippingCompany !== "all" ? { shippingCompanyId: shippingCompany } : {}),
-  }), [dateFrom, dateTo, shippingCompany]);
-
-  // ── query واحدة لكل status (5 queries بالتوازي) ───────────────────────────
-  const queries = ALL_STATUSES.map(status =>
+  // ── query لكل status بالتوازي من shipmentsApi ─────────────────────────────
+  const queries = ALL_SHIP_STATUSES.map(status =>
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useQuery({
-      queryKey: ["orders-wh", status, baseFilters],
-      queryFn:  () => ordersApi.list({ status, ...baseFilters } as any),
+      queryKey: ["shipments-wh", status, dateFrom, dateTo, shippingCompany],
+      queryFn:  () => shipmentsApi.list({
+        status,
+        limit: 500,
+        ...(shippingCompany !== "all" ? { shippingCompanyId: Number(shippingCompany) } : {}),
+      }),
       staleTime: 60_000,
+      select: (res) => {
+        let data = res.data ?? [];
+        if (dateFrom) data = data.filter(s => s.createdAt >= dateFrom);
+        if (dateTo)   data = data.filter(s => s.createdAt <= dateTo + "T23:59:59");
+        return data;
+      },
     })
   );
 
   const isLoading = queries.some(q => q.isLoading);
-  const ordersMap = Object.fromEntries(
-    ALL_STATUSES.map((s, i) => [s, queries[i].data ?? []])
+  const shipMap = Object.fromEntries(
+    ALL_SHIP_STATUSES.map((s, i) => [s, queries[i].data ?? []])
   ) as Record<string, any[]>;
 
-  // ── KPI aggregations ───────────────────────────────────────────────────────
-  const inWarehouse  = (ordersMap.pending?.length ?? 0) + (ordersMap.warehouse_ready?.length ?? 0);
-  const inTransit    = ordersMap.in_shipping?.length ?? 0;
-  const returns      = (ordersMap.returned?.length ?? 0) + (ordersMap.partial_received?.length ?? 0);
-  const totalAll     = inWarehouse + inTransit + returns;
-  const warehouseCOD = [...(ordersMap.pending ?? []), ...(ordersMap.warehouse_ready ?? [])]
-    .reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
-  const transitCOD   = (ordersMap.in_shipping ?? [])
-    .reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
-  const returnsCOD   = [...(ordersMap.returned ?? []), ...(ordersMap.partial_received ?? [])]
-    .reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
+  // ── KPI aggregations ──────────────────────────────────────────────────────
+  const activeCount   = ACTIVE_STATUSES.reduce((s, st) => s + (shipMap[st]?.length ?? 0), 0);
+  const inTransitCount = (shipMap.in_transit?.length ?? 0) + (shipMap.out_for_delivery?.length ?? 0);
+  const returnedCount = shipMap.returned?.length ?? 0;
+  const deliveredCount= shipMap.delivered?.length ?? 0;
+  const totalAll      = ALL_SHIP_STATUSES.reduce((s, st) => s + (shipMap[st]?.length ?? 0), 0);
 
-  // ── فلترة بحث (client-side فوق الـ server results) ────────────────────────
-  const activeOrders = useMemo(() => {
-    const base = ordersMap[activeStatus] ?? [];
+  const activeCOD     = ACTIVE_STATUSES.flatMap(st => shipMap[st] ?? [])
+    .reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
+  const transitCOD    = [...(shipMap.in_transit ?? []), ...(shipMap.out_for_delivery ?? [])]
+    .reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
+  const deliveredCOD  = (shipMap.delivered ?? [])
+    .reduce((s: number, sh: any) => s + (Number(sh.collectedAmount) || 0), 0);
+
+  // ── فلتر بحث client-side ─────────────────────────────────────────────────
+  const activeShipments = useMemo(() => {
+    const base = shipMap[activeStatus] ?? [];
     if (!search.trim()) return base;
-    const s = search.trim().toLowerCase();
-    return base.filter((o: any) =>
-      (o.customerName ?? "").toLowerCase().includes(s) ||
-      (o.city ?? "").toLowerCase().includes(s) ||
-      (o.product ?? "").toLowerCase().includes(s) ||
-      (o.phone ?? "").includes(s) ||
-      (o.invoiceNumber ?? "").toLowerCase().includes(s)
+    const q = search.trim().toLowerCase();
+    return base.filter((s: any) =>
+      (s.senderName   ?? "").toLowerCase().includes(q) ||
+      (s.receiverName ?? "").toLowerCase().includes(q) ||
+      (s.receiverCity ?? "").toLowerCase().includes(q) ||
+      (s.senderPhone  ?? "").includes(q) ||
+      (s.receiverPhone?? "").includes(q) ||
+      (s.shipmentNumber ?? "").toLowerCase().includes(q) ||
+      (s.trackingNumber ?? "").toLowerCase().includes(q)
     );
-  }, [ordersMap, activeStatus, search]);
+  }, [shipMap, activeStatus, search]);
 
-  const activeTotalCOD = activeOrders.reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
+  const activeTotalCOD = activeShipments.reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
   const activeFiltersCount = [dateFrom, dateTo, shippingCompany !== "all"].filter(Boolean).length;
-
   const clearFilters = () => { setDateFrom(""); setDateTo(""); setShippingCompany("all"); };
 
   return (
@@ -682,124 +693,79 @@ function ShipmentWarehouseTab() {
       {/* ── KPI Cards ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
 
-        {/* في المستودع */}
-        <Card
-          onClick={() => setActiveStatus("warehouse_ready")}
-          className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10 p-3 sm:p-4 cursor-pointer transition-all hover:shadow-md hover:scale-[1.01] active:scale-100"
-        >
+        {/* نشطة */}
+        <Card onClick={() => setActiveStatus("confirmed")}
+          className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
               <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <span className="text-[9px] sm:text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">مستودع</span>
+            <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-600/70 dark:text-blue-400/70 px-1.5 py-0.5 rounded-full">نشطة</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">{isLoading ? "—" : inWarehouse}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">طلب في المستودع</p>
-          <p className="text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 mt-1 truncate">{isLoading ? "" : fc2(warehouseCOD)}</p>
+          <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">{isLoading ? "—" : activeCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة نشطة</p>
+          <p className="text-[10px] font-bold text-blue-600/70 mt-1 truncate">{isLoading ? "" : fc2(activeCOD)}</p>
         </Card>
 
-        {/* عند شركة الشحن */}
-        <Card
-          onClick={() => setActiveStatus("in_shipping")}
-          className="border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/10 p-3 sm:p-4 cursor-pointer transition-all hover:shadow-md hover:scale-[1.01] active:scale-100"
-        >
+        {/* في الطريق */}
+        <Card onClick={() => setActiveStatus("in_transit")}
+          className="border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center shrink-0">
               <Truck className="w-4 h-4 text-violet-600 dark:text-violet-400" />
             </div>
-            <span className="text-[9px] sm:text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full">تسليم</span>
+            <span className="text-[9px] font-bold bg-violet-100 dark:bg-violet-900/30 text-violet-600/70 dark:text-violet-400/70 px-1.5 py-0.5 rounded-full">تسليم</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "—" : inTransit}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">طلب في الطريق</p>
-          <p className="text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 mt-1 truncate">{isLoading ? "" : fc2(transitCOD)}</p>
+          <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "—" : inTransitCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة في الطريق</p>
+          <p className="text-[10px] font-bold text-violet-600/70 mt-1 truncate">{isLoading ? "" : fc2(transitCOD)}</p>
         </Card>
 
-        {/* المرتجعات */}
-        <Card
-          onClick={() => setActiveStatus("returned")}
-          className={`border p-3 sm:p-4 cursor-pointer transition-all hover:shadow-md hover:scale-[1.01] active:scale-100 ${
-            returns > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${returns > 0 ? "bg-red-500/15" : "bg-muted/30"}`}>
-              <RotateCcw className={`w-4 h-4 ${returns > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
-            </div>
-            {returns > 0 && (
-              <span className="text-[9px] sm:text-[10px] font-bold text-red-600/70 dark:text-red-400/70 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full animate-pulse">تنبيه</span>
-            )}
-          </div>
-          <p className={`text-2xl sm:text-3xl font-black ${returns > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "—" : returns}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">طلب مرتجع</p>
-          <p className={`text-[10px] font-bold mt-1 truncate ${returns > 0 ? "text-red-600/70 dark:text-red-400/70" : "text-muted-foreground"}`}>
-            {isLoading ? "" : fc2(returnsCOD)}
-          </p>
-        </Card>
-
-        {/* نسبة التوزيع */}
-        <Card className="border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10 p-3 sm:p-4">
+        {/* تم التسليم */}
+        <Card onClick={() => setActiveStatus("delivered")}
+          className="border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-              <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full">توزيع</span>
+            <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600/70 dark:text-emerald-400/70 px-1.5 py-0.5 rounded-full">محصّل</span>
           </div>
-          {isLoading ? (
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">—</p>
-          ) : (
-            <>
-              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{totalAll}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">إجمالي نشط</p>
-              {/* mini stacked bar */}
-              <div className="flex w-full h-1.5 rounded-full overflow-hidden mt-2 gap-px">
-                {totalAll > 0 && <>
-                  <div className="bg-blue-500   transition-all" style={{ width: `${(inWarehouse/totalAll)*100}%` }} title={`مستودع ${inWarehouse}`} />
-                  <div className="bg-violet-500 transition-all" style={{ width: `${(inTransit/totalAll)*100}%`  }} title={`طريق ${inTransit}`} />
-                  <div className="bg-red-500    transition-all" style={{ width: `${(returns/totalAll)*100}%`    }} title={`مرتجع ${returns}`} />
-                </>}
-              </div>
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="flex items-center gap-1 text-[9px] text-blue-600 dark:text-blue-400"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />{inWarehouse}</span>
-                <span className="flex items-center gap-1 text-[9px] text-violet-600 dark:text-violet-400"><span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />{inTransit}</span>
-                <span className="flex items-center gap-1 text-[9px] text-red-600 dark:text-red-400"><span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />{returns}</span>
-              </div>
-            </>
-          )}
+          <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{isLoading ? "—" : deliveredCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مسلّمة</p>
+          <p className="text-[10px] font-bold text-emerald-600/70 mt-1 truncate">{isLoading ? "" : fc2(deliveredCOD)}</p>
+        </Card>
+
+        {/* مرتجعات */}
+        <Card onClick={() => setActiveStatus("returned")}
+          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${returnedCount > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${returnedCount > 0 ? "bg-red-500/15" : "bg-muted/30"}`}>
+              <RotateCcw className={`w-4 h-4 ${returnedCount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
+            </div>
+            {returnedCount > 0 && <span className="text-[9px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600/70 px-1.5 py-0.5 rounded-full animate-pulse">تنبيه</span>}
+          </div>
+          <p className={`text-2xl sm:text-3xl font-black ${returnedCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "—" : returnedCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مرتجعة</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="flex items-center gap-1 text-[9px] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />{shipMap.cancelled?.length ?? 0} ملغية</span>
+          </div>
         </Card>
       </div>
 
-      {/* ── Filter Bar ──────────────────────────────────────────────────── */}
+      {/* ── Search + Filter Bar ──────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-2">
-        {/* Search */}
         <div className="relative flex-1 min-w-0">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="اسم العميل · المدينة · الهاتف · رقم الفاتورة..."
+          <Input placeholder="اسم المرسل · المستلم · المدينة · رقم الشحنة · التتبع..."
             className="pr-9 h-9 text-[12px] bg-card border-border w-full"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          {search && (
-            <button onClick={() => setSearch("")} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+            value={search} onChange={e => setSearch(e.target.value)} />
+          {search && <button onClick={() => setSearch("")} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
         </div>
-
-        {/* Filters toggle */}
-        <button
-          onClick={() => setShowFilters(v => !v)}
-          className={`flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12px] font-bold transition-all shrink-0 ${
-            showFilters || activeFiltersCount > 0
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card border-border text-muted-foreground hover:text-foreground"
-          }`}
-        >
+        <button onClick={() => setShowFilters(v => !v)}
+          className={`flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12px] font-bold transition-all shrink-0 ${showFilters || activeFiltersCount > 0 ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}>
           <Filter className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">فلتر</span>
-          {activeFiltersCount > 0 && (
-            <span className="bg-white/20 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{activeFiltersCount}</span>
-          )}
+          {activeFiltersCount > 0 && <span className="bg-white/20 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{activeFiltersCount}</span>}
         </button>
       </div>
 
@@ -807,81 +773,41 @@ function ShipmentWarehouseTab() {
       {showFilters && (
         <div className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-
-            {/* شركة الشحن */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
-                <Truck className="w-3 h-3" /> شركة الشحن
-              </label>
-              <select
-                value={shippingCompany}
-                onChange={e => setShippingCompany(e.target.value)}
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" /> شركة الشحن</label>
+              <select value={shippingCompany} onChange={e => setShippingCompany(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="all">الكل</option>
-                {companies.map((c: any) => (
-                  <option key={c.id} value={String(c.id)}>{c.name}</option>
-                ))}
+                {companies.map((c: any) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
               </select>
             </div>
-
-            {/* من تاريخ */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
-                <Clock3 className="w-3 h-3" /> من تاريخ
-              </label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1"><Clock3 className="w-3 h-3" /> من تاريخ</label>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
-
-            {/* إلى تاريخ */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
-                <Clock3 className="w-3 h-3" /> إلى تاريخ
-              </label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1"><Clock3 className="w-3 h-3" /> إلى تاريخ</label>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
           </div>
-
-          {activeFiltersCount > 0 && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1.5 text-[11px] font-bold text-destructive hover:underline"
-            >
-              <X className="w-3 h-3" /> مسح الفلاتر
-            </button>
-          )}
+          {activeFiltersCount > 0 && <button onClick={clearFilters} className="flex items-center gap-1.5 text-[11px] font-bold text-destructive hover:underline"><X className="w-3 h-3" /> مسح الفلاتر</button>}
         </div>
       )}
 
       {/* ── Status Tabs ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {ALL_STATUSES.map(status => {
-          const meta  = STATUS_META[status];
+        {ALL_SHIP_STATUSES.map(status => {
+          const meta  = SHIP_STATUS_META[status];
           const Icon  = meta.icon;
-          const count = ordersMap[status]?.length ?? 0;
+          const count = shipMap[status]?.length ?? 0;
           const isAct = activeStatus === status;
           return (
-            <button
-              key={status}
-              onClick={() => setActiveStatus(status)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
-                isAct
-                  ? `${meta.bg} ${meta.border} ${meta.color} shadow-sm`
-                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-border/80"
-              }`}
-            >
+            <button key={status} onClick={() => setActiveStatus(status)}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${isAct ? `${meta.bg} ${meta.border} ${meta.color} shadow-sm` : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
               <Icon className="w-3 h-3 shrink-0" />
-              <span className="hidden xs:inline sm:inline">{meta.label}</span>
+              <span className="hidden sm:inline">{meta.label}</span>
               <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${isAct ? "bg-white/30 dark:bg-black/20" : "bg-muted"}`}>
                 {isLoading ? "…" : count}
               </span>
@@ -890,96 +816,64 @@ function ShipmentWarehouseTab() {
         })}
       </div>
 
-      {/* ── Table Card ──────────────────────────────────────────────────── */}
+      {/* ── Table ───────────────────────────────────────────────────────── */}
       <Card className="border-border bg-card overflow-hidden">
-        {/* Table header bar */}
-        <div className={`px-3 sm:px-4 py-2.5 border-b flex items-center gap-2 ${STATUS_META[activeStatus]?.bg} ${STATUS_META[activeStatus]?.border}`}>
-          {(() => { const Icon = STATUS_META[activeStatus]?.icon; return <Icon className={`w-4 h-4 shrink-0 ${STATUS_META[activeStatus]?.color}`} />; })()}
-          <span className={`text-sm font-bold ${STATUS_META[activeStatus]?.color}`}>{STATUS_META[activeStatus]?.label}</span>
-          <span className="text-xs text-muted-foreground mr-auto">{activeOrders.length} طلب</span>
+        <div className={`px-3 sm:px-4 py-2.5 border-b flex items-center gap-2 ${SHIP_STATUS_META[activeStatus]?.bg} ${SHIP_STATUS_META[activeStatus]?.border}`}>
+          {(() => { const Icon = SHIP_STATUS_META[activeStatus]?.icon; return Icon ? <Icon className={`w-4 h-4 shrink-0 ${SHIP_STATUS_META[activeStatus]?.color}`} /> : null; })()}
+          <span className={`text-sm font-bold ${SHIP_STATUS_META[activeStatus]?.color}`}>{SHIP_STATUS_META[activeStatus]?.label}</span>
+          <span className="text-xs text-muted-foreground mr-auto">{activeShipments.length} شحنة</span>
           {isLoading && <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
         </div>
 
-        {/* Loading skeleton */}
         {isLoading ? (
-          <div className="p-4 space-y-2">
-            {[1,2,3,4,5].map(i => (
-              <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
-            ))}
-          </div>
-        ) : activeOrders.length === 0 ? (
+          <div className="p-4 space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />)}</div>
+        ) : activeShipments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 gap-3 text-center px-4">
             <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
               <Package className="w-6 h-6 text-muted-foreground/40" />
             </div>
             <p className="text-sm font-bold text-muted-foreground">لا توجد شحنات</p>
-            <p className="text-xs text-muted-foreground/60">
-              {search ? `لا نتائج للبحث "${search}"` : `لا توجد شحنات بحالة "${STATUS_META[activeStatus]?.label}"`}
-            </p>
+            <p className="text-xs text-muted-foreground/60">{search ? `لا نتائج للبحث "${search}"` : `لا توجد شحنات بحالة "${SHIP_STATUS_META[activeStatus]?.label}"`}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px]">
+            <table className="w-full min-w-[560px]">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-right px-3 sm:px-4 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">العميل</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">المنتج</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المدينة</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الإجمالي</th>
+                  <th className="text-right px-3 sm:px-4 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المُرسِل</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المستلم</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">المدينة</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">COD</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">شركة الشحن</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">التاريخ</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
                 </tr>
               </thead>
               <tbody>
-                {activeOrders.map((order: any, idx: number) => {
-                  const meta = STATUS_META[order.status] ?? STATUS_META["pending"];
+                {activeShipments.map((sh: any, idx: number) => {
+                  const meta = SHIP_STATUS_META[sh.status] ?? SHIP_STATUS_META["waiting"];
                   return (
-                    <tr
-                      key={order.id}
-                      className={`border-b border-border/40 transition-colors hover:bg-muted/20 ${idx % 2 !== 0 ? "bg-muted/5" : ""}`}
-                    >
-                      {/* العميل */}
+                    <tr key={sh.id} className={`border-b border-border/40 hover:bg-muted/20 transition-colors ${idx % 2 !== 0 ? "bg-muted/5" : ""}`}>
                       <td className="px-3 sm:px-4 py-2.5">
-                        <p className="font-bold text-[12px] leading-tight line-clamp-1">{order.customerName ?? "—"}</p>
-                        <p className="text-[10px] text-muted-foreground">{order.phone ?? ""}</p>
+                        <p className="font-bold text-[12px] leading-tight line-clamp-1">{sh.senderName ?? "—"}</p>
+                        <p className="text-[10px] text-muted-foreground">{sh.senderPhone ?? ""}</p>
                       </td>
-
-                      {/* المنتج */}
-                      <td className="px-3 py-2.5 hidden sm:table-cell max-w-[130px]">
-                        <p className="text-[11px] truncate text-foreground/80" title={order.product}>{order.product ?? "—"}</p>
-                        {order.invoiceNumber && (
-                          <p className="text-[9px] text-muted-foreground">{order.invoiceNumber}</p>
-                        )}
+                      <td className="px-3 py-2.5">
+                        <p className="text-[12px] font-semibold line-clamp-1">{sh.receiverName ?? "—"}</p>
+                        <p className="text-[10px] text-muted-foreground">{sh.receiverPhone ?? ""}</p>
                       </td>
-
-                      {/* المدينة */}
+                      <td className="px-3 py-2.5 hidden sm:table-cell whitespace-nowrap">
+                        <span className="text-[11px] font-semibold">{sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</span>
+                      </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="text-[11px] font-semibold">{order.city ?? "—"}</span>
+                        <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">{fc2(sh.codAmount)}</span>
                       </td>
-
-                      {/* COD */}
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">
-                          {fc2(Number(order.totalPrice) || 0)}
-                        </span>
-                      </td>
-
-                      {/* شركة الشحن */}
                       <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
-                        <span className="text-[11px] text-muted-foreground">{order.shippingCompanyName ?? "—"}</span>
+                        <span className="text-[11px] text-muted-foreground">{sh.shippingCompanyName ?? "—"}</span>
                       </td>
-
-                      {/* التاريخ */}
                       <td className="px-3 py-2.5 hidden lg:table-cell whitespace-nowrap">
-                        <span className="text-[10px] text-muted-foreground">
-                          {order.createdAt
-                            ? new Date(order.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short", year: "2-digit" })
-                            : "—"}
-                        </span>
+                        <span className="text-[10px] font-mono text-muted-foreground">{sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</span>
                       </td>
-
-                      {/* الحالة badge */}
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${meta.bg} ${meta.border} ${meta.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
@@ -996,16 +890,14 @@ function ShipmentWarehouseTab() {
       </Card>
 
       {/* ── Summary Footer ───────────────────────────────────────────────── */}
-      {!isLoading && activeOrders.length > 0 && (
+      {!isLoading && activeShipments.length > 0 && (
         <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 rounded-xl border border-border bg-card/60 px-4 py-3 text-xs">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-muted-foreground">{activeOrders.length} طلب</span>
-            {activeFiltersCount > 0 && (
-              <span className="text-muted-foreground/60">· بعد الفلتر</span>
-            )}
+            <span className="text-muted-foreground">{activeShipments.length} شحنة</span>
+            {activeFiltersCount > 0 && <span className="text-muted-foreground/60">· بعد الفلتر</span>}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">إجمالي الطلبات:</span>
+            <span className="text-muted-foreground">إجمالي COD:</span>
             <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">{fc2(activeTotalCOD)}</span>
           </div>
         </div>
