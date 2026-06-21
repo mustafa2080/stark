@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck, ArrowLeftRight, UserCheck, Phone, PackageSearch, Users, BarChart3, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Clock } from "lucide-react";
+import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck, ArrowLeftRight, UserCheck, Phone, PackageSearch, Users, BarChart3, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Clock, LayoutGrid, List, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "wouter";
-import { warehousesApi, shippingApi, apiFetch, type Warehouse as WarehouseType, type WarehouseDetail, type WarehouseShipment, type ShippingCompany, productsApi, variantsApi } from "@/lib/api";
+import { warehousesApi, shippingApi, apiFetch, type Warehouse as WarehouseType, type WarehouseDetail, type WarehouseShipment, type ShippingCompany, productsApi, variantsApi, shipmentsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/use-debounce";
 
@@ -264,10 +264,327 @@ function TransferShipmentDialog({
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ─── Kanban Board Component ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+const KANBAN_COLUMNS: { key: string; label: string; color: string; bg: string; border: string }[] = [
+  { key: "waiting",          label: "قيد الانتظار",  color: "text-slate-600",   bg: "bg-slate-500/8",   border: "border-slate-300/50" },
+  { key: "confirmed",        label: "مؤكدة",         color: "text-sky-600",     bg: "bg-sky-500/8",     border: "border-sky-300/50" },
+  { key: "picked_up",        label: "تم الاستلام",   color: "text-blue-600",    bg: "bg-blue-500/8",    border: "border-blue-300/50" },
+  { key: "out_for_delivery", label: "مع المندوب",    color: "text-amber-600",   bg: "bg-amber-500/8",   border: "border-amber-300/50" },
+  { key: "in_transit",       label: "في الطريق",     color: "text-indigo-600",  bg: "bg-indigo-500/8",  border: "border-indigo-300/50" },
+];
+
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  waiting:          ["confirmed", "picked_up", "out_for_delivery"],
+  confirmed:        ["picked_up", "out_for_delivery", "waiting"],
+  picked_up:        ["out_for_delivery", "in_transit", "waiting"],
+  out_for_delivery: ["in_transit", "delivered", "returned", "picked_up"],
+  in_transit:       ["out_for_delivery", "delivered", "returned"],
+};
+
+const ALL_STATUS_LABELS: Record<string, string> = {
+  waiting:          "قيد الانتظار",
+  confirmed:        "مؤكدة",
+  picked_up:        "تم الاستلام",
+  out_for_delivery: "مع المندوب",
+  in_transit:       "في الطريق",
+  delivered:        "مسلّمة",
+  returned:         "مرتجعة",
+};
+
+function KanbanCard({
+  shipment, onStatusChange, shippingCompanies, canEdit,
+}: {
+  shipment: WarehouseShipment;
+  onStatusChange: (id: number, status: string, courierId?: number | null) => Promise<void>;
+  shippingCompanies: ShippingCompany[];
+  canEdit: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedCourier, setSelectedCourier] = useState<string>(
+    shipment.shippingCompanyId ? String(shipment.shippingCompanyId) : "none"
+  );
+  const now = Date.now();
+  const daysIn = Math.floor((now - new Date(shipment.createdAt).getTime()) / 86_400_000);
+  const isOld = daysIn > 7;
+  const parcelLabel = PARCEL_LABELS[shipment.parcelType ?? ""] ?? shipment.parcelType ?? null;
+  const transitions = STATUS_TRANSITIONS[shipment.status] ?? [];
+
+  const handleTransition = async (newStatus: string) => {
+    setSaving(true);
+    try {
+      const courierId = selectedCourier !== "none" ? Number(selectedCourier) : null;
+      await onStatusChange(shipment.id, newStatus, courierId);
+      setOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        onClick={() => canEdit && setOpen(true)}
+        className={`rounded-xl border bg-card p-3 text-xs space-y-2 transition-all select-none
+          ${canEdit ? "cursor-pointer hover:border-primary/40 hover:shadow-sm active:scale-[0.98]" : ""}
+          ${isOld ? "border-red-300/60 bg-red-500/5" : "border-border"}
+        `}
+      >
+        {/* رقم + أيام */}
+        <div className="flex items-start justify-between gap-1">
+          <span className="font-bold text-primary text-[11px]">
+            {shipment.shipmentNumber ?? `#${shipment.id}`}
+          </span>
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+            isOld ? "bg-red-500/15 text-red-500" : "bg-muted/40 text-muted-foreground"
+          }`}>
+            {daysIn}ي
+          </span>
+        </div>
+
+        {/* المستلم */}
+        <div className="space-y-0.5">
+          <p className="font-semibold text-[11px] leading-tight truncate">{shipment.receiverName}</p>
+          {shipment.receiverCity && (
+            <p className="text-[10px] text-muted-foreground truncate">{shipment.receiverCity}</p>
+          )}
+        </div>
+
+        {/* نوع الطرد + المندوب */}
+        <div className="flex flex-wrap gap-1">
+          {parcelLabel && (
+            <span className="text-[9px] bg-muted/30 border border-border px-1.5 py-0.5 rounded-full">
+              {parcelLabel}
+            </span>
+          )}
+          {shipment.courierName && (
+            <span className="text-[9px] bg-sky-500/10 text-sky-600 border border-sky-200/50 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+              <UserCheck className="w-2 h-2" />{shipment.courierName}
+            </span>
+          )}
+        </div>
+
+        {/* مبلغ الدفع عند الاستلام */}
+        {shipment.codAmount && Number(shipment.codAmount) > 0 && (
+          <p className="text-[10px] font-bold text-emerald-600">
+            {Number(shipment.codAmount).toLocaleString("ar-EG")} ج.م
+          </p>
+        )}
+      </div>
+
+      {/* Quick-action dialog */}
+      <Dialog open={open} onOpenChange={v => !v && setOpen(false)}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <Package className="w-4 h-4 text-primary" />
+              {shipment.shipmentNumber ?? `#${shipment.id}`}
+              <span className="text-muted-foreground font-normal text-xs">— {shipment.receiverName}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            {/* تعيين مندوب */}
+            <div className="space-y-1.5">
+              <Label className="text-xs flex items-center gap-1"><UserCheck className="w-3 h-3" />المندوب</Label>
+              <Select value={selectedCourier} onValueChange={setSelectedCourier}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— بدون مندوب —</SelectItem>
+                  {shippingCompanies.filter(c => c.isActive !== false).map(c => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* الانتقالات المتاحة */}
+            {transitions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">نقل إلى</Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {transitions.map(t => (
+                    <Button
+                      key={t}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1 justify-start"
+                      disabled={saving}
+                      onClick={() => handleTransition(t)}
+                    >
+                      <ChevronLeft className="w-3 h-3 shrink-0" />
+                      {ALL_STATUS_LABELS[t] ?? t}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* تحديث المندوب فقط بدون تغيير حالة */}
+            {selectedCourier !== (shipment.shippingCompanyId ? String(shipment.shippingCompanyId) : "none") && (
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs gap-1"
+                disabled={saving}
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    await shipmentsApi.patch(shipment.id, {
+                      shippingCompanyId: selectedCourier !== "none" ? Number(selectedCourier) : null,
+                    } as any);
+                    setOpen(false);
+                  } finally { setSaving(false); }
+                }}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                {saving ? "جاري الحفظ..." : "حفظ المندوب فقط"}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function KanbanBoard({
+  warehouseId, shipments, shippingCompanies, canEdit, onRefetch,
+}: {
+  warehouseId: number;
+  shipments: WarehouseShipment[];
+  shippingCompanies: ShippingCompany[];
+  canEdit: boolean;
+  onRefetch: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const dSearch = useDebounce(search, 200);
+
+  // فلتر البحث
+  const filtered = useMemo(() => {
+    if (!dSearch) return shipments;
+    const q = dSearch.toLowerCase();
+    return shipments.filter(s =>
+      s.receiverName?.toLowerCase().includes(q) ||
+      s.senderName?.toLowerCase().includes(q) ||
+      s.shipmentNumber?.toLowerCase().includes(q) ||
+      s.receiverCity?.toLowerCase().includes(q)
+    );
+  }, [shipments, dSearch]);
+
+  // توزيع على الأعمدة
+  const columns = useMemo(() =>
+    KANBAN_COLUMNS.map(col => ({
+      ...col,
+      items: filtered.filter(s => s.status === col.key),
+    })),
+    [filtered]
+  );
+
+  const handleStatusChange = async (id: number, status: string, courierId?: number | null) => {
+    try {
+      const patch: any = { status };
+      if (courierId !== undefined) patch.shippingCompanyId = courierId;
+      await shipmentsApi.patch(id, patch);
+      qc.invalidateQueries({ queryKey: ["warehouse-shipments", warehouseId] });
+      qc.invalidateQueries({ queryKey: ["warehouse-stats", warehouseId] });
+      toast({ title: `✅ تم تغيير الحالة إلى "${ALL_STATUS_LABELS[status] ?? status}"` });
+      onRefetch();
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const totalActive = shipments.length;
+  const staleCount = shipments.filter(s => {
+    const d = Math.floor((Date.now() - new Date(s.createdAt).getTime()) / 86_400_000);
+    return d > 7;
+  }).length;
+
+  return (
+    <div className="space-y-3">
+      {/* شريط البحث + ملخص */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="ابحث باسم المستلم، المرسل، رقم الشحنة..."
+            className="pr-9 h-8 text-xs bg-card"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
+          <span className="font-bold text-foreground">{totalActive}</span> شحنة نشطة
+          {staleCount > 0 && (
+            <span className="bg-red-500/15 text-red-500 font-bold px-1.5 py-0.5 rounded-full">
+              ⚠ {staleCount} متأخرة
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* الأعمدة — horizontal scroll على موبايل */}
+      <div className="flex gap-3 overflow-x-auto pb-2" style={{ minWidth: 0 }}>
+        {columns.map(col => (
+          <div
+            key={col.key}
+            className={`flex-shrink-0 w-[200px] rounded-xl border ${col.border} ${col.bg} flex flex-col`}
+            style={{ minHeight: "120px" }}
+          >
+            {/* Column header */}
+            <div className={`flex items-center justify-between px-3 py-2 border-b ${col.border}`}>
+              <span className={`text-[11px] font-bold ${col.color}`}>{col.label}</span>
+              <span className={`text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center
+                ${col.items.length > 0 ? `${col.bg} ${col.color} border ${col.border}` : "text-muted-foreground"}`}>
+                {col.items.length}
+              </span>
+            </div>
+
+            {/* Cards */}
+            <div className="flex-1 p-2 space-y-2 overflow-y-auto" style={{ maxHeight: "420px" }}>
+              {col.items.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground/40 text-[10px]">
+                  <Package className="w-5 h-5 mx-auto mb-1 opacity-30" />
+                  فارغ
+                </div>
+              ) : col.items.map(s => (
+                <KanbanCard
+                  key={s.id}
+                  shipment={s}
+                  onStatusChange={handleStatusChange}
+                  shippingCompanies={shippingCompanies}
+                  canEdit={canEdit}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* legend */}
+      {canEdit && (
+        <p className="text-[10px] text-muted-foreground/60 text-center">
+          اضغط على أي شحنة لتغيير حالتها أو تعيين مندوب
+        </p>
+      )}
+    </div>
+  );
+}
+
 function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; onClose: () => void; canEdit: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics">("stock");
+  const [shipmentView, setShipmentView] = useState<"kanban" | "list">("kanban");
   const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"active" | "delivered" | "returned" | "all">("active");
 
   const { data: warehouse, isLoading } = useQuery({
@@ -768,8 +1085,9 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
       {activeTab === "shipments" && (
         <div className="space-y-4">
 
-          {/* إحصائيات سريعة (الحالة) */}
-          <div className="grid grid-cols-4 gap-2">
+          {/* إحصائيات سريعة + view toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="grid grid-cols-4 gap-2 flex-1">
             {[
               { label: "الكل",        value: stats?.total ?? 0,     key: "all",       color: "text-foreground",  bg: "bg-muted/20" },
               { label: "قيد الشحن",   value: stats?.active ?? 0,    key: "active",    color: "text-amber-500",   bg: "bg-amber-500/10" },
@@ -778,7 +1096,7 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
             ].map(s => (
               <button
                 key={s.key}
-                onClick={() => setShipmentStatusFilter(s.key as any)}
+                onClick={() => { setShipmentStatusFilter(s.key as any); if (s.key !== "active") setShipmentView("list"); }}
                 className={`rounded-xl p-3 text-center transition-all border ${
                   shipmentStatusFilter === s.key
                     ? `${s.bg} border-current ${s.color}`
@@ -790,8 +1108,46 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
               </button>
             ))}
           </div>
+            {/* View toggle — يظهر فقط لما الفلتر active */}
+            {shipmentStatusFilter === "active" && (
+              <div className="flex items-center gap-1 bg-muted/20 rounded-lg p-1 shrink-0">
+                <button
+                  onClick={() => setShipmentView("kanban")}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all ${
+                    shipmentView === "kanban" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <LayoutGrid className="w-3 h-3" />كانبان
+                </button>
+                <button
+                  onClick={() => setShipmentView("list")}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all ${
+                    shipmentView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <List className="w-3 h-3" />قائمة
+                </button>
+              </div>
+            )}
+          </div>
 
-          {/* إحصائيات إجمالية: أنواع الطرود + أكتر عملاء */}
+          {/* ── Kanban View ── */}
+          {shipmentView === "kanban" && shipmentStatusFilter === "active" && (
+            <KanbanBoard
+              warehouseId={warehouseId}
+              shipments={warehouseShipments?.shipments ?? []}
+              shippingCompanies={shippingCompanies ?? []}
+              canEdit={canEdit}
+              onRefetch={() => {
+                qc.invalidateQueries({ queryKey: ["warehouse-shipments", warehouseId] });
+                qc.invalidateQueries({ queryKey: ["warehouse-stats", warehouseId] });
+              }}
+            />
+          )}
+
+          {/* ── List View: إحصائيات + جدول ── */}
+          {(shipmentView === "list" || shipmentStatusFilter !== "active") && (<>
+
           {warehouseStats && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Card className="border-border bg-card">
@@ -917,6 +1273,7 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
               );
             })}
           </Card>
+        </>)}
         </div>
       )}
 
