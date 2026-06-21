@@ -112,6 +112,9 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       .from(shipmentManifestItemsTable)
       .where(eq(shipmentManifestItemsTable.manifestId, id));
 
+    // 🔍 DEBUG temporary
+    console.log("[DEBUG manifest items]", items.map(i => ({ id: i.id, shipmentId: i.shipmentId, deliveryStatus: i.deliveryStatus, returnReceived: i.returnReceived, returnReceivedType: typeof i.returnReceived })));
+
     const shipmentIds = items.map(i => i.shipmentId);
     let shipments: any[] = [];
     if (shipmentIds.length) {
