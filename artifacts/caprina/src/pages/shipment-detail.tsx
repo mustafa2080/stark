@@ -1593,6 +1593,26 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                             {o.notes}
                           </p>
                         )}
+
+                        {/* ملاحظة الاستلام — تظهر فقط للمرتجع والاستلام الجزئي */}
+                        {(o.status === "returned" || o.status === "partial_received") && (() => {
+                          const received = o.returnReceived === 1 || o.returnReceived === true;
+                          const isRet    = o.status === "returned";
+                          return (
+                            <div className={`flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-md text-[10px] font-semibold border ${
+                              received
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                : "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                            }`}>
+                              <span>{received ? "✓" : "⏳"}</span>
+                              <span>
+                                {received
+                                  ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                                  : (isRet ? "بانتظار استلام الشحنة المرتجعة" : "بانتظار استلام الكمية الجزئية")}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
