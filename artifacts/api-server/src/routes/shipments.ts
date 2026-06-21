@@ -891,10 +891,11 @@ router.get("/parcel-type-pricing", async (req, res): Promise<void> => {
 router.put("/parcel-type-pricing/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { basePrice, isActive } = req.body;
+    const { basePrice, isActive, imageUrl } = req.body;
     const upd: any = { updatedAt: new Date() };
-    if (basePrice !== undefined) upd.basePrice = String(basePrice);
-    if (isActive  !== undefined) upd.isActive  = isActive;
+    if (basePrice  !== undefined) upd.basePrice  = String(basePrice);
+    if (isActive   !== undefined) upd.isActive   = isActive;
+    if (imageUrl   !== undefined) upd.imageUrl   = imageUrl;
     await db.update(parcelTypePricingTable).set(upd).where(eq(parcelTypePricingTable.id, id));
     const rows = await db.select().from(parcelTypePricingTable).where(eq(parcelTypePricingTable.id, id)).limit(1);
     res.json(rows[0]);
@@ -904,13 +905,14 @@ router.put("/parcel-type-pricing/:id", async (req, res): Promise<void> => {
 router.post("/parcel-type-pricing", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { parcelType, label, basePrice, isActive = true } = req.body;
+    const { parcelType, label, basePrice, isActive = true, imageUrl } = req.body;
     if (!parcelType || basePrice === undefined) { res.status(400).json({ error: "parcelType والسعر مطلوبان" }); return; }
     const now = new Date();
     const result = await db.insert(parcelTypePricingTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
       parcelType, label: label ?? parcelType,
       basePrice: String(basePrice), isActive,
+      imageUrl: imageUrl ?? null,
       createdAt: now, updatedAt: now,
     });
     const id = (result as any)[0]?.insertId ?? (result as any).insertId;

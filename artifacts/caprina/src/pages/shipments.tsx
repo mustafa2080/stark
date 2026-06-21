@@ -8,7 +8,7 @@ import {
   CreditCard, Clock, CheckCircle, AlertTriangle, XCircle,
   ChevronDown, ChevronUp, X, RefreshCw, Eye, Edit, Trash2,
   ArrowUpDown, Building2, DollarSign, FileText, Boxes, Tag,
-  Settings, Globe, Layers,
+  Settings, Globe, Layers, Image as ImageIcon,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1038,6 +1038,31 @@ function ParcelPricingTab() {
   const [newType, setNewType] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newImage, setNewImage] = useState<string | null>(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
+
+  // ── ضغط وتحويل الصورة لـ base64 ────────────────────────────────────────────
+  const handleImageFile = (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setUploadingImg(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const src = e.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 400;
+        const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setNewImage(canvas.toDataURL("image/jpeg", 0.82));
+        setUploadingImg(false);
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const { data: pricing = [], isLoading } = useQuery({
     queryKey: ["parcel-type-pricing"],
@@ -1061,7 +1086,7 @@ function ParcelPricingTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] });
       toast({ title: "تمت الإضافة ✅" });
-      setAddOpen(false); setNewType(""); setNewLabel(""); setNewPrice("");
+      setAddOpen(false); setNewType(""); setNewLabel(""); setNewPrice(""); setNewImage(null);
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -1109,7 +1134,13 @@ function ParcelPricingTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {pricing.map(p => (
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
-                  <span className="text-xl shrink-0">{ICONS[p.parcelType] ?? "📦"}</span>
+                  {/* صورة أو إيموجي */}
+                  {p.imageUrl ? (
+                    <img src={p.imageUrl} alt={p.label ?? p.parcelType}
+                      className="w-10 h-10 rounded-lg object-cover shrink-0 border border-border" />
+                  ) : (
+                    <span className="text-2xl shrink-0 w-10 h-10 flex items-center justify-center">{ICONS[p.parcelType] ?? "📦"}</span>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-foreground">{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</p>
                     <p className="text-[10px] text-muted-foreground">سعر إضافي على رسوم المنطقة</p>
@@ -1167,11 +1198,53 @@ function ParcelPricingTab() {
                 <Input type="number" className="text-sm" placeholder="0" value={newPrice}
                   onChange={e => setNewPrice(e.target.value)} />
               </div>
+
+              {/* ── صورة نوع الشحنة ── */}
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">صورة نوع الشحنة (اختياري)</Label>
+                <div
+                  className={`relative border-2 border-dashed rounded-xl transition-colors cursor-pointer
+                    ${newImage ? "border-primary/50 bg-primary/5" : "border-border bg-muted/10 hover:border-primary/40 hover:bg-muted/20"}`}
+                  onClick={() => document.getElementById("parcel-img-upload")?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImageFile(f); }}
+                >
+                  <input id="parcel-img-upload" type="file" accept="image/*" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
+                  {newImage ? (
+                    <div className="flex items-center gap-3 p-3">
+                      <img src={newImage} alt="preview"
+                        className="w-16 h-16 rounded-lg object-cover border border-border shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-primary">تم اختيار الصورة ✅</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">اضغط لتغييرها</p>
+                      </div>
+                      <button type="button" className="text-muted-foreground hover:text-destructive p-1"
+                        onClick={e => { e.stopPropagation(); setNewImage(null); }}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-6 gap-2">
+                      {uploadingImg ? (
+                        <RefreshCw className="w-6 h-6 text-muted-foreground animate-spin" />
+                      ) : (
+                        <>
+                          <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
+                          <p className="text-xs text-muted-foreground">اسحب صورة هنا أو اضغط للاختيار</p>
+                          <p className="text-[10px] text-muted-foreground/60">PNG, JPG — يتم الضغط تلقائياً</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex gap-2 pt-1 border-t border-border">
-                <Button variant="outline" className="flex-1 text-xs" onClick={() => setAddOpen(false)}>إلغاء</Button>
+                <Button variant="outline" className="flex-1 text-xs" onClick={() => { setAddOpen(false); setNewImage(null); }}>إلغاء</Button>
                 <Button className="flex-1 text-xs gap-1.5"
-                  disabled={!newType || !newLabel || !newPrice || addMutation.isPending}
-                  onClick={() => addMutation.mutate({ parcelType: newType, label: newLabel, basePrice: Number(newPrice), isActive: true })}>
+                  disabled={!newType || !newLabel || !newPrice || addMutation.isPending || uploadingImg}
+                  onClick={() => addMutation.mutate({ parcelType: newType, label: newLabel, basePrice: Number(newPrice), isActive: true, imageUrl: newImage })}>
                   {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                   إضافة
                 </Button>

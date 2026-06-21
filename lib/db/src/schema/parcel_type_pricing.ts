@@ -20,6 +20,7 @@ export const parcelTypePricingTable = mysqlTable("parcel_type_pricing", {
   label:      varchar("label", { length: 100 }),
   basePrice:  decimal("base_price", { precision: 10, scale: 2 }).notNull().default("0"),
   isActive:   boolean("is_active").default(true),
+  imageUrl:   text("image_url"),
   notes:      text("notes"),
   createdAt:  datetime("created_at").notNull(),
   updatedAt:  datetime("updated_at").notNull(),
