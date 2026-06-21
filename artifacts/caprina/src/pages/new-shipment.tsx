@@ -270,6 +270,37 @@ export default function NewShipmentPage() {
         {/* ملاحظات */}
         <div><Label className="text-xs font-bold mb-1.5 block">ملاحظات</Label><Input className="text-sm" placeholder="أي تعليمات خاصة..." value={form.notes} onChange={e => set("notes", e.target.value)} /></div>
 
+        {/* المخزن */}
+        <section className="space-y-4 rounded-xl border border-teal-900/40 bg-teal-900/5 p-4">
+          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
+            <Warehouse className="w-3.5 h-3.5 text-teal-400" /> المخزن
+          </h3>
+          <div>
+            <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Warehouse className="w-3 h-3" /> اختر المخزن <span className="text-red-500">*</span></Label>
+            <Select value={form.warehouseId || "none"} onValueChange={v => set("warehouseId", v === "none" ? "" : v)}>
+              <SelectTrigger className="text-sm h-10 bg-card">
+                <div className="flex items-center gap-2">
+                  <Warehouse className="w-3.5 h-3.5 text-teal-400" />
+                  <SelectValue placeholder="اختر المخزن الذي ستُودَع فيه الشحنة..." />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— غير محدد —</SelectItem>
+                {(warehouses as any[])?.map((w: any) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    <div className="flex items-center gap-2">
+                      <Warehouse className="w-3 h-3 text-teal-400" />
+                      <span>{w.name}{w.city ? ` — ${w.city}` : ""}{w.isDefault ? " ★" : ""}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!form.warehouseId && <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">⚠ اختر المخزن لتحديد مكان الشحنة</p>}
+            {form.warehouseId && <p className="text-[10px] text-teal-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" />الشحنة ستُودَع في هذا المخزن عند الاستلام</p>}
+          </div>
+        </section>
+
         {/* شركة الشحن */}
         <section className="space-y-4 rounded-xl border border-sky-900/40 bg-sky-900/5 p-4">
           <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
@@ -333,16 +364,6 @@ export default function NewShipmentPage() {
             <div>
               <Label className="text-xs font-bold mb-1.5 block">اسم الحملة</Label>
               <Input className="text-sm h-10 bg-card" placeholder="Summer 2025..." value={form.adCampaign} onChange={e => set("adCampaign", e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Warehouse className="w-3 h-3" /> المخزن</Label>
-              <Select value={form.warehouseId || "none"} onValueChange={v => set("warehouseId", v === "none" ? "" : v)}>
-                <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر مخزن" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— غير محدد —</SelectItem>
-                  {(warehouses as any[])?.map((w: any) => <SelectItem key={w.id} value={String(w.id)}>{w.name}{w.isDefault ? " ★" : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> الموظف المسؤول</Label>

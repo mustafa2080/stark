@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Package, Truck, MapPin, CheckCircle, Clock, AlertTriangle, XCircle, ArrowRight, Phone, User } from "lucide-react";
+import { Package, Truck, MapPin, CheckCircle, Clock, AlertTriangle, XCircle, ArrowRight, Phone, User, Warehouse, UserCheck } from "lucide-react";
 import { Navbar, Footer } from "./home";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -25,24 +25,42 @@ interface Shipment {
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  // المخزن والمندوب
+  warehouseId?: number | null;
+  warehouseName?: string | null;
+  warehouseCity?: string | null;
+  shippingCompanyId?: number | null;
+  shippingCompanyName?: string | null;
+  shippingCompanyPhone?: string | null;
 }
 
-// ─── Status config — تتطابق مع DB schema (نفس enum في shipments-page.tsx) ─────
+// ─── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number }> = {
-  pending:          { label: "قيد الانتظار",        color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
-  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: 1 },
-  in_shipping:      { label: "قيد الشحن",           color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 2 },
-  received:         { label: "تم الاستلام",         color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 3 },
-  partial_received: { label: "استلام جزئي",         color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 3 },
-  delayed:          { label: "مؤجل",                color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: AlertTriangle, step: 2 },
-  returned:         { label: "مرتجع",               color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: 2 },
+  pending:                 { label: "قيد الانتظار",                   color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  waiting:                 { label: "قيد الانتظار",                   color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  confirmed:               { label: "مؤكدة",                          color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  warehouse_ready:         { label: "في المخزن",                      color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 1 },
+  at_warehouse:            { label: "في المخزن",                      color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 1 },
+  picked_up:               { label: "في المخزن",                      color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 1 },
+  in_shipping:             { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 2 },
+  in_transit:              { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 2 },
+  with_courier:            { label: "مع المندوب",                     color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 2 },
+  out_for_delivery:        { label: "خرجت للتسليم",                   color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 2 },
+  received:                { label: "تم الاستلام",                    color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 3 },
+  delivered:               { label: "تم الاستلام",                    color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 3 },
+  partial_received:        { label: "استلام جزئي",                    color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 3 },
+  delayed:                 { label: "مؤجل",                           color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: AlertTriangle, step: 2 },
+  returned:                { label: "مرتجع",                          color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: 2 },
+  returned_to_warehouse:   { label: "مرتجع في المخزن",                color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: 2 },
+  return_delivered:        { label: "مرتجع — تم التسليم للراسل",      color: "#a3e635", bg: "rgba(163,230,53,0.1)",  icon: CheckCircle,   step: 3 },
+  cancelled:               { label: "ملغية",                          color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: XCircle,       step: 0 },
 };
 
 const STEPS = [
-  { label: "قيد الانتظار",        icon: Clock },
-  { label: "قيد الشحن في المخزن", icon: Package },
-  { label: "قيد الشحن",           icon: Truck },
-  { label: "تم الاستلام",         icon: CheckCircle },
+  { label: "قيد الانتظار",  icon: Clock },
+  { label: "في المخزن",     icon: Package },
+  { label: "قيد الشحن",     icon: Truck },
+  { label: "تم الاستلام",   icon: CheckCircle },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -238,6 +256,36 @@ export default function TrackResultPage() {
               <div className="pt-2 border-t border-white/5">
                 <p className="text-xs text-white/30 mb-1">ملاحظات</p>
                 <p className="text-sm text-white/60 break-words" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{shipment.notes}</p>
+              </div>
+            )}
+
+            {/* ── مخزن و مندوب ── */}
+            {(shipment.warehouseName || shipment.courierName) && (
+              <div className="pt-2 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {shipment.warehouseName && (
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-xs text-white/30 mb-1 flex items-center gap-1">
+                      <Warehouse size={10} />مكان الشحنة
+                    </p>
+                    <p className="text-sm font-bold text-white">
+                      {shipment.warehouseName}
+                      {shipment.warehouseCity && <span className="text-xs text-white/40 mr-1">({shipment.warehouseCity})</span>}
+                    </p>
+                  </div>
+                )}
+                {shipment.courierName && (
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-xs text-white/30 mb-1 flex items-center gap-1">
+                      <UserCheck size={10} />مندوب التوصيل
+                    </p>
+                    <p className="text-sm font-bold text-white">{shipment.courierName}</p>
+                    {shipment.courierPhone && (
+                      <p className="text-xs text-white/40 mt-0.5 flex items-center gap-1" dir="ltr">
+                        <Phone size={10} />{shipment.courierPhone}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

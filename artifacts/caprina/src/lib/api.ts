@@ -844,6 +844,7 @@ export interface Warehouse {
   id: number;
   name: string;
   address: string | null;
+  city: string | null;
   notes: string | null;
   isDefault: boolean;
   totalUnits: number;
@@ -881,19 +882,80 @@ export interface VariantWarehouseStock {
   quantity: number;
 }
 
+// ─── شحنات المخزن (Stark) ────────────────────────────────────────────────────
+export interface WarehouseShipment {
+  id: number;
+  shipmentNumber: string | null;
+  trackingNumber: string | null;
+  senderName: string;
+  receiverName: string;
+  receiverPhone: string | null;
+  receiverCity: string | null;
+  status: string;
+  parcelType: string | null;
+  notes: string | null;
+  codAmount: string | null;
+  shippingFee: string | null;
+  pieces: number | null;
+  createdAt: string;
+  deliveredAt: string | null;
+  warehouseId: number | null;
+  returnReceived: 0 | 1 | null;
+  shippingCompanyId: number | null;
+  courierName: string | null;   // اسم المندوب (شركة الشحن)
+  courierPhone: string | null;  // رقم المندوب
+}
+
+export interface WarehouseShipmentsResponse {
+  shipments: WarehouseShipment[];
+  stats: { total: number; active: number; delivered: number; returned: number };
+}
+
+export interface WarehouseStats {
+  total: number;
+  byStatus: Record<string, number>;
+  byParcelType: Record<string, number>;
+  topClients: { name: string; count: number }[];
+}
+
+export interface WarehouseTransfer {
+  transfer: {
+    id: number;
+    shipmentId: number;
+    fromWarehouseId: number | null;
+    toWarehouseId: number | null;
+    notes: string | null;
+    createdByName: string | null;
+    createdAt: string;
+  };
+  fromWarehouse: { id: number; name: string; city: string | null } | null;
+}
+
 export const warehousesApi = {
   list: () => apiFetch<Warehouse[]>("/warehouses"),
   get: (id: number) => apiFetch<WarehouseDetail>(`/warehouses/${id}`),
   stockByVariant: (variantId: number) => apiFetch<VariantWarehouseStock[]>(`/warehouses/stock/by-variant/${variantId}`),
-  create: (data: { name: string; address?: string | null; notes?: string | null; isDefault?: boolean }) =>
+  create: (data: { name: string; address?: string | null; city?: string | null; notes?: string | null; isDefault?: boolean }) =>
     apiFetch<Warehouse>("/warehouses", { method: "POST", body: JSON.stringify(data) }),
-  update: (id: number, data: Partial<{ name: string; address: string | null; notes: string | null; isDefault: boolean }>) =>
+  update: (id: number, data: Partial<{ name: string; address: string | null; city: string | null; notes: string | null; isDefault: boolean }>) =>
     apiFetch<Warehouse>(`/warehouses/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (id: number) => apiFetch<void>(`/warehouses/${id}`, { method: "DELETE" }),
   updateStock: (warehouseId: number, stockId: number, quantity: number) =>
     apiFetch<WarehouseStockItem>(`/warehouses/${warehouseId}/stock/${stockId}`, { method: "PATCH", body: JSON.stringify({ quantity }) }),
   addStock: (warehouseId: number, data: { productId?: number | null; variantId?: number | null; quantity: number }) =>
     apiFetch<WarehouseStockItem>(`/warehouses/${warehouseId}/stock`, { method: "POST", body: JSON.stringify(data) }),
+
+  // ── شحنات Stark بالمخزن ─────────────────────────────────────────────────
+  shipments: (warehouseId: number, status?: "active" | "delivered" | "returned" | "all") =>
+    apiFetch<WarehouseShipmentsResponse>(`/warehouses/${warehouseId}/shipments${status ? `?status=${status}` : ""}`),
+  stats: (warehouseId: number) =>
+    apiFetch<WarehouseStats>(`/warehouses/${warehouseId}/stats`),
+  transferShipment: (data: { shipmentId: number; toWarehouseId: number | null; notes?: string; shippingCompanyId?: number | null; newStatus?: string }) =>
+    apiFetch<{ success: boolean }>("/warehouses/transfer", { method: "POST", body: JSON.stringify(data) }),
+  transferHistory: (shipmentId: number) =>
+    apiFetch<WarehouseTransfer[]>(`/warehouses/transfers/${shipmentId}`),
+  assignCourier: (shipmentId: number, data: { shippingCompanyId: number; warehouseId?: number | null }) =>
+    apiFetch<{ success: boolean }>(`/warehouses/shipments/${shipmentId}/courier`, { method: "PATCH", body: JSON.stringify(data) }),
 };
 
 // ─── Team & Campaign Analytics API ──────────────────────────────────────────

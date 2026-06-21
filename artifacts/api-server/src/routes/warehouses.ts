@@ -1,14 +1,16 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, desc, count, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, desc, count, isNull, inArray, sql } from "drizzle-orm";
 import {
   db,
   warehousesTable,
   warehouseStockTable,
+  warehouseTransfersTable,
   productsTable,
   productVariantsTable,
   inventoryMovementsTable,
   ordersTable,
   shipmentsTable,
+  shippingCompaniesTable,
 } from "@workspace/db";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
@@ -64,6 +66,7 @@ router.use(requireAuth);
 const WarehouseSchema = z.object({
   name: z.string().min(1),
   address: z.string().nullish(),
+  city: z.string().nullish(),
   notes: z.string().nullish(),
   isDefault: z.boolean().optional(),
 });
@@ -158,6 +161,7 @@ router.post("/warehouses", async (req, res): Promise<void> => {
     .values({
       name: parsed.data.name,
       address: parsed.data.address ?? null,
+      city: parsed.data.city ?? null,
       notes: parsed.data.notes ?? null,
       isDefault: parsed.data.isDefault ?? false,
     });
@@ -250,20 +254,29 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
   const shipments = await db
     .select({
-      id:             shipmentsTable.id,
-      shipmentNumber: shipmentsTable.shipmentNumber,
-      trackingNumber: shipmentsTable.trackingNumber,
-      senderName:     shipmentsTable.senderName,
-      receiverName:   shipmentsTable.receiverName,
-      receiverCity:   shipmentsTable.receiverCity,
-      status:         shipmentsTable.status,
-      codAmount:      shipmentsTable.codAmount,
-      shippingFee:    shipmentsTable.shippingFee,
-      pieces:         shipmentsTable.pieces,
-      createdAt:      shipmentsTable.createdAt,
-      deliveredAt:    shipmentsTable.actualDelivery,
+      id:                shipmentsTable.id,
+      shipmentNumber:    shipmentsTable.shipmentNumber,
+      trackingNumber:    shipmentsTable.trackingNumber,
+      senderName:        shipmentsTable.senderName,
+      receiverName:      shipmentsTable.receiverName,
+      receiverPhone:     shipmentsTable.receiverPhone,
+      receiverCity:      shipmentsTable.receiverCity,
+      status:            shipmentsTable.status,
+      parcelType:        shipmentsTable.parcelType,
+      notes:             shipmentsTable.notes,
+      codAmount:         shipmentsTable.codAmount,
+      shippingFee:       shipmentsTable.shippingFee,
+      pieces:            shipmentsTable.pieces,
+      createdAt:         shipmentsTable.createdAt,
+      deliveredAt:       shipmentsTable.actualDelivery,
+      warehouseId:       shipmentsTable.warehouseId,
+      returnReceived:    shipmentsTable.returnReceived,
+      shippingCompanyId: shipmentsTable.shippingCompanyId,
+      courierName:       shippingCompaniesTable.name,
+      courierPhone:      shippingCompaniesTable.phone,
     })
     .from(shipmentsTable)
+    .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
     .where(and(...conditions))
     .orderBy(desc(shipmentsTable.createdAt))
     .limit(200);
@@ -533,6 +546,163 @@ router.post("/warehouses/repair-stock", async (req, res): Promise<void> => {
     fixedCount: fixed,
     defaultWarehouse: defaultWh.name,
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Shipment Warehouse Endpoints ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /warehouses/:id/stats — إحصائيات مخزن معين (أنواع الطرود + أكتر عملاء)
+router.get("/warehouses/:id/stats", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const warehouseId = Number(req.params.id);
+
+    const conditions: any[] = [
+      eq(shipmentsTable.warehouseId, warehouseId),
+      isNull(shipmentsTable.deletedAt),
+    ];
+    if (tenantId) conditions.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const shipments = await db
+      .select({
+        status:     shipmentsTable.status,
+        parcelType: shipmentsTable.parcelType,
+        senderName: shipmentsTable.senderName,
+      })
+      .from(shipmentsTable)
+      .where(and(...conditions));
+
+    // عدد بالحالة
+    const byStatus: Record<string, number> = {};
+    // عدد بنوع الطرد
+    const byParcelType: Record<string, number> = {};
+    // أكتر عملاء (مرسلين)
+    const clientCount: Record<string, number> = {};
+
+    for (const s of shipments) {
+      byStatus[s.status] = (byStatus[s.status] ?? 0) + 1;
+      if (s.parcelType) byParcelType[s.parcelType] = (byParcelType[s.parcelType] ?? 0) + 1;
+      if (s.senderName) clientCount[s.senderName] = (clientCount[s.senderName] ?? 0) + 1;
+    }
+
+    // ترتيب العملاء
+    const topClients = Object.entries(clientCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([name, count]) => ({ name, count }));
+
+    res.json({
+      total: shipments.length,
+      byStatus,
+      byParcelType,
+      topClients,
+    });
+  } catch (e) {
+    console.error("[GET /warehouses/:id/stats]", e);
+    res.status(500).json({ error: "خطأ في جلب إحصائيات المخزن" });
+  }
+});
+
+// POST /warehouses/transfer — تحويل شحنة من مخزن لآخر
+router.post("/transfer", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const user = (req as any).user;
+    const schema = z.object({
+      shipmentId:        z.number(),
+      toWarehouseId:     z.number().nullable(),
+      notes:             z.string().optional(),
+      shippingCompanyId: z.number().nullable().optional(), // تعيين/تغيير المندوب (شركة الشحن) وقت التحويل
+      newStatus:         z.string().optional(),
+    });
+    const body = schema.parse(req.body);
+
+    // اجلب الشحنة
+    const [shipment] = await db
+      .select()
+      .from(shipmentsTable)
+      .where(eq(shipmentsTable.id, body.shipmentId));
+
+    if (!shipment) {
+      res.status(404).json({ error: "الشحنة غير موجودة" });
+      return;
+    }
+
+    const now = new Date();
+
+    // سجّل التحويل
+    await db.insert(warehouseTransfersTable).values({
+      tenantId:          tenantId ?? null,
+      shipmentId:        body.shipmentId,
+      fromWarehouseId:   shipment.warehouseId ?? null,
+      toWarehouseId:     body.toWarehouseId,
+      notes:             body.notes ?? null,
+      createdByUserId:   user?.id ?? null,
+      createdByName:     user?.name ?? null,
+      createdAt:         now,
+    });
+
+    // حدّث الشحنة
+    const updateData: any = {
+      warehouseId: body.toWarehouseId,
+      updatedAt: now,
+    };
+    if (body.newStatus !== undefined)         updateData.status            = body.newStatus;
+    if (body.shippingCompanyId !== undefined) updateData.shippingCompanyId = body.shippingCompanyId;
+
+    await db.update(shipmentsTable).set(updateData).where(eq(shipmentsTable.id, body.shipmentId));
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /warehouses/transfer]", e);
+    res.status(500).json({ error: "خطأ في تحويل الشحنة" });
+  }
+});
+
+// GET /warehouses/transfers/:shipmentId — سجل تحويلات شحنة معينة
+router.get("/transfers/:shipmentId", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const shipmentId = Number(req.params.shipmentId);
+    const transfers = await db
+      .select({
+        transfer: warehouseTransfersTable,
+        fromWarehouse: { id: warehousesTable.id, name: warehousesTable.name, city: warehousesTable.city },
+      })
+      .from(warehouseTransfersTable)
+      .leftJoin(warehousesTable, eq(warehouseTransfersTable.fromWarehouseId, warehousesTable.id))
+      .where(eq(warehouseTransfersTable.shipmentId, shipmentId))
+      .orderBy(desc(warehouseTransfersTable.createdAt));
+
+    res.json(transfers);
+  } catch (e) {
+    console.error("[GET /warehouses/transfers/:shipmentId]", e);
+    res.status(500).json({ error: "خطأ في جلب سجل التحويلات" });
+  }
+});
+
+// PATCH /warehouses/shipments/:id/courier — تعيين/تحديث مندوب الشحنة (شركة الشحن) عند خروجها من المخزن
+router.patch("/shipments/:id/courier", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const shipmentId = Number(req.params.id);
+    const schema = z.object({
+      shippingCompanyId: z.number(),               // المندوب = شركة الشحن من shippingCompaniesTable
+      warehouseId:       z.number().nullable().optional(),
+    });
+    const body = schema.parse(req.body);
+
+    await db.update(shipmentsTable).set({
+      shippingCompanyId: body.shippingCompanyId,
+      status:             "out_for_delivery",       // خرجت للتسليم مع المندوب
+      warehouseId:        body.warehouseId ?? undefined,
+      updatedAt:          new Date(),
+    }).where(eq(shipmentsTable.id, shipmentId));
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[PATCH /warehouses/shipments/:id/courier]", e);
+    res.status(500).json({ error: "خطأ في تعيين المندوب" });
+  }
 });
 
 export default router;

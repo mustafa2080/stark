@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck } from "lucide-react";
+import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck, ArrowLeftRight, UserCheck, Phone, PackageSearch, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,14 +10,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "wouter";
-import { warehousesApi, apiFetch, type Warehouse as WarehouseType, type WarehouseDetail, productsApi, variantsApi } from "@/lib/api";
+import { warehousesApi, shippingApi, apiFetch, type Warehouse as WarehouseType, type WarehouseDetail, type WarehouseShipment, type ShippingCompany, productsApi, variantsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/use-debounce";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("ar-EG").format(n);
+
+// ── تسميات أنواع الطرود ─────────────────────────────────────────────────────
+const PARCEL_LABELS: Record<string, string> = {
+  regular:    "عادي",
+  fragile:    "قابل للكسر",
+  clothes:    "ملابس",
+  electronics:"إلكترونيات",
+  documents:  "مستندات",
+  food:       "أغذية",
+  medicine:   "أدوية",
+  heavy:      "ثقيل",
+};
+
+// ── ترجمة حالات الشحنات ─────────────────────────────────────────────────────
+const SHIPMENT_STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  waiting:          { label: "قيد الانتظار",       color: "text-muted-foreground", bg: "bg-muted/20" },
+  confirmed:        { label: "مؤكدة",              color: "text-sky-600",          bg: "bg-sky-500/10" },
+  picked_up:        { label: "تم الاستلام",         color: "text-blue-600",         bg: "bg-blue-500/10" },
+  in_transit:       { label: "في الطريق",           color: "text-indigo-600",       bg: "bg-indigo-500/10" },
+  out_for_delivery: { label: "مع المندوب",          color: "text-amber-600",        bg: "bg-amber-500/10" },
+  warehouse_ready:  { label: "قيد الشحن بالمخزن",  color: "text-orange-600",       bg: "bg-orange-500/10" },
+  delivered:        { label: "مسلّمة",             color: "text-emerald-600",      bg: "bg-emerald-500/10" },
+  returned:         { label: "مرتجعة",             color: "text-red-600",          bg: "bg-red-500/10" },
+  cancelled:        { label: "ملغية",              color: "text-gray-500",         bg: "bg-gray-500/10" },
+  partial_delivered:{ label: "تسليم جزئي",          color: "text-violet-600",       bg: "bg-violet-500/10" },
+};
 
 function WarehouseFormDialog({
   open, onClose, existing,
@@ -28,6 +55,7 @@ function WarehouseFormDialog({
   const qc = useQueryClient();
   const [name, setName] = useState(existing?.name ?? "");
   const [address, setAddress] = useState(existing?.address ?? "");
+  const [city, setCity] = useState(existing?.city ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [isDefault, setIsDefault] = useState(existing?.isDefault ?? false);
   const [saving, setSaving] = useState(false);
@@ -36,6 +64,7 @@ function WarehouseFormDialog({
   useEffect(() => {
     setName(existing?.name ?? "");
     setAddress(existing?.address ?? "");
+    setCity(existing?.city ?? "");
     setNotes(existing?.notes ?? "");
     setIsDefault(existing?.isDefault ?? false);
   }, [existing, open]);
@@ -48,10 +77,10 @@ function WarehouseFormDialog({
     setSaving(true);
     try {
       if (existing) {
-        await warehousesApi.update(existing.id, { name, address: address || null, notes: notes || null, isDefault });
+        await warehousesApi.update(existing.id, { name, address: address || null, city: city || null, notes: notes || null, isDefault });
         toast({ title: "تم تحديث المخزن" });
       } else {
-        await warehousesApi.create({ name, address: address || null, notes: notes || null, isDefault });
+        await warehousesApi.create({ name, address: address || null, city: city || null, notes: notes || null, isDefault });
         toast({ title: "تم إنشاء المخزن" });
       }
       qc.invalidateQueries({ queryKey: ["warehouses"] });
@@ -70,11 +99,26 @@ function WarehouseFormDialog({
         <div className="space-y-4 py-2">
           <div className="space-y-1">
             <Label className="text-xs">اسم المخزن *</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="المخزن الرئيسي" className="h-9 text-sm" />
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="مخزن القاهرة" className="h-9 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">المدينة</Label>
+            <Input value={city} onChange={e => setCity(e.target.value)} placeholder="القاهرة / الإسكندرية..." className="h-9 text-sm" />
+            <div className="flex gap-1.5 pt-1">
+              {["القاهرة", "الإسكندرية"].map(c => (
+                <button
+                  key={c} type="button"
+                  onClick={() => setCity(c)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors ${
+                    city === c ? "bg-primary text-primary-foreground border-primary" : "bg-muted/30 text-muted-foreground border-border hover:border-primary/40"
+                  }`}
+                >{c}</button>
+              ))}
+            </div>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">العنوان</Label>
-            <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="شارع، مدينة..." className="h-9 text-sm" />
+            <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="شارع، تفاصيل العنوان..." className="h-9 text-sm" />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">ملاحظات</Label>
@@ -88,6 +132,132 @@ function WarehouseFormDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="text-xs h-8">إلغاء</Button>
           <Button onClick={handleSave} disabled={saving} className="text-xs h-8">{saving ? "جاري الحفظ..." : "حفظ"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── تحويل شحنة لمخزن آخر / تعيين مندوب ──────────────────────────────────────
+function TransferShipmentDialog({
+  shipment, currentWarehouseId, warehouses, shippingCompanies, onClose,
+}: {
+  shipment: WarehouseShipment;
+  currentWarehouseId: number;
+  warehouses: WarehouseType[];
+  shippingCompanies: ShippingCompany[];
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [toWarehouseId, setToWarehouseId] = useState<string>(
+    shipment.warehouseId ? String(shipment.warehouseId) : "none"
+  );
+  const [shippingCompanyId, setShippingCompanyId] = useState<string>(
+    shipment.shippingCompanyId ? String(shipment.shippingCompanyId) : "none"
+  );
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const isReturn = shipment.status === "returned";
+  const isAssigningCourier = shippingCompanyId !== "none" && Number(shippingCompanyId) !== (shipment.shippingCompanyId ?? -1);
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["warehouse-shipments"] });
+    qc.invalidateQueries({ queryKey: ["warehouse-stats"] });
+    qc.invalidateQueries({ queryKey: ["warehouses"] });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await warehousesApi.transferShipment({
+        shipmentId: shipment.id,
+        toWarehouseId: toWarehouseId === "none" ? null : Number(toWarehouseId),
+        shippingCompanyId: shippingCompanyId === "none" ? null : Number(shippingCompanyId),
+        notes: notes.trim() || undefined,
+        // لو عيّنّا مندوب جديد وهو لسه في حالة انتظار/مؤكدة، خرّجها "خرجت للتسليم"
+        newStatus: isAssigningCourier && ["waiting", "confirmed", "picked_up"].includes(shipment.status)
+          ? "out_for_delivery"
+          : undefined,
+      });
+      invalidateAll();
+      toast({ title: "✅ تم تحديث الشحنة" });
+      onClose();
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <ArrowLeftRight className="w-4 h-4 text-primary" />
+            تحويل الشحنة {shipment.shipmentNumber ?? `#${shipment.id}`}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {isReturn && shipment.returnReceived !== 1 && (
+            <p className="text-[11px] text-amber-500 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-1.5">
+              ⚠ هذه شحنة مرتجعة لسه لم تُستلم في أي مخزن — حدّد المخزن الذي ستستقبلها.
+            </p>
+          )}
+
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1"><Warehouse className="w-3 h-3" />المخزن</Label>
+            <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="اختر المخزن..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— بدون مخزن —</SelectItem>
+                {warehouses.map(w => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}{w.city ? ` — ${w.city}` : ""}{w.id === currentWarehouseId ? " (الحالي)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1"><UserCheck className="w-3 h-3" />المندوب (شركة الشحن)</Label>
+            <Select value={shippingCompanyId} onValueChange={setShippingCompanyId}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="بدون مندوب..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— بدون مندوب —</SelectItem>
+                {shippingCompanies.filter(c => c.isActive !== false).map(c => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}{c.phone ? ` — ${c.phone}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isAssigningCourier && (
+              <p className="text-[10px] text-sky-500 flex items-center gap-1">
+                <Truck className="w-3 h-3" />سيتم تحويل حالة الشحنة إلى "خرجت للتسليم" مع المندوب
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">ملاحظة التحويل (اختياري)</Label>
+            <Textarea
+              value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="سبب التحويل أو أي تفاصيل..."
+              className="min-h-[60px] text-sm resize-none"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="text-xs h-8">إلغاء</Button>
+          <Button onClick={handleSave} disabled={saving} className="text-xs h-8 gap-1">
+            <ArrowLeftRight className="w-3 h-3" />{saving ? "جاري الحفظ..." : "تأكيد التحويل"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -109,18 +279,21 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
 
   const { data: warehouseShipments, isLoading: loadingShipments } = useQuery({
     queryKey: ["warehouse-shipments", warehouseId, shipmentStatusFilter],
-    queryFn: () => apiFetch<{
-      shipments: {
-        id: number; shipmentNumber: string | null; trackingNumber: string | null;
-        senderName: string; receiverName: string; receiverCity: string | null;
-        status: string; codAmount: string | null; shippingFee: string | null;
-        pieces: number | null; createdAt: string; deliveredAt: string | null;
-      }[];
-      stats: { total: number; active: number; delivered: number; returned: number };
-    }>(`/warehouses/${warehouseId}/shipments?status=${shipmentStatusFilter}`),
+    queryFn: () => warehousesApi.shipments(warehouseId, shipmentStatusFilter),
     staleTime: 30_000,
     refetchInterval: activeTab === "shipments" ? 30_000 : false,
   });
+  const { data: warehouseStats } = useQuery({
+    queryKey: ["warehouse-stats", warehouseId],
+    queryFn: () => warehousesApi.stats(warehouseId),
+    staleTime: 30_000,
+    enabled: activeTab === "shipments",
+    refetchInterval: activeTab === "shipments" ? 30_000 : false,
+  });
+  const { data: allWarehouses } = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list, staleTime: 30_000 });
+  const { data: shippingCompanies } = useQuery({ queryKey: ["shipping-companies"], queryFn: shippingApi.list, staleTime: 60_000 });
+  const [transferShipmentId, setTransferShipmentId] = useState<number | null>(null);
+  const [courierShipmentId, setCourierShipmentId] = useState<number | null>(null);
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list, staleTime: 0 });
   const { data: allVariants } = useQuery({ queryKey: ["variants-all"], queryFn: variantsApi.listAll, staleTime: 0, refetchInterval: 5000 });
   const [selectedProductId, setSelectedProductId] = useState<number | "">("");
@@ -582,7 +755,7 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
       {activeTab === "shipments" && (
         <div className="space-y-4">
 
-          {/* إحصائيات سريعة */}
+          {/* إحصائيات سريعة (الحالة) */}
           <div className="grid grid-cols-4 gap-2">
             {[
               { label: "الكل",        value: stats?.total ?? 0,     key: "all",       color: "text-foreground",  bg: "bg-muted/20" },
@@ -605,16 +778,70 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
             ))}
           </div>
 
+          {/* إحصائيات إجمالية: أنواع الطرود + أكتر عملاء */}
+          {warehouseStats && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-2 pt-3 px-4">
+                  <CardTitle className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground">
+                    <PackageSearch className="w-3.5 h-3.5 text-primary" />أنواع الشحنات في هذا المخزن
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 pt-0">
+                  {Object.keys(warehouseStats.byParcelType).length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-3">لا توجد بيانات أنواع طرود بعد</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(warehouseStats.byParcelType)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([type, count]) => (
+                          <span key={type} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-muted/30 border border-border">
+                            {PARCEL_LABELS[type] ?? type}
+                            <span className="text-primary font-black">{count}</span>
+                          </span>
+                        ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-2 pt-3 px-4">
+                  <CardTitle className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground">
+                    <Users className="w-3.5 h-3.5 text-primary" />أكتر العملاء تعاملاً
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 pt-0">
+                  {warehouseStats.topClients.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-3">لا توجد بيانات عملاء بعد</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {warehouseStats.topClients.slice(0, 5).map((c, i) => (
+                        <div key={c.name} className="flex items-center justify-between text-[11px]">
+                          <span className="truncate flex items-center gap-1.5">
+                            <span className="text-muted-foreground font-bold w-3">{i + 1}.</span>
+                            {c.name}
+                          </span>
+                          <span className="font-black text-primary shrink-0">{c.count} شحنة</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* جدول الشحنات */}
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-4 py-2 border-b border-border bg-muted/5 text-[10px] font-bold text-muted-foreground">
               <span className="col-span-2">رقم الشحنة</span>
               <span className="col-span-2">المُرسِل</span>
               <span className="col-span-2">المستلم</span>
-              <span className="col-span-2">المدينة</span>
-              <span className="col-span-1 text-center">القطع</span>
+              <span className="col-span-2">النوع</span>
               <span className="col-span-2">الحالة</span>
-              <span className="col-span-1">التاريخ</span>
+              <span className="col-span-1">المندوب</span>
+              <span className="col-span-1 text-center">إجراء</span>
             </div>
 
             {loadingShipments ? (
@@ -625,32 +852,53 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
                 <p className="text-xs text-muted-foreground">لا توجد شحنات في هذه الفئة</p>
               </div>
             ) : warehouseShipments.shipments.map(s => {
-              const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
-                waiting:          { label: "انتظار",          color: "text-slate-400",   bg: "bg-slate-500/10" },
-                confirmed:        { label: "مؤكدة",           color: "text-blue-400",    bg: "bg-blue-500/10" },
-                picked_up:        { label: "تم الاستلام",     color: "text-indigo-400",  bg: "bg-indigo-500/10" },
-                in_transit:       { label: "في الطريق",       color: "text-amber-400",   bg: "bg-amber-500/10" },
-                out_for_delivery: { label: "خرجت للتسليم",    color: "text-orange-400",  bg: "bg-orange-500/10" },
-                delivered:        { label: "تم التسليم",      color: "text-emerald-400", bg: "bg-emerald-500/10" },
-                delayed:          { label: "متأخرة",          color: "text-yellow-400",  bg: "bg-yellow-500/10" },
-                returned:         { label: "مرتجع",           color: "text-red-400",     bg: "bg-red-500/10" },
-                cancelled:        { label: "ملغية",           color: "text-red-300",     bg: "bg-red-400/10" },
-              };
-              const st = STATUS_MAP[s.status] ?? { label: s.status, color: "text-muted-foreground", bg: "bg-muted/20" };
+              const st = SHIPMENT_STATUS_MAP[s.status] ?? { label: s.status, color: "text-muted-foreground", bg: "bg-muted/20" };
+              const isReturnPending = s.status === "returned" && s.returnReceived !== 1;
               return (
                 <div key={s.id} className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border/50 hover:bg-muted/10 transition-colors items-center text-xs">
-                  <div className="col-span-2 font-bold text-primary truncate">{s.shipmentNumber ?? `#${s.id}`}</div>
+                  <div className="col-span-2 min-w-0">
+                    <p className="font-bold text-primary truncate">{s.shipmentNumber ?? `#${s.id}`}</p>
+                    <p className="text-[9px] text-muted-foreground truncate">{s.receiverCity ?? "—"}</p>
+                  </div>
                   <div className="col-span-2 truncate">{s.senderName}</div>
-                  <div className="col-span-2 truncate">{s.receiverName}</div>
-                  <div className="col-span-2 text-muted-foreground truncate">{s.receiverCity ?? "—"}</div>
-                  <div className="col-span-1 text-center font-bold">{s.pieces ?? 1}</div>
+                  <div className="col-span-2 truncate">
+                    {s.receiverName}
+                    {s.notes && <p className="text-[9px] text-muted-foreground truncate" title={s.notes}>{s.notes}</p>}
+                  </div>
+                  <div className="col-span-2">
+                    {s.parcelType ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-muted/30 border border-border">
+                        {PARCEL_LABELS[s.parcelType] ?? s.parcelType}
+                      </span>
+                    ) : <span className="text-muted-foreground text-[10px]">—</span>}
+                    {(s.pieces ?? 1) > 1 && <span className="text-[9px] text-muted-foreground mr-1">×{s.pieces}</span>}
+                  </div>
                   <div className="col-span-2">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${st.bg} ${st.color}`}>
                       {st.label}
                     </span>
+                    {isReturnPending && (
+                      <p className="text-[9px] text-amber-500 mt-0.5">لسه عند شركة الشحن</p>
+                    )}
                   </div>
-                  <div className="col-span-1 text-muted-foreground text-[10px]">
-                    {new Date(s.createdAt).toLocaleDateString("ar-EG", { month: "numeric", day: "numeric" })}
+                  <div className="col-span-1 min-w-0">
+                    {s.courierName ? (
+                      <div className="truncate">
+                        <p className="text-[10px] font-bold truncate flex items-center gap-1"><UserCheck className="w-2.5 h-2.5 text-sky-400 shrink-0" />{s.courierName}</p>
+                        {s.courierPhone && <p className="text-[9px] text-muted-foreground flex items-center gap-1" dir="ltr"><Phone className="w-2.5 h-2.5" />{s.courierPhone}</p>}
+                      </div>
+                    ) : <span className="text-muted-foreground text-[10px]">—</span>}
+                  </div>
+                  <div className="col-span-1 text-center">
+                    {canEdit && (
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
+                        title="تحويل لمخزن آخر / تعيين مندوب"
+                        onClick={() => setTransferShipmentId(s.id)}
+                      >
+                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
@@ -658,6 +906,20 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
           </Card>
         </div>
       )}
+
+      {transferShipmentId !== null && warehouseShipments && (() => {
+        const target = warehouseShipments.shipments.find(s => s.id === transferShipmentId);
+        if (!target) return null;
+        return (
+          <TransferShipmentDialog
+            shipment={target}
+            currentWarehouseId={warehouseId}
+            warehouses={allWarehouses ?? []}
+            shippingCompanies={shippingCompanies ?? []}
+            onClose={() => setTransferShipmentId(null)}
+          />
+        );
+      })()}
 
     </div>
   );
@@ -795,7 +1057,10 @@ export default function WarehousesPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <Warehouse className="w-4 h-4 text-primary shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-sm font-bold truncate">{w.name}</p>
+                    <p className="text-sm font-bold truncate flex items-center gap-1.5">
+                      {w.name}
+                      {w.city && <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full shrink-0">{w.city}</span>}
+                    </p>
                     {w.address && <p className="text-[10px] text-muted-foreground truncate">{w.address}</p>}
                   </div>
                 </div>

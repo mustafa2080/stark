@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -14,8 +14,16 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
   try {
     const { number } = req.params;
     const rows = await db
-      .select()
+      .select({
+        shipment:        shipmentsTable,
+        warehouseName:   warehousesTable.name,
+        warehouseCity:   warehousesTable.city,
+        courierName:     shippingCompaniesTable.name,
+        courierPhone:    shippingCompaniesTable.phone,
+      })
       .from(shipmentsTable)
+      .leftJoin(warehousesTable,        eq(shipmentsTable.warehouseId,        warehousesTable.id))
+      .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId,  shippingCompaniesTable.id))
       .where(
         and(
           isNull(shipmentsTable.deletedAt),
@@ -31,7 +39,8 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
       res.status(404).json({ error: "لم يتم العثور على الشحنة" });
       return;
     }
-    res.json(rows[0]);
+    const { shipment, warehouseName, warehouseCity, courierName, courierPhone } = rows[0];
+    res.json({ ...shipment, warehouseName, warehouseCity, courierName, courierPhone });
   } catch (e) {
     console.error("[GET /shipments/track]", e);
     res.status(500).json({ error: "خطأ في البحث عن الشحنة" });
