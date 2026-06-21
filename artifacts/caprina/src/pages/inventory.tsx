@@ -651,11 +651,11 @@ function ShipmentWarehouseTab() {
   const returns      = (ordersMap.returned?.length ?? 0) + (ordersMap.partial_received?.length ?? 0);
   const totalAll     = inWarehouse + inTransit + returns;
   const warehouseCOD = [...(ordersMap.pending ?? []), ...(ordersMap.warehouse_ready ?? [])]
-    .reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+    .reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
   const transitCOD   = (ordersMap.in_shipping ?? [])
-    .reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+    .reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
   const returnsCOD   = [...(ordersMap.returned ?? []), ...(ordersMap.partial_received ?? [])]
-    .reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+    .reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
 
   // ── فلترة بحث (client-side فوق الـ server results) ────────────────────────
   const activeOrders = useMemo(() => {
@@ -671,7 +671,7 @@ function ShipmentWarehouseTab() {
     );
   }, [ordersMap, activeStatus, search]);
 
-  const activeTotalCOD = activeOrders.reduce((s: number, o: any) => s + (Number(o.cod) || 0), 0);
+  const activeTotalCOD = activeOrders.reduce((s: number, o: any) => s + (Number(o.totalPrice) || 0), 0);
   const activeFiltersCount = [dateFrom, dateTo, shippingCompany !== "all"].filter(Boolean).length;
 
   const clearFilters = () => { setDateFrom(""); setDateTo(""); setShippingCompany("all"); };
@@ -694,7 +694,7 @@ function ShipmentWarehouseTab() {
             <span className="text-[9px] sm:text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">مستودع</span>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">{isLoading ? "—" : inWarehouse}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة في المستودع</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">طلب في المستودع</p>
           <p className="text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 mt-1 truncate">{isLoading ? "" : fc2(warehouseCOD)}</p>
         </Card>
 
@@ -710,7 +710,7 @@ function ShipmentWarehouseTab() {
             <span className="text-[9px] sm:text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full">تسليم</span>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "—" : inTransit}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة في الطريق</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">طلب في الطريق</p>
           <p className="text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 mt-1 truncate">{isLoading ? "" : fc2(transitCOD)}</p>
         </Card>
 
@@ -730,7 +730,7 @@ function ShipmentWarehouseTab() {
             )}
           </div>
           <p className={`text-2xl sm:text-3xl font-black ${returns > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "—" : returns}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مرتجعة</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">طلب مرتجع</p>
           <p className={`text-[10px] font-bold mt-1 truncate ${returns > 0 ? "text-red-600/70 dark:text-red-400/70" : "text-muted-foreground"}`}>
             {isLoading ? "" : fc2(returnsCOD)}
           </p>
@@ -896,7 +896,7 @@ function ShipmentWarehouseTab() {
         <div className={`px-3 sm:px-4 py-2.5 border-b flex items-center gap-2 ${STATUS_META[activeStatus]?.bg} ${STATUS_META[activeStatus]?.border}`}>
           {(() => { const Icon = STATUS_META[activeStatus]?.icon; return <Icon className={`w-4 h-4 shrink-0 ${STATUS_META[activeStatus]?.color}`} />; })()}
           <span className={`text-sm font-bold ${STATUS_META[activeStatus]?.color}`}>{STATUS_META[activeStatus]?.label}</span>
-          <span className="text-xs text-muted-foreground mr-auto">{activeOrders.length} شحنة</span>
+          <span className="text-xs text-muted-foreground mr-auto">{activeOrders.length} طلب</span>
           {isLoading && <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
         </div>
 
@@ -925,7 +925,7 @@ function ShipmentWarehouseTab() {
                   <th className="text-right px-3 sm:px-4 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">العميل</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">المنتج</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المدينة</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">COD</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الإجمالي</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">شركة الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">التاريخ</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
@@ -961,7 +961,7 @@ function ShipmentWarehouseTab() {
                       {/* COD */}
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">
-                          {fc2(Number(order.cod) || 0)}
+                          {fc2(Number(order.totalPrice) || 0)}
                         </span>
                       </td>
 
@@ -999,13 +999,13 @@ function ShipmentWarehouseTab() {
       {!isLoading && activeOrders.length > 0 && (
         <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 rounded-xl border border-border bg-card/60 px-4 py-3 text-xs">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-muted-foreground">{activeOrders.length} شحنة</span>
+            <span className="text-muted-foreground">{activeOrders.length} طلب</span>
             {activeFiltersCount > 0 && (
               <span className="text-muted-foreground/60">· بعد الفلتر</span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">إجمالي COD:</span>
+            <span className="text-muted-foreground">إجمالي الطلبات:</span>
             <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">{fc2(activeTotalCOD)}</span>
           </div>
         </div>
