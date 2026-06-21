@@ -1171,8 +1171,8 @@ function ParcelPricingTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {pricing.map(p => (
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
-                  {/* صورة / إيموجي — قابل للضغط لتغيير الصورة */}
-                  <div className="relative group shrink-0">
+                  {/* صورة / إيموجي + زر تغيير واضح */}
+                  <div className="relative shrink-0">
                     <input
                       id={`img-edit-${p.id}`} type="file" accept="image/*" className="hidden"
                       onChange={e => {
@@ -1182,11 +1182,7 @@ function ParcelPricingTab() {
                         e.target.value = "";
                       }}
                     />
-                    <div
-                      className="w-12 h-12 rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary transition-all"
-                      onClick={() => document.getElementById(`img-edit-${p.id}`)?.click()}
-                      title="اضغط لتغيير الصورة"
-                    >
+                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-border">
                       {(editImgId === p.id && editImgPreview) ? (
                         <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
                       ) : p.imageUrl ? (
@@ -1195,9 +1191,15 @@ function ParcelPricingTab() {
                         <span className="w-full h-full flex items-center justify-center text-2xl bg-muted/30">{ICONS[p.parcelType] ?? "📦"}</span>
                       )}
                     </div>
-                    <div className="absolute -bottom-1 -left-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* زر كاميرا دايماً ظاهر */}
+                    <button
+                      type="button"
+                      className="absolute -bottom-1.5 -left-1.5 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center shadow hover:bg-primary/80 transition-colors"
+                      title="تغيير الصورة"
+                      onClick={() => document.getElementById(`img-edit-${p.id}`)?.click()}
+                    >
                       <ImageIcon className="w-2.5 h-2.5" />
-                    </div>
+                    </button>
                   </div>
 
                   <div className="flex-1 min-w-0">
