@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck, ArrowLeftRight, UserCheck, Phone, PackageSearch, Users } from "lucide-react";
+import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck, ArrowLeftRight, UserCheck, Phone, PackageSearch, Users, BarChart3, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -267,7 +267,7 @@ function TransferShipmentDialog({
 function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; onClose: () => void; canEdit: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"stock" | "shipments">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics">("stock");
   const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"active" | "delivered" | "returned" | "all">("active");
 
   const { data: warehouse, isLoading } = useQuery({
@@ -287,8 +287,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
     queryKey: ["warehouse-stats", warehouseId],
     queryFn: () => warehousesApi.stats(warehouseId),
     staleTime: 30_000,
-    enabled: activeTab === "shipments",
-    refetchInterval: activeTab === "shipments" ? 30_000 : false,
+    enabled: activeTab === "shipments" || activeTab === "analytics",
+    refetchInterval: activeTab === "shipments" || activeTab === "analytics" ? 30_000 : false,
   });
   const { data: allWarehouses } = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list, staleTime: 30_000 });
   const { data: shippingCompanies } = useQuery({ queryKey: ["shipping-companies"], queryFn: shippingApi.list, staleTime: 60_000 });
@@ -514,6 +514,19 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
           {(stats?.active ?? 0) > 0 && (
             <span className="bg-amber-500 text-white rounded-full w-4 h-4 text-[9px] font-black flex items-center justify-center">
               {stats!.active}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("analytics")}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "analytics" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5" />تحليلات
+          {(warehouseStats?.staleShipments?.length ?? 0) > 0 && (
+            <span className="bg-red-500 text-white rounded-full w-4 h-4 text-[9px] font-black flex items-center justify-center">
+              {warehouseStats!.staleShipments.length}
             </span>
           )}
         </button>
@@ -904,6 +917,162 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
               );
             })}
           </Card>
+        </div>
+      )}
+
+      {/* ══════════════ TAB: التحليلات ══════════════ */}
+      {activeTab === "analytics" && (
+        <div className="space-y-5">
+          {!warehouseStats ? (
+            <div className="py-12 text-center text-muted-foreground text-xs animate-pulse">جاري تحميل التحليلات...</div>
+          ) : (<>
+
+            {/* ─── 1. تنبيه: شحنات أكتر من 7 أيام ─────────────────────────── */}
+            <Card className={`border-2 ${warehouseStats.staleShipments.length > 0 ? "border-red-400/60 bg-red-500/5" : "border-border bg-card"}`}>
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-[11px] font-bold flex items-center gap-1.5">
+                  <AlertTriangle className={`w-3.5 h-3.5 ${warehouseStats.staleShipments.length > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+                  شحنات متأخرة في المخزن (أكتر من 7 أيام)
+                  {warehouseStats.staleShipments.length > 0 && (
+                    <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                      {warehouseStats.staleShipments.length}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3 pt-0">
+                {warehouseStats.staleShipments.length === 0 ? (
+                  <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
+                    ✅ لا توجد شحنات متأخرة — كل شيء طيب!
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 mt-1">
+                    {warehouseStats.staleShipments.map(s => (
+                      <div key={s.id} className="flex items-center justify-between text-[11px] bg-red-500/8 border border-red-400/20 rounded-md px-2.5 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3 h-3 text-red-400 shrink-0" />
+                          <span className="font-bold text-foreground">{s.senderName}</span>
+                          {s.parcelType && (
+                            <span className="text-[9px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded-full">
+                              {PARCEL_LABELS[s.parcelType] ?? s.parcelType}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`font-black text-xs shrink-0 ${s.daysInWarehouse > 14 ? "text-red-500" : "text-amber-500"}`}>
+                          {s.daysInWarehouse} يوم
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ─── 2. توزيع أنواع الطرود ────────────────────────────────────── */}
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground">
+                  <PackageSearch className="w-3.5 h-3.5 text-primary" />توزيع أنواع الطرود (الشحنات النشطة)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                {Object.keys(warehouseStats.byParcelType).length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground text-center py-4">لا توجد شحنات نشطة بأنواع طرود مسجّلة</p>
+                ) : (() => {
+                  const total = Object.values(warehouseStats.byParcelType).reduce((s, n) => s + n, 0);
+                  const sorted = Object.entries(warehouseStats.byParcelType).sort((a, b) => b[1] - a[1]);
+                  const COLORS = ["bg-primary", "bg-sky-500", "bg-indigo-500", "bg-violet-500", "bg-amber-500", "bg-emerald-500", "bg-rose-500", "bg-orange-500"];
+                  return (
+                    <div className="space-y-2.5 mt-1">
+                      {sorted.map(([type, count], i) => {
+                        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                        return (
+                          <div key={type}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-bold">{PARCEL_LABELS[type] ?? type}</span>
+                              <span className="text-[10px] text-muted-foreground">{count} ({pct}%)</span>
+                            </div>
+                            <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${COLORS[i % COLORS.length]}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* ─── 3. حركة الدخول والخروج (آخر 30 يوم) ─────────────────────── */}
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground">
+                  <BarChart3 className="w-3.5 h-3.5 text-primary" />حركة الدخول والخروج — آخر 30 يوم
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                {warehouseStats.movement.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground text-center py-4">لا توجد بيانات حركة في آخر 30 يوم</p>
+                ) : (() => {
+                  const maxVal = Math.max(...warehouseStats.movement.flatMap(d => [d.in, d.out]), 1);
+                  const totalIn  = warehouseStats.movement.reduce((s, d) => s + d.in, 0);
+                  const totalOut = warehouseStats.movement.reduce((s, d) => s + d.out, 0);
+                  // نعرض آخر 14 يوم فقط عشان ميكونش مزحوم
+                  const recent = [...warehouseStats.movement].slice(-14);
+                  return (
+                    <>
+                      {/* ملخص سريع */}
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="flex items-center gap-1.5">
+                          <ArrowDownToLine className="w-3 h-3 text-emerald-500" />
+                          <span className="text-xs font-black text-emerald-600">{totalIn}</span>
+                          <span className="text-[10px] text-muted-foreground">دخول</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <ArrowUpFromLine className="w-3 h-3 text-red-400" />
+                          <span className="text-xs font-black text-red-500">{totalOut}</span>
+                          <span className="text-[10px] text-muted-foreground">خروج</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground mr-auto">آخر {recent.length} يوم</span>
+                      </div>
+                      {/* mini bar chart */}
+                      <div className="flex items-end gap-0.5 h-20 w-full">
+                        {recent.map(d => {
+                          const inH  = maxVal > 0 ? (d.in  / maxVal) * 100 : 0;
+                          const outH = maxVal > 0 ? (d.out / maxVal) * 100 : 0;
+                          const dayLabel = new Date(d.day).toLocaleDateString("ar-EG", { day: "numeric", month: "numeric" });
+                          return (
+                            <div key={d.day} className="flex-1 flex flex-col items-center gap-px" title={`${dayLabel}: دخول ${d.in} — خروج ${d.out}`}>
+                              <div className="flex items-end gap-px w-full h-16">
+                                <div
+                                  className="flex-1 bg-emerald-500/70 rounded-t-sm transition-all duration-300"
+                                  style={{ height: `${inH}%`, minHeight: d.in > 0 ? "2px" : "0" }}
+                                />
+                                <div
+                                  className="flex-1 bg-red-400/70 rounded-t-sm transition-all duration-300"
+                                  style={{ height: `${outH}%`, minHeight: d.out > 0 ? "2px" : "0" }}
+                                />
+                              </div>
+                              <span className="text-[7px] text-muted-foreground/60 mt-0.5 whitespace-nowrap">{dayLabel}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-4 mt-2">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 bg-emerald-500/70 rounded-sm inline-block" />دخول</span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 bg-red-400/70 rounded-sm inline-block" />خروج</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+          </>)}
         </div>
       )}
 
