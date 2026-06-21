@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Package, Truck, MapPin, CheckCircle, Clock, AlertTriangle, XCircle, ArrowRight, Phone, User, Warehouse, UserCheck } from "lucide-react";
+import { Package, Truck, MapPin, CheckCircle, Clock, AlertTriangle, XCircle, ArrowRight, Phone, User, Warehouse, UserCheck, CircleCheck } from "lucide-react";
 import { Navbar, Footer } from "./home";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ShipmentStatus =
-  | "pending" | "warehouse_ready" | "in_shipping" | "received"
-  | "partial_received" | "delayed" | "returned";
-
 interface Shipment {
   id: number;
   shipmentNumber?: string;
@@ -32,35 +28,47 @@ interface Shipment {
   shippingCompanyId?: number | null;
   shippingCompanyName?: string | null;
   shippingCompanyPhone?: string | null;
+  // courierName/courierPhone = بيانات المندوب من shippingCompanies join
+  courierName?: string | null;
+  courierPhone?: string | null;
 }
 
 // ─── Status config ─────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number }> = {
-  pending:                 { label: "قيد الانتظار",                   color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
-  waiting:                 { label: "قيد الانتظار",                   color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
-  confirmed:               { label: "مؤكدة",                          color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
-  warehouse_ready:         { label: "في المخزن",                      color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 1 },
-  at_warehouse:            { label: "في المخزن",                      color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 1 },
-  picked_up:               { label: "في المخزن",                      color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 1 },
-  in_shipping:             { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 2 },
-  in_transit:              { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 2 },
-  with_courier:            { label: "مع المندوب",                     color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 2 },
-  out_for_delivery:        { label: "خرجت للتسليم",                   color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 2 },
-  received:                { label: "تم الاستلام",                    color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 3 },
-  delivered:               { label: "تم الاستلام",                    color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 3 },
-  partial_received:        { label: "استلام جزئي",                    color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 3 },
-  delayed:                 { label: "مؤجل",                           color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: AlertTriangle, step: 2 },
-  returned:                { label: "مرتجع",                          color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: 2 },
-  returned_to_warehouse:   { label: "مرتجع في المخزن",                color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: 2 },
-  return_delivered:        { label: "مرتجع — تم التسليم للراسل",      color: "#a3e635", bg: "rgba(163,230,53,0.1)",  icon: CheckCircle,   step: 3 },
-  cancelled:               { label: "ملغية",                          color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: XCircle,       step: 0 },
+// step: ترتيب المرحلة الطبيعية للشحنة (0 → 6). الحالات الاستثنائية (مرتجع/ملغي/مؤجل)
+// مالهاش step تصاعدي عادي — بنعاملها بشكل خاص في الـ timeline (isException: true)
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number; isException?: boolean }> = {
+  pending:                 { label: "تم استلام الطلب",                color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  waiting:                 { label: "تم استلام الطلب",                color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  confirmed:               { label: "تم تأكيد الشحنة",                 color: "#fbbf24", bg: "rgba(251,191,36,0.1)",  icon: CircleCheck,   step: 1 },
+  warehouse_ready:         { label: "في مخزن الشحن",                  color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 2 },
+  at_warehouse:            { label: "في مخزن الشحن",                  color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 2 },
+  picked_up:               { label: "تم استلامها من المندوب",          color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: Truck,         step: 3 },
+  in_shipping:             { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 4 },
+  in_transit:              { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 4 },
+  with_courier:            { label: "مع مندوب التوصيل",                color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 5 },
+  out_for_delivery:        { label: "خرجت للتسليم",                   color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 5 },
+  received:                { label: "تم التسليم بنجاح",                color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 6 },
+  delivered:                { label: "تم التسليم بنجاح",                color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 6 },
+  partial_received:        { label: "استلام جزئي",                    color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 6 },
+  delayed:                 { label: "الشحنة مؤجلة",                    color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: AlertTriangle, step: -1, isException: true },
+  returned:                { label: "الشحنة مرتجعة",                   color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: -1, isException: true },
+  returned_to_warehouse:   { label: "مرتجعة — في المخزن",              color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: -1, isException: true },
+  return_delivered:        { label: "مرتجعة — تم التسليم للراسل",      color: "#a3e635", bg: "rgba(163,230,53,0.1)",  icon: CheckCircle,   step: -1, isException: true },
+  cancelled:               { label: "الشحنة ملغية",                    color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: XCircle,       step: -1, isException: true },
 };
 
-const STEPS = [
-  { label: "قيد الانتظار",  icon: Clock },
-  { label: "في المخزن",     icon: Package },
-  { label: "قيد الشحن",     icon: Truck },
-  { label: "تم الاستلام",   icon: CheckCircle },
+// الحالات اللي معاها الشحنة فعلياً "مع المندوب" — هنا بس بنعرض بيانات المندوب
+const COURIER_VISIBLE_STATUSES = new Set([
+  "picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery",
+]);
+
+// مراحل التتبع العمودية (Timeline) — بالترتيب الطبيعي للشحنة
+const TIMELINE_STEPS = [
+  { step: 0, label: "تم استلام الطلب",        sublabel: "جاري تجهيز شحنتك",              icon: Clock },
+  { step: 2, label: "في مخزن الشحن",          sublabel: "الشحنة جاهزة للتسليم للمندوب",   icon: Package },
+  { step: 4, label: "قيد الشحن",              sublabel: "الشحنة مع شركة الشحن",          icon: Truck },
+  { step: 5, label: "مع مندوب التوصيل",       sublabel: "هتوصلك قريب جداً",               icon: UserCheck },
+  { step: 6, label: "تم التسليم",             sublabel: "وصلت الشحنة بنجاح",             icon: CheckCircle },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -169,7 +177,7 @@ export default function TrackResultPage() {
               {/* metallic sheen */}
               <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(110deg, rgba(255,255,255,0.07) 0%, transparent 35%, transparent 65%, rgba(255,255,255,0.04) 100%)" }} />
               <div className="flex items-center justify-between">
-                {STEPS.map((step, i) => {
+                {TIMELINE_STEPS.map((step, i) => {
                   const done    = i <= cfg.step;
                   const current = i === cfg.step;
                   const Icon    = step.icon;
@@ -193,7 +201,7 @@ export default function TrackResultPage() {
                           <Icon size={13} className="sm:hidden" style={{ color: done ? (current ? "#000" : "rgba(255,255,255,0.85)") : "rgba(255,255,255,0.2)" }} />
                           <Icon size={14} className="hidden sm:block" style={{ color: done ? (current ? "#000" : "rgba(255,255,255,0.85)") : "rgba(255,255,255,0.2)" }} />
                         </div>
-                        {i < STEPS.length - 1 && (
+                        {i < TIMELINE_STEPS.length - 1 && (
                           <div className="flex-1 h-px ml-1"
                             style={{ background: i < cfg.step ? `linear-gradient(90deg, ${cfg.color}99, rgba(255,255,255,0.5))` : "rgba(255,255,255,0.1)" }} />
                         )}
@@ -260,7 +268,7 @@ export default function TrackResultPage() {
             )}
 
             {/* ── مخزن و مندوب ── */}
-            {(shipment.warehouseName || shipment.courierName) && (
+            {(shipment.warehouseName || (COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName)) && (
               <div className="pt-2 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {shipment.warehouseName && (
                   <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -273,7 +281,7 @@ export default function TrackResultPage() {
                     </p>
                   </div>
                 )}
-                {shipment.courierName && (
+                {COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName && (
                   <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     <p className="text-xs text-white/30 mb-1 flex items-center gap-1">
                       <UserCheck size={10} />مندوب التوصيل
