@@ -3351,16 +3351,15 @@ export default function ShippingManifestPage() {
     const ordersWithoutPendingReturns = orders.filter(o => {
       const rr = (o as any).returnReceived;
       const isConfirmed = rr === 1 || rr === true;
-      // حالة التسليم في البيان
       const dStatus = o.deliveryStatus;
-      // حالة الشحنة الأصلية (من shipmentsTable)
       const shipmentStatus = (o as any).status;
       const isReturnedOrPartial =
         dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered" ||
         shipmentStatus === "returned" || shipmentStatus === "partial_received";
-      const isStillAtShipping = isReturnedOrPartial && !isConfirmed;
+      // اللي تم استلامه → يختفي من الجدول
+      const isConfirmedReturn = isReturnedOrPartial && isConfirmed;
       const isDelivered = dStatus === "delivered" || shipmentStatus === "delivered" || shipmentStatus === "received";
-      return !isStillAtShipping && !isDelivered;
+      return !isConfirmedReturn && !isDelivered;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
     if (!manifestCustomerSearch && !manifestProductSearch && !manifestTotalSearch) return groups;
