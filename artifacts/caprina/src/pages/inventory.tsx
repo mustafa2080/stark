@@ -1,7 +1,7 @@
 ﻿import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { productsApi, variantsApi, analyticsApi, warehousesApi, ordersApi, type Product, type ProductVariant, type StockIntelligenceItem, type Warehouse, type VariantWarehouseStock } from "@/lib/api";
+import { productsApi, variantsApi, analyticsApi, warehousesApi, ordersApi, shipmentsApi, type Product, type ProductVariant, type StockIntelligenceItem, type Warehouse, type VariantWarehouseStock } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,8 @@ import {
   Plus, Package, AlertTriangle, Edit2, Trash2, ChevronDown, ChevronRight,
   Layers, Tag, TrendingUp, DollarSign, Boxes, BarChart3, Search, PackagePlus, Archive,
   Filter, X, SortAsc, SortDesc, ChevronDown as ChevronDownIcon, Warehouse as WarehouseIcon, MapPin, Printer, ImagePlus, Trash,
-  Truck, Clock3, RotateCcw, CheckCircle2, ArrowRight, PackageX, RefreshCw, TrendingDown, Eye
+  Truck, Clock3, RotateCcw, CheckCircle2, ArrowRight, PackageX, RefreshCw, TrendingDown, Eye,
+  AlertCircle, Zap, Target, Activity, PieChart, ShieldAlert, CircleDollarSign, PackageCheck
 } from "lucide-react";
 
 // ─── Product Image Upload ──────────────────────────────────────────────────────
@@ -254,6 +255,342 @@ function printProductInventory(product: Product, variants: ProductVariant[], war
   win.document.write(html);
   win.document.close();
   win.onload = () => { win.print(); };
+}
+
+// ─── Shipment Insights Tab (مستنبط من شحنات Stark) ──────────────────────────
+function ShipmentInsightsTab() {
+  const fc3 = (n: number | string) =>
+    new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
+  const pct = (a: number, b: number) => b === 0 ? 0 : Math.round((a / b) * 100);
+
+  // ── جلب stats الكلية ──────────────────────────────────────────────────────
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["shipments-stats-insights"],
+    queryFn: () => shipmentsApi.stats(),
+    staleTime: 2 * 60_000,
+  });
+
+  // ── جلب آخر 200 شحنة لحساب التحليلات ─────────────────────────────────────
+  const { data: shipmentsRes, isLoading: listLoading } = useQuery({
+    queryKey: ["shipments-insights-list"],
+    queryFn: () => shipmentsApi.list({ limit: 200, offset: 0 }),
+    staleTime: 2 * 60_000,
+  });
+
+  const isLoading = statsLoading || listLoading;
+  const shipments = shipmentsRes?.data ?? [];
+
+  // ── KPIs من stats ─────────────────────────────────────────────────────────
+  const statusMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    if (stats?.statuses) {
+      for (const row of stats.statuses) m[row.status] = Number(row.count) || 0;
+    }
+    return m;
+  }, [stats]);
+
+  const delivered  = statusMap["delivered"] ?? 0;
+  const returned   = statusMap["returned"]  ?? 0;
+  const inTransit  = (statusMap["in_transit"] ?? 0) + (statusMap["out_for_delivery"] ?? 0);
+  const waiting    = (statusMap["waiting"] ?? 0) + (statusMap["confirmed"] ?? 0);
+  const totalAll   = Object.values(statusMap).reduce((s, v) => s + v, 0);
+  const closedAll  = delivered + returned;
+
+  const deliveryRate   = pct(delivered, closedAll);
+  const returnRate     = pct(returned,  closedAll);
+
+  const totalCod       = Number(stats?.totalCod)         || 0;
+  const totalCollected = Number(stats?.totalCollected)    || 0;
+  const totalFee       = Number(stats?.totalShippingFee)  || 0;
+  const netProfit      = totalCollected - totalFee;
+  const pendingCOD     = shipments
+    .filter(s => (s.status === "in_transit" || s.status === "out_for_delivery") && s.paymentMethod === "cod")
+    .reduce((sum, s) => sum + (Number(s.codAmount) || 0), 0);
+
+  // ── أكثر مناطق الإرجاع ────────────────────────────────────────────────────
+  const returnsByZone = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of shipments) {
+      if (s.status !== "returned") continue;
+      const zone = s.zoneLabel || s.receiverCity || "غير محدد";
+      m[zone] = (m[zone] ?? 0) + 1;
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [shipments]);
+
+  // ── أداء شركات الشحن ─────────────────────────────────────────────────────
+  const companyPerf = useMemo(() => {
+    const m: Record<string, { total: number; delivered: number; returned: number; name: string }> = {};
+    for (const s of shipments) {
+      const key  = String(s.shippingCompanyId ?? "بدون شركة");
+      const name = s.shippingCompanyName || "بدون شركة";
+      if (!m[key]) m[key] = { total: 0, delivered: 0, returned: 0, name };
+      m[key].total++;
+      if (s.status === "delivered") m[key].delivered++;
+      if (s.status === "returned")  m[key].returned++;
+    }
+    return Object.values(m)
+      .filter(c => c.total >= 2)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 4);
+  }, [shipments]);
+
+  // ── شحنات تحتاج action ────────────────────────────────────────────────────
+  const noCompany = shipments.filter(s =>
+    !s.shippingCompanyId && (s.status === "waiting" || s.status === "confirmed")
+  ).length;
+
+  const longPending = useMemo(() => {
+    const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    return shipments.filter(s =>
+      (s.status === "waiting" || s.status === "confirmed") &&
+      new Date(s.createdAt).getTime() < threeDaysAgo
+    ).length;
+  }, [shipments]);
+
+  if (isLoading) return (
+    <div className="space-y-3">
+      {[1,2,3,4].map(i => (
+        <div key={i} className="h-24 rounded-xl bg-muted/40 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── KPI Row 1: المالي ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+
+        {/* صافي المحصّل */}
+        <Card className={`p-3 sm:p-4 border ${netProfit >= 0 ? "border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10" : "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${netProfit >= 0 ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
+              <CircleDollarSign className={`w-4 h-4 ${netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`} />
+            </div>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${netProfit >= 0 ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600/70 dark:text-emerald-400/70" : "bg-red-100 dark:bg-red-900/30 text-red-600/70 dark:text-red-400/70"}`}>صافي</span>
+          </div>
+          <p className={`text-xl sm:text-2xl font-black ${netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{fc3(netProfit)}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">محصّل – رسوم الشحن</p>
+          <p className="text-[9px] text-muted-foreground/60 mt-1">رسوم: {fc3(totalFee)}</p>
+        </Card>
+
+        {/* COD المعلق في الطريق */}
+        <Card className="p-3 sm:p-4 border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/10">
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
+              <Clock3 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600/70 dark:text-amber-400/70">معلق</span>
+          </div>
+          <p className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">{fc3(pendingCOD)}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">COD في الطريق</p>
+          <p className="text-[9px] text-muted-foreground/60 mt-1">{inTransit} شحنة</p>
+        </Card>
+
+        {/* معدل التسليم */}
+        <Card className={`p-3 sm:p-4 border ${deliveryRate >= 70 ? "border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10" : "border-orange-200 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/10"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${deliveryRate >= 70 ? "bg-blue-500/15" : "bg-orange-500/15"}`}>
+              <Target className={`w-4 h-4 ${deliveryRate >= 70 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"}`} />
+            </div>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${deliveryRate >= 70 ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600/70" : "bg-orange-100 dark:bg-orange-900/30 text-orange-600/70"}`}>
+              {deliveryRate >= 70 ? "جيد" : "يحتاج تحسين"}
+            </span>
+          </div>
+          <p className={`text-xl sm:text-2xl font-black ${deliveryRate >= 70 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"}`}>{deliveryRate}%</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">معدل التسليم</p>
+          {/* progress bar */}
+          <div className="mt-1.5 h-1 rounded-full bg-muted/50 overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${deliveryRate >= 70 ? "bg-blue-500" : "bg-orange-500"}`} style={{ width: `${deliveryRate}%` }} />
+          </div>
+        </Card>
+
+        {/* معدل الإرجاع */}
+        <Card className={`p-3 sm:p-4 border ${returnRate <= 15 ? "border-border bg-card" : "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${returnRate <= 15 ? "bg-muted/30" : "bg-red-500/15"}`}>
+              <RotateCcw className={`w-4 h-4 ${returnRate <= 15 ? "text-muted-foreground" : "text-red-600 dark:text-red-400"}`} />
+            </div>
+            {returnRate > 15 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600/70 animate-pulse">تحذير</span>}
+          </div>
+          <p className={`text-xl sm:text-2xl font-black ${returnRate > 15 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>{returnRate}%</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">معدل الإرجاع</p>
+          <p className="text-[9px] text-muted-foreground/60 mt-1">{returned} من {closedAll} شحنة</p>
+        </Card>
+      </div>
+
+      {/* ── Action Alerts ────────────────────────────────────────────────── */}
+      {(noCompany > 0 || longPending > 0) && (
+        <div className="space-y-2">
+          {noCompany > 0 && (
+            <div className="flex items-center gap-3 rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/15 px-4 py-3">
+              <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-bold text-amber-700 dark:text-amber-300">{noCompany} شحنة بدون شركة شحن</p>
+                <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70">شحنات مؤكدة لم تُسند لشركة شحن بعد</p>
+              </div>
+              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            </div>
+          )}
+          {longPending > 0 && (
+            <div className="flex items-center gap-3 rounded-xl border border-red-300 dark:border-red-700/50 bg-red-50 dark:bg-red-900/15 px-4 py-3">
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-bold text-red-700 dark:text-red-300">{longPending} شحنة معلقة أكثر من 3 أيام</p>
+                <p className="text-[10px] text-red-600/70 dark:text-red-400/70">تحتاج مراجعة فورية أو إلغاء</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Row 2: المناطق الأكثر إرجاعاً + أداء الشركات ────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        {/* أكثر مناطق الإرجاع */}
+        <Card className="border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-red-50/50 dark:bg-red-900/5">
+            <MapPin className="w-4 h-4 text-red-500 shrink-0" />
+            <span className="text-sm font-bold text-red-600 dark:text-red-400">مناطق الإرجاع الأعلى</span>
+            <span className="text-[10px] text-muted-foreground mr-auto">من آخر 200 شحنة</span>
+          </div>
+          {returnsByZone.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <PackageCheck className="w-8 h-8 text-emerald-400/50" />
+              <p className="text-xs text-muted-foreground">لا مرتجعات 🎉</p>
+            </div>
+          ) : (
+            <div className="p-3 space-y-2">
+              {returnsByZone.map(([zone, count], i) => {
+                const maxCount = returnsByZone[0][1];
+                const barW = pct(count, maxCount);
+                return (
+                  <div key={zone} className="flex items-center gap-3">
+                    <span className={`text-[10px] font-black w-4 text-center shrink-0 ${i === 0 ? "text-red-500" : "text-muted-foreground"}`}>{i+1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-bold truncate">{zone}</span>
+                        <span className={`text-[11px] font-black shrink-0 ml-2 ${i === 0 ? "text-red-500" : "text-muted-foreground"}`}>{count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${i === 0 ? "bg-red-500" : i === 1 ? "bg-orange-400" : "bg-muted-foreground/40"}`}
+                          style={{ width: `${barW}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* أداء شركات الشحن */}
+        <Card className="border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-violet-50/50 dark:bg-violet-900/5">
+            <Activity className="w-4 h-4 text-violet-500 shrink-0" />
+            <span className="text-sm font-bold text-violet-600 dark:text-violet-400">أداء شركات الشحن</span>
+          </div>
+          {companyPerf.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <Truck className="w-8 h-8 text-muted-foreground/30" />
+              <p className="text-xs text-muted-foreground">لا توجد بيانات كافية</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/40">
+              {companyPerf.map(c => {
+                const rate = pct(c.delivered, c.total);
+                return (
+                  <div key={c.name} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                      <Truck className="w-3.5 h-3.5 text-violet-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-bold truncate">{c.name}</span>
+                        <span className={`text-[11px] font-black shrink-0 ml-2 ${rate >= 70 ? "text-emerald-500" : rate >= 50 ? "text-amber-500" : "text-red-500"}`}>{rate}%</span>
+                      </div>
+                      <div className="h-1 rounded-full bg-muted/40 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${rate >= 70 ? "bg-emerald-500" : rate >= 50 ? "bg-amber-400" : "bg-red-500"}`}
+                          style={{ width: `${rate}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[9px] text-muted-foreground">{c.total} شحنة</span>
+                        <span className="text-[9px] text-emerald-500">{c.delivered} تسليم</span>
+                        {c.returned > 0 && <span className="text-[9px] text-red-400">{c.returned} مرتجع</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ── Row 3: توزيع الحالات + ملخص مالي ─────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        {/* توزيع الحالات */}
+        <Card className="border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+            <PieChart className="w-4 h-4 text-primary shrink-0" />
+            <span className="text-sm font-bold">توزيع حالات الشحنات</span>
+            <span className="text-[10px] text-muted-foreground mr-auto">{totalAll} إجمالي</span>
+          </div>
+          <div className="p-3 space-y-2">
+            {[
+              { label: "تم التسليم",     count: delivered,  color: "bg-emerald-500", textColor: "text-emerald-600 dark:text-emerald-400" },
+              { label: "في الطريق",      count: inTransit,  color: "bg-violet-500",  textColor: "text-violet-600 dark:text-violet-400"   },
+              { label: "مرتجع",          count: returned,   color: "bg-red-500",     textColor: "text-red-600 dark:text-red-400"         },
+              { label: "انتظار/مؤكد",    count: waiting,    color: "bg-amber-400",   textColor: "text-amber-600 dark:text-amber-400"     },
+            ].filter(r => r.count > 0).map(row => (
+              <div key={row.label} className="flex items-center gap-3">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${row.color}`} />
+                <span className="text-[11px] text-muted-foreground flex-1">{row.label}</span>
+                <span className={`text-[11px] font-black ${row.textColor}`}>{row.count}</span>
+                <div className="w-16 h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                  <div className={`h-full rounded-full ${row.color}`} style={{ width: `${pct(row.count, totalAll)}%` }} />
+                </div>
+                <span className="text-[9px] text-muted-foreground w-6 text-left">{pct(row.count, totalAll)}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* ملخص مالي */}
+        <Card className="border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="text-sm font-bold">الملخص المالي للشحنات</span>
+          </div>
+          <div className="divide-y divide-border/40">
+            {[
+              { label: "إجمالي COD المتوقع",  value: totalCod,       color: "text-foreground",                       icon: CircleDollarSign },
+              { label: "إجمالي المحصّل",       value: totalCollected, color: "text-emerald-600 dark:text-emerald-400", icon: PackageCheck     },
+              { label: "إجمالي رسوم الشحن",   value: totalFee,       color: "text-amber-600 dark:text-amber-400",    icon: Truck            },
+              { label: "COD معلق في الطريق",  value: pendingCOD,     color: "text-violet-600 dark:text-violet-400",   icon: Clock3           },
+              { label: "صافي (محصّل - رسوم)", value: netProfit,      color: netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400", icon: TrendingUp },
+            ].map(row => {
+              const Icon = row.icon;
+              return (
+                <div key={row.label} className="flex items-center gap-3 px-4 py-2.5">
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${row.color}`} />
+                  <span className="text-[11px] text-muted-foreground flex-1">{row.label}</span>
+                  <span className={`text-[12px] font-black ${row.color}`}>{fc3(row.value)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+    </div>
+  );
 }
 
 // ─── Shipment Warehouse Tab ───────────────────────────────────────────────────
@@ -688,7 +1025,7 @@ export default function Inventory() {
   const canWarehouses  = isAdmin || can("inventory.warehouses");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"shipments" | "products">("shipments");
+  const [activeTab, setActiveTab] = useState<"shipments" | "insights" | "products">("shipments");
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
@@ -1042,7 +1379,7 @@ export default function Inventory() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">المخزون</h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
-            {activeTab === "shipments" ? "تتبع الشحنات • المستودع • المرتجعات" : "إدارة المنتجات • الألوان • المقاسات • التكاليف"}
+            {activeTab === "shipments" ? "تتبع الشحنات • المستودع • المرتجعات" : activeTab === "insights" ? "تحليلات الشحنات • الأداء • المناطق • المالي" : "إدارة المنتجات • الألوان • المقاسات • التكاليف"}
           </p>
         </div>
         {activeTab === "products" && canEdit && (
@@ -1068,6 +1405,17 @@ export default function Inventory() {
           مستودع الشحنات
         </button>
         <button
+          onClick={() => setActiveTab("insights")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
+            activeTab === "insights"
+              ? "bg-background shadow-sm border border-border text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          تحليلات الشحن
+        </button>
+        <button
           onClick={() => setActiveTab("products")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
             activeTab === "products"
@@ -1082,6 +1430,9 @@ export default function Inventory() {
 
       {/* Shipment Warehouse Tab */}
       {activeTab === "shipments" && <ShipmentWarehouseTab />}
+
+      {/* Shipment Insights Tab */}
+      {activeTab === "insights" && <ShipmentInsightsTab />}
 
       {/* Products Tab */}
       {activeTab === "products" && (<>
