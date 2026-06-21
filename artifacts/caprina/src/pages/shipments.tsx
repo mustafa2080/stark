@@ -61,6 +61,7 @@ interface Shipment {
   totalAmount?: string | number;
   collectedAmount?: string | number;
   status: ShipmentStatus;
+  returnReceived?: number | boolean | null;
   shippingCompanyId?: number;
   notes?: string;
   createdAt: string;
@@ -703,6 +704,26 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
               <Tag className="w-2.5 h-2.5" /> {shipment.trackingNumber}
             </p>
           )}
+
+          {/* ملاحظة الاستلام */}
+          {(shipment.status === "returned" || shipment.status === "partial_received") && (() => {
+            const received = shipment.returnReceived === 1 || shipment.returnReceived === true;
+            const isRet    = shipment.status === "returned";
+            return (
+              <div className={`flex items-center gap-1.5 mt-2 px-2 py-1 rounded-md text-[10px] font-semibold border ${
+                received
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                  : "bg-amber-500/10 border-amber-500/30 text-amber-400"
+              }`}>
+                <span>{received ? "✓" : "⏳"}</span>
+                <span>
+                  {received
+                    ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                    : (isRet ? "بانتظار استلام الشحنة المرتجعة"  : "بانتظار استلام الكمية الجزئية")}
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
