@@ -612,6 +612,16 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
     enabled: activeTab === "shipments" || activeTab === "analytics",
     refetchInterval: activeTab === "shipments" || activeTab === "analytics" ? 30_000 : false,
   });
+  const { data: shippingCompanies } = useQuery({
+    queryKey: ["shipping-companies"],
+    queryFn: shippingApi.list,
+    staleTime: 60_000,
+  });
+  const { data: allWarehouses } = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: warehousesApi.list,
+    staleTime: 60_000,
+  });
 
   // ── بيانات العملاء المجمّعة من الشحنات ─────────────────────────────────────
   const clientsData = useMemo(() => {
@@ -776,9 +786,9 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
         <td style="text-align:center">${i + 1}</td>
         <td>${s.trackingNumber ?? "—"}</td>
         <td>${s.senderName ?? "—"}</td>
-        <td>${s.recipientName ?? "—"}</td>
-        <td>${s.recipientPhone ?? "—"}</td>
-        <td>${s.city ?? "—"}</td>
+        <td>${s.receiverName ?? "—"}</td>
+        <td>${s.receiverPhone ?? "—"}</td>
+        <td>${s.receiverCity ?? "—"}</td>
         <td style="text-align:center"><span style="background:#f3f4f6;padding:2px 8px;border-radius:12px;font-size:11px">${st.label}</span></td>
         <td style="text-align:center;font-weight:bold">${Number(s.codAmount ?? 0).toLocaleString("ar-EG")}</td>
         <td>${s.parcelType ? (PARCEL_LABELS[s.parcelType] ?? s.parcelType) : "—"}</td>
