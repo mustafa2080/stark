@@ -270,12 +270,16 @@ router.get("/shipments", async (req, res): Promise<void> => {
     // حالات مترادفة — الداتابيز قد تحتوي أسماء قديمة وجديدة للنفس الحالة
     // كل مجموعة = حالة واحدة منطقياً، الأول في المصفوفة هو الاسم الجديد المعتمد
     const STATUS_GROUPS: Record<string, string[]> = {
+      pending:          ["pending", "waiting"],
       waiting:          ["waiting", "pending"],
       confirmed:        ["confirmed"],
+      warehouse_ready:  ["warehouse_ready", "picked_up"],
       picked_up:        ["picked_up", "warehouse_ready"],
       in_transit:       ["in_transit", "in_shipping"],
+      in_shipping:      ["in_shipping", "in_transit"],
       out_for_delivery: ["out_for_delivery"],
       delivered:        ["delivered", "received"],
+      received:         ["received", "delivered"],
       partial_received: ["partial_received"],
       delayed:          ["delayed"],
       returned:         ["returned"],
