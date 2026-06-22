@@ -778,6 +778,115 @@ function ShipmentWarehouseTab() {
     return { pendingCOD, shortfallCount, companiesRanked };
   }, [shipMap.delivered]);
 
+  // ── handlePrint: طباعة احترافية للجدول الحالي ────────────────────────────
+  const handlePrint = (status: string, shipments: any[], statusLabel: string) => {
+    const now = new Date().toLocaleString("ar-EG", { dateStyle: "full", timeStyle: "short" });
+    const totalCOD = shipments.reduce((s, sh) => s + (Number(sh.codAmount) || 0), 0);
+    const fmt = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+
+    const rows = shipments.map((sh, i) => {
+      const age = ACTIVE_STATUSES.includes(status as any) ? hoursSince(sh.updatedAt ?? sh.createdAt) : null;
+      const ageStr = age !== null ? formatAge(age) : "—";
+      const level = age !== null ? getAgeLevel(sh.status, age) : "ok";
+      const ageCls = level === "critical" ? "color:#dc2626;font-weight:900;" : level === "warn" ? "color:#d97706;font-weight:700;" : "";
+      return `
+        <tr style="border-bottom:1px solid #e5e7eb;${i % 2 !== 0 ? "background:#f9fafb;" : ""}">
+          <td style="padding:7px 10px;font-size:11px;font-weight:700;">${i + 1}</td>
+          <td style="padding:7px 10px;">
+            <div style="font-size:12px;font-weight:700;">${sh.senderName ?? "—"}</div>
+            <div style="font-size:10px;color:#6b7280;">${sh.senderPhone ?? ""}</div>
+          </td>
+          <td style="padding:7px 10px;">
+            <div style="font-size:12px;font-weight:600;">${sh.receiverName ?? "—"}</div>
+            <div style="font-size:10px;color:#6b7280;">${sh.receiverPhone ?? ""}</div>
+          </td>
+          <td style="padding:7px 10px;font-size:11px;">${sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</td>
+          <td style="padding:7px 10px;font-size:12px;font-weight:900;color:#059669;">${fmt(sh.codAmount)}</td>
+          <td style="padding:7px 10px;font-size:11px;color:#6b7280;">${sh.shippingCompanyName ?? "—"}</td>
+          <td style="padding:7px 10px;font-size:10px;font-family:monospace;color:#9ca3af;">${sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</td>
+          ${age !== null ? `<td style="padding:7px 10px;font-size:11px;${ageCls}">${ageStr}</td>` : ""}
+        </tr>`;
+    }).join("");
+
+    const ageHeader = ACTIVE_STATUSES.includes(status as any) ? `<th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;border-bottom:2px solid #e5e7eb;">العمر</th>` : "";
+
+    const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>تقرير المخزون — ${statusLabel}</title>
+  <style>
+    @page { size: A4 landscape; margin: 15mm 12mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl; color: #111827; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #111827; }
+    .brand { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
+    .brand span { color: #2563eb; }
+    .meta { text-align: left; font-size: 11px; color: #6b7280; line-height: 1.6; }
+    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; margin-bottom: 4px; }
+    .summary { display: flex; gap: 12px; margin-bottom: 14px; }
+    .summary-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+    .summary-card .label { font-size: 10px; color: #6b7280; font-weight: 600; margin-bottom: 2px; }
+    .summary-card .value { font-size: 18px; font-weight: 900; color: #111827; }
+    .summary-card.green .value { color: #059669; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead { background: #1e293b; }
+    thead th { padding: 9px 10px; text-align: right; font-size: 11px; font-weight: 700; color: #fff; border-bottom: 2px solid #334155; }
+    tbody tr:last-child { border-bottom: none; }
+    .footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 10px; color: #9ca3af; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">STARK <span>Vector</span></div>
+      <div style="font-size:13px;font-weight:700;color:#374151;margin-top:4px;">تقرير حالة الشحنات</div>
+    </div>
+    <div class="meta">
+      <div class="status-badge">${statusLabel}</div>
+      <div>تاريخ الطباعة: ${now}</div>
+      <div>إجمالي الشحنات: <strong>${shipments.length}</strong></div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="summary-card"><div class="label">عدد الشحنات</div><div class="value">${shipments.length}</div></div>
+    <div class="summary-card green"><div class="label">إجمالي COD</div><div class="value">${fmt(totalCOD)}</div></div>
+    <div class="summary-card"><div class="label">شركات الشحن</div><div class="value">${new Set(shipments.map(s => s.shippingCompanyName).filter(Boolean)).size}</div></div>
+    <div class="summary-card"><div class="label">مدن التوصيل</div><div class="value">${new Set(shipments.map(s => s.receiverCity ?? s.zoneGovernorate).filter(Boolean)).size}</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="padding:9px 10px;text-align:right;font-size:11px;color:#fff;border-bottom:2px solid #334155;">#</th>
+        <th style="padding:9px 10px;text-align:right;font-size:11px;color:#fff;border-bottom:2px solid #334155;">المُرسِل</th>
+        <th style="padding:9px 10px;text-align:right;font-size:11px;color:#fff;border-bottom:2px solid #334155;">المستلم</th>
+        <th style="padding:9px 10px;text-align:right;font-size:11px;color:#fff;border-bottom:2px solid #334155;">المدينة</th>
+        <th style="padding:9px 10px;text-align:right;font-size:11px;color:#fff;border-bottom:2px solid #334155;">COD</th>
+        <th style="padding:9px 10px;text-align:right;font-size:11px;color:#fff;border-bottom:2px solid #334155;">شركة الشحن</th>
+        <th style="padding:9px 10px;text-align:right;font-size:11px;color:#fff;border-bottom:2px solid #334155;">رقم التتبع</th>
+        ${ageHeader}
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="footer">
+    <span>STARK Vector — نظام إدارة الشحنات</span>
+    <span>starkvector.com</span>
+  </div>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=1100,height=750");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
+  };
+
   // ── Phase 4: تنبيهات استباقية ─────────────────────────────────────────────
   // 1) شحنات ستتجاوز SLA خلال 24 ساعة القادمة (predictive — مش بس reactive)
   const upcomingSlaWarnings = useMemo(() => {
@@ -1061,6 +1170,16 @@ function ShipmentWarehouseTab() {
           <span className={`text-sm font-bold ${SHIP_STATUS_META[activeStatus]?.color}`}>{SHIP_STATUS_META[activeStatus]?.label}</span>
           <span className="text-xs text-muted-foreground mr-auto">{activeShipments.length} شحنة</span>
           {isLoading && <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
+          {/* ── زرار الطباعة ── */}
+          {!isLoading && activeShipments.length > 0 && (
+            <button
+              onClick={() => handlePrint(activeStatus, activeShipments, SHIP_STATUS_META[activeStatus]?.label ?? "")}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-muted text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all print:hidden"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">طباعة</span>
+            </button>
+          )}
         </div>
 
         {isLoading ? (
