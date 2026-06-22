@@ -586,7 +586,7 @@ function KanbanBoard({
 function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; onClose: () => void; canEdit: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics" | "clients">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics" | "clients">("shipments");
   const [clientSearch, setClientSearch] = useState("");
   const [clientSort, setClientSort] = useState<"count" | "name" | "cod">("count");
   const [shipmentView, setShipmentView] = useState<"kanban" | "list">("kanban");
@@ -764,6 +764,84 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
     win.document.close();
   };
 
+  // ── طباعة جرد الشحنات ──────────────────────────────────────────────────────
+  const handlePrintShipments = () => {
+    if (!warehouse) return;
+    const printDate = new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
+    const ships = warehouseShipments?.shipments ?? [];
+    const rows = ships.map((s, i) => {
+      const st = SHIPMENT_STATUS_MAP[s.status ?? ""] ?? { label: s.status ?? "—" };
+      return `
+      <tr>
+        <td style="text-align:center">${i + 1}</td>
+        <td>${s.trackingNumber ?? "—"}</td>
+        <td>${s.senderName ?? "—"}</td>
+        <td>${s.recipientName ?? "—"}</td>
+        <td>${s.recipientPhone ?? "—"}</td>
+        <td>${s.city ?? "—"}</td>
+        <td style="text-align:center"><span style="background:#f3f4f6;padding:2px 8px;border-radius:12px;font-size:11px">${st.label}</span></td>
+        <td style="text-align:center;font-weight:bold">${Number(s.codAmount ?? 0).toLocaleString("ar-EG")}</td>
+        <td>${s.parcelType ? (PARCEL_LABELS[s.parcelType] ?? s.parcelType) : "—"}</td>
+      </tr>`;
+    }).join("");
+    const totalCod = ships.reduce((acc, s) => acc + Number(s.codAmount ?? 0), 0);
+    const statusCounts: Record<string, number> = {};
+    ships.forEach(s => { const k = s.status ?? "unknown"; statusCounts[k] = (statusCounts[k] ?? 0) + 1; });
+    const summaryBadges = Object.entries(statusCounts).map(([k, v]) => {
+      const st = SHIPMENT_STATUS_MAP[k] ?? { label: k };
+      return `<span style="background:#f3f4f6;padding:3px 10px;border-radius:12px;font-size:11px;margin:2px">${st.label}: ${v}</span>`;
+    }).join("");
+    const win = window.open("", "_blank", "width=1100,height=750");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <title>جرد شحنات مخزن: ${warehouse.name}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',Tahoma,sans-serif;padding:24px;color:#111;font-size:12px}
+    .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;border-bottom:2px solid #111;padding-bottom:12px}
+    .hdr h1{font-size:20px;font-weight:bold}
+    .hdr p{font-size:12px;color:#555;margin-top:4px}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+    .stat{border:1px solid #e5e7eb;border-radius:8px;padding:10px;text-align:center}
+    .stat .val{font-size:20px;font-weight:900}
+    .stat .lbl{font-size:10px;color:#666;margin-top:2px}
+    .summary{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+    table{width:100%;border-collapse:collapse}
+    th{background:#f3f4f6;font-size:11px;padding:7px 8px;text-align:right;border-bottom:2px solid #d1d5db;white-space:nowrap}
+    td{padding:6px 8px;font-size:11px;border-bottom:1px solid #e5e7eb}
+    tr:nth-child(even) td{background:#f9fafb}
+    .footer{margin-top:16px;font-size:11px;color:#888;text-align:center;border-top:1px solid #e5e7eb;padding-top:10px}
+    @media print{body{padding:12px}}
+  </style>
+</head>
+<body>
+  <div class="hdr">
+    <div><h1>🚚 جرد شحنات مخزن: ${warehouse.name}</h1><p>${warehouse.address ? "📍 " + warehouse.address : ""}</p></div>
+    <div style="text-align:left"><p>تاريخ الطباعة: ${printDate}</p>${warehouse.isDefault ? '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px">مخزن افتراضي</span>' : ""}</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="val">${ships.length}</div><div class="lbl">إجمالي الشحنات</div></div>
+    <div class="stat"><div class="val" style="color:#d97706">${statusCounts["warehouse_ready"] ?? 0}</div><div class="lbl">قيد الشحن</div></div>
+    <div class="stat"><div class="val" style="color:#16a34a">${statusCounts["delivered"] ?? 0}</div><div class="lbl">مسلّمة</div></div>
+    <div class="stat"><div class="val" style="color:#2563eb">${totalCod.toLocaleString("ar-EG")} ج.م</div><div class="lbl">إجمالي COD</div></div>
+  </div>
+  <div class="summary"><strong>توزيع الحالات:</strong>${summaryBadges}</div>
+  <table>
+    <thead><tr>
+      <th style="text-align:center">#</th><th>رقم التتبع</th><th>المرسل</th><th>المستلم</th><th>الهاتف</th><th>المدينة</th><th style="text-align:center">الحالة</th><th style="text-align:center">COD (ج.م)</th><th>نوع الطرد</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">STARK — نظام إدارة الشحنات | ${printDate}</div>
+  <script>window.onload = () => window.print();</script>
+</body>
+</html>`);
+    win.document.close();
+  };
+
   const handleAddStock = async () => {
     if (!selectedProductId) { toast({ title: "اختر منتجاً", variant: "destructive" }); return; }
     setAdding(true);
@@ -834,8 +912,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
             {warehouse?.address && <p className="text-xs text-muted-foreground">{warehouse.address}</p>}
           </div>
         </div>
-        {activeTab === "stock" && (
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handlePrint}>
+        {activeTab === "shipments" && (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handlePrintShipments}>
             <Printer className="w-3.5 h-3.5" />طباعة الجرد
           </Button>
         )}
@@ -843,14 +921,6 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
 
       {/* ── Tabs ── */}
       <div className="flex items-center gap-1 bg-muted/20 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setActiveTab("stock")}
-          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            activeTab === "stock" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Package className="w-3.5 h-3.5" />المخزون
-        </button>
         <button
           onClick={() => setActiveTab("shipments")}
           className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -893,9 +963,9 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
       </div>
 
       {/* ══════════════ TAB: المخزون ══════════════ */}
-      {activeTab === "stock" && (<>
+      {false && (<>
 
-      {/* ── الأربع مربعات ── */}
+      {/* ── الأربع مربعات (مخفي) ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-border bg-card">
           <CardContent className="p-4 flex items-center gap-3">
