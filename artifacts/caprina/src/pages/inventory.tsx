@@ -1498,10 +1498,31 @@ function compressParcelImage(file: File, onDone: (b64: string) => void, onStart?
   reader.readAsDataURL(file);
 }
 
+// ─── Status helpers for ParcelTypesTab ───────────────────────────────────────
+const SHIPMENT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  waiting:          { label: "في الانتظار",       color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
+  pending:          { label: "في الانتظار",       color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
+  confirmed:        { label: "مؤكدة",             color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+  warehouse_ready:  { label: "جاهزة بالمخزن",    color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+  picked_up:        { label: "جاهزة بالمخزن",    color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+  in_transit:       { label: "في الطريق",         color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  in_shipping:      { label: "في الطريق",         color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  out_for_delivery: { label: "مع المندوب",        color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
+  delivered:        { label: "تم التسليم",        color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+  received:         { label: "تم التسليم",        color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+  returned:         { label: "مرتجع",             color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
+  cancelled:        { label: "ملغية",             color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
+};
+function getStatusInfo(status: string) {
+  return SHIPMENT_STATUS_LABELS[status] ?? { label: status, color: "bg-muted text-muted-foreground" };
+}
+
 function ParcelTypesTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // dropdown شحنات: مفتوح على parcel type id + warehouse id
+  const [shipmentsOpen, setShipmentsOpen] = useState<{ parcelId: number; warehouseId: number } | null>(null);
   const [editPrices, setEditPrices] = useState<Record<number, string>>({});
   const [addOpen, setAddOpen] = useState(false);
   const [newType, setNewType] = useState("");
@@ -1512,6 +1533,31 @@ function ParcelTypesTab() {
   const [editImgId, setEditImgId] = useState<number | null>(null);
   const [editImgPreview, setEditImgPreview] = useState<string | null>(null);
   const [savingImg, setSavingImg] = useState(false);
+
+  // جلب المخازن
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses-parcel-tab"],
+    queryFn:  () => warehousesApi.list(),
+    staleTime: 5 * 60_000,
+  });
+
+  // جلب الشحنات (active فقط) لكل المخازن مرة واحدة
+  const { data: allShipmentsData } = useQuery({
+    queryKey: ["parcel-tab-shipments", warehouses.map(w => w.id).join(",")],
+    queryFn: async () => {
+      if (!warehouses.length) return [];
+      const results = await Promise.all(
+        warehouses.map(w => warehousesApi.shipments(w.id, "active"))
+      );
+      // ندمج مع معرف المخزن
+      return results.flatMap((res, i) =>
+        (res.shipments ?? []).map(s => ({ ...s, _warehouseId: warehouses[i].id, _warehouseName: warehouses[i].name }))
+      );
+    },
+    enabled: warehouses.length > 0,
+    staleTime: 60_000,
+  });
+  const allShipments = allShipmentsData ?? [];
 
   const { data: pricing = [], isLoading } = useQuery({
     queryKey: ["parcel-type-pricing"],
@@ -1698,8 +1744,132 @@ function ParcelTypesTab() {
                 </div>
 
                 {/* ── Expanded details ── */}
-                {isExpanded && (
-                  <div className="border-t border-border bg-muted/10">
+                {isExpanded && (() => {
+                  // شحنات هذا النوع مقسّمة على المخازن
+                  const byWarehouse = warehouses.map(wh => ({
+                    wh,
+                    shipments: allShipments.filter(
+                      s => s._warehouseId === wh.id &&
+                        (s.parcelType === p.parcelType ||
+                          (!s.parcelType && p.parcelType === "normal"))
+                    ),
+                  })).filter(g => g.shipments.length > 0);
+                  const totalCount = byWarehouse.reduce((n, g) => n + g.shipments.length, 0);
+
+                  return (
+                  <div className="border-t border-border">
+
+                    {/* ── قسم الشحنات بالمخازن ── */}
+                    <div className="px-4 pt-3 pb-2 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-xs font-bold">الشحنات بالمخازن</span>
+                        {totalCount > 0 && (
+                          <span className="bg-primary text-primary-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full">{totalCount}</span>
+                        )}
+                      </div>
+
+                      {allShipmentsData === undefined ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> جاري التحميل...
+                        </div>
+                      ) : byWarehouse.length === 0 ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-3 px-3 bg-muted/20 rounded-lg border border-border/50">
+                          <PackageX className="w-4 h-4" />
+                          لا توجد شحنات نشطة من هذا النوع في أي مخزن
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {byWarehouse.map(({ wh, shipments: wShipments }) => {
+                            const isOpen = shipmentsOpen?.parcelId === p.id && shipmentsOpen?.warehouseId === wh.id;
+                            return (
+                              <div key={wh.id} className="rounded-xl border border-border overflow-hidden">
+                                {/* ── رأس المخزن (قابل للضغط) ── */}
+                                <button
+                                  type="button"
+                                  className="w-full flex items-center gap-3 px-3 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-right"
+                                  onClick={() => setShipmentsOpen(isOpen ? null : { parcelId: p.id, warehouseId: wh.id })}
+                                >
+                                  <WarehouseIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <span className="flex-1 text-xs font-bold">{wh.name}</span>
+                                  <span className="flex items-center gap-1 text-[11px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                                    <Package className="w-3 h-3" />{wShipments.length} شحنة
+                                  </span>
+                                  {isOpen
+                                    ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                    : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                                </button>
+
+                                {/* ── قائمة الشحنات ── */}
+                                {isOpen && (
+                                  <div className="divide-y divide-border/50">
+                                    {/* Table header */}
+                                    <div className="hidden sm:grid grid-cols-[2fr_1.5fr_1.5fr_auto_auto] gap-2 px-3 py-1.5 bg-muted/10 text-[10px] text-muted-foreground font-semibold">
+                                      <span>المرسل</span>
+                                      <span>المستلم</span>
+                                      <span>المدينة</span>
+                                      <span className="w-20 text-center">الحالة</span>
+                                      <span className="w-16 text-center">COD</span>
+                                    </div>
+                                    {wShipments.map(s => {
+                                      const st = getStatusInfo(s.status);
+                                      return (
+                                        <div key={s.id} className="px-3 py-2.5 hover:bg-muted/10 transition-colors">
+                                          {/* Desktop */}
+                                          <div className="hidden sm:grid grid-cols-[2fr_1.5fr_1.5fr_auto_auto] gap-2 items-center">
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-semibold truncate">{s.senderName}</p>
+                                              {s.shipmentNumber && (
+                                                <p className="text-[10px] text-muted-foreground font-mono">{s.shipmentNumber}</p>
+                                              )}
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="text-xs truncate">{s.receiverName}</p>
+                                              {s.receiverPhone && (
+                                                <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>
+                                              )}
+                                            </div>
+                                            <p className="text-xs text-muted-foreground truncate">{s.receiverCity ?? "—"}</p>
+                                            <span className={`w-20 text-center text-[10px] font-bold px-2 py-0.5 rounded-full ${st.color}`}>
+                                              {st.label}
+                                            </span>
+                                            <p className="w-16 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                              {s.codAmount ? `${Number(s.codAmount).toLocaleString()} ج` : "—"}
+                                            </p>
+                                          </div>
+                                          {/* Mobile */}
+                                          <div className="sm:hidden flex items-start gap-2">
+                                            <div className="flex-1 min-w-0 space-y-0.5">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <p className="text-xs font-semibold">{s.senderName}</p>
+                                                {s.shipmentNumber && (
+                                                  <span className="text-[9px] text-muted-foreground bg-muted px-1 rounded font-mono">{s.shipmentNumber}</span>
+                                                )}
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                                              </div>
+                                              <p className="text-[11px] text-muted-foreground">→ {s.receiverName} · {s.receiverCity ?? "—"}</p>
+                                              {s.receiverPhone && <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>}
+                                            </div>
+                                            {s.codAmount && (
+                                              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                                                {Number(s.codAmount).toLocaleString()} ج
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── قسم تعديل السعر والصورة ── */}
+                    <div className="border-t border-border bg-muted/10">
                     {/* Header */}
                     <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 bg-muted/20 text-[10px] text-muted-foreground font-semibold">
                       <span>الصورة</span>
@@ -1783,8 +1953,10 @@ function ParcelTypesTab() {
                         </Button>
                       </div>
                     </div>
+                    </div>
                   </div>
-                )}
+                  );
+                })()}
               </Card>
             );
           })}
