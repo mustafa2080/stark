@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+﻿import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { productsApi, variantsApi, analyticsApi, warehousesApi, ordersApi, shipmentsApi, type Product, type ProductVariant, type StockIntelligenceItem, type Warehouse, type VariantWarehouseStock } from "@/lib/api";
@@ -691,6 +691,7 @@ function ShipmentWarehouseTab() {
   const [shippingCompany, setShippingCompany] = useState<string>("all");
   const [showFilters,     setShowFilters]     = useState(false);
   const [slaOnly,         setSlaOnly]         = useState(false);
+  const [warehouseId,     setWarehouseId]     = useState<string>("all");
 
   // ── شركات الشحن للفلتر ────────────────────────────────────────────────────
   const { data: companies = [] } = useQuery({
@@ -699,64 +700,48 @@ function ShipmentWarehouseTab() {
     staleTime: 5 * 60_000,
   });
 
-  // ── query لكل status بالتوازي من shipmentsApi ─────────────────────────────
-  // CLIENT_STATUS_ALIASES: لو السيرفر ما عملش rebuild بعد, نطلب الأسماء القديمة كمان ونجمعهم
-  const CLIENT_STATUS_ALIASES: Record<string, string[]> = {
-    waiting:          ["pending"],
-    confirmed:        [],
-    picked_up:        ["warehouse_ready"],
-    in_transit:       ["in_shipping"],
-    out_for_delivery: [],
-    delivered:        ["received"],
-    partial_received: [],
-    delayed:          [],
-    returned:         [],
-    cancelled:        [],
-  };
+  // ── المخازن للفلتر — تاب "مستودع الشحنات" بيعرض شحنات مخزن واحد محدد ──────
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses-wh-tab"],
+    queryFn:  () => warehousesApi.list(),
+    staleTime: 5 * 60_000,
+  });
 
-  // كل الـ statuses اللي هنطلبها (canonical + legacy aliases)
-  const ALL_QUERY_STATUSES = [
-    ...ALL_SHIP_STATUSES,
-    "pending", "warehouse_ready", "in_shipping", "received",
-  ] as const;
+  // لو فيه مخزن واحد بس متاح، نختاره تلقائياً بدل "الكل"
+  useEffect(() => {
+    if (warehouseId === "all" && warehouses.length === 1) {
+      setWarehouseId(String(warehouses[0].id));
+    }
+  }, [warehouses, warehouseId]);
 
-  const queries = ALL_QUERY_STATUSES.map(status =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useQuery({
-      queryKey: ["shipments-wh", status, dateFrom, dateTo, shippingCompany],
-      queryFn:  () => shipmentsApi.list({
-        status,
-        limit: 500,
-        ...(shippingCompany !== "all" ? { shippingCompanyId: Number(shippingCompany) } : {}),
-      }),
-      staleTime: 60_000,
-      select: (res) => {
-        let data = res.data ?? [];
-        if (dateFrom) data = data.filter(s => s.createdAt >= dateFrom);
-        if (dateTo)   data = data.filter(s => s.createdAt <= dateTo + "T23:59:59");
-        return data;
-      },
-    })
-  );
+  // ── جلب شحنات المخزن المحدد من الـ endpoint المخصص /warehouses/:id/shipments ─
+  // لو "الكل" محدد، نجمع شحنات كل المخازن في نفس الوقت (query واحدة لكل مخزن، بدل 14 query لكل status)
+  const warehouseQueries = (warehouseId === "all" ? warehouses.map(w => w.id) : [Number(warehouseId)])
+    .filter((id): id is number => Number.isFinite(id)).map(id =>
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      useQuery({
+        queryKey: ["warehouse-shipments", id],
+        queryFn:  () => warehousesApi.shipments(id, "all"),
+        enabled:  warehouses.length > 0,
+        staleTime: 30_000,
+      })
+    );
 
-  const isLoading = queries.some(q => q.isLoading);
+  const isLoading = warehouses.length === 0 || warehouseQueries.some(q => q.isLoading);
 
-  // ابني rawMap من كل الـ queries
-  const rawMap = Object.fromEntries(
-    ALL_QUERY_STATUSES.map((s, i) => [s, queries[i].data ?? []])
-  ) as Record<string, any[]>;
+  const warehouseShipmentsRaw = warehouseQueries.flatMap(q => q.data?.shipments ?? []);
+  const allWarehouseShipments = useMemo(() => {
+    let data = warehouseShipmentsRaw;
+    if (dateFrom) data = data.filter((s: any) => s.createdAt >= dateFrom);
+    if (dateTo)   data = data.filter((s: any) => s.createdAt <= dateTo + "T23:59:59");
+    if (shippingCompany !== "all") data = data.filter((s: any) => String(s.shippingCompanyId) === shippingCompany);
+    return data;
+  }, [warehouseShipmentsRaw.length, warehouseShipmentsRaw.map((s: any) => s.id).join(","), dateFrom, dateTo, shippingCompany]);
 
-  // ادمج الـ aliases في shipMap — كل canonical status بياخد بيانات نفسه + aliases بتاعته
+  // ابني shipMap: تجميع شحنات المخزن(ن) المختارة حسب الـ status
+  // الباك إند بيرجع الأسماء الـ canonical بالفعل (و legacy aliases متجمّعة جواه)، فمحتاجين بس نجمع حسب status
   const shipMap = Object.fromEntries(
-    ALL_SHIP_STATUSES.map(canonical => {
-      const aliasData = (CLIENT_STATUS_ALIASES[canonical] ?? [])
-        .flatMap(alias => rawMap[alias] ?? [])
-        // normalize status field عشان الـ UI يعرف يعرضها صح
-        .map((sh: any) => ({ ...sh, status: canonical }));
-      const ids = new Set((rawMap[canonical] ?? []).map((sh: any) => sh.id));
-      const merged = [...(rawMap[canonical] ?? []), ...aliasData.filter((sh: any) => !ids.has(sh.id))];
-      return [canonical, merged];
-    })
+    ALL_SHIP_STATUSES.map(canonical => [canonical, allWarehouseShipments.filter((sh: any) => sh.status === canonical)])
   ) as Record<string, any[]>;
 
   // ── KPI aggregations ──────────────────────────────────────────────────────
@@ -1097,8 +1082,8 @@ function ShipmentWarehouseTab() {
   }, [shipMap, activeStatus, search, slaOnly]);
 
   const activeTotalCOD = activeShipments.reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
-  const activeFiltersCount = [dateFrom, dateTo, shippingCompany !== "all"].filter(Boolean).length;
-  const clearFilters = () => { setDateFrom(""); setDateTo(""); setShippingCompany("all"); };
+  const activeFiltersCount = [dateFrom, dateTo, shippingCompany !== "all", warehouseId !== "all"].filter(Boolean).length;
+  const clearFilters = () => { setDateFrom(""); setDateTo(""); setShippingCompany("all"); setWarehouseId("all"); };
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -1271,7 +1256,15 @@ function ShipmentWarehouseTab() {
       {/* Expanded Filters */}
       {showFilters && (
         <div className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1"><WarehouseIcon className="w-3 h-3" /> المخزن</label>
+              <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">كل المخازن</option>
+                {warehouses.map((w: any) => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
+              </select>
+            </div>
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" /> شركة الشحن</label>
               <select value={shippingCompany} onChange={e => setShippingCompany(e.target.value)}
