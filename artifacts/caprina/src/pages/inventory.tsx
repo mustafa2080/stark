@@ -783,114 +783,206 @@ function ShipmentWarehouseTab() {
     const now = new Date().toLocaleString("ar-EG", { dateStyle: "full", timeStyle: "short" });
     const totalCOD = shipments.reduce((s, sh) => s + (Number(sh.codAmount) || 0), 0);
     const fmt = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+    const isActive = ACTIVE_STATUSES.includes(status as any);
 
     const rows = shipments.map((sh, i) => {
-      const age = ACTIVE_STATUSES.includes(status as any) ? hoursSince(sh.updatedAt ?? sh.createdAt) : null;
-      const ageStr = age !== null ? formatAge(age) : "—";
-      const level = age !== null ? getAgeLevel(sh.status, age) : "ok";
-      const ageCls = level === "critical" ? "color:#dc2626;font-weight:900;" : level === "warn" ? "color:#d97706;font-weight:700;" : "color:#374151;";
-      return `
-        <tr>
-          <td style="font-size:11px;font-weight:700;color:#6b7280;">${i + 1}</td>
-          <td>
-            <div style="font-size:12px;font-weight:700;color:#111827;">${sh.senderName ?? "—"}</div>
-            <div style="font-size:10px;color:#9ca3af;">${sh.senderPhone ?? ""}</div>
-          </td>
-          <td>
-            <div style="font-size:12px;font-weight:600;color:#111827;">${sh.receiverName ?? "—"}</div>
-            <div style="font-size:10px;color:#9ca3af;">${sh.receiverPhone ?? ""}</div>
-          </td>
-          <td style="white-space:nowrap;color:#374151;">${sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</td>
-          <td style="font-weight:900;color:#059669;white-space:nowrap;">${fmt(sh.codAmount)}</td>
-          <td style="color:#6b7280;white-space:nowrap;">${sh.shippingCompanyName ?? "—"}</td>
-          <td class="col-tracking" style="font-family:monospace;font-size:11px;color:#9ca3af;">${sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</td>
-          ${age !== null ? `<td style="font-size:11px;white-space:nowrap;${ageCls}">${ageStr}</td>` : ""}
-        </tr>`;
+      const age    = isActive ? hoursSince(sh.updatedAt ?? sh.createdAt) : null;
+      const ageStr = age !== null ? formatAge(age) : null;
+      const level  = age !== null ? getAgeLevel(sh.status, age) : "ok";
+      const ageColor = level === "critical" ? "#dc2626" : level === "warn" ? "#d97706" : "#374151";
+      return `<tr style="background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">
+        <td style="padding:10px 14px;font-weight:700;color:#9ca3af;font-size:13px;white-space:nowrap;">${i + 1}</td>
+        <td style="padding:10px 14px;">
+          <div style="font-size:14px;font-weight:700;color:#111827;">${sh.senderName ?? "—"}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">${sh.senderPhone ?? ""}</div>
+        </td>
+        <td style="padding:10px 14px;">
+          <div style="font-size:14px;font-weight:600;color:#111827;">${sh.receiverName ?? "—"}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">${sh.receiverPhone ?? ""}</div>
+        </td>
+        <td style="padding:10px 14px;font-size:13px;color:#374151;white-space:nowrap;">${sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</td>
+        <td style="padding:10px 14px;font-size:15px;font-weight:900;color:#059669;white-space:nowrap;">${fmt(sh.codAmount)}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#6b7280;">${sh.shippingCompanyName ?? "—"}</td>
+        <td style="padding:10px 14px;font-size:12px;font-family:monospace;color:#9ca3af;">${sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</td>
+        ${ageStr !== null ? `<td style="padding:10px 14px;font-size:13px;font-weight:700;color:${ageColor};white-space:nowrap;">${ageStr}</td>` : ""}
+      </tr>`;
     }).join("");
 
-    const ageHeader = ACTIVE_STATUSES.includes(status as any) ? `<th>العمر</th>` : "";
+    const ageHeader = isActive ? `<th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;">العمر</th>` : "";
 
     const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>تقرير المخزون — ${statusLabel}</title>
   <style>
-    @page { size: A4 portrait; margin: 20mm 18mm; }
+    @page { size: A4 portrait; margin: 18mm 16mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl; color: #111827; background: #fff; font-size: 14px; padding: 0; }
-
-    /* ── Header ── */
-    .header { display: flex; flex-direction: row-reverse; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2.5px solid #111827; }
-    .brand { font-size: 32px; font-weight: 900; letter-spacing: -1.5px; color: #111827; line-height: 1; }
-    .brand-sub { font-size: 13px; font-weight: 600; color: #6b7280; margin-top: 4px; }
-    .meta { text-align: right; font-size: 12px; color: #6b7280; line-height: 2; }
-    .status-badge { display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: 13px; font-weight: 800; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; margin-bottom: 6px; }
-
-    /* ── Summary Cards ── */
-    .summary { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-    .summary-card { flex: 1; min-width: 120px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; }
-    .summary-card .s-label { font-size: 11px; color: #6b7280; font-weight: 600; margin-bottom: 5px; }
-    .summary-card .s-value { font-size: 24px; font-weight: 900; color: #111827; line-height: 1; }
-    .summary-card.green .s-value { color: #059669; }
-
-    /* ── Table ── */
-    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    thead { background: #1e293b; }
-    thead th { padding: 11px 12px; text-align: right; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
-    tbody td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 13px; }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:nth-child(even) { background: #f9fafb; }
-
-    /* ── Footer ── */
-    .footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; }
-
-    /* ── Responsive ── */
-    @media screen and (max-width: 600px) {
-      .col-tracking { display: none; }
-      .brand { font-size: 24px; }
-      .summary-card .s-value { font-size: 18px; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      direction: rtl;
+      color: #111827;
+      background: #fff;
+      font-size: 14px;
     }
 
-    /* ── Print ── */
+    /* ─── Header ─── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #111827;
+    }
+    .brand-name {
+      font-size: 36px;
+      font-weight: 900;
+      letter-spacing: -2px;
+      color: #111827;
+      line-height: 1;
+    }
+    .brand-sub {
+      font-size: 13px;
+      color: #6b7280;
+      font-weight: 500;
+      margin-top: 5px;
+    }
+    .header-meta {
+      text-align: left;
+    }
+    .status-pill {
+      display: inline-block;
+      background: #1e293b;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      padding: 5px 16px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+    .header-meta-row {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.9;
+    }
+
+    /* ─── Summary ─── */
+    .summary {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .sc {
+      flex: 1;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: #f9fafb;
+    }
+    .sc-label {
+      font-size: 11px;
+      color: #9ca3af;
+      font-weight: 600;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sc-value {
+      font-size: 26px;
+      font-weight: 900;
+      color: #111827;
+      line-height: 1;
+    }
+    .sc-value.green { color: #059669; }
+
+    /* ─── Table ─── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    thead tr {
+      background: #1e293b;
+    }
+    thead th {
+      padding: 12px 14px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    tbody td {
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    /* ─── Footer ─── */
+    .footer {
+      margin-top: 22px;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .col-tracking { display: table-cell !important; }
-      thead { background: #1e293b !important; }
+      thead tr { background: #1e293b !important; }
     }
   </style>
 </head>
 <body>
+
   <div class="header">
-    <div class="meta">
-      <div class="status-badge">${statusLabel}</div>
-      <div>تاريخ الطباعة: ${now}</div>
-      <div>إجمالي الشحنات: <strong>${shipments.length}</strong></div>
-    </div>
     <div>
-      <div class="brand">STARK</div>
+      <div class="brand-name">STARK</div>
       <div class="brand-sub">نظام إدارة الشحنات</div>
+    </div>
+    <div class="header-meta">
+      <div class="status-pill">${statusLabel}</div>
+      <div class="header-meta-row">تاريخ الطباعة: ${now}</div>
+      <div class="header-meta-row">إجمالي الشحنات: <strong>${shipments.length}</strong></div>
     </div>
   </div>
 
   <div class="summary">
-    <div class="summary-card"><div class="s-label">عدد الشحنات</div><div class="s-value">${shipments.length}</div></div>
-    <div class="summary-card green"><div class="s-label">إجمالي COD</div><div class="s-value">${fmt(totalCOD)}</div></div>
-    <div class="summary-card"><div class="s-label">شركات الشحن</div><div class="s-value">${new Set(shipments.map(s => s.shippingCompanyName).filter(Boolean)).size}</div></div>
-    <div class="summary-card"><div class="s-label">مدن التوصيل</div><div class="s-value">${new Set(shipments.map(s => s.receiverCity ?? s.zoneGovernorate).filter(Boolean)).size}</div></div>
+    <div class="sc">
+      <div class="sc-label">عدد الشحنات</div>
+      <div class="sc-value">${shipments.length}</div>
+    </div>
+    <div class="sc">
+      <div class="sc-label">إجمالي COD</div>
+      <div class="sc-value green">${fmt(totalCOD)}</div>
+    </div>
+    <div class="sc">
+      <div class="sc-label">شركات الشحن</div>
+      <div class="sc-value">${new Set(shipments.map(s => s.shippingCompanyName).filter(Boolean)).size}</div>
+    </div>
+    <div class="sc">
+      <div class="sc-label">مدن التوصيل</div>
+      <div class="sc-value">${new Set(shipments.map(s => s.receiverCity ?? s.zoneGovernorate).filter(Boolean)).size}</div>
+    </div>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th>#</th>
-        <th>المُرسِل</th>
-        <th>المستلم</th>
-        <th>المدينة</th>
-        <th>COD</th>
-        <th>شركة الشحن</th>
-        <th class="col-tracking">رقم التتبع</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;">#</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;">المُرسِل</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;">المستلم</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;">المدينة</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;">COD</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;">شركة الشحن</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;">رقم التتبع</th>
         ${ageHeader}
       </tr>
     </thead>
@@ -899,16 +991,17 @@ function ShipmentWarehouseTab() {
 
   <div class="footer">
     <span>STARK — نظام إدارة الشحنات</span>
-    <span>stark.com</span>
+    <span>${now}</span>
   </div>
+
+  <script>window.onload = function(){ window.focus(); window.print(); };<\/script>
 </body>
 </html>`;
 
-    const win = window.open("", "_blank", "width=1100,height=750");
+    const win = window.open("", "_blank", "width=900,height=700");
     if (!win) return;
     win.document.write(html);
     win.document.close();
-    win.onload = () => { win.focus(); win.print(); };
   };
 
   // ── Phase 4: تنبيهات استباقية ─────────────────────────────────────────────
