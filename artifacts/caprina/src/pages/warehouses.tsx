@@ -269,6 +269,7 @@ function TransferShipmentDialog({
 // ══════════════════════════════════════════════════════════════════════════════
 
 const KANBAN_COLUMNS: { key: string; label: string; color: string; bg: string; border: string }[] = [
+  { key: "warehouse_ready",  label: "قيد الشحن",     color: "text-orange-600",  bg: "bg-orange-500/8",  border: "border-orange-300/50" },
   { key: "waiting",          label: "قيد الانتظار",  color: "text-slate-600",   bg: "bg-slate-500/8",   border: "border-slate-300/50" },
   { key: "confirmed",        label: "مؤكدة",         color: "text-sky-600",     bg: "bg-sky-500/8",     border: "border-sky-300/50" },
   { key: "picked_up",        label: "تم الاستلام",   color: "text-blue-600",    bg: "bg-blue-500/8",    border: "border-blue-300/50" },
@@ -277,14 +278,16 @@ const KANBAN_COLUMNS: { key: string; label: string; color: string; bg: string; b
 ];
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
-  waiting:          ["confirmed", "picked_up", "out_for_delivery"],
-  confirmed:        ["picked_up", "out_for_delivery", "waiting"],
-  picked_up:        ["out_for_delivery", "in_transit", "waiting"],
+  warehouse_ready:  ["out_for_delivery", "in_transit", "waiting"],
+  waiting:          ["warehouse_ready", "confirmed", "picked_up", "out_for_delivery"],
+  confirmed:        ["warehouse_ready", "picked_up", "out_for_delivery", "waiting"],
+  picked_up:        ["warehouse_ready", "out_for_delivery", "in_transit", "waiting"],
   out_for_delivery: ["in_transit", "delivered", "returned", "picked_up"],
   in_transit:       ["out_for_delivery", "delivered", "returned"],
 };
 
 const ALL_STATUS_LABELS: Record<string, string> = {
+  warehouse_ready:  "قيد الشحن بالمخزن",
   waiting:          "قيد الانتظار",
   confirmed:        "مؤكدة",
   picked_up:        "تم الاستلام",
