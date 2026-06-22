@@ -731,17 +731,27 @@ function ShipmentWarehouseTab() {
 
   const isLoading = warehouses.length === 0 || isLoadingShipments;
 
-  const warehouseShipmentsRaw = warehouseShipmentsData ?? [];
+  // legacy → canonical mapping عشان نوحّد الأسماء اللي بترجع من الباك إند
+  const STATUS_CANONICAL: Record<string, string> = {
+    pending:          "waiting",
+    warehouse_ready:  "picked_up",
+    in_shipping:      "in_transit",
+    received:         "delivered",
+    partial_received: "partial_received",
+  };
+
   const allWarehouseShipments = useMemo(() => {
-    let data = warehouseShipmentsRaw;
+    let data = (warehouseShipmentsData ?? []).map((s: any) => ({
+      ...s,
+      status: STATUS_CANONICAL[s.status] ?? s.status,
+    }));
     if (dateFrom) data = data.filter((s: any) => s.createdAt >= dateFrom);
     if (dateTo)   data = data.filter((s: any) => s.createdAt <= dateTo + "T23:59:59");
     if (shippingCompany !== "all") data = data.filter((s: any) => String(s.shippingCompanyId) === shippingCompany);
     return data;
-  }, [warehouseShipmentsRaw.length, warehouseShipmentsRaw.map((s: any) => s.id).join(","), dateFrom, dateTo, shippingCompany]);
+  }, [warehouseShipmentsData, dateFrom, dateTo, shippingCompany]);
 
-  // ابني shipMap: تجميع شحنات المخزن(ن) المختارة حسب الـ status
-  // الباك إند بيرجع الأسماء الـ canonical بالفعل (و legacy aliases متجمّعة جواه)، فمحتاجين بس نجمع حسب status
+  // ابني shipMap: تجميع شحنات المخزن(ن) المختارة حسب الـ status (canonical)
   const shipMap = Object.fromEntries(
     ALL_SHIP_STATUSES.map(canonical => [canonical, allWarehouseShipments.filter((sh: any) => sh.status === canonical)])
   ) as Record<string, any[]>;
