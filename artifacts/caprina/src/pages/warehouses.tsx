@@ -586,7 +586,9 @@ function KanbanBoard({
 function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; onClose: () => void; canEdit: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics" | "clients">("stock");
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientSort, setClientSort] = useState<"count" | "name" | "cod">("count");
   const [shipmentView, setShipmentView] = useState<"kanban" | "list">("kanban");
   const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"active" | "delivered" | "returned" | "all">("active");
 
@@ -598,8 +600,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
   });
 
   const { data: warehouseShipments, isLoading: loadingShipments } = useQuery({
-    queryKey: ["warehouse-shipments", warehouseId, shipmentStatusFilter],
-    queryFn: () => warehousesApi.shipments(warehouseId, shipmentStatusFilter),
+    queryKey: ["warehouse-shipments", warehouseId, activeTab === "clients" ? "all" : shipmentStatusFilter],
+    queryFn: () => warehousesApi.shipments(warehouseId, activeTab === "clients" ? "all" : shipmentStatusFilter),
     staleTime: 30_000,
     refetchInterval: activeTab === "shipments" ? 30_000 : false,
   });
@@ -610,8 +612,33 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
     enabled: activeTab === "shipments" || activeTab === "analytics",
     refetchInterval: activeTab === "shipments" || activeTab === "analytics" ? 30_000 : false,
   });
-  const { data: allWarehouses } = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list, staleTime: 30_000 });
-  const { data: shippingCompanies } = useQuery({ queryKey: ["shipping-companies"], queryFn: shippingApi.list, staleTime: 60_000 });
+
+  // ── بيانات العملاء المجمّعة من الشحنات ─────────────────────────────────────
+  const clientsData = useMemo(() => {
+    const allShips = warehouseShipments?.shipments ?? [];
+    const map = new Map<string, {
+      name: string;
+      count: number;
+      totalCod: number;
+      shipments: typeof allShips;
+      statuses: Record<string, number>;
+    }>();
+    for (const s of allShips) {
+      const key = s.senderName?.trim() || "—";
+      const existing = map.get(key);
+      const cod = Number(s.codAmount ?? 0);
+      const st = s.status ?? "unknown";
+      if (existing) {
+        existing.count++;
+        existing.totalCod += cod;
+        existing.shipments.push(s);
+        existing.statuses[st] = (existing.statuses[st] ?? 0) + 1;
+      } else {
+        map.set(key, { name: key, count: 1, totalCod: cod, shipments: [s], statuses: { [st]: 1 } });
+      }
+    }
+    return Array.from(map.values());
+  }, [warehouseShipments]);
   const [transferShipmentId, setTransferShipmentId] = useState<number | null>(null);
   const [courierShipmentId, setCourierShipmentId] = useState<number | null>(null);
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list, staleTime: 0 });
@@ -847,6 +874,19 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
           {(warehouseStats?.staleShipments?.length ?? 0) > 0 && (
             <span className="bg-red-500 text-white rounded-full w-4 h-4 text-[9px] font-black flex items-center justify-center">
               {warehouseStats!.staleShipments.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => { setActiveTab("clients"); setShipmentStatusFilter("all"); }}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "clients" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />العملاء
+          {clientsData.length > 0 && (
+            <span className="bg-violet-500 text-white rounded-full w-4 h-4 text-[9px] font-black flex items-center justify-center">
+              {clientsData.length}
             </span>
           )}
         </button>
@@ -1435,6 +1475,190 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
           </>)}
         </div>
       )}
+
+      {/* ══════════════ TAB: العملاء ══════════════ */}
+      {activeTab === "clients" && (() => {
+        const fmt2 = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
+        const q = clientSearch.trim().toLowerCase();
+        const filtered = clientsData
+          .filter(c => !q || c.name.toLowerCase().includes(q))
+          .sort((a, b) => {
+            if (clientSort === "count") return b.count - a.count;
+            if (clientSort === "cod")   return b.totalCod - a.totalCod;
+            return a.name.localeCompare(b.name, "ar");
+          });
+        const totalShipments = clientsData.reduce((s, c) => s + c.count, 0);
+        const totalCod       = clientsData.reduce((s, c) => s + c.totalCod, 0);
+        const topClient      = [...clientsData].sort((a, b) => b.count - a.count)[0];
+
+        return (
+          <div className="space-y-4">
+
+            {/* ── KPI cards ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Card className="border-border bg-card">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-xl font-black leading-tight">{fmt2(clientsData.length)}</p>
+                    <p className="text-[10px] text-muted-foreground">إجمالي العملاء</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border bg-card">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <Package className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xl font-black leading-tight">{fmt2(totalShipments)}</p>
+                    <p className="text-[10px] text-muted-foreground">إجمالي الشحنات</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/5">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                    <DollarSign className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-base font-black leading-tight text-emerald-700 dark:text-emerald-400">{fmt2(totalCod)} ج</p>
+                    <p className="text-[10px] text-muted-foreground">إجمالي COD</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/5">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                    <Star className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black leading-tight truncate">{topClient?.name ?? "—"}</p>
+                    <p className="text-[10px] text-muted-foreground">الأكثر شحناً ({topClient?.count ?? 0})</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ── Search + Sort ── */}
+            <div className="flex gap-2 flex-wrap items-center">
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="بحث باسم العميل..."
+                  className="pr-9 h-8 text-xs bg-card border-border"
+                  value={clientSearch}
+                  onChange={e => setClientSearch(e.target.value)}
+                />
+                {clientSearch && (
+                  <button onClick={() => setClientSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-1">
+                {(["count","name","cod"] as const).map(s => (
+                  <button key={s} onClick={() => setClientSort(s)}
+                    className={`h-8 px-3 text-[11px] font-bold rounded-md border transition-all ${clientSort === s ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                    {s === "count" ? "الأكثر شحناً" : s === "cod" ? "أعلى COD" : "أبجدي"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── قائمة العملاء ── */}
+            {loadingShipments ? (
+              <div className="text-center py-10 text-muted-foreground text-sm flex items-center justify-center gap-2">
+                <Package className="w-4 h-4 animate-pulse" /> جاري التحميل...
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground text-sm">
+                {clientSearch ? "لا يوجد عميل يطابق البحث" : "لا توجد شحنات في هذا المخزن"}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map((client, idx) => {
+                  const topStatus = Object.entries(client.statuses).sort((a, b) => b[1] - a[1])[0];
+                  const pct = totalShipments > 0 ? Math.round((client.count / totalShipments) * 100) : 0;
+                  return (
+                    <Card key={client.name} className="border-border bg-card overflow-hidden">
+                      {/* ── صف العميل ── */}
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        {/* رتبة */}
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
+                          idx === 0 ? "bg-yellow-400/20 text-yellow-600 border border-yellow-400/40" :
+                          idx === 1 ? "bg-gray-300/30 text-gray-600 border border-gray-300/50 dark:text-gray-300" :
+                          idx === 2 ? "bg-amber-700/20 text-amber-700 border border-amber-700/30 dark:text-amber-400" :
+                          "bg-muted text-muted-foreground"
+                        }`}>{idx + 1}</div>
+
+                        {/* أيقونة العميل */}
+                        <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+                          <UserCheck className="w-4 h-4 text-violet-600" />
+                        </div>
+
+                        {/* اسم + إحصاء */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm truncate">{client.name}</span>
+                            {topStatus && (() => {
+                              const si = SHIPMENT_STATUS_MAP[topStatus[0]];
+                              return si ? (
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${si.bg} ${si.color}`}>
+                                  {si.label}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                          {/* شريط التقدم */}
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{pct}%</span>
+                          </div>
+                        </div>
+
+                        {/* أرقام */}
+                        <div className="flex items-center gap-4 shrink-0">
+                          <div className="text-center">
+                            <p className="text-base font-black text-primary leading-tight">{client.count}</p>
+                            <p className="text-[9px] text-muted-foreground">شحنة</p>
+                          </div>
+                          {client.totalCod > 0 && (
+                            <div className="text-center hidden sm:block">
+                              <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 leading-tight">{fmt2(client.totalCod)}</p>
+                              <p className="text-[9px] text-muted-foreground">COD جنيه</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ── شريط توزيع الحالات ── */}
+                      {Object.keys(client.statuses).length > 1 && (
+                        <div className="px-4 pb-2.5 flex gap-2 flex-wrap">
+                          {Object.entries(client.statuses)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([st, cnt]) => {
+                              const si = SHIPMENT_STATUS_MAP[st];
+                              return (
+                                <span key={st} className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${si?.bg ?? "bg-muted"} ${si?.color ?? "text-muted-foreground"}`}>
+                                  {si?.label ?? st} <span className="opacity-70">×{cnt}</span>
+                                </span>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {transferShipmentId !== null && warehouseShipments && (() => {
         const target = warehouseShipments.shipments.find(s => s.id === transferShipmentId);
