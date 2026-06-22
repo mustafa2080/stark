@@ -800,10 +800,10 @@ function ShipmentWarehouseTab() {
             <div style="font-size:12px;font-weight:600;color:#111827;">${sh.receiverName ?? "—"}</div>
             <div style="font-size:10px;color:#9ca3af;">${sh.receiverPhone ?? ""}</div>
           </td>
-          <td class="col-city" style="font-size:11px;color:#374151;white-space:nowrap;">${sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</td>
-          <td style="font-size:13px;font-weight:900;color:#059669;white-space:nowrap;">${fmt(sh.codAmount)}</td>
-          <td class="col-company" style="font-size:11px;color:#6b7280;white-space:nowrap;">${sh.shippingCompanyName ?? "—"}</td>
-          <td class="col-tracking" style="font-size:10px;font-family:monospace;color:#9ca3af;">${sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</td>
+          <td style="white-space:nowrap;color:#374151;">${sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</td>
+          <td style="font-weight:900;color:#059669;white-space:nowrap;">${fmt(sh.codAmount)}</td>
+          <td style="color:#6b7280;white-space:nowrap;">${sh.shippingCompanyName ?? "—"}</td>
+          <td class="col-tracking" style="font-family:monospace;font-size:11px;color:#9ca3af;">${sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</td>
           ${age !== null ? `<td style="font-size:11px;white-space:nowrap;${ageCls}">${ageStr}</td>` : ""}
         </tr>`;
     }).join("");
@@ -817,69 +817,60 @@ function ShipmentWarehouseTab() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تقرير المخزون — ${statusLabel}</title>
   <style>
-    @page { size: A4 landscape; margin: 12mm 10mm; }
+    @page { size: A4 portrait; margin: 20mm 18mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl; color: #111827; background: #fff; font-size: 13px; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl; color: #111827; background: #fff; font-size: 14px; padding: 0; }
 
     /* ── Header ── */
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid #111827; }
-    .brand { font-size: 26px; font-weight: 900; letter-spacing: -1px; color: #111827; }
-    .brand span { color: #2563eb; }
-    .brand-sub { font-size: 12px; font-weight: 600; color: #6b7280; margin-top: 2px; }
-    .meta { text-align: left; font-size: 11px; color: #6b7280; line-height: 1.8; }
-    .status-badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; margin-bottom: 4px; }
+    .header { display: flex; flex-direction: row-reverse; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2.5px solid #111827; }
+    .brand { font-size: 32px; font-weight: 900; letter-spacing: -1.5px; color: #111827; line-height: 1; }
+    .brand-sub { font-size: 13px; font-weight: 600; color: #6b7280; margin-top: 4px; }
+    .meta { text-align: right; font-size: 12px; color: #6b7280; line-height: 2; }
+    .status-badge { display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: 13px; font-weight: 800; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; margin-bottom: 6px; }
 
     /* ── Summary Cards ── */
-    .summary { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-    .summary-card { flex: 1; min-width: 110px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; }
-    .summary-card .s-label { font-size: 10px; color: #6b7280; font-weight: 600; margin-bottom: 3px; }
-    .summary-card .s-value { font-size: 20px; font-weight: 900; color: #111827; line-height: 1; }
+    .summary { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .summary-card { flex: 1; min-width: 120px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; }
+    .summary-card .s-label { font-size: 11px; color: #6b7280; font-weight: 600; margin-bottom: 5px; }
+    .summary-card .s-value { font-size: 24px; font-weight: 900; color: #111827; line-height: 1; }
     .summary-card.green .s-value { color: #059669; }
 
     /* ── Table ── */
-    table { width: 100%; border-collapse: collapse; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
     thead { background: #1e293b; }
-    thead th { padding: 9px 10px; text-align: right; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
-    tbody td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    thead th { padding: 11px 12px; text-align: right; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 13px; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:nth-child(even) { background: #f9fafb; }
-    tbody tr:hover { background: #f0f9ff; }
 
     /* ── Footer ── */
-    .footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 10px; color: #9ca3af; }
+    .footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; }
 
-    /* ── Responsive: شاشات صغيرة — اخفي بعض الأعمدة ── */
-    @media screen and (max-width: 768px) {
-      .col-tracking, .col-company { display: none; }
-      .brand { font-size: 20px; }
-      .summary-card .s-value { font-size: 16px; }
-      table { font-size: 11px; }
-    }
-    @media screen and (max-width: 480px) {
-      .col-city { display: none; }
-      .header { flex-direction: column; gap: 8px; }
-      .meta { text-align: right; }
-      .summary-card { min-width: 80px; }
+    /* ── Responsive ── */
+    @media screen and (max-width: 600px) {
+      .col-tracking { display: none; }
+      .brand { font-size: 24px; }
+      .summary-card .s-value { font-size: 18px; }
     }
 
     /* ── Print ── */
     @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 11px; }
-      .col-tracking, .col-company, .col-city { display: table-cell !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .col-tracking { display: table-cell !important; }
       thead { background: #1e293b !important; }
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <div class="brand">STARK</div>
-      <div class="brand-sub">نظام إدارة الشحنات</div>
-    </div>
     <div class="meta">
       <div class="status-badge">${statusLabel}</div>
       <div>تاريخ الطباعة: ${now}</div>
       <div>إجمالي الشحنات: <strong>${shipments.length}</strong></div>
+    </div>
+    <div>
+      <div class="brand">STARK</div>
+      <div class="brand-sub">نظام إدارة الشحنات</div>
     </div>
   </div>
 
@@ -896,9 +887,9 @@ function ShipmentWarehouseTab() {
         <th>#</th>
         <th>المُرسِل</th>
         <th>المستلم</th>
-        <th class="col-city">المدينة</th>
+        <th>المدينة</th>
         <th>COD</th>
-        <th class="col-company">شركة الشحن</th>
+        <th>شركة الشحن</th>
         <th class="col-tracking">رقم التتبع</th>
         ${ageHeader}
       </tr>
