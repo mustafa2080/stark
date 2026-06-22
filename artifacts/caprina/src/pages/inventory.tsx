@@ -700,7 +700,27 @@ function ShipmentWarehouseTab() {
   });
 
   // ── query لكل status بالتوازي من shipmentsApi ─────────────────────────────
-  const queries = ALL_SHIP_STATUSES.map(status =>
+  // CLIENT_STATUS_ALIASES: لو السيرفر ما عملش rebuild بعد, نطلب الأسماء القديمة كمان ونجمعهم
+  const CLIENT_STATUS_ALIASES: Record<string, string[]> = {
+    waiting:          ["pending"],
+    confirmed:        [],
+    picked_up:        ["warehouse_ready"],
+    in_transit:       ["in_shipping"],
+    out_for_delivery: [],
+    delivered:        ["received"],
+    partial_received: [],
+    delayed:          [],
+    returned:         [],
+    cancelled:        [],
+  };
+
+  // كل الـ statuses اللي هنطلبها (canonical + legacy aliases)
+  const ALL_QUERY_STATUSES = [
+    ...ALL_SHIP_STATUSES,
+    "pending", "warehouse_ready", "in_shipping", "received",
+  ] as const;
+
+  const queries = ALL_QUERY_STATUSES.map(status =>
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useQuery({
       queryKey: ["shipments-wh", status, dateFrom, dateTo, shippingCompany],
@@ -720,8 +740,23 @@ function ShipmentWarehouseTab() {
   );
 
   const isLoading = queries.some(q => q.isLoading);
+
+  // ابني rawMap من كل الـ queries
+  const rawMap = Object.fromEntries(
+    ALL_QUERY_STATUSES.map((s, i) => [s, queries[i].data ?? []])
+  ) as Record<string, any[]>;
+
+  // ادمج الـ aliases في shipMap — كل canonical status بياخد بيانات نفسه + aliases بتاعته
   const shipMap = Object.fromEntries(
-    ALL_SHIP_STATUSES.map((s, i) => [s, queries[i].data ?? []])
+    ALL_SHIP_STATUSES.map(canonical => {
+      const aliasData = (CLIENT_STATUS_ALIASES[canonical] ?? [])
+        .flatMap(alias => rawMap[alias] ?? [])
+        // normalize status field عشان الـ UI يعرف يعرضها صح
+        .map((sh: any) => ({ ...sh, status: canonical }));
+      const ids = new Set((rawMap[canonical] ?? []).map((sh: any) => sh.id));
+      const merged = [...(rawMap[canonical] ?? []), ...aliasData.filter((sh: any) => !ids.has(sh.id))];
+      return [canonical, merged];
+    })
   ) as Record<string, any[]>;
 
   // ── KPI aggregations ──────────────────────────────────────────────────────
