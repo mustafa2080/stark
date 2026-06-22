@@ -715,21 +715,23 @@ function ShipmentWarehouseTab() {
   }, [warehouses, warehouseId]);
 
   // ── جلب شحنات المخزن المحدد من الـ endpoint المخصص /warehouses/:id/shipments ─
-  // لو "الكل" محدد، نجمع شحنات كل المخازن في نفس الوقت (query واحدة لكل مخزن، بدل 14 query لكل status)
-  const warehouseQueries = (warehouseId === "all" ? warehouses.map(w => w.id) : [Number(warehouseId)])
-    .filter((id): id is number => Number.isFinite(id)).map(id =>
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      useQuery({
-        queryKey: ["warehouse-shipments", id],
-        queryFn:  () => warehousesApi.shipments(id, "all"),
-        enabled:  warehouses.length > 0,
-        staleTime: 30_000,
-      })
-    );
+  // لو "الكل" محدد، نجمع شحنات كل المخازن في نفس الوقت — query واحدة ثابتة (مش .map على عدد متغيّر،
+  // عشان ده بيكسر Rules of Hooks لما يتغيّر عدد المخازن بين الـ renders)
+  const targetWarehouseIds = warehouseId === "all" ? warehouses.map(w => w.id) : [Number(warehouseId)].filter(Number.isFinite);
 
-  const isLoading = warehouses.length === 0 || warehouseQueries.some(q => q.isLoading);
+  const { data: warehouseShipmentsData, isLoading: isLoadingShipments } = useQuery({
+    queryKey: ["warehouse-shipments", warehouseId, targetWarehouseIds.join(",")],
+    queryFn: async () => {
+      const results = await Promise.all(targetWarehouseIds.map(id => warehousesApi.shipments(id, "all")));
+      return results.flatMap(r => r.shipments ?? []);
+    },
+    enabled: warehouses.length > 0 && targetWarehouseIds.length > 0,
+    staleTime: 30_000,
+  });
 
-  const warehouseShipmentsRaw = warehouseQueries.flatMap(q => q.data?.shipments ?? []);
+  const isLoading = warehouses.length === 0 || isLoadingShipments;
+
+  const warehouseShipmentsRaw = warehouseShipmentsData ?? [];
   const allWarehouseShipments = useMemo(() => {
     let data = warehouseShipmentsRaw;
     if (dateFrom) data = data.filter((s: any) => s.createdAt >= dateFrom);
