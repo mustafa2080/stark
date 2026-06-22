@@ -1501,6 +1501,7 @@ function compressParcelImage(file: File, onDone: (b64: string) => void, onStart?
 function ParcelTypesTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editPrices, setEditPrices] = useState<Record<number, string>>({});
   const [addOpen, setAddOpen] = useState(false);
   const [newType, setNewType] = useState("");
@@ -1575,108 +1576,220 @@ function ParcelTypesTab() {
   };
 
   return (
-    <div className="space-y-4" dir="rtl">
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-black flex items-center gap-2">
-            <Layers className="w-4 h-4 text-violet-500" /> أسعار أنواع الشحنات
-          </CardTitle>
-          <div className="flex gap-2">
-            {pricing.length === 0 && (
-              <Button size="sm" variant="outline" className="text-xs gap-1.5 h-8"
-                onClick={() => initMutation.mutate()} disabled={initMutation.isPending}>
-                {initMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                تهيئة الأسعار الافتراضية
-              </Button>
-            )}
-            <Button size="sm" className="text-xs gap-1.5 h-8" onClick={() => setAddOpen(true)}>
-              <Plus className="w-3 h-3" /> إضافة نوع جديد
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8"><RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-          ) : pricing.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-xs text-muted-foreground mb-3">لا توجد أسعار — اضغط "تهيئة الأسعار الافتراضية" لإضافة الأنواع الـ 8</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {pricing.map(p => (
-                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
-                  <div className="relative shrink-0">
-                    <input id={`pimg-${p.id}`} type="file" accept="image/*" className="hidden"
-                      onChange={e => {
-                        const f = e.target.files?.[0]; if (!f) return;
-                        setEditImgId(p.id);
-                        compressParcelImage(f, (b64) => setEditImgPreview(b64));
-                        e.target.value = "";
-                      }} />
-                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-border">
-                      {(editImgId === p.id && editImgPreview) ? (
-                        <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
-                      ) : p.imageUrl ? (
-                        <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.label ?? ""} />
-                      ) : (
-                        <span className="w-full h-full flex items-center justify-center text-2xl bg-muted/30">
-                          {PARCEL_ICONS[p.parcelType] ?? "📦"}
-                        </span>
-                      )}
-                    </div>
-                    <button type="button"
-                      className="absolute -bottom-1.5 -left-1.5 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center shadow hover:bg-primary/80 transition-colors"
-                      onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
-                      <LucideImage className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
+    <div className="space-y-3" dir="rtl">
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground">
-                      {p.label || PARCEL_LABELS_MAP[p.parcelType as ParcelTypeKey] || p.parcelType}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">سعر إضافي على رسوم المنطقة</p>
-                    {editImgId === p.id && editImgPreview && (
-                      <div className="flex gap-1.5 mt-1">
-                        <button className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5"
-                          onClick={() => handleSaveImage(p.id)} disabled={savingImg}>
-                          {savingImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : "✓ حفظ الصورة"}
-                        </button>
-                        <span className="text-muted-foreground text-[10px]">|</span>
-                        <button className="text-[10px] text-muted-foreground hover:text-foreground"
-                          onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إلغاء</button>
-                        {p.imageUrl && (
-                          <>
-                            <span className="text-muted-foreground text-[10px]">|</span>
-                            <button className="text-[10px] text-red-500 hover:text-red-600"
-                              onClick={() => handleRemoveImage(p.id)} disabled={savingImg}>حذف الصورة</button>
-                          </>
-                        )}
-                      </div>
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-base font-black flex items-center gap-2">
+            <Layers className="w-4 h-4 text-violet-500" /> أنواع الشحنات وأسعارها
+          </h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">السعر الإجمالي = سعر المنطقة + سعر النوع + رسوم التأمين</p>
+        </div>
+        <div className="flex gap-2">
+          {pricing.length === 0 && (
+            <Button size="sm" variant="outline" className="text-xs gap-1.5 h-8"
+              onClick={() => initMutation.mutate()} disabled={initMutation.isPending}>
+              {initMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+              تهيئة الأسعار الافتراضية
+            </Button>
+          )}
+          <Button size="sm" className="text-xs gap-1.5 h-8" onClick={() => setAddOpen(true)}>
+            <Plus className="w-3 h-3" /> إضافة نوع جديد
+          </Button>
+        </div>
+      </div>
+
+      {/* KPI summary */}
+      {pricing.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <Card className="border-border bg-card p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Layers className="w-3.5 h-3.5 text-violet-500" />
+              <p className="text-[10px] text-muted-foreground">إجمالي الأنواع</p>
+            </div>
+            <p className="text-xl font-black">{pricing.length}</p>
+          </Card>
+          <Card className="border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/5 p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <p className="text-[10px] text-muted-foreground">أعلى سعر</p>
+            </div>
+            <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+              {Math.max(...pricing.map(p => Number(p.basePrice)))} ج
+            </p>
+          </Card>
+          <Card className="border-border bg-card p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Tag className="w-3.5 h-3.5 text-primary" />
+              <p className="text-[10px] text-muted-foreground">أقل سعر</p>
+            </div>
+            <p className="text-xl font-black text-primary">
+              {Math.min(...pricing.map(p => Number(p.basePrice)))} ج
+            </p>
+          </Card>
+          <Card className="border-border bg-card p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <CircleDollarSign className="w-3.5 h-3.5 text-muted-foreground" />
+              <p className="text-[10px] text-muted-foreground">متوسط السعر</p>
+            </div>
+            <p className="text-xl font-black">
+              {Math.round(pricing.reduce((s, p) => s + Number(p.basePrice), 0) / pricing.length)} ج
+            </p>
+          </Card>
+        </div>
+      )}
+
+      {/* List */}
+      {isLoading ? (
+        <div className="text-center py-12 text-muted-foreground text-sm flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin" /> جاري التحميل...
+        </div>
+      ) : pricing.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          لا توجد أنواع — اضغط "تهيئة الأسعار الافتراضية" لإضافة الأنواع الـ 8
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {pricing.map(p => {
+            const isExpanded = expandedId === p.id;
+            const label = p.label || PARCEL_LABELS_MAP[p.parcelType as ParcelTypeKey] || p.parcelType;
+            const icon = PARCEL_ICONS[p.parcelType] ?? "📦";
+            const currentPrice = Number(editPrices[p.id] ?? p.basePrice);
+
+            return (
+              <Card key={p.id} className="border-border bg-card overflow-hidden">
+                {/* ── Row ── */}
+                <div
+                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                >
+                  {/* أيقونة / صورة */}
+                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-border shrink-0 bg-muted/30 flex items-center justify-center">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt={label} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xl">{icon}</span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Input type="number" className="text-xs h-8 w-24 text-center"
-                      value={editPrices[p.id] ?? String(p.basePrice)}
-                      onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))} />
-                    <Button size="sm" className="h-8 text-xs px-3"
-                      onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}
-                      disabled={updateMutation.isPending}>حفظ</Button>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      onClick={() => { if (confirm("حذف هذا النوع؟")) deleteMutation.mutate(p.id); }}>
+                  {/* معلومات */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-sm">{label}</span>
+                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">{p.parcelType}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
+                      <span>سعر إضافي:</span>
+                      <span className="font-bold text-foreground">{Number(p.basePrice)} جنيه</span>
+                    </div>
+                  </div>
+
+                  {/* سهم */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={e => { e.stopPropagation(); if (confirm("حذف هذا النوع؟")) deleteMutation.mutate(p.id); }}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
+                    {isExpanded
+                      ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-          <p className="text-[10px] text-muted-foreground mt-4 border-t border-border pt-3">
-            💡 السعر الإجمالي للشحنة = سعر المنطقة + سعر نوع الشحنة + رسوم التأمين
-          </p>
-        </CardContent>
-      </Card>
+
+                {/* ── Expanded details ── */}
+                {isExpanded && (
+                  <div className="border-t border-border bg-muted/10">
+                    {/* Header */}
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 bg-muted/20 text-[10px] text-muted-foreground font-semibold">
+                      <span>الصورة</span>
+                      <span className="w-36 text-center">السعر الإضافي (جنيه)</span>
+                      <span className="w-16 text-center">حفظ</span>
+                    </div>
+
+                    {/* Content row */}
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 items-center border-t border-border/50">
+                      {/* صورة + تعديلها */}
+                      <div className="flex items-center gap-3">
+                        <div className="relative shrink-0">
+                          <input id={`pimg-${p.id}`} type="file" accept="image/*" className="hidden"
+                            onChange={e => {
+                              const f = e.target.files?.[0]; if (!f) return;
+                              setEditImgId(p.id);
+                              compressParcelImage(f, (b64) => setEditImgPreview(b64));
+                              e.target.value = "";
+                            }} />
+                          <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-border shadow-sm">
+                            {editImgId === p.id && editImgPreview ? (
+                              <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
+                            ) : p.imageUrl ? (
+                              <img src={p.imageUrl} className="w-full h-full object-cover" alt={label} />
+                            ) : (
+                              <span className="w-full h-full flex items-center justify-center text-3xl bg-muted/20">{icon}</span>
+                            )}
+                          </div>
+                          <button type="button"
+                            className="absolute -bottom-1.5 -left-1.5 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center shadow hover:bg-primary/80 transition-colors"
+                            onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
+                            <LucideImage className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          {editImgId === p.id && editImgPreview ? (
+                            <div className="flex gap-2">
+                              <Button size="sm" className="h-7 text-[11px] px-3 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={() => handleSaveImage(p.id)} disabled={savingImg}>
+                                {savingImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : "✓ حفظ الصورة"}
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-[11px] px-2"
+                                onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إلغاء</Button>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="outline" className="h-7 text-[11px] px-3 gap-1"
+                              onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
+                              <LucideImage className="w-3 h-3" /> تغيير الصورة
+                            </Button>
+                          )}
+                          {p.imageUrl && editImgId !== p.id && (
+                            <Button size="sm" variant="ghost" className="h-7 text-[11px] px-3 gap-1 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              onClick={() => handleRemoveImage(p.id)} disabled={savingImg}>
+                              <Trash2 className="w-3 h-3" /> حذف الصورة
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* السعر */}
+                      <div className="w-36">
+                        <Input
+                          type="number"
+                          className="text-sm h-9 text-center font-bold"
+                          value={editPrices[p.id] ?? String(p.basePrice)}
+                          onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                        />
+                        {currentPrice !== Number(p.basePrice) && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 text-center">
+                            كان: {Number(p.basePrice)} ج
+                          </p>
+                        )}
+                      </div>
+
+                      {/* زر الحفظ */}
+                      <div className="w-16 flex justify-center">
+                        <Button size="sm" className="h-9 text-xs px-3 w-full"
+                          onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}
+                          disabled={updateMutation.isPending}>
+                          {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add Dialog */}
       {addOpen && (
