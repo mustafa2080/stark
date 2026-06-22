@@ -1171,7 +1171,7 @@ function ShipmentWarehouseTab() {
           <span className="text-xs text-muted-foreground mr-auto">{activeShipments.length} شحنة</span>
           {isLoading && <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
           {/* ── زرار الطباعة ── */}
-          {!isLoading && activeShipments.length > 0 && (
+          {!isLoading && (
             <button
               onClick={() => handlePrint(activeStatus, activeShipments, SHIP_STATUS_META[activeStatus]?.label ?? "")}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-muted text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all print:hidden"
