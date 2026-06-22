@@ -131,7 +131,10 @@ router.get("/warehouses", async (req, res): Promise<void> => {
         .where(and(
           eq(shipmentsTable.warehouseId, w.id),
           isNull(shipmentsTable.deletedAt),
-          inArray(shipmentsTable.status, ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"]),
+          inArray(shipmentsTable.status, [
+            "waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery",
+            "pending", "warehouse_ready", "in_shipping",  // legacy
+          ]),
         ));
 
       return { ...w, totalUnits, skuCount, orderCount: Number(orderCountRow?.cnt ?? 0), shipmentCount: Number(shipmentCountRow?.cnt ?? 0) };
@@ -236,7 +239,11 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
   const statusFilter = req.query.status as string | undefined;
 
-  const ACTIVE_STATUSES = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"];
+  // الأسماء الجديدة + القديمة (legacy) للـ active statuses
+  const ACTIVE_STATUSES = [
+    "waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery",
+    "pending", "warehouse_ready", "in_shipping",  // legacy
+  ];
 
   const conditions: any[] = [
     eq(shipmentsTable.warehouseId, id),
@@ -246,7 +253,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   if (statusFilter === "active") {
     conditions.push(inArray(shipmentsTable.status, ACTIVE_STATUSES));
   } else if (statusFilter === "delivered") {
-    conditions.push(inArray(shipmentsTable.status, ["delivered"]));
+    conditions.push(inArray(shipmentsTable.status, ["delivered", "received", "partial_received"]));
   } else if (statusFilter === "returned") {
     conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled"]));
   }
@@ -290,7 +297,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   const stats = {
     total:     allForStats.length,
     active:    allForStats.filter(s => ACTIVE_STATUSES.includes(s.status)).length,
-    delivered: allForStats.filter(s => s.status === "delivered").length,
+    delivered: allForStats.filter(s => ["delivered", "received", "partial_received"].includes(s.status)).length,
     returned:  allForStats.filter(s => ["returned", "cancelled"].includes(s.status)).length,
   };
 
