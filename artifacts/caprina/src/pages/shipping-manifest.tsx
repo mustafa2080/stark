@@ -753,12 +753,12 @@ function InvoiceGroupDeliveryRow({
   // السعر الفعلي: لو partial_received أو partial_delivered احسب الجزء المستلم فقط
   const totalPrice = group.reduce((s, o) => {
     if ((o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity != null) {
-      return s + o.unitPrice * o.partialQuantity;
+      return s + Number(o.unitPrice) * Number(o.partialQuantity);
     }
-    return s + o.totalPrice;
+    return s + Number(o.totalPrice);
   }, 0);
   // السعر الكامل للفاتورة (للعرض والمرجع)
-  const totalFullPrice = group.reduce((s, o) => s + o.totalPrice, 0);
+  const totalFullPrice = group.reduce((s, o) => s + Number(o.totalPrice), 0);
   const invoiceNum = (rep as any).invoiceNumber?.trim() || null;
   const isMulti = group.length > 1;
 

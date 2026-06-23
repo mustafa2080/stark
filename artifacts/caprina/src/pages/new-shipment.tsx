@@ -101,6 +101,10 @@ export default function NewShipmentPage() {
       toast({ title: "الحقول المطلوبة", description: "اسم المرسل واسم المستلم مطلوبان", variant: "destructive" });
       return;
     }
+    if (!form.warehouseId) {
+      toast({ title: "المخزن مطلوب", description: "من فضلك اختر المخزن الذي ستُودَع فيه الشحنة", variant: "destructive" });
+      return;
+    }
     mutation.mutate({
       clientId:        form.clientId ? Number(form.clientId) : undefined,
       senderName:      form.senderName,
