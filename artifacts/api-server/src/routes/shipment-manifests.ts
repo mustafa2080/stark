@@ -123,7 +123,6 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
 
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
-      if (sh) console.log("[shipment debug]", sh.id, sh.shipmentNumber, { codAmount: sh.codAmount, totalAmount: sh.totalAmount, shippingFee: sh.shippingFee, pieces: sh.pieces });
       return {
         ...item,
         shipment: sh,
