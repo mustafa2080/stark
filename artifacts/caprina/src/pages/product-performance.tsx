@@ -25,25 +25,27 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string; glo
   cancelled:        { label: "ملغي",          color: "#6b7280", bg: "bg-gray-500/10",    glow: "shadow-gray-500/20" },
 };
 
-// ─── Pie active shape with animation ─────────────────────────────────────────
+// ─── Pie active shape: يكبر عند hover ────────────────────────────────────────
 const renderActiveShape = (props: any) => {
-  const {
-    cx, cy, innerRadius, outerRadius, startAngle, endAngle,
-    fill, payload, percent, value,
-  } = props;
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
   return (
     <g>
-      <text x={cx} y={cy - 10} textAnchor="middle" fill="#ffffff" className="text-sm font-bold" style={{ fontSize: 16, fontWeight: 700 }}>
-        {value}
-      </text>
-      <text x={cx} y={cy + 14} textAnchor="middle" fill="#9ca3af" style={{ fontSize: 11 }}>
-        {(percent * 100).toFixed(1)}%
-      </text>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 8}
-        startAngle={startAngle} endAngle={endAngle} fill={fill} />
-      <Sector cx={cx} cy={cy} innerRadius={outerRadius + 12} outerRadius={outerRadius + 16}
-        startAngle={startAngle} endAngle={endAngle} fill={fill} opacity={0.4} />
+      <Sector cx={cx} cy={cy} innerRadius={innerRadius - 4} outerRadius={outerRadius + 10}
+        startAngle={startAngle} endAngle={endAngle} fill={fill}
+        style={{ filter: `drop-shadow(0 0 8px ${fill}88)`, transition: "all 0.25s ease" }} />
+      <Sector cx={cx} cy={cy} innerRadius={outerRadius + 14} outerRadius={outerRadius + 18}
+        startAngle={startAngle} endAngle={endAngle} fill={fill} opacity={0.35} />
     </g>
+  );
+};
+
+// ─── Pie normal shape ─────────────────────────────────────────────────────────
+const renderNormalShape = (props: any) => {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  return (
+    <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius}
+      startAngle={startAngle} endAngle={endAngle} fill={fill}
+      style={{ transition: "all 0.25s ease" }} />
   );
 };
 
@@ -122,8 +124,9 @@ export default function ShipmentPerformancePage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [chartMode, setChartMode] = useState<"weekly" | "monthly">("weekly");
-  const [activePieIndex, setActivePieIndex] = useState(0);
-  const onPieEnter = useCallback((_: any, index: number) => setActivePieIndex(index), []);
+  const [activePieIndex, setActivePieIndex] = useState<number | null>(null);
+  const onPieEnter  = useCallback((_: any, index: number) => setActivePieIndex(index), []);
+  const onPieLeave  = useCallback(() => setActivePieIndex(null), []);
 
   const { data: statsRaw } = useQuery({ queryKey: ["shipments-stats"], queryFn: () => shipmentsApi.stats() });
   const { data: charts }   = useQuery<ShipmentChartsData>({ queryKey: ["shipment-charts"], queryFn: () => analyticsApi.shipmentCharts() });
@@ -276,42 +279,84 @@ export default function ShipmentPerformancePage() {
         {/* Pie Chart */}
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5"
           style={{ boxShadow: "0 4px 32px -8px #10b98133" }}>
-          <h2 className="text-sm font-semibold text-white mb-4">توزيع الحالات</h2>
+
+          {/* header */}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white">توزيع حالات الشحنات</h2>
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              مباشر
+            </span>
+          </div>
+
           {pieData.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={pieData} cx="50%" cy="50%"
-                    innerRadius={52} outerRadius={75}
-                    paddingAngle={3} dataKey="value"
-                    activeIndex={activePieIndex}
-                    activeShape={renderActiveShape}
-                    onMouseEnter={onPieEnter}
-                    animationBegin={0} animationDuration={900} animationEasing="ease-out"
-                  >
-                    {pieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} stroke="transparent" opacity={activePieIndex === i ? 1 : 0.75} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-2 space-y-1.5">
-                {pieData.map((d, i) => (
-                  <div
-                    key={i}
-                    onMouseEnter={() => setActivePieIndex(i)}
-                    className={`flex items-center justify-between text-xs rounded-lg px-2 py-1 cursor-pointer transition-all duration-200
-                      ${activePieIndex === i ? "bg-white/10" : "hover:bg-white/5"}`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full transition-transform duration-200"
-                        style={{ background: d.color, transform: activePieIndex === i ? "scale(1.4)" : "scale(1)" }} />
-                      <span className={activePieIndex === i ? "text-white font-medium" : "text-gray-400"}>{d.name}</span>
+              {/* donut with center label */}
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={pieData} cx="50%" cy="50%"
+                      innerRadius={58} outerRadius={82}
+                      paddingAngle={2} dataKey="value"
+                      activeIndex={activePieIndex ?? undefined}
+                      activeShape={renderActiveShape}
+                      inactiveShape={renderNormalShape}
+                      onMouseEnter={onPieEnter}
+                      onMouseLeave={onPieLeave}
+                      animationBegin={0} animationDuration={900} animationEasing="ease-out"
+                    >
+                      {pieData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} stroke="transparent"
+                          opacity={activePieIndex === null || activePieIndex === i ? 1 : 0.45} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* center text overlay */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  {activePieIndex !== null ? (
+                    <>
+                      <span className="text-2xl font-bold text-white">{pieData[activePieIndex]?.value}</span>
+                      <span className="text-xs text-gray-400 mt-0.5 max-w-[80px] text-center leading-tight">
+                        {pieData[activePieIndex]?.name}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-bold text-white">{stats.total}</span>
+                      <span className="text-xs text-gray-400 mt-0.5">إجمالي الشحنات</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* legend grid */}
+              <div className="grid grid-cols-2 gap-1.5 mt-1">
+                {pieData.map((d, i) => {
+                  const pct = stats.total ? Math.round((d.value / stats.total) * 100) : 0;
+                  return (
+                    <div
+                      key={i}
+                      onMouseEnter={() => setActivePieIndex(i)}
+                      onMouseLeave={() => setActivePieIndex(null)}
+                      className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 cursor-pointer transition-all duration-200
+                        ${activePieIndex === i ? "bg-white/10 ring-1 ring-white/20" : "bg-white/5 hover:bg-white/8"}`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="h-2 w-2 flex-shrink-0 rounded-full transition-transform duration-200"
+                          style={{ background: d.color, transform: activePieIndex === i ? "scale(1.5)" : "scale(1)" }} />
+                        <span className={`text-xs truncate ${activePieIndex === i ? "text-white font-medium" : "text-gray-400"}`}>
+                          {d.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0 mr-1">
+                        <span className="text-xs font-bold text-white">{d.value}</span>
+                        <span className="text-xs" style={{ color: d.color }}>{pct}%</span>
+                      </div>
                     </div>
-                    <span className="font-medium" style={{ color: activePieIndex === i ? d.color : "#ffffff" }}>{d.value}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           ) : (
