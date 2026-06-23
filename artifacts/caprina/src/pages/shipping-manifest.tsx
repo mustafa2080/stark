@@ -3280,7 +3280,13 @@ export default function ShippingManifestPage() {
     if (!rawManifest) return undefined;
     const orders: ManifestOrder[] = (rawManifest.items ?? []).map((item) => {
       const sh = item.shipment;
-      const codAmt = sh ? parseFloat(sh.codAmount ?? '0') : 0;
+      // نقرأ من الـ enriched fields اللي الـ backend بيبعتها مباشرة على الـ item
+      const codAmt = (item as any).totalPrice != null
+        ? Number((item as any).totalPrice)
+        : sh ? parseFloat(sh.codAmount ?? '0') : 0;
+      const shippingFeeAmt = (item as any).shippingCost != null
+        ? Number((item as any).shippingCost)
+        : sh ? parseFloat(sh.shippingFee ?? '0') : 0;
       return {
         id: item.shipmentId,
         manifestOrderId: item.id,
@@ -3296,7 +3302,7 @@ export default function ShippingManifestPage() {
         total: codAmt,
         totalPrice: codAmt,
         cost: null,
-        shippingCost: sh ? parseFloat(sh.shippingFee ?? '0') : null,
+        shippingCost: shippingFeeAmt,
         status: sh?.status ?? 'pending',
         notes: sh?.notes ?? null,
         color: null,
