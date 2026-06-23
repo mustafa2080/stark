@@ -1601,7 +1601,7 @@ export interface ShipmentManifestDetail {
   invoicePrice: string | null;
   createdAt: string;
   closedAt: string | null;
-  company: { id: number; name: string; logo: string | null } | null;
+  company: { id: number; name: string; logo: string | null; shippingCost?: number | null } | null;
   items: Array<{
     id: number;
     manifestId: number;
@@ -1613,6 +1613,17 @@ export interface ShipmentManifestDetail {
     partialQuantity: number | null;
     returnReason: string | null;
     shipment: Shipment | null;
+    // حقول مُعززة من الـ backend
+    customerName: string;
+    phone: string;
+    city: string;
+    address: string;
+    senderName: string;
+    quantity: number;
+    totalPrice: number;
+    unitPrice: number;
+    shippingCost: number;
+    invoiceNumber: string;
   }>;
   stats: {
     total: number; delivered: number; returned: number; pending: number; delayed: number; partial: number;
