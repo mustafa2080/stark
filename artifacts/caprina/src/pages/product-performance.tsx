@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { shipmentsApi, analyticsApi, Shipment, ShipmentChartsData } from "@/lib/api";
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector,
 } from "recharts";
 import {
   Package, TrendingUp, TrendingDown, DollarSign, AlertCircle,
@@ -25,7 +25,27 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string; glo
   cancelled:        { label: "ملغي",          color: "#6b7280", bg: "bg-gray-500/10",    glow: "shadow-gray-500/20" },
 };
 
-const STATUS_COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#8b5cf6"];
+// ─── Pie active shape with animation ─────────────────────────────────────────
+const renderActiveShape = (props: any) => {
+  const {
+    cx, cy, innerRadius, outerRadius, startAngle, endAngle,
+    fill, payload, percent, value,
+  } = props;
+  return (
+    <g>
+      <text x={cx} y={cy - 10} textAnchor="middle" fill="#ffffff" className="text-sm font-bold" style={{ fontSize: 16, fontWeight: 700 }}>
+        {value}
+      </text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fill="#9ca3af" style={{ fontSize: 11 }}>
+        {(percent * 100).toFixed(1)}%
+      </text>
+      <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 8}
+        startAngle={startAngle} endAngle={endAngle} fill={fill} />
+      <Sector cx={cx} cy={cy} innerRadius={outerRadius + 12} outerRadius={outerRadius + 16}
+        startAngle={startAngle} endAngle={endAngle} fill={fill} opacity={0.4} />
+    </g>
+  );
+};
 
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
@@ -102,6 +122,8 @@ export default function ShipmentPerformancePage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [chartMode, setChartMode] = useState<"weekly" | "monthly">("weekly");
+  const [activePieIndex, setActivePieIndex] = useState(0);
+  const onPieEnter = useCallback((_: any, index: number) => setActivePieIndex(index), []);
 
   const { data: statsRaw } = useQuery({ queryKey: ["shipments-stats"], queryFn: () => shipmentsApi.stats() });
   const { data: charts }   = useQuery<ShipmentChartsData>({ queryKey: ["shipment-charts"], queryFn: () => analyticsApi.shipmentCharts() });
@@ -228,24 +250,26 @@ export default function ShipmentPerformancePage() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gradCount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gradCod" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#06b6d4" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
               <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="count"     name="عدد الشحنات" stroke="#3b82f6" fill="url(#gradCount)" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="codAmount" name="COD"          stroke="#06b6d4" fill="url(#gradCod)"   strokeWidth={2} dot={false} />
-            </AreaChart>
+              <Line
+                type="linear" dataKey="count" name="عدد الشحنات"
+                stroke="#3b82f6" strokeWidth={2.5}
+                dot={{ r: 4, fill: "#3b82f6", strokeWidth: 0 }}
+                activeDot={{ r: 7, fill: "#3b82f6", stroke: "#ffffff22", strokeWidth: 3 }}
+                animationDuration={800} animationEasing="ease-out"
+              />
+              <Line
+                type="linear" dataKey="codAmount" name="COD"
+                stroke="#06b6d4" strokeWidth={2.5}
+                dot={{ r: 4, fill: "#06b6d4", strokeWidth: 0 }}
+                activeDot={{ r: 7, fill: "#06b6d4", stroke: "#ffffff22", strokeWidth: 3 }}
+                animationDuration={1000} animationEasing="ease-out"
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
 
@@ -255,24 +279,37 @@ export default function ShipmentPerformancePage() {
           <h2 className="text-sm font-semibold text-white mb-4">توزيع الحالات</h2>
           {pieData.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={170}>
+              <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
+                  <Pie
+                    data={pieData} cx="50%" cy="50%"
+                    innerRadius={52} outerRadius={75}
+                    paddingAngle={3} dataKey="value"
+                    activeIndex={activePieIndex}
+                    activeShape={renderActiveShape}
+                    onMouseEnter={onPieEnter}
+                    animationBegin={0} animationDuration={900} animationEasing="ease-out"
+                  >
                     {pieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} stroke="transparent" />
+                      <Cell key={i} fill={entry.color} stroke="transparent" opacity={activePieIndex === i ? 1 : 0.75} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: any, n: any) => [fmt(v), n]} contentStyle={{ background:"#111827", border:"1px solid #ffffff10", borderRadius:12, fontSize:12 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="mt-2 space-y-1.5">
                 {pieData.map((d, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs">
+                  <div
+                    key={i}
+                    onMouseEnter={() => setActivePieIndex(i)}
+                    className={`flex items-center justify-between text-xs rounded-lg px-2 py-1 cursor-pointer transition-all duration-200
+                      ${activePieIndex === i ? "bg-white/10" : "hover:bg-white/5"}`}
+                  >
                     <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
-                      <span className="text-gray-400">{d.name}</span>
+                      <span className="h-2 w-2 rounded-full transition-transform duration-200"
+                        style={{ background: d.color, transform: activePieIndex === i ? "scale(1.4)" : "scale(1)" }} />
+                      <span className={activePieIndex === i ? "text-white font-medium" : "text-gray-400"}>{d.name}</span>
                     </div>
-                    <span className="font-medium text-white">{d.value}</span>
+                    <span className="font-medium" style={{ color: activePieIndex === i ? d.color : "#ffffff" }}>{d.value}</span>
                   </div>
                 ))}
               </div>
