@@ -2052,7 +2052,7 @@ export default function Inventory() {
   const canWarehouses  = isAdmin || can("inventory.warehouses");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"shipments" | "insights" | "products" | "parcel-types">("shipments");
+  const [activeTab, setActiveTab] = useState<"shipments" | "insights" | "parcel-types">("shipments");
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
@@ -2406,7 +2406,7 @@ export default function Inventory() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">المخزون</h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
-            {activeTab === "shipments" ? "تتبع الشحنات • المستودع • المرتجعات" : activeTab === "insights" ? "تحليلات الشحنات • الأداء • المناطق • المالي" : activeTab === "parcel-types" ? "أنواع الطرود • الأسعار الإضافية • الصور" : "إدارة المنتجات • الألوان • المقاسات • التكاليف"}
+            {activeTab === "shipments" ? "تتبع الشحنات • المستودع • المرتجعات" : activeTab === "insights" ? "تحليلات الشحنات • الأداء • المناطق • المالي" : "أنواع الطرود • الأسعار الإضافية • الصور"}
           </p>
         </div>
         {activeTab === "products" && canEdit && (
@@ -2443,17 +2443,6 @@ export default function Inventory() {
           تحليلات الشحن
         </button>
         <button
-          onClick={() => setActiveTab("products")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
-            activeTab === "products"
-              ? "bg-background shadow-sm border border-border text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Boxes className="w-3.5 h-3.5" />
-          المنتجات
-        </button>
-        <button
           onClick={() => setActiveTab("parcel-types")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
             activeTab === "parcel-types"
@@ -2475,8 +2464,8 @@ export default function Inventory() {
       {/* Parcel Types Tab */}
       {activeTab === "parcel-types" && <ParcelTypesTab />}
 
-      {/* Products Tab */}
-      {activeTab === "products" && (<>
+      {/* Products Tab removed */}
+      {false && (<>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
