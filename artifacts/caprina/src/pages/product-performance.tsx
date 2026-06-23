@@ -16,14 +16,35 @@ const fmt = (n: number) =>
   new Intl.NumberFormat("ar-EG").format(Math.round(n));
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string; glow: string }> = {
-  waiting:          { label: "قيد الانتظار",  color: "#f59e0b", bg: "bg-amber-500/10",   glow: "shadow-amber-500/20" },
-  in_transit:       { label: "قيد الشحن",     color: "#3b82f6", bg: "bg-blue-500/10",    glow: "shadow-blue-500/20" },
-  delivered:        { label: "تم التوصيل",    color: "#10b981", bg: "bg-emerald-500/10", glow: "shadow-emerald-500/20" },
-  partial_delivered:{ label: "توصيل جزئي",   color: "#06b6d4", bg: "bg-cyan-500/10",    glow: "shadow-cyan-500/20" },
-  returned:         { label: "مرتجع",         color: "#ef4444", bg: "bg-red-500/10",     glow: "shadow-red-500/20" },
-  partial_returned: { label: "مرتجع جزئي",   color: "#f97316", bg: "bg-orange-500/10",  glow: "shadow-orange-500/20" },
-  cancelled:        { label: "ملغي",          color: "#6b7280", bg: "bg-gray-500/10",    glow: "shadow-gray-500/20" },
+  waiting:           { label: "قيد الانتظار",    color: "#f59e0b", bg: "bg-amber-500/10",   glow: "shadow-amber-500/20" },
+  in_transit:        { label: "قيد الشحن",       color: "#3b82f6", bg: "bg-blue-500/10",    glow: "shadow-blue-500/20" },
+  in_shipping:       { label: "قيد الشحن",       color: "#3b82f6", bg: "bg-blue-500/10",    glow: "shadow-blue-500/20" },
+  warehouse_ready:   { label: "جاهز للاستلام",   color: "#8b5cf6", bg: "bg-violet-500/10",  glow: "shadow-violet-500/20" },
+  delivered:         { label: "تم التوصيل",      color: "#10b981", bg: "bg-emerald-500/10", glow: "shadow-emerald-500/20" },
+  partial_delivered: { label: "توصيل جزئي",      color: "#06b6d4", bg: "bg-cyan-500/10",    glow: "shadow-cyan-500/20" },
+  returned:          { label: "مرتجع",            color: "#ef4444", bg: "bg-red-500/10",     glow: "shadow-red-500/20" },
+  partial_returned:  { label: "مرتجع جزئي",      color: "#f97316", bg: "bg-orange-500/10",  glow: "shadow-orange-500/20" },
+  postponed:         { label: "مؤجل",             color: "#a78bfa", bg: "bg-purple-500/10",  glow: "shadow-purple-500/20" },
+  cancelled:         { label: "ملغي",             color: "#6b7280", bg: "bg-gray-500/10",    glow: "shadow-gray-500/20" },
+  pending:           { label: "معلق",             color: "#fbbf24", bg: "bg-yellow-500/10",  glow: "shadow-yellow-500/20" },
+  processing:        { label: "قيد المعالجة",    color: "#60a5fa", bg: "bg-blue-400/10",    glow: "shadow-blue-400/20" },
+  failed:            { label: "فشل التوصيل",     color: "#f43f5e", bg: "bg-rose-500/10",    glow: "shadow-rose-500/20" },
 };
+
+// fallback: يحوّل أي status إنجليزي مش موجود في الـ map لعربي تلقائياً
+function statusLabel(status: string): string {
+  if (STATUS_MAP[status]) return STATUS_MAP[status].label;
+  // تحويل snake_case → كلمات مقروءة
+  return status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+function statusColor(status: string): string {
+  const colors = ["#3b82f6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#8b5cf6","#ec4899","#14b8a6","#84cc16"];
+  if (STATUS_MAP[status]) return STATUS_MAP[status].color;
+  // لون ثابت بناءً على hash الـ string
+  let hash = 0;
+  for (let i = 0; i < status.length; i++) hash = status.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
 
 // ─── Pie active shape: يكبر عند hover ────────────────────────────────────────
 const renderActiveShape = (props: any) => {
@@ -91,7 +112,7 @@ function KpiCard({
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_MAP[status] ?? { label: status, color: "#9ca3af", bg: "bg-gray-500/10", glow: "" };
+  const s = STATUS_MAP[status] ?? { label: statusLabel(status), color: statusColor(status), bg: "bg-gray-500/10", glow: "" };
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.bg}`}
@@ -154,11 +175,13 @@ export default function ShipmentPerformancePage() {
   const pieData = useMemo(() => {
     const counts: Record<string, number> = {};
     shipments.forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
-    return Object.entries(counts).map(([status, count]) => ({
-      name: STATUS_MAP[status]?.label ?? status,
-      value: count,
-      color: STATUS_MAP[status]?.color ?? "#9ca3af",
-    }));
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, count]) => ({
+        name: statusLabel(status),
+        value: count,
+        color: statusColor(status),
+      }));
   }, [shipments]);
 
   // chart data
@@ -281,7 +304,7 @@ export default function ShipmentPerformancePage() {
           style={{ boxShadow: "0 4px 32px -8px #10b98133" }}>
 
           {/* header */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-white">توزيع حالات الشحنات</h2>
             <span className="flex items-center gap-1.5 text-xs text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -291,13 +314,13 @@ export default function ShipmentPerformancePage() {
 
           {pieData.length > 0 ? (
             <>
-              {/* donut with center label */}
-              <div className="relative">
-                <ResponsiveContainer width="100%" height={200}>
+              {/* donut كبير في المنتصف */}
+              <div className="relative mx-auto" style={{ width: 220, height: 220 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={pieData} cx="50%" cy="50%"
-                      innerRadius={58} outerRadius={82}
+                      innerRadius={72} outerRadius={100}
                       paddingAngle={2} dataKey="value"
                       activeIndex={activePieIndex ?? undefined}
                       activeShape={renderActiveShape}
@@ -308,51 +331,56 @@ export default function ShipmentPerformancePage() {
                     >
                       {pieData.map((entry, i) => (
                         <Cell key={i} fill={entry.color} stroke="transparent"
-                          opacity={activePieIndex === null || activePieIndex === i ? 1 : 0.45} />
+                          opacity={activePieIndex === null || activePieIndex === i ? 1 : 0.4} />
                       ))}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-                {/* center text overlay */}
+                {/* نص الوسط */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   {activePieIndex !== null ? (
                     <>
-                      <span className="text-2xl font-bold text-white">{pieData[activePieIndex]?.value}</span>
-                      <span className="text-xs text-gray-400 mt-0.5 max-w-[80px] text-center leading-tight">
+                      <span className="text-3xl font-bold text-white leading-none">{pieData[activePieIndex]?.value}</span>
+                      <span className="text-xs text-gray-400 mt-1 max-w-[90px] text-center leading-tight">
                         {pieData[activePieIndex]?.name}
                       </span>
                     </>
                   ) : (
                     <>
-                      <span className="text-2xl font-bold text-white">{stats.total}</span>
-                      <span className="text-xs text-gray-400 mt-0.5">إجمالي الشحنات</span>
+                      <span className="text-3xl font-bold text-white leading-none">{stats.total}</span>
+                      <span className="text-xs text-gray-400 mt-1">إجمالي الشحنات</span>
                     </>
                   )}
                 </div>
               </div>
 
-              {/* legend grid */}
-              <div className="grid grid-cols-2 gap-1.5 mt-1">
+              {/* legend: صفين زي الصورة */}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-4">
                 {pieData.map((d, i) => {
                   const pct = stats.total ? Math.round((d.value / stats.total) * 100) : 0;
+                  const isActive = activePieIndex === i;
                   return (
                     <div
                       key={i}
                       onMouseEnter={() => setActivePieIndex(i)}
                       onMouseLeave={() => setActivePieIndex(null)}
-                      className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 cursor-pointer transition-all duration-200
-                        ${activePieIndex === i ? "bg-white/10 ring-1 ring-white/20" : "bg-white/5 hover:bg-white/8"}`}
+                      className={`flex items-center justify-between rounded-xl px-3 py-2 cursor-pointer transition-all duration-200
+                        ${isActive ? "ring-1 ring-white/20" : ""}`}
+                      style={{ background: isActive ? `${d.color}22` : "rgba(255,255,255,0.04)" }}
                     >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="h-2 w-2 flex-shrink-0 rounded-full transition-transform duration-200"
-                          style={{ background: d.color, transform: activePieIndex === i ? "scale(1.5)" : "scale(1)" }} />
-                        <span className={`text-xs truncate ${activePieIndex === i ? "text-white font-medium" : "text-gray-400"}`}>
+                      {/* يمين: dot + اسم */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                          style={{ background: d.color, boxShadow: isActive ? `0 0 6px ${d.color}` : "none",
+                            transform: isActive ? "scale(1.4)" : "scale(1)", transition: "all 0.2s" }} />
+                        <span className={`text-xs truncate ${isActive ? "text-white font-semibold" : "text-gray-300"}`}>
                           {d.name}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0 mr-1">
+                      {/* يسار: عدد + % */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0 mr-2">
                         <span className="text-xs font-bold text-white">{d.value}</span>
-                        <span className="text-xs" style={{ color: d.color }}>{pct}%</span>
+                        <span className="text-xs font-medium" style={{ color: d.color }}>{pct}%</span>
                       </div>
                     </div>
                   );
