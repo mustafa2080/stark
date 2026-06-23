@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, RefreshCw, BarChart3, AlertTriangle, Target, Search, X, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
-import { analyticsApi, type ProductPerformance } from "@/lib/api";
+import { analyticsApi, type ProductPerformance as ShipmentPerformance } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -20,6 +20,9 @@ const SORT_LABELS: Record<SortMode, string> = {
   loss: "أعلى خسارة",
   returns: "أعلى مرتجعات",
 };
+
+// alias للتوافق مع الكود الموجود
+type ProductPerformance = ShipmentPerformance;
 
 function ProfitBar({ value, max }: { value: number; max: number }) {
   if (max === 0) return null;
@@ -104,7 +107,7 @@ function ProductRow({ p, maxProfit, maxLoss, sort }: {
   );
 }
 
-export default function ProductPerformancePage() {
+export default function ShipmentPerformancePage() {
   const { can, isAdmin } = useAuth();
   const [, navigate] = useLocation();
   const [sort, setSort] = useState<SortMode>("profit");
@@ -129,7 +132,7 @@ export default function ProductPerformancePage() {
   }
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["product-performance"],
+    queryKey: ["shipment-performance"],
     queryFn: analyticsApi.productPerformance,
     staleTime: 5 * 60 * 1000,        // ✅ البيانات تفضل valid 5 دقايق
     gcTime: 10 * 60 * 1000,          // ✅ تتحفظ في الكاش 10 دقايق
@@ -191,8 +194,8 @@ export default function ProductPerformancePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-foreground">أداء المنتجات</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">تحليل مالي شامل لكل منتج</p>
+          <h1 className="text-2xl font-black text-foreground">أداء الشحنات</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">تحليل مالي شامل لكل شحنة</p>
         </div>
         <button
           onClick={() => refetch()}
@@ -207,19 +210,19 @@ export default function ProductPerformancePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-border bg-card">
           <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">إجمالي المنتجات</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">إجمالي الشحنات</p>
             <p className="text-2xl font-black text-foreground">{data.summary.totalProducts}</p>
           </CardContent>
         </Card>
         <Card className="border-border bg-card">
           <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">منتجات رابحة</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">شحنات رابحة</p>
             <p className="text-2xl font-black text-primary">{data.summary.profitableCount}</p>
           </CardContent>
         </Card>
         <Card className="border-border bg-card">
           <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">منتجات خاسرة</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">شحنات خاسرة</p>
             <p className="text-2xl font-black text-red-600 dark:text-red-400">{data.summary.losingCount}</p>
           </CardContent>
         </Card>
@@ -238,7 +241,7 @@ export default function ProductPerformancePage() {
           <div className="relative flex-1">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="ابحث باسم المنتج..."
+              placeholder="ابحث باسم الشحنة..."
               className="pr-9 h-9 text-sm bg-card"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -278,7 +281,7 @@ export default function ProductPerformancePage() {
           <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* حالة المنتج */}
             <div>
-              <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">📊 حالة المنتج</p>
+              <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">📊 حالة الشحنة</p>
               <div className="flex gap-1 flex-wrap">
                 {(["all", "profit", "loss", "high_return"] as const).map(s => (
                   <button
@@ -318,8 +321,8 @@ export default function ProductPerformancePage() {
         <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
           <span>
             {hasFilter
-              ? `${filteredProducts.length} من ${data.products.length} منتج`
-              : `${data.products.length} منتج`}
+              ? `${filteredProducts.length} من ${data.products.length} شحنة`
+              : `${data.products.length} شحنة`}
           </span>
           {filteredProducts.length > 0 && (
             <span className="text-primary font-bold">
@@ -335,7 +338,7 @@ export default function ProductPerformancePage() {
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-primary" />
-              تصنيف المنتجات
+              تصنيف الشحنات
             </CardTitle>
             <div className="flex rounded-md border border-border overflow-hidden text-[11px] font-semibold">
               {(["profit", "loss", "returns"] as SortMode[]).map(m => (
@@ -357,7 +360,7 @@ export default function ProductPerformancePage() {
         <CardContent className="p-0">
           {filteredList.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground text-sm">
-              {hasFilter ? "لا توجد نتائج — جرّب تغيير الفلاتر" : sort === "loss" ? "لا توجد منتجات خاسرة" : sort === "returns" ? "لا توجد مرتجعات" : "لا توجد بيانات"}
+              {hasFilter ? "لا توجد نتائج — جرّب تغيير الفلاتر" : sort === "loss" ? "لا توجد شحنات خاسرة" : sort === "returns" ? "لا توجد مرتجعات" : "لا توجد بيانات"}
             </div>
           ) : (
             <div className="px-4">
@@ -380,14 +383,14 @@ export default function ProductPerformancePage() {
         <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Target className="w-4 h-4 text-primary" />
-            جدول تفصيلي — كل المنتجات
+            جدول تفصيلي — كل الشحنات
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">المنتج</th>
+                <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">الشحنة</th>
                 <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">طلبات</th>
                 <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">مباع</th>
                 <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">مرتجع%</th>
