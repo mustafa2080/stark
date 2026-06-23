@@ -427,7 +427,35 @@ router.get("/shipments/parcel-pricing", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: "خطأ في استرجاع أسعار الطرود" }); }
 });
 
-// ─── GET /shipments/stats ─────────────────────────────────────────────────────
+// ─── GET /shipments/daily-stats?days=7 ──────────────────────────────────────
+router.get("/shipments/daily-stats", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const days = Math.min(parseInt((req.query.days as string) ?? "7"), 30);
+    const since = new Date();
+    since.setDate(since.getDate() - (days - 1));
+    since.setHours(0, 0, 0, 0);
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), sql`created_at >= ${since.toISOString()}`)
+      : and(isNull(shipmentsTable.deletedAt), sql`created_at >= ${since.toISOString()}`);
+
+    const rows = await db
+      .select({
+        day: sql<string>`DATE(created_at)`,
+        count: sql<number>`count(*)`,
+      })
+      .from(shipmentsTable)
+      .where(cond)
+      .groupBy(sql`DATE(created_at)`)
+      .orderBy(sql`DATE(created_at)`);
+
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: "خطأ في إحصائيات الشحنات اليومية" });
+  }
+});
+
 router.get("/shipments/stats", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);

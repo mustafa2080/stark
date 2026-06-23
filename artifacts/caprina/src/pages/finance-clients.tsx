@@ -458,19 +458,25 @@ export default function FinanceClients() {
     [clients, monthlyShipmentsByClient]
   );
 
-  // ── رسم بياني — عدد الشحنات آخر 7 أيام من الأوردرات ────────────────────
+  const { data: dailyStats = [] } = useQuery<{ day: string; count: number }[]>({
+    queryKey: ["shipments-daily-stats"],
+    queryFn: () => apiFetch<any>("/shipments/daily-stats?days=7"),
+    staleTime: 60_000,
+  });
+
+  // ── رسم بياني — عدد الشحنات آخر 7 أيام من الشحنات الحقيقية ─────────────
   const chartData = useMemo(() => {
     const days: Record<string, number> = {};
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i);
       days[format(d, "MM/dd")] = 0;
     }
-    allOrders.forEach(o => {
-      const key = format(new Date(o.createdAt), "MM/dd");
-      if (key in days) days[key] += 1;
+    dailyStats.forEach(r => {
+      const key = format(new Date(r.day), "MM/dd");
+      if (key in days) days[key] = Number(r.count);
     });
     return Object.entries(days).map(([date, value]) => ({ date, value }));
-  }, [allOrders]);
+  }, [dailyStats]);
 
   // ── خيارات الفلتر — تُستخرج من البيانات الفعلية ────────────────────────
   const cityOptions         = useMemo(() => [...new Set(clients.map(c => c.city).filter(Boolean))] .map(v => ({ value: v!, label: v! })), [clients]);
