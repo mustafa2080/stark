@@ -2052,7 +2052,7 @@ export default function Inventory() {
   const canWarehouses  = isAdmin || can("inventory.warehouses");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"shipments" | "insights" | "parcel-types">("shipments");
+  const [activeTab, setActiveTab] = useState<"shipments" | "insights" | "parcel-types">("parcel-types");
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
@@ -2406,7 +2406,7 @@ export default function Inventory() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">المخزون</h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
-            {activeTab === "shipments" ? "تتبع الشحنات • المستودع • المرتجعات" : activeTab === "insights" ? "تحليلات الشحنات • الأداء • المناطق • المالي" : "أنواع الطرود • الأسعار الإضافية • الصور"}
+            {activeTab === "parcel-types" ? "أنواع الطرود • الأسعار الإضافية • الصور" : activeTab === "shipments" ? "تتبع الشحنات • المستودع • المرتجعات" : "تحليلات الشحنات • الأداء • المناطق • المالي"}
           </p>
         </div>
         {activeTab === "products" && canEdit && (
@@ -2420,6 +2420,17 @@ export default function Inventory() {
 
       {/* Tab Switcher */}
       <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border w-fit">
+        <button
+          onClick={() => setActiveTab("parcel-types")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
+            activeTab === "parcel-types"
+              ? "bg-background shadow-sm border border-border text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          أنواع الشحنات
+        </button>
         <button
           onClick={() => setActiveTab("shipments")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
@@ -2441,17 +2452,6 @@ export default function Inventory() {
         >
           <Activity className="w-3.5 h-3.5" />
           تحليلات الشحن
-        </button>
-        <button
-          onClick={() => setActiveTab("parcel-types")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
-            activeTab === "parcel-types"
-              ? "bg-background shadow-sm border border-border text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          أنواع الشحنات
         </button>
       </div>
 
