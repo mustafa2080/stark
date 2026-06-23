@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
@@ -462,6 +462,46 @@ router.get("/finance/clients/:id/top-products", async (req, res): Promise<void> 
     }));
 
     res.json({ items: result, grandTotal });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /finance/clients/:id/shipments ──────────────────────────────────────
+router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = parseInt(req.params.id);
+
+    // جلب العميل عشان نعرف الاسم
+    const conds: any[] = [eq(clientsTable.id, id)];
+    if (tenantId !== null) conds.push(eq(clientsTable.tenantId, tenantId));
+    const [client] = await db.select().from(clientsTable).where(and(...conds));
+    if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
+
+    // جلب الشحنات بالـ clientId أو بالاسم
+    const shipConds: any[] = [];
+    const idCond   = eq(shipmentsTable.clientId, id);
+    const nameCond = eq(shipmentsTable.senderName, client.name);
+    shipConds.push(or(idCond, nameCond)!);
+    if (tenantId !== null) shipConds.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const shipments = await db.select({
+      id:             shipmentsTable.id,
+      shipmentNumber: shipmentsTable.shipmentNumber,
+      status:         shipmentsTable.status,
+      receiverName:   shipmentsTable.receiverName,
+      receiverCity:   shipmentsTable.receiverCity,
+      codAmount:      shipmentsTable.codAmount,
+      shippingFee:    shipmentsTable.shippingFee,
+      createdAt:      shipmentsTable.createdAt,
+      pieces:         shipmentsTable.pieces,
+    }).from(shipmentsTable)
+      .where(and(...shipConds))
+      .orderBy(desc(shipmentsTable.createdAt))
+      .limit(200);
+
+    res.json({ shipments, total: shipments.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -9,7 +9,7 @@ import {
   ArrowRight, Users, ShoppingBag, TrendingUp, TrendingDown,
   ChevronRight, Calendar, Package, Phone, MapPin,
   Clock, CheckCircle2, Target, Edit2, Check, X,
-  Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw,
+  Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -103,6 +103,13 @@ type Client = {
 };
 
 type ClientDetail = Client & { orders: SaleOrder[]; deliveryRate?: number };
+
+type ClientShipment = {
+  id: number; shipmentNumber: string; status: string;
+  receiverName: string; receiverCity: string | null;
+  codAmount: string | null; shippingFee: string | null;
+  createdAt: string; pieces: number | null;
+};
 
 // ── بطاقة الفاتورة — زي ManifestCard بالظبط ────────────────────────────────
 function InvoiceCard({ order, isLatest }: { order: SaleOrder; isLatest: boolean }) {
@@ -239,6 +246,14 @@ export default function CommercialClientDetailPage() {
     queryFn: () => apiFetch<ClientDetail>(`/finance/clients/${clientId}`),
     enabled: !isNaN(clientId),
   });
+
+  // ── شحنات العميل ──────────────────────────────────────────────────────────
+  const { data: shipmentsData } = useQuery<{ shipments: ClientShipment[]; total: number }>({
+    queryKey: ["client-shipments", clientId],
+    queryFn: () => apiFetch(`/finance/clients/${clientId}/shipments`),
+    enabled: !isNaN(clientId),
+  });
+  const clientShipments = shipmentsData?.shipments ?? [];
 
   // ── تصدير Excel ──────────────────────────────────────────────────────────
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -1329,6 +1344,72 @@ export default function CommercialClientDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ─── شحنات العميل ─── */}
+      {clientShipments.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-sm flex items-center gap-2">
+              <Truck className="w-4 h-4 text-muted-foreground" />
+              شحنات العميل
+              <Badge variant="outline" className="text-[9px]">{clientShipments.length}</Badge>
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {clientShipments.map(s => {
+              const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+                pending:          { label: "قيد الانتظار",        color: "text-amber-400",   bg: "bg-amber-900/20 border-amber-700/40"  },
+                warehouse_ready:  { label: "جاهز للشحن",          color: "text-teal-400",    bg: "bg-teal-900/20 border-teal-700/40"    },
+                in_shipping:      { label: "قيد الشحن",           color: "text-sky-400",     bg: "bg-sky-900/20 border-sky-700/40"      },
+                in_transit:       { label: "قيد الشحن",           color: "text-sky-400",     bg: "bg-sky-900/20 border-sky-700/40"      },
+                received:         { label: "تم الاستلام",          color: "text-emerald-400", bg: "bg-emerald-900/20 border-emerald-700/40" },
+                delivered:        { label: "تم التوصيل",          color: "text-emerald-400", bg: "bg-emerald-900/20 border-emerald-700/40" },
+                partial_received: { label: "استلام جزئي",         color: "text-cyan-400",    bg: "bg-cyan-900/20 border-cyan-700/40"    },
+                delayed:          { label: "مؤجل",                color: "text-violet-400",  bg: "bg-violet-900/20 border-violet-700/40"},
+                returned:         { label: "مرتجع",               color: "text-red-400",     bg: "bg-red-900/20 border-red-700/40"      },
+              };
+              const st = statusMap[s.status] ?? { label: s.status, color: "text-muted-foreground", bg: "bg-muted/10 border-border" };
+              return (
+                <div key={s.id}
+                  className="flex items-center gap-3 rounded-xl border p-3 bg-card/60 hover:bg-card transition-colors"
+                  style={{ boxShadow: "0 1px 6px rgba(0,0,0,.12)" }}
+                >
+                  {/* رقم الشحنة */}
+                  <div className="shrink-0 text-center">
+                    <p className="text-[10px] text-muted-foreground">رقم</p>
+                    <p className="text-xs font-black text-primary">{s.shipmentNumber}</p>
+                  </div>
+
+                  <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="truncate">
+                      <p className="text-[9px] text-muted-foreground">المستلم</p>
+                      <p className="font-semibold truncate">{s.receiverName}</p>
+                      {s.receiverCity && <p className="text-[9px] text-muted-foreground">{s.receiverCity}</p>}
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground">COD</p>
+                      <p className="font-bold text-amber-400">{s.codAmount ? `${fmt(s.codAmount)} ج.م` : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground">رسوم الشحن</p>
+                      <p className="font-bold">{s.shippingFee ? `${fmt(s.shippingFee)} ج.م` : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground">التاريخ</p>
+                      <p className="font-semibold">{format(new Date(s.createdAt), "dd/MM/yyyy")}</p>
+                    </div>
+                  </div>
+
+                  {/* الحالة */}
+                  <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border ${st.bg} ${st.color}`}>
+                    {st.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
