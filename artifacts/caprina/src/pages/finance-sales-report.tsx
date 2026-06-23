@@ -9,7 +9,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  TrendingUp, TrendingDown, Users, ShoppingCart, Receipt,
+  TrendingUp, TrendingDown, ShoppingCart, Receipt,
   DollarSign, ArrowRight, Target, Award,
   ChevronLeft, BarChart2, Percent,
 } from "lucide-react";
@@ -153,12 +153,20 @@ function PaymentDonut({ data, total }: {
   );
 }
 
-type SaleOrder = {
-  id: number; soNumber: string; clientName: string; status: string;
-  paymentStatus: string; totalAmount: string; paidAmount: string;
-  discountAmount: string; createdAt: string; deliveredAt: string | null;
+type Shipment = {
+  id: number;
+  shipmentNumber: string;
+  senderName: string;
+  receiverName: string;
+  receiverCity: string | null;
+  status: string;
+  paymentMethod: string;
+  codAmount: string;
+  shippingFee: string;
+  collectedAmount: string | null;
+  totalAmount: string;
+  createdAt: string;
 };
-type Client = { id: number; name: string; totalSales: string; totalPaid: string; };
 
 const PERIOD_OPTIONS = [
   { key: "7",     label: "آخر 7 أيام" },
@@ -185,16 +193,12 @@ export default function SalesReportPage() {
     );
   }
 
-  const { data: orders = [], isLoading: loadingOrders } = useQuery<SaleOrder[]>({
-    queryKey: ["finance-sale-orders-report"],
-    queryFn: () => apiFetch<SaleOrder[]>("/finance/sale-orders"),
+  const { data: shipmentsRaw, isLoading: loadingOrders } = useQuery<{ data: Shipment[]; total: number }>({
+    queryKey: ["shipments-report-all"],
+    queryFn: () => apiFetch<{ data: Shipment[]; total: number }>("/shipments?limit=2000"),
     staleTime: 60_000,
   });
-  const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ["finance-clients-report"],
-    queryFn: () => apiFetch<Client[]>("/finance/clients"),
-    staleTime: 60_000,
-  });
+  const orders = shipmentsRaw?.data ?? [];
 
   // ── filter by period ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -214,15 +218,15 @@ export default function SalesReportPage() {
   }, [orders, period]);
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
-  const totalRevenue   = filtered.reduce((s, o) => s + parseFloat(o.totalAmount), 0);
-  const totalPaid      = filtered.reduce((s, o) => s + (o.paymentStatus === "paid" ? parseFloat(o.totalAmount) : parseFloat(o.paidAmount ?? "0")), 0);
-  const totalUnpaid    = Math.max(0, totalRevenue - totalPaid);
-  const totalDiscount  = filtered.reduce((s, o) => s + parseFloat(o.discountAmount ?? "0"), 0);
   const totalOrders    = filtered.length;
-  const delivered      = filtered.filter(o => o.status === "delivered").length;
-  const deliveryRate   = totalOrders > 0 ? Math.round((delivered / totalOrders) * 100) : 0;
-  const paidCount      = filtered.filter(o => o.paymentStatus === "paid").length;
-  const collectRate    = totalOrders > 0 ? Math.round((paidCount / totalOrders) * 100) : 0;
+  const totalCOD       = filtered.reduce((s, o) => s + parseFloat(o.codAmount ?? "0"), 0);
+  const totalFees      = filtered.reduce((s, o) => s + parseFloat(o.shippingFee ?? "0"), 0);
+  const totalRevenue   = totalCOD + totalFees;
+  const totalCollected = filtered.reduce((s, o) => s + parseFloat(o.collectedAmount ?? "0"), 0);
+  const totalUnpaid    = Math.max(0, totalCOD - totalCollected);
+  const received       = filtered.filter(o => ["received", "partial_received"].includes(o.status)).length;
+  const deliveryRate   = totalOrders > 0 ? Math.round((received / totalOrders) * 100) : 0;
+  const collectRate    = totalCOD > 0 ? Math.round((totalCollected / totalCOD) * 100) : 0;
   const avgOrderValue  = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
   // ── daily chart ──────────────────────────────────────────────────────────
@@ -236,39 +240,44 @@ export default function SalesReportPage() {
     filtered.forEach(o => {
       try {
         const d = format(parseISO(o.createdAt), "MM/dd");
-        if (d in map) map[d] += parseFloat(o.totalAmount);
+        if (d in map) map[d] += 1;
       } catch {}
     });
     return Object.entries(map).map(([date, value]) => ({ date, value }));
   }, [filtered, period]);
 
-  // ── payment status donut ─────────────────────────────────────────────────
-  const paidOrders    = filtered.filter(o => o.paymentStatus === "paid").length;
-  const partialOrders = filtered.filter(o => o.paymentStatus === "partial").length;
-  const unpaidOrders  = filtered.filter(o => o.paymentStatus === "unpaid").length;
+  // ── payment method donut (COD / prepaid / deferred) ──────────────────────
+  const codOrders      = filtered.filter(o => o.paymentMethod === "cod").length;
+  const prepaidOrders  = filtered.filter(o => o.paymentMethod === "prepaid").length;
+  const deferredOrders = filtered.filter(o => o.paymentMethod === "deferred").length;
   const donutData = [
-    { name: "مدفوع",     key: "paid",    value: paidOrders,    color: "#10b981" },
-    { name: "جزئي",      key: "partial", value: partialOrders, color: "#f59e0b" },
-    { name: "غير مدفوع", key: "unpaid",  value: unpaidOrders,  color: "#ef4444" },
+    { name: "الدفع عند الاستلام", key: "paid",    value: codOrders,      color: "#10b981" },
+    { name: "مدفوع مسبقاً",       key: "partial", value: prepaidOrders,  color: "#f59e0b" },
+    { name: "آجل",                key: "unpaid",  value: deferredOrders, color: "#ef4444" },
   ].filter(d => d.value > 0);
 
-  // ── top clients ──────────────────────────────────────────────────────────
+  // ── top senders ───────────────────────────────────────────────────────────
   const clientMap: Record<string, number> = {};
   filtered.forEach(o => {
-    clientMap[o.clientName] = (clientMap[o.clientName] ?? 0) + parseFloat(o.totalAmount);
+    const key = o.senderName ?? "—";
+    clientMap[key] = (clientMap[key] ?? 0) + parseFloat(o.codAmount ?? "0");
   });
   const topClients = Object.entries(clientMap)
     .sort((a, b) => b[1] - a[1]).slice(0, 5)
     .map(([name, total]) => ({ name, total }));
   const maxClientVal = topClients[0]?.total ?? 1;
 
-  // ── order status bar ─────────────────────────────────────────────────────
+  // ── shipment status bars ──────────────────────────────────────────────────
   const statusCounts = [
-    { label: "مسودة",        key: "draft",       color: "#6b7280" },
-    { label: "قيد التجهيز",  key: "processing",  color: "#f59e0b" },
-    { label: "تم التسليم",   key: "delivered",   color: "#10b981" },
-    { label: "ملغي",         key: "cancelled",   color: "#ef4444" },
-  ].map(s => ({ ...s, count: filtered.filter(o => o.status === s.key).length }));
+    { label: "قيد الانتظار",  key: "pending",          color: "#eab308" },
+    { label: "جاهز للشحن",    key: "warehouse_ready",  color: "#14b8a6" },
+    { label: "قيد الشحن",     key: "in_shipping",      color: "#3b82f6" },
+    { label: "تم الاستلام",   key: "received",         color: "#10b981" },
+    { label: "استلام جزئي",   key: "partial_received", color: "#06b6d4" },
+    { label: "مؤجل",          key: "delayed",          color: "#8b5cf6" },
+    { label: "مرتجع",         key: "returned",         color: "#ef4444" },
+  ].map(s => ({ ...s, count: filtered.filter(o => o.status === s.key).length }))
+   .filter(s => s.count > 0);
 
   if (loadingOrders) return (
     <div className="flex items-center justify-center min-h-[40vh]" dir="rtl">
@@ -304,12 +313,12 @@ export default function SalesReportPage() {
       {/* ── 6 KPI Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: "إجمالي الشحنات",   value: fmtNum(totalOrders), icon: <ShoppingCart className="w-5 h-5" />, color: "text-primary",      bg: "bg-primary/10" },
-          { label: "إجمالي الإيرادات", value: fmt(totalRevenue),   icon: <DollarSign className="w-5 h-5" />,  color: "text-foreground",    bg: "bg-muted/30" },
-          { label: "المحصَّل",          value: fmt(totalPaid),      icon: <TrendingUp className="w-5 h-5" />,  color: "text-emerald-400",   bg: "bg-emerald-900/20" },
-          { label: "المتبقي",           value: fmt(totalUnpaid),    icon: <TrendingDown className="w-5 h-5" />,color: "text-red-400",       bg: "bg-red-900/20" },
-          { label: "نسبة التسليم",      value: `${deliveryRate}%`,  icon: <Target className="w-5 h-5" />,      color: "text-amber-400",     bg: "bg-amber-900/20" },
-          { label: "متوسط قيمة الشحنة", value: fmt(avgOrderValue),  icon: <BarChart2 className="w-5 h-5" />,   color: "text-blue-400",      bg: "bg-blue-900/20" },
+          { label: "إجمالي الشحنات",   value: fmtNum(totalOrders),  icon: <ShoppingCart className="w-5 h-5" />, color: "text-primary",      bg: "bg-primary/10" },
+          { label: "إجمالي COD",        value: fmt(totalCOD),        icon: <DollarSign className="w-5 h-5" />,  color: "text-foreground",    bg: "bg-muted/30" },
+          { label: "المحصَّل",           value: fmt(totalCollected),  icon: <TrendingUp className="w-5 h-5" />,  color: "text-emerald-400",   bg: "bg-emerald-900/20" },
+          { label: "المتبقي",            value: fmt(totalUnpaid),     icon: <TrendingDown className="w-5 h-5" />,color: "text-red-400",       bg: "bg-red-900/20" },
+          { label: "نسبة الاستلام",     value: `${deliveryRate}%`,   icon: <Target className="w-5 h-5" />,      color: "text-amber-400",     bg: "bg-amber-900/20" },
+          { label: "إجمالي رسوم الشحن", value: fmt(totalFees),       icon: <BarChart2 className="w-5 h-5" />,   color: "text-blue-400",      bg: "bg-blue-900/20" },
         ].map((kpi, i) => (
           <Card key={i} className="border-border bg-card p-4">
             <div className={`w-9 h-9 rounded-xl ${kpi.bg} flex items-center justify-center mb-3 ${kpi.color}`}>
@@ -340,7 +349,7 @@ export default function SalesReportPage() {
               </defs>
               <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
-              <Tooltip contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:8, fontSize:11 }} formatter={(v:any) => [fmt(v), "الإيرادات"]} />
+              <Tooltip contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:8, fontSize:11 }} formatter={(v:any) => [fmtNum(Number(v)), "شحنة"]} />
               <Area type="monotone" dataKey="value" stroke="hsl(43,74%,50%)" strokeWidth={2} fill="url(#rptGrad)" dot={false} activeDot={{ r:4 }} />
             </AreaChart>
           </ResponsiveContainer>
@@ -445,32 +454,30 @@ export default function SalesReportPage() {
           </Button>
         </div>
         <div className="grid grid-cols-5 gap-2 px-4 py-2 text-[10px] font-bold text-muted-foreground border-b border-border bg-muted/5">
-          <span>رقم الشحنة</span><span className="col-span-2">العميل</span><span>الإجمالي</span><span>حالة الدفع</span>
+          <span>رقم الشحنة</span><span className="col-span-2">المرسِل / المستلِم</span><span>COD</span><span>الحالة</span>
         </div>
         <div>
           {filtered.slice(0, 8).map(o => {
-            const paid = o.paymentStatus === "paid";
-            const partial = o.paymentStatus === "partial";
+            const STATUS_MAP: Record<string, { label: string; color: string }> = {
+              pending:          { label: "قيد الانتظار",  color: "border-amber-700 bg-amber-900/20 text-amber-400" },
+              warehouse_ready:  { label: "جاهز للشحن",   color: "border-teal-700 bg-teal-900/20 text-teal-400" },
+              in_shipping:      { label: "قيد الشحن",    color: "border-sky-700 bg-sky-900/20 text-sky-400" },
+              received:         { label: "تم الاستلام",  color: "border-emerald-700 bg-emerald-900/20 text-emerald-400" },
+              partial_received: { label: "استلام جزئي",  color: "border-cyan-700 bg-cyan-900/20 text-cyan-400" },
+              delayed:          { label: "مؤجل",          color: "border-violet-700 bg-violet-900/20 text-violet-400" },
+              returned:         { label: "مرتجع",         color: "border-red-700 bg-red-900/20 text-red-400" },
+            };
+            const st = STATUS_MAP[o.status] ?? { label: o.status, color: "border-border bg-muted/10 text-muted-foreground" };
             return (
               <div key={o.id} className="grid grid-cols-5 gap-2 px-4 py-3 border-b border-border/50 hover:bg-muted/10 transition-colors items-center cursor-pointer"
-                onClick={() => navigate(`/finance/sales/${o.id}`)}>
-                <span className="text-xs font-bold text-primary">{o.soNumber}</span>
-                <div className="col-span-2 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-muted/30 flex items-center justify-center shrink-0">
-                    <Users className="w-3 h-3 text-muted-foreground" />
-                  </div>
-                  <span className="text-xs font-bold truncate">{o.clientName}</span>
+                onClick={() => navigate(`/shipments/${o.id}`)}>
+                <span className="text-xs font-bold text-primary">{o.shipmentNumber}</span>
+                <div className="col-span-2 min-w-0">
+                  <p className="text-xs font-bold truncate">{o.senderName}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{o.receiverName}{o.receiverCity ? ` · ${o.receiverCity}` : ""}</p>
                 </div>
-                <span className="text-xs font-bold">{fmt(o.totalAmount)}</span>
-                <div>
-                  {paid ? (
-                    <Badge variant="outline" className="text-[9px] border-emerald-700 bg-emerald-900/20 text-emerald-400">مدفوع</Badge>
-                  ) : partial ? (
-                    <Badge variant="outline" className="text-[9px] border-amber-700 bg-amber-900/20 text-amber-400">جزئي</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[9px] border-red-700 bg-red-900/20 text-red-400">غير مدفوع</Badge>
-                  )}
-                </div>
+                <span className="text-xs font-bold text-amber-400">{fmt(o.codAmount ?? 0)}</span>
+                <Badge variant="outline" className={`text-[9px] ${st.color}`}>{st.label}</Badge>
               </div>
             );
           })}
@@ -483,20 +490,7 @@ export default function SalesReportPage() {
         </div>
       </Card>
 
-      {/* ── Summary Footer ── */}
-      {totalDiscount > 0 && (
-        <Card className="border-border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-900/20 flex items-center justify-center text-purple-400">
-              <Percent className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">إجمالي الخصومات الممنوحة</p>
-              <p className="text-lg font-black text-purple-400">{fmt(totalDiscount)}</p>
-            </div>
-          </div>
-        </Card>
-      )}
+
 
     </div>
   );
