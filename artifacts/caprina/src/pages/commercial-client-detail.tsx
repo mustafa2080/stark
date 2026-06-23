@@ -1365,7 +1365,6 @@ export default function CommercialClientDetailPage() {
                 pending:          { label: "قيد الانتظار",        color: "text-amber-400",   bg: "bg-amber-900/20 border-amber-700/40"  },
                 warehouse_ready:  { label: "جاهز للشحن",          color: "text-teal-400",    bg: "bg-teal-900/20 border-teal-700/40"    },
                 in_shipping:      { label: "قيد الشحن",           color: "text-sky-400",     bg: "bg-sky-900/20 border-sky-700/40"      },
-                in_transit:       { label: "قيد الشحن",           color: "text-sky-400",     bg: "bg-sky-900/20 border-sky-700/40"      },
                 received:         { label: "تم الاستلام",          color: "text-emerald-400", bg: "bg-emerald-900/20 border-emerald-700/40" },
                 delivered:        { label: "تم التوصيل",          color: "text-emerald-400", bg: "bg-emerald-900/20 border-emerald-700/40" },
                 partial_received: { label: "استلام جزئي",         color: "text-cyan-400",    bg: "bg-cyan-900/20 border-cyan-700/40"    },

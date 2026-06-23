@@ -1125,13 +1125,11 @@ export default function Dashboard() {
                           in_shipping:      { label: "قيد الشحن",             color: "#3b82f6" },
                           out_for_delivery: { label: "خرجت للتسليم",          color: "#f59e0b" },
                           received:         { label: "استلم",                 color: "#22c55e" },
-                          partial_delivered:{ label: "استلم جزئي",            color: "#06b6d4" },
+                          partial_received: { label: "استلم جزئي",            color: "#06b6d4" },
                           returned:         { label: "مرتجع",                 color: "#ef4444" },
                           cancelled:        { label: "ملغية",                 color: "#6b7280" },
                           delayed:          { label: "مؤجل",                  color: "#8b5cf6" },
                           delivered:        { label: "تم التسليم",            color: "#22c55e" },
-                          in_transit:       { label: "قيد الشحن",             color: "#3b82f6" },
-                          picked_up:        { label: "قيد الشحن في المخزن",  color: "#14b8a6" },
                         };
                         const cfg = cfgMap[s.status] ?? { label: s.status, color: "#94a3b8" };
                         return (
