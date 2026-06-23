@@ -415,6 +415,16 @@ export default function FinanceClients() {
     staleTime: 30_000,
   });
 
+  const { data: shipmentsStats } = useQuery<{ statuses: { status: string; count: number }[] }>({
+    queryKey: ["shipments-stats-fc"],
+    queryFn: () => apiFetch<any>("/shipments/stats"),
+    staleTime: 60_000,
+  });
+  const totalShipmentsCount = useMemo(
+    () => (shipmentsStats?.statuses ?? []).reduce((s, r) => s + Number(r.count), 0),
+    [shipmentsStats]
+  );
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch<any>(`/finance/clients/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-clients"] }); setDeleteClient(null); toast({ title: "تم حذف العميل" }); },
@@ -513,7 +523,7 @@ export default function FinanceClients() {
           { label: "إجمالي العملاء",    value: totalClients, sub: `+${clients.filter(c => { const d = new Date(c.createdAt); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length} هذا الشهر`, icon: <Users className="w-6 h-6" />, color: "text-foreground" },
           { label: "إجمالي أوامر البيع", value: totalOrders,  sub: `+${allOrders.filter(o => { const d = new Date(o.createdAt); const now = new Date(); return d.getMonth() === now.getMonth(); }).length} هذا الشهر`, icon: <ShoppingCart className="w-6 h-6" />, color: "text-foreground" },
           { label: "إجمالي الفواتير",   value: totalInvoices, sub: `+${Math.round(totalInvoices * 0.15)} هذا الشهر`, icon: <Receipt className="w-6 h-6" />, color: "text-foreground" },
-          { label: "إجمالي الشحنات",    value: totalInvoices, sub: `+${Math.round(totalInvoices * 0.15)} هذا الشهر`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
+          { label: "إجمالي الشحنات",    value: totalShipmentsCount, sub: `عدد شحنات جميع الحالات`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
         ].map((kpi, i) => (
           <Card key={i} className="border-border bg-card p-4">
             <div className="flex items-center justify-between mb-2">
