@@ -1305,14 +1305,24 @@ export default function Orders() {
           </div>
         );
 
-        const counts = statsData
+        // نجمع بالـ label عشان statuses بنفس الاسم (in_transit + in_shipping = قيد الشحن) تتدمج
+        const mergedByLabel: Record<string, { rgb: string; count: number }> = {};
+        statsData
           .filter(r => Number(r.count) > 0)
-          .map(r => ({
-            key:   r.status,
-            label: labelMap[r.status] ?? r.status,
-            rgb:   rgbMap[r.status] ?? "156,163,175",
-            count: Number(r.count),
-            pct:   total > 0 ? Math.round(Number(r.count) / total * 100) : 0,
+          .forEach(r => {
+            const lbl = labelMap[r.status] ?? r.status;
+            const rgb = rgbMap[r.status] ?? "156,163,175";
+            if (!mergedByLabel[lbl]) mergedByLabel[lbl] = { rgb, count: 0 };
+            mergedByLabel[lbl].count += Number(r.count);
+          });
+        const mergedTotal = Object.values(mergedByLabel).reduce((s, v) => s + v.count, 0);
+        const counts = Object.entries(mergedByLabel)
+          .map(([label, { rgb, count }]) => ({
+            key: label,
+            label,
+            rgb,
+            count,
+            pct: mergedTotal > 0 ? Math.round(count / mergedTotal * 100) : 0,
           }))
           .sort((a, b) => b.count - a.count);
 
