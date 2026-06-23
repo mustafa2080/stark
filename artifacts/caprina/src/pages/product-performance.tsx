@@ -171,16 +171,22 @@ export default function ShipmentPerformancePage() {
     return { total, delivered, returned, inTransit, cod, collected, fee, delivRate };
   }, [shipments, listRaw]);
 
-  // Status pie data
+  // Status pie data — نعمل merge للـ statuses اللي بيديوا نفس الـ label
   const pieData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    shipments.forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([status, count]) => ({
-        name: statusLabel(status),
+    // أولاً: نجمع الـ counts بالـ canonical label مش بالـ status key
+    const countsByLabel: Record<string, { count: number; color: string }> = {};
+    shipments.forEach(s => {
+      const label = statusLabel(s.status);
+      const color = statusColor(s.status);
+      if (!countsByLabel[label]) countsByLabel[label] = { count: 0, color };
+      countsByLabel[label].count += 1;
+    });
+    return Object.entries(countsByLabel)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([label, { count, color }]) => ({
+        name: label,
         value: count,
-        color: statusColor(status),
+        color,
       }));
   }, [shipments]);
 
