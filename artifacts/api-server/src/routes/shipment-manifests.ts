@@ -133,8 +133,8 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         address:       sh?.receiverAddress ?? "",
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
-        totalPrice:    Number(sh?.codAmount  ?? 0),
-        unitPrice:     Number(sh?.codAmount  ?? 0),
+        totalPrice:    Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
+        unitPrice:     Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
         shippingCost:  Number(sh?.shippingFee ?? 0),
         invoiceNumber: sh?.shipmentNumber ?? "",
       };
