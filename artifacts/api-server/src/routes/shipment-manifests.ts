@@ -121,10 +121,24 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
-    const enrichedItems = items.map(item => ({
-      ...item,
-      shipment: shipmentMap[item.shipmentId] ?? null,
-    }));
+    const enrichedItems = items.map(item => {
+      const sh = shipmentMap[item.shipmentId] ?? null;
+      return {
+        ...item,
+        shipment: sh,
+        // حقول مُستخرجة مباشرةً من بيانات الشحنة للفرونت
+        customerName:  sh?.receiverName  ?? "",
+        phone:         sh?.receiverPhone ?? "",
+        city:          sh?.receiverCity  ?? "",
+        address:       sh?.receiverAddress ?? "",
+        senderName:    sh?.senderName    ?? "",
+        quantity:      sh?.pieces        ?? 1,
+        totalPrice:    Number(sh?.codAmount  ?? 0),
+        unitPrice:     Number(sh?.codAmount  ?? 0),
+        shippingCost:  Number(sh?.shippingFee ?? 0),
+        invoiceNumber: sh?.shipmentNumber ?? "",
+      };
+    });
 
     // إحصائيات
     const delivered = items.filter(i => i.deliveryStatus === "delivered").length;
