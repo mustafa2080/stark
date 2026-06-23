@@ -425,6 +425,13 @@ export default function FinanceClients() {
     [shipmentsStats]
   );
 
+  const { data: recentShipments = [] } = useQuery<any[]>({
+    queryKey: ["shipments-recent-fc"],
+    queryFn: () => apiFetch<any>("/shipments?limit=500&offset=0"),
+    staleTime: 60_000,
+    select: (data: any) => (Array.isArray(data) ? data : data?.data ?? []),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch<any>(`/finance/clients/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-clients"] }); setDeleteClient(null); toast({ title: "تم حذف العميل" }); },
@@ -444,26 +451,21 @@ export default function FinanceClients() {
   const monthlyShipmentsByClient = useMemo(() => {
     const now = new Date();
     const counts: Record<string, number> = {};
-    allOrders.forEach(o => {
-      const d = new Date(o.createdAt);
+    recentShipments.forEach((s: any) => {
+      if (!s.createdAt) return;
+      const d = new Date(s.createdAt);
       if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
-        counts[o.clientName] = (counts[o.clientName] ?? 0) + 1;
+        const name = s.senderName ?? s.clientName ?? "";
+        if (name) counts[name] = (counts[name] ?? 0) + 1;
       }
     });
     return counts;
-  }, [allOrders]);
+  }, [recentShipments]);
 
   const topClients = useMemo(() =>
     [...clients].sort((a, b) => (monthlyShipmentsByClient[b.name] ?? 0) - (monthlyShipmentsByClient[a.name] ?? 0)).slice(0, 5),
     [clients, monthlyShipmentsByClient]
   );
-
-  const { data: recentShipments = [] } = useQuery<{ id: number; createdAt: string }[]>({
-    queryKey: ["shipments-recent-fc"],
-    queryFn: () => apiFetch<any>("/shipments?limit=500&offset=0"),
-    staleTime: 60_000,
-    select: (data: any) => (Array.isArray(data) ? data : data?.data ?? []),
-  });
 
   // ── رسم بياني — عدد الشحنات آخر 7 أيام ─────────────────────────────────
   const chartData = useMemo(() => {
