@@ -1,466 +1,383 @@
-import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, RefreshCw, BarChart3, AlertTriangle, Target, Search, X, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
-import { analyticsApi, type ProductPerformance as ShipmentPerformance } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
-import { Input } from "@/components/ui/input";
-import { useDebounce } from "@/hooks/use-debounce";
+import { useState, useMemo } from "react";
+import { shipmentsApi, analyticsApi, Shipment, ShipmentChartsData } from "@/lib/api";
+import {
+  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+} from "recharts";
+import {
+  Package, TrendingUp, TrendingDown, DollarSign, AlertCircle,
+  Search, Filter, ArrowUpRight, ArrowDownRight, Truck, Clock,
+  CheckCircle2, XCircle, RotateCcw, MapPin, ChevronDown,
+} from "lucide-react";
 
-const fc = (n: number) =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
-const pct = (n: number) => `${n}%`;
+// ─── helpers ─────────────────────────────────────────────────────────────────
+const fmt = (n: number) =>
+  new Intl.NumberFormat("ar-EG").format(Math.round(n));
 
-type SortMode = "profit" | "loss" | "returns";
-
-const SORT_LABELS: Record<SortMode, string> = {
-  profit: "أعلى ربح",
-  loss: "أعلى خسارة",
-  returns: "أعلى مرتجعات",
+const STATUS_MAP: Record<string, { label: string; color: string; bg: string; glow: string }> = {
+  waiting:          { label: "قيد الانتظار",  color: "#f59e0b", bg: "bg-amber-500/10",   glow: "shadow-amber-500/20" },
+  in_transit:       { label: "قيد الشحن",     color: "#3b82f6", bg: "bg-blue-500/10",    glow: "shadow-blue-500/20" },
+  delivered:        { label: "تم التوصيل",    color: "#10b981", bg: "bg-emerald-500/10", glow: "shadow-emerald-500/20" },
+  partial_delivered:{ label: "توصيل جزئي",   color: "#06b6d4", bg: "bg-cyan-500/10",    glow: "shadow-cyan-500/20" },
+  returned:         { label: "مرتجع",         color: "#ef4444", bg: "bg-red-500/10",     glow: "shadow-red-500/20" },
+  partial_returned: { label: "مرتجع جزئي",   color: "#f97316", bg: "bg-orange-500/10",  glow: "shadow-orange-500/20" },
+  cancelled:        { label: "ملغي",          color: "#6b7280", bg: "bg-gray-500/10",    glow: "shadow-gray-500/20" },
 };
 
-// alias للتوافق مع الكود الموجود
-type ProductPerformance = ShipmentPerformance;
+const STATUS_COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#8b5cf6"];
 
-function ProfitBar({ value, max }: { value: number; max: number }) {
-  if (max === 0) return null;
-  const pct = Math.min(100, Math.abs(value) / Math.abs(max) * 100);
-  const isNeg = value < 0;
-  return (
-    <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-      <div
-        className={`h-full rounded-full transition-all ${isNeg ? "bg-red-500" : "bg-primary"}`}
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  );
-}
 
-function ProductRow({ p, maxProfit, maxLoss, sort }: {
-  p: ProductPerformance; maxProfit: number; maxLoss: number; sort: SortMode;
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+function KpiCard({
+  icon: Icon, label, value, sub, color, trend, trendVal,
+}: {
+  icon: React.ElementType; label: string; value: string; sub?: string;
+  color: string; trend?: "up" | "down"; trendVal?: string;
 }) {
-  const isLosing = p.netProfit < 0;
-  const barMax = sort === "loss" ? maxLoss : maxProfit;
-
   return (
-    <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 py-3 border-b border-border last:border-0">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2.5 mb-1">
-          {/* صورة المنتج الدائرية */}
-          {p.image ? (
-            <img
-              src={p.image}
-              alt={p.name}
-              className="w-8 h-8 rounded-full object-cover border-2 shrink-0"
-              style={{ borderColor: isLosing ? "rgba(248,113,113,0.4)" : "rgba(var(--primary),0.4)" }}
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-black"
-              style={{
-                background: isLosing
-                  ? "linear-gradient(135deg, rgba(248,113,113,0.2), rgba(239,68,68,0.1))"
-                  : "linear-gradient(135deg, rgba(var(--primary),0.2), rgba(var(--primary),0.05))",
-                border: isLosing ? "1.5px solid rgba(248,113,113,0.35)" : "1.5px solid rgba(var(--primary),0.3)",
-                color: isLosing ? "rgba(248,113,113,0.9)" : "rgba(var(--primary),0.9)",
-              }}>
-              {p.name.charAt(0).toUpperCase()}
+    <div
+      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5
+        shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5`}
+      style={{ boxShadow: `0 4px 24px -4px ${color}33` }}
+    >
+      {/* glow orb */}
+      <div
+        className="absolute -top-6 -right-6 h-24 w-24 rounded-full opacity-20 blur-2xl"
+        style={{ background: color }}
+      />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-xs font-medium text-gray-400 mb-1">{label}</p>
+          <p className="text-2xl font-bold text-white">{value}</p>
+          {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+          {trendVal && (
+            <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trend === "up" ? "text-emerald-400" : "text-red-400"}`}>
+              {trend === "up" ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+              {trendVal}
             </div>
           )}
-          <span className="text-sm font-bold text-foreground truncate">{p.name}</span>
-          {p.returnRate >= 30 && (
-            <Badge variant="outline" className="text-[9px] border-red-400 text-red-700 dark:border-red-800 dark:text-red-400 shrink-0">
-              {p.returnRate}% مرتجع
-            </Badge>
-          )}
-          {isLosing && (
-            <Badge variant="outline" className="text-[9px] border-red-400 text-red-700 dark:border-red-800 dark:text-red-400 shrink-0">خاسر</Badge>
-          )}
-          {p.margin >= 40 && !isLosing && (
-            <Badge variant="outline" className="text-[9px] border-primary text-primary shrink-0">هامش ممتاز</Badge>
-          )}
         </div>
-        <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-2">
-          <span>{p.totalOrders} طلب</span>
-          <span>·</span>
-          <span>{p.totalSalesQty} وحدة مباعة</span>
-          {p.returnCount > 0 && <><span>·</span><span className="text-red-600 dark:text-red-400">{p.returnCount} مرتجع</span></>}
-          <span>·</span>
-          <span>هامش {pct(p.margin)}</span>
-          <span>·</span>
-          <span>ROI {pct(p.roi)}</span>
+        <div className="rounded-xl p-2.5" style={{ background: `${color}22` }}>
+          <Icon className="h-5 w-5" style={{ color }} />
         </div>
-        <ProfitBar value={p.netProfit} max={barMax} />
-      </div>
-
-      <div className="text-left shrink-0 flex flex-col items-end justify-center gap-0.5">
-        <p className={`text-base font-black ${isLosing ? "text-red-600 dark:text-red-400" : "text-primary"}`}>
-          {fc(p.netProfit)}
-        </p>
-        <p className="text-[9px] text-muted-foreground">إيرادات {fc(p.totalRevenue)}</p>
-        {p.returnCostLoss > 0 && (
-          <p className="text-[9px] text-red-600/70 dark:text-red-400/70">خسارة مرتجع {fc(p.returnCostLoss)}</p>
-        )}
       </div>
     </div>
   );
 }
 
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const s = STATUS_MAP[status] ?? { label: status, color: "#9ca3af", bg: "bg-gray-500/10", glow: "" };
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.bg}`}
+      style={{ color: s.color }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
+      {s.label}
+    </span>
+  );
+}
+
+// ─── Tooltip custom ──────────────────────────────────────────────────────────
+const ChartTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl border border-white/10 bg-gray-900/90 backdrop-blur-sm px-3 py-2 text-xs shadow-xl">
+      <p className="text-gray-400 mb-1">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.dataKey} style={{ color: p.color }} className="font-medium">
+          {p.name}: {fmt(p.value)}
+        </p>
+      ))}
+    </div>
+  );
+};
+
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ShipmentPerformancePage() {
-  const { can, isAdmin } = useAuth();
-  const [, navigate] = useLocation();
-  const [sort, setSort] = useState<SortMode>("profit");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [chartMode, setChartMode] = useState<"weekly" | "monthly">("weekly");
 
-  // ── فلاتر البحث ──────────────────────────────────────────────────────────
-  const [search, setSearch]                   = useState("");
-  const [showAdvanced, setShowAdvanced]       = useState(false);
-  const [filterStatus, setFilterStatus]       = useState<"all" | "profit" | "loss" | "high_return">("all");
-  const [filterMarginMin, setFilterMarginMin] = useState("");
-  const [filterMarginMax, setFilterMarginMax] = useState("");
-  const [filterRevenueMin, setFilterRevenueMin] = useState("");
-  const debouncedSearch = useDebounce(search, 250);
-
-  if (!isAdmin && !can("analytics.products")) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <BarChart3 className="w-10 h-10 opacity-20" />
-        <p className="text-sm font-bold">ليس لديك صلاحية لعرض هذه الصفحة</p>
-        <button onClick={() => navigate("/")} className="text-xs text-primary hover:underline">العودة للرئيسية</button>
-      </div>
-    );
-  }
-
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["shipment-performance"],
-    queryFn: analyticsApi.productPerformance,
-    staleTime: 5 * 60 * 1000,        // ✅ البيانات تفضل valid 5 دقايق
-    gcTime: 10 * 60 * 1000,          // ✅ تتحفظ في الكاش 10 دقايق
-    placeholderData: (prev) => prev,  // ✅ تعرض البيانات القديمة فوراً أثناء التحديث
-    refetchOnWindowFocus: false,      // ✅ متعيدش التحميل لما المستخدم يرجع للتاب
+  const { data: statsRaw } = useQuery({ queryKey: ["shipments-stats"], queryFn: () => shipmentsApi.stats() });
+  const { data: charts }   = useQuery<ShipmentChartsData>({ queryKey: ["shipment-charts"], queryFn: () => analyticsApi.shipmentCharts() });
+  const { data: listRaw, isLoading } = useQuery({
+    queryKey: ["shipments-list-perf", statusFilter],
+    queryFn: () => shipmentsApi.list({ status: statusFilter === "all" ? undefined : statusFilter, limit: 200 }),
   });
 
-  // أول تحميل فقط (مفيش بيانات في الكاش) — نعرض skeleton
-  if (isLoading && !data) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-8 w-48 bg-muted rounded" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-muted rounded-lg" />)}
-        </div>
-        <div className="h-12 bg-muted rounded-lg" />
-        <div className="h-64 bg-muted rounded-lg" />
-      </div>
-    );
-  }
+  const shipments: Shipment[] = listRaw?.data ?? [];
 
-  if (error || !data) {
-    return (
-      <div className="flex items-center justify-center h-64 text-red-600 dark:text-red-400 text-sm">
-        خطأ في تحميل البيانات
-      </div>
-    );
-  }
+  // KPI calculations
+  const stats = useMemo(() => {
+    const total      = shipments.length || listRaw?.total || 0;
+    const delivered  = shipments.filter(s => s.status === "delivered").length;
+    const returned   = shipments.filter(s => s.status === "returned" || s.status === "partial_returned").length;
+    const inTransit  = shipments.filter(s => s.status === "in_transit").length;
+    const cod        = shipments.reduce((a, s) => a + parseFloat(s.codAmount || "0"), 0);
+    const collected  = shipments.reduce((a, s) => a + parseFloat(s.collectedAmount || "0"), 0);
+    const fee        = shipments.reduce((a, s) => a + parseFloat(s.shippingFee || "0"), 0);
+    const delivRate  = total ? Math.round((delivered / total) * 100) : 0;
+    return { total, delivered, returned, inTransit, cod, collected, fee, delivRate };
+  }, [shipments, listRaw]);
 
-  const list = sort === "profit" ? data.byProfit : sort === "loss" ? data.byLoss : data.byReturns;
-  const maxProfit = Math.max(...data.byProfit.map(p => p.netProfit), 1);
-  const maxLoss = Math.max(...(data.byLoss.map(p => Math.abs(p.netProfit))), 1);
+  // Status pie data
+  const pieData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    shipments.forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
+    return Object.entries(counts).map(([status, count]) => ({
+      name: STATUS_MAP[status]?.label ?? status,
+      value: count,
+      color: STATUS_MAP[status]?.color ?? "#9ca3af",
+    }));
+  }, [shipments]);
 
-  // ── تطبيق الفلاتر ────────────────────────────────────────────────────────
-  const applyFilters = (arr: ProductPerformance[]) => arr.filter(p => {
-    if (debouncedSearch && !p.name.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
-    if (filterStatus === "profit"      && p.netProfit <= 0) return false;
-    if (filterStatus === "loss"        && p.netProfit >= 0) return false;
-    if (filterStatus === "high_return" && p.returnRate < 30) return false;
-    if (filterMarginMin && p.margin < parseFloat(filterMarginMin)) return false;
-    if (filterMarginMax && p.margin > parseFloat(filterMarginMax)) return false;
-    if (filterRevenueMin && p.totalRevenue < parseFloat(filterRevenueMin)) return false;
-    return true;
-  });
+  // chart data
+  const chartData = chartMode === "weekly"
+    ? (charts?.weeklyShipments ?? [])
+    : (charts?.monthlyShipments ?? []);
 
-  const filteredList     = applyFilters(list);
-  const filteredProducts = applyFilters(data.products);
+  // week comparison
+  const wc = charts?.weekComparison;
 
-  const hasFilter    = search || filterStatus !== "all" || filterMarginMin || filterMarginMax || filterRevenueMin;
-  const advancedCount = [filterStatus !== "all", filterMarginMin, filterMarginMax, filterRevenueMin].filter(Boolean).length;
+  // filtered table
+  const filtered = useMemo(() =>
+    shipments.filter(s =>
+      !search ||
+      s.shipmentNumber.toLowerCase().includes(search.toLowerCase()) ||
+      s.senderName.toLowerCase().includes(search.toLowerCase()) ||
+      s.receiverName.toLowerCase().includes(search.toLowerCase()) ||
+      (s.receiverCity ?? "").toLowerCase().includes(search.toLowerCase())
+    ),
+    [shipments, search]
+  );
 
-  const clearFilters = () => {
-    setSearch(""); setFilterStatus("all");
-    setFilterMarginMin(""); setFilterMarginMax(""); setFilterRevenueMin("");
-  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 space-y-6" dir="rtl">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-foreground">أداء الشحنات</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">تحليل مالي شامل لكل شحنة</p>
-        </div>
-        <button
-          onClick={() => refetch()}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1.5 relative"
-          title="تحديث البيانات"
-        >
-          <RefreshCw className={`w-4 h-4 transition-transform ${isFetching ? "animate-spin text-primary" : ""}`} />
-        </button>
-      </div>
-
-      {/* Summary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-border bg-card">
-          <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">إجمالي الشحنات</p>
-            <p className="text-2xl font-black text-foreground">{data.summary.totalProducts}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">شحنات رابحة</p>
-            <p className="text-2xl font-black text-primary">{data.summary.profitableCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">شحنات خاسرة</p>
-            <p className="text-2xl font-black text-red-600 dark:text-red-400">{data.summary.losingCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">مرتجعات عالية</p>
-            <p className="text-2xl font-black text-amber-700 dark:text-amber-400">{data.summary.highReturnCount}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── شريط البحث والفلاتر ── */}
-      <div className="rounded-lg border border-border bg-muted/5 p-3 space-y-2">
-        {/* صف البحث */}
-        <div className="flex gap-2 flex-col sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="ابحث باسم الشحنة..."
-              className="pr-9 h-9 text-sm bg-card"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setShowAdvanced(v => !v)}
-            className={`flex items-center gap-1.5 px-3 h-9 rounded-md border text-xs font-bold transition-colors shrink-0 ${
-              showAdvanced
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-card text-muted-foreground border-border hover:border-primary/40"
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            فلتر متقدم
-            {advancedCount > 0 && (
-              <span className={`rounded-full w-4 h-4 text-[9px] font-black flex items-center justify-center ${showAdvanced ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground"}`}>
-                {advancedCount}
-              </span>
-            )}
-            {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
-          {hasFilter && (
-            <button onClick={clearFilters} className="flex items-center gap-1 px-2 h-9 text-xs text-muted-foreground hover:text-foreground shrink-0">
-              <X className="w-3 h-3" />مسح
-            </button>
-          )}
+          <h1 className="text-2xl font-bold bg-gradient-to-l from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+            أداء الشحنات
+          </h1>
+          <p className="text-sm text-gray-400 mt-0.5">تحليل مالي شامل لحركة الشحنات</p>
         </div>
 
-        {/* فلاتر متقدمة */}
-        {showAdvanced && (
-          <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* حالة المنتج */}
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">📊 حالة الشحنة</p>
-              <div className="flex gap-1 flex-wrap">
-                {(["all", "profit", "loss", "high_return"] as const).map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setFilterStatus(s)}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors ${
-                      filterStatus === s
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card text-muted-foreground border-border hover:border-primary/40"
-                    }`}
-                  >
-                    {s === "all" ? "الكل" : s === "profit" ? "✅ رابح" : s === "loss" ? "❌ خاسر" : "⚠️ مرتجعات عالية"}
-                  </button>
-                ))}
-              </div>
+        {/* week comparison badges */}
+        {wc && (
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 rounded-xl bg-white/5 border border-white/10 px-3 py-1.5 text-xs">
+              <span className="text-gray-400">هذا الأسبوع:</span>
+              <span className="font-bold text-white">{wc.thisWeek.count} شحنة</span>
+              {wc.countChange !== null && (
+                <span className={wc.countChange >= 0 ? "text-emerald-400" : "text-red-400"}>
+                  {wc.countChange >= 0 ? "▲" : "▼"} {Math.abs(wc.countChange)}%
+                </span>
+              )}
             </div>
-
-            {/* نطاق الهامش */}
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">💹 نطاق الهامش %</p>
-              <div className="flex items-center gap-2">
-                <Input type="number" placeholder="من" className="h-7 text-xs bg-background w-20" value={filterMarginMin} onChange={e => setFilterMarginMin(e.target.value)} />
-                <span className="text-xs text-muted-foreground">—</span>
-                <Input type="number" placeholder="إلى" className="h-7 text-xs bg-background w-20" value={filterMarginMax} onChange={e => setFilterMarginMax(e.target.value)} />
-              </div>
-            </div>
-
-            {/* حد أدنى للإيرادات */}
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">💰 حد أدنى للإيرادات (ج.م)</p>
-              <Input type="number" placeholder="مثلاً: 5000" className="h-7 text-xs bg-background w-36" value={filterRevenueMin} onChange={e => setFilterRevenueMin(e.target.value)} />
+            <div className="flex items-center gap-1.5 rounded-xl bg-white/5 border border-white/10 px-3 py-1.5 text-xs">
+              <span className="text-gray-400">COD الأسبوع:</span>
+              <span className="font-bold text-cyan-300">{fmt(wc.thisWeek.codAmount)} ج.م</span>
+              {wc.codChange !== null && (
+                <span className={wc.codChange >= 0 ? "text-emerald-400" : "text-red-400"}>
+                  {wc.codChange >= 0 ? "▲" : "▼"} {Math.abs(wc.codChange)}%
+                </span>
+              )}
             </div>
           </div>
         )}
-
-        {/* إحصاء */}
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
-          <span>
-            {hasFilter
-              ? `${filteredProducts.length} من ${data.products.length} شحنة`
-              : `${data.products.length} شحنة`}
-          </span>
-          {filteredProducts.length > 0 && (
-            <span className="text-primary font-bold">
-              إجمالي الإيرادات: {fc(filteredProducts.reduce((s, p) => s + p.totalRevenue, 0))}
-            </span>
-          )}
-        </div>
       </div>
 
-      {/* Sort tabs + table */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3 border-b border-border">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-primary" />
-              تصنيف الشحنات
-            </CardTitle>
-            <div className="flex rounded-md border border-border overflow-hidden text-[11px] font-semibold">
-              {(["profit", "loss", "returns"] as SortMode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setSort(m)}
-                  className={`px-3 py-1.5 transition-colors ${
-                    sort === m
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {SORT_LABELS[m]}
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <KpiCard icon={Package}      label="إجمالي الشحنات"   value={fmt(stats.total)}      color="#3b82f6" />
+        <KpiCard icon={CheckCircle2} label="تم التوصيل"        value={fmt(stats.delivered)}  color="#10b981"
+          sub={`${stats.delivRate}% معدل التوصيل`}
+          trend={stats.delivRate >= 70 ? "up" : "down"} trendVal={`${stats.delivRate}%`} />
+        <KpiCard icon={DollarSign}   label="إجمالي COD"        value={`${fmt(stats.cod)} ج.م`}     color="#f59e0b" />
+        <KpiCard icon={TrendingUp}   label="محصّل فعلي"         value={`${fmt(stats.collected)} ج.م`} color="#06b6d4" />
+        <KpiCard icon={Truck}        label="قيد الشحن"         value={fmt(stats.inTransit)}   color="#8b5cf6" />
+        <KpiCard icon={RotateCcw}    label="مرتجعات"           value={fmt(stats.returned)}    color="#ef4444" />
+        <KpiCard icon={DollarSign}   label="رسوم الشحن"        value={`${fmt(stats.fee)} ج.م`}     color="#f97316" />
+        <KpiCard icon={MapPin}       label="الشحنات الفلترة"   value={fmt(filtered.length)}   color="#6366f1" />
+      </div>
+
+
+      {/* ── Charts Row ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Area / Line Chart */}
+        <div className="lg:col-span-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5"
+          style={{ boxShadow: "0 4px 32px -8px #3b82f633" }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-white">حركة الشحنات</h2>
+            <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs">
+              {(["weekly","monthly"] as const).map(m => (
+                <button key={m}
+                  onClick={() => setChartMode(m)}
+                  className={`px-3 py-1.5 transition-colors ${chartMode === m ? "bg-blue-600 text-white" : "bg-white/5 text-gray-400 hover:bg-white/10"}`}>
+                  {m === "weekly" ? "أسبوعي" : "شهري"}
                 </button>
               ))}
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {filteredList.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              {hasFilter ? "لا توجد نتائج — جرّب تغيير الفلاتر" : sort === "loss" ? "لا توجد شحنات خاسرة" : sort === "returns" ? "لا توجد مرتجعات" : "لا توجد بيانات"}
-            </div>
-          ) : (
-            <div className="px-4">
-              {filteredList.map(p => (
-                <ProductRow
-                  key={p.name}
-                  p={p}
-                  maxProfit={maxProfit}
-                  maxLoss={maxLoss}
-                  sort={sort}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradCount" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradCod" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#06b6d4" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
+              <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Area type="monotone" dataKey="count"     name="عدد الشحنات" stroke="#3b82f6" fill="url(#gradCount)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="codAmount" name="COD"          stroke="#06b6d4" fill="url(#gradCod)"   strokeWidth={2} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
 
-      {/* Detailed table */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3 border-b border-border">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Target className="w-4 h-4 text-primary" />
-            جدول تفصيلي — كل الشحنات
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">الشحنة</th>
-                <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">طلبات</th>
-                <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">مباع</th>
-                <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">مرتجع%</th>
-                <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground">إيرادات</th>
-                <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground">تكاليف</th>
-                <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground">صافي الربح</th>
-                <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">هامش</th>
-                <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">ROI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.map(p => {
-                const isLosing = p.netProfit < 0;
-                return (
-                  <tr key={p.name} className="border-b border-border/50 hover:bg-muted/10 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        {/* صورة دائرية */}
-                        {p.image ? (
-                          <img src={p.image} alt={p.name}
-                            className="w-7 h-7 rounded-full object-cover shrink-0 border"
-                            style={{ borderColor: isLosing ? "rgba(248,113,113,0.35)" : "rgba(var(--primary),0.35)" }} />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-black"
-                            style={{
-                              background: isLosing ? "rgba(248,113,113,0.15)" : "rgba(var(--primary),0.12)",
-                              border: isLosing ? "1px solid rgba(248,113,113,0.3)" : "1px solid rgba(var(--primary),0.25)",
-                              color: isLosing ? "rgba(248,113,113,0.9)" : "rgba(var(--primary),0.9)",
-                            }}>
-                            {p.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        {isLosing
-                          ? <TrendingDown className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
-                          : <TrendingUp className="w-3 h-3 text-primary shrink-0" />
-                        }
-                        <span className="font-semibold text-foreground">{p.name}</span>
-                      </div>
+        {/* Pie Chart */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5"
+          style={{ boxShadow: "0 4px 32px -8px #10b98133" }}>
+          <h2 className="text-sm font-semibold text-white mb-4">توزيع الحالات</h2>
+          {pieData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
+                    {pieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} stroke="transparent" />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: any, n: any) => [fmt(v), n]} contentStyle={{ background:"#111827", border:"1px solid #ffffff10", borderRadius:12, fontSize:12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 space-y-1.5">
+                {pieData.map((d, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
+                      <span className="text-gray-400">{d.name}</span>
+                    </div>
+                    <span className="font-medium text-white">{d.value}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="h-48 flex items-center justify-center text-gray-500 text-sm">لا توجد بيانات</div>
+          )}
+        </div>
+      </div>
+
+
+      {/* ── Filters ── */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="ابحث برقم الشحنة، المرسِل، المستلِم، المدينة..."
+            className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pr-10 pl-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+          />
+        </div>
+        <div className="relative">
+          <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="appearance-none rounded-xl border border-white/10 bg-white/5 py-2.5 pr-10 pl-8 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+          >
+            <option value="all" className="bg-gray-900">كل الحالات</option>
+            {Object.entries(STATUS_MAP).map(([k, v]) => (
+              <option key={k} value={k} className="bg-gray-900">{v.label}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden"
+        style={{ boxShadow: "0 4px 32px -8px #6366f133" }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <h2 className="text-sm font-semibold text-white">جدول الشحنات التفصيلي</h2>
+          <span className="text-xs text-gray-400 bg-white/5 px-2.5 py-1 rounded-full">
+            {fmt(filtered.length)} شحنة
+          </span>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16 text-gray-500 text-sm gap-2">
+            <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+            جاري التحميل...
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-500 text-sm gap-2">
+            <Package className="h-8 w-8 opacity-30" />
+            لا توجد شحنات
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-xs text-gray-500">
+                  <th className="text-right px-4 py-3 font-medium">رقم الشحنة</th>
+                  <th className="text-right px-4 py-3 font-medium">المرسِل</th>
+                  <th className="text-right px-4 py-3 font-medium">المستلِم</th>
+                  <th className="text-right px-4 py-3 font-medium">المدينة</th>
+                  <th className="text-right px-4 py-3 font-medium">COD</th>
+                  <th className="text-right px-4 py-3 font-medium">رسوم الشحن</th>
+                  <th className="text-right px-4 py-3 font-medium">الحالة</th>
+                  <th className="text-right px-4 py-3 font-medium">التاريخ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filtered.slice(0, 100).map(s => (
+                  <tr key={s.id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs text-blue-400">{s.shipmentNumber}</span>
                     </td>
-                    <td className="px-3 py-2.5 text-center text-muted-foreground">{p.totalOrders}</td>
-                    <td className="px-3 py-2.5 text-center text-muted-foreground">{p.totalSalesQty}</td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={p.returnRate >= 30 ? "text-red-600 dark:text-red-400 font-bold" : "text-muted-foreground"}>
-                        {p.returnRate}%
+                    <td className="px-4 py-3 text-white">{s.senderName}</td>
+                    <td className="px-4 py-3 text-gray-300">{s.receiverName}</td>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-1 text-gray-400 text-xs">
+                        <MapPin className="h-3 w-3" />{s.receiverCity ?? "—"}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-left text-foreground">{fc(p.totalRevenue)}</td>
-                    <td className="px-3 py-2.5 text-left text-muted-foreground">{fc(p.totalCost + p.totalShipping)}</td>
-                    <td className="px-3 py-2.5 text-left">
-                      <span className={`font-bold ${isLosing ? "text-red-600 dark:text-red-400" : "text-primary"}`}>
-                        {fc(p.netProfit)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={p.margin < 10 ? "text-amber-700 dark:text-amber-400" : p.margin >= 40 ? "text-primary font-bold" : "text-muted-foreground"}>
-                        {p.margin}%
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={p.roi < 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}>
-                        {p.roi}%
-                      </span>
+                    <td className="px-4 py-3 text-amber-400 font-medium">{fmt(parseFloat(s.codAmount || "0"))}</td>
+                    <td className="px-4 py-3 text-cyan-400">{fmt(parseFloat(s.shippingFee || "0"))}</td>
+                    <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {new Date(s.createdAt).toLocaleDateString("ar-EG", { day:"2-digit", month:"short" })}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length > 100 && (
+              <div className="text-center py-3 text-xs text-gray-500 border-t border-white/5">
+                يُعرض أول 100 نتيجة من {fmt(filtered.length)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
