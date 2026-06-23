@@ -753,8 +753,12 @@ export default function CommercialClientDetailPage() {
           </Card>
           <Card className="card-glow border-teal-900/40 p-3 text-center" style={GLOW.teal.style}>
             <p className="text-[10px] text-teal-400 mb-0.5">إجمالي الشحنات</p>
-            <p className="text-xl font-black text-teal-400">{deliveredOrders.length}</p>
-            <p className="text-[10px] text-teal-600">شحنة مسلّمة</p>
+            <p className="text-xl font-black text-teal-400">{clientShipments.length}</p>
+            <p className="text-[10px] text-teal-600">
+              {clientShipments.filter(s => ["received","delivered"].includes(s.status)).length} مسلّمة
+              {" · "}
+              {clientShipments.filter(s => ["returned"].includes(s.status)).length} مرتجع
+            </p>
           </Card>
           <Card className="card-glow border-red-900/40 p-3 text-center" style={GLOW.red.style}>
             <p className="text-[10px] text-red-400 mb-0.5">المديونية</p>
