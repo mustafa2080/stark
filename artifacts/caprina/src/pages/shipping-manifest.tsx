@@ -3280,6 +3280,7 @@ export default function ShippingManifestPage() {
     if (!rawManifest) return undefined;
     const orders: ManifestOrder[] = (rawManifest.items ?? []).map((item) => {
       const sh = item.shipment;
+      console.log("[adapter debug] item keys:", Object.keys(item as any), "totalPrice:", (item as any).totalPrice, "sh:", sh ? {codAmount: sh.codAmount} : null);
       // نقرأ من الـ enriched fields اللي الـ backend بيبعتها مباشرة على الـ item
       const codAmt = (item as any).totalPrice != null
         ? Number((item as any).totalPrice)
