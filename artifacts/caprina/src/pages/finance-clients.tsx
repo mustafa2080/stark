@@ -458,25 +458,27 @@ export default function FinanceClients() {
     [clients, monthlyShipmentsByClient]
   );
 
-  const { data: dailyStats = [] } = useQuery<{ day: string; count: number }[]>({
-    queryKey: ["shipments-daily-stats"],
-    queryFn: () => apiFetch<any>("/shipments/daily-stats?days=7"),
+  const { data: recentShipments = [] } = useQuery<{ id: number; createdAt: string }[]>({
+    queryKey: ["shipments-recent-fc"],
+    queryFn: () => apiFetch<any>("/shipments?limit=500&offset=0"),
     staleTime: 60_000,
+    select: (data: any) => (Array.isArray(data) ? data : data?.data ?? []),
   });
 
-  // ── رسم بياني — عدد الشحنات آخر 7 أيام من الشحنات الحقيقية ─────────────
+  // ── رسم بياني — عدد الشحنات آخر 7 أيام ─────────────────────────────────
   const chartData = useMemo(() => {
     const days: Record<string, number> = {};
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i);
       days[format(d, "MM/dd")] = 0;
     }
-    dailyStats.forEach(r => {
-      const key = format(new Date(r.day), "MM/dd");
-      if (key in days) days[key] = Number(r.count);
+    recentShipments.forEach((s: any) => {
+      if (!s.createdAt) return;
+      const key = format(new Date(s.createdAt), "MM/dd");
+      if (key in days) days[key] += 1;
     });
     return Object.entries(days).map(([date, value]) => ({ date, value }));
-  }, [dailyStats]);
+  }, [recentShipments]);
 
   // ── خيارات الفلتر — تُستخرج من البيانات الفعلية ────────────────────────
   const cityOptions         = useMemo(() => [...new Set(clients.map(c => c.city).filter(Boolean))] .map(v => ({ value: v!, label: v! })), [clients]);
