@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, like, or, inArray, sql, isNull } from "drizzle-orm";
+import { eq, desc, and, like, or, inArray, sql, isNull, gte } from "drizzle-orm";
 import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
@@ -436,19 +436,18 @@ router.get("/shipments/daily-stats", async (req, res): Promise<void> => {
     since.setDate(since.getDate() - (days - 1));
     since.setHours(0, 0, 0, 0);
 
-    const cond = tenantId !== null
-      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), sql`created_at >= ${since.toISOString()}`)
-      : and(isNull(shipmentsTable.deletedAt), sql`created_at >= ${since.toISOString()}`);
+    const conditions: any[] = [isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, since)];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
     const rows = await db
       .select({
-        day: sql<string>`DATE(created_at)`,
+        day: sql<string>`DATE(${shipmentsTable.createdAt})`,
         count: sql<number>`count(*)`,
       })
       .from(shipmentsTable)
-      .where(cond)
-      .groupBy(sql`DATE(created_at)`)
-      .orderBy(sql`DATE(created_at)`);
+      .where(and(...conditions))
+      .groupBy(sql`DATE(${shipmentsTable.createdAt})`)
+      .orderBy(sql`DATE(${shipmentsTable.createdAt})`);
 
     res.json(rows);
   } catch (e) {
