@@ -79,12 +79,12 @@ import { useBrand } from "@/contexts/BrandContext";
 import { format } from "date-fns";
 import { RETURN_REASONS, returnReasonLabel } from "@/lib/order-constants";
 
-const formatCurrency = (n: number) =>
+const formatCurrency = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("ar-EG", {
     style: "currency",
     currency: "EGP",
     maximumFractionDigits: 0,
-  }).format(n);
+  }).format(Number(n) || 0);
 
 const DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
   { value: "pending",          label: "قيد الانتظار",   color: "text-muted-foreground",                                          bg: "border-border" },
