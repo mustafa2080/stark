@@ -1,11 +1,15 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull, gte } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
 
 const router: IRouter = Router();
+
+// alias لجدول المناطق عشان نطابق محافظة مدينة الراسل (senderCity) بشكل مستقل عن منطقة المستلم
+const senderZoneTable = alias(shipmentZonesTable, "sender_zone");
 
 // ─── Public router (no auth) ──────────────────────────────────────────────────
 export const publicShipmentsRouter: IRouter = Router();
@@ -373,12 +377,15 @@ router.get("/shipments", async (req, res): Promise<void> => {
           zoneGovernorate: shipmentZonesTable.governorate,
           // ── JOIN: محافظة العميل (الراسل) ──
           senderGovernorate: clientsTable.region,
+          // ── JOIN: محافظة مدينة الراسل (مطابقة من جدول المناطق) ──
+          senderCityGovernorate: senderZoneTable.governorate,
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
         .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
         .leftJoin(clientsTable, eq(shipmentsTable.clientId, clientsTable.id))
+        .leftJoin(senderZoneTable, eq(shipmentsTable.senderCity, senderZoneTable.name))
         .where(where)
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(parseInt(limit))
@@ -389,10 +396,13 @@ router.get("/shipments", async (req, res): Promise<void> => {
     // normalize: لو receiverCity فاضية خد من zoneGovernorate
     const normalized = rows.map(r => {
       const city = (r as any).receiverCity || (r as any).receiver_city || r.zoneGovernorate || (r as any).zone_governorate || null;
+      // محافظة الراسل: أولاً محافظة العميل التجاري المسجل، ثم محافظة المدينة (من جدول المناطق)، وإلا تبقى المدينة كما هي
+      const senderGov = (r as any).senderGovernorate || (r as any).senderCityGovernorate || (r as any).sender_governorate || (r as any).sender_city_governorate || null;
       return {
         ...r,
         receiverCity: city,
         zoneGovernorate: r.zoneGovernorate || (r as any).zone_governorate || null,
+        senderGovernorate: senderGov,
       };
     });
 

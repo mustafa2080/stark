@@ -1504,6 +1504,7 @@ export interface Shipment {
   senderPhone2?: string | null;
   senderCity?: string | null;
   senderGovernorate?: string | null;
+  senderCityGovernorate?: string | null;
   receiverName: string;
   receiverPhone: string | null;
   receiverPhone2?: string | null;
