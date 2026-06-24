@@ -355,8 +355,10 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
     const now = new Date();
+    // warehouseId يتفصل لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفه — نضيفه بـ raw SQL بعد الإنشاء
+    const { warehouseId, ...restData } = parsed.data;
     const [result] = await db.insert(clientsTable).values({
-      ...parsed.data,
+      ...restData,
       creditLimit:  String(parsed.data.creditLimit ?? 0),
       totalOrders:  0,
       totalSales:   "0",
@@ -366,8 +368,13 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     });
 
     const id = (result as any).insertId;
+    if (warehouseId !== undefined) {
+      await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
+    }
+
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
-    res.status(201).json(client);
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id FROM clients WHERE id = ${id}`) as any;
+    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -392,7 +399,10 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
-    res.json(client);
+
+    // جلب warehouse_id بـ raw SQL عشان نضمن رجوعه في الـ response مهما كانت حالة الـ compiled schema
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id FROM clients WHERE id = ${id}`) as any;
+    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
