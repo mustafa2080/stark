@@ -587,6 +587,7 @@ export default function Dashboard() {
     queryFn: () => analyticsApi.profit({ period }),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
     enabled: canViewFinancials,
   });
   const { data: fin, isLoading: isFinLoading } = useQuery({
@@ -594,6 +595,7 @@ export default function Dashboard() {
     queryFn: () => analyticsApi.financialSummary({ period }),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
     enabled: canViewFinancials,
   });
   const { data: alertsData } = useQuery({
@@ -601,18 +603,21 @@ export default function Dashboard() {
     queryFn: analyticsApi.alerts,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
   const { data: smartData } = useQuery({
     queryKey: ["smart-insights"],
     queryFn: analyticsApi.smartInsights,
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
   const { data: recentClients = [] } = useQuery<any[]>({
     queryKey: ["recent-clients-dashboard"],
     queryFn: () => apiFetchDashboard<any[]>("/finance/clients?limit=5"),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
     enabled: isAdmin || can("finance.view"),
   });
   const { data: shipmentsStatus } = useQuery({
@@ -621,12 +626,14 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
+    placeholderData: (prev: any) => prev,
   });
   const { data: teamPerf = [] } = useQuery<TeamMemberExtStats[]>({
     queryKey: ["team-perf-dashboard"],
     queryFn: () => teamAnalyticsApi.teamPerformanceExtended(),
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
     enabled: isAdmin || can("team.performance"),
   });
   const { data: allUsers = [] } = useQuery({
@@ -634,6 +641,7 @@ export default function Dashboard() {
     queryFn: () => usersApi.list(),
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
     enabled: isAdmin || can("settings.users"),
   });
   const { data: saleOrders = [] } = useQuery<any[]>({
@@ -641,6 +649,7 @@ export default function Dashboard() {
     queryFn: () => apiFetchDashboard<any[]>("/finance/sale-orders?limit=200"),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
     enabled: isAdmin || can("finance.view"),
   });
   const { data: chartsData } = useQuery({
@@ -649,6 +658,7 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
+    placeholderData: (prev: any) => prev,
   });
   const { data: shipmentChartsData } = useQuery({
     queryKey: ["analytics-shipment-charts"],
@@ -656,6 +666,7 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
+    placeholderData: (prev: any) => prev,
   });
   const { data: productPerformance = [], isLoading: isPerfLoading } = useQuery<any[]>({
     queryKey: ["analytics-product-performance"],
