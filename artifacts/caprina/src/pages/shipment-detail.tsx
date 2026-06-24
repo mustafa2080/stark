@@ -3767,7 +3767,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <Phone className="w-3 h-3" />هاتف المستلم
                       </span>
                       <span className="text-sm font-bold" dir="ltr">
-                        {(order as any).receiverPhone || order.phone || "—"}
+                        {(order as any).receiverPhone || (order as any).senderPhone || order.phone || "—"}
                       </span>
                       {(order as any).receiverPhone2 && (
                         <span className="text-xs text-muted-foreground" dir="ltr">{(order as any).receiverPhone2}</span>
