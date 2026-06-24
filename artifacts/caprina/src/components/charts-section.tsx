@@ -1026,9 +1026,9 @@ export function FilteredOrdersList({ status }: { status: string }) {
   const { data: orders, isLoading, error } = useQuery<any[]>({
     queryKey: ["orders-by-status-chart", status],
     queryFn: () => apiFetch<any[]>(`/analytics/orders-by-status?status=${status}`),
-    staleTime: 0,
-    refetchOnMount: true,
-    retry: 1,
+    staleTime: 5 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
   const fc = (n: number) =>
     new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
@@ -1579,25 +1579,25 @@ export function ChartsSection() {
   const { data, isLoading } = useQuery({
     queryKey: ["analytics-charts"],
     queryFn: analyticsApi.charts,
-    staleTime: 0,
-    refetchInterval: 15000,
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: shipmentsStatus } = useQuery({
     queryKey: ["analytics-shipments-status"],
     queryFn: () => apiFetch<{ statusBreakdown: { status: string; count: number; pct: number }[]; total: number }>("/analytics/shipments-status"),
-    staleTime: 0,
-    refetchInterval: 15000,
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: shipmentChartsData } = useQuery({
     queryKey: ["analytics-shipment-charts"],
     queryFn: analyticsApi.shipmentCharts,
-    staleTime: 0,
-    refetchInterval: 15000,
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   if (isLoading) return <Skeleton />;
