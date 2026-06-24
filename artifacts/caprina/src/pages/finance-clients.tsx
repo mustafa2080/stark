@@ -304,13 +304,11 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
             <div><Label className="text-xs mb-1.5 block">هاتف إضافي</Label>
               <Input placeholder="01xxxxxxxxx" className="h-9 text-sm bg-background" value={form.phone2} onChange={e => f("phone2", e.target.value)} /></div>
           </div>
-          <div><Label className="text-xs mb-1.5 block">العنوان</Label>
-            <Input placeholder="الشارع والحي" className="h-9 text-sm bg-background" value={form.address} onChange={e => f("address", e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs mb-1.5 block">المدينة</Label>
-              <Input placeholder="القاهرة" className="h-9 text-sm bg-background" value={form.city} onChange={e => f("city", e.target.value)} /></div>
             <div><Label className="text-xs mb-1.5 block">المحافظة</Label>
-              <Input placeholder="الجيزة" className="h-9 text-sm bg-background" value={form.region} onChange={e => f("region", e.target.value)} /></div>
+              <Input placeholder="القاهرة، الجيزة..." className="h-9 text-sm bg-background" value={form.region} onChange={e => f("region", e.target.value)} /></div>
+            <div><Label className="text-xs mb-1.5 block">العنوان التفصيلي</Label>
+              <Input placeholder="الشارع والحي والمبنى" className="h-9 text-sm bg-background" value={form.address} onChange={e => f("address", e.target.value)} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs mb-1.5 block">شروط الدفع</Label>

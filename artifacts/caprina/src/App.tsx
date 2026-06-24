@@ -385,28 +385,7 @@ function ScrollToTop() {
 
 // ─── Refresh permissions on every route change ───────────────────────────────
 function PermissionRefresher() {
-  const { user, refreshUser } = useAuth();
-  const [location] = useLocation();
-  const prevLocation = useRef<string | null>(null);
-  const refreshingRef = useRef(false);
-
-  useEffect(() => {
-    // نعمل refresh لما يتغير الـ route فقط — مش لما يتغير الـ user
-    if (!user) return;
-    if (refreshingRef.current) return;
-    // مش محتاج refresh على صفحة البروفايل أو الصفحات اللي مش محتاجة permissions
-    const skipRefreshPaths = ["/profile", "/login", "/home", "/subscription-expired"];
-    if (prevLocation.current !== null && prevLocation.current !== location) {
-      if (!skipRefreshPaths.includes(location)) {
-        refreshingRef.current = true;
-        refreshUser().finally(() => {
-          refreshingRef.current = false;
-        });
-      }
-    }
-    prevLocation.current = location;
-  }, [location]); // عمداً أزلنا user من الـ dependencies عشان نمنع الـ loop
-
+  // الـ polling في AuthContext كل 60 ثانية كافي — لا حاجة لـ refresh عند كل route change
   return null;
 }
 
