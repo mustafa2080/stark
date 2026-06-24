@@ -207,10 +207,16 @@ function normalizeUser(u: AuthUser): AuthUser {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // لو في user محفوظ → نبدأ بـ false مباشرةً، مش محتاجين نستنى fetchMe
+  const hasStoredUser = !!(
+    typeof window !== "undefined" &&
+    localStorage.getItem(TOKEN_KEY) &&
+    localStorage.getItem(USER_KEY)
+  );
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasStoredUser);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const recordLogin = useCallback(
@@ -342,7 +348,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem(USER_KEY);
             setToken(null); setUser(null);
           }
-          setLoading(false);
+          // loading بيبقى false من الأول لو في stored user — نحدّثه بس لو كان true
+          setLoading(prev => prev ? false : prev);
         });
         startPolling(savedToken);
       } catch {
