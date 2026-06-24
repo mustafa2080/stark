@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Truck } from "lucide-react";
+import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
-
-interface ShippingCompany { id: number; name: string; isActive?: boolean }
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
@@ -76,7 +74,6 @@ export default function NewShipmentPage() {
   const { data: clients = [] }       = useQuery<ShipmentClient[]>({ queryKey: ["clients-list-basic"],  queryFn: () => apiFetch<any[]>("/finance/clients").then(d => (d || []).filter((c: any) => c && typeof c.name === "string" && c.name.trim() !== "")) });
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
-  const { data: shippingCompanies = [] } = useQuery<ShippingCompany[]>({ queryKey: ["shipping-companies-list"], queryFn: () => apiFetch("/shipping-companies") });
 
   const selectedZone    = zones.find(z => String(z.id) === form.zoneId);
   const selectedPricing = parcelPricing.find(p => p.parcelType === form.parcelType);
@@ -302,37 +299,6 @@ export default function NewShipmentPage() {
             </Select>
             {!form.warehouseId && <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">⚠ اختر المخزن لتحديد مكان الشحنة</p>}
             {form.warehouseId && <p className="text-[10px] text-teal-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" />الشحنة ستُودَع في هذا المخزن عند الاستلام</p>}
-          </div>
-        </section>
-
-        {/* شركة الشحن */}
-        <section className="space-y-4 rounded-xl border border-sky-900/40 bg-sky-900/5 p-4">
-          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-            <Truck className="w-3.5 h-3.5 text-sky-400" /> مناديب STARK — شركة الشحن
-          </h3>
-          <div>
-            <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Truck className="w-3 h-3" /> شركة الشحن <span className="text-red-500">*</span></Label>
-            <Select value={form.shippingCompanyId || "none"} onValueChange={v => set("shippingCompanyId", v === "none" ? "" : v)}>
-              <SelectTrigger className="text-sm h-10 bg-card">
-                <div className="flex items-center gap-2">
-                  <Truck className="w-3.5 h-3.5 text-sky-400" />
-                  <SelectValue placeholder="اختر شركة الشحن..." />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— غير محدد —</SelectItem>
-                {shippingCompanies.filter(c => c.isActive !== false).map(c => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    <div className="flex items-center gap-2">
-                      <Truck className="w-3 h-3 text-sky-400" />
-                      <span>{c.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!form.shippingCompanyId && <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">⚠ اختر شركة الشحن لربط الشحنة بالبيان</p>}
-            {form.shippingCompanyId && <p className="text-[10px] text-sky-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />تم تحديد شركة الشحن — ستظهر الشحنة في بيانات هذه الشركة</p>}
           </div>
         </section>
 
