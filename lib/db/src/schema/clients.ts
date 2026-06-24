@@ -32,6 +32,9 @@ export const clientsTable = mysqlTable("clients", {
   totalSales:     decimal("total_sales", { precision: 14, scale: 2 }).default("0"),
   totalPaid:      decimal("total_paid",  { precision: 14, scale: 2 }).default("0"),
 
+  // ── مخزن مرتبط ────────────────────────────────────────────────────────
+  warehouseId:    int("warehouse_id"),                                      // المخزن المرتبط بالعميل (اختياري)
+
   // ── ميتا ──────────────────────────────────────────────────────────────
   notes:          text("notes"),
   isActive:       boolean("is_active").default(true),

@@ -22,6 +22,7 @@ const ClientSchema = z.object({
   isActive:      z.boolean().default(true),
   avatar:        z.string().nullish(),
   clientType:    z.enum(["normal", "commercial", "vip"]).nullish(),
+  warehouseId:   z.number().nullish(),
 });
 
 // ── حساب نوع العميل تلقائياً بناءً على عدد الشحنات الشهرية ────────────

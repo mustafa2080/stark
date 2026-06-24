@@ -37,7 +37,7 @@ type Client = {
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
-  clientType: ClientType | null;
+  clientType: ClientType | null; warehouseId: number | null;
 };
 
 // ── Tier config & badge ────────────────────────────────────────────────────
@@ -95,6 +95,7 @@ const emptyForm = {
   name: "", phone: "", phone2: "", email: "", address: "", city: "", region: "",
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
   creditLimit: "0", notes: "", isActive: true, avatar: "", clientType: "normal" as ClientType,
+  warehouseId: "" as string,
 };
 
 // ── Column Filter Dropdown ────────────────────────────────────────────────
@@ -193,6 +194,12 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
 }) {
   const { toast } = useToast();
   const isEdit = !!editClient;
+
+  // جلب المخازن
+  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["warehouses-list"],
+    queryFn: () => apiFetch("/warehouses"),
+  });
   const [form, setForm] = useState(() => editClient ? {
     name: editClient.name, phone: editClient.phone ?? "", phone2: editClient.phone2 ?? "",
     email: editClient.email ?? "", address: editClient.address ?? "",
@@ -203,6 +210,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     notes: editClient.notes ?? "", isActive: editClient.isActive,
     avatar: editClient.avatar ?? "🧑‍💼",
     clientType: (editClient.clientType ?? "normal") as ClientType,
+    warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
   } : { ...emptyForm });
 
   const mutation = useMutation({
@@ -216,6 +224,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         creditLimit: parseFloat(form.creditLimit) || 0,
         notes: form.notes || null, isActive: form.isActive, avatar: form.avatar || "🧑‍💼",
         clientType: form.clientType || "normal",
+        warehouseId: form.warehouseId ? parseInt(form.warehouseId) : null,
       };
       if (isEdit) return apiFetch<any>(`/finance/clients/${editClient!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       return apiFetch<any>("/finance/clients", { method: "POST", body: JSON.stringify(body) });
@@ -336,6 +345,21 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
                 ? "عميل تجاري — من ٢٠١ إلى ٥٠٠ شحنة شهرياً، يحصل على سعر مخفَّض"
                 : "عميل VIP — من ٥٠١ إلى ١٠٠٠ شحنة شهرياً، يحصل على أفضل سعر"}
             </p>
+          </div>
+          {/* المخزن المرتبط بالعميل */}
+          <div>
+            <Label className="text-xs mb-1.5 block">المخزن المرتبط</Label>
+            <Select value={form.warehouseId || "none"} onValueChange={v => f("warehouseId", v === "none" ? "" : v)}>
+              <SelectTrigger className="h-9 text-sm bg-background">
+                <SelectValue placeholder="اختر مخزن (اختياري)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— بدون مخزن —</SelectItem>
+                {warehouses.map(w => (
+                  <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-md">
             <span className="text-xs font-medium">حالة العميل</span>
