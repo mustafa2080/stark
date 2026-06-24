@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,7 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
   | "waiting" | "confirmed" | "picked_up" | "in_transit"
   | "out_for_delivery" | "delivered" | "partial_received" | "delayed" | "returned" | "cancelled";
@@ -69,24 +69,24 @@ interface Shipment {
   createdByName?: string;
 }
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CFG: Record<ShipmentStatus, { label: string; icon: React.ElementType; cls: string }> = {
-  waiting:          { label: "ط§ظ†طھط¸ط§ط±",          icon: Clock,        cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"    },
-  confirmed:        { label: "ظ…ط¤ظƒط¯ط©",           icon: CheckCircle,  cls: "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700"          },
-  picked_up:        { label: "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ…",     icon: Package,      cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700"           },
-  in_transit:       { label: "ظ‚ظٹط¯ ط§ظ„ط´ط­ظ†",       icon: Truck,        cls: "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700"},
-  out_for_delivery: { label: "ط®ط±ط¬طھ ظ„ظ„طھط³ظ„ظٹظ…",   icon: MapPin,       cls: "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700"     },
-  delivered:        { label: "طھظ… ط§ظ„طھط³ظ„ظٹظ…",      icon: CheckCircle,  cls: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700"},
-  partial_received: { label: "ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹ",    icon: Package,      cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700"              },
-  delayed:          { label: "ظ…طھط£ط®ط±ط©",          icon: AlertTriangle,cls: "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-700"},
-  returned:         { label: "ظ…ط±طھط¬ط¹",           icon: RefreshCw,    cls: "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700"                },
-  cancelled:        { label: "ظ…ظ„ط؛ظٹط©",           icon: XCircle,      cls: "bg-zinc-100 dark:bg-zinc-800/40 text-zinc-500 dark:text-zinc-400 border-zinc-300 dark:border-zinc-600"          },
+  waiting:          { label: "انتظار",          icon: Clock,        cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"    },
+  confirmed:        { label: "مؤكدة",           icon: CheckCircle,  cls: "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700"          },
+  picked_up:        { label: "تم الاستلام",     icon: Package,      cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700"           },
+  in_transit:       { label: "قيد الشحن",       icon: Truck,        cls: "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700"},
+  out_for_delivery: { label: "خرجت للتسليم",   icon: MapPin,       cls: "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700"     },
+  delivered:        { label: "تم التسليم",      icon: CheckCircle,  cls: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700"},
+  partial_received: { label: "استلام جزئي",    icon: Package,      cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700"              },
+  delayed:          { label: "متأخرة",          icon: AlertTriangle,cls: "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-700"},
+  returned:         { label: "مرتجع",           icon: RefreshCw,    cls: "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700"                },
+  cancelled:        { label: "ملغية",           icon: XCircle,      cls: "bg-zinc-100 dark:bg-zinc-800/40 text-zinc-500 dark:text-zinc-400 border-zinc-300 dark:border-zinc-600"          },
 };
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  cod:      "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…",
-  prepaid:  "ظ…ط¯ظپظˆط¹ ظ…ط³ط¨ظ‚ط§ظ‹",
-  deferred: "ط§ظ„ط¯ظپط¹ ظ„ط§ط­ظ‚",
+  cod:      "الدفع عند الاستلام",
+  prepaid:  "مدفوع مسبقاً",
+  deferred: "الدفع لاحق",
 };
 const PAYMENT_COLORS: Record<PaymentMethod, string> = {
   cod:      "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700",
@@ -95,15 +95,15 @@ const PAYMENT_COLORS: Record<PaymentMethod, string> = {
 };
 
 const PARCEL_LABELS: Record<ParcelType, string> = {
-  document: "ظ…ط³طھظ†ط¯ط§طھ", normal: "ط·ط±ط¯ ط¹ط§ط¯ظٹ", fragile: "ظ‚ط§ط¨ظ„ ظ„ظ„ظƒط³ط±",
-  heavy: "ط«ظ‚ظٹظ„", electronics: "ط¥ظ„ظƒطھط±ظˆظ†ظٹط§طھ", clothing: "ظ…ظ„ط§ط¨ط³",
-  food: "ط·ط¹ط§ظ…", other: "ط£ط®ط±ظٹ",
+  document: "مستندات", normal: "طرد عادي", fragile: "قابل للكسر",
+  heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس",
+  food: "طعام", other: "أخرى",
 };
 
 const fc  = (n: number | string) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 const fmt = (d: string)          => new Date(d).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" });
 
-// â”€â”€â”€ API helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── API helpers ──────────────────────────────────────────────────────────────
 function apiHeaders() {
   const token = localStorage.getItem("caprina_token");
   return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -114,7 +114,7 @@ async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
   return r.json();
 }
 
-// â”€â”€â”€ Excel-style Column Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Excel-style Column Filter ────────────────────────────────────────────────
 type ShipColKey = "num" | "date" | "sender" | "receiver" | "city" | "parcel" | "payment" | "fee" | "cod" | "status" | "creator";
 type ShipColFilters = Record<ShipColKey, Set<string>>;
 
@@ -164,7 +164,7 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
 
   return (
     <>
-      <button ref={btnRef} type="button" onClick={handleOpen} title="ظپظ„طھط±"
+      <button ref={btnRef} type="button" onClick={handleOpen} title="فلتر"
         className={`inline-flex items-center justify-center w-5 h-5 rounded transition-all shrink-0 ${active ? "text-primary bg-primary/15" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
         {active ? (
           <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
@@ -178,20 +178,20 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
           <div className="flex gap-1 p-2 border-b border-border/50">
             <button type="button" onClick={() => { onSort(col, "asc"); setOpen(false); }}
               className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${isSorted && sortDir === "asc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
-              <ChevronUp className="w-2.5 h-2.5" />ط£â†’ظٹ
+              <ChevronUp className="w-2.5 h-2.5" />أ↑ي
             </button>
             <button type="button" onClick={() => { onSort(col, "desc"); setOpen(false); }}
               className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${isSorted && sortDir === "desc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
-              <ChevronDown className="w-2.5 h-2.5" />ظٹâ†’ط£
+              <ChevronDown className="w-2.5 h-2.5" />ي↑أ
             </button>
           </div>
           <div className="px-2 pt-2">
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ط¨ط­ط« ظپظٹ ط§ظ„ظ‚ظٹظ…..."
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث في القيم..."
               className="w-full h-7 text-[10px] px-2 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
           <div className="max-h-52 overflow-y-auto px-1 py-1.5 flex flex-col gap-0.5">
             {opts.length === 0
-              ? <p className="text-muted-foreground text-center py-3 text-[10px]">ظ„ط§ طھظˆط¬ط¯ ظ‚ظٹظ…</p>
+              ? <p className="text-muted-foreground text-center py-3 text-[10px]">لا توجد قيم</p>
               : opts.map(val => (
                 <label key={val} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer">
                   <input type="checkbox" checked={colFilters[col].has(val)} onChange={() => toggleColFilter(col, val)} className="accent-primary w-3 h-3 shrink-0" />
@@ -203,7 +203,7 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
           {active && (
             <div className="border-t border-border/50 px-2 py-1.5">
               <button type="button" onClick={() => { clearColFilter(col); setOpen(false); }}
-                className="text-destructive text-[10px] hover:underline w-full text-right">ظ…ط³ط­ ط§ظ„ظپظ„طھط±</button>
+                className="text-destructive text-[10px] hover:underline w-full text-right">مسح الفلتر</button>
             </div>
           )}
         </div>,
@@ -213,7 +213,7 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
   );
 }
 
-// â”€â”€â”€ Status Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Status Badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: ShipmentStatus }) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.waiting;
   const Icon = cfg.icon;
@@ -225,7 +225,7 @@ function StatusBadge({ status }: { status: ShipmentStatus }) {
   );
 }
 
-// â”€â”€â”€ Summary KPI Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Summary KPI Cards ────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; value: string | number; sub?: string; icon: React.ElementType; color: string }) {
   return (
     <Card className="border-border bg-card">
@@ -243,14 +243,14 @@ function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; valu
   );
 }
 
-// â”€â”€â”€ New Shipment Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── New Shipment Form ────────────────────────────────────────────────────────
 const AD_SOURCES = [
-  { value: "facebook",  label: "ظپظٹط³ط¨ظˆظƒ" },
-  { value: "tiktok",   label: "طھظٹظƒ طھظˆظƒ" },
-  { value: "instagram", label: "ط¥ظ†ط³طھط¬ط±ط§ظ…" },
-  { value: "whatsapp", label: "ظˆط§طھط³ط§ط¨" },
-  { value: "organic",  label: "ظˆظٹط¨ط³ط§ظٹطھ" },
-  { value: "other",    label: "ط£ط®ط±ظ‰" },
+  { value: "facebook",  label: "فيسبوك" },
+  { value: "tiktok",   label: "تيك توك" },
+  { value: "instagram", label: "إنستجرام" },
+  { value: "whatsapp", label: "واتساب" },
+  { value: "organic",  label: "ويبسايت" },
+  { value: "other",    label: "أخرى" },
 ];
 
 const AdSourceIcon = ({ value, className = "w-4 h-4 shrink-0" }: { value: string; className?: string }) => {
@@ -328,15 +328,15 @@ function ShipmentFormDialog({
     mutationFn: (data: any) => apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipments"] });
-      toast({ title: "طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط´ط­ظ†ط© ط¨ظ†ط¬ط§ط­ âœ…" });
+      toast({ title: "تم إنشاء الشحنة بنجاح ✅" });
       onClose();
     },
-    onError: (e: any) => toast({ title: "ط®ط·ط£", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   function handleSubmit() {
     if (!form.senderName || !form.receiverName) {
-      toast({ title: "ط§ظ„ط­ظ‚ظˆظ„ ط§ظ„ظ…ط·ظ„ظˆط¨ط©", description: "ط§ط³ظ… ط§ظ„ظ…ط±ط³ظ„ ظˆط§ط³ظ… ط§ظ„ظ…ط³طھظ„ظ… ظ…ط·ظ„ظˆط¨ط§ظ†", variant: "destructive" });
+      toast({ title: "الحقول المطلوبة", description: "اسم المرسل واسم المستلم مطلوبان", variant: "destructive" });
       return;
     }
     mutation.mutate({
@@ -378,22 +378,22 @@ function ShipmentFormDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-black">
-            <Package className="w-4 h-4 text-primary" /> ط´ط­ظ†ط© ط¬ط¯ظٹط¯ط©
+            <Package className="w-4 h-4 text-primary" /> شحنة جديدة
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 pt-2">
 
-          {/* â”€â”€ ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط±ط³ظ„ / ط§ظ„ط¹ظ…ظٹظ„ â”€â”€ */}
+          {/* ── بيانات المرسل / العميل ── */}
           <section className="space-y-3">
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <User className="w-3.5 h-3.5" /> ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط±ط³ظ„ / ط§ظ„ط¹ظ…ظٹظ„
+              <User className="w-3.5 h-3.5" /> بيانات المرسل / العميل
             </h3>
             <div>
-              <Label className="text-xs font-bold mb-1.5 block">ط§ظ„ط¹ظ…ظٹظ„ (ط§ط®طھظٹط§ط±ظٹ)</Label>
+              <Label className="text-xs font-bold mb-1.5 block">العميل (اختياري)</Label>
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input className="pr-9 text-sm" placeholder="ط§ط¨ط­ط« ط¨ط§ط³ظ… ط§ظ„ط¹ظ…ظٹظ„ ط£ظˆ ط±ظ‚ظ…ظ‡..."
+                <Input className="pr-9 text-sm" placeholder="ابحث باسم العميل أو رقمه..."
                   value={clientSearch}
                   onChange={e => { setClientSearch(e.target.value); setShowClientList(true); }}
                   onFocus={() => setShowClientList(true)} />
@@ -416,53 +416,53 @@ function ShipmentFormDialog({
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label className="text-xs font-bold mb-1.5 block">ط§ط³ظ… ط§ظ„ط±ط§ط³ظ„ <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„" value={form.senderName} onChange={e => set("senderName", e.target.value)} /></div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ</Label><Input className="text-sm" placeholder="01XXXXXXXXX" value={form.senderPhone} onChange={e => set("senderPhone", e.target.value)} /></div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ظ‡ط§طھظپ 2</Label><Input className="text-sm" placeholder="ط±ظ‚ظ… ط¨ط¯ظٹظ„" value={form.senderPhone2} onChange={e => set("senderPhone2", e.target.value)} /></div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ط§ظ„ظ…ط¯ظٹظ†ط©</Label><Input className="text-sm" placeholder="ظ…ط¯ظٹظ†ط© ط§ظ„ظ…ط±ط³ظ„" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">اسم الراسل <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="الاسم الكامل" value={form.senderName} onChange={e => set("senderName", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">رقم الهاتف</Label><Input className="text-sm" placeholder="01XXXXXXXXX" value={form.senderPhone} onChange={e => set("senderPhone", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">هاتف 2</Label><Input className="text-sm" placeholder="رقم بديل" value={form.senderPhone2} onChange={e => set("senderPhone2", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">المدينة</Label><Input className="text-sm" placeholder="مدينة المرسل" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} /></div>
             </div>
           </section>
 
-          {/* â”€â”€ ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط³طھظ„ظ… â”€â”€ */}
+          {/* ── بيانات المستلم ── */}
           <section className="space-y-3">
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <MapPin className="w-3.5 h-3.5" /> ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط³طھظ„ظ… ظˆط§ظ„ط¹ظ†ظˆط§ظ†
+              <MapPin className="w-3.5 h-3.5" /> بيانات المستلم والعنوان
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label className="text-xs font-bold mb-1.5 block">ط§ط³ظ… ط§ظ„ظ…ط³طھظ„ظ… <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„" value={form.receiverName} onChange={e => set("receiverName", e.target.value)} /></div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ</Label><Input className="text-sm" placeholder="01XXXXXXXXX" value={form.receiverPhone} onChange={e => set("receiverPhone", e.target.value)} /></div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ظ‡ط§طھظپ 2</Label><Input className="text-sm" placeholder="ط±ظ‚ظ… ط¨ط¯ظٹظ„" value={form.receiverPhone2} onChange={e => set("receiverPhone2", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">اسم المستلم <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="الاسم الكامل" value={form.receiverName} onChange={e => set("receiverName", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">رقم الهاتف</Label><Input className="text-sm" placeholder="01XXXXXXXXX" value={form.receiverPhone} onChange={e => set("receiverPhone", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">هاتف 2</Label><Input className="text-sm" placeholder="رقم بديل" value={form.receiverPhone2} onChange={e => set("receiverPhone2", e.target.value)} /></div>
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">ط§ظ„ظ…ظ†ط·ظ‚ط© / ط§ظ„ظ…ط¯ظٹظ†ط©</Label>
+                <Label className="text-xs font-bold mb-1.5 block">المنطقة / المدينة</Label>
                 <Select value={form.zoneId} onValueChange={v => set("zoneId", v)}>
-                  <SelectTrigger className="text-sm"><SelectValue placeholder="ط§ط®طھط± ط§ظ„ظ…ظ†ط·ظ‚ط©..." /></SelectTrigger>
+                  <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المنطقة..." /></SelectTrigger>
                   <SelectContent>
                     {zones.filter(z => z.isActive !== false).map(z => (
                       <SelectItem key={z.id} value={String(z.id)}>
                         <div className="flex items-center justify-between gap-4 w-full">
-                          <span>{z.name}{z.governorate ? ` â€” ${z.governorate}` : ""}</span>
+                          <span>{z.name}{z.governorate ? ` – ${z.governorate}` : ""}</span>
                           <span className="text-xs text-muted-foreground font-bold">{fc(Number(z.price))}</span>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedZone && <p className="text-[10px] text-primary mt-1">ط³ط¹ط± ط§ظ„طھظˆطµظٹظ„: {fc(Number(selectedZone.price))}</p>}
+                {selectedZone && <p className="text-[10px] text-primary mt-1">سعر التوصيل: {fc(Number(selectedZone.price))}</p>}
               </div>
-              <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">ط§ظ„ط¹ظ†ظˆط§ظ† ط§ظ„طھظپطµظٹظ„ظٹ</Label><Input className="text-sm" placeholder="ط§ظ„ط´ط§ط±ط¹طŒ ط§ظ„ظ…ط¨ظ†ظ‰طŒ ط§ظ„ط´ظ‚ط©..." value={form.receiverAddress} onChange={e => set("receiverAddress", e.target.value)} /></div>
+              <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">العنوان التفصيلي</Label><Input className="text-sm" placeholder="الشارعطŒ المث¨نىطŒ الشقة..." value={form.receiverAddress} onChange={e => set("receiverAddress", e.target.value)} /></div>
             </div>
           </section>
 
-          {/* â”€â”€ طھظپط§طµظٹظ„ ط§ظ„ط´ط­ظ†ط© â”€â”€ */}
+          {/* ── تفاصيل الشحنة ── */}
           <section className="space-y-3">
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <Boxes className="w-3.5 h-3.5" /> طھظپط§طµظٹظ„ ط§ظ„ط´ط­ظ†ط©
+              <Boxes className="w-3.5 h-3.5" /> تفاصيل الشحنة
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">ظ†ظˆط¹ ط§ظ„ط´ط­ظ†ط©</Label>
+                <Label className="text-xs font-bold mb-1.5 block">نوع الشحنة</Label>
                 <Select value={form.parcelType} onValueChange={v => set("parcelType", v as ParcelType)}>
-                  <SelectTrigger className="text-sm"><SelectValue placeholder="ط§ط®طھط± ظ†ظˆط¹ ط§ظ„ط´ط­ظ†ط©..." /></SelectTrigger>
+                  <SelectTrigger className="text-sm"><SelectValue placeholder="اختر نوع الشحنة..." /></SelectTrigger>
                   <SelectContent>
                     {parcelPricing.filter(p => (p as any).isActive !== false).map(p => (
                       <SelectItem key={p.id} value={p.parcelType}>
@@ -474,23 +474,23 @@ function ShipmentFormDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedPricing && <p className="text-[10px] text-primary mt-1">ط³ط¹ط± ط§ظ„ظ†ظˆط¹: {fc(Number(selectedPricing.basePrice))}</p>}
+                {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {fc(Number(selectedPricing.basePrice))}</p>}
               </div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ط§ظ„ظˆط²ظ† (ظƒط¬ظ…)</Label><Input type="number" className="text-sm" placeholder="0.00" value={form.weight} onChange={e => set("weight", e.target.value)} /></div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ط¹ط¯ط¯ ط§ظ„ظ‚ط·ط¹</Label><Input type="number" min="1" className="text-sm" value={form.pieces} onChange={e => set("pieces", e.target.value)} /></div>
-              <div><Label className="text-xs font-bold mb-1.5 block">ط§ظ„ظ‚ظٹظ…ط© ط§ظ„ظ…ط¹ظ„ظ†ط© (ط¬ظ†ظٹظ‡)</Label><Input type="number" className="text-sm" placeholder="0" value={form.declaredValue} onChange={e => set("declaredValue", e.target.value)} /></div>
-              <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">ظˆطµظپ ط§ظ„ط´ط­ظ†ط©</Label><Input className="text-sm" placeholder="ظ…ط­طھظˆظ‰ ط§ظ„ط´ط­ظ†ط©..." value={form.description} onChange={e => set("description", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">الوزن (كجم)</Label><Input type="number" className="text-sm" placeholder="0.00" value={form.weight} onChange={e => set("weight", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">عدد القطع</Label><Input type="number" min="1" className="text-sm" value={form.pieces} onChange={e => set("pieces", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">القيمث© المث¹لنة (جنيه)</Label><Input type="number" className="text-sm" placeholder="0" value={form.declaredValue} onChange={e => set("declaredValue", e.target.value)} /></div>
+              <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">وصف الشحنة</Label><Input className="text-sm" placeholder="محتوى الشحنة..." value={form.description} onChange={e => set("description", e.target.value)} /></div>
             </div>
           </section>
 
-          {/* â”€â”€ ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط§ظ„ظٹط© â”€â”€ */}
+          {/* ── البيانات المالية ── */}
           <section className="space-y-3">
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <CreditCard className="w-3.5 h-3.5" /> ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط§ظ„ظٹط©
+              <CreditCard className="w-3.5 h-3.5" /> البيانات المالية
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-3">
-                <Label className="text-xs font-bold mb-2 block">ط·ط±ظٹظ‚ط© ط§ظ„ط¯ظپط¹</Label>
+                <Label className="text-xs font-bold mb-2 block">طريقة الدفع</Label>
                 <div className="flex flex-wrap gap-2">
                   {(["cod","prepaid","deferred"] as PaymentMethod[]).map(m => (
                     <button key={m} type="button" onClick={() => set("paymentMethod", m)}
@@ -501,19 +501,19 @@ function ShipmentFormDialog({
                 </div>
               </div>
               {form.paymentMethod === "cod" && (
-                <div><Label className="text-xs font-bold mb-1.5 block">ظ…ط¨ظ„ط؛ ط§ظ„طھط­طµظٹظ„ (COD)</Label><Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} /></div>
+                <div><Label className="text-xs font-bold mb-1.5 block">مبلغ التحصيل (COD)</Label><Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} /></div>
               )}
-              <div><Label className="text-xs font-bold mb-1.5 block">ط±ط³ظˆظ… ط§ظ„طھط£ظ…ظٹظ†</Label><Input type="number" className="text-sm" placeholder="0" value={form.insuranceFee} onChange={e => set("insuranceFee", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">رسوم التأمين</Label><Input type="number" className="text-sm" placeholder="0" value={form.insuranceFee} onChange={e => set("insuranceFee", e.target.value)} /></div>
             </div>
-            {/* ظ…ظ„ط®طµ ط§ظ„ط­ط³ط§ط¨ */}
+            {/* ملخص الحساب */}
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
-              <h4 className="text-xs font-black text-primary">ظ…ظ„ط®طµ ط§ظ„طھظƒط§ظ„ظٹظپ</h4>
+              <h4 className="text-xs font-black text-primary">ملخص التكاليف</h4>
               <div className="space-y-1.5">
                 {[
-                  { label: "ط³ط¹ط± ظ…ظ†ط·ظ‚ط© ط§ظ„طھظˆطµظٹظ„", value: fc(zonePrice) },
-                  { label: "ط¥ط¶ط§ظپط© ظ†ظˆط¹ ط§ظ„ط´ط­ظ†ط©",  value: fc(parcelPrice) },
-                  { label: "ط±ط³ظˆظ… ط§ظ„طھط£ظ…ظٹظ†",       value: fc(insurance) },
-                  form.paymentMethod === "cod" ? { label: "ظ…ط¨ظ„ط؛ ط§ظ„طھط­طµظٹظ„ (COD)", value: fc(cod), highlight: true } : null,
+                  { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
+                  { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
+                  { label: "رسوم التأمين",       value: fc(insurance) },
+                  form.paymentMethod === "cod" ? { label: "مبلغ التحصيل (COD)", value: fc(cod), highlight: true } : null,
                 ].filter(Boolean).map((row: any, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{row.label}</span>
@@ -521,57 +521,57 @@ function ShipmentFormDialog({
                   </div>
                 ))}
                 <div className="flex items-center justify-between text-sm font-black border-t border-primary/20 pt-2 mt-1">
-                  <span>ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ</span>
+                  <span>الإجمث§لي</span>
                   <span className="text-primary">{fc(total)}</span>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* â”€â”€ ظ…ظ„ط§ط­ط¸ط§طھ â”€â”€ */}
+          {/* ── ملاحظات ── */}
           <div>
-            <Label className="text-xs font-bold mb-1.5 block">ظ…ظ„ط§ط­ط¸ط§طھ</Label>
-            <Input className="text-sm" placeholder="ط£ظٹ طھط¹ظ„ظٹظ…ط§طھ ط®ط§طµط©..." value={form.notes} onChange={e => set("notes", e.target.value)} />
+            <Label className="text-xs font-bold mb-1.5 block">ملاحظات</Label>
+            <Input className="text-sm" placeholder="أي تعليمات خاصة..." value={form.notes} onChange={e => set("notes", e.target.value)} />
           </div>
 
-          {/* â”€â”€ ط§ظ„ظ…ط®ط²ظ† â”€â”€ */}
+          {/* ── المخزن ── */}
           <section className="space-y-3 rounded-xl border border-teal-900/40 bg-teal-900/5 p-4">
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <Warehouse className="w-3.5 h-3.5 text-teal-400" /> ط§ظ„ظ…ط®ط²ظ†
+              <Warehouse className="w-3.5 h-3.5 text-teal-400" /> المخزن
             </h3>
             <div>
-              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Warehouse className="w-3 h-3" /> ط§ط®طھط± ط§ظ„ظ…ط®ط²ظ† <span className="text-red-500">*</span></Label>
+              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Warehouse className="w-3 h-3" /> اختر المخزن <span className="text-red-500">*</span></Label>
               <Select value={form.warehouseId || "none"} onValueChange={v => set("warehouseId", v === "none" ? "" : v)}>
                 <SelectTrigger className="text-sm h-10 bg-card">
-                  <div className="flex items-center gap-2"><Warehouse className="w-3.5 h-3.5 text-teal-400" /><SelectValue placeholder="ط§ط®طھط± ط§ظ„ظ…ط®ط²ظ†..." /></div>
+                  <div className="flex items-center gap-2"><Warehouse className="w-3.5 h-3.5 text-teal-400" /><SelectValue placeholder="اختر المخزن..." /></div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">â€” ط؛ظٹط± ظ…ط­ط¯ط¯ â€”</SelectItem>
+                  <SelectItem value="none">– غير محدد –</SelectItem>
                   {warehouses.map((w: any) => (
                     <SelectItem key={w.id} value={String(w.id)}>
-                      <div className="flex items-center gap-2"><Warehouse className="w-3 h-3 text-teal-400" /><span>{w.name}{w.city ? ` â€” ${w.city}` : ""}{w.isDefault ? " âک…" : ""}</span></div>
+                      <div className="flex items-center gap-2"><Warehouse className="w-3 h-3 text-teal-400" /><span>{w.name}{w.city ? ` – ${w.city}` : ""}{w.isDefault ? " ⭐" : ""}</span></div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {!form.warehouseId && <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">âڑ  ط§ط®طھط± ط§ظ„ظ…ط®ط²ظ† ظ„طھط­ط¯ظٹط¯ ظ…ظƒط§ظ† ط§ظ„ط´ط­ظ†ط©</p>}
-              {form.warehouseId  && <p className="text-[10px] text-teal-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" />ط§ظ„ط´ط­ظ†ط© ط³طھظڈظˆط¯ظژط¹ ظپظٹ ظ‡ط°ط§ ط§ظ„ظ…ط®ط²ظ† ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…</p>}
+              {!form.warehouseId && <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">⚠️  اختر المخزن لتحديد مكان الشحنة</p>}
+              {form.warehouseId  && <p className="text-[10px] text-teal-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" />الشحنة ستوضع في هذا المخزن عند الاستلام</p>}
             </div>
           </section>
 
-          {/* â”€â”€ ط´ط±ظƒط© ط§ظ„ط´ط­ظ† â”€â”€ */}
+          {/* ── شركة الشحن ── */}
           <section className="space-y-3 rounded-xl border border-sky-900/40 bg-sky-900/5 p-4">
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <Truck className="w-3.5 h-3.5 text-sky-400" /> ط´ط±ظƒط© ط§ظ„ط´ط­ظ†
+              <Truck className="w-3.5 h-3.5 text-sky-400" /> شركة الشحن
             </h3>
             <div>
-              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Truck className="w-3 h-3" /> ط´ط±ظƒط© ط§ظ„ط´ط­ظ†</Label>
+              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Truck className="w-3 h-3" /> شركة الشحن</Label>
               <Select value={form.shippingCompanyId || "none"} onValueChange={v => set("shippingCompanyId", v === "none" ? "" : v)}>
                 <SelectTrigger className="text-sm h-10 bg-card">
-                  <div className="flex items-center gap-2"><Truck className="w-3.5 h-3.5 text-sky-400" /><SelectValue placeholder="ط§ط®طھط± ط´ط±ظƒط© ط§ظ„ط´ط­ظ†..." /></div>
+                  <div className="flex items-center gap-2"><Truck className="w-3.5 h-3.5 text-sky-400" /><SelectValue placeholder="اختر شركة الشحن..." /></div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">â€” ط؛ظٹط± ظ…ط­ط¯ط¯ â€”</SelectItem>
+                  <SelectItem value="none">– غير محدد –</SelectItem>
                   {shippingCompanies.filter(c => c.isActive !== false).map(c => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       <div className="flex items-center gap-2"><Truck className="w-3 h-3 text-sky-400" /><span>{c.name}</span></div>
@@ -579,21 +579,21 @@ function ShipmentFormDialog({
                   ))}
                 </SelectContent>
               </Select>
-              {form.shippingCompanyId && <p className="text-[10px] text-sky-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />طھظ… طھط­ط¯ظٹط¯ ط´ط±ظƒط© ط§ظ„ط´ط­ظ†</p>}
+              {form.shippingCompanyId && <p className="text-[10px] text-sky-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />تم تحديد شركة الشحن</p>}
             </div>
           </section>
 
-          {/* â”€â”€ طھطھط¨ط¹ ط§ظ„ط¥ط¹ظ„ط§ظ† ظˆط§ظ„ظپط±ظٹظ‚ â”€â”€ */}
+          {/* ── تتبع الإعلان والفريق ── */}
           <section className="space-y-3 rounded-xl border border-purple-900/40 bg-purple-900/5 p-4">
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <Megaphone className="w-3.5 h-3.5 text-purple-400" /> طھطھط¨ط¹ ط§ظ„ط¥ط¹ظ„ط§ظ† ظˆط§ظ„ظپط±ظٹظ‚
+              <Megaphone className="w-3.5 h-3.5 text-purple-400" /> تتبع الإعلان والفريق
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Megaphone className="w-3 h-3" /> ظ…طµط¯ط± ط§ظ„ط·ظ„ط¨</Label>
+                <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Megaphone className="w-3 h-3" /> مثµدر الطلب</Label>
                 <Select value={form.adSource || "none"} onValueChange={v => set("adSource", v === "none" ? "" : v)}>
                   <SelectTrigger className="text-sm h-10 bg-card">
-                    <SelectValue placeholder="ط§ط®طھط± ط§ظ„ظ…طµط¯ط±">
+                    <SelectValue placeholder="اختر المصدر">
                       {form.adSource && form.adSource !== "none" && (
                         <span className="flex items-center gap-2">
                           <AdSourceIcon value={form.adSource} />
@@ -603,7 +603,7 @@ function ShipmentFormDialog({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">â€” ط؛ظٹط± ظ…ط­ط¯ط¯ â€”</SelectItem>
+                    <SelectItem value="none">– غير محدد –</SelectItem>
                     {AD_SOURCES.map(s => (
                       <SelectItem key={s.value} value={s.value}>
                         <span className="flex items-center gap-2"><AdSourceIcon value={s.value} />{s.label}</span>
@@ -613,16 +613,16 @@ function ShipmentFormDialog({
                 </Select>
               </div>
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">ط§ط³ظ… ط§ظ„ط­ظ…ظ„ط©</Label>
+                <Label className="text-xs font-bold mb-1.5 block">اسم الحملة</Label>
                 <Input className="text-sm h-10 bg-card" placeholder="Summer 2025..." value={form.adCampaign} onChange={e => set("adCampaign", e.target.value)} />
               </div>
               {isAdmin && (
                 <div>
-                  <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> ط§ظ„ظ…ظˆط¸ظپ ط§ظ„ظ…ط³ط¤ظˆظ„</Label>
+                  <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> الموظف المث³ؤول</Label>
                   <Select value={form.assignedUserId || "none"} onValueChange={v => set("assignedUserId", v === "none" ? "" : v)}>
-                    <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="ط§ط®طھط± ظ…ظˆط¸ظپ" /></SelectTrigger>
+                    <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">â€” ط؛ظٹط± ظ…ط­ط¯ط¯ â€”</SelectItem>
+                      <SelectItem value="none">– غير محدد –</SelectItem>
                       {users.filter((u: any) => u.isActive).map((u: any) => (
                         <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>
                       ))}
@@ -633,12 +633,12 @@ function ShipmentFormDialog({
             </div>
           </section>
 
-          {/* â”€â”€ ط£ط²ط±ط§ط± â”€â”€ */}
+          {/* ── أزرار ── */}
           <div className="flex gap-3 pt-2 border-t border-border">
-            <Button variant="outline" onClick={onClose} className="flex-1">ط¥ظ„ط؛ط§ط،</Button>
+            <Button variant="outline" onClick={onClose} className="flex-1">إلغاء</Button>
             <Button onClick={handleSubmit} disabled={mutation.isPending} className="flex-1 gap-2">
               {mutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              ط¥ظ†ط´ط§ط، ط§ظ„ط´ط­ظ†ط©
+              إنشاء الشحنة
             </Button>
           </div>
 
@@ -649,7 +649,7 @@ function ShipmentFormDialog({
 }
 
 
-// â”€â”€â”€ Edit Status Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Edit Status Dialog ───────────────────────────────────────────────────────
 function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -663,10 +663,10 @@ function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: 
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipments"] });
       qc.invalidateQueries({ queryKey: ["shipments-stats"] });
-      toast({ title: "طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„ط´ط­ظ†ط© âœ…" });
+      toast({ title: "تم تحديث حالة الشحنة ✅" });
       onClose();
     },
-    onError: (e: any) => toast({ title: "ط®ط·ط£", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -675,12 +675,12 @@ function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: 
         <DialogHeader>
           <DialogTitle className="text-sm font-black flex items-center gap-2">
             <RefreshCw className="w-4 h-4 text-primary" />
-            طھط­ط¯ظٹط« ط´ط­ظ†ط© #{shipment.shipmentNumber}
+            تحديث شحنة #ة #{shipment.shipmentNumber}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div>
-            <Label className="text-xs font-bold mb-2 block">ط§ظ„ط­ط§ظ„ط©</Label>
+            <Label className="text-xs font-bold mb-2 block">الحالة</Label>
             <div className="grid grid-cols-2 gap-1.5">
               {(Object.keys(STATUS_CFG) as ShipmentStatus[]).map(s => (
                 <button key={s} type="button" onClick={() => setStatus(s)}
@@ -693,21 +693,21 @@ function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: 
             </div>
           </div>
           <div>
-            <Label className="text-xs font-bold mb-1.5 block">ط±ظ‚ظ… ط§ظ„طھطھط¨ط¹</Label>
-            <Input className="text-sm" placeholder="ط±ظ‚ظ… ط§ظ„طھطھط¨ط¹ ظ…ظ† ط´ط±ظƒط© ط§ظ„ط´ط­ظ†" value={tracking} onChange={e => setTracking(e.target.value)} />
+            <Label className="text-xs font-bold mb-1.5 block">رقم التتبع</Label>
+            <Input className="text-sm" placeholder="رقم التتبع من شركة الشحن" value={tracking} onChange={e => setTracking(e.target.value)} />
           </div>
           {(shipment.paymentMethod === "cod" || status === "delivered") && (
             <div>
-              <Label className="text-xs font-bold mb-1.5 block">ط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ظ…ط­طµظژظ‘ظ„</Label>
+              <Label className="text-xs font-bold mb-1.5 block">المث¨لط؛ المث­صضظ‘ل</Label>
               <Input type="number" className="text-sm" value={collected} onChange={e => setCollected(e.target.value)} />
             </div>
           )}
           <div className="flex gap-2 pt-1 border-t border-border">
-            <Button variant="outline" onClick={onClose} className="flex-1 text-xs">ط¥ظ„ط؛ط§ط،</Button>
+            <Button variant="outline" onClick={onClose} className="flex-1 text-xs">إلغاء</Button>
             <Button onClick={() => mutation.mutate({ status, trackingNumber: tracking || undefined, collectedAmount: Number(collected) })}
               disabled={mutation.isPending} className="flex-1 text-xs gap-1.5">
               {mutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-              ط­ظپط¸
+              حفظ
             </Button>
           </div>
         </div>
@@ -716,7 +716,7 @@ function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: 
   );
 }
 
-// â”€â”€â”€ Shipment Row Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shipment Row Card ────────────────────────────────────────────────────────
 function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="bg-card border border-border rounded-xl p-4 hover:border-primary/30 hover:shadow-md transition-all group">
@@ -759,7 +759,7 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button size="sm" variant="ghost" onClick={onEdit} className="h-7 px-2 text-xs">
-                <Edit className="w-3 h-3 ml-1" /> طھط­ط¯ظٹط«
+                <Edit className="w-3 h-3 ml-1" /> تحديث
               </Button>
               <Button size="sm" variant="ghost" onClick={onDelete} className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
                 <Trash2 className="w-3 h-3" />
@@ -772,7 +772,7 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
             </p>
           )}
 
-          {/* ظ…ظ„ط§ط­ط¸ط© ط§ظ„ط§ط³طھظ„ط§ظ… */}
+          {/* ملاحظة الاستلام */}
           {(shipment.status === "returned" || shipment.status === "partial_received") && (() => {
             const received = shipment.returnReceived === 1 || shipment.returnReceived === true;
             const isRet    = shipment.status === "returned";
@@ -782,11 +782,11 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
                   ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
                   : "bg-amber-500/10 border-amber-500/30 text-amber-400"
               }`}>
-                <span>{received ? "âœ“" : "âڈ³"}</span>
+                <span>{received ? "✔" : "✗"}</span>
                 <span>
                   {received
-                    ? (isRet ? "طھظ… ط§ط³طھظ„ط§ظ… ط§ظ„ط´ط­ظ†ط© ط§ظ„ظ…ط±طھط¬ط¹ط© ط¨ظ†ط¬ط§ط­" : "طھظ… ط§ط³طھظ„ط§ظ… ط§ظ„ظƒظ…ظٹط© ط§ظ„ط¬ط²ط¦ظٹط© ط¨ظ†ط¬ط§ط­")
-                    : (isRet ? "ط¨ط§ظ†طھط¸ط§ط± ط§ط³طھظ„ط§ظ… ط§ظ„ط´ط­ظ†ط© ط§ظ„ظ…ط±طھط¬ط¹ط©"  : "ط¨ط§ظ†طھط¸ط§ط± ط§ط³طھظ„ط§ظ… ط§ظ„ظƒظ…ظٹط© ط§ظ„ط¬ط²ط¦ظٹط©")}
+                    ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                    : (isRet ? "بانتظار استلام الشحنة المرتجعة"  : "بانتظار استلام الكمية الجزئية")}
                 </span>
               </div>
             );
@@ -797,40 +797,40 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
   );
 }
 
-// â”€â”€ طھطµظ†ظٹظپط§طھ ط§ظ„ط¹ظ…ظ„ط§ط، â€” ط«ط§ط¨طھط© ظ„ظ„ظ€ UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── تصنيفات العملاء – ثابتة للـ UI ──────────────────────────────────────────
 const TIER_INFO = [
   {
     key:   "normal"     as const,
-    label: "ط¹ط§ط¯ظٹ",
-    range: "ظ، â€“ ظ¢ظ ظ  ط´ط­ظ†ط© / ط´ظ‡ط±",
+    label: "عادي",
+    range: "١ – ٢٠٠ شحنة / شهر",
     color: "text-slate-400",
     border:"border-slate-600/60",
     bg:    "bg-slate-800/30",
     dot:   "bg-slate-400",
     field: "priceNormal" as const,
-    placeholder: "ط³ط¹ط± ط§ظ„ط¹ظ…ظٹظ„ ط§ظ„ط¹ط§ط¯ظٹ",
+    placeholder: "سعر العميل العادي",
   },
   {
     key:   "commercial" as const,
-    label: "طھط¬ط§ط±ظٹ",
-    range: "ظ¢ظ ظ، â€“ ظ¥ظ ظ  ط´ط­ظ†ط© / ط´ظ‡ط±",
+    label: "تجاري",
+    range: "٢٠١ – ٥٠٠ شحنة / شهر",
     color: "text-blue-400",
     border:"border-blue-600/60",
     bg:    "bg-blue-900/20",
     dot:   "bg-blue-400",
     field: "priceCommercial" as const,
-    placeholder: "ط³ط¹ط± ط§ظ„ط¹ظ…ظٹظ„ ط§ظ„طھط¬ط§ط±ظٹ",
+    placeholder: "سعر العميل التجاري",
   },
   {
     key:   "vip" as const,
     label: "VIP",
-    range: "ظ¥ظ ظ، â€“ ظ،ظ ظ ظ  ط´ط­ظ†ط© / ط´ظ‡ط±",
+    range: "٥٠١ – ١٠٠٠ شحنة / شهر",
     color: "text-amber-400",
     border:"border-amber-600/60",
     bg:    "bg-amber-900/20",
     dot:   "bg-amber-400",
     field: "priceVip" as const,
-    placeholder: "ط³ط¹ط± ط¹ظ…ظٹظ„ VIP",
+    placeholder: "سعر عميل VIP VIP",
   },
 ] as const;
 
@@ -840,7 +840,7 @@ type ZoneFormState = {
 };
 const emptyZoneForm = (): ZoneFormState => ({ name: "", governorate: "", priceNormal: "", priceCommercial: "", priceVip: "" });
 
-// â”€â”€â”€ Zones Settings Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Zones Settings Tab ───────────────────────────────────────────────────────
 function ZonesTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -857,26 +857,26 @@ function ZonesTab() {
     mutationFn: (d: any) => apiFetch("/shipment-zones", { method: "POST", body: JSON.stringify(d) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipment-zones"] });
-      toast({ title: "طھظ…طھ ط¥ط¶ط§ظپط© ط§ظ„ظ…ظ†ط·ظ‚ط© âœ…" });
+      toast({ title: "تمت إضافة المنطقة ✅" });
       setForm(emptyZoneForm());
     },
-    onError: (e: any) => toast({ title: "ط®ط·ط£", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, ...d }: any) => apiFetch(`/shipment-zones/${id}`, { method: "PUT", body: JSON.stringify(d) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipment-zones"] });
-      toast({ title: "طھظ… ط§ظ„طھط­ط¯ظٹط« âœ…" });
+      toast({ title: "تم التحديث ✅" });
       setEditId(null);
     },
-    onError: (e: any) => toast({ title: "ط®ط·ط£", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/shipment-zones/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shipment-zones"] }); toast({ title: "طھظ… ط§ظ„ط­ط°ظپ" }); },
-    onError: (e: any) => toast({ title: "ط®ط·ط£", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shipment-zones"] }); toast({ title: "تم الحذف" }); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   function startEdit(z: ShipmentZone & { priceNormal?: string; priceCommercial?: string; priceVip?: string }) {
@@ -913,7 +913,7 @@ function ZonesTab() {
     });
   }
 
-  // ظ…ظƒظˆظ‘ظ† طµط؛ظٹط± â€” ط´ط±ظٹط­ط© ط§ظ„ط³ط¹ط± ظ„ظƒظ„ tier ط¯ط§ط®ظ„ ط§ظ„ط¨ط·ط§ظ‚ط©
+  // مكوظ‘ن صط؛ير – شريحة السعر لكل tier داخل البطاقة
   function TierPriceChip({ tier, value }: { tier: typeof TIER_INFO[number]; value: string | number }) {
     const n = Number(value) || 0;
     return (
@@ -921,7 +921,7 @@ function ZonesTab() {
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tier.dot}`} />
         <span className={`text-[9px] font-bold ${tier.color}`}>{tier.label}</span>
         <span className={`text-[11px] font-black ${tier.color} mr-auto`}>
-          {n > 0 ? fc(n) : <span className="text-muted-foreground/50 font-normal text-[9px]">â€”</span>}
+          {n > 0 ? fc(n) : <span className="text-muted-foreground/50 font-normal text-[9px]">–</span>}
         </span>
       </div>
     );
@@ -930,12 +930,12 @@ function ZonesTab() {
   return (
     <div className="space-y-5">
 
-      {/* â”€â”€ Tier Legend (ط´ط±ط­ ظ…ط±ط© ظˆط§ط­ط¯ط© ظپظٹ ط§ظ„ط£ط¹ظ„ظ‰) â”€â”€ */}
+      {/* ── Tier Legend (شرح مرة واحدة في الأعلى) ── */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-black flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />
-            طھطµظ†ظٹظپط§طھ ط§ظ„ط¹ظ…ظ„ط§ط، â€” ظ†ط·ط§ظ‚ط§طھ ط§ظ„ط´ط­ظ† ط§ظ„ط´ظ‡ط±ظٹط©
+            تصنيفات العملاط، – نطاقات الشحن الشهرية
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -950,32 +950,32 @@ function ZonesTab() {
         </CardContent>
       </Card>
 
-      {/* â”€â”€ Add Zone â”€â”€ */}
+      {/* ── Add Zone ── */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-black flex items-center gap-2">
-            <Globe className="w-4 h-4 text-cyan-500" /> ط¥ط¶ط§ظپط© ظ…ظ†ط·ظ‚ط© ط¬ط¯ظٹط¯ط©
+            <Globe className="w-4 h-4 text-cyan-500" /> إضافة منطقة جديدة
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* ط§ظ„ط§ط³ظ… ظˆط§ظ„ظ…ط­ط§ظپط¸ط© */}
+          {/* الاسم والمحافظة */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs font-bold mb-1.5 block">ط§ط³ظ… ط§ظ„ظ…ظ†ط·ظ‚ط© / ط§ظ„ظ…ط¯ظٹظ†ط© <span className="text-red-500">*</span></Label>
-              <Input className="text-sm" placeholder="ظ…ط«ط§ظ„: ط§ظ„ظ‚ط§ظ‡ط±ط©" value={form.name}
+              <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
+              <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
-              <Label className="text-xs font-bold mb-1.5 block">ط§ظ„ظ…ط­ط§ظپط¸ط©</Label>
-              <Input className="text-sm" placeholder="ظ…ط«ط§ظ„: ط§ظ„ظ‚ط§ظ‡ط±ط© ط§ظ„ظƒط¨ط±ظ‰" value={form.governorate}
+              <Label className="text-xs font-bold mb-1.5 block">المحافظة</Label>
+              <Input className="text-sm" placeholder="مثال: القاهرة الكبرى" value={form.governorate}
                 onChange={e => setForm(f => ({ ...f, governorate: e.target.value }))} />
             </div>
           </div>
 
-          {/* ط£ط³ط¹ط§ط± ط§ظ„طھظٹط±ط² */}
+          {/* أسعار التيرز */}
           <div className="p-3 rounded-xl border border-border bg-muted/10 space-y-2.5">
             <p className="text-[10px] font-bold text-muted-foreground flex items-center gap-1.5">
-              <DollarSign className="w-3 h-3" />ط³ط¹ط± ط§ظ„طھظˆطµظٹظ„ ط­ط³ط¨ طھطµظ†ظٹظپ ط§ظ„ط¹ظ…ظٹظ„
+              <DollarSign className="w-3 h-3" />سعر التوصيل حسب تصنيف العميل
             </p>
             <div className="grid grid-cols-3 gap-2.5">
               {TIER_INFO.map(t => (
@@ -1001,41 +1001,41 @@ function ZonesTab() {
             disabled={!form.name || addMutation.isPending}
             onClick={submitAdd}>
             {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            ط¥ط¶ط§ظپط© ط§ظ„ظ…ظ†ط·ظ‚ط©
+            إضافة المنطقة
           </Button>
         </CardContent>
       </Card>
 
-      {/* â”€â”€ Zones List â”€â”€ */}
+      {/* ── Zones List ── */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-black">ط§ظ„ظ…ظ†ط§ط·ظ‚ ط§ظ„ظ…ط¶ط§ظپط© ({zones.length})</CardTitle>
+          <CardTitle className="text-sm font-black">المناطق المضافة ({zones.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center py-8"><RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" /></div>
           ) : zones.length === 0 ? (
-            <p className="text-center text-xs text-muted-foreground py-8">ظ„ط§ طھظˆط¬ط¯ ظ…ظ†ط§ط·ظ‚ â€” ط£ط¶ظپ ظ…ظ†ط·ظ‚ط© ظ…ظ† ط§ظ„ط£ط¹ظ„ظ‰</p>
+            <p className="text-center text-xs text-muted-foreground py-8">لا توجد مناطق — أضف منطقة من الأعلى</p>
           ) : (
             <div className="space-y-3">
               {(zones as any[]).map(z => (
                 <div key={z.id} className="rounded-xl border border-border bg-muted/10 overflow-hidden">
 
                   {editId === z.id ? (
-                    /* â”€â”€ ظˆط¶ط¹ ط§ظ„طھط¹ط¯ظٹظ„ â”€â”€ */
+                    /* ── وضع التعديل ── */
                     <div className="p-3 space-y-3">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-[10px] font-bold mb-1 block">ط§ظ„ط§ط³ظ…</Label>
+                          <Label className="text-[10px] font-bold mb-1 block">الاسم</Label>
                           <Input className="text-xs h-8" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                         </div>
                         <div>
-                          <Label className="text-[10px] font-bold mb-1 block">ط§ظ„ظ…ط­ط§ظپط¸ط©</Label>
+                          <Label className="text-[10px] font-bold mb-1 block">المحافظة</Label>
                           <Input className="text-xs h-8" value={editForm.governorate} onChange={e => setEditForm(f => ({ ...f, governorate: e.target.value }))} />
                         </div>
                       </div>
                       <div className="p-2.5 rounded-lg border border-border bg-muted/10 space-y-2">
-                        <p className="text-[9px] font-bold text-muted-foreground">ط£ط³ط¹ط§ط± ط§ظ„طھظˆطµظٹظ„ ط­ط³ط¨ ط§ظ„طھطµظ†ظٹظپ</p>
+                        <p className="text-[9px] font-bold text-muted-foreground">أسعار التوصيل حسب التصنيف</p>
                         <div className="grid grid-cols-3 gap-2">
                           {TIER_INFO.map(t => (
                             <div key={t.key}>
@@ -1051,15 +1051,15 @@ function ZonesTab() {
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" className="h-8 text-xs px-4" onClick={() => submitEdit(z.id)} disabled={updateMutation.isPending}>
-                          {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "ط­ظپط¸ ط§ظ„طھط¹ط¯ظٹظ„ط§طھ"}
+                          {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ التعديلات"}
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditId(null)}>ط¥ظ„ط؛ط§ط،</Button>
+                        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditId(null)}>إلغاء</Button>
                       </div>
                     </div>
                   ) : (
-                    /* â”€â”€ ظˆط¶ط¹ ط§ظ„ط¹ط±ط¶ â”€â”€ */
+                    /* ── وضع العرض ── */
                     <div className="p-3">
-                      {/* ط±ط£ط³ ط§ظ„ط¨ط·ط§ظ‚ط© */}
+                      {/* رأس البطاقة */}
                       <div className="flex items-center gap-3 mb-2.5">
                         <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
                           <MapPin className="w-4 h-4 text-cyan-500" />
@@ -1073,13 +1073,13 @@ function ZonesTab() {
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={() => { if (confirm("ط­ط°ظپ ط§ظ„ظ…ظ†ط·ظ‚ط©طں")) deleteMutation.mutate(z.id); }}>
+                            onClick={() => { if (confirm("حذف المنطقة؟")) deleteMutation.mutate(z.id); }}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </div>
 
-                      {/* ط´ط±ط§ط¦ط­ ط§ظ„ط£ط³ط¹ط§ط± */}
+                      {/* شرائح الأسعار */}
                       <div className="grid grid-cols-3 gap-1.5">
                         {TIER_INFO.map(t => (
                           <TierPriceChip key={t.key} tier={t} value={z[t.field] ?? (t.field === "priceNormal" ? z.price : "0")} />
@@ -1097,19 +1097,19 @@ function ZonesTab() {
   );
 }
 
-// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
   return (
     <div className="space-y-5" dir="rtl">
 
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-black text-foreground flex items-center gap-2">
             <Globe className="w-5 h-5 text-primary" />
-            ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ط´ط­ظ†
+            إعدادات الشحن
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">ط¥ط¯ط§ط±ط© ط§ظ„ظ…ظ†ط§ط·ظ‚</p>
+          <p className="text-xs text-muted-foreground mt-0.5">إدارة المناطق</p>
         </div>
       </div>
 
