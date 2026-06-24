@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { useGetOrdersSummary, useGetRecentOrders } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -316,8 +316,8 @@ function PwaInstallBanner() {
   );
 }
 
-// ─── Live Clock ───────────────────────────────────────────────────────────────
-function LiveClock() {
+// ─── Live Clock — memo عشان الـ setInterval مش يسبب re-render للـ Dashboard ──
+const LiveClock = memo(function LiveClock() {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000);
@@ -335,7 +335,7 @@ function LiveClock() {
       <span className="text-xs sm:text-sm font-bold" style={{ color: "hsl(43 74% 50%)" }}>{ampm}</span>
     </div>
   );
-}
+});
 
 // ─── Ad Sources meta ─────────────────────────────────────────────────────────
 const AD_SOURCE_META: Record<string, { label: string; iconColor: string; gradFrom: string; gradTo: string; icon: React.ElementType }> = {
