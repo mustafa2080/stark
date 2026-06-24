@@ -618,8 +618,9 @@ export default function Dashboard() {
   const { data: shipmentsStatus } = useQuery({
     queryKey: ["analytics-shipments-status"],
     queryFn: () => apiFetchDashboard<{ statusBreakdown: { status: string; count: number; pct: number }[]; total: number }>("/analytics/shipments-status"),
-    staleTime: 0,
-    refetchInterval: 15000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
   });
   const { data: teamPerf = [] } = useQuery<TeamMemberExtStats[]>({
     queryKey: ["team-perf-dashboard"],
@@ -645,16 +646,16 @@ export default function Dashboard() {
   const { data: chartsData } = useQuery({
     queryKey: ["analytics-charts"],
     queryFn: analyticsApi.charts,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchInterval: 15_000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
   });
   const { data: shipmentChartsData } = useQuery({
     queryKey: ["analytics-shipment-charts"],
     queryFn: analyticsApi.shipmentCharts,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchInterval: 15_000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
   });
   const { data: productPerformance = [], isLoading: isPerfLoading } = useQuery<any[]>({
     queryKey: ["analytics-product-performance"],
