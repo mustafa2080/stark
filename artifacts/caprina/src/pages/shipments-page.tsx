@@ -203,7 +203,8 @@ function ShipmentFormDialog({
   const mutation = useMutation({
     mutationFn: (data: any) => apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["shipments"] });
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
+      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
       toast({ title: "تم إنشاء الشحنة بنجاح ✅" });
       onClose();
     },
