@@ -34,7 +34,7 @@ type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics"
 
 interface ShipmentZone      { id: number; name: string; governorate?: string; price: string | number; isActive?: boolean }
 interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number }
-interface Client            { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string }
+interface Client            { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; warehouseId?: number | null }
 interface Shipment {
   id: number;
   shipmentNumber?: string;
@@ -318,6 +318,7 @@ function ShipmentFormDialog({
       ...f, clientId: String(c.id),
       senderName: c.name, senderPhone: c.phone || "",
       senderPhone2: c.phone2 || "", senderCity: c.city || "",
+      warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId,
     }));
     setClientSearch(c.name);
     setShowClientList(false);

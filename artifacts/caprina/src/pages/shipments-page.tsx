@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import ExcelJS from "exceljs";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, AlertTriangle, Warehouse, Megaphone, UserCheck } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -23,6 +23,24 @@ import { type WhatsAppOrderData, type WaSettings, applyTemplate, applyShippingTe
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { ordersApi, shippingApi, apiFetch } from "@/lib/api";
+
+const AD_SOURCES = [
+  { value: "facebook",  label: "فيسبوك" },
+  { value: "tiktok",   label: "تيك توك" },
+  { value: "instagram", label: "إنستجرام" },
+  { value: "whatsapp", label: "واتساب" },
+  { value: "organic",  label: "ويبسايت" },
+  { value: "other",    label: "أخرى" },
+];
+
+const AdSourceIcon = ({ value, className = "w-4 h-4 shrink-0" }: { value: string; className?: string }) => {
+  if (value === "facebook")  return <svg className={className} viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>;
+  if (value === "tiktok")    return <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.17 8.17 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/></svg>;
+  if (value === "instagram") return <svg className={className} viewBox="0 0 24 24" fill="url(#igGS2)"><defs><linearGradient id="igGS2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#f09433"/><stop offset="50%" stopColor="#dc2743"/><stop offset="100%" stopColor="#bc1888"/></linearGradient></defs><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>;
+  if (value === "whatsapp")  return <svg className={className} viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>;
+  if (value === "organic")   return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>;
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>;
+};
 
 // حالات الشحنة — تتطابق مع DB schema (SHIPMENT_STATUSES)
 type ShipmentStatusValue = "pending" | "warehouse_ready" | "in_shipping" | "received" | "partial_received" | "delayed" | "returned";
@@ -99,7 +117,7 @@ type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 interface ShipmentZone      { id: number; name: string; governorate?: string; price: string | number; isActive?: boolean }
 interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number; isActive?: boolean }
-interface ShipmentClient    { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string }
+interface ShipmentClient    { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; warehouseId?: number | null }
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cod:      "الدفع عند الاستلام",
@@ -131,6 +149,7 @@ function ShipmentFormDialog({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
 
   const [form, setForm] = useState({
     clientId: "",
@@ -143,6 +162,8 @@ function ShipmentFormDialog({
     codAmount: "", insuranceFee: "0",
     notes: "",
     shippingCompanyId: "",
+    warehouseId: "",
+    adSource: "", adCampaign: "", assignedUserId: "",
   });
   const [clientSearch, setClientSearch] = useState("");
   const [showClientList, setShowClientList] = useState(false);
@@ -151,6 +172,8 @@ function ShipmentFormDialog({
     queryKey: ["shipping-companies-list"],
     queryFn: () => apiFetch("/shipping-companies"),
   });
+  const { data: warehouses = [] } = useQuery<any[]>({ queryKey: ["warehouses"], queryFn: () => apiFetch("/warehouses") });
+  const { data: users = [] }      = useQuery<any[]>({ queryKey: ["users"],      queryFn: () => apiFetch("/users"), enabled: isAdmin });
 
   const selectedZone    = zones.find(z => String(z.id) === form.zoneId);
   const selectedPricing = parcelPricing.find(p => p.parcelType === form.parcelType);
@@ -175,6 +198,7 @@ function ShipmentFormDialog({
       senderPhone: c.phone || "",
       senderPhone2: c.phone2 || "",
       senderCity: c.city || "",
+      warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId,
     }));
     setClientSearch(c.name);
     setShowClientList(false);
@@ -219,6 +243,10 @@ function ShipmentFormDialog({
       totalAmount:     total || undefined,
       notes:           form.notes || undefined,
       shippingCompanyId: form.shippingCompanyId ? Number(form.shippingCompanyId) : undefined,
+      warehouseId:       form.warehouseId       ? Number(form.warehouseId)       : undefined,
+      adSource:          form.adSource          || undefined,
+      adCampaign:        form.adCampaign        || undefined,
+      assignedUserId:    form.assignedUserId     ? Number(form.assignedUserId)     : undefined,
       status:          "waiting",
     });
   }
@@ -260,6 +288,7 @@ function ShipmentFormDialog({
                       senderPhone: c.phone || "",
                       senderPhone2: c.phone2 || "",
                       senderCity: c.city || "",
+                      warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId,
                     }));
                   }
                 }}
@@ -487,6 +516,81 @@ function ShipmentFormDialog({
               </Select>
               {!form.shippingCompanyId && <p className="text-[10px] text-amber-500 mt-1">⚠ اختر شركة الشحن لربط الشحنة بالبيان</p>}
               {form.shippingCompanyId && <p className="text-[10px] text-sky-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />ستظهر الشحنة في بيانات هذه الشركة</p>}
+            </div>
+          </section>
+
+          {/* ── المخزن ── */}
+          <section className="space-y-3 rounded-xl border border-teal-900/40 bg-teal-900/5 p-4">
+            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
+              <Warehouse className="w-3.5 h-3.5 text-teal-400" /> المخزن
+            </h3>
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Warehouse className="w-3 h-3" /> اختر المخزن <span className="text-red-500">*</span></Label>
+              <Select value={form.warehouseId || "none"} onValueChange={v => set("warehouseId", v === "none" ? "" : v)}>
+                <SelectTrigger className="text-sm h-10 bg-card">
+                  <div className="flex items-center gap-2"><Warehouse className="w-3.5 h-3.5 text-teal-400" /><SelectValue placeholder="اختر المخزن..." /></div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— غير محدد —</SelectItem>
+                  {warehouses.map((w: any) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      <div className="flex items-center gap-2"><Warehouse className="w-3 h-3 text-teal-400" /><span>{w.name}{w.city ? ` — ${w.city}` : ""}{w.isDefault ? " ✅" : ""}</span></div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!form.warehouseId && <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">⚠ اختر المخزن لتحديد مكان الشحنة</p>}
+              {form.warehouseId  && <p className="text-[10px] text-teal-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" />الشحنة ستُودَع في هذا المخزن عند الاستلام</p>}
+            </div>
+          </section>
+
+          {/* ── تتبع الإعلان والفريق ── */}
+          <section className="space-y-3 rounded-xl border border-purple-900/40 bg-purple-900/5 p-4">
+            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
+              <Megaphone className="w-3.5 h-3.5 text-purple-400" /> تتبع الإعلان والفريق
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><Megaphone className="w-3 h-3" /> مصدر الطلب</Label>
+                <Select value={form.adSource || "none"} onValueChange={v => set("adSource", v === "none" ? "" : v)}>
+                  <SelectTrigger className="text-sm h-10 bg-card">
+                    <SelectValue placeholder="اختر المصدر">
+                      {form.adSource && form.adSource !== "none" && (
+                        <span className="flex items-center gap-2">
+                          <AdSourceIcon value={form.adSource} />
+                          {AD_SOURCES.find(s => s.value === form.adSource)?.label}
+                        </span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— غير محدد —</SelectItem>
+                    {AD_SOURCES.map(s => (
+                      <SelectItem key={s.value} value={s.value}>
+                        <span className="flex items-center gap-2"><AdSourceIcon value={s.value} />{s.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">اسم الحملة</Label>
+                <input className="w-full text-sm h-10 bg-card border border-border rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Summer 2025..." value={form.adCampaign} onChange={e => set("adCampaign", e.target.value)} />
+              </div>
+              {isAdmin && (
+                <div>
+                  <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> الموظف المسؤول</Label>
+                  <Select value={form.assignedUserId || "none"} onValueChange={v => set("assignedUserId", v === "none" ? "" : v)}>
+                    <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— غير محدد —</SelectItem>
+                      {users.filter((u: any) => u.isActive).map((u: any) => (
+                        <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </section>
 
