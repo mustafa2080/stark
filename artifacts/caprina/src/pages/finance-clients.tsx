@@ -213,6 +213,26 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
   } : { ...emptyForm });
 
+  // إعادة تعبئة الـ form لما editClient يتغير (مهم لو الـ Dialog مش بيتـunmount)
+  useEffect(() => {
+    if (editClient) {
+      setForm({
+        name: editClient.name, phone: editClient.phone ?? "", phone2: editClient.phone2 ?? "",
+        email: editClient.email ?? "", address: editClient.address ?? "",
+        city: editClient.city ?? "", region: editClient.region ?? "",
+        taxNumber: editClient.taxNumber ?? "", commercialReg: editClient.commercialReg ?? "",
+        paymentTerms: editClient.paymentTerms ?? "فوري",
+        creditLimit: String(editClient.creditLimit ?? "0"),
+        notes: editClient.notes ?? "", isActive: editClient.isActive,
+        avatar: editClient.avatar ?? "🧑‍💼",
+        clientType: (editClient.clientType ?? "normal") as ClientType,
+        warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
+      });
+    } else {
+      setForm({ ...emptyForm });
+    }
+  }, [editClient]);
+
   const mutation = useMutation({
     mutationFn: async () => {
       const body = {
