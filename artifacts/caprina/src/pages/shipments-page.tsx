@@ -168,10 +168,6 @@ function ShipmentFormDialog({
   const [clientSearch, setClientSearch] = useState("");
   const [showClientList, setShowClientList] = useState(false);
 
-  const { data: shippingCompanies = [] } = useQuery<{ id: number; name: string; isActive?: boolean }[]>({
-    queryKey: ["shipping-companies-list"],
-    queryFn: () => apiFetch("/shipping-companies"),
-  });
   const { data: warehouses = [] } = useQuery<any[]>({ queryKey: ["warehouses"], queryFn: () => apiFetch("/warehouses") });
   const { data: users = [] }      = useQuery<any[]>({ queryKey: ["users"],      queryFn: () => apiFetch("/users"), enabled: isAdmin });
 
@@ -485,39 +481,6 @@ function ShipmentFormDialog({
             <Label className="text-xs font-bold mb-1.5 block">ملاحظات</Label>
             <Input className="text-sm" placeholder="أي تعليمات خاصة..." value={form.notes} onChange={e => set("notes", e.target.value)} />
           </div>
-
-          {/* ── مناديب STARK — شركة الشحن ── */}
-          <section className="space-y-3 rounded-xl border border-sky-900/40 bg-sky-900/5 p-4">
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
-              <Truck className="w-3.5 h-3.5 text-sky-400" /> مناديب STARK — شركة الشحن
-            </h3>
-            <div>
-              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1">
-                <Truck className="w-3 h-3" /> شركة الشحن
-              </Label>
-              <Select value={form.shippingCompanyId || "none"} onValueChange={v => set("shippingCompanyId", v === "none" ? "" : v)}>
-                <SelectTrigger className="text-sm h-10 bg-card">
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-3.5 h-3.5 text-sky-400" />
-                    <SelectValue placeholder="اختر شركة الشحن..." />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— غير محدد —</SelectItem>
-                  {shippingCompanies.filter(c => c.isActive !== false).map(c => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      <div className="flex items-center gap-2">
-                        <Truck className="w-3 h-3 text-sky-400" />
-                        <span>{c.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!form.shippingCompanyId && <p className="text-[10px] text-amber-500 mt-1">⚠ اختر شركة الشحن لربط الشحنة بالبيان</p>}
-              {form.shippingCompanyId && <p className="text-[10px] text-sky-400 mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />ستظهر الشحنة في بيانات هذه الشركة</p>}
-            </div>
-          </section>
 
           {/* ── المخزن — تلقائي من العميل التجاري ── */}
           {form.warehouseId && (() => {
