@@ -289,8 +289,12 @@ export default function Layout({ children }: LayoutProps) {
       if ((item as any).employeeOnly) return user?.role === "employee";
       // لوحة التحكم → تتخفى عن الـ employee (عنده لوحتي بدلها)
       if (item.href === "/" && user?.role === "employee") return false;
-      // كل اليوزرز يشوفوا كل حاجة مؤقتاً
-      return true;
+      // super_admin / admin → كل الصفحات
+      if (isAdmin) return true;
+      // لو مفيش permission مطلوب → اظهر دايماً
+      if (!item.permission) return true;
+      // تحقق من الصلاحية
+      return can(item.permission);
     });
   }, [can, isAdmin, user?.role]);
 
@@ -298,8 +302,6 @@ export default function Layout({ children }: LayoutProps) {
   const redirectingRef = useRef(false);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // مؤقتاً — مش بنعمل redirect لأي يوزر
-    return;
     // صفحات عامة مش محتاجة nav permission — ما نعملش ليها redirect أبداً
     const globalPages = ["/profile", "/my-dashboard", "/subscription-expired"];
     if (globalPages.some(p => location === p || location.startsWith(p + "/"))) return;
