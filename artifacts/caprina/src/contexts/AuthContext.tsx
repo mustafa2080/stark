@@ -213,8 +213,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.getItem(TOKEN_KEY) &&
     localStorage.getItem(USER_KEY)
   );
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+
+  const getInitialUser = (): AuthUser | null => {
+    try {
+      const savedToken = localStorage.getItem(TOKEN_KEY);
+      const savedUser  = localStorage.getItem(USER_KEY);
+      if (savedToken && savedUser) return normalizeUser(JSON.parse(savedUser) as AuthUser);
+    } catch { /* ignore */ }
+    return null;
+  };
+
+  const getInitialToken = (): string | null => localStorage.getItem(TOKEN_KEY);
+
+  const [user, setUser]       = useState<AuthUser | null>(getInitialUser);
+  const [token, setToken]     = useState<string | null>(getInitialToken);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [loading, setLoading] = useState(!hasStoredUser);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
