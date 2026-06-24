@@ -365,7 +365,8 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div
-      className="flex h-screen bg-background overflow-hidden"
+      className="flex bg-background overflow-hidden"
+      style={{ height: "100dvh" }}
       dir="rtl"
       onClick={(e) => {
         if (!sidebarCollapsed && sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
