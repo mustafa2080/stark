@@ -247,26 +247,6 @@ export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user, logout, can, isAdmin, isSuperAdmin } = useAuth();
   const { theme, toggleTheme, setTheme } = useTheme();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const savedScrollRef = useRef<number>(0);
-
-  // احفظ الـ scroll position قبل أي re-render وأرجعه بعده
-  useEffect(() => {
-    const el = scrollAreaRef.current;
-    if (!el) return;
-    // restore scroll بعد كل render
-    if (savedScrollRef.current > 0) {
-      el.scrollTop = savedScrollRef.current;
-    }
-    const onScroll = () => { savedScrollRef.current = el.scrollTop; };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  });
-
-  // reset الـ saved scroll عند تغيير الـ route بس
-  useEffect(() => {
-    savedScrollRef.current = 0;
-  }, [location]);
   const { toast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userCardRef = useRef<HTMLDivElement>(null);
@@ -323,7 +303,7 @@ export default function Layout({ children }: LayoutProps) {
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     // صفحات عامة مش محتاجة nav permission — ما نعملش ليها redirect أبداً
-    const globalPages = ["/profile", "/my-dashboard", "/subscription-expired"];
+    const globalPages = ["/profile", "/my-dashboard", "/subscription-expired", "/dashboard"];
     if (globalPages.some(p => location === p || location.startsWith(p + "/"))) return;
     const allowed = visibleNav.map(i => i.href);
     // مش نعمل redirect لو visibleNav فاضية — ده بيحصل أثناء تحديث الـ permissions
@@ -931,9 +911,7 @@ export default function Layout({ children }: LayoutProps) {
         {/* Page content */}
         <div
           id="main-scroll-area"
-          ref={scrollAreaRef}
           className="flex-1 overflow-y-auto overflow-x-hidden min-w-0"
-          style={{ overscrollBehavior: "none" }}
         >
           <div className="w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-5 xl:p-6 2xl:p-8 min-w-0 overflow-x-hidden pb-20 md:pb-8">
             {children}
