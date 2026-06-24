@@ -371,11 +371,14 @@ router.get("/shipments", async (req, res): Promise<void> => {
           // ── JOIN: المنطقة ──
           zoneLabel:       shipmentZonesTable.name,
           zoneGovernorate: shipmentZonesTable.governorate,
+          // ── JOIN: محافظة العميل (الراسل) ──
+          senderGovernorate: clientsTable.region,
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
         .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
+        .leftJoin(clientsTable, eq(shipmentsTable.clientId, clientsTable.id))
         .where(where)
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(parseInt(limit))

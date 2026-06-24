@@ -1729,7 +1729,7 @@ export default function Orders() {
                         <TableCell className="text-xs text-muted-foreground">{format(new Date(order.createdAt), "yyyy/MM/dd")}</TableCell>
                         <TableCell className="text-sm font-semibold">
                           {o.senderName || o.customerName || "—"}
-                          {o.senderCity && <div className="text-[10px] text-muted-foreground">{o.senderCity}</div>}
+                          {(o.senderGovernorate || o.senderCity) && <div className="text-[10px] text-muted-foreground">{o.senderGovernorate || o.senderCity}</div>}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
                           {o.receiverName || "—"}
