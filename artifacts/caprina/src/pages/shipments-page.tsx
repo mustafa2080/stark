@@ -1570,7 +1570,7 @@ export default function Orders() {
                   <div
                     key={order.id}
                     className={`flex items-center gap-3 px-4 py-3 hover:bg-muted/10 active:bg-muted/20 cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
-                    onClick={() => canWriteOrders && bulkSelectMode ? toggleSelect(order) : (window.location.href = navTarget)}
+                    onClick={() => canWriteOrders && bulkSelectMode ? toggleSelect(order) : navigate(navTarget)}
                   >
                     {canWriteOrders && bulkSelectMode && (
                       <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(order)} onClick={e => e.stopPropagation()} className="shrink-0" />
@@ -1715,7 +1715,7 @@ export default function Orders() {
                         key={order.id}
                         className={`border-border hover:bg-muted/20 cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
                         style={{ animation: "rowFadeIn 0.3s ease both", animationDelay: `${Math.min(rowIndex * 35, 600)}ms` }}
-                        onClick={() => canWriteOrders && bulkSelectMode ? toggleSelect(order) : (window.location.href = navTarget)}
+                        onClick={() => canWriteOrders && bulkSelectMode ? toggleSelect(order) : navigate(navTarget)}
                       >
                         {canWriteOrders && bulkSelectMode && (
                           <TableCell className="text-center p-2">
