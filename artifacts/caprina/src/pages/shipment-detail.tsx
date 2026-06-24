@@ -3758,39 +3758,43 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   </div>
                 </div>
 
-                {/* شريط بيانات المرسل / المستلم / العنوان */}
+                {/* شريط بيانات الراسل / المستلم / العنوان */}
                 <div className="border-t border-border px-4 py-3 bg-muted/10">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="flex flex-col gap-0.5">
+                    {/* هاتف المستلم */}
+                    <div className="flex flex-col items-center text-center gap-0.5 bg-muted/30 rounded-xl px-3 py-2.5">
                       <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                         <Phone className="w-3 h-3" />هاتف المستلم
                       </span>
-                      <span className="text-sm font-semibold" dir="ltr">
+                      <span className="text-sm font-bold" dir="ltr">
                         {(order as any).receiverPhone || order.phone || "—"}
                       </span>
                       {(order as any).receiverPhone2 && (
                         <span className="text-xs text-muted-foreground" dir="ltr">{(order as any).receiverPhone2}</span>
                       )}
                     </div>
-                    <div className="flex flex-col gap-0.5">
+                    {/* المحافظة */}
+                    <div className="flex flex-col items-center text-center gap-0.5 bg-muted/30 rounded-xl px-3 py-2.5">
                       <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                         <MapPin className="w-3 h-3" />المحافظة
                       </span>
-                      <span className="text-sm font-semibold">
+                      <span className="text-sm font-bold">
                         {(order as any).receiverCity || (order as any).city || (order as any).zoneLabel || "—"}
                       </span>
                     </div>
-                    <div className="flex flex-col gap-0.5 col-span-2 md:col-span-1">
+                    {/* العنوان */}
+                    <div className="flex flex-col items-center text-center gap-0.5 bg-muted/30 rounded-xl px-3 py-2.5">
                       <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                         <MapPin className="w-3 h-3" />العنوان
                       </span>
-                      <span className="text-xs font-semibold line-clamp-2">
+                      <span className="text-xs font-bold line-clamp-2">
                         {(order as any).receiverAddress || order.address || "—"}
                       </span>
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground font-medium">المرسل</span>
-                      <span className="text-sm font-semibold">{(order as any).senderName || "—"}</span>
+                    {/* الراسل */}
+                    <div className="flex flex-col items-center text-center gap-0.5 bg-muted/30 rounded-xl px-3 py-2.5">
+                      <span className="text-[10px] text-muted-foreground font-medium">الراسل</span>
+                      <span className="text-sm font-bold">{(order as any).senderName || "—"}</span>
                       {(order as any).senderPhone && (
                         <span className="text-xs text-muted-foreground" dir="ltr">{(order as any).senderPhone}</span>
                       )}
