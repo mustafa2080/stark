@@ -394,7 +394,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register" && location !== "/contract" && location !== "/track-client" && !location.startsWith("/track/")) return <Redirect to="/" />;
+  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register" && location !== "/contract" && location !== "/track-client" && !location.startsWith("/track/")) {
+    sessionStorage.setItem("redirect_after_login", location);
+    return <Redirect to="/login" />;
+  }
 
   // ── Subscription expired check ──
   if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
@@ -495,7 +498,7 @@ function Router() {
     );
   }
 
-  if (!user) return <Redirect to="/" />;
+  if (!user) return null;
 
   return (
     <>

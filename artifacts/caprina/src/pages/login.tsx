@@ -26,7 +26,9 @@ export default function LoginPage() {
     try {
       const data = await authApi.login(username.trim(), password);
       login(data.token, data.user);
-      navigate("/");
+      const redirectTo = sessionStorage.getItem("redirect_after_login") || "/";
+      sessionStorage.removeItem("redirect_after_login");
+      navigate(redirectTo);
     } catch {
       toast({ title: "خطأ في تسجيل الدخول", description: "اسم المستخدم أو كلمة المرور غير صحيحة", variant: "destructive" });
     } finally {
