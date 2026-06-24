@@ -369,7 +369,13 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     const updates: any = { ...parsed.data, updatedAt: new Date() };
     if (parsed.data.creditLimit !== undefined) updates.creditLimit = String(parsed.data.creditLimit);
 
-    await db.update(clientsTable).set(updates).where(eq(clientsTable.id, id));
+    // warehouseId يحتاج raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ column
+    const { warehouseId, ...rest } = updates;
+    await db.update(clientsTable).set(rest).where(eq(clientsTable.id, id));
+    if (warehouseId !== undefined) {
+      await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
+    }
+
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
     res.json(client);
