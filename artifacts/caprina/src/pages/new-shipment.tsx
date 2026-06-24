@@ -186,7 +186,7 @@ export default function NewShipmentPage() {
             <div><Label className="text-xs font-bold mb-1.5 block">اسم الراسل <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="الاسم الكامل" value={form.senderName} onChange={e => set("senderName", e.target.value)} /></div>
             <div><Label className="text-xs font-bold mb-1.5 block">رقم الهاتف</Label><Input className="text-sm" placeholder="01XXXXXXXXX" value={form.senderPhone} onChange={e => set("senderPhone", e.target.value)} /></div>
             <div><Label className="text-xs font-bold mb-1.5 block">هاتف 2</Label><Input className="text-sm" placeholder="رقم بديل" value={form.senderPhone2} onChange={e => set("senderPhone2", e.target.value)} /></div>
-            <div><Label className="text-xs font-bold mb-1.5 block">المدينة</Label><Input className="text-sm" placeholder="مدينة المرسل" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} /></div>
+            <div><Label className="text-xs font-bold mb-1.5 block">المحافظة</Label><Input className="text-sm" placeholder="محافظة المرسل" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} /></div>
           </div>
         </section>
 

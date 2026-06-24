@@ -340,8 +340,8 @@ function ShipmentFormDialog({
                 <Input className="text-sm" placeholder="رقم بديل" value={form.senderPhone2} onChange={e => set("senderPhone2", e.target.value)} />
               </div>
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">المدينة</Label>
-                <Input className="text-sm" placeholder="مدينة المرسل" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} />
+                <Label className="text-xs font-bold mb-1.5 block">المحافظة</Label>
+                <Input className="text-sm" placeholder="محافظة المرسل" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} />
               </div>
             </div>
           </section>
