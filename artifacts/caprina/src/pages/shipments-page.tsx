@@ -1108,7 +1108,7 @@ export default function Orders() {
 
   const handleWhatsApp = (e: React.MouseEvent, order: NonNullable<typeof orders>[0]) => {
     e.stopPropagation();
-    const phone = (order as any).senderPhone || (order as any).receiverPhone || (order as any).phone || "";
+    const phone = (order as any).receiverPhone || (order as any).phone || (order as any).senderPhone || "";
     if (!phone) {
       toast({ title: "لا يوجد رقم هاتف", description: "أضف رقم هاتف للعميل أولاً", variant: "destructive" });
       return;
@@ -1151,7 +1151,7 @@ export default function Orders() {
       const shipment = order as any;
       message = applyShippingTemplate(tpl.body, {
         id: order.id,
-        customerName: shipment.senderName || shipment.receiverName || shipment.customerName || "العميل",
+        customerName: shipment.receiverName || shipment.customerName || shipment.senderName || "العميل",
         product: shipment.description || shipment.product || "شحنة",
         trackingNumber: shipment.trackingNumber ?? null,
         shippingCompany: (shipment.shippingCompanyName || shipment.shippingCompany) ?? null,
@@ -1159,7 +1159,7 @@ export default function Orders() {
       });
     } else if (tpl) {
       const shipment = order as any;
-      const customerName = shipment.senderName || shipment.receiverName || shipment.customerName || "العميل";
+      const customerName = shipment.receiverName || shipment.customerName || shipment.senderName || "العميل";
       const product      = shipment.description || shipment.product || "شحنة";
       const totalPrice   = Number(shipment.totalAmount || shipment.codAmount || shipment.totalPrice || 0);
       message = applyTemplate(tpl.body, {
