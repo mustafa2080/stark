@@ -85,6 +85,14 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(clientsTable.createdAt));
 
+    // جلب warehouse_id بـ raw SQL عشان Drizzle compiled schema مش شايله
+    const ids = clients.map(c => c.id);
+    let warehouseMap: Record<number, number | null> = {};
+    if (ids.length) {
+      const rows = await db.execute(sql`SELECT id, warehouse_id FROM clients WHERE id IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
+      for (const r of (rows as any)[0] ?? []) warehouseMap[r.id] = r.warehouse_id ?? null;
+    }
+
     // حساب الإحصائيات live من أوامر البيع لكل عميل
     const orderConds: any[] = [];
     if (tenantId !== null) orderConds.push(eq(saleOrdersTable.tenantId, tenantId));
@@ -113,6 +121,7 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       const s = statsMap[c.name] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       return {
         ...c,
+        warehouseId: warehouseMap[c.id] ?? null,
         totalOrders: s.totalOrders,
         totalSales:  String(s.totalSales),
         totalPaid:   String(s.totalPaid),
@@ -257,6 +266,10 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
     const [client] = await db.select().from(clientsTable).where(and(...conds));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
+    // جلب warehouse_id بـ raw SQL
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id FROM clients WHERE id = ${id}`) as any;
+    const warehouseId = whRow?.warehouse_id ?? null;
+
     // جلب أوامر البيع المرتبطة
     const orderConds: any[] = [eq(saleOrdersTable.clientName, client.name)];
     if (tenantId !== null) orderConds.push(eq(saleOrdersTable.tenantId, tenantId));
@@ -283,6 +296,7 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
 
     res.json({
       ...client,
+      warehouseId,
       totalOrders,
       totalSales:   String(totalSales),
       totalPaid:    String(totalPaid),
