@@ -325,8 +325,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchMe(savedToken).then((fresh) => {
           if (fresh) {
             const normalized = normalizeUser(fresh);
-            setUser({ ...normalized });
-            localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+            // نحدّث الـ state بس لو في تغيير فعلي — نمنع re-render زيادة عند الـ load
+            setUser((prev) => {
+              if (
+                prev &&
+                prev.role === normalized.role &&
+                prev.isActive === normalized.isActive &&
+                prev.planStatus === normalized.planStatus &&
+                !permissionsChanged(prev.permissions, normalized.permissions)
+              ) return prev;
+              localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+              return normalized;
+            });
           } else {
             localStorage.removeItem(TOKEN_KEY);
             localStorage.removeItem(USER_KEY);
