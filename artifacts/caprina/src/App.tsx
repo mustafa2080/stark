@@ -512,7 +512,7 @@ function Router() {
     <>
       <VideoBackgroundSync />
       <Layout>
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={null}>
         <Switch>
           <Route path="/my-dashboard"             component={ProfilePage} />
           <Route path="/client-profile"           component={ClientProfilePage} />

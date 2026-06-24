@@ -790,7 +790,7 @@ export default function Dashboard() {
 
   return (
     <>
-    <div className="space-y-3 sm:space-y-4 lg:space-y-5 pb-4 sm:pb-0 animate-in fade-in duration-500 min-w-0 overflow-x-hidden">
+    <div className="space-y-3 sm:space-y-4 lg:space-y-5 pb-4 sm:pb-0 min-w-0 overflow-x-hidden">
 
       {/* ── Header ── */}
       <div className="flex flex-col gap-2">
