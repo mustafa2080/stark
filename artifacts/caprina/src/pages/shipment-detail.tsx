@@ -3858,7 +3858,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <FormField control={form.control} name="senderName" render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">اسم المرسل</FormLabel>
+                            <FormLabel className="text-xs text-muted-foreground">اسم الراسل</FormLabel>
                             <FormControl>
                               <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? ""} />
                             </FormControl>

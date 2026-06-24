@@ -192,7 +192,7 @@ function ShipmentFormDialog({
 
   function handleSubmit() {
     if (!form.senderName || !form.receiverName) {
-      toast({ title: "الحقول المطلوبة", description: "اسم المرسل واسم المستلم مطلوبان", variant: "destructive" });
+      toast({ title: "الحقول المطلوبة", description: "اسم الراسل واسم المستلم مطلوبان", variant: "destructive" });
       return;
     }
     mutation.mutate({
@@ -299,7 +299,7 @@ function ShipmentFormDialog({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">اسم المرسل <span className="text-red-500">*</span></Label>
+                <Label className="text-xs font-bold mb-1.5 block">اسم الراسل <span className="text-red-500">*</span></Label>
                 <Input className="text-sm" placeholder="الاسم الكامل" value={form.senderName} onChange={e => set("senderName", e.target.value)} />
               </div>
               <div>

@@ -98,7 +98,7 @@ export default function NewShipmentPage() {
 
   function handleSubmit() {
     if (!form.senderName || !form.receiverName) {
-      toast({ title: "الحقول المطلوبة", description: "اسم المرسل واسم المستلم مطلوبان", variant: "destructive" });
+      toast({ title: "الحقول المطلوبة", description: "اسم الراسل واسم المستلم مطلوبان", variant: "destructive" });
       return;
     }
     if (!form.warehouseId) {
@@ -183,7 +183,7 @@ export default function NewShipmentPage() {
             {form.clientId && <p className="text-[10px] text-primary mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />تم تعبئة بيانات المرسل تلقائياً</p>}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><Label className="text-xs font-bold mb-1.5 block">اسم المرسل <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="الاسم الكامل" value={form.senderName} onChange={e => set("senderName", e.target.value)} /></div>
+            <div><Label className="text-xs font-bold mb-1.5 block">اسم الراسل <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="الاسم الكامل" value={form.senderName} onChange={e => set("senderName", e.target.value)} /></div>
             <div><Label className="text-xs font-bold mb-1.5 block">رقم الهاتف</Label><Input className="text-sm" placeholder="01XXXXXXXXX" value={form.senderPhone} onChange={e => set("senderPhone", e.target.value)} /></div>
             <div><Label className="text-xs font-bold mb-1.5 block">هاتف 2</Label><Input className="text-sm" placeholder="رقم بديل" value={form.senderPhone2} onChange={e => set("senderPhone2", e.target.value)} /></div>
             <div><Label className="text-xs font-bold mb-1.5 block">المدينة</Label><Input className="text-sm" placeholder="مدينة المرسل" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} /></div>

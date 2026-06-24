@@ -415,7 +415,7 @@ function ShipmentFormDialog({
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label className="text-xs font-bold mb-1.5 block">ط§ط³ظ… ط§ظ„ظ…ط±ط³ظ„ <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„" value={form.senderName} onChange={e => set("senderName", e.target.value)} /></div>
+              <div><Label className="text-xs font-bold mb-1.5 block">ط§ط³ظ… ط§ظ„ط±ط§ط³ظ„ <span className="text-red-500">*</span></Label><Input className="text-sm" placeholder="ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„" value={form.senderName} onChange={e => set("senderName", e.target.value)} /></div>
               <div><Label className="text-xs font-bold mb-1.5 block">ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ</Label><Input className="text-sm" placeholder="01XXXXXXXXX" value={form.senderPhone} onChange={e => set("senderPhone", e.target.value)} /></div>
               <div><Label className="text-xs font-bold mb-1.5 block">ظ‡ط§طھظپ 2</Label><Input className="text-sm" placeholder="ط±ظ‚ظ… ط¨ط¯ظٹظ„" value={form.senderPhone2} onChange={e => set("senderPhone2", e.target.value)} /></div>
               <div><Label className="text-xs font-bold mb-1.5 block">ط§ظ„ظ…ط¯ظٹظ†ط©</Label><Input className="text-sm" placeholder="ظ…ط¯ظٹظ†ط© ط§ظ„ظ…ط±ط³ظ„" value={form.senderCity} onChange={e => set("senderCity", e.target.value)} /></div>
