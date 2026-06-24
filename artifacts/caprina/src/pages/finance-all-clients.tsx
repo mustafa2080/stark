@@ -29,6 +29,7 @@ type Client = {
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
+  warehouseId: number | null;
 };
 
 // ── Avatar helpers ──────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ function ClientAvatar({ avatar, name, size = "md" }: { avatar?: string|null; nam
 const emptyForm = {
   name: "", phone: "", phone2: "", email: "", address: "", city: "", region: "",
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
-  creditLimit: "0", notes: "", isActive: true, avatar: "",
+  creditLimit: "0", notes: "", isActive: true, avatar: "", warehouseId: "",
 };
 
 function EditClientDialog({ client, open, onClose, onSuccess }: {
@@ -72,6 +73,11 @@ function EditClientDialog({ client, open, onClose, onSuccess }: {
 }) {
   const { toast } = useToast();
   const [form, setForm] = useState({ ...emptyForm });
+
+  const { data: warehouses = [] } = useQuery<{ id: number; name: string; city?: string }[]>({
+    queryKey: ["warehouses"],
+    queryFn: () => apiFetch("/warehouses"),
+  });
 
   useEffect(() => {
     if (open) setForm({
@@ -89,6 +95,7 @@ function EditClientDialog({ client, open, onClose, onSuccess }: {
       notes: client.notes ?? "",
       isActive: client.isActive,
       avatar: client.avatar ?? "",
+      warehouseId: client.warehouseId ? String(client.warehouseId) : "",
     });
   }, [open, client]);
 
@@ -103,6 +110,7 @@ function EditClientDialog({ client, open, onClose, onSuccess }: {
         creditLimit: parseFloat(form.creditLimit) || 0,
         notes: form.notes || null, isActive: form.isActive,
         avatar: form.avatar || null,
+        warehouseId: form.warehouseId ? parseInt(form.warehouseId) : null,
       };
       return apiFetch<any>(`/finance/clients/${client.id}`, { method: "PATCH", body: JSON.stringify(body) });
     },
@@ -219,6 +227,22 @@ function EditClientDialog({ client, open, onClose, onSuccess }: {
                 ? <><ToggleRight className="w-4 h-4 text-emerald-400" />نشط</>
                 : <><ToggleLeft className="w-4 h-4" />غير نشط</>}
             </Button>
+          </div>
+
+          {/* المخزن المرتبط */}
+          <div>
+            <Label className="text-xs mb-1.5 block">المخزن المرتبط</Label>
+            <Select value={form.warehouseId || "none"} onValueChange={v => f("warehouseId", v === "none" ? "" : v)}>
+              <SelectTrigger className="h-9 text-sm bg-background">
+                <SelectValue placeholder="اختر مخزن (اختياري)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— بدون مخزن —</SelectItem>
+                {warehouses.map(w => (
+                  <SelectItem key={w.id} value={String(w.id)}>{w.name}{w.city ? ` — ${w.city}` : ""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex gap-2 pt-1">
