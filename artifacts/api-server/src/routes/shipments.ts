@@ -11,6 +11,9 @@ const router: IRouter = Router();
 // alias لجدول المناطق عشان نطابق محافظة مدينة الراسل (senderCity) بشكل مستقل عن منطقة المستلم
 const senderZoneTable = alias(shipmentZonesTable, "sender_zone");
 
+// alias لجدول المخازن عشان نجيب مخزن العميل التجاري كـ fallback لو الشحنة مالهاش مخزن
+const clientWarehouseTable = alias(warehousesTable, "client_warehouse");
+
 // ─── Public router (no auth) ──────────────────────────────────────────────────
 export const publicShipmentsRouter: IRouter = Router();
 
@@ -363,7 +366,9 @@ router.get("/shipments", async (req, res): Promise<void> => {
           variantId:        shipmentsTable.variantId,
           warehouseId:      shipmentsTable.warehouseId,
           // ── JOIN: اسم المخزن المرتبط بالشحنة ──
-          warehouseName:    warehousesTable.name,
+          warehouseName:        warehousesTable.name,
+          // ── JOIN: اسم مخزن العميل التجاري (fallback) ──
+          clientWarehouseName:  clientWarehouseTable.name,
           inventoryDeducted: shipmentsTable.inventoryDeducted,
           inventoryReturned: shipmentsTable.inventoryReturned,
           estimatedDelivery: shipmentsTable.estimatedDelivery,
@@ -389,6 +394,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
         .leftJoin(clientsTable, eq(shipmentsTable.clientId, clientsTable.id))
         .leftJoin(senderZoneTable, eq(shipmentsTable.senderCity, senderZoneTable.name))
         .leftJoin(warehousesTable, eq(shipmentsTable.warehouseId, warehousesTable.id))
+        .leftJoin(clientWarehouseTable, eq(clientsTable.warehouseId, clientWarehouseTable.id))
         .where(where)
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(parseInt(limit))
@@ -401,11 +407,14 @@ router.get("/shipments", async (req, res): Promise<void> => {
       const city = (r as any).receiverCity || (r as any).receiver_city || r.zoneGovernorate || (r as any).zone_governorate || null;
       // محافظة الراسل: أولاً محافظة العميل التجاري المسجل، ثم محافظة المدينة (من جدول المناطق)، وإلا تبقى المدينة كما هي
       const senderGov = (r as any).senderGovernorate || (r as any).senderCityGovernorate || (r as any).sender_governorate || (r as any).sender_city_governorate || null;
+      // اسم المخزن: أولاً مخزن الشحنة نفسها، ثم مخزن العميل التجاري كـ fallback
+      const warehouseName = (r as any).warehouseName || (r as any).clientWarehouseName || null;
       return {
         ...r,
         receiverCity: city,
         zoneGovernorate: r.zoneGovernorate || (r as any).zone_governorate || null,
         senderGovernorate: senderGov,
+        warehouseName,
       };
     });
 
