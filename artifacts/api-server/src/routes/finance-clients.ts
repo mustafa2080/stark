@@ -85,12 +85,16 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(clientsTable.createdAt));
 
-    // جلب warehouse_id بـ raw SQL عشان Drizzle compiled schema مش شايله
+    // جلب warehouse_id و region بـ raw SQL عشان Drizzle compiled schema مش شايلهم
     const ids = clients.map(c => c.id);
     let warehouseMap: Record<number, number | null> = {};
+    let regionMap: Record<number, string | null> = {};
     if (ids.length) {
-      const rows = await db.execute(sql`SELECT id, warehouse_id FROM clients WHERE id IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
-      for (const r of (rows as any)[0] ?? []) warehouseMap[r.id] = r.warehouse_id ?? null;
+      const rows = await db.execute(sql`SELECT id, warehouse_id, region FROM clients WHERE id IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
+      for (const r of (rows as any)[0] ?? []) {
+        warehouseMap[r.id] = r.warehouse_id ?? null;
+        regionMap[r.id] = r.region ?? null;
+      }
     }
 
     // حساب الإحصائيات live من أوامر البيع لكل عميل
@@ -122,6 +126,7 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       return {
         ...c,
         warehouseId: warehouseMap[c.id] ?? null,
+        region:      regionMap[c.id] ?? (c as any).region ?? null,
         totalOrders: s.totalOrders,
         totalSales:  String(s.totalSales),
         totalPaid:   String(s.totalPaid),
