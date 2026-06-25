@@ -125,7 +125,7 @@ function InvoiceCard({ order, isLatest }: { order: SaleOrder; isLatest: boolean 
       className={`group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border ${
         isProcessing ? "border-amber-500/30 bg-amber-900/5" : "border-border bg-card/50"
       }`}
-      onClick={() => navigate("/finance/sales")}
+      onClick={() => navigate(`/finance/sales/${order.id}`)}
     >
       {/* شريط اللون الجانبي */}
       <div className={`w-1 rounded-r-lg shrink-0 ${isProcessing ? "bg-amber-500" : "bg-emerald-500"}`} />
