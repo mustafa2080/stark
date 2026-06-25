@@ -735,7 +735,7 @@ export default function FinanceClients() {
           {[
             { label: "إضافة عميل",    icon: <Users className="w-5 h-5" />,       action: openAdd },
             { label: "أمر بيع جديد",  icon: <ShoppingCart className="w-5 h-5" />, action: () => navigate("/finance/sales/new") },
-            { label: "فاتورة بيع",    icon: <Receipt className="w-5 h-5" />,      action: () => navigate("/finance/sales") },
+            { label: "فاتورة بيع",    icon: <Receipt className="w-5 h-5" />,      action: () => navigate("/finance/sales/new") },
             { label: "عرض العملاء",   icon: <Eye className="w-5 h-5" />,          action: () => navigate("/finance/all-clients") },
             { label: "تقرير المبيعات",icon: <BarChart2 className="w-5 h-5" />,   action: () => navigate("/finance/sales-report") },
           ].map((btn, i) => (
