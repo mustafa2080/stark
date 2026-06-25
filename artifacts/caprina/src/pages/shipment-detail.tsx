@@ -2359,7 +2359,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .tracking-item .t-value.green{color:#4ade80}
 
 /* PARTIES */
-.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;direction:ltr}
 .party-box{border:2px solid #111;border-radius:8px;padding:16px 18px}
 .party-box.receiver{border-color:#111;border-width:3px}
 .party-title{font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e0e0e0}
@@ -2454,15 +2454,15 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 
   <!-- PARTIES -->
   <div class="parties">
-    <!-- المرسل -->
+    <!-- الراسل (يسار) -->
     <div class="party-box">
-      <div class="party-title">📤 المرسل</div>
+      <div class="party-title">📤 الراسل</div>
       <div class="party-name">${o.senderName || "—"}</div>
       ${o.senderPhone ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${o.senderPhone}</span></div>` : ""}
       ${o.senderPhone2 ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${o.senderPhone2}</span></div>` : ""}
       ${o.senderCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${o.senderCity}</span></div>` : ""}
     </div>
-    <!-- المستلم -->
+    <!-- المستلم (يمين) -->
     <div class="party-box receiver">
       <div class="party-title">📦 المستلم</div>
       <div class="party-name">${o.receiverName || order.customerName || "—"}</div>
