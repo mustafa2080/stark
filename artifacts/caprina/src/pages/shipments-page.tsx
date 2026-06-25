@@ -1613,6 +1613,9 @@ export default function Orders() {
                           if (rr === 0) return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-orange-500 dark:text-orange-400">⏳ عند شركة الشحن</span>;
                           return null;
                         })()}
+                        {order.status === "warehouse_ready" && (order as any).warehouseName && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-teal-500 dark:text-teal-400">📦 {(order as any).warehouseName}</span>
+                        )}
                         {order.status === "delayed" && (() => {
                           const reason = (order as any).notes as string | null | undefined;
                           if (!reason) return null;
@@ -1772,8 +1775,11 @@ export default function Orders() {
                               {statusLabels[order.status] || order.status}
                             </Badge>
                           {order.status === "warehouse_ready" && (
-                            <div className="flex items-center justify-center gap-0.5 mt-1">
+                            <div className="flex flex-col items-center gap-0.5 mt-1">
                               <span className="text-[9px] font-bold text-amber-500 dark:text-amber-400 leading-none">🏠 ما زال في المخزن</span>
+                              {(order as any).warehouseName && (
+                                <span className="text-[9px] font-semibold text-teal-500 dark:text-teal-400 leading-none">📦 {(order as any).warehouseName}</span>
+                              )}
                             </div>
                           )}
                           {order.status === "in_shipping" && (
