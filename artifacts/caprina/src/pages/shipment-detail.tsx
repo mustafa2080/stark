@@ -4137,8 +4137,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           {/* ── تحليل الربحية ── */}
           {canViewProfitability && (() => {
             const cod         = Number((order as any).codAmount    ?? 0);
-            const shippingFee = Number((order as any).shippingFee  ?? (order as any).shippingCost ?? 0);
-            const insurance   = Number((order as any).insuranceFee ?? 0);
+            const shippingFee = Math.abs(Number((order as any).shippingFee  ?? (order as any).shippingCost ?? 0));
+            const insurance   = Math.abs(Number((order as any).insuranceFee ?? 0));
             const isReturned  = order.status === "returned";
             const net         = isReturned ? -(shippingFee + insurance) : cod - shippingFee - insurance;
             const isPositive  = net >= 0 && !isReturned;
@@ -4186,7 +4186,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   )}
 
                   <div className={`flex justify-between items-center pt-2 mt-1 border-t-2 ${isPositive ? "border-emerald-900/40" : "border-red-900/40"}`}>
-                    <span className="font-bold text-sm">الصافي للمرسل</span>
+                    <span className="font-bold text-sm">الصافي للراسل</span>
                     <span className={`font-black text-xl ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
                       {formatCurrency(net)}
                     </span>
