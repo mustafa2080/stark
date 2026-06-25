@@ -1349,7 +1349,7 @@ export default function FinanceSales() {
   useEffect(() => {
     if (window.location.search.includes("new=1") || window.location.pathname.endsWith("/new")) {
       setFormOpen(true);
-      window.history.replaceState({}, "", "/finance/sales");
+      navigate("/finance/sales", { replace: true });
     }
   }, []);
 
