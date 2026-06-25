@@ -4103,7 +4103,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     {shippingFee > 0 && (
                       <div className="flex justify-between items-center text-xs py-1 border-t border-border/50">
                         <span className="text-muted-foreground">رسوم الشحن</span>
-                        <span className="font-semibold text-orange-400">-{formatCurrency(shippingFee)}</span>
+                        <span className="font-semibold text-orange-400">{formatCurrency(shippingFee)}</span>
                       </div>
                     )}
 
@@ -4111,7 +4111,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     {insurance > 0 && (
                       <div className="flex justify-between items-center text-xs py-1 border-t border-border/50">
                         <span className="text-muted-foreground">رسوم التأمين</span>
-                        <span className="font-semibold text-orange-400">-{formatCurrency(insurance)}</span>
+                        <span className="font-semibold text-orange-400">{formatCurrency(insurance)}</span>
                       </div>
                     )}
 
