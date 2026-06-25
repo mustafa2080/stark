@@ -3644,93 +3644,95 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
 
                 {/* ── Header: اسم المستلم + الـ badges ── */}
-                <div className="px-5 pt-5 pb-4 border-b border-border/50 bg-gradient-to-l from-primary/5 to-transparent">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1.5 font-semibold">المستلم</p>
-                      <h2 className="text-2xl font-black text-foreground leading-tight">
+                <div className="px-5 pt-4 pb-4 border-b border-border/50">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-muted-foreground font-semibold mb-1">المستلم</p>
+                      <h2 className="text-xl font-black text-foreground leading-tight">
                         {(order as any).receiverName || order.customerName || "—"}
                       </h2>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0 pt-0.5">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                         {statusLabels[order.status] || order.status}
                       </Badge>
-                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                        {(order as any).paymentMethod && (
-                          <Badge variant="outline" className="text-[10px] border-amber-600/50 text-amber-400 px-2 py-0.5">
-                            {(order as any).paymentMethod === "cod" ? "COD" : (order as any).paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً"}
-                          </Badge>
-                        )}
-                        {(order as any).parcelType && (
-                          <Badge variant="outline" className="text-[10px] border-border/60 text-muted-foreground px-2 py-0.5">{(order as any).parcelType}</Badge>
-                        )}
-                      </div>
+                      {(order as any).paymentMethod && (
+                        <Badge variant="outline" className="text-[10px] border-amber-600/50 text-amber-400 px-2 py-0.5">
+                          {(order as any).paymentMethod === "cod" ? "COD" : (order as any).paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً"}
+                        </Badge>
+                      )}
+                      {(order as any).parcelType && (
+                        <Badge variant="outline" className="text-[10px] border-border/60 text-muted-foreground px-2 py-0.5">{(order as any).parcelType}</Badge>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* ── بيانات الاتصال والموقع — 4 خانات متساوية ── */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border/50 border-b border-border/50">
+                {/* ── بيانات الاتصال — صف أول ── */}
+                <div className="grid grid-cols-2 border-b border-border/50">
                   {/* هاتف المستلم */}
-                  <div className="px-4 py-3.5 flex flex-col gap-1 bg-card">
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+                  <div className="px-4 py-3 flex flex-col gap-0.5 border-l border-border/50">
+                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                       <Phone className="w-3 h-3 text-primary/60" />هاتف المستلم
                     </span>
-                    <span className="text-sm font-bold text-foreground leading-tight" dir="ltr">
+                    <span className="text-sm font-bold text-foreground" dir="ltr">
                       {(order as any).receiverPhone || order.phone || "—"}
                     </span>
                     {(order as any).receiverPhone2 && (
-                      <span className="text-[11px] text-muted-foreground font-medium" dir="ltr">{(order as any).receiverPhone2}</span>
+                      <span className="text-[11px] text-muted-foreground" dir="ltr">{(order as any).receiverPhone2}</span>
                     )}
                   </div>
                   {/* المحافظة */}
-                  <div className="px-4 py-3.5 flex flex-col gap-1 bg-card">
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+                  <div className="px-4 py-3 flex flex-col gap-0.5">
+                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-primary/60" />المحافظة
                     </span>
-                    <span className="text-sm font-bold text-foreground leading-tight">
+                    <span className="text-sm font-bold text-foreground">
                       {(order as any).receiverCity || (order as any).city || (order as any).zoneLabel || "—"}
                     </span>
                   </div>
+                </div>
+
+                {/* ── صف ثاني ── */}
+                <div className="grid grid-cols-2 border-b border-border/50">
                   {/* العنوان */}
-                  <div className="px-4 py-3.5 flex flex-col gap-1 bg-card">
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+                  <div className="px-4 py-3 flex flex-col gap-0.5 border-l border-border/50">
+                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-primary/60" />العنوان
                     </span>
-                    <span className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
+                    <span className="text-sm font-semibold text-foreground leading-snug">
                       {(order as any).receiverAddress || order.address || "—"}
                     </span>
                   </div>
                   {/* الراسل */}
-                  <div className="px-4 py-3.5 flex flex-col gap-0 bg-card">
+                  <div className="px-4 py-3 flex flex-col gap-0.5">
                     <span className="text-[10px] text-muted-foreground font-medium">الراسل</span>
-                    <span className="text-sm font-bold text-foreground leading-tight">{(order as any).senderName || "—"}</span>
+                    <span className="text-sm font-bold text-foreground">{(order as any).senderName || "—"}</span>
                     {(order as any).senderPhone && (
-                      <span className="text-[12px] font-semibold text-foreground/80 mt-0.5 leading-tight" dir="ltr">{(order as any).senderPhone}</span>
+                      <span className="text-[12px] font-semibold text-foreground/70" dir="ltr">{(order as any).senderPhone}</span>
                     )}
                   </div>
                 </div>
 
                 {/* ── الملخص المالي — 3 خانات ── */}
-                <div className="grid grid-cols-3 divide-x divide-border/50 border-b border-border/50">
-                  <div className="px-4 py-4 text-center bg-card">
-                    <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">
+                <div className="grid grid-cols-3 border-b border-border/50">
+                  <div className="px-4 py-3.5 text-center border-l border-border/50">
+                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">
                       {(order as any).weight ? "الوزن" : "القطع"}
                     </p>
-                    <p className="text-2xl font-black text-foreground leading-none">
+                    <p className="text-xl font-black text-foreground">
                       {(order as any).weight
                         ? <>{(order as any).weight}<span className="text-xs font-semibold text-muted-foreground mr-1">كجم</span></>
                         : ((order as any).pieces || "—")}
                     </p>
                   </div>
-                  <div className="px-4 py-4 text-center bg-card">
-                    <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">رسوم الشحن</p>
-                    <p className="text-xl font-black text-foreground leading-none">{formatCurrency(shippingFee)}</p>
+                  <div className="px-4 py-3.5 text-center border-l border-border/50">
+                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">رسوم الشحن</p>
+                    <p className="text-lg font-black text-foreground">{formatCurrency(shippingFee)}</p>
                   </div>
-                  <div className="px-4 py-4 text-center bg-primary/5 border-r border-primary/20">
-                    <p className="text-[10px] text-primary/70 mb-1.5 font-medium">الإجمالي</p>
-                    <p className="text-2xl font-black text-primary leading-none">{formatCurrency(totalAmount)}</p>
+                  <div className="px-4 py-3.5 text-center bg-primary/5">
+                    <p className="text-[10px] text-primary/70 mb-1 font-medium">الإجمالي</p>
+                    <p className="text-xl font-black text-primary">{formatCurrency(totalAmount)}</p>
                   </div>
                 </div>
 
