@@ -26,7 +26,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
-  | "waiting" | "confirmed" | "warehouse_ready" | "picked_up" | "in_transit"
+  | "waiting" | "confirmed" | "warehouse_ready" | "still_in_warehouse" | "picked_up" | "in_transit"
   | "out_for_delivery" | "delivered" | "partial_received" | "delayed" | "returned" | "cancelled";
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
@@ -74,6 +74,8 @@ interface Shipment {
 const STATUS_CFG: Record<ShipmentStatus, { label: string; icon: React.ElementType; cls: string }> = {
   waiting:          { label: "انتظار",          icon: Clock,        cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"    },
   confirmed:        { label: "مؤكدة",           icon: CheckCircle,  cls: "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700"          },
+  warehouse_ready:  { label: "جاهزة للاستلام", icon: Warehouse,    cls: "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700"},
+  still_in_warehouse: { label: "ما زال في المخزن", icon: Warehouse, cls: "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700"},
   picked_up:        { label: "تم الاستلام",     icon: Package,      cls: "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700"           },
   in_transit:       { label: "قيد الشحن",       icon: Truck,        cls: "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700"},
   out_for_delivery: { label: "خرجت للتسليم",   icon: MapPin,       cls: "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700"     },
@@ -730,7 +732,7 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
             <span className="text-xs font-black text-foreground">{shipment.shipmentNumber}</span>
             <div className="flex flex-col gap-0.5">
               <StatusBadge status={shipment.status as ShipmentStatus} />
-              {shipment.status === "warehouse_ready" && shipment.warehouseName && (
+              {(shipment.status === "warehouse_ready" || shipment.status === "still_in_warehouse") && shipment.warehouseName && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 dark:text-violet-400">
                   <Warehouse className="w-2.5 h-2.5" />
                   {shipment.warehouseName}
