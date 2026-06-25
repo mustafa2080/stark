@@ -418,7 +418,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 // ─── Permission-protected route ───────────────────────────────────────────────
 function ProtectedRoute({ permission, component: Comp }: { permission: string; component: React.ComponentType }) {
-  const { can, user, isAdmin } = useAuth();
+  const { can, user, isAdmin, loading } = useAuth();
+
+  // لو الـ auth لسه بيتحمل → لا تعمل redirect
+  if (loading) return null;
 
   // helper — يقبل الـ new keys مباشرة أو legacy keys
   const hasAccess = (() => {

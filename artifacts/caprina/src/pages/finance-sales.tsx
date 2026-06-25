@@ -1349,7 +1349,8 @@ export default function FinanceSales() {
   useEffect(() => {
     if (window.location.search.includes("new=1") || window.location.pathname.endsWith("/new")) {
       setFormOpen(true);
-      navigate("/finance/sales", { replace: true });
+      // نغير الـ URL بدون navigate عشان منتسببش في re-route بتاع Wouter
+      window.history.replaceState({}, "", "/finance/sales");
     }
   }, []);
 
