@@ -360,8 +360,8 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
     const now = new Date();
-    // warehouseId يتفصل لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفه — نضيفه بـ raw SQL بعد الإنشاء
-    const { warehouseId, ...restData } = parsed.data;
+    // warehouseId و region يتفصلان لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفهم — نضيفهم بـ raw SQL بعد الإنشاء
+    const { warehouseId, region, ...restData } = parsed.data;
     const [result] = await db.insert(clientsTable).values({
       ...restData,
       creditLimit:  String(parsed.data.creditLimit ?? 0),
@@ -375,6 +375,9 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     const id = (result as any).insertId;
     if (warehouseId !== undefined) {
       await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
+    }
+    if (region !== undefined) {
+      await db.execute(sql`UPDATE clients SET region = ${region ?? null} WHERE id = ${id}`);
     }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
@@ -395,11 +398,14 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     const updates: any = { ...parsed.data, updatedAt: new Date() };
     if (parsed.data.creditLimit !== undefined) updates.creditLimit = String(parsed.data.creditLimit);
 
-    // warehouseId يحتاج raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ column
-    const { warehouseId, ...rest } = updates;
+    // warehouseId و region يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
+    const { warehouseId, region, ...rest } = updates;
     await db.update(clientsTable).set(rest).where(eq(clientsTable.id, id));
     if (warehouseId !== undefined) {
       await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
+    }
+    if (region !== undefined) {
+      await db.execute(sql`UPDATE clients SET region = ${region ?? null} WHERE id = ${id}`);
     }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
