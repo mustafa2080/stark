@@ -26,7 +26,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
-  | "waiting" | "confirmed" | "picked_up" | "in_transit"
+  | "waiting" | "confirmed" | "warehouse_ready" | "picked_up" | "in_transit"
   | "out_for_delivery" | "delivered" | "partial_received" | "delayed" | "returned" | "cancelled";
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
@@ -67,6 +67,7 @@ interface Shipment {
   notes?: string;
   createdAt: string;
   createdByName?: string;
+  warehouseName?: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -727,7 +728,15 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1.5">
             <span className="text-xs font-black text-foreground">{shipment.shipmentNumber}</span>
-            <StatusBadge status={shipment.status as ShipmentStatus} />
+            <div className="flex flex-col gap-0.5">
+              <StatusBadge status={shipment.status as ShipmentStatus} />
+              {shipment.status === "warehouse_ready" && shipment.warehouseName && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 dark:text-violet-400">
+                  <Warehouse className="w-2.5 h-2.5" />
+                  {shipment.warehouseName}
+                </span>
+              )}
+            </div>
             <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${PAYMENT_COLORS[shipment.paymentMethod as PaymentMethod]}`}>
               {PAYMENT_LABELS[shipment.paymentMethod as PaymentMethod]}
             </span>

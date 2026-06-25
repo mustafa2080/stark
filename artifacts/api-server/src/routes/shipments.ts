@@ -362,6 +362,8 @@ router.get("/shipments", async (req, res): Promise<void> => {
           productId:        shipmentsTable.productId,
           variantId:        shipmentsTable.variantId,
           warehouseId:      shipmentsTable.warehouseId,
+          // ── JOIN: اسم المخزن المرتبط بالشحنة ──
+          warehouseName:    warehousesTable.name,
           inventoryDeducted: shipmentsTable.inventoryDeducted,
           inventoryReturned: shipmentsTable.inventoryReturned,
           estimatedDelivery: shipmentsTable.estimatedDelivery,
@@ -386,6 +388,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
         .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
         .leftJoin(clientsTable, eq(shipmentsTable.clientId, clientsTable.id))
         .leftJoin(senderZoneTable, eq(shipmentsTable.senderCity, senderZoneTable.name))
+        .leftJoin(warehousesTable, eq(shipmentsTable.warehouseId, warehousesTable.id))
         .where(where)
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(parseInt(limit))
