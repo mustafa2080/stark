@@ -542,9 +542,9 @@ function Router() {
           <Route path="/finance"                  component={() => <ProtectedRoute permission="finance.view" component={FinanceHub} />} />
           <Route path="/finance/dashboard"        component={() => <Redirect to="/finance" />} />
           <Route path="/finance/purchases"        component={() => <ProtectedRoute permission="finance.view" component={FinancePurchases} />} />
-          <Route path="/finance/sales"            component={() => <ProtectedRoute permission="finance.view" component={FinanceSales} />} />
           <Route path="/finance/sales/new"        component={() => <ProtectedRoute permission="finance.view" component={FinanceSales} />} />
           <Route path="/finance/sales/:id"        component={() => <ProtectedRoute permission="finance.view" component={FinanceSaleDetail} />} />
+          <Route path="/finance/sales"            component={() => <ProtectedRoute permission="finance.view" component={FinanceSales} />} />
           <Route path="/finance/clients"          component={() => <ProtectedRoute permission="finance.view" component={FinanceClients} />} />
           <Route path="/finance/all-clients"      component={() => <ProtectedRoute permission="finance.view" component={AllClientsPage} />} />
 
