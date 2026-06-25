@@ -124,17 +124,14 @@ router.get("/warehouses", async (req, res): Promise<void> => {
         .from(ordersTable)
         .where(eq(ordersTable.warehouseId, w.id));
 
-      // عدد الشحنات قيد الشحن (حالات نشطة) المرتبطة بهذا المخزن
+      // عدد الشحنات "قيد الشحن بالمخزن" فقط — مفيش عد لحالات قبل ما توصل warehouse_ready
       const [shipmentCountRow] = await db
         .select({ cnt: count() })
         .from(shipmentsTable)
         .where(and(
           eq(shipmentsTable.warehouseId, w.id),
           isNull(shipmentsTable.deletedAt),
-          inArray(shipmentsTable.status, [
-            "waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery",
-            "pending", "warehouse_ready", "in_shipping",  // legacy
-          ]),
+          inArray(shipmentsTable.status, ["warehouse_ready"]),
         ));
 
       return { ...w, totalUnits, skuCount, orderCount: Number(orderCountRow?.cnt ?? 0), shipmentCount: Number(shipmentCountRow?.cnt ?? 0) };
@@ -239,15 +236,21 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
   const statusFilter = req.query.status as string | undefined;
 
-  // الأسماء الجديدة + القديمة (legacy) للـ active statuses
-  const ACTIVE_STATUSES = [
-    "waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery",
-    "pending", "warehouse_ready", "in_shipping",  // legacy
+  // الشحنة "قيد الشحن بالمخزن" فقط — قبل ما توصل للحالة دي متظهرش في المخزن خالص
+  // (مفيش legacy "in_shipping" هنا عمداً — مطلوب warehouse_ready بالظبط)
+  const ACTIVE_STATUSES = ["warehouse_ready"];
+
+  // الشحنة لازم تكون أو كانت في warehouse_ready عشان تظهر في صفحة المخزن أصلاً —
+  // الحالات اللي قبلها (pending, waiting, confirmed...) متظهرش خالص لحد ما توصل warehouse_ready
+  const VISIBLE_IN_WAREHOUSE = [
+    "warehouse_ready", "picked_up", "in_transit", "out_for_delivery",
+    "delivered", "received", "partial_received", "returned", "cancelled",
   ];
 
   const conditions: any[] = [
     eq(shipmentsTable.warehouseId, id),
     isNull(shipmentsTable.deletedAt),
+    inArray(shipmentsTable.status, VISIBLE_IN_WAREHOUSE),
   ];
 
   if (statusFilter === "active") {
@@ -257,7 +260,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   } else if (statusFilter === "returned") {
     conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled"]));
   }
-  // بدون فلتر = كل الشحنات
+  // بدون فلتر = كل الشحنات اللي وصلت warehouse_ready على الأقل (مش كل الشحنات المرتبطة بالمخزن)
 
   const shipments = await db
     .select({
@@ -288,11 +291,15 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     .orderBy(desc(shipmentsTable.createdAt))
     .limit(200);
 
-  // إحصائيات سريعة
+  // إحصائيات سريعة — بنفس قيد VISIBLE_IN_WAREHOUSE (مفيش عد للشحنات اللي لسه قبل warehouse_ready)
   const allForStats = await db
     .select({ status: shipmentsTable.status })
     .from(shipmentsTable)
-    .where(and(eq(shipmentsTable.warehouseId, id), isNull(shipmentsTable.deletedAt)));
+    .where(and(
+      eq(shipmentsTable.warehouseId, id),
+      isNull(shipmentsTable.deletedAt),
+      inArray(shipmentsTable.status, VISIBLE_IN_WAREHOUSE),
+    ));
 
   const stats = {
     total:     allForStats.length,
