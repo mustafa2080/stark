@@ -1520,9 +1520,7 @@ function getStatusInfo(status: string) {
 function ParcelTypesTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  // dropdown شحنات: مفتوح على parcel type id + warehouse id
-  const [shipmentsOpen, setShipmentsOpen] = useState<{ parcelId: number; warehouseId: number } | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editPrices, setEditPrices] = useState<Record<number, string>>({});
   const [addOpen, setAddOpen] = useState(false);
   const [newType, setNewType] = useState("");
@@ -1533,6 +1531,7 @@ function ParcelTypesTab() {
   const [editImgId, setEditImgId] = useState<number | null>(null);
   const [editImgPreview, setEditImgPreview] = useState<string | null>(null);
   const [savingImg, setSavingImg] = useState(false);
+  const [expandedWarehouse, setExpandedWarehouse] = useState<number | null>(null);
 
   // جلب المخازن
   const { data: warehouses = [] } = useQuery({
@@ -1622,9 +1621,9 @@ function ParcelTypesTab() {
   };
 
   return (
-    <div className="space-y-3" dir="rtl">
+    <div className="space-y-4" dir="rtl">
 
-      {/* Header row */}
+      {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-black flex items-center gap-2">
@@ -1646,219 +1645,354 @@ function ParcelTypesTab() {
         </div>
       </div>
 
-      {/* KPI summary */}
-      {pricing.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Card className="border-border bg-card p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Layers className="w-3.5 h-3.5 text-violet-500" />
-              <p className="text-[10px] text-muted-foreground">إجمالي الأنواع</p>
-            </div>
-            <p className="text-xl font-black">{pricing.length}</p>
-          </Card>
-          <Card className="border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/5 p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <DollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <p className="text-[10px] text-muted-foreground">أعلى سعر</p>
-            </div>
-            <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">
-              {Math.max(...pricing.map(p => Number(p.basePrice)))} ج
-            </p>
-          </Card>
-          <Card className="border-border bg-card p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Tag className="w-3.5 h-3.5 text-primary" />
-              <p className="text-[10px] text-muted-foreground">أقل سعر</p>
-            </div>
-            <p className="text-xl font-black text-primary">
-              {Math.min(...pricing.map(p => Number(p.basePrice)))} ج
-            </p>
-          </Card>
-          <Card className="border-border bg-card p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <CircleDollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-              <p className="text-[10px] text-muted-foreground">متوسط السعر</p>
-            </div>
-            <p className="text-xl font-black">
-              {Math.round(pricing.reduce((s, p) => s + Number(p.basePrice), 0) / pricing.length)} ج
-            </p>
-          </Card>
-        </div>
-      )}
+      {/* ── KPI Cards ────────────────────────────────────────────────────── */}
+      {pricing.length > 0 && (() => {
+        const totalShipmentsAll = allShipments.length;
+        const totalCODAll = allShipments.reduce((s, sh) => s + (Number((sh as any).codAmount) || 0), 0);
+        const maxPrice = Math.max(...pricing.map(p => Number(p.basePrice)));
+        const minPrice = Math.min(...pricing.map(p => Number(p.basePrice)));
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <Card className="border-violet-200 dark:border-violet-900/40 bg-violet-50 dark:bg-violet-900/10 p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center">
+                  <Layers className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium">إجمالي الأنواع</p>
+              </div>
+              <p className="text-2xl font-black text-violet-600 dark:text-violet-400">{pricing.length}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">نوع شحنة مُعرَّف</p>
+            </Card>
+            <Card className="border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/10 p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
+                  <Truck className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium">الشحنات النشطة</p>
+              </div>
+              <p className="text-2xl font-black text-primary">{totalShipmentsAll}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">عبر كل الأنواع</p>
+            </Card>
+            <Card className="border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/10 p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                  <CircleDollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium">إجمالي COD</p>
+              </div>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{totalCODAll > 0 ? totalCODAll.toLocaleString() : "—"}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">جنيه</p>
+            </Card>
+            <Card className="border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10 p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
+                  <Tag className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium">نطاق الأسعار</p>
+              </div>
+              <p className="text-lg font-black text-amber-600 dark:text-amber-400">{minPrice} – {maxPrice}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">جنيه (أدنى – أعلى)</p>
+            </Card>
+          </div>
+        );
+      })()}
 
-      {/* List */}
+      {/* ── Content ──────────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground text-sm flex items-center justify-center gap-2">
-          <RefreshCw className="w-4 h-4 animate-spin" /> جاري التحميل...
+        <div className="text-center py-16 text-muted-foreground text-sm flex flex-col items-center gap-3">
+          <RefreshCw className="w-6 h-6 animate-spin opacity-40" />
+          <span>جاري التحميل...</span>
         </div>
       ) : pricing.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm">
-          لا توجد أنواع — اضغط "تهيئة الأسعار الافتراضية" لإضافة الأنواع الـ 8
+        <div className="text-center py-16 text-muted-foreground text-sm flex flex-col items-center gap-3">
+          <Layers className="w-10 h-10 opacity-20" />
+          <span>لا توجد أنواع — اضغط "تهيئة الأسعار الافتراضية" لإضافة الأنواع الـ 8</span>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {pricing.map(p => {
-            const isExpanded = expandedId === p.id;
             const label = p.label || PARCEL_LABELS_MAP[p.parcelType as ParcelTypeKey] || p.parcelType;
-            const icon = PARCEL_ICONS[p.parcelType] ?? "📦";
+            const icon  = PARCEL_ICONS[p.parcelType] ?? "📦";
+            const isOpen = selectedId === p.id;
             const currentPrice = Number(editPrices[p.id] ?? p.basePrice);
 
+            // شحنات هذا النوع مجمعة على المخازن
+            const byWarehouse = warehouses.map(wh => ({
+              wh,
+              shipments: allShipments.filter(s =>
+                s._warehouseId === wh.id &&
+                (s.parcelType === p.parcelType || (!s.parcelType && p.parcelType === "normal"))
+              ),
+            })).filter(g => g.shipments.length > 0);
+            const totalShipCount = byWarehouse.reduce((n, g) => n + g.shipments.length, 0);
+            const totalCOD = byWarehouse.flatMap(g => g.shipments).reduce((s, sh) => s + (Number((sh as any).codAmount) || 0), 0);
+
             return (
-              <Card key={p.id} className="border-border bg-card overflow-hidden">
-                {/* ── Row ── */}
-                <div
-                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
-                  onClick={() => setExpandedId(isExpanded ? null : p.id)}
+              <Card key={p.id} className={`overflow-hidden border transition-all ${isOpen ? "border-violet-400 dark:border-violet-600 shadow-sm" : "border-border"}`}>
+
+                {/* ── Card Header (clickable) ─────────────────────────── */}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors text-right"
+                  onClick={() => { setSelectedId(isOpen ? null : p.id); setExpandedWarehouse(null); }}
                 >
-                  {/* أيقونة / صورة */}
-                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-border shrink-0 bg-muted/30 flex items-center justify-center">
-                    {p.imageUrl ? (
-                      <img src={p.imageUrl} alt={label} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-xl">{icon}</span>
+                  {/* أيقونة/صورة */}
+                  <div className={`w-11 h-11 rounded-xl overflow-hidden border-2 shrink-0 flex items-center justify-center
+                    ${isOpen ? "border-violet-400 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/20" : "border-border bg-muted/20"}`}>
+                    {p.imageUrl
+                      ? <img src={p.imageUrl} alt={label} className="w-full h-full object-cover" />
+                      : <span className="text-2xl">{icon}</span>}
+                  </div>
+
+                  {/* اسم + نوع */}
+                  <div className="flex-1 min-w-0 text-right">
+                    <p className={`text-sm font-black truncate ${isOpen ? "text-violet-700 dark:text-violet-300" : ""}`}>{label}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{p.parcelType}</p>
+                  </div>
+
+                  {/* stats chips */}
+                  <div className="hidden sm:flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] font-black text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 px-2.5 py-1 rounded-full">
+                      {Number(p.basePrice)} ج
+                    </span>
+                    {totalShipCount > 0 && (
+                      <span className="flex items-center gap-1 text-[11px] font-black text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full">
+                        <Package className="w-3 h-3" />{totalShipCount} شحنة
+                      </span>
+                    )}
+                    {totalCOD > 0 && (
+                      <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full">
+                        {totalCOD.toLocaleString()} ج
+                      </span>
                     )}
                   </div>
 
-                  {/* معلومات */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-sm">{label}</span>
-                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">{p.parcelType}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
-                      <span>سعر إضافي:</span>
-                      <span className="font-bold text-foreground">{Number(p.basePrice)} جنيه</span>
-                    </div>
+                  {/* mobile: price only */}
+                  <div className="flex sm:hidden items-center gap-2 shrink-0">
+                    <span className="text-xs font-black text-violet-600 dark:text-violet-400">{Number(p.basePrice)} ج</span>
+                    {totalShipCount > 0 && (
+                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">{totalShipCount}</span>
+                    )}
                   </div>
 
-                  {/* سهم */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20"
-                      onClick={e => { e.stopPropagation(); if (confirm("حذف هذا النوع؟")) deleteMutation.mutate(p.id); }}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                    {isExpanded
-                      ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                      : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                  </div>
-                </div>
+                  {isOpen
+                    ? <ChevronDown className="w-4 h-4 text-violet-500 shrink-0" />
+                    : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                </button>
 
-                {/* ── Expanded details ── */}
-                {isExpanded && (() => {
-                  // شحنات هذا النوع مقسّمة على المخازن
-                  const byWarehouse = warehouses.map(wh => ({
-                    wh,
-                    shipments: allShipments.filter(
-                      s => s._warehouseId === wh.id &&
-                        (s.parcelType === p.parcelType ||
-                          (!s.parcelType && p.parcelType === "normal"))
-                    ),
-                  })).filter(g => g.shipments.length > 0);
-                  const totalCount = byWarehouse.reduce((n, g) => n + g.shipments.length, 0);
+                {/* ── Expanded Body ──────────────────────────────────────── */}
+                {isOpen && (
+                  <div className="border-t border-border/60">
 
-                  return (
-                  <div className="border-t border-border">
+                    {/* ── Stats Row ────────────────────────────────────── */}
+                    <div className="grid grid-cols-3 divide-x divide-x-reverse divide-border/60 bg-muted/10">
+                      <div className="px-4 py-3 text-center">
+                        <p className="text-[10px] text-muted-foreground font-medium mb-1">السعر الإضافي</p>
+                        <p className="text-xl font-black text-violet-600 dark:text-violet-400">{Number(p.basePrice)} <span className="text-xs font-bold">ج</span></p>
+                      </div>
+                      <div className="px-4 py-3 text-center">
+                        <p className="text-[10px] text-muted-foreground font-medium mb-1">الشحنات النشطة</p>
+                        <p className="text-xl font-black text-primary">{totalShipCount}</p>
+                      </div>
+                      <div className="px-4 py-3 text-center">
+                        <p className="text-[10px] text-muted-foreground font-medium mb-1">إجمالي COD</p>
+                        <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">{totalCOD > 0 ? `${totalCOD.toLocaleString()}` : "—"}</p>
+                        {totalCOD > 0 && <p className="text-[10px] text-muted-foreground">جنيه</p>}
+                      </div>
+                    </div>
 
-                    {/* ── قسم الشحنات بالمخازن ── */}
-                    <div className="px-4 pt-3 pb-2 space-y-3">
-                      <div className="flex items-center gap-2">
+                    {/* ── Image + Price Edit Row ────────────────────────── */}
+                    <div className="flex flex-wrap items-start gap-4 px-4 py-4 border-t border-border/60 bg-card">
+                      {/* صورة */}
+                      <div className="relative shrink-0">
+                        <input id={`pimg-${p.id}`} type="file" accept="image/*" className="hidden"
+                          onChange={e => {
+                            const f = e.target.files?.[0]; if (!f) return;
+                            setEditImgId(p.id);
+                            compressParcelImage(f, (b64) => setEditImgPreview(b64));
+                            e.target.value = "";
+                          }} />
+                        <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-border shadow-sm">
+                          {editImgId === p.id && editImgPreview
+                            ? <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
+                            : p.imageUrl
+                              ? <img src={p.imageUrl} className="w-full h-full object-cover" alt={label} />
+                              : <span className="w-full h-full flex items-center justify-center text-3xl bg-muted/20">{icon}</span>
+                          }
+                        </div>
+                        <button type="button"
+                          className="absolute -bottom-1.5 -left-1.5 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-primary/80 transition-colors"
+                          onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
+                          <LucideImage className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* image actions + price edit */}
+                      <div className="flex-1 min-w-[220px] space-y-3">
+                        {/* image actions */}
+                        {editImgId === p.id && editImgPreview ? (
+                          <div className="flex gap-2">
+                            <Button size="sm" className="h-7 text-[11px] px-3 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={() => handleSaveImage(p.id)} disabled={savingImg}>
+                              {savingImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : "✓ حفظ الصورة"}
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-[11px] px-2"
+                              onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إلغاء</Button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2 flex-wrap">
+                            <Button size="sm" variant="outline" className="h-7 text-[11px] px-3 gap-1"
+                              onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
+                              <LucideImage className="w-3 h-3" /> {p.imageUrl ? "تغيير الصورة" : "رفع صورة"}
+                            </Button>
+                            {p.imageUrl && (
+                              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-3 gap-1 text-red-500 hover:text-red-600"
+                                onClick={() => handleRemoveImage(p.id)} disabled={savingImg}>
+                                <Trash2 className="w-3 h-3" /> حذف الصورة
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* price edit */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-[11px] text-muted-foreground font-bold flex items-center gap-1">
+                            <DollarSign className="w-3 h-3 text-amber-500" /> السعر الإضافي:
+                          </p>
+                          <Input
+                            type="number"
+                            className="text-sm h-8 font-bold w-24"
+                            value={editPrices[p.id] ?? String(p.basePrice)}
+                            onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          />
+                          <span className="text-xs text-muted-foreground">ج</span>
+                          <Button size="sm" className="h-8 text-xs px-3 gap-1"
+                            onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}
+                            disabled={updateMutation.isPending}>
+                            {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ"}
+                          </Button>
+                          {currentPrice !== Number(p.basePrice) && (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400">كان: {Number(p.basePrice)} ج</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* حذف النوع */}
+                      <Button variant="ghost" size="sm"
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20 shrink-0 self-start"
+                        onClick={() => { if (confirm("حذف هذا النوع؟")) { deleteMutation.mutate(p.id); setSelectedId(null); } }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* ── الشحنات بالمخازن ─────────────────────────────── */}
+                    <div className="border-t border-border/60">
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/20">
                         <Truck className="w-3.5 h-3.5 text-primary" />
-                        <span className="text-xs font-bold">الشحنات بالمخازن</span>
-                        {totalCount > 0 && (
-                          <span className="bg-primary text-primary-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full">{totalCount}</span>
+                        <span className="text-xs font-bold">الشحنات النشطة بالمخازن</span>
+                        {totalShipCount > 0 && (
+                          <span className="bg-primary text-primary-foreground text-[10px] font-black px-2 py-0.5 rounded-full">{totalShipCount}</span>
                         )}
                       </div>
 
                       {allShipmentsData === undefined ? (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> جاري التحميل...
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground p-5 justify-center">
+                          <RefreshCw className="w-4 h-4 animate-spin" /> جاري التحميل...
                         </div>
                       ) : byWarehouse.length === 0 ? (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-3 px-3 bg-muted/20 rounded-lg border border-border/50">
-                          <PackageX className="w-4 h-4" />
-                          لا توجد شحنات نشطة من هذا النوع في أي مخزن
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground px-4 py-5">
+                          <PackageX className="w-5 h-5 opacity-30" />
+                          <span>لا توجد شحنات نشطة من هذا النوع</span>
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="divide-y divide-border/50">
                           {byWarehouse.map(({ wh, shipments: wShipments }) => {
-                            const isOpen = shipmentsOpen?.parcelId === p.id && shipmentsOpen?.warehouseId === wh.id;
+                            const isWhOpen = expandedWarehouse === wh.id;
+                            const whCOD = wShipments.reduce((s, sh) => s + (Number((sh as any).codAmount) || 0), 0);
                             return (
-                              <div key={wh.id} className="rounded-xl border border-border overflow-hidden">
-                                {/* ── رأس المخزن (قابل للضغط) ── */}
+                              <div key={wh.id}>
+                                {/* رأس المخزن */}
                                 <button
                                   type="button"
-                                  className="w-full flex items-center gap-3 px-3 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-right"
-                                  onClick={() => setShipmentsOpen(isOpen ? null : { parcelId: p.id, warehouseId: wh.id })}
+                                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors text-right"
+                                  onClick={() => setExpandedWarehouse(isWhOpen ? null : wh.id)}
                                 >
-                                  <WarehouseIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                                  <span className="flex-1 text-xs font-bold">{wh.name}</span>
-                                  <span className="flex items-center gap-1 text-[11px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-                                    <Package className="w-3 h-3" />{wShipments.length} شحنة
-                                  </span>
-                                  {isOpen
-                                    ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                                    : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                                  <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                    <WarehouseIcon className="w-3.5 h-3.5 text-primary" />
+                                  </div>
+                                  <span className="flex-1 text-sm font-bold">{wh.name}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {whCOD > 0 && (
+                                      <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                        {whCOD.toLocaleString()} ج
+                                      </span>
+                                    )}
+                                    <span className="flex items-center gap-1 text-[11px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                                      <Package className="w-3 h-3" />{wShipments.length}
+                                    </span>
+                                    {isWhOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                                  </div>
                                 </button>
 
-                                {/* ── قائمة الشحنات ── */}
-                                {isOpen && (
-                                  <div className="divide-y divide-border/50">
-                                    {/* Table header */}
-                                    <div className="hidden sm:grid grid-cols-[2fr_1.5fr_1.5fr_auto_auto] gap-2 px-3 py-1.5 bg-muted/10 text-[10px] text-muted-foreground font-semibold">
-                                      <span>المرسل</span>
+                                {/* جدول الشحنات */}
+                                {isWhOpen && (
+                                  <div className="bg-muted/10">
+                                    <div className="hidden sm:grid grid-cols-[2fr_1.5fr_1fr_1.2fr_auto] gap-2 px-4 py-2 bg-muted/30 border-y border-border/50 text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                      <span>المرسل / رقم الشحنة</span>
                                       <span>المستلم</span>
                                       <span>المدينة</span>
-                                      <span className="w-20 text-center">الحالة</span>
-                                      <span className="w-16 text-center">COD</span>
+                                      <span>الحالة</span>
+                                      <span className="text-left min-w-[72px]">COD</span>
                                     </div>
-                                    {wShipments.map(s => {
-                                      const st = getStatusInfo(s.status);
-                                      return (
-                                        <div key={s.id} className="px-3 py-2.5 hover:bg-muted/10 transition-colors">
-                                          {/* Desktop */}
-                                          <div className="hidden sm:grid grid-cols-[2fr_1.5fr_1.5fr_auto_auto] gap-2 items-center">
-                                            <div className="min-w-0">
-                                              <p className="text-xs font-semibold truncate">{s.senderName}</p>
-                                              {s.shipmentNumber && (
-                                                <p className="text-[10px] text-muted-foreground font-mono">{s.shipmentNumber}</p>
-                                              )}
-                                            </div>
-                                            <div className="min-w-0">
-                                              <p className="text-xs truncate">{s.receiverName}</p>
-                                              {s.receiverPhone && (
-                                                <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>
-                                              )}
-                                            </div>
-                                            <p className="text-xs text-muted-foreground truncate">{s.receiverCity ?? "—"}</p>
-                                            <span className={`w-20 text-center text-[10px] font-bold px-2 py-0.5 rounded-full ${st.color}`}>
-                                              {st.label}
-                                            </span>
-                                            <p className="w-16 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                              {s.codAmount ? `${Number(s.codAmount).toLocaleString()} ج` : "—"}
-                                            </p>
-                                          </div>
-                                          {/* Mobile */}
-                                          <div className="sm:hidden flex items-start gap-2">
-                                            <div className="flex-1 min-w-0 space-y-0.5">
-                                              <div className="flex items-center gap-1.5 flex-wrap">
-                                                <p className="text-xs font-semibold">{s.senderName}</p>
-                                                {s.shipmentNumber && (
-                                                  <span className="text-[9px] text-muted-foreground bg-muted px-1 rounded font-mono">{s.shipmentNumber}</span>
+                                    <div className="divide-y divide-border/40">
+                                      {wShipments.map((s, idx) => {
+                                        const st = getStatusInfo((s as any).status);
+                                        return (
+                                          <div key={(s as any).id ?? idx} className="px-4 py-2.5 hover:bg-muted/20 transition-colors">
+                                            {/* Desktop */}
+                                            <div className="hidden sm:grid grid-cols-[2fr_1.5fr_1fr_1.2fr_auto] gap-2 items-center">
+                                              <div className="min-w-0">
+                                                <p className="text-xs font-semibold truncate">{(s as any).senderName ?? "—"}</p>
+                                                {(s as any).shipmentNumber && (
+                                                  <p className="text-[10px] text-muted-foreground font-mono">{(s as any).shipmentNumber}</p>
                                                 )}
-                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
                                               </div>
-                                              <p className="text-[11px] text-muted-foreground">→ {s.receiverName} · {s.receiverCity ?? "—"}</p>
-                                              {s.receiverPhone && <p className="text-[10px] text-muted-foreground">{s.receiverPhone}</p>}
+                                              <div className="min-w-0">
+                                                <p className="text-xs truncate">{(s as any).receiverName ?? "—"}</p>
+                                                {(s as any).receiverPhone && (
+                                                  <p className="text-[10px] text-muted-foreground">{(s as any).receiverPhone}</p>
+                                                )}
+                                              </div>
+                                              <p className="text-xs text-muted-foreground truncate">{(s as any).receiverCity ?? "—"}</p>
+                                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full w-fit ${st.color}`}>{st.label}</span>
+                                              <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 min-w-[72px] text-left">
+                                                {(s as any).codAmount ? `${Number((s as any).codAmount).toLocaleString()} ج` : "—"}
+                                              </p>
                                             </div>
-                                            {s.codAmount && (
-                                              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 shrink-0">
-                                                {Number(s.codAmount).toLocaleString()} ج
-                                              </span>
-                                            )}
+                                            {/* Mobile */}
+                                            <div className="sm:hidden flex items-start gap-2">
+                                              <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                  <p className="text-xs font-semibold">{(s as any).senderName ?? "—"}</p>
+                                                  {(s as any).shipmentNumber && (
+                                                    <span className="text-[9px] text-muted-foreground bg-muted px-1 rounded font-mono">{(s as any).shipmentNumber}</span>
+                                                  )}
+                                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                                                </div>
+                                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                                  → {(s as any).receiverName ?? "—"} · {(s as any).receiverCity ?? "—"}
+                                                </p>
+                                              </div>
+                                              {(s as any).codAmount && (
+                                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                                                  {Number((s as any).codAmount).toLocaleString()} ج
+                                                </span>
+                                              )}
+                                            </div>
                                           </div>
-                                        </div>
-                                      );
-                                    })}
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1868,102 +2002,15 @@ function ParcelTypesTab() {
                       )}
                     </div>
 
-                    {/* ── قسم تعديل السعر والصورة ── */}
-                    <div className="border-t border-border bg-muted/10">
-                    {/* Header */}
-                    <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 bg-muted/20 text-[10px] text-muted-foreground font-semibold">
-                      <span>الصورة</span>
-                      <span className="w-36 text-center">السعر الإضافي (جنيه)</span>
-                      <span className="w-16 text-center">حفظ</span>
-                    </div>
-
-                    {/* Content row */}
-                    <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 items-center border-t border-border/50">
-                      {/* صورة + تعديلها */}
-                      <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
-                          <input id={`pimg-${p.id}`} type="file" accept="image/*" className="hidden"
-                            onChange={e => {
-                              const f = e.target.files?.[0]; if (!f) return;
-                              setEditImgId(p.id);
-                              compressParcelImage(f, (b64) => setEditImgPreview(b64));
-                              e.target.value = "";
-                            }} />
-                          <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-border shadow-sm">
-                            {editImgId === p.id && editImgPreview ? (
-                              <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
-                            ) : p.imageUrl ? (
-                              <img src={p.imageUrl} className="w-full h-full object-cover" alt={label} />
-                            ) : (
-                              <span className="w-full h-full flex items-center justify-center text-3xl bg-muted/20">{icon}</span>
-                            )}
-                          </div>
-                          <button type="button"
-                            className="absolute -bottom-1.5 -left-1.5 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center shadow hover:bg-primary/80 transition-colors"
-                            onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
-                            <LucideImage className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          {editImgId === p.id && editImgPreview ? (
-                            <div className="flex gap-2">
-                              <Button size="sm" className="h-7 text-[11px] px-3 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                onClick={() => handleSaveImage(p.id)} disabled={savingImg}>
-                                {savingImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : "✓ حفظ الصورة"}
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-[11px] px-2"
-                                onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إلغاء</Button>
-                            </div>
-                          ) : (
-                            <Button size="sm" variant="outline" className="h-7 text-[11px] px-3 gap-1"
-                              onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
-                              <LucideImage className="w-3 h-3" /> تغيير الصورة
-                            </Button>
-                          )}
-                          {p.imageUrl && editImgId !== p.id && (
-                            <Button size="sm" variant="ghost" className="h-7 text-[11px] px-3 gap-1 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                              onClick={() => handleRemoveImage(p.id)} disabled={savingImg}>
-                              <Trash2 className="w-3 h-3" /> حذف الصورة
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* السعر */}
-                      <div className="w-36">
-                        <Input
-                          type="number"
-                          className="text-sm h-9 text-center font-bold"
-                          value={editPrices[p.id] ?? String(p.basePrice)}
-                          onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
-                        />
-                        {currentPrice !== Number(p.basePrice) && (
-                          <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 text-center">
-                            كان: {Number(p.basePrice)} ج
-                          </p>
-                        )}
-                      </div>
-
-                      {/* زر الحفظ */}
-                      <div className="w-16 flex justify-center">
-                        <Button size="sm" className="h-9 text-xs px-3 w-full"
-                          onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}
-                          disabled={updateMutation.isPending}>
-                          {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ"}
-                        </Button>
-                      </div>
-                    </div>
-                    </div>
                   </div>
-                  );
-                })()}
+                )}
               </Card>
             );
           })}
         </div>
       )}
 
-      {/* Add Dialog */}
+      {/* ── Add Dialog ───────────────────────────────────────────────────── */}
       {addOpen && (
         <Dialog open onOpenChange={() => { setAddOpen(false); setNewImage(null); }}>
           <DialogContent className="max-w-sm" dir="rtl">
