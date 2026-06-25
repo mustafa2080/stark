@@ -305,15 +305,18 @@ export default function Layout({ children }: LayoutProps) {
     // صفحات عامة مش محتاجة nav permission — ما نعملش ليها redirect أبداً
     const globalPages = ["/profile", "/my-dashboard", "/subscription-expired", "/dashboard"];
     if (globalPages.some(p => location === p || location.startsWith(p + "/"))) return;
+    // أي sub-route تحت nav item متاح → لا redirect
     const allowed = visibleNav.map(i => i.href);
-    // مش نعمل redirect لو visibleNav فاضية — ده بيحصل أثناء تحديث الـ permissions
     if (allowed.length === 0) return;
     const onAllowedPage = allowed.some(href => {
       if (href === "/") return location === "/";
-      // exact match أو sub-path مباشر
       if (location === href) return true;
-      // sub-route: /orders/5 → يكفي إن /orders موجود في allowed
       if (location.startsWith(href + "/")) return true;
+      // sub-route: لو location بيشترك في الـ base segment مع أي nav item
+      // مثلاً /finance/sales مع nav item /finance/clients → كلهم /finance
+      const hrefBase = "/" + href.split("/")[1];
+      const locBase  = "/" + location.split("/")[1];
+      if (hrefBase === locBase && hrefBase !== "/") return true;
       return false;
     });
     // تأكد إضافي: لو الـ location بيبدأ بـ أي href في allowed (بدون trailing slash)
