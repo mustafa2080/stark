@@ -1345,12 +1345,15 @@ export default function FinanceSales() {
   const [formOpen,      setFormOpen]      = useState(false);
   const [editOrder,     setEditOrder]     = useState<SaleOrder|null>(null);
 
-  // فتح فورم جديد تلقائياً لو جاي من /finance/sales/new أو ?new=1
+  // فتح فورم جديد تلقائياً لو جاي من /finance/sales/new أو ?new=1 أو sessionStorage
   useEffect(() => {
-    if (window.location.search.includes("new=1") || window.location.pathname.endsWith("/new")) {
+    const fromSession = sessionStorage.getItem("finance_sales_open_new") === "1";
+    if (fromSession || window.location.search.includes("new=1") || window.location.pathname.endsWith("/new")) {
+      sessionStorage.removeItem("finance_sales_open_new");
       setFormOpen(true);
-      // نغير الـ URL بدون navigate عشان منتسببش في re-route بتاع Wouter
-      window.history.replaceState({}, "", "/finance/sales");
+      if (window.location.pathname.endsWith("/new")) {
+        window.history.replaceState({}, "", "/finance/sales");
+      }
     }
   }, []);
 

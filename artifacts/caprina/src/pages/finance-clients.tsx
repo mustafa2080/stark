@@ -734,8 +734,8 @@ export default function FinanceClients() {
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
           {[
             { label: "إضافة عميل",    icon: <Users className="w-5 h-5" />,       action: openAdd },
-            { label: "أمر بيع جديد",  icon: <ShoppingCart className="w-5 h-5" />, action: () => navigate("/finance/sales/new") },
-            { label: "فاتورة بيع",    icon: <Receipt className="w-5 h-5" />,      action: () => navigate("/finance/sales/new") },
+            { label: "أمر بيع جديد",  icon: <ShoppingCart className="w-5 h-5" />, action: () => { sessionStorage.setItem("finance_sales_open_new", "1"); navigate("/finance/sales"); } },
+            { label: "فاتورة بيع",    icon: <Receipt className="w-5 h-5" />,      action: () => { sessionStorage.setItem("finance_sales_open_new", "1"); navigate("/finance/sales"); } },
             { label: "عرض العملاء",   icon: <Eye className="w-5 h-5" />,          action: () => navigate("/finance/all-clients") },
             { label: "تقرير المبيعات",icon: <BarChart2 className="w-5 h-5" />,   action: () => navigate("/finance/sales-report") },
           ].map((btn, i) => (
