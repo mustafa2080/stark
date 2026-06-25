@@ -3703,11 +3703,11 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </span>
                   </div>
                   {/* الراسل */}
-                  <div className="px-4 py-3.5 flex flex-col gap-1 bg-card">
+                  <div className="px-4 py-3.5 flex flex-col gap-0 bg-card">
                     <span className="text-[10px] text-muted-foreground font-medium">الراسل</span>
                     <span className="text-sm font-bold text-foreground leading-tight">{(order as any).senderName || "—"}</span>
                     {(order as any).senderPhone && (
-                      <span className="text-[11px] text-muted-foreground font-medium" dir="ltr">{(order as any).senderPhone}</span>
+                      <span className="text-[12px] font-semibold text-foreground/80 mt-0.5 leading-tight" dir="ltr">{(order as any).senderPhone}</span>
                     )}
                   </div>
                 </div>
