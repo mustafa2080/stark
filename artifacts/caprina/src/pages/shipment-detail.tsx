@@ -4136,21 +4136,61 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
           {/* ── تحليل الربحية ── */}
           {canViewProfitability && (() => {
-            const cod         = Number((order as any).codAmount    ?? 0);
-            const shippingFee = Math.abs(Number((order as any).shippingFee  ?? (order as any).shippingCost ?? 0));
-            const insurance   = Math.abs(Number((order as any).insuranceFee ?? 0));
-            const isReturned  = order.status === "returned";
-            const net         = isReturned ? -(shippingFee + insurance) : cod - shippingFee - insurance;
-            const isPositive  = net >= 0 && !isReturned;
-            const deductionPct = cod > 0 && !isReturned ? Math.round(((shippingFee + insurance) / cod) * 100) : 0;
+            // ── الحالات التي يظهر فيها التحليل ───────────────────────────────
+            // نعرض التحليل فقط بعد ما المندوب يستلم الشحنة (in_shipping أو أعلى)
+            const ACTIVE_STATUSES = ["in_transit", "out_for_delivery", "delivered", "partial_received", "returned", "delayed"];
+            const canShowAnalysis = ACTIVE_STATUSES.includes(order.status);
+
+            if (!canShowAnalysis) {
+              return (
+                <Card className="overflow-hidden border border-border">
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/20">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center border bg-muted/30 border-border">
+                      <TrendingUp className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">تحليل الربحية</p>
+                      <p className="text-[10px] text-muted-foreground">في انتظار استلام المندوب للشحنة</p>
+                    </div>
+                  </div>
+                  <CardContent className="p-4">
+                    <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
+                      <div className="w-10 h-10 rounded-full bg-muted/30 flex items-center justify-center">
+                        <TrendingUp className="w-5 h-5 text-muted-foreground/50" />
+                      </div>
+                      <p className="text-xs text-muted-foreground font-medium">يظهر التحليل بعد انتقال الشحنة لحالة "في الطريق"</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            // ── حساب الأرقام ─────────────────────────────────────────────────
+            // إيرادات الشحن = سعر المنطقة + سعر نوع الطرد (ما بيدفعه الراسل لشركتنا)
+            const zonePrice       = Math.abs(Number((order as any).zonePrice       ?? 0));
+            const parcelTypePrice = Math.abs(Number((order as any).parcelTypePrice ?? 0));
+            const shippingRevenue = zonePrice + parcelTypePrice; // إيراد شركتنا من الشحن
+
+            // تكلفة الشحن الفعلية = ما بندفعه لشركة الشحن (shippingFee)
+            const shippingCost    = Math.abs(Number((order as any).shippingFee ?? (order as any).shippingCost ?? 0));
+            const insuranceFee    = Math.abs(Number((order as any).insuranceFee ?? 0));
+
+            // صافي الشحن = إيراد الشحن - تكلفة الشحن الفعلية
+            const isReturned      = order.status === "returned";
+            const shippingNet     = isReturned
+              ? -(shippingCost + insuranceFee)
+              : shippingRevenue - shippingCost - insuranceFee;
+            const isPositive      = shippingNet >= 0 && !isReturned;
+
+            const marginPct = shippingRevenue > 0 && !isReturned
+              ? Math.round((shippingNet / shippingRevenue) * 100)
+              : 0;
 
             return (
               <Card className={`overflow-hidden border ${isPositive ? "border-emerald-900/40" : "border-red-900/40"}`}>
                 <div className={`flex items-center gap-3 px-4 py-3 border-b ${isPositive ? "border-emerald-900/30 bg-emerald-900/10" : "border-red-900/30 bg-red-900/10"}`}>
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${isPositive ? "bg-emerald-900/20 border-emerald-900/30" : "bg-red-900/20 border-red-900/30"}`}>
-                    {isPositive
-                      ? <TrendingUp className="w-4 h-4 text-emerald-400" />
-                      : <TrendingDown className="w-4 h-4 text-red-400" />}
+                    {isPositive ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">تحليل الربحية</p>
@@ -4159,44 +4199,65 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </p>
                   </div>
                 </div>
-                <CardContent className="p-4 space-y-3">
+                <CardContent className="p-4 space-y-2.5">
                   {isReturned && (
                     <div className="text-[10px] font-semibold text-red-400 bg-red-900/20 px-3 py-2 rounded-lg border border-red-900/30">
                       ⚠ الشحنة مرتجعة — لا يوجد إيراد
                     </div>
                   )}
 
-                  <div className="flex justify-between items-center text-xs py-1">
-                    <span className="text-muted-foreground">مبلغ COD</span>
-                    <span className="font-semibold text-primary">{formatCurrency(cod)}</span>
-                  </div>
-
-                  {shippingFee > 0 && (
-                    <div className="flex justify-between items-center text-xs py-1 border-t border-border/50">
-                      <span className="text-muted-foreground">رسوم الشحن</span>
-                      <span className="font-semibold text-orange-400">-{formatCurrency(shippingFee)}</span>
-                    </div>
+                  {/* إيرادات الشحن */}
+                  {!isReturned && (
+                    <>
+                      {zonePrice > 0 && (
+                        <div className="flex justify-between items-center text-xs py-1">
+                          <span className="text-muted-foreground">سعر المنطقة</span>
+                          <span className="font-semibold text-emerald-400">+{formatCurrency(zonePrice)}</span>
+                        </div>
+                      )}
+                      {parcelTypePrice > 0 && (
+                        <div className="flex justify-between items-center text-xs py-1 border-t border-border/30">
+                          <span className="text-muted-foreground">سعر نوع الطرد</span>
+                          <span className="font-semibold text-emerald-400">+{formatCurrency(parcelTypePrice)}</span>
+                        </div>
+                      )}
+                      {shippingRevenue > 0 && (
+                        <div className="flex justify-between items-center text-xs py-1 border-t border-border/50 bg-emerald-900/5 px-2 rounded">
+                          <span className="text-muted-foreground font-medium">إجمالي الإيراد</span>
+                          <span className="font-bold text-emerald-400">{formatCurrency(shippingRevenue)}</span>
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  {insurance > 0 && (
+                  {/* تكاليف الشحن */}
+                  {shippingCost > 0 && (
                     <div className="flex justify-between items-center text-xs py-1 border-t border-border/50">
+                      <span className="text-muted-foreground">تكلفة الشحن الفعلية</span>
+                      <span className="font-semibold text-orange-400">-{formatCurrency(shippingCost)}</span>
+                    </div>
+                  )}
+                  {insuranceFee > 0 && (
+                    <div className="flex justify-between items-center text-xs py-1 border-t border-border/30">
                       <span className="text-muted-foreground">رسوم التأمين</span>
-                      <span className="font-semibold text-orange-400">-{formatCurrency(insurance)}</span>
+                      <span className="font-semibold text-orange-400">-{formatCurrency(insuranceFee)}</span>
                     </div>
                   )}
 
+                  {/* الصافي */}
                   <div className={`flex justify-between items-center pt-2 mt-1 border-t-2 ${isPositive ? "border-emerald-900/40" : "border-red-900/40"}`}>
-                    <span className="font-bold text-sm">الصافي للراسل</span>
+                    <span className="font-bold text-sm">صافي الشحن</span>
                     <span className={`font-black text-xl ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-                      {formatCurrency(net)}
+                      {formatCurrency(shippingNet)}
                     </span>
                   </div>
 
-                  {deductionPct > 0 && (
+                  {/* هامش الربح */}
+                  {marginPct !== 0 && !isReturned && (
                     <div className="flex justify-between items-center text-xs py-2 px-3 rounded-lg bg-muted/40 border border-border/50">
-                      <span className="text-muted-foreground">نسبة الاستقطاع</span>
-                      <span className={`font-bold ${deductionPct > 30 ? "text-red-400" : deductionPct > 15 ? "text-amber-400" : "text-emerald-400"}`}>
-                        {deductionPct}%
+                      <span className="text-muted-foreground">هامش الربح</span>
+                      <span className={`font-bold ${marginPct > 30 ? "text-emerald-400" : marginPct > 0 ? "text-amber-400" : "text-red-400"}`}>
+                        {marginPct}%
                       </span>
                     </div>
                   )}
