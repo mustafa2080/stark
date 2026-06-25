@@ -15,7 +15,7 @@ type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics"
 
 interface ShipmentZone        { id: number; name: string; governorate?: string; price: number; isActive?: boolean }
 interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; isActive?: boolean }
-interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; warehouseId?: number | null }
+interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; warehouseId?: number | null }
 
 const PARCEL_LABELS: Record<string, string> = {
   document: "مستندات", normal: "عادي", fragile: "قابل للكسر",
@@ -162,7 +162,7 @@ export default function NewShipmentPage() {
             <Select value={form.clientId || "__none__"} onValueChange={v => {
               if (v === "__none__") { setForm(f => ({ ...f, clientId: "", senderName: "", senderPhone: "", senderPhone2: "", senderCity: "" })); return; }
               const c = clients.find(x => String(x.id) === v);
-              if (c) setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: c.city || "", warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId }));
+              if (c) setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: c.region || c.city || "", warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId }));
             }}>
               <SelectTrigger className="text-sm h-10"><div className="flex items-center gap-2"><User className="w-3.5 h-3.5 text-muted-foreground" /><SelectValue placeholder="اختر العميل..." /></div></SelectTrigger>
               <SelectContent>
