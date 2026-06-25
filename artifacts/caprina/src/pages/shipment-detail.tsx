@@ -3643,26 +3643,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             return (
               <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
 
-                {/* صف: أيقونة + اسم المستلم + أرقام */}
+                {/* صف: اسم المستلم + أرقام */}
                 <div className="flex items-center gap-4 p-4">
-
-                  {/* صورة المنتج أو أيقونة الشحنة */}
-                  {(() => {
-                    const productImg = products
-                      ? (products as any[]).find((p: any) => p.name === order.product)?.image ?? null
-                      : null;
-                    return (
-                      <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-border/60 bg-muted/40 shadow-sm flex items-center justify-center">
-                        {productImg ? (
-                          <img src={productImg} alt={order.product} className="w-full h-full object-cover" />
-                        ) : (order as any).productImage ? (
-                          <img src={(order as any).productImage} alt={order.product} className="w-full h-full object-cover" />
-                        ) : (
-                          <Truck className="w-10 h-10 text-muted-foreground/30" />
-                        )}
-                      </div>
-                    );
-                  })()}
 
                   {/* التفاصيل */}
                   <div className="flex-1 min-w-0 space-y-3">
