@@ -4075,8 +4075,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             <CardContent className="p-4 space-y-3">
               {(() => {
                 const cod         = Number((order as any).codAmount    ?? 0);
-                const shippingFee = Number((order as any).shippingFee  ?? (order as any).shippingCost ?? 0);
-                const insurance   = Number((order as any).insuranceFee ?? 0);
+                const shippingFee = Math.abs(Number((order as any).shippingFee  ?? (order as any).shippingCost ?? 0));
+                const insurance   = Math.abs(Number((order as any).insuranceFee ?? 0));
                 const collected   = Number((order as any).collectedAmount ?? 0);
                 const storedTotal = Number((order as any).totalAmount  ?? 0);
                 const total       = storedTotal > 0 ? storedTotal : cod + shippingFee + insurance;
