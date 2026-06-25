@@ -4138,7 +4138,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           {canViewProfitability && (() => {
             // ── الحالات التي يظهر فيها التحليل ───────────────────────────────
             // نعرض التحليل فقط بعد ما المندوب يستلم الشحنة (in_shipping أو أعلى)
-            const ACTIVE_STATUSES = ["in_transit", "out_for_delivery", "delivered", "partial_received", "returned", "delayed"];
+            const ACTIVE_STATUSES = ["picked_up", "in_transit", "out_for_delivery", "delivered", "partial_received", "returned", "delayed"];
             const canShowAnalysis = ACTIVE_STATUSES.includes(order.status);
 
             if (!canShowAnalysis) {
@@ -4158,7 +4158,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       <div className="w-10 h-10 rounded-full bg-muted/30 flex items-center justify-center">
                         <TrendingUp className="w-5 h-5 text-muted-foreground/50" />
                       </div>
-                      <p className="text-xs text-muted-foreground font-medium">يظهر التحليل بعد انتقال الشحنة لحالة "في الطريق"</p>
+                      <p className="text-xs text-muted-foreground font-medium">يظهر التحليل بعد انتقال الشحنة لحالة "قيد الشحن في المخزن"</p>
                     </div>
                   </CardContent>
                 </Card>
