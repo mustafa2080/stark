@@ -1382,10 +1382,10 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
                     ) : <span className="text-muted-foreground text-[10px]">—</span>}
                   </div>
                   <div className="col-span-1 text-center">
-                    {canEdit && (
+                    {canEdit && s.status === "in_shipping" && (
                       <Button
-                        variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
-                        title="تحويل لمخزن آخر / تعيين مندوب"
+                        variant="ghost" size="icon" className="h-7 w-7 text-primary hover:bg-primary/10"
+                        title="ترحيل الشحنة لمخزن آخر / تعيين مندوب"
                         onClick={() => setTransferShipmentId(s.id)}
                       >
                         <ArrowLeftRight className="w-3.5 h-3.5" />
