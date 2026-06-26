@@ -64,6 +64,7 @@ interface Shipment {
   status: ShipmentStatus;
   returnReceived?: number | boolean | null;
   shippingCompanyId?: number;
+  shippingCompanyName?: string;
   notes?: string;
   createdAt: string;
   createdByName?: string;
@@ -736,6 +737,12 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 dark:text-violet-400">
                   <Warehouse className="w-2.5 h-2.5" />
                   {shipment.warehouseName}
+                </span>
+              )}
+              {shipment.status === "in_transit" && shipment.shippingCompanyName && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 dark:text-violet-400">
+                  <UserCheck className="w-2.5 h-2.5" />
+                  {shipment.shippingCompanyName}
                 </span>
               )}
             </div>
