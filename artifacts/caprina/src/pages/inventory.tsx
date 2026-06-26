@@ -624,16 +624,16 @@ function ShipmentInsightsTab() {
 
 // ─── Shipment Warehouse Tab ───────────────────────────────────────────────────
 const SHIP_STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; dot: string; icon: any }> = {
-  waiting:          { label: "انتظار",         color: "text-slate-600 dark:text-slate-300",    bg: "bg-slate-100 dark:bg-slate-800/40",   border: "border-slate-300 dark:border-slate-600",       dot: "bg-slate-500",    icon: Clock3 },
-  confirmed:        { label: "مؤكدة",          color: "text-blue-600 dark:text-blue-400",      bg: "bg-blue-50 dark:bg-blue-900/20",      border: "border-blue-200 dark:border-blue-700",         dot: "bg-blue-500",     icon: Package },
-  picked_up:        { label: "تم الاستلام",    color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
-  in_transit:       { label: "قيد الشحن",      color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
-  out_for_delivery: { label: "خرجت للتسليم",  color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/20",    border: "border-amber-200 dark:border-amber-700",       dot: "bg-amber-500",    icon: MapPin },
-  delivered:        { label: "تم التسليم",     color: "text-emerald-600 dark:text-emerald-400",bg: "bg-emerald-50 dark:bg-emerald-900/20",border: "border-emerald-200 dark:border-emerald-700",   dot: "bg-emerald-500",  icon: CheckCircle2 },
-  partial_received: { label: "استلام جزئي",   color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
-  delayed:          { label: "متأخرة",         color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-50 dark:bg-orange-900/20",  border: "border-orange-200 dark:border-orange-700",     dot: "bg-orange-500",   icon: AlertCircle },
-  returned:         { label: "مرتجع",          color: "text-red-600 dark:text-red-400",        bg: "bg-red-50 dark:bg-red-900/20",        border: "border-red-200 dark:border-red-700",           dot: "bg-red-500",      icon: RotateCcw },
-  cancelled:        { label: "ملغية",          color: "text-zinc-500 dark:text-zinc-400",      bg: "bg-zinc-100 dark:bg-zinc-800/40",     border: "border-zinc-300 dark:border-zinc-600",         dot: "bg-zinc-400",     icon: X },
+  waiting:          { label: "قيد الانتظار",           color: "text-slate-600 dark:text-slate-300",    bg: "bg-slate-100 dark:bg-slate-800/40",   border: "border-slate-300 dark:border-slate-600",       dot: "bg-slate-500",    icon: Clock3 },
+  confirmed:        { label: "قيد الانتظار",           color: "text-blue-600 dark:text-blue-400",      bg: "bg-blue-50 dark:bg-blue-900/20",      border: "border-blue-200 dark:border-blue-700",         dot: "bg-blue-500",     icon: Package },
+  picked_up:        { label: "قيد الشحن في المخزن",   color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
+  in_transit:       { label: "قيد الشحن",              color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
+  out_for_delivery: { label: "قيد الشحن",              color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/20",    border: "border-amber-200 dark:border-amber-700",       dot: "bg-amber-500",    icon: Truck },
+  delivered:        { label: "استلم",                  color: "text-emerald-600 dark:text-emerald-400",bg: "bg-emerald-50 dark:bg-emerald-900/20",border: "border-emerald-200 dark:border-emerald-700",   dot: "bg-emerald-500",  icon: CheckCircle2 },
+  partial_received: { label: "قيد الشحن = استلام جزئي", color: "text-cyan-600 dark:text-cyan-400",   bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
+  delayed:          { label: "مؤجل",                   color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-50 dark:bg-orange-900/20",  border: "border-orange-200 dark:border-orange-700",     dot: "bg-orange-500",   icon: AlertCircle },
+  returned:         { label: "مرتجع",                  color: "text-red-600 dark:text-red-400",        bg: "bg-red-50 dark:bg-red-900/20",        border: "border-red-200 dark:border-red-700",           dot: "bg-red-500",      icon: RotateCcw },
+  cancelled:        { label: "مرتجع",                  color: "text-zinc-500 dark:text-zinc-400",      bg: "bg-zinc-100 dark:bg-zinc-800/40",     border: "border-zinc-300 dark:border-zinc-600",         dot: "bg-zinc-400",     icon: RotateCcw },
 };
 
 const fc2 = (n: number | string) =>
@@ -734,11 +734,14 @@ function ShipmentWarehouseTab() {
 
   // legacy → canonical mapping عشان نوحّد الأسماء اللي بترجع من الباك إند
   const STATUS_CANONICAL: Record<string, string> = {
+    // القيم الجديدة (Stark schema)
     pending:          "waiting",
     warehouse_ready:  "picked_up",
     in_shipping:      "in_transit",
     received:         "delivered",
     partial_received: "partial_received",
+    delayed:          "delayed",
+    returned:         "returned",
   };
 
   const allWarehouseShipments = useMemo(() => {
