@@ -484,7 +484,7 @@ export default function Layout({ children }: LayoutProps) {
               }}>
                 <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 50%, hsl(var(--primary)/0.1) 0%, transparent 70%)" }} />
                 <div style={{ position: "absolute", bottom: 0, left: "10%", right: "10%", height: "1px", pointerEvents: "none", background: "linear-gradient(90deg, transparent, hsl(var(--primary)/0.7), transparent)" }} />
-                <img src={firstLogoBase64} alt="Caprina Logo" style={{
+                <img src="/first_logo.jpg" alt="Caprina Logo" style={{
                   display: "block", width: "100%", height: "auto", maxHeight: "120px",
                   objectFit: "contain", position: "relative", zIndex: 1,
                   filter: "drop-shadow(0 0 18px hsl(var(--primary)/0.7)) drop-shadow(0 2px 6px rgba(0,0,0,0.9))",
