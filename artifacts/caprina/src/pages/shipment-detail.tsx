@@ -1376,10 +1376,10 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                       </Badge>
                       {(o.status === "in_shipping" || o.status === "in_transit" || o.status === "out_for_delivery") && (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-300">
-                          🚚 {(order as any).shippingCompanyName
-                            ? `مع ${(order as any).shippingCompanyName}`
-                            : (order as any).assignedUserName
+                          🚚 {(order as any).assignedUserName
                             ? `مع ${(order as any).assignedUserName}`
+                            : (order as any).shippingCompanyName
+                            ? `مع ${(order as any).shippingCompanyName}`
                             : "عند المندوب"}
                         </span>
                       )}
@@ -3171,10 +3171,10 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 )}
                 {!isEditing && (order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300">
-                    🚚 {(order as any).shippingCompanyName
-                      ? `مع ${(order as any).shippingCompanyName}`
-                      : (order as any).assignedUserName
+                    🚚 {(order as any).assignedUserName
                       ? `مع ${(order as any).assignedUserName}`
+                      : (order as any).shippingCompanyName
+                      ? `مع ${(order as any).shippingCompanyName}`
                       : "عند المندوب"}
                   </span>
                 )}
@@ -3658,10 +3658,10 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                               </Badge>
                               {(order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && (
                                 <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-300">
-                                  🚚 {(order as any).shippingCompanyName
-                                    ? `مع ${(order as any).shippingCompanyName}`
-                                    : (order as any).assignedUserName
+                                  🚚 {(order as any).assignedUserName
                                     ? `مع ${(order as any).assignedUserName}`
+                                    : (order as any).shippingCompanyName
+                                    ? `مع ${(order as any).shippingCompanyName}`
                                     : "عند المندوب"}
                                 </span>
                               )}
