@@ -1374,9 +1374,9 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[o.status] || ""}`}>
                         {statusLabels[o.status] || o.status}
                       </Badge>
-                      {(o.status === "in_shipping" || o.status === "in_transit" || o.status === "out_for_delivery") && (o as any).assignedUserName && (
+                      {(o.status === "in_shipping" || o.status === "in_transit" || o.status === "out_for_delivery") && (order as any).assignedUserName && (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-300">
-                          👤 {(o as any).assignedUserName}
+                          👤 {(order as any).assignedUserName}
                         </span>
                       )}
                       {o.color && <Badge variant="outline" className="text-xs border-border">{o.color}</Badge>}
