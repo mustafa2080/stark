@@ -46,7 +46,7 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
         }}
       >
         <img
-          src="/logo.jpg"
+          src="/starkvector.jpg"
           alt="STARK"
           style={{
             width: 96,
@@ -319,7 +319,7 @@ function PageLoader() {
 
           {/* Logo center */}
           <img
-            src="/logo.jpg"
+            src="/starkvector.jpg"
             alt="STARK"
             style={{
               position: "absolute",
