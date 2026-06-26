@@ -624,33 +624,44 @@ function ShipmentInsightsTab() {
 
 // ─── Shipment Warehouse Tab ───────────────────────────────────────────────────
 const SHIP_STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; dot: string; icon: any }> = {
-  waiting:          { label: "قيد الانتظار",           color: "text-slate-600 dark:text-slate-300",    bg: "bg-slate-100 dark:bg-slate-800/40",   border: "border-slate-300 dark:border-slate-600",       dot: "bg-slate-500",    icon: Clock3 },
-  confirmed:        { label: "قيد الانتظار",           color: "text-blue-600 dark:text-blue-400",      bg: "bg-blue-50 dark:bg-blue-900/20",      border: "border-blue-200 dark:border-blue-700",         dot: "bg-blue-500",     icon: Package },
-  picked_up:        { label: "قيد الشحن في المخزن",   color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
-  in_transit:       { label: "قيد الشحن",              color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
-  out_for_delivery: { label: "قيد الشحن",              color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/20",    border: "border-amber-200 dark:border-amber-700",       dot: "bg-amber-500",    icon: Truck },
-  delivered:        { label: "استلم",                  color: "text-emerald-600 dark:text-emerald-400",bg: "bg-emerald-50 dark:bg-emerald-900/20",border: "border-emerald-200 dark:border-emerald-700",   dot: "bg-emerald-500",  icon: CheckCircle2 },
-  partial_received: { label: "قيد الشحن = استلام جزئي", color: "text-cyan-600 dark:text-cyan-400",   bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
+  // القيم من DB (Stark schema)
+  pending:          { label: "قيد الانتظار",           color: "text-slate-600 dark:text-slate-300",    bg: "bg-slate-100 dark:bg-slate-800/40",   border: "border-slate-300 dark:border-slate-600",       dot: "bg-slate-500",    icon: Clock3 },
+  warehouse_ready:  { label: "قيد الشحن في المخزن",   color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
+  in_shipping:      { label: "قيد الشحن",              color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
+  received:         { label: "استلم",                  color: "text-emerald-600 dark:text-emerald-400",bg: "bg-emerald-50 dark:bg-emerald-900/20",border: "border-emerald-200 dark:border-emerald-700",   dot: "bg-emerald-500",  icon: CheckCircle2 },
+  partial_received: { label: "استلام جزئي",            color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-900/20",    border: "border-amber-200 dark:border-amber-700",       dot: "bg-amber-500",    icon: AlertTriangle },
   delayed:          { label: "مؤجل",                   color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-50 dark:bg-orange-900/20",  border: "border-orange-200 dark:border-orange-700",     dot: "bg-orange-500",   icon: AlertCircle },
   returned:         { label: "مرتجع",                  color: "text-red-600 dark:text-red-400",        bg: "bg-red-50 dark:bg-red-900/20",        border: "border-red-200 dark:border-red-700",           dot: "bg-red-500",      icon: RotateCcw },
-  cancelled:        { label: "مرتجع",                  color: "text-zinc-500 dark:text-zinc-400",      bg: "bg-zinc-100 dark:bg-zinc-800/40",     border: "border-zinc-300 dark:border-zinc-600",         dot: "bg-zinc-400",     icon: RotateCcw },
+  // aliases قديمة من APIs القديمة
+  waiting:          { label: "قيد الانتظار",           color: "text-slate-600 dark:text-slate-300",    bg: "bg-slate-100 dark:bg-slate-800/40",   border: "border-slate-300 dark:border-slate-600",       dot: "bg-slate-500",    icon: Clock3 },
+  confirmed:        { label: "قيد الانتظار",           color: "text-slate-600 dark:text-slate-300",    bg: "bg-slate-100 dark:bg-slate-800/40",   border: "border-slate-300 dark:border-slate-600",       dot: "bg-slate-500",    icon: Clock3 },
+  picked_up:        { label: "قيد الشحن في المخزن",   color: "text-cyan-600 dark:text-cyan-400",      bg: "bg-cyan-50 dark:bg-cyan-900/20",      border: "border-cyan-200 dark:border-cyan-700",         dot: "bg-cyan-500",     icon: PackageCheck },
+  in_transit:       { label: "قيد الشحن",              color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
+  out_for_delivery: { label: "قيد الشحن",              color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-50 dark:bg-violet-900/20",  border: "border-violet-200 dark:border-violet-700",     dot: "bg-violet-500",   icon: Truck },
+  delivered:        { label: "استلم",                  color: "text-emerald-600 dark:text-emerald-400",bg: "bg-emerald-50 dark:bg-emerald-900/20",border: "border-emerald-200 dark:border-emerald-700",   dot: "bg-emerald-500",  icon: CheckCircle2 },
+  cancelled:        { label: "ملغي",                   color: "text-zinc-500 dark:text-zinc-400",      bg: "bg-zinc-100 dark:bg-zinc-800/40",     border: "border-zinc-300 dark:border-zinc-600",         dot: "bg-zinc-400",     icon: RotateCcw },
 };
 
 const fc2 = (n: number | string) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
-const ACTIVE_STATUSES  = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"] as const;
-const CLOSED_STATUSES  = ["delivered", "partial_received", "delayed", "returned", "cancelled"] as const;
+const ACTIVE_STATUSES  = ["pending", "warehouse_ready", "in_shipping", "waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery"] as const;
+const CLOSED_STATUSES  = ["received", "delivered", "partial_received", "delayed", "returned", "cancelled"] as const;
 const ALL_SHIP_STATUSES = [...ACTIVE_STATUSES, ...CLOSED_STATUSES] as const;
 
 // ─── SLA: حدود الإنذار بالساعات لكل حالة (شركات الشحن الكبيرة بتفرّق هنا) ──────
 // كل حالة عندها "نافذة زمنية طبيعية" مختلفة — انتظار يومين طبيعي مش زي قيد الشحن يومين
 const SLA_HOURS: Partial<Record<string, { warn: number; critical: number }>> = {
-  waiting:          { warn: 24,  critical: 48  }, // المفروض تتأكد بسرعة
-  confirmed:        { warn: 24,  critical: 72  }, // المفروض تتسلم من المخزن بسرعة
-  picked_up:        { warn: 24,  critical: 48  }, // المفروض تطلع للشحن بسرعة
-  in_transit:       { warn: 72,  critical: 120 }, // 3-5 أيام نطاق طبيعي للشحن
-  out_for_delivery: { warn: 24,  critical: 48  }, // المفروض تتسلم في نفس اليوم تقريباً
+  // DB values (Stark schema)
+  pending:          { warn: 24,  critical: 48  },
+  warehouse_ready:  { warn: 24,  critical: 48  },
+  in_shipping:      { warn: 72,  critical: 120 },
+  // legacy aliases
+  waiting:          { warn: 24,  critical: 48  },
+  confirmed:        { warn: 24,  critical: 72  },
+  picked_up:        { warn: 24,  critical: 48  },
+  in_transit:       { warn: 72,  critical: 120 },
+  out_for_delivery: { warn: 24,  critical: 48  },
 };
 
 const hoursSince = (dateStr: string | null | undefined): number => {
@@ -684,8 +695,74 @@ const AGE_LEVEL_STYLE: Record<AgeLevel, string> = {
   critical: "text-red-600 dark:text-red-400 font-black animate-pulse",
 };
 
+// ─── Tab definitions — كل تاب ممكن يجمع أكتر من status واحد ────────────────────
+const WAREHOUSE_TABS = [
+  {
+    id:       "pending",
+    label:    "قيد الانتظار",
+    statuses: ["waiting", "confirmed", "pending"],
+    icon:     Clock3,
+    color:    "text-slate-600 dark:text-slate-300",
+    bg:       "bg-slate-100 dark:bg-slate-800/40",
+    border:   "border-slate-300 dark:border-slate-600",
+    dot:      "bg-slate-500",
+  },
+  {
+    id:       "warehouse_ready",
+    label:    "قيد الشحن في المخزن",
+    statuses: ["picked_up", "warehouse_ready"],
+    icon:     PackageCheck,
+    color:    "text-cyan-600 dark:text-cyan-400",
+    bg:       "bg-cyan-50 dark:bg-cyan-900/20",
+    border:   "border-cyan-200 dark:border-cyan-700",
+    dot:      "bg-cyan-500",
+  },
+  {
+    id:       "in_shipping",
+    label:    "قيد الشحن",
+    statuses: ["in_transit", "in_shipping", "out_for_delivery"],
+    icon:     Truck,
+    color:    "text-violet-600 dark:text-violet-400",
+    bg:       "bg-violet-50 dark:bg-violet-900/20",
+    border:   "border-violet-200 dark:border-violet-700",
+    dot:      "bg-violet-500",
+  },
+  {
+    id:       "partial_received",
+    label:    "استلام جزئي",
+    statuses: ["partial_received"],
+    icon:     AlertTriangle,
+    color:    "text-amber-600 dark:text-amber-400",
+    bg:       "bg-amber-50 dark:bg-amber-900/20",
+    border:   "border-amber-200 dark:border-amber-700",
+    dot:      "bg-amber-500",
+  },
+  {
+    id:       "delayed",
+    label:    "مؤجل",
+    statuses: ["delayed"],
+    icon:     AlertCircle,
+    color:    "text-orange-600 dark:text-orange-400",
+    bg:       "bg-orange-50 dark:bg-orange-900/20",
+    border:   "border-orange-200 dark:border-orange-700",
+    dot:      "bg-orange-500",
+  },
+  {
+    id:       "received",
+    label:    "استلم",
+    statuses: ["delivered", "received"],
+    icon:     CheckCircle2,
+    color:    "text-emerald-600 dark:text-emerald-400",
+    bg:       "bg-emerald-50 dark:bg-emerald-900/20",
+    border:   "border-emerald-200 dark:border-emerald-700",
+    dot:      "bg-emerald-500",
+  },
+] as const;
+
+type TabId = typeof WAREHOUSE_TABS[number]["id"];
+
 function ShipmentWarehouseTab() {
-  const [activeStatus, setActiveStatus] = useState<string>("in_transit");
+  const [activeTab, setActiveTab] = useState<TabId>("in_shipping");
   const [search,          setSearch]          = useState("");
   const [dateFrom,        setDateFrom]        = useState("");
   const [dateTo,          setDateTo]          = useState("");
@@ -732,75 +809,67 @@ function ShipmentWarehouseTab() {
 
   const isLoading = warehouses.length === 0 || isLoadingShipments;
 
-  // legacy → canonical mapping عشان نوحّد الأسماء اللي بترجع من الباك إند
-  const STATUS_CANONICAL: Record<string, string> = {
-    // القيم الجديدة (Stark schema)
-    pending:          "waiting",
-    warehouse_ready:  "picked_up",
-    in_shipping:      "in_transit",
-    received:         "delivered",
-    partial_received: "partial_received",
-    delayed:          "delayed",
-    returned:         "returned",
-  };
-
+  // legacy → canonical لا نحتاجها — كل tab عنده statuses[] صح من الـ DB
   const allWarehouseShipments = useMemo(() => {
-    let data = (warehouseShipmentsData ?? []).map((s: any) => ({
-      ...s,
-      status: STATUS_CANONICAL[s.status] ?? s.status,
-    }));
+    let data = (warehouseShipmentsData ?? []) as any[];
     if (dateFrom) data = data.filter((s: any) => s.createdAt >= dateFrom);
     if (dateTo)   data = data.filter((s: any) => s.createdAt <= dateTo + "T23:59:59");
     if (shippingCompany !== "all") data = data.filter((s: any) => String(s.shippingCompanyId) === shippingCompany);
     return data;
   }, [warehouseShipmentsData, dateFrom, dateTo, shippingCompany]);
 
-  // ابني shipMap: تجميع شحنات المخزن(ن) المختارة حسب الـ status (canonical)
-  const shipMap = Object.fromEntries(
-    ALL_SHIP_STATUSES.map(canonical => [canonical, allWarehouseShipments.filter((sh: any) => sh.status === canonical)])
-  ) as Record<string, any[]>;
+  // tabMap: لكل tab نجمع الشحنات اللي status بتاعتها موجود في statuses[] بتاعت الـ tab
+  const tabMap = useMemo(() => {
+    const result: Record<TabId, any[]> = {} as any;
+    for (const tab of WAREHOUSE_TABS) {
+      result[tab.id] = allWarehouseShipments.filter((sh: any) => (tab.statuses as readonly string[]).includes(sh.status));
+    }
+    return result;
+  }, [allWarehouseShipments]);
+
+  // للـ KPIs نستخدم tabMap
+  const activeTab_def = WAREHOUSE_TABS.find(t => t.id === activeTab)!;
 
   // ── KPI aggregations ──────────────────────────────────────────────────────
-  const activeCount   = ACTIVE_STATUSES.reduce((s, st) => s + (shipMap[st]?.length ?? 0), 0);
-  const inTransitCount = (shipMap.in_transit?.length ?? 0) + (shipMap.out_for_delivery?.length ?? 0);
-  const returnedCount = shipMap.returned?.length ?? 0;
-  const deliveredCount= shipMap.delivered?.length ?? 0;
-  const totalAll      = ALL_SHIP_STATUSES.reduce((s, st) => s + (shipMap[st]?.length ?? 0), 0);
+  const activeCount    = (tabMap.pending?.length ?? 0) + (tabMap.warehouse_ready?.length ?? 0) + (tabMap.in_shipping?.length ?? 0);
+  const inTransitCount = tabMap.in_shipping?.length  ?? 0;
+  const returnedCount  = 0; // لا يوجد تاب مرتجع في هذا الـ view
+  const deliveredCount = tabMap.received?.length ?? 0;
+  const totalAll       = WAREHOUSE_TABS.reduce((s, t) => s + (tabMap[t.id]?.length ?? 0), 0);
 
-  const activeCOD     = ACTIVE_STATUSES.flatMap(st => shipMap[st] ?? [])
+  const activeCOD  = [...(tabMap.pending ?? []), ...(tabMap.warehouse_ready ?? []), ...(tabMap.in_shipping ?? [])]
     .reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
-  const transitCOD    = [...(shipMap.in_transit ?? []), ...(shipMap.out_for_delivery ?? [])]
+  const transitCOD = (tabMap.in_shipping ?? [])
     .reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
-  const deliveredCOD  = (shipMap.delivered ?? [])
+  const deliveredCOD = (tabMap.received ?? [])
     .reduce((s: number, sh: any) => s + (Number(sh.collectedAmount) || 0), 0);
 
   // ── SLA: شحنات نشطة تجاوزت الحد الحرج (مرتبة من الأقدم) ──────────────────
   const slaBreaches = useMemo(() => {
-    return ACTIVE_STATUSES
-      .flatMap(st => (shipMap[st] ?? []).map((sh: any) => ({
+    const activeSh = [...(tabMap.pending ?? []), ...(tabMap.warehouse_ready ?? []), ...(tabMap.in_shipping ?? [])];
+    return activeSh.map((sh: any) => ({
         ...sh,
         _ageHours: hoursSince(sh.updatedAt ?? sh.createdAt),
         _ageLevel: getAgeLevel(sh.status, hoursSince(sh.updatedAt ?? sh.createdAt)),
-      })))
+      }))
       .filter((sh: any) => sh._ageLevel === "critical")
       .sort((a: any, b: any) => b._ageHours - a._ageHours);
-  }, [shipMap]);
+  }, [tabMap]);
   const slaBreachCount = slaBreaches.length;
   const slaBreachCOD = slaBreaches.reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
 
-  // ── مطابقة الكاش: شحنات delivered لسه فلوسها متجمعتش بالكامل ─────────────
-  // الفرق هنا = إما الشركة لسه ما حولتش الكاش، أو فيه نقص تحصيل محتاج متابعة
+  // ── مطابقة الكاش: شحنات received لسه فلوسها متجمعتش بالكامل ─────────────
   const cashReconciliation = useMemo(() => {
-    const delivered = shipMap.delivered ?? [];
-    let pendingCOD = 0;       // مبلغ متوقع لسه ما اتأكدش وصوله بالكامل
-    let shortfallCount = 0;   // عدد الشحنات اللي فيها نقص تحصيل
+    const delivered = tabMap.received ?? [];
+    let pendingCOD = 0;
+    let shortfallCount = 0;
     const byCompany: Record<string, { name: string; outstanding: number; count: number }> = {};
 
     for (const sh of delivered) {
       const expected = Number(sh.codAmount) || 0;
       const collected = Number(sh.collectedAmount) || 0;
       const diff = expected - collected;
-      if (diff > 0.5) { // هامش بسيط لتفادي فروق التقريب
+      if (diff > 0.5) {
         pendingCOD += diff;
         shortfallCount += 1;
         const key = sh.shippingCompanyName ?? "بدون شركة شحن";
@@ -812,14 +881,14 @@ function ShipmentWarehouseTab() {
 
     const companiesRanked = Object.values(byCompany).sort((a, b) => b.outstanding - a.outstanding);
     return { pendingCOD, shortfallCount, companiesRanked };
-  }, [shipMap.delivered]);
+  }, [tabMap.received]);
 
   // ── handlePrint: طباعة احترافية للجدول الحالي ────────────────────────────
   const handlePrint = (status: string, shipments: any[], statusLabel: string) => {
     const now = new Date().toLocaleString("ar-EG", { dateStyle: "full", timeStyle: "short" });
     const totalCOD = shipments.reduce((s, sh) => s + (Number(sh.codAmount) || 0), 0);
     const fmt = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
-    const isActive = ACTIVE_STATUSES.includes(status as any);
+    const isActive = ["pending", "warehouse_ready", "in_shipping"].includes(status);
 
     const rows = shipments.map((sh, i) => {
       const age    = isActive ? hoursSince(sh.updatedAt ?? sh.createdAt) : null;
@@ -1078,7 +1147,8 @@ function ShipmentWarehouseTab() {
 
   // ── فلتر بحث client-side ─────────────────────────────────────────────────
   const activeShipments = useMemo(() => {
-    let base = shipMap[activeStatus] ?? [];
+    let base = tabMap[activeTab] ?? [];
+    const isActiveTab = ["pending", "warehouse_ready", "in_shipping"].includes(activeTab);
     base = base.map((sh: any) => {
       const ageHours = hoursSince(sh.updatedAt ?? sh.createdAt);
       return { ...sh, _ageHours: ageHours, _ageLevel: getAgeLevel(sh.status, ageHours) };
@@ -1095,7 +1165,7 @@ function ShipmentWarehouseTab() {
       (s.shipmentNumber ?? "").toLowerCase().includes(q) ||
       (s.trackingNumber ?? "").toLowerCase().includes(q)
     );
-  }, [shipMap, activeStatus, search, slaOnly]);
+  }, [tabMap, activeTab, search, slaOnly]);
 
   const activeTotalCOD = activeShipments.reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
   const activeFiltersCount = [dateFrom, dateTo, shippingCompany !== "all", warehouseId !== "all"].filter(Boolean).length;
@@ -1108,7 +1178,7 @@ function ShipmentWarehouseTab() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
 
         {/* نشطة */}
-        <Card onClick={() => setActiveStatus("confirmed")}
+        <Card onClick={() => setActiveTab("pending")}
           className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
@@ -1122,7 +1192,7 @@ function ShipmentWarehouseTab() {
         </Card>
 
         {/* في الطريق */}
-        <Card onClick={() => setActiveStatus("in_transit")}
+        <Card onClick={() => setActiveTab("in_shipping")}
           className="border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center shrink-0">
@@ -1131,12 +1201,12 @@ function ShipmentWarehouseTab() {
             <span className="text-[9px] font-bold bg-violet-100 dark:bg-violet-900/30 text-violet-600/70 dark:text-violet-400/70 px-1.5 py-0.5 rounded-full">تسليم</span>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "—" : inTransitCount}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة في الطريق</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">قيد الشحن</p>
           <p className="text-[10px] font-bold text-violet-600/70 mt-1 truncate">{isLoading ? "" : fc2(transitCOD)}</p>
         </Card>
 
-        {/* تم التسليم */}
-        <Card onClick={() => setActiveStatus("delivered")}
+        {/* استلم */}
+        <Card onClick={() => setActiveTab("received")}
           className="border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
@@ -1145,27 +1215,24 @@ function ShipmentWarehouseTab() {
             <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600/70 dark:text-emerald-400/70 px-1.5 py-0.5 rounded-full">محصّل</span>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{isLoading ? "—" : deliveredCount}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مسلّمة</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة استلمت</p>
           <p className="text-[10px] font-bold text-emerald-600/70 mt-1 truncate">{isLoading ? "" : fc2(deliveredCOD)}</p>
         </Card>
 
-        {/* مرتجعات */}
-        <Card onClick={() => setActiveStatus("returned")}
-          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${returnedCount > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"}`}>
+        {/* استلام جزئي */}
+        <Card onClick={() => setActiveTab("partial_received")}
+          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${(tabMap.partial_received?.length ?? 0) > 0 ? "border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/10" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${returnedCount > 0 ? "bg-red-500/15" : "bg-muted/30"}`}>
-              <RotateCcw className={`w-4 h-4 ${returnedCount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${(tabMap.partial_received?.length ?? 0) > 0 ? "bg-amber-500/15" : "bg-muted/30"}`}>
+              <AlertTriangle className={`w-4 h-4 ${(tabMap.partial_received?.length ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`} />
             </div>
-            {returnedCount > 0 && <span className="text-[9px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600/70 px-1.5 py-0.5 rounded-full animate-pulse">تنبيه</span>}
+            {(tabMap.partial_received?.length ?? 0) > 0 && <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600/70 px-1.5 py-0.5 rounded-full">جزئي</span>}
           </div>
-          <p className={`text-2xl sm:text-3xl font-black ${returnedCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "—" : returnedCount}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مرتجعة</p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="flex items-center gap-1 text-[9px] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />{shipMap.cancelled?.length ?? 0} ملغية</span>
-          </div>
+          <p className={`text-2xl sm:text-3xl font-black ${(tabMap.partial_received?.length ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}>{isLoading ? "—" : (tabMap.partial_received?.length ?? 0)}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">استلام جزئي</p>
         </Card>
 
-        {/* تجاوزت SLA — أخطر كرت في الصفحة، بيقول "ده اللي محتاج تتصرف فيه دلوقتي" */}
+        {/* تجاوزت SLA */}
         <Card onClick={() => setSlaOnly(v => !v)}
           className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${slaOnly ? "ring-2 ring-rose-500" : ""} ${slaBreachCount > 0 ? "border-rose-300 dark:border-rose-700/50 bg-rose-50 dark:bg-rose-950/20" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
@@ -1306,16 +1373,15 @@ function ShipmentWarehouseTab() {
 
       {/* ── Status Tabs ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {ALL_SHIP_STATUSES.map(status => {
-          const meta  = SHIP_STATUS_META[status];
-          const Icon  = meta.icon;
-          const count = shipMap[status]?.length ?? 0;
-          const isAct = activeStatus === status;
+        {WAREHOUSE_TABS.map(tab => {
+          const Icon  = tab.icon;
+          const count = tabMap[tab.id]?.length ?? 0;
+          const isAct = activeTab === tab.id;
           return (
-            <button key={status} onClick={() => setActiveStatus(status)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${isAct ? `${meta.bg} ${meta.border} ${meta.color} shadow-sm` : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${isAct ? `${tab.bg} ${tab.border} ${tab.color} shadow-sm` : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
               <Icon className="w-3 h-3 shrink-0" />
-              <span className="hidden sm:inline">{meta.label}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
               <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${isAct ? "bg-white/30 dark:bg-black/20" : "bg-muted"}`}>
                 {isLoading ? "…" : count}
               </span>
@@ -1326,15 +1392,15 @@ function ShipmentWarehouseTab() {
 
       {/* ── Table ───────────────────────────────────────────────────────── */}
       <Card className="border-border bg-card overflow-hidden">
-        <div className={`px-3 sm:px-4 py-2.5 border-b flex items-center gap-2 ${SHIP_STATUS_META[activeStatus]?.bg} ${SHIP_STATUS_META[activeStatus]?.border}`}>
-          {(() => { const Icon = SHIP_STATUS_META[activeStatus]?.icon; return Icon ? <Icon className={`w-4 h-4 shrink-0 ${SHIP_STATUS_META[activeStatus]?.color}`} /> : null; })()}
-          <span className={`text-sm font-bold ${SHIP_STATUS_META[activeStatus]?.color}`}>{SHIP_STATUS_META[activeStatus]?.label}</span>
+        <div className={`px-3 sm:px-4 py-2.5 border-b flex items-center gap-2 ${activeTab_def.bg} ${activeTab_def.border}`}>
+          {(() => { const Icon = activeTab_def.icon; return <Icon className={`w-4 h-4 shrink-0 ${activeTab_def.color}`} />; })()}
+          <span className={`text-sm font-bold ${activeTab_def.color}`}>{activeTab_def.label}</span>
           <span className="text-xs text-muted-foreground mr-auto">{activeShipments.length} شحنة</span>
           {isLoading && <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
           {/* ── زرار الطباعة ── */}
           {!isLoading && (
             <button
-              onClick={() => handlePrint(activeStatus, activeShipments, SHIP_STATUS_META[activeStatus]?.label ?? "")}
+              onClick={() => handlePrint(activeTab, activeShipments, activeTab_def.label)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-muted text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all print:hidden"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -1351,7 +1417,7 @@ function ShipmentWarehouseTab() {
               <Package className="w-6 h-6 text-muted-foreground/40" />
             </div>
             <p className="text-sm font-bold text-muted-foreground">لا توجد شحنات</p>
-            <p className="text-xs text-muted-foreground/60">{search ? `لا نتائج للبحث "${search}"` : `لا توجد شحنات بحالة "${SHIP_STATUS_META[activeStatus]?.label}"`}</p>
+            <p className="text-xs text-muted-foreground/60">{search ? `لا نتائج للبحث "${search}"` : `لا توجد شحنات بحالة "${activeTab_def.label}"`}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1365,7 +1431,7 @@ function ShipmentWarehouseTab() {
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">شركة الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
-                  {ACTIVE_STATUSES.includes(activeStatus as any) && (
+                  {["pending", "warehouse_ready", "in_shipping"].includes(activeTab) && (
                     <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">العمر</th>
                   )}
                 </tr>
@@ -1401,7 +1467,7 @@ function ShipmentWarehouseTab() {
                           <span className="hidden sm:inline">{meta.label}</span>
                         </span>
                       </td>
-                      {ACTIVE_STATUSES.includes(activeStatus as any) && (
+                      {["pending", "warehouse_ready", "in_shipping"].includes(activeTab) && (
                         <td className="px-3 py-2.5 hidden sm:table-cell whitespace-nowrap">
                           <span className={`text-[11px] ${AGE_LEVEL_STYLE[sh._ageLevel as AgeLevel ?? "ok"]}`}>
                             {formatAge(sh._ageHours ?? 0)}
