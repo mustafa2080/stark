@@ -1614,6 +1614,9 @@ export default function Orders() {
                         {order.status === "warehouse_ready" && (order as any).warehouseName && (
                           <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-teal-500 dark:text-teal-400">📦 {(order as any).warehouseName}</span>
                         )}
+                        {order.status === "in_shipping" && (order as any).assignedUserName && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-blue-500 dark:text-blue-400">🚚 مع {(order as any).assignedUserName}</span>
+                        )}
                         {order.status === "delayed" && (() => {
                           const reason = (order as any).notes as string | null | undefined;
                           if (!reason) return null;
@@ -1782,7 +1785,9 @@ export default function Orders() {
                           )}
                           {order.status === "in_shipping" && (
                             <div className="flex items-center justify-center gap-0.5 mt-1">
-                              <span className="text-[9px] font-bold text-blue-500 dark:text-blue-400 leading-none">🚚 تحت التسليم</span>
+                              <span className="text-[9px] font-bold text-blue-500 dark:text-blue-400 leading-none">
+                                🚚 {(order as any).assignedUserName ? `مع ${(order as any).assignedUserName}` : "قيد الشحن"}
+                              </span>
                             </div>
                           )}
                           {order.status === "delayed" && (() => {
