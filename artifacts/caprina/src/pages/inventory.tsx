@@ -1110,30 +1110,33 @@ function ShipmentWarehouseTab() {
   };
 
   // ── Phase 4: تنبيهات استباقية ─────────────────────────────────────────────
-  // 1) شحنات ستتجاوز SLA خلال 24 ساعة القادمة (predictive — مش بس reactive)
+  // 1) شحنات ستتجاوز SLA خلال 24 ساعة القادمة
   const upcomingSlaWarnings = useMemo(() => {
-    return ACTIVE_STATUSES
-      .flatMap(st => (shipMap[st] ?? []).map((sh: any) => {
+    const activeSh = [
+      ...(tabMap.pending ?? []),
+      ...(tabMap.warehouse_ready ?? []),
+      ...(tabMap.in_shipping ?? []),
+    ];
+    return activeSh.map((sh: any) => {
         const ageHours = hoursSince(sh.updatedAt ?? sh.createdAt);
         const sla = SLA_HOURS[sh.status];
         if (!sla) return null;
         const hoursLeft = sla.warn - ageHours;
-        // وارنينج: لسه في الـ warn zone ومتعديتهاش، وستعدّيها خلال 24 ساعة
         if (hoursLeft > 0 && hoursLeft <= 24) return { ...sh, _hoursLeft: hoursLeft, _ageHours: ageHours };
         return null;
-      }))
+      })
       .filter(Boolean)
       .sort((a: any, b: any) => a._hoursLeft - b._hoursLeft) as any[];
-  }, [shipMap]);
+  }, [tabMap]);
 
-  // 2) أنماط غريبة — شركة شحن معدل إرجاعها أعلى من المتوسط بـ 50%+ (من بيانات delivered+returned)
+  // 2) أنماط غريبة — شركة شحن معدل إرجاعها أعلى من المتوسط بـ 50%+
   const anomalousCompanies = useMemo(() => {
     // نجمع per-company: delivered count + returned count
     const compMap: Record<string, { name: string; delivered: number; returned: number }> = {};
-    for (const sh of [...(shipMap.delivered ?? []), ...(shipMap.returned ?? [])]) {
+    for (const sh of [...(tabMap.received ?? []), ...(tabMap.delayed ?? [])]) {
       const key = sh.shippingCompanyName ?? "بدون شركة";
       if (!compMap[key]) compMap[key] = { name: key, delivered: 0, returned: 0 };
-      if (sh.status === "delivered") compMap[key].delivered += 1;
+      if (["received", "delivered"].includes(sh.status)) compMap[key].delivered += 1;
       else compMap[key].returned += 1;
     }
     const entries = Object.values(compMap).filter(c => c.delivered + c.returned >= 5); // نحتاج على الأقل 5 شحنات عشان النسبة تبقى ذات معنى
@@ -1143,7 +1146,7 @@ function ShipmentWarehouseTab() {
       .map(c => ({ ...c, returnRate: c.returned / (c.delivered + c.returned) }))
       .filter(c => c.returnRate > avgReturnRate * 1.5 && c.returnRate > 0.1) // > 10% إرجاع وأعلى من المتوسط بـ 50%
       .sort((a, b) => b.returnRate - a.returnRate);
-  }, [shipMap.delivered, shipMap.returned]);
+  }, [tabMap.received, tabMap.delayed]);
 
   // ── فلتر بحث client-side ─────────────────────────────────────────────────
   const activeShipments = useMemo(() => {
