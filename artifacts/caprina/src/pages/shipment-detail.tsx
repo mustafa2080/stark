@@ -1374,21 +1374,17 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[o.status] || ""}`}>
                         {statusLabels[o.status] || o.status}
                       </Badge>
-                      {o.status === "in_shipping" && (order as any).assignedUserName && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
-                          🚚 مع {(order as any).assignedUserName}
-                        </span>
-                      )}
-                      {o.status === "in_shipping" && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
-                          🚚 مع {(order as any).shippingCompanyName}
-                        </span>
-                      )}
-                      {o.status === "in_shipping" && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
-                          🚚 عند شركة الشحن
-                        </span>
-                      )}
+                      {o.status === "in_shipping" || o.status === "in_transit" ? (
+                        (order as any).assignedUserName ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
+                            🚚 مع {(order as any).assignedUserName}
+                          </span>
+                        ) : (order as any).shippingCompanyName ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
+                            🚚 مع {(order as any).shippingCompanyName}
+                          </span>
+                        ) : null
+                      ) : null}
                       {o.color && <Badge variant="outline" className="text-xs border-border">{o.color}</Badge>}
                       {o.size && <Badge variant="outline" className="text-xs border-border">{o.size}</Badge>}
                     </div>
@@ -3175,17 +3171,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     {statusLabels[selectDisplayStatus ?? order.status] || order.status}
                   </Badge>
                 )}
-                {!isEditing && order.status === "in_shipping" && (order as any).assignedUserName && (
+                {!isEditing && (order.status === "in_shipping" || order.status === "in_transit") && (order as any).assignedUserName && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                     🚚 مع {(order as any).assignedUserName}
                   </span>
                 )}
-                {!isEditing && order.status === "in_shipping" && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
+                {!isEditing && (order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                     🚚 مع {(order as any).shippingCompanyName}
                   </span>
                 )}
-                {!isEditing && order.status === "in_shipping" && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
+                {!isEditing && (order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                     🚚 عند شركة الشحن
                   </span>
@@ -3668,17 +3664,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                               <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                                 {statusLabels[order.status] || order.status}
                               </Badge>
-                              {order.status === "in_shipping" && (order as any).assignedUserName && (
+                              {(order.status === "in_shipping" || order.status === "in_transit") && (order as any).assignedUserName && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                                   🚚 مع {(order as any).assignedUserName}
                                 </span>
                               )}
-                              {order.status === "in_shipping" && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
+                              {(order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                                   🚚 مع {(order as any).shippingCompanyName}
                                 </span>
                               )}
-                              {order.status === "in_shipping" && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
+                              {(order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                                   🚚 عند شركة الشحن
                                 </span>
@@ -3764,12 +3760,12 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                         {statusLabels[order.status] || order.status}
                       </Badge>
-                      {order.status === "in_shipping" && (order as any).assignedUserName && (
+                      {(order.status === "in_shipping" || order.status === "in_transit") && (order as any).assignedUserName && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                           🚚 مع {(order as any).assignedUserName}
                         </span>
                       )}
-                      {order.status === "in_shipping" && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
+                      {(order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                           🚚 مع {(order as any).shippingCompanyName}
                         </span>
