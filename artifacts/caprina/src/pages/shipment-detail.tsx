@@ -3165,6 +3165,11 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     {statusLabels[selectDisplayStatus ?? order.status] || order.status}
                   </Badge>
                 )}
+                {!isEditing && (order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && ((order as any).assignedUserName || (order as any).createdByName) && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300">
+                    👤 {(order as any).assignedUserName || (order as any).createdByName}
+                  </span>
+                )}
                 {isOrderLocked && (
                   <Badge variant="outline" className="shrink-0 text-[9px] font-bold border-amber-700 bg-amber-900/10 text-amber-400 gap-1 flex items-center">
                     <Lock className="w-2.5 h-2.5" /> مقفل
@@ -3643,9 +3648,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                               <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                                 {statusLabels[order.status] || order.status}
                               </Badge>
-                              {(order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && (order as any).assignedUserName && (
+                              {(order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && ((order as any).assignedUserName || (order as any).createdByName) && (
                                 <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-300">
-                                  👤 {(order as any).assignedUserName}
+                                  👤 {(order as any).assignedUserName || (order as any).createdByName}
                                 </span>
                               )}
                               {item.color && <Badge variant="outline" className="text-xs border-border">{item.color}</Badge>}
