@@ -1946,6 +1946,10 @@ export default function OrderDetail() {
   const [selectDisplayStatus, setSelectDisplayStatus] = useState<string | null>(null); // قيمة مؤقتة للـ Select
   const returnSectionRef = useRef<HTMLDivElement>(null);
 
+  // Dialog تحويل لـ "قيد الشحن" — اختيار المندوب
+  const [showInShippingDialog, setShowInShippingDialog] = useState(false);
+  const [inShippingCourierId, setInShippingCourierId] = useState<number | null>(null);
+
   const initializedRef = useRef(false);
 
   const { data: order, isLoading, error } = useQuery({
@@ -2105,6 +2109,13 @@ export default function OrderDetail() {
     if (newStatus === "returned") {
       setSelectDisplayStatus("returned");
       setShowReturnInput(true);
+      return;
+    }
+
+    if (newStatus === "in_shipping") {
+      setSelectDisplayStatus("in_shipping");
+      setInShippingCourierId((order as any).assignedUserId ?? null);
+      setShowInShippingDialog(true);
       return;
     }
 
@@ -3263,6 +3274,58 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             <Button variant="outline" size="sm" className="flex-1" onClick={() => { setShowPartialInput(false); setPartialQty(""); setSelectDisplayStatus(null); }}>إلغاء</Button>
             <Button size="sm" className="flex-1 bg-purple-600 hover:bg-purple-700 text-white" onClick={handlePartialReceived} disabled={updateOrder.isPending}>
               {updateOrder.isPending ? "جاري..." : "تأكيد"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog قيد الشحن — اختيار المندوب */}
+      <Dialog open={showInShippingDialog} onOpenChange={v => { if (!v) { setShowInShippingDialog(false); setInShippingCourierId(null); setSelectDisplayStatus(null); } }}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Truck className="w-4 h-4 text-blue-400" />تحويل إلى قيد الشحن
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-muted-foreground">اختر المندوب المسؤول عن هذه الشحنة:</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">المندوب <span className="text-red-500">*</span></Label>
+              <select
+                value={inShippingCourierId ?? ""}
+                onChange={e => setInShippingCourierId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full h-10 text-sm rounded-md border border-input bg-card px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— اختر المندوب —</option>
+                {((users as any[]) || []).filter((u: any) => u.isActive !== false).map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.displayName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => { setShowInShippingDialog(false); setInShippingCourierId(null); setSelectDisplayStatus(null); }}>إلغاء</Button>
+            <Button
+              size="sm"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+              disabled={!inShippingCourierId || updateOrder.isPending}
+              onClick={() => {
+                if (!inShippingCourierId) return;
+                apiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify({ status: "in_shipping", assignedUserId: inShippingCourierId }) })
+                  .then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] });
+                    queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+                    setShowInShippingDialog(false);
+                    setSelectDisplayStatus(null);
+                    setInShippingCourierId(null);
+                    const courier = ((users as any[]) || []).find((u: any) => u.id === inShippingCourierId);
+                    toast({ title: `✅ قيد الشحن مع ${courier?.displayName ?? "المندوب"}` });
+                  })
+                  .catch(() => { setSelectDisplayStatus(null); setShowInShippingDialog(false); toast({ title: "خطأ", description: "فشل تحديث الحالة.", variant: "destructive" }); });
+              }}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              {updateOrder.isPending ? "جاري..." : "تأكيد الشحن"}
             </Button>
           </DialogFooter>
         </DialogContent>
