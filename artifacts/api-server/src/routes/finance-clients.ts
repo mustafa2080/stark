@@ -62,6 +62,34 @@ async function syncClientStats(clientName: string, tenantId: number | null) {
   }).where(and(...clientConds));
 }
 
+// ── GET /finance/clients/for-shipment ── للاستخدام في نموذج إنشاء الشحنة فقط ──
+router.get("/finance/clients/for-shipment", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const rows = await db
+      .select({
+        id:          clientsTable.id,
+        name:        clientsTable.name,
+        phone:       clientsTable.phone,
+        phone2:      clientsTable.phone2,
+        city:        clientsTable.city,
+        region:      clientsTable.region,
+        address:     clientsTable.address,
+        warehouseId: clientsTable.warehouseId,
+      })
+      .from(clientsTable)
+      .where(
+        tenantId !== null
+          ? and(eq(clientsTable.tenantId, tenantId), eq(clientsTable.isActive, true))
+          : eq(clientsTable.isActive, true)
+      )
+      .orderBy(clientsTable.name);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /finance/clients ─────────────────────────────────────────────────────
 router.get("/finance/clients", async (req, res): Promise<void> => {
   try {
