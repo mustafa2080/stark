@@ -1,4 +1,5 @@
 import { lazy, Suspense, Component, type ReactNode, useRef, useEffect, useLayoutEffect, useState } from "react";
+import { firstLogoBase64 } from "@/lib/first-logo";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,10 +16,8 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
-    // بعد 1.8 ثانية ابدأ الـ fade out
-    const fadeTimer = setTimeout(() => setFading(true), 1800);
-    // بعد 2.5 ثانية اخفيها خالص
-    const doneTimer = setTimeout(() => onDone(), 2500);
+    const fadeTimer = setTimeout(() => setFading(true), 800);
+    const doneTimer = setTimeout(() => onDone(), 1300);
     return () => { clearTimeout(fadeTimer); clearTimeout(doneTimer); };
   }, []);
 
@@ -46,7 +45,7 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
         }}
       >
         <img
-          src="/starkvector.jpg"
+          src={firstLogoBase64}
           alt="STARK"
           style={{
             width: 96,
@@ -319,7 +318,7 @@ function PageLoader() {
 
           {/* Logo center */}
           <img
-            src="/starkvector.jpg"
+            src={firstLogoBase64}
             alt="STARK"
             style={{
               position: "absolute",
