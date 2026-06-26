@@ -276,9 +276,9 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
       }))
     );
 
-    // حدّث حالة الشحنات → in_transit
+    // حدّث حالة الشحنات → in_shipping + احفظ اسم المندوب (shippingCompanyId)
     await db.update(shipmentsTable)
-      .set({ status: "in_transit", updatedAt: now })
+      .set({ status: "in_shipping", shippingCompanyId: body.shippingCompanyId, updatedAt: now })
       .where(inArray(shipmentsTable.id, body.shipmentIds));
 
     res.status(201).json({
