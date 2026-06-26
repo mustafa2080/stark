@@ -716,9 +716,16 @@ export default function Layout({ children }: LayoutProps) {
         <header className="border-b border-sidebar-border/40 bg-sidebar md:hidden shrink-0">
           <div className="flex items-center justify-between px-3 h-12 gap-2">
 
-            {/* ── وسط: brand logo + name ── */}
+            {/* ── وسط: brand logo + name (same style as desktop) ── */}
             <div className="flex-1 flex justify-start">
-              <BrandFull logoSize="md" layout="row" nameClass="text-base font-black text-sidebar-foreground tracking-widest" />
+              <div className="brand-name-glow flex flex-col items-center gap-0">
+                <BrandFull logoSize="md" layout="row" nameClass="text-base font-black tracking-[0.2em] uppercase brand-name-text" taglineClass="text-[0px] opacity-0 h-0 overflow-hidden" />
+                <span className="block h-[2px] rounded-full" style={{
+                  width: "5.5rem", alignSelf: "center", marginTop: "2px", marginRight: "2.5rem",
+                  background: "linear-gradient(90deg, transparent 0%, hsl(var(--primary)) 20%, #fff 50%, hsl(var(--primary)) 80%, transparent 100%)",
+                  boxShadow: "0 0 6px hsl(var(--primary)/0.9), 0 0 14px hsl(var(--primary)/0.5)",
+                }} />
+              </div>
             </div>
 
             {/* ── شمال: avatar أونلاين + dark/light toggle ── */}
