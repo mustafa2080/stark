@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Plus, Warehouse, Package, Edit2, Trash2, Star, ArrowLeft, Printer, TrendingDown, DollarSign, BoxIcon, ShoppingBag, Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Wrench, Truck, ArrowLeftRight, UserCheck, Phone, PackageSearch, Users, BarChart3, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Clock, LayoutGrid, List, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -586,10 +587,10 @@ function KanbanBoard({
 function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; onClose: () => void; canEdit: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics" | "clients">("shipments");
   const [clientSearch, setClientSearch] = useState("");
   const [clientSort, setClientSort] = useState<"count" | "name" | "cod">("count");
-  const [shipmentView, setShipmentView] = useState<"kanban" | "list">("kanban");
   const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"active" | "delivered" | "returned" | "all">("active");
 
   const { data: warehouse, isLoading } = useQuery({
@@ -1208,9 +1209,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
       {activeTab === "shipments" && (
         <div className="space-y-4">
 
-          {/* إحصائيات سريعة + view toggle */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="grid grid-cols-4 gap-2 flex-1">
+          {/* إحصائيات سريعة */}
+          <div className="grid grid-cols-4 gap-2">
             {[
               { label: "الكل",        value: stats?.total ?? 0,     key: "all",       color: "text-foreground",  bg: "bg-muted/20" },
               { label: "قيد الشحن",   value: stats?.active ?? 0,    key: "active",    color: "text-amber-500",   bg: "bg-amber-500/10" },
@@ -1219,7 +1219,7 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
             ].map(s => (
               <button
                 key={s.key}
-                onClick={() => { setShipmentStatusFilter(s.key as any); if (s.key !== "active") setShipmentView("list"); }}
+                onClick={() => setShipmentStatusFilter(s.key as any)}
                 className={`rounded-xl p-3 text-center transition-all border ${
                   shipmentStatusFilter === s.key
                     ? `${s.bg} border-current ${s.color}`
@@ -1231,46 +1231,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
               </button>
             ))}
           </div>
-            {/* View toggle — يظهر فقط لما الفلتر active */}
-            {shipmentStatusFilter === "active" && (
-              <div className="flex items-center gap-1 bg-muted/20 rounded-lg p-1 shrink-0">
-                <button
-                  onClick={() => setShipmentView("kanban")}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all ${
-                    shipmentView === "kanban" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <LayoutGrid className="w-3 h-3" />كانبان
-                </button>
-                <button
-                  onClick={() => setShipmentView("list")}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all ${
-                    shipmentView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <List className="w-3 h-3" />قائمة
-                </button>
-              </div>
-            )}
-          </div>
 
-          {/* ── Kanban View ── */}
-          {shipmentView === "kanban" && shipmentStatusFilter === "active" && (
-            <KanbanBoard
-              warehouseId={warehouseId}
-              shipments={warehouseShipments?.shipments ?? []}
-              shippingCompanies={shippingCompanies ?? []}
-              canEdit={canEdit}
-              onRefetch={() => {
-                qc.invalidateQueries({ queryKey: ["warehouse-shipments", warehouseId] });
-                qc.invalidateQueries({ queryKey: ["warehouse-stats", warehouseId] });
-              }}
-            />
-          )}
-
-          {/* ── List View: إحصائيات + جدول ── */}
-          {(shipmentView === "list" || shipmentStatusFilter !== "active") && (<>
-
+          {/* إحصائيات أنواع الطرود + العملاء */}
           {warehouseStats && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Card className="border-border bg-card">
@@ -1332,8 +1294,7 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
               <span className="col-span-2">المستلم</span>
               <span className="col-span-2">النوع</span>
               <span className="col-span-2">الحالة</span>
-              <span className="col-span-1">المندوب</span>
-              <span className="col-span-1 text-center">إجراء</span>
+              <span className="col-span-2">المندوب</span>
             </div>
 
             {loadingShipments ? (
@@ -1345,9 +1306,12 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
               </div>
             ) : warehouseShipments.shipments.map(s => {
               const st = SHIPMENT_STATUS_MAP[s.status] ?? { label: s.status, color: "text-muted-foreground", bg: "bg-muted/20" };
-              const isReturnPending = s.status === "returned" && s.returnReceived !== 1;
               return (
-                <div key={s.id} className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border/50 hover:bg-muted/10 transition-colors items-center text-xs">
+                <div
+                  key={s.id}
+                  className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border/50 hover:bg-muted/10 transition-colors items-center text-xs cursor-pointer"
+                  onClick={() => navigate(`/shipments/${s.id}`)}
+                >
                   <div className="col-span-2 min-w-0">
                     <p className="font-bold text-primary truncate">{s.shipmentNumber ?? `#${s.id}`}</p>
                     <p className="text-[9px] text-muted-foreground truncate">{s.receiverCity ?? "—"}</p>
@@ -1369,11 +1333,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${st.bg} ${st.color}`}>
                       {st.label}
                     </span>
-                    {isReturnPending && (
-                      <p className="text-[9px] text-amber-500 mt-0.5">لسه عند شركة الشحن</p>
-                    )}
                   </div>
-                  <div className="col-span-1 min-w-0">
+                  <div className="col-span-2 min-w-0">
                     {s.courierName ? (
                       <div className="truncate">
                         <p className="text-[10px] font-bold truncate flex items-center gap-1"><UserCheck className="w-2.5 h-2.5 text-sky-400 shrink-0" />{s.courierName}</p>
@@ -1381,22 +1342,10 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
                       </div>
                     ) : <span className="text-muted-foreground text-[10px]">—</span>}
                   </div>
-                  <div className="col-span-1 text-center">
-                    {canEdit && s.status === "in_shipping" && (
-                      <Button
-                        variant="ghost" size="icon" className="h-7 w-7 text-primary hover:bg-primary/10"
-                        title="ترحيل الشحنة لمخزن آخر / تعيين مندوب"
-                        onClick={() => setTransferShipmentId(s.id)}
-                      >
-                        <ArrowLeftRight className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-                  </div>
                 </div>
               );
             })}
           </Card>
-        </>)}
         </div>
       )}
 
