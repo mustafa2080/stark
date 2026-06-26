@@ -449,9 +449,8 @@ export default function Layout({ children }: LayoutProps) {
                   boxShadow: "0 0 10px hsl(var(--primary)/0.3)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <img src={secondLogoBase64} alt="Logo" style={{
-                    width: "100%", height: "100%", objectFit: "contain",
-                    filter: "drop-shadow(0 0 6px hsl(var(--primary)/0.6))",
+                  <img src="/first_logo.jpg" alt="Logo" style={{
+                    width: "100%", height: "100%", objectFit: "cover",
                   }} />
                 </div>
                 {/* Brand Logo */}
