@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull, gte } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -10,6 +10,7 @@ const router: IRouter = Router();
 
 // alias لجدول المناطق عشان نطابق محافظة مدينة الراسل (senderCity) بشكل مستقل عن منطقة المستلم
 const senderZoneTable = alias(shipmentZonesTable, "sender_zone");
+const manifestShippingCompanyTable = alias(shippingCompaniesTable, "manifest_shipping_company");
 
 // alias لجدول المخازن عشان نجيب مخزن العميل التجاري كـ fallback لو الشحنة مالهاش مخزن
 const clientWarehouseTable = alias(warehousesTable, "client_warehouse");
@@ -375,8 +376,8 @@ router.get("/shipments", async (req, res): Promise<void> => {
           actualDelivery:   shipmentsTable.actualDelivery,
           createdAt:        shipmentsTable.createdAt,
           updatedAt:        shipmentsTable.updatedAt,
-          // ── JOIN: اسم شركة الشحن ──
-          shippingCompanyName: shippingCompaniesTable.name,
+          // ── JOIN: اسم شركة الشحن (من الشحنة مباشرة أو من البيان المرتبط) ──
+          shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
           // ── JOIN: اسم المندوب ──
           assignedUserName: usersTable.displayName,
           // ── JOIN: المنطقة ──
@@ -389,6 +390,9 @@ router.get("/shipments", async (req, res): Promise<void> => {
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
+        .leftJoin(shipmentManifestItemsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+        .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+        .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
         .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
         .leftJoin(clientsTable, eq(shipmentsTable.clientId, clientsTable.id))
