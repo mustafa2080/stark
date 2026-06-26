@@ -401,18 +401,18 @@ export default function Invoices() {
     <div class="tracking-item"><div class="t-value brand">STARK</div></div>
   </div>
   <div class="parties">
-    <div class="party-box">
-      <div class="party-title">📤 المرسل</div>
-      <div class="party-name">${sh.senderName || "—"}</div>
-      ${[sh.senderPhone, sh.senderPhone2].filter(Boolean).length ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${[sh.senderPhone, sh.senderPhone2].filter(Boolean).join("  -  ")}</span></div>` : ""}
-      ${sh.senderCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${sh.senderCity}</span></div>` : ""}
-    </div>
     <div class="party-box receiver">
       <div class="party-title">📦 المستلم</div>
       <div class="party-name">${sh.receiverName || "—"}</div>
       ${[sh.receiverPhone, sh.receiverPhone2].filter(Boolean).length ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${[sh.receiverPhone, sh.receiverPhone2].filter(Boolean).join("  -  ")}</span></div>` : ""}
       ${sh.receiverCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${sh.receiverCity}</span></div>` : ""}
       ${sh.receiverAddress ? `<div class="party-row"><span class="icon">🏠</span><span class="val addr">${sh.receiverAddress}</span></div>` : ""}
+    </div>
+    <div class="party-box">
+      <div class="party-title">📤 الراسل</div>
+      <div class="party-name">${sh.senderName || "—"}</div>
+      ${[sh.senderPhone, sh.senderPhone2].filter(Boolean).length ? `<div class="party-row"><span class="icon">📞</span><span class="val phone">${[sh.senderPhone, sh.senderPhone2].filter(Boolean).join("  -  ")}</span></div>` : ""}
+      ${sh.senderCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${sh.senderCity}</span></div>` : ""}
     </div>
   </div>
   <div class="details-row">
@@ -620,7 +620,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                           ? <CheckSquare className="w-4 h-4 text-primary shrink-0" />
                           : <Square className="w-4 h-4 text-muted-foreground shrink-0" />}
                         <div>
-                          <p className="font-bold text-sm leading-tight">{sh.receiverName}</p>
+                          <p className="font-bold text-sm leading-tight">{sh.senderName}</p>
                           <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
                             #{sh.shipmentNumber ?? String(sh.id).padStart(4, "0")}
                           </p>
