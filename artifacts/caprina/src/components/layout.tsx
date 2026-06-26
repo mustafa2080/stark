@@ -716,18 +716,9 @@ export default function Layout({ children }: LayoutProps) {
         <header className="border-b border-sidebar-border/40 bg-sidebar md:hidden shrink-0">
           <div className="flex items-center justify-between px-3 h-12 gap-2">
 
-            {/* ── يمين: لوجو first_logo ── */}
-            <div className="shrink-0">
-              <img
-                src={firstLogoBase64}
-                alt="logo"
-                className="h-8 w-auto rounded-md object-contain"
-              />
-            </div>
-
-            {/* ── وسط: CAPRINA brand ── */}
-            <div className="flex-1 flex justify-center">
-              <BrandFull logoSize="sm" layout="row" nameClass="text-sm font-black text-sidebar-foreground tracking-widest" />
+            {/* ── وسط: brand logo + name ── */}
+            <div className="flex-1 flex justify-start">
+              <BrandFull logoSize="md" layout="row" nameClass="text-base font-black text-sidebar-foreground tracking-widest" />
             </div>
 
             {/* ── شمال: avatar أونلاين + dark/light toggle ── */}
