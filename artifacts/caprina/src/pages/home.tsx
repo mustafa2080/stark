@@ -162,7 +162,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
           >
             <LayoutDashboard size={15} />
-            <span className="hidden sm:inline">لوحة التحكم</span>
+            <span className="hidden sm:inline">تسجيل الدخول</span>
           </button>
 
           {/* Mobile Menu Toggle */}
