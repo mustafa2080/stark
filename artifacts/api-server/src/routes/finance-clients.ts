@@ -91,7 +91,8 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     let regionMap: Record<number, string | null> = {};
     if (ids.length) {
       const rows = await db.execute(sql`SELECT id, warehouse_id, region FROM clients WHERE id IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
-      for (const r of (rows as any)[0] ?? []) {
+      const rowsArr: any[] = Array.isArray((rows as any)[0]) ? (rows as any)[0] : Array.isArray(rows) ? rows as any[] : [];
+      for (const r of rowsArr) {
         warehouseMap[r.id] = r.warehouse_id ?? null;
         regionMap[r.id] = r.region ?? null;
       }

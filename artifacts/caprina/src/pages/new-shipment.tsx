@@ -15,7 +15,7 @@ type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics"
 
 interface ShipmentZone        { id: number; name: string; governorate?: string; price: number; isActive?: boolean }
 interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; isActive?: boolean }
-interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; warehouseId?: number | null }
+interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null }
 
 const PARCEL_LABELS: Record<string, string> = {
   document: "مستندات", normal: "عادي", fragile: "قابل للكسر",
