@@ -151,6 +151,7 @@ const UpdateShipmentSchema = CreateShipmentSchema.partial().extend({
   status: z.string().nullish(),
   trackingNumber: z.string().nullish(),
   collectedAmount: z.coerce.number().nullish(),
+  assignedUserId: z.number().int().positive().nullish(),
   itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
 });
 
@@ -198,17 +199,19 @@ export async function syncShipmentInventory(
     warehouseId: after.warehouseId ?? null,
   };
 
-  // 1) أول مرة يتربط المنتج بالشحنة (أو لسه متخصوم) و الحالة لسه مش مرتجعة بالكامل
-  //    → اخصم كمية القطع من المخزن (مرة واحدة فقط)
+  const newStatus = afterPatch.status as string | undefined;
   const wasDeducted = !!before.inventoryDeducted;
-  if (!wasDeducted) {
+
+  // 1) اخصم المخزون أول مرة عند تحول الحالة لـ in_shipping (خرجت من المخزن مع المندوب)
+  //    أو لو اتربط منتج بالشحنة لأول مرة بغض النظر عن الحالة
+  const isMovingToShipping = newStatus === "in_shipping" && before.status !== "in_shipping";
+  if (!wasDeducted && (isMovingToShipping || !newStatus)) {
     await processToShipping(orderShape, totalPieces, null, before.id);
     afterPatch.inventoryDeducted = 1;
   }
 
   // 2) تحول لحالة "مرتجع" → رجّع كل القطع للمخزن — فقط لما يتم تأكيد "تم الاستلام" فعليًا (returnReceived === 1)
   //    لأن المرتجع لسه عند شركة الشحن لحد ما يتأكد استلامه
-  const newStatus = afterPatch.status as string | undefined;
   const wasReturned = !!before.inventoryReturned;
 
   if (newStatus === "returned") {
@@ -700,6 +703,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.returnNote       !== undefined) updateData.returnNote       = d.returnNote;
     if (d.partialQuantity  !== undefined) updateData.partialQuantity  = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
+    if (d.assignedUserId   !== undefined) updateData.assignedUserId   = d.assignedUserId;
 
     // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
     await syncShipmentInventory(existingShipment, updateData);
@@ -769,6 +773,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.returnNote        !== undefined) updateData.returnNote        = d.returnNote;
     if (d.partialQuantity   !== undefined) updateData.partialQuantity   = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
+    if (d.assignedUserId    !== undefined) updateData.assignedUserId    = d.assignedUserId;
 
     // لو الحالة الجديدة مش returned ولا partial_received ولم يُرسَل returnReceived صريحًا
     // → نصفّره عشان ميفضلش متعلق بقيمة قديمة من حالة سابقة
