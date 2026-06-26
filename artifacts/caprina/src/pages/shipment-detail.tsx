@@ -3764,6 +3764,16 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                         {statusLabels[order.status] || order.status}
                       </Badge>
+                      {order.status === "in_shipping" && (order as any).assignedUserName && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
+                          🚚 مع {(order as any).assignedUserName}
+                        </span>
+                      )}
+                      {order.status === "in_shipping" && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
+                          🚚 مع {(order as any).shippingCompanyName}
+                        </span>
+                      )}
                       {(order as any).paymentMethod && (
                         <Badge variant="outline" className="text-[10px] border-amber-600/50 text-amber-400 px-2 py-0.5">
                           {(order as any).paymentMethod === "cod" ? "COD" : (order as any).paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً"}
