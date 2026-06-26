@@ -892,6 +892,8 @@ export default function Orders() {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [pendingBulkStatus, setPendingBulkStatus] = useState<string | null>(null);
+  const [showBulkInShippingDialog, setShowBulkInShippingDialog] = useState(false);
+  const [bulkInShippingCourierId, setBulkInShippingCourierId] = useState<number | null>(null);
 
   // قالب واتساب — يتحمل مرة وبيستخدمه الـ handleWhatsApp مباشرة
   const { data: waSettings } = useQuery<WaSettings>({
@@ -900,6 +902,12 @@ export default function Orders() {
     staleTime: 5 * 60 * 1000,
     retry: false,
     enabled: isAdmin,
+  });
+
+  const { data: shippingCompanies = [] } = useQuery<any[]>({
+    queryKey: ["shipping-companies"],
+    queryFn: () => apiFetch("/shipping-companies"),
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: orders, isLoading } = useQuery({
@@ -1105,6 +1113,41 @@ export default function Orders() {
     setIsBulkUpdating(false);
   };
 
+  const handleBulkInShipping = async (courierId: number) => {
+    if (selectedIds.size === 0) return;
+    const lockedIds = Array.from(selectedIds).filter(id => inManifestSet.has(id));
+    if (lockedIds.length > 0) {
+      toast({
+        title: "⛔ لا يمكن تعديل حالة بعض الطلبات",
+        description: `${lockedIds.length} طلب مرتبط ببيان شحن مفتوح — يجب تعديل حالته من داخل البيان.`,
+        variant: "destructive",
+      });
+      setShowBulkInShippingDialog(false);
+      return;
+    }
+    setIsBulkUpdating(true);
+    try {
+      const token = localStorage.getItem("caprina_token");
+      const res = await fetch("/api/shipments/bulk-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: Array.from(selectedIds), status: "in_shipping", shippingCompanyId: courierId }),
+      });
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics-charts"] });
+      const courier = shippingCompanies.find((c: any) => c.id === courierId);
+      toast({ title: `✅ تم تحويل ${data.updated} شحنة لقيد الشحن مع ${courier?.name ?? "المندوب"}` });
+    } catch {
+      toast({ title: "خطأ", description: "فشل تحديث الحالة", variant: "destructive" });
+    }
+    setShowBulkInShippingDialog(false);
+    setBulkInShippingCourierId(null);
+    exitBulkMode();
+    setIsBulkUpdating(false);
+  };
+
   const handleWhatsApp = (e: React.MouseEvent, order: NonNullable<typeof orders>[0]) => {
     e.stopPropagation();
     const phone = (order as any).receiverPhone || (order as any).phone || (order as any).senderPhone || "";
@@ -1236,7 +1279,14 @@ export default function Orders() {
                     <DropdownMenuItem
                       key={opt.value}
                       className={`text-xs font-semibold gap-2 cursor-pointer ${opt.color}`}
-                      onClick={() => setPendingBulkStatus(opt.value)}
+                      onClick={() => {
+                        if (opt.value === "in_shipping") {
+                          setBulkInShippingCourierId(null);
+                          setShowBulkInShippingDialog(true);
+                        } else {
+                          setPendingBulkStatus(opt.value);
+                        }
+                      }}
                     >
                       <span className="w-2 h-2 rounded-full bg-current shrink-0" />
                       {opt.label}
@@ -1795,7 +1845,7 @@ export default function Orders() {
                               )}
                             </div>
                           )}
-                          {order.status === "in_shipping" && (
+                          {(order.status === "in_shipping" || order.status === "in_transit") && (
                             <div className="flex flex-col items-center gap-0.5 mt-1">
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5 leading-none">
                                 🚚 {(order as any).shippingCompanyName
@@ -1908,6 +1958,45 @@ export default function Orders() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* dialog تحويل قيد الشحن بالجملة — اختيار المندوب */}
+      <Dialog open={showBulkInShippingDialog} onOpenChange={v => { if (!v) { setShowBulkInShippingDialog(false); setBulkInShippingCourierId(null); } }}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Truck className="w-4 h-4 text-blue-400" />تحويل {selectedIds.size > 1 ? `${selectedIds.size} شحنات` : "شحنة"} إلى قيد الشحن
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-muted-foreground">اختر مندوب الشحن المسؤول عن هذه الشحنات:</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">المندوب <span className="text-red-500">*</span></Label>
+              <select
+                value={bulkInShippingCourierId ?? ""}
+                onChange={e => setBulkInShippingCourierId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full h-10 text-sm rounded-md border border-input bg-card px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— اختر المندوب —</option>
+                {shippingCompanies.filter((c: any) => c.isActive !== false).map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => { setShowBulkInShippingDialog(false); setBulkInShippingCourierId(null); }}>إلغاء</Button>
+            <Button
+              size="sm"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+              disabled={!bulkInShippingCourierId || isBulkUpdating}
+              onClick={() => bulkInShippingCourierId && handleBulkInShipping(bulkInShippingCourierId)}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              {isBulkUpdating ? "جاري..." : "تأكيد الشحن"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* تأكيد تغيير الحالة بالجملة */}
       <AlertDialog open={!!pendingBulkStatus} onOpenChange={open => { if (!open) setPendingBulkStatus(null); }}>
