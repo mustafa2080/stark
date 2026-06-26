@@ -1,5 +1,6 @@
 import { lazy, Suspense, Component, type ReactNode, useRef, useEffect, useLayoutEffect, useState } from "react";
 import { firstLogoBase64 } from "@/lib/first-logo";
+import { logoBase64 } from "@/lib/logo";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -45,13 +46,10 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
         }}
       >
         <img
-          src={firstLogoBase64}
+          src={logoBase64}
           alt="STARK"
           style={{
-            width: 96,
-            height: 96,
-            borderRadius: 24,
-            objectFit: "cover",
+            width: 96, height: 96, borderRadius: 24, objectFit: "cover",
             boxShadow: "0 0 60px rgba(255,255,255,0.15), 0 0 0 1px rgba(255,255,255,0.1)",
           }}
         />
@@ -318,7 +316,7 @@ function PageLoader() {
 
           {/* Logo center */}
           <img
-            src={firstLogoBase64}
+            src={logoBase64}
             alt="STARK"
             style={{
               position: "absolute",
