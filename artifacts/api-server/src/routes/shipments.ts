@@ -525,13 +525,16 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
       .select({
         ...shipmentsTable,
         assignedUserName: usersTable.displayName,
-        shippingCompanyName: shippingCompaniesTable.name,
+        shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
         zoneLabel: shipmentZonesTable.name,
         zoneGovernorate: shipmentZonesTable.governorate,
       })
       .from(shipmentsTable)
       .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
       .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
+      .leftJoin(shipmentManifestItemsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+      .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
       .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
       .where(cond).limit(1);
     if (!rows.length) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
