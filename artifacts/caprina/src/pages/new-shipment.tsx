@@ -162,19 +162,32 @@ export default function NewShipmentPage() {
             <Select value={form.clientId || "__none__"} onValueChange={v => {
               if (v === "__none__") { setForm(f => ({ ...f, clientId: "", senderName: "", senderPhone: "", senderPhone2: "", senderCity: "" })); return; }
               const c = clients.find(x => String(x.id) === v);
-              if (c) setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: c.region || c.governorate || c.city || "", warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId }));
+              if (c) {
+                const gov = c.region || c.city || c.governorate || "";
+                setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId }));
+              }
             }}>
               <SelectTrigger className="text-sm h-10"><div className="flex items-center gap-2"><User className="w-3.5 h-3.5 text-muted-foreground" /><SelectValue placeholder="اختر العميل..." /></div></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__"><span className="text-muted-foreground text-xs">— بدون عميل —</span></SelectItem>
-                {clients.filter(c => c.name).map(c => (
+                {clients.filter(c => c.name).map(c => {
+                  const gov = c.region || c.city || c.governorate || "";
+                  return (
                   <SelectItem key={c.id} value={String(c.id)}>
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">{(c.name || "؟").charAt(0)}</div>
-                      <div className="flex flex-col"><span className="text-xs font-bold">{c.name}</span>{c.phone && <span className="text-[10px] text-muted-foreground">{c.phone}</span>}</div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold">{c.name}</span>
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          {c.phone && <span>{c.phone}</span>}
+                          {c.phone && gov && <span>·</span>}
+                          {gov && <span className="text-primary/70">{gov}</span>}
+                        </span>
+                      </div>
                     </div>
                   </SelectItem>
-                ))}
+                  );
+                })}
               </SelectContent>
             </Select>
             {form.clientId && <p className="text-[10px] text-primary mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />تم تعبئة بيانات المرسل تلقائياً</p>}
