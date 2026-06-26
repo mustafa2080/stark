@@ -26,12 +26,16 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
         shipment:        shipmentsTable,
         warehouseName:   warehousesTable.name,
         warehouseCity:   warehousesTable.city,
-        courierName:     shippingCompaniesTable.name,
-        courierPhone:    shippingCompaniesTable.phone,
+        courierName:     sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
+        courierPhone:    sql<string>`COALESCE(${shippingCompaniesTable.phone}, ${manifestShippingCompanyTable.phone})`,
+        courierLogo:     sql<string>`COALESCE(${shippingCompaniesTable.logo}, ${manifestShippingCompanyTable.logo})`,
       })
       .from(shipmentsTable)
       .leftJoin(warehousesTable,        eq(shipmentsTable.warehouseId,        warehousesTable.id))
       .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId,  shippingCompaniesTable.id))
+      .leftJoin(shipmentManifestItemsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+      .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
       .where(
         and(
           isNull(shipmentsTable.deletedAt),
@@ -47,8 +51,8 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
       res.status(404).json({ error: "لم يتم العثور على الشحنة" });
       return;
     }
-    const { shipment, warehouseName, warehouseCity, courierName, courierPhone } = rows[0];
-    res.json({ ...shipment, warehouseName, warehouseCity, courierName, courierPhone });
+    const { shipment, warehouseName, warehouseCity, courierName, courierPhone, courierLogo } = rows[0];
+    res.json({ ...shipment, warehouseName, warehouseCity, courierName, courierPhone, courierLogo });
   } catch (e) {
     console.error("[GET /shipments/track]", e);
     res.status(500).json({ error: "خطأ في البحث عن الشحنة" });
