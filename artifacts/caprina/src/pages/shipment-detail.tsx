@@ -2114,7 +2114,7 @@ export default function OrderDetail() {
 
     if (newStatus === "in_shipping") {
       setSelectDisplayStatus("in_shipping");
-      setInShippingCourierId((order as any).assignedUserId ?? null);
+      setInShippingCourierId((order as any).shippingCompanyId ?? null);
       setShowInShippingDialog(true);
       return;
     }
@@ -3288,7 +3288,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
-            <p className="text-xs text-muted-foreground">اختر المندوب المسؤول عن هذه الشحنة:</p>
+            <p className="text-xs text-muted-foreground">اختر مندوب الشحن المسؤول عن هذه الشحنة:</p>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">المندوب <span className="text-red-500">*</span></Label>
               <select
@@ -3297,8 +3297,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 className="w-full h-10 text-sm rounded-md border border-input bg-card px-3 focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 <option value="">— اختر المندوب —</option>
-                {((users as any[]) || []).filter((u: any) => u.isActive !== false).map((u: any) => (
-                  <option key={u.id} value={u.id}>{u.displayName}</option>
+                {((shippingCompanies as any[]) || []).filter((c: any) => c.isActive !== false).map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -3311,15 +3311,15 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               disabled={!inShippingCourierId || updateOrder.isPending}
               onClick={() => {
                 if (!inShippingCourierId) return;
-                apiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify({ status: "in_shipping", assignedUserId: inShippingCourierId }) })
+                apiFetch(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify({ status: "in_shipping", shippingCompanyId: inShippingCourierId }) })
                   .then(() => {
                     queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] });
                     queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
                     setShowInShippingDialog(false);
                     setSelectDisplayStatus(null);
                     setInShippingCourierId(null);
-                    const courier = ((users as any[]) || []).find((u: any) => u.id === inShippingCourierId);
-                    toast({ title: `✅ قيد الشحن مع ${courier?.displayName ?? "المندوب"}` });
+                    const courier = ((shippingCompanies as any[]) || []).find((c: any) => c.id === inShippingCourierId);
+                    toast({ title: `✅ قيد الشحن مع ${courier?.name ?? "المندوب"}` });
                   })
                   .catch(() => { setSelectDisplayStatus(null); setShowInShippingDialog(false); toast({ title: "خطأ", description: "فشل تحديث الحالة.", variant: "destructive" }); });
               }}

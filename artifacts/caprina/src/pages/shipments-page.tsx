@@ -1798,11 +1798,11 @@ export default function Orders() {
                           {order.status === "in_shipping" && (
                             <div className="flex flex-col items-center gap-0.5 mt-1">
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5 leading-none">
-                                🚚 {(order as any).assignedUserName
-                                  ? `مع ${(order as any).assignedUserName}`
-                                  : (order as any).shippingCompanyName
+                                🚚 {(order as any).shippingCompanyName
                                   ? `مع ${(order as any).shippingCompanyName}`
-                                  : "عند شركة الشحن"}
+                                  : (order as any).assignedUserName
+                                  ? `مع ${(order as any).assignedUserName}`
+                                  : "عند المندوب"}
                               </span>
                             </div>
                           )}
