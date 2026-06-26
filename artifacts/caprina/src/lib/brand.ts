@@ -9,7 +9,7 @@ export const BRAND = {
   // Drop your logo file into artifacts/caprina/public/ and set the filename here.
   // Supports: PNG, JPG, SVG, WEBP
   // Set to null to show the fallback letter instead.
-  logoPath: "/starkvector.jpg" as string | null,
+  logoPath: "/logo.jpg" as string | null,
 
   // Fallback letter shown inside the colored square when no logoPath is set.
   fallbackLetter: "C",
