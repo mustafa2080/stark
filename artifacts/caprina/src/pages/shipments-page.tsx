@@ -284,7 +284,7 @@ function ShipmentFormDialog({
                       senderName: c.name,
                       senderPhone: c.phone || "",
                       senderPhone2: c.phone2 || "",
-                      senderCity: c.city || "",
+                      senderCity: c.region || c.city || "",
                       warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId,
                     }));
                   }
@@ -870,10 +870,8 @@ export default function Orders() {
     staleTime: 5 * 60_000,
   });
   const { data: shipmentClients = [] } = useQuery<ShipmentClient[]>({
-    queryKey: ["clients-list-basic"],
-    queryFn: () => apiFetch<any[]>("/finance/clients").then(
-      (data) => (data || []).filter((c: any) => c && typeof c.name === "string" && c.name.trim() !== "")
-    ),
+    queryKey: ["clients-for-shipment"],
+    queryFn: () => apiFetch<ShipmentClient[]>("/finance/clients/for-shipment"),
     staleTime: 5 * 60_000,
     enabled: showNewShipment,
   });
