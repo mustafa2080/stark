@@ -718,13 +718,16 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* ── وسط: brand logo + name (same style as desktop) ── */}
             <div className="flex-1 flex justify-start">
-              <div className="brand-name-glow flex flex-col items-center gap-0">
-                <BrandFull logoSize="md" layout="row" nameClass="text-base font-black tracking-[0.2em] uppercase brand-name-text" taglineClass="text-[0px] opacity-0 h-0 overflow-hidden" />
-                <span className="block h-[2px] rounded-full" style={{
-                  width: "5.5rem", alignSelf: "center", marginTop: "2px", marginRight: "2.5rem",
-                  background: "linear-gradient(90deg, transparent 0%, hsl(var(--primary)) 20%, #fff 50%, hsl(var(--primary)) 80%, transparent 100%)",
-                  boxShadow: "0 0 6px hsl(var(--primary)/0.9), 0 0 14px hsl(var(--primary)/0.5)",
-                }} />
+              <div className="brand-name-glow flex flex-row items-center gap-3">
+                <img src={firstLogoBase64} alt="STARK" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                <div className="flex flex-col items-start gap-0">
+                  <span className="text-base font-black tracking-[0.2em] uppercase brand-name-text">STARK</span>
+                  <span className="block h-[2px] rounded-full" style={{
+                    width: "4rem", marginTop: "2px",
+                    background: "linear-gradient(90deg, transparent 0%, hsl(var(--primary)) 20%, #fff 50%, hsl(var(--primary)) 80%, transparent 100%)",
+                    boxShadow: "0 0 6px hsl(var(--primary)/0.9), 0 0 14px hsl(var(--primary)/0.5)",
+                  }} />
+                </div>
               </div>
             </div>
 
