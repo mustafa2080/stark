@@ -71,7 +71,7 @@ export default function NewShipmentPage() {
 
   const { data: zones = [] }         = useQuery<ShipmentZone[]>({ queryKey: ["shipment-zones"],        queryFn: () => apiFetch("/shipments/zones") });
   const { data: parcelPricing = [] } = useQuery<ParcelTypePricing[]>({ queryKey: ["parcel-pricing"],   queryFn: () => apiFetch("/shipments/parcel-pricing") });
-  const { data: clients = [] }       = useQuery<ShipmentClient[]>({ queryKey: ["clients-list-basic"],  queryFn: () => apiFetch<any[]>("/finance/clients").then(d => (d || []).filter((c: any) => c && typeof c.name === "string" && c.name.trim() !== "")) });
+  const { data: clients = [] }       = useQuery<ShipmentClient[]>({ queryKey: ["clients-list-basic"],  queryFn: () => apiFetch<any[]>("/finance/clients").then(d => (d || []).filter((c: any) => c && typeof c.name === "string" && c.name.trim() !== "").map((c: any) => ({ ...c, region: c.region ?? null, city: c.city ?? null, governorate: c.governorate ?? null }))) });
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
 
