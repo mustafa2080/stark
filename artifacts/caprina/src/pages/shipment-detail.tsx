@@ -1374,9 +1374,13 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[o.status] || ""}`}>
                         {statusLabels[o.status] || o.status}
                       </Badge>
-                      {(o.status === "in_shipping" || o.status === "in_transit" || o.status === "out_for_delivery") && (order as any).assignedUserName && (
+                      {(o.status === "in_shipping" || o.status === "in_transit" || o.status === "out_for_delivery") && (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-300">
-                          👤 {(order as any).assignedUserName}
+                          🚚 {(order as any).shippingCompanyName
+                            ? `مع ${(order as any).shippingCompanyName}`
+                            : (order as any).assignedUserName
+                            ? `مع ${(order as any).assignedUserName}`
+                            : "عند المندوب"}
                         </span>
                       )}
                       {o.color && <Badge variant="outline" className="text-xs border-border">{o.color}</Badge>}
@@ -3165,9 +3169,13 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     {statusLabels[selectDisplayStatus ?? order.status] || order.status}
                   </Badge>
                 )}
-                {!isEditing && (order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && ((order as any).assignedUserName || (order as any).createdByName) && (
+                {!isEditing && (order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300">
-                    👤 {(order as any).assignedUserName || (order as any).createdByName}
+                    🚚 {(order as any).shippingCompanyName
+                      ? `مع ${(order as any).shippingCompanyName}`
+                      : (order as any).assignedUserName
+                      ? `مع ${(order as any).assignedUserName}`
+                      : "عند المندوب"}
                   </span>
                 )}
                 {isOrderLocked && (
@@ -3648,9 +3656,13 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                               <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                                 {statusLabels[order.status] || order.status}
                               </Badge>
-                              {(order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && ((order as any).assignedUserName || (order as any).createdByName) && (
+                              {(order.status === "in_shipping" || order.status === "in_transit" || order.status === "out_for_delivery") && (
                                 <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-300">
-                                  👤 {(order as any).assignedUserName || (order as any).createdByName}
+                                  🚚 {(order as any).shippingCompanyName
+                                    ? `مع ${(order as any).shippingCompanyName}`
+                                    : (order as any).assignedUserName
+                                    ? `مع ${(order as any).assignedUserName}`
+                                    : "عند المندوب"}
                                 </span>
                               )}
                               {item.color && <Badge variant="outline" className="text-xs border-border">{item.color}</Badge>}
