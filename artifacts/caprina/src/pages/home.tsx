@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { trackingImg } from "../trackingImg";
+import { firstLogoBase64 } from "@/lib/first-logo";
 import { useLocation } from "wouter";
 import { Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LayoutDashboard, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -75,7 +76,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
         {/* Logo */}
         <button onClick={() => scrollTo("home")} className="flex items-center gap-3 group">
           <div className="relative">
-            <img src="/logo.jpg" alt="STARK" className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
+            <img src={firstLogoBase64} alt="STARK" className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
           </div>
           <span
             className="hidden sm:block font-black text-lg tracking-[0.25em]"
@@ -455,7 +456,7 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
             </button>
           </div>
           <div className={`border rounded-2xl p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
-            <img src="/logo.jpg" alt="STARK" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
+            <img src={firstLogoBase64} alt="STARK" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
             <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>STARK للشحن</h3>
             <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>خدمة الشحن الموثوقة في مصر</p>
             <div className={`grid grid-cols-3 gap-4 mt-6 pt-6 border-t ${darkMode ? "border-[#222]" : "border-gray-200"}`}>
@@ -1053,7 +1054,7 @@ export function Footer() {
     <footer className="py-8 bg-[#050505] border-t border-[#1a1a1a]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="STARK" className="w-8 h-8 rounded-lg object-cover" />
+          <img src={firstLogoBase64} alt="STARK" className="w-8 h-8 rounded-lg object-cover" />
           <span className="text-gray-400 text-sm">STARK للشحن</span>
         </div>
         <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2026</p>
