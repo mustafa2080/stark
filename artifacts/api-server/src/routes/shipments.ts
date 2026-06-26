@@ -81,8 +81,20 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
     ];
 
     const rows = await db
-      .select()
+      .select({
+        shipment:        shipmentsTable,
+        warehouseName:   warehousesTable.name,
+        warehouseCity:   warehousesTable.city,
+        courierName:     sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
+        courierPhone:    sql<string>`COALESCE(${shippingCompaniesTable.phone}, ${manifestShippingCompanyTable.phone})`,
+        courierLogo:     sql<string>`COALESCE(${shippingCompaniesTable.logo}, ${manifestShippingCompanyTable.logo})`,
+      })
       .from(shipmentsTable)
+      .leftJoin(warehousesTable,        eq(shipmentsTable.warehouseId,        warehousesTable.id))
+      .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId,  shippingCompaniesTable.id))
+      .leftJoin(shipmentManifestItemsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+      .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
       .where(and(...conditions))
       .orderBy(desc(shipmentsTable.id))
       .limit(20);
@@ -91,8 +103,9 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       res.status(404).json({ error: "لم يتم العثور على شحنات لهذا العميل" });
       return;
     }
+    const result = rows.map(r => ({ ...r.shipment, warehouseName: r.warehouseName, warehouseCity: r.warehouseCity, courierName: r.courierName, courierPhone: r.courierPhone, courierLogo: r.courierLogo }));
     res.set("Cache-Control", "no-store");
-    res.json(rows);
+    res.json(result);
   } catch (e) {
     console.error("[GET /shipments/track-by-client]", e);
     res.status(500).json({ error: "خطأ في البحث" });

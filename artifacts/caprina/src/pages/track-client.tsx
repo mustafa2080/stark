@@ -3,14 +3,11 @@ import { useLocation } from "wouter";
 import {
   Package, Truck, MapPin, CheckCircle, Clock,
   AlertTriangle, ArrowRight, Phone, User, XCircle,
+  CircleCheck, UserCheck, Warehouse,
 } from "lucide-react";
 import { Navbar, Footer } from "./home";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ShipmentStatus =
-  | "pending" | "warehouse_ready" | "in_shipping" | "received"
-  | "partial_received" | "delayed" | "returned";
-
 interface Shipment {
   id: number;
   shipmentNumber?: string;
@@ -26,17 +23,38 @@ interface Shipment {
   weight?: string | number;
   notes?: string;
   createdAt?: string;
+  warehouseName?: string | null;
+  warehouseCity?: string | null;
+  courierName?: string | null;
+  courierPhone?: string | null;
+  courierLogo?: string | null;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number }> = {
-  pending:          { label: "قيد الانتظار",        color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
-  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: 1 },
-  in_shipping:      { label: "قيد الشحن",           color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 2 },
-  received:         { label: "تم الاستلام",         color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 3 },
-  partial_received: { label: "استلام جزئي",         color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 3 },
-  delayed:          { label: "مؤجل",                color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: AlertTriangle, step: 2 },
-  returned:         { label: "مرتجع",               color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: 2 },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number; isException?: boolean }> = {
+  pending:                 { label: "تم استلام الطلب",                color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  waiting:                 { label: "تم استلام الطلب",                color: "#facc15", bg: "rgba(250,204,21,0.1)",  icon: Clock,         step: 0 },
+  confirmed:               { label: "تم تأكيد الشحنة",                 color: "#fbbf24", bg: "rgba(251,191,36,0.1)",  icon: CircleCheck,   step: 1 },
+  warehouse_ready:         { label: "في مخزن الشحن",                  color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 2 },
+  at_warehouse:            { label: "في مخزن الشحن",                  color: "#2dd4bf", bg: "rgba(45,212,191,0.1)",  icon: Package,       step: 2 },
+  picked_up:               { label: "تم استلامها من المندوب",          color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: Truck,         step: 3 },
+  in_shipping:             { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 4 },
+  in_transit:              { label: "قيد الشحن",                      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  icon: Truck,         step: 4 },
+  with_courier:            { label: "مع مندوب التوصيل",                color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 5 },
+  out_for_delivery:        { label: "خرجت للتسليم",                   color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 5 },
+  received:                { label: "تم التسليم بنجاح",                color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 6 },
+  delivered:                { label: "تم التسليم بنجاح",                color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 6 },
+  partial_received:        { label: "استلام جزئي",                    color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 6 },
+  delayed:                 { label: "الشحنة مؤجلة",                    color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: AlertTriangle, step: -1, isException: true },
+  returned:                { label: "الشحنة مرتجعة",                   color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: -1, isException: true },
+  returned_to_warehouse:   { label: "مرتجعة — في المخزن",              color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: -1, isException: true },
+  return_delivered:        { label: "مرتجعة — تم التسليم للراسل",      color: "#a3e635", bg: "rgba(163,230,53,0.1)",  icon: CheckCircle,   step: -1, isException: true },
+  cancelled:               { label: "الشحنة ملغية",                    color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: XCircle,       step: -1, isException: true },
 };
+
+// الحالات اللي معاها الشحنة فعلياً "مع المندوب" — هنا بس بنعرض بيانات المندوب
+const COURIER_VISIBLE_STATUSES = new Set([
+  "picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery",
+]);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function TrackClientPage() {
@@ -187,6 +205,57 @@ export default function TrackClientPage() {
                       {/* Notes */}
                       {shipment.notes && (
                         <p className="text-xs text-white/30 mt-2 leading-relaxed">{shipment.notes}</p>
+                      )}
+
+                      {/* مخزن و مندوب */}
+                      {(shipment.warehouseName || (COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName)) && (
+                        <div className="pt-2 mt-2 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {shipment.warehouseName && (
+                            <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                              <p className="text-xs text-white/30 mb-1 flex items-center gap-1">
+                                <Warehouse size={10} />مكان الشحنة
+                              </p>
+                              <p className="text-sm font-bold text-white">
+                                {shipment.warehouseName}
+                                {shipment.warehouseCity && <span className="text-xs text-white/40 mr-1">({shipment.warehouseCity})</span>}
+                              </p>
+                            </div>
+                          )}
+                          {COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName && (
+                            <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                              <p className="text-xs text-white/30 mb-2 flex items-center gap-1">
+                                <UserCheck size={10} />مندوب التوصيل
+                              </p>
+                              <div className="flex items-center gap-3">
+                                {shipment.courierLogo ? (
+                                  <img src={shipment.courierLogo} alt={shipment.courierName} className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.3)" }}>
+                                    <Truck size={18} style={{ color: "#60a5fa" }} />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-white truncate">{shipment.courierName}</p>
+                                  {shipment.courierPhone && (
+                                    <p className="text-xs text-white/40 mt-0.5" dir="ltr">{shipment.courierPhone}</p>
+                                  )}
+                                </div>
+                                {shipment.courierPhone && (
+                                  <a
+                                    href={`https://wa.me/${shipment.courierPhone.replace(/[^0-9]/g, "").replace(/^0/, "20")}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
+                                    style={{ background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.4)", color: "#25d366" }}
+                                  >
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.559 4.122 1.532 5.856L.057 23.882a.5.5 0 0 0 .61.61l6.089-1.465A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.9 9.9 0 0 1-5.031-1.371l-.361-.214-3.737.899.934-3.641-.235-.374A9.9 9.9 0 0 1 2.1 12C2.1 6.533 6.533 2.1 12 2.1S21.9 6.533 21.9 12 17.467 21.9 12 21.9z"/></svg>
+                                    واتساب
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
