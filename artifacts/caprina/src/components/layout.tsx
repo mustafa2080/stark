@@ -475,19 +475,18 @@ export default function Layout({ children }: LayoutProps) {
               </div>
             )}
             {!sidebarCollapsed && (<>
-              {/* First Logo */}
+              {/* First Logo - full width top */}
               <div style={{
                 position: "relative", width: "100%",
-                background: "linear-gradient(180deg, #0a0a0a 0%, #111 100%)",
+                background: "#000",
                 borderBottom: "1px solid hsl(var(--primary)/0.4)",
                 display: "flex", alignItems: "center", justifyContent: "center", padding: "0px",
+                overflow: "hidden",
               }}>
-                <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 50%, hsl(var(--primary)/0.1) 0%, transparent 70%)" }} />
-                <div style={{ position: "absolute", bottom: 0, left: "10%", right: "10%", height: "1px", pointerEvents: "none", background: "linear-gradient(90deg, transparent, hsl(var(--primary)/0.7), transparent)" }} />
-                <img src="/first_logo.jpg" alt="Caprina Logo" style={{
-                  display: "block", width: "100%", height: "auto", maxHeight: "120px",
-                  objectFit: "contain", position: "relative", zIndex: 1,
-                  filter: "drop-shadow(0 0 18px hsl(var(--primary)/0.7)) drop-shadow(0 2px 6px rgba(0,0,0,0.9))",
+                <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 50%, hsl(var(--primary)/0.08) 0%, transparent 70%)" }} />
+                <img src="/first_logo.jpg" alt="Logo" style={{
+                  display: "block", width: "100%", height: "auto", maxHeight: "200px",
+                  objectFit: "cover", objectPosition: "center", position: "relative", zIndex: 1,
                 }} />
               </div>
 
