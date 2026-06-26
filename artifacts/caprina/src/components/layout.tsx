@@ -449,7 +449,7 @@ export default function Layout({ children }: LayoutProps) {
                   boxShadow: "0 0 10px hsl(var(--primary)/0.3)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <img src="/first_logo.jpg" alt="Logo" style={{
+                  <img src={firstLogoBase64} alt="Logo" style={{
                     width: "100%", height: "100%", objectFit: "cover",
                   }} />
                 </div>
@@ -483,7 +483,7 @@ export default function Layout({ children }: LayoutProps) {
                 overflow: "hidden",
               }}>
                 <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 50%, hsl(var(--primary)/0.08) 0%, transparent 70%)" }} />
-                <img src="/first_logo.jpg" alt="Logo" style={{
+                <img src={firstLogoBase64} alt="Logo" style={{
                   display: "block", width: "100%", height: "auto", maxHeight: "200px",
                   objectFit: "cover", objectPosition: "center", position: "relative", zIndex: 1,
                 }} />
