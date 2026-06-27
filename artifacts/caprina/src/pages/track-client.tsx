@@ -6,6 +6,7 @@ import {
   CircleCheck, UserCheck, Warehouse,
 } from "lucide-react";
 import { Navbar, Footer } from "./home";
+import ShipmentStatusHero from "../components/ShipmentStatusHero";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Shipment {
@@ -90,6 +91,14 @@ export default function TrackClientPage() {
         >
           <ArrowRight size={16} /> الرجوع للرئيسية
         </button>
+
+        {/* Hero — حالة الشحنة الرئيسية بالرسوم المتحركة */}
+        {!loading && !error && shipments.length > 0 && (
+          <ShipmentStatusHero
+            status={shipments[0].status}
+            trackingNumber={shipments[0].trackingNumber || shipments[0].shipmentNumber}
+          />
+        )}
 
         {/* Header */}
         {!loading && !error && shipments.length > 0 && (

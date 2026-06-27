@@ -3,6 +3,351 @@ import { useParams, useLocation } from "wouter";
 import { Package, Truck, MapPin, CheckCircle, Clock, AlertTriangle, XCircle, ArrowRight, Phone, User, Warehouse, UserCheck, CircleCheck } from "lucide-react";
 import { Navbar, Footer } from "./home";
 
+// ─── Status Illustration Banner ───────────────────────────────────────────────
+function StatusIllustration({ status, color }: { status: string; color: string }) {
+  // تصنيف الحالات
+  const isPending    = ["pending","waiting","confirmed"].includes(status);
+  const isWarehouse  = ["warehouse_ready","at_warehouse"].includes(status);
+  const isShipping   = ["in_shipping","in_transit","picked_up"].includes(status);
+  const isCourier    = ["with_courier","out_for_delivery"].includes(status);
+  const isDelivered  = ["delivered","received","partial_received"].includes(status);
+  const isReturned   = ["returned","returned_to_warehouse","return_delivered"].includes(status);
+  const isCancelled  = status === "cancelled";
+  const isDelayed    = status === "delayed";
+
+  const c = color; // لون الحالة الحالية
+
+  return (
+    <div className="w-full rounded-2xl overflow-hidden relative flex items-center justify-center"
+      style={{
+        height: 220,
+        background: `radial-gradient(ellipse at 50% 30%, ${c}22 0%, ${c}08 40%, rgba(0,0,0,0.6) 100%)`,
+        border: `1px solid ${c}33`,
+        boxShadow: `0 0 60px ${c}18, inset 0 1px 0 rgba(255,255,255,0.06)`,
+      }}>
+
+      {/* ── خلفية زخرفية ── */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* نقاط grid */}
+        <svg width="100%" height="100%" className="absolute inset-0 opacity-10">
+          <defs>
+            <pattern id="dots" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="1" fill={c} />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#dots)" />
+        </svg>
+        {/* حلقات ضوئية */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-20"
+          style={{ background: `radial-gradient(circle, ${c}55 0%, transparent 70%)` }} />
+      </div>
+
+      {/* ══ PENDING / CONFIRMED ══ */}
+      {isPending && (
+        <div className="relative flex flex-col items-center gap-3">
+          <style>{`
+            @keyframes floatBox { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+            @keyframes shadowPulse { 0%,100%{transform:scaleX(1);opacity:0.5} 50%{transform:scaleX(0.6);opacity:0.15} }
+            @keyframes dotBlink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+          `}</style>
+          {/* صندوق طرد */}
+          <svg width="110" height="110" viewBox="0 0 110 110" style={{ animation:"floatBox 2.4s ease-in-out infinite" }}>
+            {/* الجسم */}
+            <rect x="15" y="45" width="80" height="55" rx="5" fill={`${c}22`} stroke={c} strokeWidth="1.5"/>
+            {/* الغطاء */}
+            <path d="M12 45 Q55 30 98 45" fill={`${c}18`} stroke={c} strokeWidth="1.5" strokeLinejoin="round"/>
+            {/* خط وسط */}
+            <line x1="55" y1="45" x2="55" y2="100" stroke={c} strokeWidth="1" strokeDasharray="4 3" opacity="0.5"/>
+            {/* شريط لاصق */}
+            <rect x="35" y="48" width="40" height="8" rx="2" fill={`${c}44`} stroke={c} strokeWidth="1"/>
+            {/* لوجو */}
+            <circle cx="55" cy="68" r="10" fill={`${c}33`} stroke={c} strokeWidth="1"/>
+            <text x="55" y="73" textAnchor="middle" fontSize="11" fill={c} fontWeight="bold">✦</text>
+            {/* تفاصيل جانبية */}
+            <line x1="22" y1="60" x2="38" y2="60" stroke={c} strokeWidth="0.8" opacity="0.4"/>
+            <line x1="22" y1="67" x2="38" y2="67" stroke={c} strokeWidth="0.8" opacity="0.4"/>
+            <line x1="72" y1="60" x2="88" y2="60" stroke={c} strokeWidth="0.8" opacity="0.4"/>
+            <line x1="72" y1="67" x2="88" y2="67" stroke={c} strokeWidth="0.8" opacity="0.4"/>
+          </svg>
+          {/* ظل متحرك */}
+          <div className="w-16 h-2 rounded-full" style={{ background:`${c}55`, filter:"blur(5px)", animation:"shadowPulse 2.4s ease-in-out infinite" }} />
+          {/* نص حالة */}
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background:c, animation:"dotBlink 1.2s ease-in-out infinite" }} />
+            <span className="text-xs font-bold" style={{ color:c }}>في انتظار المعالجة</span>
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background:c, animation:"dotBlink 1.2s 0.4s ease-in-out infinite" }} />
+          </div>
+        </div>
+      )}
+
+      {/* ══ WAREHOUSE ══ */}
+      {isWarehouse && (
+        <div className="relative flex flex-col items-center gap-3">
+          <style>{`
+            @keyframes lightBeam { 0%,100%{opacity:0.3} 50%{opacity:0.7} }
+            @keyframes conveyorScroll { 0%{stroke-dashoffset:0} 100%{stroke-dashoffset:-30} }
+          `}</style>
+          <svg width="170" height="105" viewBox="0 0 170 105">
+            {/* أرضية */}
+            <rect x="0" y="90" width="170" height="15" rx="3" fill={`${c}11`} stroke={`${c}22`} strokeWidth="1"/>
+            {/* مبنى المخزن */}
+            <rect x="20" y="25" width="130" height="70" rx="4" fill={`${c}15`} stroke={c} strokeWidth="1.5"/>
+            {/* السقف المثلث */}
+            <polygon points="10,30 85,5 160,30" fill={`${c}22`} stroke={c} strokeWidth="1.5"/>
+            {/* بوابة كبيرة */}
+            <rect x="62" y="55" width="46" height="40" rx="4" fill={`${c}08`} stroke={c} strokeWidth="1.5"/>
+            {/* خط وسط البوابة */}
+            <line x1="85" y1="55" x2="85" y2="95" stroke={c} strokeWidth="1" opacity="0.5"/>
+            {/* مقبض البوابة */}
+            <circle cx="80" cy="77" r="2" fill={c} opacity="0.7"/>
+            <circle cx="90" cy="77" r="2" fill={c} opacity="0.7"/>
+            {/* نافذة يسار */}
+            <rect x="28" y="40" width="25" height="20" rx="2" fill={`${c}18`} stroke={c} strokeWidth="1"/>
+            <line x1="40" y1="40" x2="40" y2="60" stroke={c} strokeWidth="0.7" opacity="0.5"/>
+            <line x1="28" y1="50" x2="53" y2="50" stroke={c} strokeWidth="0.7" opacity="0.5"/>
+            {/* نافذة يمين */}
+            <rect x="117" y="40" width="25" height="20" rx="2" fill={`${c}18`} stroke={c} strokeWidth="1"/>
+            <line x1="129" y1="40" x2="129" y2="60" stroke={c} strokeWidth="0.7" opacity="0.5"/>
+            <line x1="117" y1="50" x2="142" y2="50" stroke={c} strokeWidth="0.7" opacity="0.5"/>
+            {/* ضوء مصنع على السقف */}
+            <circle cx="85" cy="18" r="5" fill={`${c}44`} stroke={c} strokeWidth="1" style={{ animation:"lightBeam 2s ease-in-out infinite" }}/>
+            {/* صندوقات داخل المخزن */}
+            <rect x="30" y="70" width="20" height="18" rx="2" fill={`${c}25`} stroke={c} strokeWidth="1"/>
+            <rect x="36" y="73" width="8" height="6" rx="1" fill={`${c}40`}/>
+            <rect x="120" y="72" width="20" height="16" rx="2" fill={`${c}25`} stroke={c} strokeWidth="1"/>
+            <rect x="126" y="75" width="8" height="5" rx="1" fill={`${c}40`}/>
+            {/* إشارة المخزن */}
+            <text x="85" y="22" textAnchor="middle" fontSize="6" fill={c} opacity="0.8" fontWeight="bold">STARK</text>
+          </svg>
+          <span className="text-xs font-bold" style={{ color:c }}>الشحنة في مخزن الشحن</span>
+        </div>
+      )}
+
+      {/* ══ IN SHIPPING (شاحنة متحركة) ══ */}
+      {isShipping && (
+        <div className="relative flex flex-col items-center gap-2 w-full px-4">
+          <style>{`
+            @keyframes truckMove { 0%{transform:translateX(35px)} 100%{transform:translateX(-35px)} }
+            @keyframes wheelSpin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+            @keyframes cloudFloat { 0%,100%{opacity:0.3;transform:translateX(0)} 50%{opacity:0.6;transform:translateX(-8px)} }
+            @keyframes roadLine { 0%{stroke-dashoffset:0} 100%{stroke-dashoffset:-48} }
+          `}</style>
+          {/* الشاحنة */}
+          <div style={{ animation:"truckMove 2.2s ease-in-out infinite alternate", willChange:"transform" }}>
+            <svg width="180" height="95" viewBox="0 0 180 95">
+              {/* غيوم زخرفية */}
+              <ellipse cx="30" cy="20" rx="22" ry="10" fill={`${c}18`} style={{ animation:"cloudFloat 3s ease-in-out infinite" }}/>
+              <ellipse cx="150" cy="15" rx="18" ry="8" fill={`${c}14`} style={{ animation:"cloudFloat 3.5s 0.8s ease-in-out infinite" }}/>
+              {/* هيكل الشاحنة */}
+              <rect x="10" y="38" width="100" height="42" rx="3" fill={`${c}22`} stroke={c} strokeWidth="1.5"/>
+              {/* المقدمة */}
+              <path d="M110 50 L140 50 L148 62 L148 80 L110 80 Z" fill={`${c}33`} stroke={c} strokeWidth="1.5"/>
+              {/* الزجاج */}
+              <polygon points="112,52 138,52 145,62 112,62" fill={`${c}55`} stroke={c} strokeWidth="1"/>
+              {/* مصباح أمامي */}
+              <ellipse cx="146" cy="72" rx="4" ry="3" fill="#fffbe0" stroke={c} strokeWidth="1"/>
+              <line x1="150" y1="70" x2="162" y2="68" stroke="#fffbe0" strokeWidth="1.5" opacity="0.8"/>
+              {/* شعار الشركة */}
+              <text x="55" y="65" textAnchor="middle" fontSize="10" fill={c} fontWeight="bold" opacity="0.7">STARK</text>
+              <line x1="18" y1="55" x2="100" y2="55" stroke={`${c}33`} strokeWidth="0.8"/>
+              {/* عجلات الشاحنة (بتدور) */}
+              <g transform="translate(35,80)">
+                <circle cx="0" cy="0" r="11" fill={`${c}18`} stroke={c} strokeWidth="1.5"/>
+                <circle cx="0" cy="0" r="5" fill={`${c}33`} stroke={c} strokeWidth="1"/>
+                <line x1="-10" y1="0" x2="10" y2="0" stroke={c} strokeWidth="1" style={{ transformOrigin:"0 0", animation:"wheelSpin 0.5s linear infinite" }}/>
+                <line x1="0" y1="-10" x2="0" y2="10" stroke={c} strokeWidth="1" style={{ transformOrigin:"0 0", animation:"wheelSpin 0.5s linear infinite" }}/>
+              </g>
+              <g transform="translate(82,80)">
+                <circle cx="0" cy="0" r="11" fill={`${c}18`} stroke={c} strokeWidth="1.5"/>
+                <circle cx="0" cy="0" r="5" fill={`${c}33`} stroke={c} strokeWidth="1"/>
+                <line x1="-10" y1="0" x2="10" y2="0" stroke={c} strokeWidth="1" style={{ transformOrigin:"0 0", animation:"wheelSpin 0.5s linear infinite" }}/>
+                <line x1="0" y1="-10" x2="0" y2="10" stroke={c} strokeWidth="1" style={{ transformOrigin:"0 0", animation:"wheelSpin 0.5s linear infinite" }}/>
+              </g>
+              <g transform="translate(135,80)">
+                <circle cx="0" cy="0" r="11" fill={`${c}18`} stroke={c} strokeWidth="1.5"/>
+                <circle cx="0" cy="0" r="5" fill={`${c}33`} stroke={c} strokeWidth="1"/>
+                <line x1="-10" y1="0" x2="10" y2="0" stroke={c} strokeWidth="1" style={{ transformOrigin:"0 0", animation:"wheelSpin 0.5s linear infinite" }}/>
+                <line x1="0" y1="-10" x2="0" y2="10" stroke={c} strokeWidth="1" style={{ transformOrigin:"0 0", animation:"wheelSpin 0.5s linear infinite" }}/>
+              </g>
+            </svg>
+          </div>
+          {/* طريق متحرك */}
+          <svg width="100%" height="18" viewBox="0 0 300 18" preserveAspectRatio="none" className="-mt-2">
+            <rect width="300" height="10" y="4" rx="3" fill={`${c}15`} stroke={`${c}33`} strokeWidth="1"/>
+            <line x1="0" y1="9" x2="300" y2="9" stroke={c} strokeWidth="1.5" strokeDasharray="24 12"
+              style={{ animation:"roadLine 0.5s linear infinite" }}/>
+          </svg>
+          <span className="text-xs font-bold mt-1" style={{ color:c }}>الشحنة في طريقها إليك</span>
+        </div>
+      )}
+
+      {/* ══ WITH COURIER (سكوتر) ══ */}
+      {isCourier && (
+        <div className="relative flex flex-col items-center gap-2 w-full px-4">
+          <style>{`
+            @keyframes scooterBounce { 0%,100%{transform:translateY(0) translateX(20px)} 50%{transform:translateY(-5px) translateX(-20px)} }
+            @keyframes personLean { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(-10deg)} }
+            @keyframes deliveryBlink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+          `}</style>
+          <svg width="180" height="110" viewBox="0 0 180 110" style={{ animation:"scooterBounce 1.6s ease-in-out infinite", willChange:"transform" }}>
+            {/* سكوتر */}
+            {/* هيكل */}
+            <path d="M50 70 Q70 55 100 60 L130 60 L140 70" fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round"/>
+            {/* مقعد */}
+            <ellipse cx="88" cy="57" rx="20" ry="5" fill={`${c}33`} stroke={c} strokeWidth="1.5"/>
+            {/* حقيبة توصيل */}
+            <rect x="108" y="45" width="30" height="22" rx="4" fill={`${c}44`} stroke={c} strokeWidth="1.5"/>
+            <text x="123" y="60" textAnchor="middle" fontSize="9" fill={c} fontWeight="bold">📦</text>
+            {/* الموتور */}
+            <ellipse cx="100" cy="65" rx="12" ry="8" fill={`${c}22`} stroke={c} strokeWidth="1"/>
+            {/* العجلة الأمامية */}
+            <circle cx="140" cy="82" r="16" fill={`${c}15`} stroke={c} strokeWidth="2"/>
+            <circle cx="140" cy="82" r="7" fill={`${c}30`} stroke={c} strokeWidth="1.5"/>
+            <line x1="124" y1="82" x2="156" y2="82" stroke={c} strokeWidth="1" style={{ transformOrigin:"140px 82px", animation:"wheelSpin 0.4s linear infinite" }}/>
+            <line x1="140" y1="66" x2="140" y2="98" stroke={c} strokeWidth="1" style={{ transformOrigin:"140px 82px", animation:"wheelSpin 0.4s linear infinite" }}/>
+            {/* العجلة الخلفية */}
+            <circle cx="50" cy="82" r="16" fill={`${c}15`} stroke={c} strokeWidth="2"/>
+            <circle cx="50" cy="82" r="7" fill={`${c}30`} stroke={c} strokeWidth="1.5"/>
+            <line x1="34" y1="82" x2="66" y2="82" stroke={c} strokeWidth="1" style={{ transformOrigin:"50px 82px", animation:"wheelSpin 0.4s linear infinite" }}/>
+            <line x1="50" y1="66" x2="50" y2="98" stroke={c} strokeWidth="1" style={{ transformOrigin:"50px 82px", animation:"wheelSpin 0.4s linear infinite" }}/>
+            {/* السائق */}
+            <g style={{ transformOrigin:"88px 55px", animation:"personLean 1.6s ease-in-out infinite" }}>
+              {/* جسم */}
+              <path d="M78 55 Q80 35 88 30 Q96 35 98 55" fill={`${c}33`} stroke={c} strokeWidth="1.5"/>
+              {/* رأس */}
+              <circle cx="88" cy="22" r="10" fill={`${c}44`} stroke={c} strokeWidth="1.5"/>
+              {/* خوذة */}
+              <path d="M78 22 Q88 10 98 22" fill={c} stroke={c} strokeWidth="1" opacity="0.8"/>
+              {/* يد ممتدة */}
+              <line x1="98" y1="45" x2="118" y2="58" stroke={c} strokeWidth="2" strokeLinecap="round"/>
+            </g>
+            {/* إشارة التوصيل */}
+            <circle cx="30" cy="20" r="10" fill={`${c}22`} stroke={c} strokeWidth="1.5" style={{ animation:"deliveryBlink 1s ease-in-out infinite" }}/>
+            <text x="30" y="25" textAnchor="middle" fontSize="10">📍</text>
+          </svg>
+          <svg width="100%" height="14" viewBox="0 0 300 14" preserveAspectRatio="none" className="-mt-1">
+            <rect width="300" height="8" y="3" rx="3" fill={`${c}15`} stroke={`${c}33`} strokeWidth="1"/>
+            <line x1="0" y1="7" x2="300" y2="7" stroke={c} strokeWidth="1" strokeDasharray="18 10"
+              style={{ animation:"roadLine 0.35s linear infinite" }}/>
+          </svg>
+          <span className="text-xs font-bold mt-1" style={{ color:c }}>المندوب في طريقه إليك الآن</span>
+        </div>
+      )}
+
+      {/* ══ DELIVERED (احتفال) ══ */}
+      {isDelivered && (
+        <div className="relative flex flex-col items-center gap-3">
+          <style>{`
+            @keyframes checkPop { 0%{transform:scale(0.6);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+            @keyframes confettiRain { 0%{transform:translateY(-30px) rotate(0);opacity:1} 100%{transform:translateY(90px) rotate(360deg);opacity:0} }
+            @keyframes starSpin { 0%{transform:rotate(0) scale(1)} 50%{transform:rotate(180deg) scale(1.3)} 100%{transform:rotate(360deg) scale(1)} }
+            @keyframes ringExpand { 0%{r:25;opacity:0.8} 100%{r:55;opacity:0} }
+          `}</style>
+          <svg width="160" height="145" viewBox="0 0 160 145">
+            {/* حلقات انتشار */}
+            <circle cx="80" cy="75" fill="none" stroke={c} strokeWidth="2" opacity="0.6" style={{ animation:"ringExpand 1.5s ease-out infinite" }}><animate attributeName="r" from="25" to="55" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.6" to="0" dur="1.5s" repeatCount="indefinite"/></circle>
+            <circle cx="80" cy="75" fill="none" stroke={c} strokeWidth="1.5" opacity="0.4" style={{ animation:"ringExpand 1.5s 0.5s ease-out infinite" }}><animate attributeName="r" from="20" to="50" begin="0.5s" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.4" to="0" begin="0.5s" dur="1.5s" repeatCount="indefinite"/></circle>
+            {/* دائرة الخلفية */}
+            <circle cx="80" cy="75" r="42" fill={`${c}18`} stroke={c} strokeWidth="2"/>
+            {/* علامة الصح */}
+            <g style={{ animation:"checkPop 0.5s cubic-bezier(0.4,0,0.2,1) forwards" }}>
+              <polyline points="55,75 73,93 108,58" fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+            </g>
+            {/* confetti */}
+            {[
+              [28,18,c,"confettiRain 1.8s 0s ease-in infinite","rectangle"],
+              [130,10,`${c}aa`,"confettiRain 2s 0.3s ease-in infinite","circle"],
+              [55,8,`${c}88`,"confettiRain 1.6s 0.7s ease-in infinite","rectangle"],
+              [108,5,c,"confettiRain 2.2s 0.1s ease-in infinite","circle"],
+              [15,40,`${c}cc`,"confettiRain 1.9s 0.5s ease-in infinite","rectangle"],
+              [148,35,`${c}99`,"confettiRain 1.7s 0.9s ease-in infinite","circle"],
+            ].map(([x,y,fill,anim,shape],i) =>
+              shape === "circle"
+                ? <circle key={i} cx={x as number} cy={y as number} r="4" fill={fill as string} style={{ animation: anim as string }}/>
+                : <rect key={i} x={(x as number)-3} y={(y as number)-5} width="6" height="10" rx="1" fill={fill as string} style={{ animation: anim as string }}/>
+            )}
+            {/* نجوم */}
+            {[[20,80,8],[145,60,7],[30,110,6],[140,100,9]].map(([x,y,s],i) => (
+              <text key={i} x={x} y={y} textAnchor="middle" fontSize={s} style={{ animation:`starSpin ${1.5+i*0.3}s linear infinite` }}>⭐</text>
+            ))}
+          </svg>
+          <span className="text-sm font-black" style={{ color:c, textShadow:`0 0 12px ${c}88` }}>تم التسليم بنجاح! 🎉</span>
+        </div>
+      )}
+
+      {/* ══ RETURNED ══ */}
+      {isReturned && (
+        <div className="relative flex flex-col items-center gap-3">
+          <style>{`
+            @keyframes returnBounce { 0%,100%{transform:translateX(0)} 50%{transform:translateX(-12px)} }
+            @keyframes arrowPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+          `}</style>
+          <svg width="150" height="120" viewBox="0 0 150 120">
+            {/* صندوق */}
+            <rect x="40" y="40" width="70" height="60" rx="5" fill={`${c}18`} stroke={c} strokeWidth="1.5"/>
+            <path d="M37 40 Q75 25 113 40" fill={`${c}14`} stroke={c} strokeWidth="1.5"/>
+            <line x1="75" y1="40" x2="75" y2="100" stroke={c} strokeWidth="1" strokeDasharray="4 3" opacity="0.4"/>
+            <rect x="53" y="43" width="44" height="8" rx="2" fill={`${c}33`} stroke={c} strokeWidth="1"/>
+            {/* سهم ارتداد */}
+            <g style={{ animation:"returnBounce 1.5s ease-in-out infinite" }}>
+              <path d="M25 30 Q8 50 25 70" fill="none" stroke={c} strokeWidth="3" strokeLinecap="round"/>
+              <polygon points="25,22 18,34 32,34" fill={c}/>
+            </g>
+            <text x="75" y="75" textAnchor="middle" fontSize="22" style={{ animation:"arrowPulse 1.5s ease-in-out infinite" }}>↩</text>
+          </svg>
+          <span className="text-xs font-bold" style={{ color:c }}>الشحنة في طريق العودة</span>
+        </div>
+      )}
+
+      {/* ══ CANCELLED ══ */}
+      {isCancelled && (
+        <div className="relative flex flex-col items-center gap-3">
+          <style>{`@keyframes xShake { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-8deg)} 75%{transform:rotate(8deg)} }`}</style>
+          <svg width="130" height="120" viewBox="0 0 130 120">
+            <circle cx="65" cy="60" r="40" fill={`${c}15`} stroke={c} strokeWidth="2"/>
+            <circle cx="65" cy="60" r="28" fill={`${c}22`} stroke={c} strokeWidth="1.5"/>
+            <g style={{ animation:"xShake 1.2s ease-in-out infinite", transformOrigin:"65px 60px" }}>
+              <line x1="48" y1="43" x2="82" y2="77" stroke={c} strokeWidth="5" strokeLinecap="round"/>
+              <line x1="82" y1="43" x2="48" y2="77" stroke={c} strokeWidth="5" strokeLinecap="round"/>
+            </g>
+          </svg>
+          <span className="text-xs font-bold" style={{ color:c }}>تم إلغاء الشحنة</span>
+        </div>
+      )}
+
+      {/* ══ DELAYED ══ */}
+      {isDelayed && (
+        <div className="relative flex flex-col items-center gap-3">
+          <style>{`@keyframes clockTick { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+          @keyframes warnPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+          <svg width="130" height="130" viewBox="0 0 130 130">
+            {/* ساعة */}
+            <circle cx="65" cy="65" r="42" fill={`${c}15`} stroke={c} strokeWidth="2"/>
+            <circle cx="65" cy="65" r="35" fill={`${c}20`} stroke={c} strokeWidth="1"/>
+            {/* أرقام الساعة */}
+            {[12,3,6,9].map((n,i) => {
+              const angle = i * 90 - 90;
+              const rad = angle * Math.PI / 180;
+              return <text key={n} x={65 + 26 * Math.cos(rad)} y={65 + 26 * Math.sin(rad) + 3} textAnchor="middle" fontSize="8" fill={c} opacity="0.7">{n}</text>
+            })}
+            {/* عقارب الساعة */}
+            <line x1="65" y1="65" x2="65" y2="38" stroke={c} strokeWidth="3" strokeLinecap="round" style={{ transformOrigin:"65px 65px", animation:"clockTick 8s linear infinite" }}/>
+            <line x1="65" y1="65" x2="88" y2="65" stroke={c} strokeWidth="2" strokeLinecap="round" style={{ transformOrigin:"65px 65px", animation:"clockTick 1s linear infinite" }}/>
+            <circle cx="65" cy="65" r="3" fill={c}/>
+            {/* علامة التحذير */}
+            <g style={{ animation:"warnPulse 1s ease-in-out infinite" }}>
+              <polygon points="65,15 55,30 75,30" fill="#fb923c" stroke="#fb923c" strokeWidth="1"/>
+              <line x1="65" y1="19" x2="65" y2="26" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="65" cy="29" r="1" fill="#000"/>
+            </g>
+          </svg>
+          <span className="text-xs font-bold" style={{ color:c }}>الشحنة متأخرة — جاري التتبع</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Shipment {
   id: number;
@@ -135,6 +480,9 @@ export default function TrackResultPage() {
       {/* Result */}
       {!loading && shipment && cfg && (
         <div className="w-full max-w-lg lg:max-w-2xl flex flex-col gap-4 sm:gap-5">
+
+          {/* ── Status Illustration Banner ── */}
+          <StatusIllustration status={shipment.status} color={cfg.color} />
 
           {/* Status card */}
           <div className="rounded-2xl p-4 sm:p-6 text-center relative overflow-hidden"
