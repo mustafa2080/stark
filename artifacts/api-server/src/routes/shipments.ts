@@ -872,20 +872,34 @@ router.delete("/shipments/bulk", async (req, res): Promise<void> => {
 // ─── PATCH /shipments/bulk-status — تغيير حالة شحنات متعددة (MUST be before /:id) ──
 router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
   try {
-    const { ids, status } = req.body as { ids: number[]; status: string };
+    const { ids, status, shippingCompanyId } = req.body as { ids: any[]; status: string; shippingCompanyId?: number };
     if (!Array.isArray(ids) || ids.length === 0 || !status) {
       res.status(400).json({ error: "ids و status مطلوبة" });
       return;
     }
+    const numericIds = ids.map(id => parseInt(String(id))).filter(id => !isNaN(id));
+    if (numericIds.length === 0) {
+      res.status(400).json({ error: "ids غير صالحة" });
+      return;
+    }
+    const tenantId = getTenantId(req);
     const now = new Date();
 
-    await db.update(shipmentsTable)
-      .set({ status: status as any, updatedAt: now } as any)
-      .where(inArray(shipmentsTable.id, ids));
+    const updateData: any = { status: status as any, updatedAt: now };
+    if (shippingCompanyId !== undefined && shippingCompanyId !== null) {
+      updateData.shippingCompanyId = shippingCompanyId;
+    }
 
-    res.json({ updated: ids.length });
+    const cond = tenantId !== null
+      ? and(inArray(shipmentsTable.id, numericIds), eq(shipmentsTable.tenantId, tenantId))
+      : inArray(shipmentsTable.id, numericIds);
+
+    await db.update(shipmentsTable).set(updateData).where(cond);
+
+    res.json({ updated: numericIds.length });
   } catch (e: any) {
-    res.status(500).json({ error: "خطأ في تحديث الحالة" });
+    console.error("bulk-status error:", e);
+    res.status(500).json({ error: "خطأ في تحديث الحالة", detail: e?.message });
   }
 });
 
