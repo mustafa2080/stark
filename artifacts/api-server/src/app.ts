@@ -308,6 +308,21 @@ async function ensureShippingCompanyLogo() {
 }
 ensureShippingCompanyLogo();
 
+// ─── Ensure users.shipping_company_id column exists (للمندوبين) ──────────────
+async function ensureUsersShippingCompanyId() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS shipping_company_id INT NULL
+    `);
+    logger.info("users.shipping_company_id column ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure users.shipping_company_id column");
+    }
+  }
+}
+ensureUsersShippingCompanyId();
+
 // ─── Ensure employee_profiles.avatar column exists ────────────────────────────
 async function ensureEmployeeProfileAvatar() {
   try {

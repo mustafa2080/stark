@@ -1,9 +1,11 @@
 ﻿import { Router, type IRouter } from "express";
 import { eq, desc, and, inArray, isNull, or } from "drizzle-orm";
-import { db, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, ordersTable } from "@workspace/db";
+import { db, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, ordersTable, usersTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { hashPassword } from "../lib/auth.js";
+import { logAudit } from "../lib/audit.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -263,6 +265,100 @@ router.delete("/shipping-companies/:id", async (req, res): Promise<void> => {
   if (!toDelete) { res.status(404).json({ error: "Company not found" }); return; }
   await db.delete(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, id));
   res.status(204).send();
+});
+
+// ─── POST /shipping-companies/:id/representative — إنشاء/تحديث حساب مندوب ───
+const RepSchema = z.object({
+  username: z.string().min(3).regex(/^[a-z0-9_]+$/, "أحرف إنجليزية صغيرة وأرقام وـ فقط"),
+  password: z.string().min(6).optional(), // اختياري عند التحديث
+  displayName: z.string().min(1).optional(),
+});
+
+router.post("/shipping-companies/:id/representative", async (req, res): Promise<void> => {
+  const user = (req as any).user;
+  if (!["admin", "super_admin", "super-admin"].includes(user?.role)) {
+    res.status(403).json({ error: "غير مصرح" }); return;
+  }
+  const companyId = parseInt(req.params.id);
+  if (isNaN(companyId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const [company] = await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, companyId)).limit(1);
+  if (!company) { res.status(404).json({ error: "شركة الشحن غير موجودة" }); return; }
+
+  const parsed = RepSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { username, password, displayName } = parsed.data;
+
+  // هل فيه مندوب مرتبط بالشركة دي بالفعل؟
+  const [existing] = await db.select().from(usersTable)
+    .where(eq((usersTable as any).shippingCompanyId, companyId)).limit(1);
+
+  if (existing) {
+    // تحديث: نحدّث الباسورد لو اتبعت، واليوزرنيم لو اتغير
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (password) updates.passwordHash = await hashPassword(password);
+    if (displayName) updates.displayName = displayName;
+    // username: نتحقق من التفرد لو اتغير
+    if (username && username !== existing.username) {
+      const [dup] = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.username, username)).limit(1);
+      if (dup) { res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل" }); return; }
+      updates.username = username;
+    }
+    await db.update(usersTable).set(updates).where(eq(usersTable.id, existing.id));
+    const [updated] = await db.select().from(usersTable).where(eq(usersTable.id, existing.id)).limit(1);
+    const { passwordHash: _, ...safe } = updated as any;
+    await logAudit({ action: "update", entityType: "representative", entityId: existing.id,
+      entityName: updated.displayName, userId: user.id, userName: user.displayName });
+    res.json({ user: safe, created: false });
+    return;
+  }
+
+  // إنشاء جديد
+  if (!password) { res.status(400).json({ error: "كلمة المرور مطلوبة عند إنشاء حساب جديد" }); return; }
+  const [dup] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.username, username)).limit(1);
+  if (dup) { res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل" }); return; }
+
+  const passwordHash = await hashPassword(password);
+  const [result] = await db.insert(usersTable).values({
+    username,
+    passwordHash,
+    displayName: displayName ?? company.name,
+    role: "representative",
+    tenantId: company.tenantId ?? user.tenantId ?? null,
+    permissions: JSON.stringify([]),
+    isActive: true,
+    shippingCompanyId: companyId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as any);
+  const newId = (result as any).insertId as number;
+  const [newUser] = await db.select().from(usersTable).where(eq(usersTable.id, newId)).limit(1);
+  const { passwordHash: _, ...safe } = newUser as any;
+
+  await logAudit({ action: "create", entityType: "representative", entityId: newId,
+    entityName: newUser.displayName, userId: user.id, userName: user.displayName });
+
+  res.status(201).json({ user: safe, created: true });
+});
+
+// ─── GET /shipping-companies/:id/representative — بيانات حساب المندوب ────────
+router.get("/shipping-companies/:id/representative", async (req, res): Promise<void> => {
+  const user = (req as any).user;
+  if (!["admin", "super_admin", "super-admin"].includes(user?.role)) {
+    res.status(403).json({ error: "غير مصرح" }); return;
+  }
+  const companyId = parseInt(req.params.id);
+  if (isNaN(companyId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const [rep] = await db.select().from(usersTable)
+    .where(eq((usersTable as any).shippingCompanyId, companyId)).limit(1);
+  if (!rep) { res.status(404).json({ error: "لا يوجد حساب مندوب لهذه الشركة" }); return; }
+
+  const { passwordHash: _, ...safe } = rep as any;
+  res.json(safe);
 });
 
 export default router;

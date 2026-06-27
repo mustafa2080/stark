@@ -1,7 +1,7 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { shippingApi, manifestsApi, shipmentsApi, shipmentManifestsApi, type ShippingManifestListItem, type ShipmentManifestListItem } from "@/lib/api";
+import { shippingApi, manifestsApi, shipmentsApi, shipmentManifestsApi, apiFetch, type ShippingManifestListItem, type ShipmentManifestListItem } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import {
   ArrowRight, Truck, PackagePlus, FileText, Lock,
   CheckCircle2, RotateCcw, Clock, TrendingUp, TrendingDown,
   ChevronRight, Calendar, Package, Phone, Globe, X, Send,
-  MapPin, User, Search,
+  MapPin, User, Search, UserPlus, KeyRound,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -148,6 +148,7 @@ export default function ShippingCompanyDetailPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo]     = useState("");
   const [activeTab, setActiveTab] = useState<"manifests" | "shipments">("manifests");
+  const [showRepDialog, setShowRepDialog] = useState(false);
   const { can, isAdmin } = useAuth();
   const canFinancials = isAdmin || can("shipping.financials");
   const canManifests  = isAdmin || can("shipping.manifests");
@@ -237,13 +238,23 @@ export default function ShippingCompanyDetailPage() {
           </div>
         </div>
         {canManifests && (
-          <Button
-            size="sm"
-            className="h-8 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold shrink-0"
-            onClick={() => setShowNewManifest(true)}
-          >
-            <PackagePlus className="w-3.5 h-3.5" />بيان جديد
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 font-bold"
+              onClick={() => setShowRepDialog(true)}
+            >
+              <UserPlus className="w-3.5 h-3.5" />حساب المندوب
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+              onClick={() => setShowNewManifest(true)}
+            >
+              <PackagePlus className="w-3.5 h-3.5" />بيان جديد
+            </Button>
+          </div>
         )}
       </div>
 
@@ -571,7 +582,98 @@ export default function ShippingCompanyDetailPage() {
           }}
         />
       )}
+
+      {/* Representative Account Dialog */}
+      {showRepDialog && (
+        <RepresentativeDialog companyId={companyId} companyName={company?.name ?? ""} onClose={() => setShowRepDialog(false)} />
+      )}
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ─── RepresentativeDialog ────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function RepresentativeDialog({ companyId, companyName, onClose }: { companyId: number; companyName: string; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [showPass, setShowPass] = useState(false);
+
+  const { data: existing, isLoading } = useQuery({
+    queryKey: ["rep-account", companyId],
+    queryFn: () => apiFetch(`/shipping-companies/${companyId}/representative`).catch(() => null),
+  });
+
+  const rep = existing as any;
+  const isEdit = !!rep;
+
+  const mutation = useMutation({
+    mutationFn: () => apiFetch(`/shipping-companies/${companyId}/representative`, {
+      method: "POST",
+      body: JSON.stringify({ username: username || rep?.username, password: password || undefined, displayName: displayName || undefined }),
+    }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["rep-account", companyId] });
+      toast({ title: data.created ? "تم إنشاء حساب المندوب" : "تم تحديث حساب المندوب" });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="bg-card border-border max-w-sm" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <UserPlus className="w-4 h-4 text-primary" />
+            {isEdit ? "تحديث حساب المندوب" : "إنشاء حساب مندوب"}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">{companyName}</p>
+        </DialogHeader>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground text-center py-4">جاري التحقق...</p>
+        ) : (
+          <div className="space-y-3 mt-2">
+            {isEdit && (
+              <div className="rounded-lg bg-emerald-900/20 border border-emerald-500/30 p-3 text-xs text-emerald-400">
+                حساب موجود: <strong>{rep.username}</strong> — آخر تسجيل دخول: {rep.updatedAt ? new Date(rep.updatedAt).toLocaleDateString("ar-EG") : "—"}
+              </div>
+            )}
+            <div>
+              <Label className="text-xs mb-1 block">اسم المستخدم {isEdit && "(اتركه فارغاً للإبقاء على الحالي)"}</Label>
+              <Input placeholder={rep?.username ?? "username"} value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                className="h-8 text-sm bg-background" dir="ltr" />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">{isEdit ? "كلمة مرور جديدة (اتركها فارغة للإبقاء)" : "كلمة المرور *"}</Label>
+              <div className="relative">
+                <Input type={showPass ? "text" : "password"} placeholder="6 أحرف على الأقل" value={password}
+                  onChange={e => setPassword(e.target.value)} className="h-8 text-sm bg-background pl-8" dir="ltr" />
+                <button type="button" onClick={() => setShowPass(v => !v)}
+                  className="absolute left-2 top-1.5 text-muted-foreground hover:text-foreground">
+                  <KeyRound className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">الاسم المعروض (اختياري)</Label>
+              <Input placeholder={rep?.displayName ?? companyName} value={displayName} onChange={e => setDisplayName(e.target.value)}
+                className="h-8 text-sm bg-background" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button className="flex-1 h-8 text-xs font-bold bg-primary text-primary-foreground"
+                onClick={() => mutation.mutate()} disabled={mutation.isPending || (!isEdit && (!username || !password))}>
+                {mutation.isPending ? "جاري الحفظ..." : isEdit ? "تحديث" : "إنشاء الحساب"}
+              </Button>
+              <Button variant="outline" className="h-8 text-xs border-border" onClick={onClose}>إلغاء</Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

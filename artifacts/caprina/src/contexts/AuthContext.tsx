@@ -13,7 +13,7 @@ export interface AuthUser {
   id: number;
   username: string;
   displayName: string;
-  role: "super_admin" | "super-admin" | "admin" | "employee" | "warehouse" | "client" | string;
+  role: "super_admin" | "super-admin" | "admin" | "employee" | "warehouse" | "client" | "representative" | string;
   permissions: string[];
   isActive: boolean;
   planStatus?: "active" | "expired" | "suspended" | "grace";
@@ -30,6 +30,7 @@ interface AuthContextValue {
   isSuperAdmin: boolean;
   isEmployee: boolean;
   isWarehouse: boolean;
+  isRepresentative: boolean;
   can: (permission: string) => boolean;
   canViewFinancials: boolean;
   canViewProfitability: boolean;
@@ -460,6 +461,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === ("super-admin" as any);
+  const isRepresentative = user?.role === "representative";
 
   const canViewFinancials = isAdmin || can("orders.financials");
   const canViewProfitability = isAdmin || can("orders.financials");
@@ -471,6 +473,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin,
       isEmployee: user?.role === "employee",
       isWarehouse: user?.role === "warehouse",
+      isRepresentative,
       can, canViewFinancials, canViewProfitability, loading,
     }}>
       {children}
