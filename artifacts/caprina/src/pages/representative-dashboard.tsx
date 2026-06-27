@@ -1,10 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Redirect } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, TrendingUp, TrendingDown, MapPin, Star, AlertCircle } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, CornerDownLeft, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -67,8 +73,301 @@ function DeliveryRing({ rate }: { rate: number }) {
   );
 }
 
+// ─── حالات بيان الشحن (manifest item delivery status) ─────────────────────
+const MANIFEST_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "pending",           label: "قيد الانتظار" },
+  { value: "delivered",         label: "مسلَّم ✓" },
+  { value: "partial_delivered", label: "مسلَّم جزئي" },
+  { value: "delayed",           label: "مؤجل" },
+  { value: "returned",          label: "مرتجع" },
+];
+const MANIFEST_STATUS_COLOR: Record<string, string> = {
+  pending: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+  delivered: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  partial_delivered: "bg-teal-500/15 text-teal-400 border-teal-500/30",
+  delayed: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  returned: "bg-red-500/15 text-red-400 border-red-500/30",
+};
+const manifestStatusLabel = (v: string) => MANIFEST_STATUS_OPTIONS.find(o => o.value === v)?.label ?? v;
+
+// ─── صف شحنة جوّا تفاصيل البيان — تعديل الحالة من المندوب ────────────────────
+function ManifestItemRow({ item, manifestId, locked, onSaved }: {
+  item: any; manifestId: number; locked: boolean; onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [status, setStatus] = useState<string>(item.deliveryStatus);
+  const [note, setNote] = useState(item.deliveryNote ?? "");
+  const [partialQty, setPartialQty] = useState(item.partialQuantity?.toString() ?? "");
+  const [returnReceived, setReturnReceived] = useState<boolean | null>(
+    item.returnReceived === 1 ? true : item.returnReceived === 0 ? false : null
+  );
+  const [returnReason, setReturnReason] = useState(item.returnReason ?? "");
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (status === "partial_delivered") {
+        const qty = parseInt(partialQty);
+        if (partialQty === "" || isNaN(qty) || qty < 0) throw new Error("لازم تدخل الكمية المستلمة");
+        if (qty > (item.quantity ?? 1)) throw new Error(`الكمية لا يمكن أن تتجاوز ${item.quantity}`);
+      }
+      return apiFetch(`/shipment-manifests/${manifestId}/items/${item.shipmentId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          deliveryStatus: status,
+          deliveryNote: note.trim() || null,
+          partialQuantity: status === "partial_delivered" && partialQty !== "" ? parseInt(partialQty) : null,
+          returnReceived: status === "returned" || status === "partial_delivered" ? returnReceived : null,
+          returnReason: status === "returned" ? (returnReason || null) : null,
+        }),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "✅ تم تحديث حالة الشحنة" });
+      setEditing(false);
+      onSaved();
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const needsNote = status === "returned" || status === "delayed";
+  const hasChanges =
+    status !== item.deliveryStatus ||
+    note !== (item.deliveryNote ?? "") ||
+    partialQty !== (item.partialQuantity?.toString() ?? "");
+
+  return (
+    <Card className="p-3 bg-card/60 border-border space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-bold truncate">{item.customerName}</p>
+          <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
+            <span className="font-mono text-primary/70">{item.invoiceNumber}</span>
+            {item.phone && <span>· {item.phone}</span>}
+            {item.city && <span>· {item.city}</span>}
+          </p>
+        </div>
+        <Badge variant="outline" className={`text-[9px] shrink-0 border ${MANIFEST_STATUS_COLOR[item.deliveryStatus] ?? "border-border"}`}>
+          {manifestStatusLabel(item.deliveryStatus)}
+        </Badge>
+      </div>
+
+      {!editing ? (
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-emerald-400">{Number(item.totalPrice ?? 0).toLocaleString("ar-EG")} ج.م</span>
+          {!locked && (
+            <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => setEditing(true)}>
+              تعديل الحالة
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2 pt-1 border-t border-border/50">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MANIFEST_STATUS_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {status === "partial_delivered" && (
+            <input type="number" min={0} max={item.quantity ?? 1} value={partialQty}
+              onChange={e => setPartialQty(e.target.value)}
+              placeholder={`الكمية المستلمة (من ${item.quantity ?? 1})`}
+              className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs" />
+          )}
+
+          {(status === "returned" || status === "partial_delivered") && (
+            <div className="flex gap-2">
+              <button onClick={() => setReturnReceived(true)}
+                className={`flex-1 h-7 text-[10px] rounded-md border ${returnReceived === true ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground"}`}>
+                تم الاستلام في المخزن
+              </button>
+              <button onClick={() => setReturnReceived(false)}
+                className={`flex-1 h-7 text-[10px] rounded-md border ${returnReceived === false ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "border-border text-muted-foreground"}`}>
+                لسه عند الشحن
+              </button>
+            </div>
+          )}
+
+          {status === "returned" && (
+            <input value={returnReason} onChange={e => setReturnReason(e.target.value)}
+              placeholder="سبب الإرجاع (اختياري)"
+              className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs" />
+          )}
+
+          {needsNote && (
+            <Textarea value={note} onChange={e => setNote(e.target.value)}
+              placeholder="ملاحظة (اختياري)" className="text-xs min-h-[50px]" />
+          )}
+
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-[11px] flex-1" disabled={!hasChanges || mutation.isPending}
+              onClick={() => mutation.mutate()}>
+              {mutation.isPending ? "بيحفظ..." : "حفظ"}
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setEditing(false)}>
+              إلغاء
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── تفاصيل البيان — قائمة الشحنات + إغلاق البيان ────────────────────────────
+function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["rep-manifest", manifestId],
+    queryFn: () => apiFetch(`/shipment-manifests/${manifestId}`),
+  });
+  const manifest = data as any;
+  const locked = manifest?.status === "closed";
+
+  const closeMutation = useMutation({
+    mutationFn: () => apiFetch(`/shipment-manifests/${manifestId}`, {
+      method: "PATCH", body: JSON.stringify({ status: "closed" }),
+    }),
+    onSuccess: () => {
+      toast({ title: "✅ تم قفل البيان بنجاح" });
+      qc.invalidateQueries({ queryKey: ["rep-manifest", manifestId] });
+      qc.invalidateQueries({ queryKey: ["rep-manifests"] });
+      setConfirmClose(false);
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  if (isLoading || !manifest) {
+    return <p className="text-xs text-muted-foreground text-center py-8">جاري التحميل...</p>;
+  }
+
+  const stillPending = (manifest.items as any[]).filter(i => i.deliveryStatus === "pending").length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <ChevronRight className="w-4 h-4" /> رجوع للبيانات
+        </button>
+        <Badge variant="outline" className={locked ? "border-red-500/30 text-red-400 bg-red-500/10" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"}>
+          {locked ? <Lock className="w-3 h-3 ml-1" /> : <Unlock className="w-3 h-3 ml-1" />}
+          {locked ? "مغلق" : "مفتوح"}
+        </Badge>
+      </div>
+
+      <Card className="p-3 bg-card/60 border-border">
+        <p className="text-sm font-black font-mono">{manifest.manifestNumber}</p>
+        <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+          <div>
+            <p className="text-lg font-black">{manifest.stats?.total ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">إجمالي</p>
+          </div>
+          <div>
+            <p className="text-lg font-black text-emerald-400">{manifest.stats?.delivered ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">مسلَّم</p>
+          </div>
+          <div>
+            <p className="text-lg font-black text-red-400">{manifest.stats?.returned ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">مرتجع</p>
+          </div>
+        </div>
+      </Card>
+
+      <div className="space-y-2">
+        {(manifest.items as any[]).map(item => (
+          <ManifestItemRow key={item.id} item={item} manifestId={manifestId} locked={locked}
+            onSaved={() => qc.invalidateQueries({ queryKey: ["rep-manifest", manifestId] })} />
+        ))}
+        {(manifest.items as any[]).length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات في هذا البيان</p>
+        )}
+      </div>
+
+      {!locked && (
+        <div className="pt-2">
+          {!confirmClose ? (
+            <Button className="w-full gap-2" onClick={() => setConfirmClose(true)}>
+              <Lock className="w-4 h-4" /> قفل البيان
+            </Button>
+          ) : (
+            <Card className="p-3 border-amber-500/30 bg-amber-500/5 space-y-2">
+              <p className="text-xs flex items-center gap-1 text-amber-400">
+                <AlertTriangle className="w-3.5 h-3.5" /> هتقفل البيان؟ مش هتقدر تعدّل بعد القفل.
+              </p>
+              {stillPending > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  فيه {stillPending} شحنة لسه قيد الانتظار — هتفضل من غير تحديث.
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" className="flex-1 gap-1" disabled={closeMutation.isPending} onClick={() => closeMutation.mutate()}>
+                  <PackageCheck className="w-3.5 h-3.5" /> {closeMutation.isPending ? "بيقفل..." : "تأكيد القفل"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setConfirmClose(false)}>إلغاء</Button>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── تاب البيانات — قائمة بيانات الشحن بتاعة المندوب ─────────────────────────
+function ManifestsTab({ companyId }: { companyId: number | null }) {
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["rep-manifests", companyId],
+    queryFn: () => apiFetch(`/shipment-manifests?companyId=${companyId}`),
+    enabled: !!companyId,
+  });
+  const manifests = (data as any[]) ?? [];
+
+  if (selectedId) {
+    return <ManifestDetail manifestId={selectedId} onBack={() => setSelectedId(null)} />;
+  }
+
+  if (isLoading) return <p className="text-xs text-muted-foreground text-center py-8">جاري التحميل...</p>;
+
+  return (
+    <div className="space-y-2">
+      {manifests.map((m: any) => (
+        <Card key={m.id} className="p-3 bg-card/60 border-border cursor-pointer hover:bg-card/90 transition-colors"
+          onClick={() => setSelectedId(m.id)}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-black font-mono">{m.manifestNumber}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {m.createdAt ? format(new Date(m.createdAt), "dd/MM/yyyy", { locale: ar }) : ""} · {m.shipmentCount ?? 0} شحنة
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={m.status === "closed" ? "border-red-500/30 text-red-400 bg-red-500/10 text-[9px]" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-[9px]"}>
+                {m.status === "closed" ? "مغلق" : "مفتوح"}
+              </Badge>
+              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </div>
+        </Card>
+      ))}
+      {manifests.length === 0 && (
+        <p className="text-xs text-muted-foreground text-center py-8">لا توجد بيانات شحن حالياً</p>
+      )}
+    </div>
+  );
+}
+
 export default function RepresentativeDashboard() {
   const { user, isRepresentative, isAdmin, isSuperAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<"shipments" | "manifests">("shipments");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -128,6 +427,22 @@ export default function RepresentativeDashboard() {
         )}
       </div>
 
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "shipments" | "manifests")}>
+        <TabsList className="w-full grid grid-cols-2">
+          <TabsTrigger value="shipments" className="gap-1.5">
+            <Package className="w-3.5 h-3.5" /> الشحنات
+          </TabsTrigger>
+          <TabsTrigger value="manifests" className="gap-1.5">
+            <FileText className="w-3.5 h-3.5" /> البيانات
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {activeTab === "manifests" && <ManifestsTab companyId={company?.id ?? null} />}
+
+      {activeTab === "shipments" && (
+        <>
       {/* Date filter */}
       <div className="flex flex-wrap gap-2">
         <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
@@ -253,6 +568,8 @@ export default function RepresentativeDashboard() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

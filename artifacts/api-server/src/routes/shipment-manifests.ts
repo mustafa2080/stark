@@ -32,7 +32,11 @@ async function generateManifestNumber(companyId: number): Promise<string> {
 router.get("/shipment-manifests", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+    const reqUser = (req as any).user;
+    // المندوب يشوف بيانات شركته بس — نتجاهل أي companyId جاي من العميل
+    const companyId = reqUser?.role === "representative"
+      ? reqUser.shippingCompanyId
+      : (req.query.companyId ? Number(req.query.companyId) : undefined);
 
     // tenantId === null يعني super_admin → بدون فلتر tenant
     const tenantCondition = tenantId !== null
@@ -106,6 +110,13 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const id = Number(req.params.id);
     const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
     if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+
+    // المندوب يشوف بيانات شركته فقط
+    const reqUser = (req as any).user;
+    if (reqUser?.role === "representative" && manifest.shippingCompanyId !== reqUser.shippingCompanyId) {
+      res.status(403).json({ error: "غير مصرح بعرض هذا البيان" });
+      return;
+    }
 
     const items = await db
       .select()
@@ -309,6 +320,23 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     const shipmentId  = Number(req.params.shipmentId);
     const body        = UpdateItemSchema.parse(req.body);
     const now         = new Date();
+
+    // المندوب يقدر يعدّل بيانات شركته بس، وبشرط البيان يكون لسه مفتوح
+    const reqUser = (req as any).user;
+    if (reqUser?.role === "representative") {
+      const [manifestRow] = await db.select({
+        shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
+        status: shipmentManifestsTable.status,
+      }).from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, manifestId)).limit(1);
+      if (!manifestRow || manifestRow.shippingCompanyId !== reqUser.shippingCompanyId) {
+        res.status(403).json({ error: "غير مصرح بتعديل هذا البيان" });
+        return;
+      }
+      if (manifestRow.status === "closed") {
+        res.status(400).json({ error: "البيان مغلق — لا يمكن التعديل" });
+        return;
+      }
+    }
 
     await db.update(shipmentManifestItemsTable)
       .set({
@@ -585,8 +613,20 @@ async function rolloverPartialShipments(
 router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
   try {
     const id   = Number(req.params.id);
-    const body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null };
+    let body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null };
     const now  = new Date();
+
+    // المندوب يقدر يقفل/يفتح بيانه بس — مش يعدّل ملاحظات أو سعر فاتورة
+    const reqUser = (req as any).user;
+    if (reqUser?.role === "representative") {
+      const [existingManifest] = await db.select({ shippingCompanyId: shipmentManifestsTable.shippingCompanyId })
+        .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
+      if (!existingManifest || existingManifest.shippingCompanyId !== reqUser.shippingCompanyId) {
+        res.status(403).json({ error: "غير مصرح بتعديل هذا البيان" });
+        return;
+      }
+      body = { status: body.status };
+    }
 
     await db.update(shipmentManifestsTable)
       .set({
