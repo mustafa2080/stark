@@ -497,13 +497,13 @@ function OrderDeliveryRow({
       {editing && (
         <div className="px-4 pb-3 flex flex-col gap-2 bg-primary/5 border-t border-primary/10">
           <div className="flex flex-wrap gap-2 items-end mt-2">
-            <div>
+            <div className="w-full sm:w-auto">
               <Label className="text-[10px] mb-1 block text-muted-foreground">حالة التسليم</Label>
               <Select
                 value={status}
                 onValueChange={(v) => setStatus(v as DeliveryStatus)}
               >
-                <SelectTrigger className="h-8 text-xs w-40 bg-background">
+                <SelectTrigger className="h-8 text-xs w-full sm:w-40 bg-background">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1297,7 +1297,7 @@ function InvoiceGroupDeliveryRow({
 
             {/* ── Dropdown الحالة: يظهر دايماً سواء منتج واحد أو متعددة ── */}
             <div className="flex flex-wrap gap-2 items-end mt-2">
-              <div>
+              <div className="w-full sm:w-auto">
                 <Label className="text-[10px] mb-1 block text-muted-foreground">حالة التسليم</Label>
                 <Select
                   value={bulkStatus}
@@ -1307,7 +1307,7 @@ function InvoiceGroupDeliveryRow({
                     setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, v as DeliveryStatus])));
                   }}
                 >
-                  <SelectTrigger className="h-8 text-xs w-40 bg-background">
+                  <SelectTrigger className="h-8 text-xs w-full sm:w-40 bg-background">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1567,10 +1567,10 @@ function InvoiceGroupDeliveryRow({
             {bulkStatus === "returned" && (
               <div className="space-y-2">
                 {/* سبب الإرجاع */}
-                <div>
+                <div className="w-full sm:w-auto">
                   <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
                   <Select value={bulkReturnReason} onValueChange={setBulkReturnReason}>
-                    <SelectTrigger className="h-8 text-xs w-52 bg-background border-red-800/60 focus:ring-red-700">
+                    <SelectTrigger className="h-8 text-xs w-full sm:w-52 bg-background border-red-800/60 focus:ring-red-700">
                       <SelectValue placeholder="اختر السبب..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -2905,10 +2905,10 @@ function AddOrdersToManifestDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-card border-border max-w-3xl max-h-[90vh] flex flex-col" dir="rtl">
+      <DialogContent className="bg-card border-border w-[94vw] sm:w-full max-w-3xl max-h-[90vh] flex flex-col p-4 sm:p-6" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-right flex items-center gap-2">
-            <PackagePlus className="w-4 h-4 text-primary" />
+          <DialogTitle className="text-right flex items-center gap-2 pr-8 text-base sm:text-lg">
+            <PackagePlus className="w-4 h-4 text-primary shrink-0" />
             إضافة شحنات إلى البيان — {manifestNumber}
           </DialogTitle>
         </DialogHeader>
@@ -2960,7 +2960,7 @@ function AddOrdersToManifestDialog({
             ) : (
               <>
                 {/* Header */}
-                <div className="grid grid-cols-[auto_1fr_1fr_80px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
+                <div className="hidden sm:grid grid-cols-[auto_1fr_1fr_80px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
                   <div className="w-5" />
                   <div>المستلم</div>
                   <div>رقم الشحنة / المدينة</div>
@@ -2972,21 +2972,27 @@ function AddOrdersToManifestDialog({
                   return (
                     <div
                       key={s.id}
-                      className={`grid grid-cols-[auto_1fr_1fr_80px] gap-0 items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                      className={`flex flex-col gap-2 sm:grid sm:grid-cols-[auto_1fr_1fr_80px] sm:gap-0 sm:items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                       onClick={() => {
                         const next = new Set(selectedIds);
                         if (isSelected) next.delete(s.id); else next.add(s.id);
                         setSelectedIds(next);
                       }}
                     >
-                      <div className="w-5 flex items-center">
+                      <div className="hidden sm:flex w-5 items-center">
                         <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                       </div>
-                      <div className="min-w-0 pr-2">
-                        <p className="font-semibold text-xs truncate">{s.receiverName}</p>
-                        <p className="text-muted-foreground text-[10px]">
-                          {s.receiverPhone ?? ""}
-                        </p>
+                      <div className="flex items-start gap-2 sm:contents">
+                        <div className="sm:hidden shrink-0 pt-0.5">
+                          <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                        </div>
+                        <div className="min-w-0 pr-2 flex-1">
+                          <p className="font-semibold text-xs truncate">{s.receiverName}</p>
+                          <p className="text-muted-foreground text-[10px]">
+                            {s.receiverPhone ?? ""}
+                          </p>
+                        </div>
+                        <div className="sm:hidden shrink-0 text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
                       </div>
                       <div className="min-w-0 pr-2">
                         <p className="text-xs truncate">{s.shipmentNumber}</p>
@@ -2994,7 +3000,7 @@ function AddOrdersToManifestDialog({
                           <p className="text-muted-foreground text-[10px]">{s.receiverCity}</p>
                         )}
                       </div>
-                      <div className="text-left text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
+                      <div className="hidden sm:block text-left text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
                     </div>
                   );
                 })}
@@ -3197,7 +3203,7 @@ function ReturnReceivedButton({
         type="button"
         onClick={() => !locked && !isActive && mutation.mutate()}
         disabled={locked || mutation.isPending}
-        className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+        className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
           isActive
             ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
             : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
@@ -3214,7 +3220,7 @@ function ReturnReceivedButton({
       type="button"
       onClick={() => !locked && !isActive && mutation.mutate()}
       disabled={locked || mutation.isPending}
-      className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+      className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
         isActive
           ? "border-orange-500 bg-orange-900/40 text-orange-300"
           : "border-border text-muted-foreground hover:border-orange-700 hover:text-orange-400 hover:bg-orange-900/10"
@@ -4195,25 +4201,25 @@ export default function ShippingManifestPage() {
       {/* ─── Orders Table ─── */}
       <Card className="border-border bg-card overflow-visible print:break-inside-avoid">
         <div
-          className="flex items-center justify-between px-4 py-3 border-b border-border cursor-pointer hover:bg-muted/10 transition-colors"
+          className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-border cursor-pointer hover:bg-muted/10 transition-colors"
           onClick={() => setShowOrders(!showOrders)}
         >
-          <h2 className="font-bold text-sm flex items-center gap-2">
-              <Package className="w-4 h-4 text-muted-foreground" />
-              الطلبيات في البيان
-              <Badge variant="outline" className="text-[9px]">
+          <h2 className="font-bold text-sm flex items-center gap-2 flex-wrap min-w-0">
+              <Package className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="shrink-0">الطلبيات في البيان</span>
+              <Badge variant="outline" className="text-[9px] shrink-0">
                 {groupedManifestOrders.length}
               </Badge>
             {!isLocked && pendingOrders > 0 && (
               <Badge
                 variant="outline"
-                className="text-[9px] border-amber-700 bg-amber-900/20 text-amber-400"
+                className="text-[9px] border-amber-700 bg-amber-900/20 text-amber-400 shrink-0"
               >
                 {pendingOrders} بانتظار التقفيل
               </Badge>
             )}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={(e) => {
@@ -4224,7 +4230,7 @@ export default function ShippingManifestPage() {
                 }
                 setShowColFilters(v => !v);
               }}
-              className={`h-7 flex items-center gap-1.5 px-2.5 rounded-lg border text-xs font-medium transition-all ${showColFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
+              className={`hidden md:flex h-7 items-center gap-1.5 px-2.5 rounded-lg border text-xs font-medium transition-all shrink-0 ${showColFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
             >
               <svg viewBox="0 0 24 24" className="w-3 h-3" fill={showColFilters ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
               {showColFilters ? "إلغاء الفلتر" : "إنشاء فلتر"}
@@ -4440,7 +4446,7 @@ export default function ShippingManifestPage() {
                 return (
                   <div
                     key={order.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5"
+                    className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -4462,7 +4468,7 @@ export default function ShippingManifestPage() {
                           : `كمية مرتجعة: ${order.quantity}`}
                       </p>
                     </div>
-                    <div className="flex gap-1.5 shrink-0">
+                    <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
                       <ReturnReceivedButton
                         manifestId={id}
                         order={order}

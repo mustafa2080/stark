@@ -794,10 +794,10 @@ function CreateShipmentManifestDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-card border-border max-w-3xl max-h-[90vh] flex flex-col" dir="rtl">
+      <DialogContent className="bg-card border-border w-[94vw] sm:w-full max-w-3xl max-h-[90vh] flex flex-col p-4 sm:p-6" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-right flex items-center gap-2">
-            <Truck className="w-4 h-4 text-primary" />
+          <DialogTitle className="text-right flex items-center gap-2 pr-8 text-base sm:text-lg">
+            <Truck className="w-4 h-4 text-primary shrink-0" />
             إنشاء بيان شحن شحنات — {company.name}
           </DialogTitle>
         </DialogHeader>
@@ -847,7 +847,7 @@ function CreateShipmentManifestDialog({
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-[auto_1fr_1fr_90px_90px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
+                <div className="hidden sm:grid grid-cols-[auto_1fr_1fr_90px_90px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
                   <div className="w-5" />
                   <div>المستلم</div>
                   <div>المدينة / العنوان</div>
@@ -865,31 +865,47 @@ function CreateShipmentManifestDialog({
                   return (
                     <div
                       key={s.id}
-                      className={`grid grid-cols-[auto_1fr_1fr_90px_90px] gap-0 items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
+                      className={`flex flex-col gap-2 sm:grid sm:grid-cols-[auto_1fr_1fr_90px_90px] sm:gap-0 sm:items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
                       onClick={() => toggleOne(s.id)}
                     >
-                      <div className="w-5 flex items-center">
+                      <div className="hidden sm:flex w-5 items-center">
                         <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                       </div>
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs font-semibold truncate">{s.receiverName}</p>
-                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap">
-                          <span className="font-mono text-primary/70">{s.shipmentNumber}</span>
-                          {s.receiverPhone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{s.receiverPhone}</span>}
-                        </p>
+                      <div className="flex items-start gap-2 sm:contents">
+                        <div className="sm:hidden shrink-0 pt-0.5">
+                          <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                        </div>
+                        <div className="min-w-0 pr-2 flex-1">
+                          <p className="text-xs font-semibold truncate">{s.receiverName}</p>
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap">
+                            <span className="font-mono text-primary/70">{s.shipmentNumber}</span>
+                            {s.receiverPhone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{s.receiverPhone}</span>}
+                          </p>
+                        </div>
+                        <div className="sm:hidden shrink-0">
+                          <Badge variant="outline" className={`text-[9px] font-bold border ${STATUS_COLORS[s.status] ?? "border-border text-muted-foreground"}`}>
+                            {STATUS_LABELS[s.status] ?? s.status}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="min-w-0 pr-2">
+                      <div className="min-w-0 pr-2 sm:pr-2">
                         {s.receiverCity && (
-                          <p className="text-xs truncate flex items-center gap-1"><MapPin className="w-2.5 h-2.5 text-muted-foreground" />{s.receiverCity}</p>
+                          <p className="text-xs truncate flex items-center gap-1"><MapPin className="w-2.5 h-2.5 text-muted-foreground shrink-0" />{s.receiverCity}</p>
                         )}
                         {s.receiverAddress && (
                           <p className="text-[10px] text-muted-foreground truncate">{s.receiverAddress}</p>
                         )}
                       </div>
-                      <div className="text-left text-xs font-bold">
+                      <div className="flex items-center justify-between gap-2 sm:hidden">
+                        <span className="text-[10px] text-muted-foreground">التحصيل</span>
+                        <span className="text-xs font-bold">
+                          {Number(s.codAmount) > 0 ? formatCurrency(Number(s.codAmount)) : "—"}
+                        </span>
+                      </div>
+                      <div className="hidden sm:block text-left text-xs font-bold">
                         {Number(s.codAmount) > 0 ? formatCurrency(Number(s.codAmount)) : "—"}
                       </div>
-                      <div>
+                      <div className="hidden sm:block">
                         <Badge variant="outline" className={`text-[9px] font-bold border ${STATUS_COLORS[s.status] ?? "border-border text-muted-foreground"}`}>
                           {STATUS_LABELS[s.status] ?? s.status}
                         </Badge>
