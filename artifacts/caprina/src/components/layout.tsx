@@ -303,7 +303,7 @@ export default function Layout({ children }: LayoutProps) {
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     // صفحات عامة مش محتاجة nav permission — ما نعملش ليها redirect أبداً
-    const globalPages = ["/profile", "/my-dashboard", "/subscription-expired", "/dashboard", "/representative"];
+    const globalPages = ["/profile", "/my-dashboard", "/subscription-expired", "/dashboard", "/representative", "/super-admin"];
     if (globalPages.some(p => location === p || location.startsWith(p + "/"))) return;
     // أي sub-route تحت nav item متاح → لا redirect
     const allowed = visibleNav.map(i => i.href);
