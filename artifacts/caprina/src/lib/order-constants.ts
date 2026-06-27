@@ -10,6 +10,7 @@ export const RETURN_REASONS: { value: string; label: string }[] = [
   { value: "unclear_address",    label: "العنوان غير واضح" },
   { value: "out_of_coverage",    label: "العنوان خارج نطاق التغطية" },
   { value: "time_mismatch",      label: "وقت العميل غير مناسب مع وقت المندوب" },
+  { value: "quality",            label: "مشكلة في الجودة" },
 ];
 
 export const returnReasonLabel = (reason: string | null | undefined): string => {
