@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Redirect } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, CornerDownLeft, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, X } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, CornerDownLeft, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, X, TrendingUp, TrendingDown, Star, Zap, Bell, Wallet, Target, Calendar, Award, ChevronDown, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -11,8 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
-import { format } from "date-fns";
+import { useState, useMemo } from "react";
+import { format, differenceInDays, subDays } from "date-fns";
 import { ar } from "date-fns/locale";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -69,6 +69,292 @@ function DeliveryRing({ rate }: { rate: number }) {
         <span className="text-xl font-black" style={{ color }}>{rate}%</span>
         <span className="text-[9px] text-muted-foreground">تسليم</span>
       </div>
+    </div>
+  );
+}
+
+// ─── Performance Score Component ──────────────────────────────────────────────
+function PerformanceScore({ deliveryRate, returnRate, total }: { deliveryRate: number; returnRate: number; total: number }) {
+  // score = delivery rate weighted 60% + (100 - returnRate) weighted 30% + activity 10%
+  const activityScore = Math.min(100, total * 2); // كل شحنة = 2 نقطة لحد 100
+  const score = Math.round(deliveryRate * 0.6 + (100 - returnRate) * 0.3 + activityScore * 0.1);
+  const grade = score >= 85 ? { label: "ممتاز", color: "#34d399", glow: "52,211,153" }
+    : score >= 70 ? { label: "جيد جداً", color: "#60a5fa", glow: "96,165,250" }
+    : score >= 55 ? { label: "جيد", color: "#fbbf24", glow: "251,191,36" }
+    : { label: "يحتاج تحسين", color: "#f87171", glow: "248,113,113" };
+
+  const r = 42; const c = 2 * Math.PI * r;
+  const fill = (score / 100) * c;
+
+  return (
+    <div className="rounded-2xl p-4 border relative overflow-hidden"
+      style={{ background: `linear-gradient(135deg, rgba(${grade.glow},0.12) 0%, rgba(${grade.glow},0.04) 100%)`,
+               border: `1px solid rgba(${grade.glow},0.3)`, boxShadow: `0 0 30px rgba(${grade.glow},0.12)` }}>
+      <p className="text-xs font-bold mb-3 flex items-center gap-1.5">
+        <Award className="w-3.5 h-3.5" style={{ color: grade.color }} /> نقطة الأداء الشهرية
+      </p>
+      <div className="flex items-center gap-4">
+        {/* Ring */}
+        <div className="relative w-28 h-28 shrink-0">
+          <svg width="112" height="112" viewBox="0 0 112 112" className="-rotate-90">
+            <circle cx="56" cy="56" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
+            <circle cx="56" cy="56" r={r} fill="none" stroke={grade.color} strokeWidth="10"
+              strokeLinecap="round" strokeDasharray={`${fill} ${c}`}
+              style={{ filter: `drop-shadow(0 0 8px ${grade.color})`, transition: "stroke-dasharray 1s ease" }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-3xl font-black" style={{ color: grade.color }}>{score}</span>
+            <span className="text-[10px] text-muted-foreground font-bold">{grade.label}</span>
+          </div>
+        </div>
+        {/* breakdown */}
+        <div className="flex-1 space-y-2.5">
+          <div>
+            <div className="flex justify-between text-[11px] mb-1">
+              <span className="text-muted-foreground">نسبة التسليم</span>
+              <span className="font-bold text-emerald-400">{deliveryRate}%</span>
+            </div>
+            <div className="w-full bg-muted/20 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${deliveryRate}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between text-[11px] mb-1">
+              <span className="text-muted-foreground">معدل الإرجاع</span>
+              <span className={`font-bold ${returnRate > 30 ? "text-red-400" : "text-emerald-400"}`}>{returnRate}%</span>
+            </div>
+            <div className="w-full bg-muted/20 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-red-500" style={{ width: `${returnRate}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between text-[11px] mb-1">
+              <span className="text-muted-foreground">نشاط الشحنات</span>
+              <span className="font-bold text-blue-400">{total} شحنة</span>
+            </div>
+            <div className="w-full bg-muted/20 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${Math.min(100, activityScore)}%` }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Trend Badge ──────────────────────────────────────────────────────────────
+function TrendBadge({ current, prev, label }: { current: number; prev: number; label: string }) {
+  const diff = current - prev;
+  const pct = prev > 0 ? Math.round(Math.abs(diff / prev) * 100) : 0;
+  if (diff === 0) return <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Minus className="w-3 h-3" />{label} ثابت</span>;
+  const up = diff > 0;
+  return (
+    <span className={`text-[10px] flex items-center gap-0.5 font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
+      {up ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+      {pct}% {label}
+    </span>
+  );
+}
+
+// ─── COD Settlement Card ──────────────────────────────────────────────────────
+function CodSettlementCard({ shipments }: { shipments: any[] }) {
+  const delivered = shipments.filter(s => s.status === "delivered");
+  const returned = shipments.filter(s => s.status === "returned");
+  const partial = shipments.filter(s => s.status === "partial_received");
+  const inProgress = shipments.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.status));
+
+  const codDelivered = delivered.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
+  const codReturned  = returned.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
+  const codPending   = inProgress.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
+  const total = codDelivered + codReturned;
+
+  return (
+    <div className="rounded-2xl border bg-card/60 overflow-hidden">
+      <div className="px-4 pt-3 pb-2 border-b border-border/50">
+        <p className="text-xs font-bold flex items-center gap-1.5">
+          <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> التسوية المالية (COD)
+        </p>
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-x-reverse divide-border/50">
+        <div className="p-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">محصَّل</p>
+          <p className="text-sm font-black text-emerald-400">{formatCurrency(codDelivered)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">{delivered.length} طلب</p>
+        </div>
+        <div className="p-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">مرتجع</p>
+          <p className="text-sm font-black text-red-400">{formatCurrency(codReturned)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">{returned.length} طلب</p>
+        </div>
+        <div className="p-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">معلق</p>
+          <p className="text-sm font-black text-amber-400">{formatCurrency(codPending)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">{inProgress.length} طلب</p>
+        </div>
+      </div>
+      {total > 0 && (
+        <div className="px-4 pb-3 pt-2">
+          <div className="flex justify-between text-[11px] mb-1.5">
+            <span className="text-muted-foreground">توزيع الـ COD</span>
+            <span className="font-bold">{formatCurrency(total)}</span>
+          </div>
+          <div className="flex h-2 rounded-full overflow-hidden gap-px">
+            <div className="bg-emerald-500 rounded-r-full" style={{ width: `${total > 0 ? (codDelivered/total)*100 : 0}%` }} />
+            <div className="bg-red-500" style={{ width: `${total > 0 ? (codReturned/total)*100 : 0}%` }} />
+          </div>
+          <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
+            <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> محصَّل</span>
+            <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> مرتجع</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Today Stats Strip ────────────────────────────────────────────────────────
+function TodayStrip({ shipments }: { shipments: any[] }) {
+  const today = new Date().toDateString();
+  const todayShips = shipments.filter(s => s.createdAt && new Date(s.createdAt).toDateString() === today);
+  if (todayShips.length === 0) return null;
+  const delivered = todayShips.filter(s => s.status === "delivered").length;
+  const returned  = todayShips.filter(s => s.status === "returned").length;
+  const pending   = todayShips.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.status)).length;
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5">
+        <Activity className="w-3.5 h-3.5 text-primary" />
+        <span className="text-xs font-bold">اليوم</span>
+        <Badge className="text-[10px] h-4 px-1.5 bg-primary/20 text-primary border-0">{todayShips.length}</Badge>
+      </div>
+      <div className="flex items-center gap-3 text-[11px]">
+        <span className="text-emerald-400 font-bold">✓ {delivered}</span>
+        <span className="text-red-400 font-bold">↩ {returned}</span>
+        <span className="text-amber-400 font-bold">⏳ {pending}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Top Zones Chart ──────────────────────────────────────────────────────────
+function TopZonesCard({ zones, total }: { zones: { name: string; count: number }[]; total: number }) {
+  if (!zones.length) return null;
+  const max = zones[0].count;
+  const colors = ["bg-blue-500","bg-indigo-500","bg-violet-500","bg-purple-500","bg-fuchsia-500"];
+  return (
+    <div className="rounded-2xl border bg-card/60 p-4">
+      <p className="text-xs font-bold mb-3 flex items-center gap-1.5">
+        <MapPin className="w-3.5 h-3.5 text-primary" /> أعلى المناطق تسليماً
+      </p>
+      <div className="space-y-2.5">
+        {zones.slice(0, 5).map((z, i) => (
+          <div key={z.name}>
+            <div className="flex justify-between text-[11px] mb-1">
+              <span className="text-foreground font-medium flex items-center gap-1">
+                <span className="text-[9px] font-black text-muted-foreground w-4">{i + 1}</span>
+                {z.name}
+              </span>
+              <span className="font-bold text-muted-foreground">{z.count} <span className="text-[9px]">({total > 0 ? Math.round(z.count/total*100) : 0}%)</span></span>
+            </div>
+            <div className="w-full bg-muted/20 rounded-full h-1.5">
+              <div className={`h-1.5 rounded-full ${colors[i]}`} style={{ width: `${(z.count/max)*100}%`, transition: "width 0.8s ease" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Performance Tab ──────────────────────────────────────────────────────────
+function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
+  // حساب بيانات الأسبوع الحالي والأسبوع اللي فاته
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7);
+  const prevWeekStart = new Date(now); prevWeekStart.setDate(now.getDate() - 14);
+
+  const thisWeek = allShipments.filter(s => s.createdAt && new Date(s.createdAt) >= weekStart);
+  const prevWeek = allShipments.filter(s => {
+    const d = new Date(s.createdAt ?? 0);
+    return d >= prevWeekStart && d < weekStart;
+  });
+
+  const wDelivered = thisWeek.filter(s => s.status === "delivered").length;
+  const wReturned  = thisWeek.filter(s => s.status === "returned").length;
+  const pwDelivered = prevWeek.filter(s => s.status === "delivered").length;
+  const pwReturned  = prevWeek.filter(s => s.status === "returned").length;
+
+  // شحنات مؤجلة (تحتاج اهتمام)
+  const needsAttention = allShipments.filter(s =>
+    ["delayed","waiting","out_for_delivery","in_transit"].includes(s.status)
+  );
+
+  return (
+    <div className="space-y-3">
+      {/* Performance Score */}
+      <PerformanceScore
+        deliveryRate={d?.deliveryRate ?? 0}
+        returnRate={d?.returnRate ?? 0}
+        total={d?.total ?? 0}
+      />
+
+      {/* Weekly Trend */}
+      <div className="rounded-2xl border bg-card/60 p-4">
+        <p className="text-xs font-bold mb-3 flex items-center gap-1.5">
+          <BarChart3 className="w-3.5 h-3.5 text-blue-400" /> مقارنة الأسبوع
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-background/40 p-3">
+            <p className="text-[10px] text-muted-foreground mb-1">تسليم هذا الأسبوع</p>
+            <p className="text-xl font-black text-emerald-400">{wDelivered}</p>
+            <TrendBadge current={wDelivered} prev={pwDelivered} label="تسليم" />
+          </div>
+          <div className="rounded-xl bg-background/40 p-3">
+            <p className="text-[10px] text-muted-foreground mb-1">مرتجع هذا الأسبوع</p>
+            <p className="text-xl font-black text-red-400">{wReturned}</p>
+            <TrendBadge current={wReturned} prev={pwReturned} label="إرجاع" />
+          </div>
+          <div className="rounded-xl bg-background/40 p-3">
+            <p className="text-[10px] text-muted-foreground mb-1">الأسبوع الفائت</p>
+            <p className="text-xl font-black">{prevWeek.length}</p>
+            <span className="text-[10px] text-muted-foreground">شحنة</span>
+          </div>
+          <div className="rounded-xl bg-background/40 p-3">
+            <p className="text-[10px] text-muted-foreground mb-1">هذا الأسبوع</p>
+            <p className="text-xl font-black text-primary">{thisWeek.length}</p>
+            <TrendBadge current={thisWeek.length} prev={prevWeek.length} label="إجمالي" />
+          </div>
+        </div>
+      </div>
+
+      {/* COD Settlement */}
+      <CodSettlementCard shipments={allShipments} />
+
+      {/* Top Zones */}
+      <TopZonesCard zones={d?.zones ?? []} total={d?.total ?? 0} />
+
+      {/* Needs Attention */}
+      {needsAttention.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <p className="text-xs font-bold text-amber-400 mb-2 flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" /> تحتاج متابعة ({needsAttention.length})
+          </p>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {needsAttention.slice(0, 10).map(sh => (
+              <div key={sh.id} className="flex items-center justify-between bg-background/30 rounded-lg px-2 py-1.5">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold truncate">{sh.receiverName}</p>
+                  <p className="text-[9px] text-muted-foreground font-mono">{sh.shipmentNumber}</p>
+                </div>
+                <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
+                  {STATUS_LABELS[sh.status] ?? sh.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -505,7 +791,7 @@ function ManifestsTab({ companyId }: { companyId: number | null }) {
 
 export default function RepresentativeDashboard() {
   const { user, isRepresentative } = useAuth();
-  const [activeTab, setActiveTab] = useState<"shipments" | "manifests">("shipments");
+  const [activeTab, setActiveTab] = useState<"shipments" | "manifests" | "performance">("performance");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -526,12 +812,23 @@ export default function RepresentativeDashboard() {
 
   const shipParams = new URLSearchParams(qParams);
   shipParams.set("page", String(page));
-  shipParams.set("limit", "20");
+  shipParams.set("limit", "100");
   if (statusFilter) shipParams.set("status", statusFilter);
+
+  // نجيب كل الشحنات بدون فلتر حالة عشان نستخدمها في تاب الأداء
+  const allShipsParams = new URLSearchParams();
+  allShipsParams.set("page", "1");
+  allShipsParams.set("limit", "500");
 
   const { data: ships } = useQuery({
     queryKey: ["rep-shipments", dateFrom, dateTo, statusFilter, page],
     queryFn: () => apiFetch(`/representative/shipments?${shipParams}`),
+    enabled: !!user,
+  });
+
+  const { data: allShipsData } = useQuery({
+    queryKey: ["rep-all-shipments"],
+    queryFn: () => apiFetch(`/representative/shipments?${allShipsParams}`),
     enabled: !!user,
   });
 
@@ -543,170 +840,160 @@ export default function RepresentativeDashboard() {
 
   const d = dash as any;
   const s = ships as any;
+  const allShipments: any[] = (allShipsData as any)?.data ?? [];
   const company = (meData as any)?.company;
 
+  // Quick filter buttons للحالات الرئيسية
+  const QUICK_FILTERS = [
+    { value: "", label: "الكل", color: "border-border text-muted-foreground" },
+    { value: "delivered", label: "مسلَّم", color: "border-emerald-500/50 text-emerald-400 bg-emerald-500/10" },
+    { value: "returned", label: "مرتجع", color: "border-red-500/50 text-red-400 bg-red-500/10" },
+    { value: "delayed", label: "مؤجل", color: "border-amber-500/50 text-amber-400 bg-amber-500/10" },
+    { value: "out_for_delivery", label: "خرج للتسليم", color: "border-blue-500/50 text-blue-400 bg-blue-500/10" },
+  ];
+
   return (
-    <div className="space-y-5 p-4 animate-in fade-in duration-500" dir="rtl">
-      {/* Header */}
+    <div className="space-y-4 p-4 animate-in fade-in duration-500" dir="rtl">
+      {/* ─── Header ─── */}
       <div className="flex items-center gap-3">
         {company?.logo
           ? <img src={company.logo} className="w-12 h-12 rounded-full object-cover border-2 border-border" alt={company?.name} />
           : <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
               <Truck className="w-6 h-6 text-primary/60" />
             </div>}
-        <div>
-          <h1 className="text-xl font-black">{company?.name ?? user?.displayName}</h1>
-          <p className="text-xs text-muted-foreground">بوابة المندوب</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-black truncate">{company?.name ?? user?.displayName}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs text-muted-foreground">بوابة المندوب</p>
+            {d && (
+              <Badge variant="outline"
+                className={d.deliveryRate >= 70 ? "text-[10px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : d.deliveryRate >= 40 ? "text-[10px] border-amber-500/40 text-amber-400 bg-amber-500/10" : "text-[10px] border-red-500/40 text-red-400 bg-red-500/10"}>
+                <ShieldCheck className="w-2.5 h-2.5 ml-1" />
+                {d.deliveryRate}% تسليم
+              </Badge>
+            )}
+          </div>
         </div>
         {d?.highReturnRisk && (
-          <Badge variant="destructive" className="mr-auto gap-1 text-xs">
-            <AlertCircle className="w-3 h-3" /> معدل إرجاع مرتفع
+          <Badge variant="destructive" className="shrink-0 gap-1 text-[10px]">
+            <AlertCircle className="w-3 h-3" /> إرجاع مرتفع
           </Badge>
         )}
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "shipments" | "manifests")}>
-        <TabsList className="w-full grid grid-cols-2">
-          <TabsTrigger value="shipments" className="gap-1.5">
+      {/* ─── Today Strip ─── */}
+      <TodayStrip shipments={allShipments} />
+
+      {/* ─── Tabs ─── */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+        <TabsList className="w-full grid grid-cols-3">
+          <TabsTrigger value="performance" className="gap-1 text-[11px]">
+            <Award className="w-3.5 h-3.5" /> أدائي
+          </TabsTrigger>
+          <TabsTrigger value="shipments" className="gap-1 text-[11px]">
             <Package className="w-3.5 h-3.5" /> الشحنات
           </TabsTrigger>
-          <TabsTrigger value="manifests" className="gap-1.5">
+          <TabsTrigger value="manifests" className="gap-1 text-[11px]">
             <FileText className="w-3.5 h-3.5" /> البيانات
           </TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {activeTab === "manifests" && <ManifestsTab companyId={company?.id ?? null} />}
-
-      {activeTab === "shipments" && (
-        <>
-      {/* Date filter */}
-      <div className="flex flex-wrap gap-2">
-        <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-          className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" />
-        <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
-          className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" />
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-            className="h-8 px-3 rounded-md border border-border bg-muted/30 text-xs text-muted-foreground hover:bg-muted/60">
-            مسح
-          </button>
-        )}
-      </div>
-
-      {/* KPI Cards */}
-      {d && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <KpiCard label="إجمالي الشحنات"  value={d.total}      color="96,165,250"  icon={Package} />
-            <KpiCard label="تم التسليم"        value={d.delivered}  color="52,211,153"  icon={CheckCircle2} />
-            <KpiCard label="قيد التسليم"       value={d.inProgress} color="251,191,36"  icon={Clock} />
-            <KpiCard label="مرتجع"             value={d.returned}   color="248,113,113" icon={RotateCcw} />
-          </div>
-
-          {/* Delivery rate ring + stats */}
-          <Card className="p-4 bg-card/60 border-border">
-            <div className="flex items-center gap-6">
-              <DeliveryRing rate={d.deliveryRate} />
-              <div className="flex-1 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">معدل الإرجاع</span>
-                  <span className={d.returnRate > 30 ? "text-red-400 font-bold" : "text-foreground font-bold"}>{d.returnRate}%</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">مبالغ محصّلة</span>
-                  <span className="text-emerald-400 font-bold">{formatCurrency(d.totalCollected)}</span>
-                </div>
-                {d.topZone && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />أكتر منطقة</span>
-                    <span className="font-bold truncate max-w-[120px]">{d.topZone.name} ({d.topZone.count})</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          {/* Zones bar chart */}
-          {d.zones?.length > 0 && (
-            <Card className="p-4 bg-card/60 border-border">
-              <p className="text-xs font-bold mb-3 flex items-center gap-1"><MapPin className="w-3 h-3 text-primary" />المناطق</p>
-              <div className="space-y-2">
-                {(d.zones as any[]).slice(0, 8).map((z: any) => (
-                  <div key={z.name}>
-                    <div className="flex justify-between text-[11px] mb-0.5">
-                      <span className="text-muted-foreground truncate">{z.name}</span>
-                      <span className="font-bold">{z.count}</span>
-                    </div>
-                    <div className="w-full bg-muted/30 rounded-full h-1.5 overflow-hidden">
-                      <div className="h-1.5 rounded-full bg-primary"
-                        style={{ width: `${Math.round((z.count / d.total) * 100)}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-        </>
+      {/* ─── Performance Tab ─── */}
+      {activeTab === "performance" && (
+        <PerformanceTab d={d} allShipments={allShipments} />
       )}
 
-      {/* Shipments list */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-bold">الشحنات</p>
-          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-            className="h-7 text-xs rounded-md border border-border bg-background px-2 text-foreground">
-            <option value="">كل الحالات</option>
-            {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </div>
+      {/* ─── Manifests Tab ─── */}
+      {activeTab === "manifests" && <ManifestsTab companyId={company?.id ?? null} />}
 
-        <div className="space-y-2">
-          {s?.data?.map((sh: any) => (
-            <Card key={sh.id} className="p-3 bg-card/60 border-border">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold truncate">{sh.receiverName}</p>
-                  <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
-                    <span className="font-mono text-primary/70">{sh.shipmentNumber}</span>
-                    {sh.receiverPhone && <span>· {sh.receiverPhone}</span>}
-                    {sh.receiverCity && <span>· {sh.receiverCity}</span>}
-                  </p>
+      {/* ─── Shipments Tab ─── */}
+      {activeTab === "shipments" && (
+        <div className="space-y-4">
+          {/* KPI Cards */}
+          {d && (
+            <div className="grid grid-cols-2 gap-3">
+              <KpiCard label="إجمالي الشحنات"  value={d.total}      color="96,165,250"  icon={Package} />
+              <KpiCard label="تم التسليم"        value={d.delivered}  color="52,211,153"  icon={CheckCircle2} />
+              <KpiCard label="قيد التسليم"       value={d.inProgress} color="251,191,36"  icon={Clock} />
+              <KpiCard label="مرتجع"             value={d.returned}   color="248,113,113" icon={RotateCcw} />
+            </div>
+          )}
+
+          {/* Date filter */}
+          <div className="flex flex-wrap gap-2">
+            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground flex-1 min-w-0" />
+            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground flex-1 min-w-0" />
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                className="h-8 px-3 rounded-md border border-border bg-muted/30 text-xs text-muted-foreground hover:bg-muted/60">
+                مسح
+              </button>
+            )}
+          </div>
+
+          {/* Quick status filter buttons */}
+          <div className="flex gap-1.5 flex-wrap">
+            {QUICK_FILTERS.map(f => (
+              <button key={f.value} onClick={() => { setStatusFilter(f.value); setPage(1); }}
+                className={`h-7 px-3 text-[11px] rounded-full border font-bold transition-all ${statusFilter === f.value ? f.color : "border-border/50 text-muted-foreground hover:bg-muted/30"}`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Shipments list */}
+          <div className="space-y-2">
+            {s?.data?.map((sh: any) => (
+              <Card key={sh.id} className="p-3 bg-card/60 border-border">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate">{sh.receiverName}</p>
+                    <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
+                      <span className="font-mono text-primary/70">{sh.shipmentNumber}</span>
+                      {sh.receiverPhone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{sh.receiverPhone}</span>}
+                      {sh.receiverCity && <span>· {sh.receiverCity}</span>}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
+                    {STATUS_LABELS[sh.status] ?? sh.status}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
-                  {STATUS_LABELS[sh.status] ?? sh.status}
-                </Badge>
-              </div>
-              <div className="flex justify-between text-[11px] mt-2">
-                <span className="text-muted-foreground">{sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : ""}</span>
-                <span className="font-bold text-emerald-400">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
-              </div>
-            </Card>
-          ))}
-          {s?.data?.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
+                <div className="flex justify-between text-[11px] mt-2">
+                  <span className="text-muted-foreground">{sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : ""}</span>
+                  <span className="font-bold text-emerald-400">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
+                </div>
+                {sh.returnReason && sh.status === "returned" && (
+                  <p className="text-[10px] text-red-400/80 mt-1 border-t border-border/30 pt-1">
+                    ↩ {sh.returnReason}
+                  </p>
+                )}
+              </Card>
+            ))}
+            {s?.data?.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {s && s.total > 100 && (
+            <div className="flex justify-center gap-2 mt-3">
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                className="h-7 px-3 text-xs rounded-md border border-border bg-muted/20 disabled:opacity-40">
+                السابق
+              </button>
+              <span className="text-xs text-muted-foreground self-center">
+                {page} / {Math.ceil(s.total / 100)}
+              </span>
+              <button disabled={page >= Math.ceil(s.total / 100)} onClick={() => setPage(p => p + 1)}
+                className="h-7 px-3 text-xs rounded-md border border-border bg-muted/20 disabled:opacity-40">
+                التالي
+              </button>
+            </div>
           )}
         </div>
-
-        {/* Pagination */}
-        {s && s.total > 20 && (
-          <div className="flex justify-center gap-2 mt-3">
-            <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-              className="h-7 px-3 text-xs rounded-md border border-border bg-muted/20 disabled:opacity-40">
-              السابق
-            </button>
-            <span className="text-xs text-muted-foreground self-center">
-              {page} / {Math.ceil(s.total / 20)}
-            </span>
-            <button disabled={page >= Math.ceil(s.total / 20)} onClick={() => setPage(p => p + 1)}
-              className="h-7 px-3 text-xs rounded-md border border-border bg-muted/20 disabled:opacity-40">
-              التالي
-            </button>
-          </div>
-        )}
-      </div>
-      </>
       )}
     </div>
   );
