@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -835,6 +835,107 @@ export function CreateManifestDialog({
   );
 }
 
+// ─── RepresentativeDialog — إنشاء/تحديث حساب دخول المندوب ──────────────────
+function RepresentativeDialog({ companyId, companyName, onClose }: { companyId: number; companyName: string; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [showPass, setShowPass] = useState(false);
+
+  const { data: existing, isLoading } = useQuery({
+    queryKey: ["rep-account", companyId],
+    queryFn: () => apiFetch(`/shipping-companies/${companyId}/representative`).catch(() => null),
+  });
+  const rep = existing as any;
+  const isEdit = !!rep;
+
+  const mutation = useMutation({
+    mutationFn: () => apiFetch(`/shipping-companies/${companyId}/representative`, {
+      method: "POST",
+      body: JSON.stringify({ username: username || rep?.username, password: password || undefined, displayName: displayName || undefined }),
+    }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["rep-account", companyId] });
+      toast({ title: data.created ? "✅ تم إنشاء حساب المندوب" : "✅ تم تحديث حساب المندوب" });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="bg-card border-border max-w-sm" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <UserPlus className="w-4 h-4 text-primary" />
+            {isEdit ? "تحديث حساب المندوب" : "إنشاء حساب دخول للمندوب"}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">{companyName}</p>
+        </DialogHeader>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground text-center py-4">جاري التحقق...</p>
+        ) : (
+          <div className="space-y-3 mt-2">
+            {isEdit && (
+              <div className="rounded-lg bg-emerald-900/20 border border-emerald-500/30 p-3 text-xs text-emerald-400">
+                حساب موجود: <strong>{rep.username}</strong> — آخر تسجيل دخول: {rep.updatedAt ? new Date(rep.updatedAt).toLocaleDateString("ar-EG") : "—"}
+              </div>
+            )}
+            <div>
+              <Label className="text-xs mb-1 block">اسم المستخدم {isEdit && "(اتركه فارغاً للإبقاء)"}</Label>
+              <Input
+                placeholder={rep?.username ?? "مثال: courier_ahmed"}
+                value={username}
+                onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                className="h-8 text-sm bg-background"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">{isEdit ? "كلمة مرور جديدة (اتركها فارغة للإبقاء)" : "كلمة المرور *"}</Label>
+              <div className="relative">
+                <Input
+                  type={showPass ? "text" : "password"}
+                  placeholder="6 أحرف على الأقل"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="h-8 text-sm bg-background pl-8"
+                  dir="ltr"
+                />
+                <button type="button" onClick={() => setShowPass(v => !v)}
+                  className="absolute left-2 top-1.5 text-muted-foreground hover:text-foreground">
+                  <KeyRound className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">الاسم المعروض (اختياري)</Label>
+              <Input
+                placeholder={rep?.displayName ?? companyName}
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                className="h-8 text-sm bg-background"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                className="flex-1 h-8 text-xs font-bold bg-primary text-primary-foreground"
+                onClick={() => mutation.mutate()}
+                disabled={mutation.isPending || (!isEdit && (!username || !password))}
+              >
+                {mutation.isPending ? "جاري الحفظ..." : isEdit ? "تحديث" : "إنشاء الحساب"}
+              </Button>
+              <Button variant="outline" className="h-8 text-xs border-border" onClick={onClose}>إلغاء</Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ShippingCompanies() {
   const { toast } = useToast();
   const { can, isAdmin, canViewFinancials } = useAuth();
@@ -846,6 +947,7 @@ export default function ShippingCompanies() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<ShippingCompany | null>(null);
   const [deleteCompany, setDeleteCompany] = useState<ShippingCompany | null>(null);
+  const [repDialogCompany, setRepDialogCompany] = useState<ShippingCompany | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const { data: companies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
@@ -1013,6 +1115,9 @@ export default function ShippingCompanies() {
                 <div className="flex items-center gap-1">
                   {canEdit && (
                     <>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-primary" title="حساب دخول المندوب" onClick={() => setRepDialogCompany(company)}>
+                        <KeyRound className="w-3.5 h-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-primary" onClick={() => toggleActive(company)}>
                         {company.isActive ? <ToggleRight className="w-4 h-4" style={{ color: `rgba(${p.rgb},1)` }} /> : <ToggleLeft className="w-4 h-4" />}
                       </Button>
@@ -1201,6 +1306,15 @@ export default function ShippingCompanies() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Representative Account Dialog */}
+      {repDialogCompany && (
+        <RepresentativeDialog
+          companyId={repDialogCompany.id}
+          companyName={repDialogCompany.name}
+          onClose={() => setRepDialogCompany(null)}
+        />
+      )}
     </div>
   );
 }
