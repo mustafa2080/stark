@@ -484,79 +484,142 @@ export default function TrackResultPage() {
           {/* ── Status Illustration Banner ── */}
           <StatusIllustration status={shipment.status} color={cfg.color} />
 
-          {/* Status card */}
-          <div className="rounded-2xl p-4 sm:p-6 text-center relative overflow-hidden"
+          {/* ── Status Card (upgraded) ── */}
+          <div className="rounded-3xl relative overflow-hidden"
             style={{
-              background: `linear-gradient(135deg, ${cfg.color}1a 0%, rgba(255,255,255,0.04) 35%, rgba(0,0,0,0.3) 100%)`,
-              border: `1px solid ${cfg.color}55`,
-              boxShadow: `0 0 40px ${cfg.color}26, 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)`,
+              background: `linear-gradient(145deg, ${cfg.color}1c 0%, rgba(10,10,15,0.92) 45%, ${cfg.color}0d 100%)`,
+              border: `1px solid ${cfg.color}44`,
+              boxShadow: `0 0 0 1px ${cfg.color}18, 0 0 60px ${cfg.color}30, 0 0 120px ${cfg.color}14, 0 24px 64px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(0,0,0,0.4)`,
             }}>
-            {/* shine overlay */}
+            {/* ambient glow top */}
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-64 h-24 pointer-events-none"
+              style={{ background: `radial-gradient(ellipse, ${cfg.color}44 0%, transparent 70%)`, filter: "blur(20px)" }} />
+            {/* shine diagonal */}
             <div className="absolute inset-0 pointer-events-none"
-              style={{ background: "linear-gradient(120deg, rgba(255,255,255,0.06) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.04) 100%)" }} />
-            <div className="relative">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mx-auto mb-3"
-                style={{
-                  background: `linear-gradient(135deg, ${cfg.color}33 0%, rgba(255,255,255,0.08) 50%, ${cfg.color}11 100%)`,
-                  border: `1px solid ${cfg.color}66`,
-                  boxShadow: `0 0 24px ${cfg.color}40, inset 0 1px 0 rgba(255,255,255,0.15)`,
-                }}>
-                <StatusIcon size={32} style={{ color: cfg.color, filter: `drop-shadow(0 0 8px ${cfg.color}99)` }} />
+              style={{ background: "linear-gradient(125deg, rgba(255,255,255,0.08) 0%, transparent 30%, transparent 70%, rgba(255,255,255,0.04) 100%)" }} />
+            {/* bottom glow line */}
+            <div className="absolute bottom-0 left-1/4 right-1/4 h-px pointer-events-none"
+              style={{ background: `linear-gradient(90deg, transparent, ${cfg.color}88, transparent)` }} />
+
+            <div className="relative p-5 sm:p-7 flex items-center gap-5">
+              {/* أيقونة الحالة */}
+              <div className="relative flex-shrink-0">
+                {/* هالة خارجية */}
+                <div className="absolute inset-0 rounded-2xl"
+                  style={{ boxShadow: `0 0 32px ${cfg.color}66, 0 0 64px ${cfg.color}33`, borderRadius: "18px" }} />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center relative"
+                  style={{
+                    background: `linear-gradient(145deg, ${cfg.color}40 0%, ${cfg.color}18 50%, rgba(0,0,0,0.4) 100%)`,
+                    border: `1.5px solid ${cfg.color}77`,
+                    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.3)`,
+                  }}>
+                  <StatusIcon size={30} style={{ color: cfg.color, filter: `drop-shadow(0 0 10px ${cfg.color}) drop-shadow(0 0 20px ${cfg.color}88)` }} />
+                </div>
               </div>
-              <p className="text-xl sm:text-2xl font-black mb-1 break-words"
-                style={{
-                  background: `linear-gradient(135deg, #fff 0%, ${cfg.color} 50%, #fff 100%)`,
-                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-                  filter: `drop-shadow(0 0 12px ${cfg.color}55)`,
-                }}>{cfg.label}</p>
-              <p className="text-xs text-white/40 break-all tracking-wider">
-                {shipment.trackingNumber || shipment.shipmentNumber}
-              </p>
+
+              {/* النص */}
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-xs font-semibold mb-1 tracking-widest uppercase" style={{ color: `${cfg.color}99` }}>حالة الشحنة</p>
+                <p className="text-2xl sm:text-3xl font-black leading-tight break-words"
+                  style={{
+                    background: `linear-gradient(135deg, #ffffff 0%, ${cfg.color} 60%, #ffffff99 100%)`,
+                    WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+                    filter: `drop-shadow(0 2px 8px ${cfg.color}55)`,
+                  }}>{cfg.label}</p>
+                <div className="flex items-center gap-2 mt-2 justify-end">
+                  {/* نبضة حية */}
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: cfg.color }} />
+                    <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: cfg.color }} />
+                  </span>
+                  <p className="text-xs font-mono tracking-widest" style={{ color: `${cfg.color}88` }}>
+                    {shipment.trackingNumber || shipment.shipmentNumber}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Progress steps */}
-          {shipment.status !== "returned" && (
-            <div className="rounded-2xl p-3 sm:p-5 relative overflow-hidden"
+          {/* ── Progress Steps (upgraded) ── */}
+          {!["returned","returned_to_warehouse","return_delivered","cancelled"].includes(shipment.status) && (
+            <div className="rounded-3xl p-4 sm:p-6 relative overflow-hidden"
               style={{
-                background: "linear-gradient(135deg, rgba(200,210,220,0.08) 0%, rgba(255,255,255,0.03) 40%, rgba(160,180,200,0.06) 70%, rgba(0,0,0,0.3) 100%)",
-                border: "1px solid rgba(200,220,240,0.15)",
-                boxShadow: `0 0 30px ${cfg.color}18, 0 8px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -1px 0 rgba(0,0,0,0.3)`,
+                background: "linear-gradient(145deg, rgba(15,18,25,0.95) 0%, rgba(8,10,16,0.98) 100%)",
+                border: `1px solid ${cfg.color}28`,
+                boxShadow: `0 0 40px ${cfg.color}14, 0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(0,0,0,0.3)`,
               }}>
-              {/* metallic sheen */}
-              <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(110deg, rgba(255,255,255,0.07) 0%, transparent 35%, transparent 65%, rgba(255,255,255,0.04) 100%)" }} />
-              <div className="flex items-center justify-between">
-                {TIMELINE_STEPS.map((step, i) => {
-                  const done    = i <= cfg.step;
-                  const current = i === cfg.step;
-                  const Icon    = step.icon;
+              {/* خط glow علوي */}
+              <div className="absolute top-0 left-1/3 right-1/3 h-px pointer-events-none"
+                style={{ background: `linear-gradient(90deg, transparent, ${cfg.color}66, transparent)` }} />
+
+              <div className="flex items-start justify-between gap-1">
+                {TIMELINE_STEPS.map((s, i) => {
+                  const stepIndex = TIMELINE_STEPS.findIndex(ts => ts.step === cfg.step);
+                  const done    = i <= stepIndex;
+                  const current = i === stepIndex;
+                  const Icon    = s.icon;
                   return (
-                    <div key={i} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                    <div key={i} className="flex flex-col items-center gap-2 flex-1 min-w-0">
+                      {/* خط + دائرة */}
                       <div className="relative flex items-center w-full">
+                        {/* خط يسار */}
                         {i > 0 && (
-                          <div className="flex-1 h-px mr-1"
-                            style={{ background: i <= cfg.step ? `linear-gradient(90deg, rgba(255,255,255,0.5), ${cfg.color}99)` : "rgba(255,255,255,0.1)" }} />
+                          <div className="flex-1 h-0.5 mr-0.5 rounded-full overflow-hidden">
+                            <div className="h-full w-full" style={{
+                              background: i <= stepIndex
+                                ? `linear-gradient(90deg, ${cfg.color}88, ${cfg.color}cc)`
+                                : "rgba(255,255,255,0.07)"
+                            }}/>
+                          </div>
                         )}
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{
-                            background: done
-                              ? (current
-                                  ? `linear-gradient(135deg, ${cfg.color} 0%, #fff 50%, ${cfg.color} 100%)`
-                                  : "linear-gradient(135deg, rgba(255,255,255,0.35), rgba(255,255,255,0.1))")
-                              : "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
-                            border: `1.5px solid ${done ? (current ? cfg.color : "rgba(255,255,255,0.3)") : "rgba(255,255,255,0.08)"}`,
-                            boxShadow: current ? `0 0 16px ${cfg.color}99, inset 0 1px 0 rgba(255,255,255,0.4)` : (done ? "inset 0 1px 0 rgba(255,255,255,0.2)" : "none"),
-                          }}>
-                          <Icon size={13} className="sm:hidden" style={{ color: done ? (current ? "#000" : "rgba(255,255,255,0.85)") : "rgba(255,255,255,0.2)" }} />
-                          <Icon size={14} className="hidden sm:block" style={{ color: done ? (current ? "#000" : "rgba(255,255,255,0.85)") : "rgba(255,255,255,0.2)" }} />
+                        {/* الدائرة */}
+                        <div className="relative flex-shrink-0">
+                          {current && (
+                            <div className="absolute inset-0 rounded-full animate-ping"
+                              style={{ background: `${cfg.color}55`, transform: "scale(1.6)" }} />
+                          )}
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center relative z-10"
+                            style={{
+                              background: current
+                                ? `linear-gradient(145deg, ${cfg.color} 0%, ${cfg.color}bb 100%)`
+                                : done
+                                  ? `linear-gradient(145deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%)`
+                                  : "rgba(255,255,255,0.04)",
+                              border: current
+                                ? `1.5px solid ${cfg.color}`
+                                : done
+                                  ? "1.5px solid rgba(255,255,255,0.25)"
+                                  : "1.5px solid rgba(255,255,255,0.07)",
+                              boxShadow: current
+                                ? `0 0 20px ${cfg.color}99, 0 0 40px ${cfg.color}44, inset 0 1px 0 rgba(255,255,255,0.35)`
+                                : done
+                                  ? "inset 0 1px 0 rgba(255,255,255,0.2)"
+                                  : "none",
+                            }}>
+                            <Icon size={14}
+                              style={{ color: current ? "#000" : done ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.18)" }}
+                            />
+                          </div>
                         </div>
+                        {/* خط يمين */}
                         {i < TIMELINE_STEPS.length - 1 && (
-                          <div className="flex-1 h-px ml-1"
-                            style={{ background: i < cfg.step ? `linear-gradient(90deg, ${cfg.color}99, rgba(255,255,255,0.5))` : "rgba(255,255,255,0.1)" }} />
+                          <div className="flex-1 h-0.5 ml-0.5 rounded-full overflow-hidden">
+                            <div className="h-full w-full" style={{
+                              background: i < stepIndex
+                                ? `linear-gradient(90deg, ${cfg.color}cc, ${cfg.color}88)`
+                                : "rgba(255,255,255,0.07)"
+                            }}/>
+                          </div>
                         )}
                       </div>
-                      <span className="text-center break-words px-0.5" style={{ fontSize: 8, color: done ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.2)", lineHeight: 1.2 }}>
-                        {step.label}
+                      {/* التسمية */}
+                      <span className="text-center px-0.5 leading-tight" style={{
+                        fontSize: 9,
+                        fontWeight: current ? 700 : 500,
+                        color: current ? cfg.color : done ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.2)",
+                        textShadow: current ? `0 0 8px ${cfg.color}88` : "none",
+                      }}>
+                        {s.label}
                       </span>
                     </div>
                   );
@@ -565,88 +628,122 @@ export default function TrackResultPage() {
             </div>
           )}
 
-          {/* Details */}
-          <div className="rounded-2xl p-4 sm:p-5 flex flex-col gap-4 relative overflow-hidden"
+          {/* ── Details Card (upgraded) ── */}
+          <div className="rounded-3xl p-5 sm:p-6 flex flex-col gap-5 relative overflow-hidden"
             style={{
-              background: "linear-gradient(160deg, rgba(180,195,215,0.07) 0%, rgba(255,255,255,0.025) 30%, rgba(100,120,140,0.04) 60%, rgba(0,0,0,0.35) 100%)",
-              border: "1px solid rgba(180,200,220,0.12)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.25)",
+              background: "linear-gradient(145deg, rgba(14,17,24,0.97) 0%, rgba(8,10,16,0.99) 100%)",
+              border: `1px solid ${cfg.color}1e`,
+              boxShadow: `0 0 30px ${cfg.color}10, 0 16px 48px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.35)`,
             }}>
-            {/* metallic sheen */}
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(115deg, rgba(255,255,255,0.05) 0%, transparent 40%, transparent 70%, rgba(255,255,255,0.03) 100%)" }} />
-            <p className="text-xs text-white/30 font-bold tracking-widest border-b border-white/5 pb-3">تفاصيل الشحنة</p>
+            {/* corner accent */}
+            <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none"
+              style={{ background: `radial-gradient(circle at top right, ${cfg.color}18 0%, transparent 60%)` }} />
+            <div className="absolute bottom-0 left-0 w-24 h-24 pointer-events-none"
+              style={{ background: `radial-gradient(circle at bottom left, ${cfg.color}0e 0%, transparent 60%)` }} />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="min-w-0">
-                <p className="text-xs text-white/30 mb-1 flex items-center gap-1"><User size={10}/> المُرسِل</p>
+            {/* Header */}
+            <div className="flex items-center gap-2 pb-3 border-b relative" style={{ borderColor: `${cfg.color}1a` }}>
+              <div className="w-1 h-4 rounded-full" style={{ background: `linear-gradient(180deg, ${cfg.color}, ${cfg.color}44)`, boxShadow: `0 0 8px ${cfg.color}88` }} />
+              <p className="text-xs font-bold tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>تفاصيل الشحنة</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* المرسل */}
+              <div className="rounded-2xl p-3.5 relative overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-xs font-semibold mb-2 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  <User size={10}/> المُرسِل
+                </p>
                 <p className="text-sm font-bold text-white break-words">{shipment.senderName}</p>
-                {shipment.senderPhone && <p className="text-xs text-white/40 flex items-center gap-1 mt-0.5" dir="ltr"><Phone size={10}/>{shipment.senderPhone}</p>}
-                {shipment.senderCity  && <p className="text-xs text-white/30 mt-0.5 break-words"><MapPin size={10} className="inline ml-1"/>{shipment.senderCity}</p>}
+                {shipment.senderPhone && <p className="text-xs mt-1 flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }} dir="ltr"><Phone size={10}/>{shipment.senderPhone}</p>}
+                {shipment.senderCity  && <p className="text-xs mt-0.5 break-words" style={{ color: "rgba(255,255,255,0.3)" }}><MapPin size={10} className="inline ml-1"/>{shipment.senderCity}</p>}
               </div>
-              <div className="min-w-0">
-                <p className="text-xs text-white/30 mb-1 flex items-center gap-1"><User size={10}/> المُستلِم</p>
+              {/* المستلم */}
+              <div className="rounded-2xl p-3.5 relative overflow-hidden"
+                style={{
+                  background: `linear-gradient(135deg, ${cfg.color}0c 0%, rgba(255,255,255,0.02) 100%)`,
+                  border: `1px solid ${cfg.color}22`,
+                }}>
+                <p className="text-xs font-semibold mb-2 flex items-center gap-1.5" style={{ color: `${cfg.color}88` }}>
+                  <User size={10}/> المُستلِم
+                </p>
                 <p className="text-sm font-bold text-white break-words">{shipment.receiverName}</p>
-                {shipment.receiverPhone   && <p className="text-xs text-white/40 flex items-center gap-1 mt-0.5" dir="ltr"><Phone size={10}/>{shipment.receiverPhone}</p>}
-                {shipment.receiverCity    && <p className="text-xs text-white/30 mt-0.5 break-words"><MapPin size={10} className="inline ml-1"/>{shipment.receiverCity}</p>}
-                {shipment.receiverAddress && <p className="text-xs text-white/25 mt-0.5 leading-tight break-words">{shipment.receiverAddress}</p>}
+                {shipment.receiverPhone   && <p className="text-xs mt-1 flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }} dir="ltr"><Phone size={10}/>{shipment.receiverPhone}</p>}
+                {shipment.receiverCity    && <p className="text-xs mt-0.5 break-words" style={{ color: "rgba(255,255,255,0.3)" }}><MapPin size={10} className="inline ml-1"/>{shipment.receiverCity}</p>}
+                {shipment.receiverAddress && <p className="text-xs mt-0.5 leading-tight break-words" style={{ color: "rgba(255,255,255,0.22)" }}>{shipment.receiverAddress}</p>}
               </div>
             </div>
 
             {(shipment.parcelType || shipment.weight) && (
-              <div className="flex gap-3 pt-2 border-t border-white/5">
+              <div className="flex gap-2.5 pt-1 border-t" style={{ borderColor: `${cfg.color}18` }}>
                 {shipment.parcelType && (
-                  <div className="flex-1 rounded-xl px-3 py-2 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className="text-xs text-white/30 mb-0.5">نوع الشحنة</p>
+                  <div className="flex-1 rounded-2xl px-3.5 py-3 text-center relative overflow-hidden"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>نوع الشحنة</p>
                     <p className="text-sm font-bold text-white">{shipment.parcelType}</p>
                   </div>
                 )}
                 {shipment.weight && (
-                  <div className="flex-1 rounded-xl px-3 py-2 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className="text-xs text-white/30 mb-0.5">الوزن</p>
-                    <p className="text-sm font-bold text-white">{shipment.weight} كجم</p>
+                  <div className="flex-1 rounded-2xl px-3.5 py-3 text-center relative overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, ${cfg.color}0e 0%, rgba(0,0,0,0.2) 100%)`,
+                      border: `1px solid ${cfg.color}22`
+                    }}>
+                    <p className="text-xs mb-1" style={{ color: `${cfg.color}77` }}>الوزن</p>
+                    <p className="text-sm font-bold" style={{ color: cfg.color }}>{shipment.weight} كجم</p>
                   </div>
                 )}
               </div>
             )}
 
             {shipment.notes && (
-              <div className="pt-2 border-t border-white/5">
-                <p className="text-xs text-white/30 mb-1">ملاحظات</p>
-                <p className="text-sm text-white/60 break-words" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{shipment.notes}</p>
+              <div className="rounded-2xl p-3.5 border-t" style={{ borderColor: `${cfg.color}18`, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  <span style={{ color: cfg.color }}>◆</span> ملاحظات
+                </p>
+                <p className="text-sm break-words leading-relaxed" style={{ color: "rgba(255,255,255,0.55)", overflowWrap: "anywhere", wordBreak: "break-word" }}>{shipment.notes}</p>
               </div>
             )}
 
             {/* ── مخزن و مندوب ── */}
             {(shipment.warehouseName || (COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName)) && (
-              <div className="pt-2 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ borderTop: `1px solid ${cfg.color}18` }}>
                 {shipment.warehouseName && (
-                  <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className="text-xs text-white/30 mb-1 flex items-center gap-1">
+                  <div className="rounded-2xl p-3.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
                       <Warehouse size={10} />مكان الشحنة
                     </p>
                     <p className="text-sm font-bold text-white">
                       {shipment.warehouseName}
-                      {shipment.warehouseCity && <span className="text-xs text-white/40 mr-1">({shipment.warehouseCity})</span>}
+                      {shipment.warehouseCity && <span className="text-xs mr-1" style={{ color: "rgba(255,255,255,0.4)" }}>({shipment.warehouseCity})</span>}
                     </p>
                   </div>
                 )}
                 {COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName && (
-                  <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className="text-xs text-white/30 mb-2 flex items-center gap-1">
+                  <div className="rounded-2xl p-3.5 relative overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, ${cfg.color}0e 0%, rgba(0,0,0,0.25) 100%)`,
+                      border: `1px solid ${cfg.color}2a`,
+                      boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08)`,
+                    }}>
+                    <p className="text-xs mb-2 flex items-center gap-1.5" style={{ color: `${cfg.color}88` }}>
                       <UserCheck size={10} />مندوب التوصيل
                     </p>
                     <div className="flex items-center gap-3">
                       {shipment.courierLogo ? (
-                        <img src={shipment.courierLogo} alt={shipment.courierName} className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0" />
+                        <img src={shipment.courierLogo} alt={shipment.courierName}
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                          style={{ border: `1.5px solid ${cfg.color}44`, boxShadow: `0 0 12px ${cfg.color}44` }} />
                       ) : (
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.3)" }}>
-                          <Truck size={18} style={{ color: "#60a5fa" }} />
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: `${cfg.color}18`, border: `1.5px solid ${cfg.color}44`, boxShadow: `0 0 12px ${cfg.color}33` }}>
+                          <Truck size={18} style={{ color: cfg.color }} />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-white truncate">{shipment.courierName}</p>
                         {shipment.courierPhone && (
-                          <p className="text-xs text-white/40 mt-0.5" dir="ltr">{shipment.courierPhone}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }} dir="ltr">{shipment.courierPhone}</p>
                         )}
                       </div>
                       {shipment.courierPhone && (
@@ -654,8 +751,13 @@ export default function TrackResultPage() {
                           href={`https://wa.me/${shipment.courierPhone.replace(/[^0-9]/g, "").replace(/^0/, "20")}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
-                          style={{ background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.4)", color: "#25d366" }}
+                          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                          style={{
+                            background: "linear-gradient(135deg, rgba(37,211,102,0.2) 0%, rgba(37,211,102,0.08) 100%)",
+                            border: "1px solid rgba(37,211,102,0.45)",
+                            color: "#25d366",
+                            boxShadow: "0 0 12px rgba(37,211,102,0.2)",
+                          }}
                         >
                           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.559 4.122 1.532 5.856L.057 23.882a.5.5 0 0 0 .61.61l6.089-1.465A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.9 9.9 0 0 1-5.031-1.371l-.361-.214-3.737.899.934-3.641-.235-.374A9.9 9.9 0 0 1 2.1 12C2.1 6.533 6.533 2.1 12 2.1S21.9 6.533 21.9 12 17.467 21.9 12 21.9z"/></svg>
                           واتساب
