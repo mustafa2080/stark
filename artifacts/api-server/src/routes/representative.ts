@@ -77,13 +77,10 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
   const dateTo   = req.query.dateTo as string | undefined;
   const status   = req.query.status as string | undefined;
 
-  const tenantId = getTenantId(req);
   const shipmentIds = await getShipmentIdsByCompany(companyId);
   if (!shipmentIds.length) { res.json({ data: [], total: 0, page, limit }); return; }
 
   const conditions: any[] = [inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)];
-  const tenantCond = buildTenantCondition(tenantId, shipmentsTable.tenantId, eq);
-  if (tenantCond) conditions.push(tenantCond);
   if (dateFrom) conditions.push(sql`${shipmentsTable.createdAt} >= ${new Date(dateFrom)}`);
   if (dateTo)   conditions.push(sql`${shipmentsTable.createdAt} <= ${new Date(dateTo + "T23:59:59")}`);
   if (status)   conditions.push(eq(shipmentsTable.status, status));
@@ -120,15 +117,12 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
 
   const dateFrom = req.query.dateFrom as string | undefined;
   const dateTo   = req.query.dateTo as string | undefined;
-  const tenantId2 = getTenantId(req);
   const shipmentIds2 = await getShipmentIdsByCompany(companyId);
   if (!shipmentIds2.length) {
     res.json({ total: 0, delivered: 0, partial: 0, returned: 0, inProgress: 0, deliveryRate: 0, returnRate: 0, totalCollected: 0, zones: [], topZone: null, lastLogin: null });
     return;
   }
   const conditions: any[] = [inArray(shipmentsTable.id, shipmentIds2), isNull(shipmentsTable.deletedAt)];
-  const tenantCond2 = buildTenantCondition(tenantId2, shipmentsTable.tenantId, eq);
-  if (tenantCond2) conditions.push(tenantCond2);
   if (dateFrom) conditions.push(sql`${shipmentsTable.createdAt} >= ${new Date(dateFrom)}`);
   if (dateTo)   conditions.push(sql`${shipmentsTable.createdAt} <= ${new Date(dateTo + "T23:59:59")}`);
 
