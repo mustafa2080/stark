@@ -1,7 +1,15 @@
 export const RETURN_REASONS: { value: string; label: string }[] = [
-  { value: "no_answer",  label: "لا يرد" },
-  { value: "closed",     label: "مغلق" },
-  { value: "other",      label: "سبب اخر" },
+  { value: "no_answer",          label: "العميل لا يرد" },
+  { value: "closed",             label: "العميل مغلق أو غير متاح" },
+  { value: "postpone",           label: "العميل طلب التأجيل" },
+  { value: "unaware",            label: "العميل ليس لديه علم بالشحنة" },
+  { value: "cancel_requested",   label: "العميل طلب إلغاء الشحنة" },
+  { value: "refused_paid",       label: "العميل رفض الاستلام بعد المعاينة ودفع مصاريف الشحن" },
+  { value: "refused_unpaid",     label: "العميل رفض الاستلام بعد المعاينة ولم يدفع مصاريف الشحن" },
+  { value: "damaged",            label: "الشحنة تالفة" },
+  { value: "unclear_address",    label: "العنوان غير واضح" },
+  { value: "out_of_coverage",    label: "العنوان خارج نطاق التغطية" },
+  { value: "time_mismatch",      label: "وقت العميل غير مناسب مع وقت المندوب" },
 ];
 
 export const returnReasonLabel = (reason: string | null | undefined): string => {
