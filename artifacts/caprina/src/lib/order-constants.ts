@@ -1,10 +1,7 @@
 export const RETURN_REASONS: { value: string; label: string }[] = [
-  { value: "size_mismatch", label: "مقاس غير مناسب" },
-  { value: "quality",       label: "جودة" },
-  { value: "customer_refused", label: "عميل غير جاد" },
-  { value: "customer_requested_return", label: "طلب العميل مرتجع" },
-  { value: "delay",         label: "سبب التأخير" },
-  { value: "other",         label: "سبب آخر" },
+  { value: "no_answer",  label: "لا يرد" },
+  { value: "closed",     label: "مغلق" },
+  { value: "other",      label: "سبب اخر" },
 ];
 
 export const returnReasonLabel = (reason: string | null | undefined): string => {
