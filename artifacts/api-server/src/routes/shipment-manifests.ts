@@ -408,6 +408,50 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
   }
 });
 
+// ─── PATCH /shipment-manifests/:id/items/:shipmentId/urgent — تفعيل/إلغاء الاستعجال ──
+router.patch("/shipment-manifests/:id/items/:shipmentId/urgent", async (req, res): Promise<void> => {
+  try {
+    const manifestId = Number(req.params.id);
+    const shipmentId = Number(req.params.shipmentId);
+    const { isUrgent, urgentNote } = z.object({
+      isUrgent:   z.boolean(),
+      urgentNote: z.string().max(255).optional().nullable(),
+    }).parse(req.body);
+
+    // تأكد إن البيان موجود والمستخدم مش مندوب (المندوب مش يقدر يستعجل نفسه)
+    const reqUser = (req as any).user;
+    if (reqUser?.role === "representative") {
+      res.status(403).json({ error: "المندوب لا يملك صلاحية هذا الإجراء" });
+      return;
+    }
+
+    const [item] = await db
+      .select({ id: shipmentManifestItemsTable.id })
+      .from(shipmentManifestItemsTable)
+      .where(and(
+        eq(shipmentManifestItemsTable.manifestId, manifestId),
+        eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+      ))
+      .limit(1);
+
+    if (!item) { res.status(404).json({ error: "الشحنة غير موجودة في هذا البيان" }); return; }
+
+    await db
+      .update(shipmentManifestItemsTable)
+      .set({
+        isUrgent:   isUrgent ? 1 : 0,
+        urgentNote: isUrgent ? (urgentNote ?? null) : null,
+        urgentAt:   isUrgent ? new Date() : null,
+      })
+      .where(eq(shipmentManifestItemsTable.id, item.id));
+
+    res.json({ success: true, isUrgent });
+  } catch (e: any) {
+    console.error("[PATCH /shipment-manifests/:id/items/:shipmentId/urgent]", e);
+    res.status(500).json({ error: "خطأ في تحديث حالة الاستعجال" });
+  }
+});
+
 // ─── تحويل إيراد البيان للخزنة عند الإغلاق ──────────────────────────────────
 async function createTreasuryEntryOnClose(
   manifest: typeof shipmentManifestsTable.$inferSelect,

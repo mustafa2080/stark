@@ -72,6 +72,7 @@ import {
   FileSpreadsheet,
   Download,
   Eye,
+  Zap,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
@@ -722,6 +723,122 @@ function OrderDeliveryRow({
   );
 }
 
+// ─── Urgent Button ────────────────────────────────────────────────────────────
+function UrgentButton({
+  manifestId,
+  shipmentId,
+  isUrgent,
+  urgentNote,
+  onToggled,
+  disabled = false,
+}: {
+  manifestId: number;
+  shipmentId: number;
+  isUrgent: boolean;
+  urgentNote?: string | null;
+  onToggled: () => void;
+  disabled?: boolean;
+}) {
+  const { toast } = useToast();
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [note, setNote] = useState(urgentNote ?? "");
+
+  const mutation = useMutation({
+    mutationFn: (payload: { isUrgent: boolean; urgentNote?: string | null }) =>
+      apiFetch(`/shipment-manifests/${manifestId}/items/${shipmentId}/urgent`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (_: any, vars: any) => {
+      toast({
+        title: vars.isUrgent ? "🔴 تم وضع الاستعجال" : "تم إلغاء الاستعجال",
+        description: vars.isUrgent ? "سيظهر إشعار للمندوب فوراً" : undefined,
+      });
+      setShowNoteDialog(false);
+      onToggled();
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  // لو مستعجل → اضغط يلغي مباشرة
+  // لو مش مستعجل → اضغط يفتح dialog لكتابة سبب (اختياري) ثم يفعّل
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isUrgent) {
+      mutation.mutate({ isUrgent: false, urgentNote: null });
+    } else {
+      setNote("");
+      setShowNoteDialog(true);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={disabled || mutation.isPending}
+        title={isUrgent ? `إلغاء الاستعجال${urgentNote ? ` — ${urgentNote}` : ""}` : "استعجال هذه الشحنة"}
+        className={`
+          flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-black border transition-all duration-200
+          ${isUrgent
+            ? "bg-red-500/20 border-red-500/60 text-red-400 hover:bg-red-500/30 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]"
+            : "bg-muted/30 border-border/50 text-muted-foreground hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400"
+          }
+          ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
+        `}
+      >
+        <Zap className={`w-3 h-3 shrink-0 ${isUrgent ? "fill-red-400" : ""}`} />
+        {isUrgent ? "مستعجل!" : "استعجال"}
+      </button>
+
+      {/* Dialog كتابة سبب الاستعجال */}
+      {showNoteDialog && (
+        <Dialog open onOpenChange={open => { if (!open) setShowNoteDialog(false); }}>
+          <DialogContent className="bg-card border-red-500/30 max-w-sm" dir="rtl"
+            onClick={e => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-400">
+                <Zap className="w-4 h-4 fill-red-400" />
+                استعجال الشحنة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 mt-1">
+              <p className="text-xs text-muted-foreground">
+                سيصل إشعار استعجال للمندوب فور الحفظ. أضف سبباً اختيارياً يظهر له.
+              </p>
+              <div>
+                <Label className="text-xs mb-1.5 block">سبب الاستعجال (اختياري)</Label>
+                <Input
+                  placeholder="مثال: العميل مستعجل جداً — اتصل قبل التوصيل"
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  className="h-8 text-sm bg-background border-red-500/30 focus:border-red-500"
+                  autoFocus
+                  onKeyDown={e => { if (e.key === "Enter") mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null }); }}
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  className="flex-1 h-8 text-xs font-black bg-red-500 hover:bg-red-600 text-white gap-1.5"
+                  onClick={() => mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null })}
+                  disabled={mutation.isPending}
+                >
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  {mutation.isPending ? "جاري الإرسال..." : "استعجال الآن"}
+                </Button>
+                <Button variant="outline" className="h-8 text-xs border-border" onClick={() => setShowNoteDialog(false)}>
+                  إلغاء
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 // ─── Invoice Group Row — يعرض مجموعة طلبات بنفس invoiceNumber كصف واحد ─────
 function InvoiceGroupDeliveryRow({
   group,
@@ -1191,6 +1308,19 @@ function InvoiceGroupDeliveryRow({
                 </Button>
               )
             )}
+            {/* ── زرار الاستعجال ── */}
+            {isShipmentManifest && (
+              <div className="mt-1" onClick={e => e.stopPropagation()}>
+                <UrgentButton
+                  manifestId={manifestId}
+                  shipmentId={(rep as any).shipmentId ?? rep.id}
+                  isUrgent={!!(rep as any).isUrgent}
+                  urgentNote={(rep as any).urgentNote}
+                  onToggled={onSaved}
+                  disabled={false}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1216,7 +1346,19 @@ function InvoiceGroupDeliveryRow({
                 </div>
               </div>
             </div>
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-start gap-1.5">
+              {/* زرار الاستعجال mobile */}
+              {isShipmentManifest && (
+                <div onClick={e => e.stopPropagation()}>
+                  <UrgentButton
+                    manifestId={manifestId}
+                    shipmentId={(rep as any).shipmentId ?? rep.id}
+                    isUrgent={!!(rep as any).isUrgent}
+                    urgentNote={(rep as any).urgentNote}
+                    onToggled={onSaved}
+                  />
+                </div>
+              )}
               {hasMultipleStatuses && !hasMixedPartial ? (
                 <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground">حالات متعددة</Badge>
               ) : (

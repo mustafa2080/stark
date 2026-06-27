@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Redirect } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -421,15 +421,25 @@ function ManifestItemRow({ item, manifestId, locked, onSaved }: {
     partialQty !== (item.partialQuantity?.toString() ?? "");
 
   return (
-    <Card className="p-3 bg-card/60 border-border space-y-2">
+    <Card className={`p-3 border-border space-y-2 ${(item.isUrgent === 1 || item.isUrgent === true) ? "bg-red-500/5 border-red-500/30" : "bg-card/60"}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-bold truncate">{item.customerName}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-xs font-bold truncate">{item.customerName}</p>
+            {(item.isUrgent === 1 || item.isUrgent === true) && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-red-400 bg-red-500/15 border border-red-500/40 rounded-full px-1.5 py-0.5 animate-pulse">
+                <Zap className="w-2.5 h-2.5 fill-red-400" /> مستعجل
+              </span>
+            )}
+          </div>
           <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
             <span className="font-mono text-primary/70">{item.invoiceNumber}</span>
             {item.phone && <span>· {item.phone}</span>}
             {item.city && <span>· {item.city}</span>}
           </p>
+          {(item.isUrgent === 1 || item.isUrgent === true) && item.urgentNote && (
+            <p className="text-[10px] text-red-300/70 mt-0.5">⚡ {item.urgentNote}</p>
+          )}
         </div>
         <Badge variant="outline" className={`text-[9px] shrink-0 border ${MANIFEST_STATUS_COLOR[item.deliveryStatus] ?? "border-border"}`}>
           {manifestStatusLabel(item.deliveryStatus)}
@@ -622,6 +632,62 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
       </div>
 
       <p className="text-sm font-black font-mono text-center">{manifest.manifestNumber}</p>
+
+      {/* ── بانر الشحنات المستعجلة ── */}
+      {(() => {
+        const urgentItems = items.filter((i: any) => i.isUrgent === 1 || i.isUrgent === true);
+        if (urgentItems.length === 0) return null;
+        return (
+          <div className="relative overflow-hidden rounded-2xl border border-red-500/40 bg-red-500/10 p-3 animate-pulse"
+            style={{ boxShadow: "0 0 20px rgba(239,68,68,0.2), 0 0 40px rgba(239,68,68,0.1)" }}>
+            {/* خلفية ضوئية */}
+            <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-red-500/20 blur-xl pointer-events-none" />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-[0_0_12px_rgba(239,68,68,0.6)]">
+                  <Zap className="w-4 h-4 fill-white text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-red-400">
+                    {urgentItems.length} {urgentItems.length === 1 ? "شحنة مستعجلة" : "شحنات مستعجلة"}
+                  </p>
+                  <p className="text-[10px] text-red-300/70">سلّمها بأولوية قصوى</p>
+                </div>
+                <span className="mr-auto flex h-2 w-2">
+                  <span className="animate-ping absolute h-2 w-2 rounded-full bg-red-400 opacity-75" />
+                  <span className="relative rounded-full h-2 w-2 bg-red-500" />
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {urgentItems.map((i: any) => (
+                  <div key={i.shipmentId ?? i.id}
+                    className="flex items-start gap-2 rounded-lg bg-red-500/15 border border-red-500/30 px-2.5 py-2">
+                    <Zap className="w-3 h-3 fill-red-400 text-red-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black text-red-300 truncate">{i.customerName}</p>
+                      {i.urgentNote && (
+                        <p className="text-[10px] text-red-200/70 mt-0.5 truncate">↳ {i.urgentNote}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {i.phone && <span className="text-[10px] text-red-300/60">{i.phone}</span>}
+                        {i.city && <span className="text-[10px] text-red-300/60">📍 {i.city}</span>}
+                        {i.urgentAt && (
+                          <span className="text-[9px] text-red-400/60">
+                            {format(new Date(i.urgentAt), "HH:mm", { locale: ar })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-emerald-400 shrink-0">
+                      {Number(i.totalPrice ?? 0).toLocaleString("ar-EG")} ج.م
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-2">
