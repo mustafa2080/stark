@@ -836,7 +836,18 @@ export function CreateManifestDialog({
 }
 
 // ─── RepresentativeDialog — إنشاء/تحديث حساب دخول المندوب ──────────────────
-function RepresentativeDialog({ companyId, companyName, onClose }: { companyId: number; companyName: string; onClose: () => void }) {
+function RepresentativeDialog({
+  companyId,
+  companyName,
+  mode = "account",
+  onClose,
+}: {
+  companyId: number;
+  companyName: string;
+  /** account = إنشاء/تحديث الحساب | password = تغيير الباسورد فقط */
+  mode?: "account" | "password";
+  onClose: () => void;
+}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [username, setUsername] = useState("");
@@ -854,7 +865,11 @@ function RepresentativeDialog({ companyId, companyName, onClose }: { companyId: 
   const mutation = useMutation({
     mutationFn: () => apiFetch(`/shipping-companies/${companyId}/representative`, {
       method: "POST",
-      body: JSON.stringify({ username: username || rep?.username, password: password || undefined, displayName: displayName || undefined }),
+      body: JSON.stringify({
+        username: username || rep?.username,
+        password: password || undefined,
+        displayName: displayName || undefined,
+      }),
     }),
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["rep-account", companyId] });
@@ -864,6 +879,64 @@ function RepresentativeDialog({ companyId, companyName, onClose }: { companyId: 
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
+  // وضع تغيير الباسورد فقط
+  if (mode === "password") {
+    return (
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent className="bg-card border-border max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <KeyRound className="w-4 h-4 text-primary" />
+              تغيير كلمة مرور المندوب
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">{companyName}</p>
+          </DialogHeader>
+          {isLoading ? (
+            <p className="text-xs text-muted-foreground text-center py-4">جاري التحقق...</p>
+          ) : !rep ? (
+            <div className="rounded-lg bg-amber-900/20 border border-amber-500/30 p-3 text-xs text-amber-400 mt-2">
+              لا يوجد حساب دخول لهذا المندوب بعد. قم بإنشاء الحساب أولاً.
+            </div>
+          ) : (
+            <div className="space-y-3 mt-2">
+              <div className="rounded-lg bg-muted/30 border border-border p-3 text-xs text-muted-foreground">
+                الحساب: <strong className="text-foreground">{rep.username}</strong>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">كلمة المرور الجديدة *</Label>
+                <div className="relative">
+                  <Input
+                    type={showPass ? "text" : "password"}
+                    placeholder="6 أحرف على الأقل"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    className="h-8 text-sm bg-background pl-8"
+                    dir="ltr"
+                  />
+                  <button type="button" onClick={() => setShowPass(v => !v)}
+                    className="absolute left-2 top-1.5 text-muted-foreground hover:text-foreground">
+                    <KeyRound className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  className="flex-1 h-8 text-xs font-bold bg-primary text-primary-foreground"
+                  onClick={() => mutation.mutate()}
+                  disabled={mutation.isPending || !password || password.length < 6}
+                >
+                  {mutation.isPending ? "جاري الحفظ..." : "تغيير كلمة المرور"}
+                </Button>
+                <Button variant="outline" className="h-8 text-xs border-border" onClick={onClose}>إلغاء</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // وضع إنشاء/تحديث الحساب (الافتراضي)
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="bg-card border-border max-w-sm" dir="rtl">
@@ -880,7 +953,7 @@ function RepresentativeDialog({ companyId, companyName, onClose }: { companyId: 
           <div className="space-y-3 mt-2">
             {isEdit && (
               <div className="rounded-lg bg-emerald-900/20 border border-emerald-500/30 p-3 text-xs text-emerald-400">
-                حساب موجود: <strong>{rep.username}</strong> — آخر تسجيل دخول: {rep.updatedAt ? new Date(rep.updatedAt).toLocaleDateString("ar-EG") : "—"}
+                حساب موجود: <strong>{rep.username}</strong> — آخر تحديث: {rep.updatedAt ? new Date(rep.updatedAt).toLocaleDateString("ar-EG") : "—"}
               </div>
             )}
             <div>
@@ -948,6 +1021,7 @@ export default function ShippingCompanies() {
   const [editingCompany, setEditingCompany] = useState<ShippingCompany | null>(null);
   const [deleteCompany, setDeleteCompany] = useState<ShippingCompany | null>(null);
   const [repDialogCompany, setRepDialogCompany] = useState<ShippingCompany | null>(null);
+  const [repDialogMode, setRepDialogMode] = useState<"account" | "password">("account");
   const [form, setForm] = useState(emptyForm);
 
   const { data: companies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
@@ -1115,9 +1189,6 @@ export default function ShippingCompanies() {
                 <div className="flex items-center gap-1">
                   {canEdit && (
                     <>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-primary" title="حساب دخول المندوب" onClick={() => setRepDialogCompany(company)}>
-                        <KeyRound className="w-3.5 h-3.5" />
-                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-primary" onClick={() => toggleActive(company)}>
                         {company.isActive ? <ToggleRight className="w-4 h-4" style={{ color: `rgba(${p.rgb},1)` }} /> : <ToggleLeft className="w-4 h-4" />}
                       </Button>
@@ -1209,6 +1280,48 @@ export default function ShippingCompanies() {
               </div>
 
               <CompanyStats companyId={company.id} canViewFinancials={canViewFinancials && canFinancials} />
+
+              {/* ── قسم حساب الدخول ── */}
+              {canEdit && (
+                <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: `rgba(${p.rgb},0.15)` }}>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide flex items-center gap-1">
+                    <KeyRound className="w-2.5 h-2.5" />
+                    حساب الدخول
+                  </p>
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-[10px] gap-1 border-border hover:border-primary/50 hover:text-primary"
+                      onClick={() => { setRepDialogMode("account"); setRepDialogCompany(company); }}
+                    >
+                      <UserPlus className="w-3 h-3" />
+                      إنشاء / تعديل
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-[10px] gap-1 border-border hover:border-amber-500/50 hover:text-amber-400"
+                      onClick={() => { setRepDialogMode("password"); setRepDialogCompany(company); }}
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      تغيير الباسورد
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`flex-1 h-7 text-[10px] gap-1 border-border ${company.isActive ? "hover:border-red-500/50 hover:text-red-400" : "hover:border-emerald-500/50 hover:text-emerald-400"}`}
+                      onClick={() => toggleActive(company)}
+                    >
+                      {company.isActive
+                        ? <><ToggleLeft className="w-3 h-3" />إيقاف الحساب</>
+                        : <><ToggleRight className="w-3 h-3" />تفعيل الحساب</>
+                      }
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <CompanyManifests company={company} allCompanies={companies ?? []} canShipping={canManifests} />
             </div>
             );
@@ -1279,6 +1392,44 @@ export default function ShippingCompanies() {
                 {form.isActive ? <><ToggleRight className="w-4 h-4 text-emerald-400" />نشط</> : <><ToggleLeft className="w-4 h-4" />موقف</>}
               </Button>
             </div>
+            {/* ── حساب الدخول (يظهر عند التعديل فقط) ── */}
+            {editingCompany && (
+              <div className="border border-primary/20 rounded-lg p-3 bg-primary/5 space-y-2">
+                <p className="text-xs font-bold text-primary flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  حساب الدخول
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs gap-1.5 border-border hover:border-primary/50"
+                    onClick={() => { setDialogOpen(false); setRepDialogMode("account"); setRepDialogCompany(editingCompany); }}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    إنشاء / تعديل الحساب
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs gap-1.5 border-border hover:border-primary/50"
+                    onClick={() => { setDialogOpen(false); setRepDialogMode("password"); setRepDialogCompany(editingCompany); }}
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    تغيير الباسورد
+                  </Button>
+                </div>
+              </div>
+            )}
+            {/* ── حساب الدخول (عند الإضافة) ── */}
+            {!editingCompany && (
+              <div className="rounded-lg bg-muted/20 border border-border/50 p-3 text-xs text-muted-foreground flex items-center gap-2">
+                <KeyRound className="w-3.5 h-3.5 shrink-0" />
+                يمكنك إنشاء حساب دخول للمندوب بعد الحفظ من داخل الكارد
+              </div>
+            )}
             <div className="flex gap-2 pt-1">
               <Button className="flex-1 h-9 text-sm font-bold bg-primary text-primary-foreground" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
                 {createMutation.isPending || updateMutation.isPending ? "جاري الحفظ..." : editingCompany ? "حفظ" : "إضافة"}
@@ -1312,6 +1463,7 @@ export default function ShippingCompanies() {
         <RepresentativeDialog
           companyId={repDialogCompany.id}
           companyName={repDialogCompany.name}
+          mode={repDialogMode}
           onClose={() => setRepDialogCompany(null)}
         />
       )}
