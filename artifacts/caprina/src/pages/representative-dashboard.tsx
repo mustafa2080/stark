@@ -1076,7 +1076,7 @@ export default function RepresentativeDashboard() {
       />
 
       {/* ─── Main Content ─── */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarOpen ? "md:mr-56" : "md:mr-0"}`}>
         {/* Mobile header */}
         <div className="md:hidden sticky top-0 z-40 flex items-center gap-3 px-4 py-3 border-b border-border/50"
           style={{ background: "hsl(var(--card))", backdropFilter: "blur(8px)" }}>
