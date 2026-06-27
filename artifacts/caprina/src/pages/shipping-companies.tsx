@@ -27,7 +27,7 @@ const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
-const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], shippingCost: "", notes: "", logo: "", isActive: true };
+const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], shippingCost: "", notes: "", logo: "", isActive: true, repUsername: "", repPassword: "" };
 const formatCurrency = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
 // ─── Multi-Select للزونات ────────────────────────────────────────────────────
@@ -1032,7 +1032,29 @@ export default function ShippingCompanies() {
 
   const createMutation = useMutation({
     mutationFn: (data: typeof emptyForm) => shippingApi.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["shipping"] }); setDialogOpen(false); setForm(emptyForm); toast({ title: "تمت الإضافة" }); },
+    onSuccess: async (newCompany: any, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["shipping"] });
+      setDialogOpen(false);
+      // لو فيه username + password → أنشئ حساب المندوب أوتوماتيك
+      if (variables.repUsername && variables.repPassword) {
+        try {
+          await apiFetch(`/shipping-companies/${newCompany.id}/representative`, {
+            method: "POST",
+            body: JSON.stringify({
+              username: variables.repUsername,
+              password: variables.repPassword,
+              displayName: variables.name,
+            }),
+          });
+          toast({ title: "✅ تمت الإضافة وتم إنشاء حساب المندوب" });
+        } catch {
+          toast({ title: "تمت الإضافة", description: "تعذّر إنشاء الحساب — يمكنك إنشاؤه من الكارد" });
+        }
+      } else {
+        toast({ title: "تمت الإضافة" });
+      }
+      setForm(emptyForm);
+    },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
@@ -1425,9 +1447,37 @@ export default function ShippingCompanies() {
             )}
             {/* ── حساب الدخول (عند الإضافة) ── */}
             {!editingCompany && (
-              <div className="rounded-lg bg-muted/20 border border-border/50 p-3 text-xs text-muted-foreground flex items-center gap-2">
-                <KeyRound className="w-3.5 h-3.5 shrink-0" />
-                يمكنك إنشاء حساب دخول للمندوب بعد الحفظ من داخل الكارد
+              <div className="border border-primary/20 rounded-lg p-3 bg-primary/5 space-y-2">
+                <p className="text-xs font-bold text-primary flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  حساب الدخول (اختياري)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[10px] mb-1 block text-muted-foreground">اسم المستخدم</Label>
+                    <Input
+                      placeholder="courier_ahmed"
+                      className="h-8 text-xs bg-background"
+                      dir="ltr"
+                      value={form.repUsername}
+                      onChange={e => setForm(f => ({ ...f, repUsername: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] mb-1 block text-muted-foreground">كلمة المرور</Label>
+                    <Input
+                      type="password"
+                      placeholder="6 أحرف على الأقل"
+                      className="h-8 text-xs bg-background"
+                      dir="ltr"
+                      value={form.repPassword}
+                      onChange={e => setForm(f => ({ ...f, repPassword: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                {form.repUsername && !form.repPassword && (
+                  <p className="text-[10px] text-amber-400">أدخل كلمة المرور لإنشاء الحساب</p>
+                )}
               </div>
             )}
             <div className="flex gap-2 pt-1">
