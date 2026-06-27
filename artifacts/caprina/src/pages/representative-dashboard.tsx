@@ -218,6 +218,64 @@ function ManifestItemRow({ item, manifestId, locked, onSaved }: {
   );
 }
 
+// ─── مرتجعات لسه معاك — لسه مرجعتهاش للتاجر ──────────────────────────────────
+function StillWithCourierRow({ item, manifestId, locked, onSaved }: {
+  item: any; manifestId: number; locked: boolean; onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const mutation = useMutation({
+    mutationFn: () => apiFetch(`/shipment-manifests/${manifestId}/items/${item.shipmentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        deliveryStatus: item.deliveryStatus,
+        deliveryNote: item.deliveryNote ?? null,
+        partialQuantity: item.partialQuantity ?? null,
+        returnReceived: true,
+        returnReason: item.returnReason ?? null,
+      }),
+    }),
+    onSuccess: () => { toast({ title: "✅ تم تأكيد التسليم للتاجر" }); onSaved(); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex items-center justify-between gap-2 bg-background/40 rounded-lg px-2 py-1.5">
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold truncate">{item.customerName}</p>
+        <p className="text-[9px] text-muted-foreground font-mono">{item.invoiceNumber}</p>
+      </div>
+      {!locked && (
+        <Button size="sm" className="h-6 text-[10px] shrink-0 gap-1" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+          <CheckCheck className="w-3 h-3" /> تم التسليم للتاجر
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function StillWithCourierSection({ items, manifestId, locked, onSaved }: {
+  items: any[]; manifestId: number; locked: boolean; onSaved: () => void;
+}) {
+  const pending = items.filter(i =>
+    (i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered") && i.returnReceived !== 1
+  );
+  if (pending.length === 0) return null;
+
+  return (
+    <Card className="p-3 border-amber-500/40 bg-amber-500/5 space-y-2">
+      <p className="text-xs font-bold text-amber-400 flex items-center gap-1">
+        <Truck className="w-3.5 h-3.5" /> مرتجعات لسه معاك ({pending.length})
+      </p>
+      <p className="text-[10px] text-muted-foreground">اضغط "تم التسليم للتاجر" لما ترجّع البضاعة دي فعلياً</p>
+      <div className="space-y-1.5">
+        {pending.map(item => (
+          <StillWithCourierRow key={item.id} item={item} manifestId={manifestId} locked={locked} onSaved={onSaved} />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 // ─── تفاصيل البيان — قائمة الشحنات + إغلاق البيان ────────────────────────────
 function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: () => void }) {
   const { toast } = useToast();
@@ -248,7 +306,24 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
     return <p className="text-xs text-muted-foreground text-center py-8">جاري التحميل...</p>;
   }
 
-  const stillPending = (manifest.items as any[]).filter(i => i.deliveryStatus === "pending").length;
+  const st = manifest.stats ?? {};
+  const items = (manifest.items as any[]) ?? [];
+  const total = st.total ?? 0;
+  const delivered = st.delivered ?? 0;
+  const returned = st.returned ?? 0;
+  const partial = st.partial ?? 0;
+  const pendingDelayed = (st.pending ?? 0) + (st.delayed ?? 0);
+  const deliveryRate = total > 0 ? Math.round(((delivered + partial) / total) * 100) : 0;
+  const returnRate = total > 0 ? Math.round((returned / total) * 100) : 0;
+  const pendingRate = total > 0 ? Math.round((pendingDelayed / total) * 100) : 0;
+
+  const codTotal = items.reduce((s, i) => s + Number(i.totalPrice ?? 0), 0);
+  const codDelivered = items.filter(i => i.deliveryStatus === "delivered").reduce((s, i) => s + Number(i.totalPrice ?? 0), 0);
+  const codReturned = items.filter(i => i.deliveryStatus === "returned").reduce((s, i) => s + Number(i.totalPrice ?? 0), 0);
+
+  const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : null;
+  const courierCostManual = manifest.courierCostManual != null ? Number(manifest.courierCostManual) : 0;
+  const netDueToCompany = st.netDueToCompany ?? null;
 
   return (
     <div className="space-y-3">
@@ -262,32 +337,95 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
         </Badge>
       </div>
 
+      <p className="text-sm font-black font-mono text-center">{manifest.manifestNumber}</p>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 gap-2">
+        <KpiCard label="إجمالي الطلبيات" value={total} color="96,165,250" icon={Package} />
+        <KpiCard label="مسلَّم" value={delivered} sub={`${deliveryRate}% نسبة التسليم`} color="52,211,153" icon={CheckCircle2} />
+        <KpiCard label="مرتجع" value={returned} sub={`${returnRate}% نسبة الإرجاع`} color="248,113,113" icon={RotateCcw} />
+        <KpiCard label="مؤجل / معلّق" value={pendingDelayed} sub={`${pendingRate}% من الإجمالي`} color="251,191,36" icon={Hourglass} />
+      </div>
+      {partial > 0 && (
+        <Card className="p-2.5 bg-card/60 border-border flex items-center justify-between">
+          <span className="text-xs text-muted-foreground flex items-center gap-1"><PackageCheck className="w-3.5 h-3.5 text-teal-400" /> استلام جزئي</span>
+          <span className="text-sm font-black text-teal-400">{partial}</span>
+        </Card>
+      )}
+
+      {/* نسبة التسليم */}
       <Card className="p-3 bg-card/60 border-border">
-        <p className="text-sm font-black font-mono">{manifest.manifestNumber}</p>
-        <div className="grid grid-cols-3 gap-2 mt-2 text-center">
-          <div>
-            <p className="text-lg font-black">{manifest.stats?.total ?? 0}</p>
-            <p className="text-[10px] text-muted-foreground">إجمالي</p>
-          </div>
-          <div>
-            <p className="text-lg font-black text-emerald-400">{manifest.stats?.delivered ?? 0}</p>
-            <p className="text-[10px] text-muted-foreground">مسلَّم</p>
-          </div>
-          <div>
-            <p className="text-lg font-black text-red-400">{manifest.stats?.returned ?? 0}</p>
-            <p className="text-[10px] text-muted-foreground">مرتجع</p>
-          </div>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-xs font-bold">نسبة التسليم</p>
+          <p className="text-sm font-black text-emerald-400">{deliveryRate}%</p>
+        </div>
+        <div className="w-full bg-muted/30 rounded-full h-2 overflow-hidden">
+          <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${deliveryRate}%` }} />
+        </div>
+        <div className="flex justify-between text-[10px] text-muted-foreground mt-1.5">
+          <span>مرتجع: {returned}</span>
+          <span>مؤجل: {pendingDelayed}</span>
+          <span>مسلَّم: {delivered}</span>
         </div>
       </Card>
 
+      {/* فاتورة البيان */}
+      <Card className="p-3 bg-card/60 border-border flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold">فاتورة البيان</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">المبلغ المتفق عليه معك</p>
+        </div>
+        <p className="text-sm font-black">{invoicePrice != null ? formatCurrency(invoicePrice) : "لم يُحدّد بعد"}</p>
+      </Card>
+
+      {/* بيان التسوية */}
+      <Card className="p-3 bg-card/60 border-border space-y-2">
+        <p className="text-xs font-bold flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-primary" /> بيان التسوية مع الإدارة</p>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="rounded-lg bg-background/40 p-2">
+            <p className="text-[10px] text-muted-foreground">إجمالي COD المسلَّم</p>
+            <p className="text-sm font-black text-emerald-400">{formatCurrency(codDelivered)}</p>
+          </div>
+          <div className="rounded-lg bg-background/40 p-2">
+            <p className="text-[10px] text-muted-foreground">صافي المستحق عليك</p>
+            <p className="text-sm font-black">{netDueToCompany != null ? formatCurrency(netDueToCompany) : "—"}</p>
+          </div>
+        </div>
+        {courierCostManual !== 0 && (
+          <div className="flex justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/50">
+            <span>تكلفة متفق عليها مخصومة</span>
+            <span className="text-red-400 font-bold">-{formatCurrency(courierCostManual)}</span>
+          </div>
+        )}
+      </Card>
+
+      <StillWithCourierSection items={items} manifestId={manifestId} locked={locked}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["rep-manifest", manifestId] })} />
+
       <div className="space-y-2">
-        {(manifest.items as any[]).map(item => (
+        {items.map(item => (
           <ManifestItemRow key={item.id} item={item} manifestId={manifestId} locked={locked}
             onSaved={() => qc.invalidateQueries({ queryKey: ["rep-manifest", manifestId] })} />
         ))}
-        {(manifest.items as any[]).length === 0 && (
+        {items.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات في هذا البيان</p>
         )}
+      </div>
+
+      {/* ملخص COD */}
+      <div className="grid grid-cols-3 gap-2">
+        <Card className="p-2.5 bg-card/60 border-border text-center">
+          <p className="text-[10px] text-muted-foreground">COD إجمالي</p>
+          <p className="text-sm font-black">{formatCurrency(codTotal)}</p>
+        </Card>
+        <Card className="p-2.5 bg-card/60 border-border text-center">
+          <p className="text-[10px] text-muted-foreground">COD المسلَّم</p>
+          <p className="text-sm font-black text-emerald-400">{formatCurrency(codDelivered)}</p>
+        </Card>
+        <Card className="p-2.5 bg-card/60 border-border text-center">
+          <p className="text-[10px] text-muted-foreground">COD المرتجع</p>
+          <p className="text-sm font-black text-red-400">{formatCurrency(codReturned)}</p>
+        </Card>
       </div>
 
       {!locked && (
@@ -301,9 +439,9 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
               <p className="text-xs flex items-center gap-1 text-amber-400">
                 <AlertTriangle className="w-3.5 h-3.5" /> هتقفل البيان؟ مش هتقدر تعدّل بعد القفل.
               </p>
-              {stillPending > 0 && (
+              {pendingDelayed > 0 && (
                 <p className="text-[11px] text-muted-foreground">
-                  فيه {stillPending} شحنة لسه قيد الانتظار — هتفضل من غير تحديث.
+                  فيه {pendingDelayed} شحنة لسه قيد الانتظار/مؤجلة — هتفضل من غير تحديث.
                 </p>
               )}
               <div className="flex gap-2">
@@ -366,15 +504,15 @@ function ManifestsTab({ companyId }: { companyId: number | null }) {
 }
 
 export default function RepresentativeDashboard() {
-  const { user, isRepresentative, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isRepresentative } = useAuth();
   const [activeTab, setActiveTab] = useState<"shipments" | "manifests">("shipments");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
 
-  // فقط المندوبين والأدمن
-  if (user && !isRepresentative && !isAdmin && !isSuperAdmin) return <Redirect to="/" />;
+  // الصفحة دي خاصة بالمندوب بس — السوبر أدمن والأدمن عندهم صفحة "مناديب الشحن" الكاملة
+  if (user && !isRepresentative) return <Redirect to="/dashboard" />;
 
   const qParams = new URLSearchParams();
   if (dateFrom) qParams.set("dateFrom", dateFrom);
