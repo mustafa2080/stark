@@ -821,20 +821,47 @@ const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: React.Eleme
 
 // ─── Desktop Sidebar ──────────────────────────────────────────────────────────
 function DesktopSidebar({
-  active, onSelect, company, user: u, d,
+  active, onSelect, company, user: u, d, open, onToggle, onClose,
 }: {
   active: TabId; onSelect: (t: TabId) => void;
   company: any; user: any; d: any;
+  open: boolean; onToggle: () => void; onClose: () => void;
 }) {
   const activeItem = NAV_ITEMS.find(n => n.id === active)!;
   return (
+    <>
+      {/* Overlay — يظهر لما الـ sidebar مفتوح */}
+      {open && (
+        <div
+          className="hidden md:block fixed inset-0 z-30"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Collapsed toggle button — يظهر لما الـ sidebar مقفول */}
+      {!open && (
+        <button
+          onClick={onToggle}
+          className="hidden md:flex fixed right-0 top-1/2 -translate-y-1/2 z-40 flex-col items-center justify-center gap-1 w-8 h-20 rounded-l-xl border border-border/60 border-r-0 transition-all hover:w-10"
+          style={{
+            background: "linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)",
+            boxShadow: "-4px 0 16px rgba(0,0,0,0.15)",
+          }}
+          title="فتح القائمة"
+        >
+          <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+        </button>
+      )}
+
     <aside
       dir="rtl"
-      className="hidden md:flex flex-col w-56 shrink-0 h-screen sticky top-0 overflow-y-auto"
+      className={`hidden md:flex flex-col w-56 shrink-0 h-screen fixed right-0 top-0 z-40 overflow-y-auto transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
       style={{
         background: "linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)",
         borderLeft: "1px solid hsl(var(--border))",
+        boxShadow: open ? "-8px 0 32px rgba(0,0,0,0.2)" : "none",
       }}
+      onClick={e => e.stopPropagation()}
     >
       {/* ── Brand ── */}
       <div className="px-4 pt-5 pb-4 border-b border-border/50">
@@ -912,9 +939,15 @@ function DesktopSidebar({
 
       {/* ── Footer ── */}
       <div className="px-4 pb-4 pt-2 border-t border-border/30">
-        <p className="text-[10px] text-muted-foreground/50 text-center">Stark Logistics</p>
+        <button
+          onClick={onClose}
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-all"
+        >
+          <ChevronRight className="w-3 h-3" /> إغلاق القائمة
+        </button>
       </div>
     </aside>
+    </>
   );
 }
 
@@ -971,6 +1004,7 @@ export default function RepresentativeDashboard() {
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // الصفحة دي خاصة بالمندوب بس — السوبر أدمن والأدمن عندهم صفحة "مناديب الشحن" الكاملة
   if (user && !isRepresentative) return <Redirect to="/dashboard" />;
@@ -1032,10 +1066,13 @@ export default function RepresentativeDashboard() {
       {/* ─── Desktop Sidebar ─── */}
       <DesktopSidebar
         active={activeTab}
-        onSelect={setActiveTab}
+        onSelect={(t) => { setActiveTab(t); setSidebarOpen(false); }}
         company={company}
         user={user}
         d={d}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen(true)}
+        onClose={() => setSidebarOpen(false)}
       />
 
       {/* ─── Main Content ─── */}
