@@ -8,20 +8,44 @@ import { useToast } from "@/hooks/use-toast";
 // ─── STARK Glow Animation CSS ─────────────────────────────────────────────────
 const starkGlowStyle = `
 @keyframes starkGlow {
-  0%   { filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)) drop-shadow(0 0 20px rgba(255,255,255,0.08)); }
-  50%  { filter: drop-shadow(0 0 30px rgba(255,255,255,0.55)) drop-shadow(0 0 60px rgba(255,255,255,0.25)) drop-shadow(0 0 100px rgba(200,200,255,0.15)); }
-  100% { filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)) drop-shadow(0 0 20px rgba(255,255,255,0.08)); }
+  0%   {
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.10)) drop-shadow(0 0 15px rgba(255,255,255,0.06));
+    letter-spacing: -0.02em;
+  }
+  25%  {
+    filter: drop-shadow(0 0 18px rgba(255,255,255,0.35)) drop-shadow(0 0 45px rgba(220,220,255,0.20)) drop-shadow(0 0 80px rgba(180,180,255,0.10));
+  }
+  50%  {
+    filter: drop-shadow(0 0 40px rgba(255,255,255,0.70)) drop-shadow(0 0 80px rgba(200,200,255,0.40)) drop-shadow(0 0 140px rgba(160,160,255,0.20)) drop-shadow(0 2px 0 rgba(255,255,255,0.9));
+    letter-spacing: 0.01em;
+  }
+  75%  {
+    filter: drop-shadow(0 0 18px rgba(255,255,255,0.35)) drop-shadow(0 0 45px rgba(220,220,255,0.20)) drop-shadow(0 0 80px rgba(180,180,255,0.10));
+  }
+  100% {
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.10)) drop-shadow(0 0 15px rgba(255,255,255,0.06));
+    letter-spacing: -0.02em;
+  }
+}
+@keyframes starkGradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 @keyframes starkGlowSm {
-  0%   { text-shadow: 0 0 4px rgba(255,255,255,0.1); }
-  50%  { text-shadow: 0 0 12px rgba(255,255,255,0.6), 0 0 30px rgba(255,255,255,0.25), 0 0 50px rgba(200,200,255,0.15); }
-  100% { text-shadow: 0 0 4px rgba(255,255,255,0.1); }
+  0%   { text-shadow: 0 0 3px rgba(255,255,255,0.08); }
+  25%  { text-shadow: 0 0 8px rgba(255,255,255,0.45), 0 0 20px rgba(255,255,255,0.18); }
+  50%  { text-shadow: 0 0 18px rgba(255,255,255,0.75), 0 0 40px rgba(200,200,255,0.35), 0 0 70px rgba(180,180,255,0.18); }
+  75%  { text-shadow: 0 0 8px rgba(255,255,255,0.45), 0 0 20px rgba(255,255,255,0.18); }
+  100% { text-shadow: 0 0 3px rgba(255,255,255,0.08); }
 }
 .stark-glow-text {
-  animation: starkGlow 3s ease-in-out infinite;
+  animation: starkGlow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background-size: 300% 300% !important;
+  animation: starkGlow 4s cubic-bezier(0.4,0,0.6,1) infinite, starkGradientShift 4s ease infinite;
 }
 .stark-glow-text-sm {
-  animation: starkGlowSm 3s ease-in-out infinite;
+  animation: starkGlowSm 4s cubic-bezier(0.4,0,0.6,1) infinite;
 }
 `;
 
@@ -262,11 +286,14 @@ function HeroSection() {
           <span
             className="inline-block text-5xl md:text-7xl font-black stark-glow-text"
             style={{
-              background: "linear-gradient(135deg, #ffffff 0%, #e0e0e0 40%, #a0a0a0 100%)",
+              background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 20%, #f0f0f0 35%, #ffffff 50%, #d0d0ff 65%, #ffffff 80%, #b0b0b0 100%)",
+              backgroundSize: "300% 300%",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
               letterSpacing: "-0.02em",
+              textShadow: "none",
+              willChange: "filter, letter-spacing",
             }}
           >
             STARK
