@@ -23,6 +23,7 @@ interface Shipment {
   parcelType?: string;
   weight?: string | number;
   notes?: string;
+  returnReason?: string | null;
   createdAt?: string;
   warehouseName?: string | null;
   warehouseCity?: string | null;
@@ -97,6 +98,7 @@ export default function TrackClientPage() {
           <ShipmentStatusHero
             status={shipments[0].status}
             trackingNumber={shipments[0].trackingNumber || shipments[0].shipmentNumber}
+            returnReason={shipments[0].returnReason}
           />
         )}
 

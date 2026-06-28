@@ -46,9 +46,10 @@ const GROUP_META: Record<StatusGroup, { title: string; subtitle: string; accent:
 interface ShipmentStatusHeroProps {
   status: string;
   trackingNumber?: string;
+  returnReason?: string | null;
 }
 
-export default function ShipmentStatusHero({ status, trackingNumber }: ShipmentStatusHeroProps) {
+export default function ShipmentStatusHero({ status, trackingNumber, returnReason }: ShipmentStatusHeroProps) {
   const group = useMemo<StatusGroup>(() => STATUS_GROUP_MAP[status] ?? "pending", [status]);
   const meta = GROUP_META[group];
 
@@ -84,6 +85,18 @@ export default function ShipmentStatusHero({ status, trackingNumber }: ShipmentS
             {meta.title}
           </h2>
           <p className="text-white/50 text-xs sm:text-sm">{meta.subtitle}</p>
+          {group === "exception" && returnReason && (
+            <div
+              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold"
+              style={{
+                background: `${meta.accent}1f`,
+                border: `1px solid ${meta.accent}55`,
+                color: meta.accent,
+              }}
+            >
+              السبب: {returnReason}
+            </div>
+          )}
           {trackingNumber && (
             <p className="text-white/25 text-[11px] mt-2 font-mono" dir="ltr">
               #{trackingNumber}
