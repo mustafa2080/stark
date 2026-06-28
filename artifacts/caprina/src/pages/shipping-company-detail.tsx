@@ -137,6 +137,94 @@ function ManifestCard({ m, isLatest }: { m: ShippingManifestListItem & { deliver
   );
 }
 
+function ShipmentManifestCard({ m, isLatest }: { m: ShipmentManifestListItem; isLatest: boolean }) {
+  const sc = m.statusCounts ?? { delivered: 0, returned: 0, pending: 0, delayed: 0, partial: 0 };
+  const total = m.shipmentCount;
+  const delivered = (sc.delivered ?? 0) + (sc.partial ?? 0);
+  const returned  = sc.returned ?? 0;
+  const pending   = (sc.pending ?? 0) + (sc.delayed ?? 0);
+  const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+
+  return (
+    <a href={`/shipping/shipment-manifests/${m.id}`}>
+      <div className={`group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border ${
+        m.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"
+      }`}>
+        <div className={`w-1 rounded-r-lg shrink-0 ${m.status === "closed" ? "bg-emerald-500" : "bg-blue-500"}`} />
+        <div className="flex-1 px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-black text-sm">{m.manifestNumber}</span>
+                {isLatest && m.status === "open" && (
+                  <Badge variant="outline" className="text-[9px] border-primary/50 bg-primary/10 text-primary">الأحدث</Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-2.5 h-2.5" />{format(new Date(m.createdAt), "yyyy/MM/dd")}
+                </span>
+                {m.closedAt ? (
+                  <span className="flex items-center gap-1 text-emerald-600">
+                    <Lock className="w-2.5 h-2.5" />أُغلق {format(new Date(m.closedAt), "yyyy/MM/dd")}
+                  </span>
+                ) : (
+                  <span className="text-blue-500">
+                    منذ {formatDistanceToNow(new Date(m.createdAt), { locale: ar, addSuffix: false })}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge variant="outline" className={`text-[9px] font-bold border ${
+                m.status === "closed"
+                  ? "border-emerald-700 bg-emerald-900/20 text-emerald-400"
+                  : "border-blue-700 bg-blue-900/20 text-blue-400"
+              }`}>
+                {m.status === "closed"
+                  ? <><Lock className="w-2.5 h-2.5 inline ml-0.5" />مغلق</>
+                  : <><Clock className="w-2.5 h-2.5 inline ml-0.5" />مفتوح</>}
+              </Badge>
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 mt-2 text-[11px] flex-wrap">
+            <span className="flex items-center gap-1">
+              <Package className="w-3 h-3 text-muted-foreground" />
+              <span className="font-bold">{total}</span><span className="text-muted-foreground">شحنة</span>
+            </span>
+            <span className="flex items-center gap-1 text-emerald-400">
+              <CheckCircle2 className="w-3 h-3" /><span className="font-bold">{delivered}</span> مسلَّم
+            </span>
+            <span className="flex items-center gap-1 text-red-400">
+              <RotateCcw className="w-3 h-3" /><span className="font-bold">{returned}</span> مرتجع
+            </span>
+            {pending > 0 && (
+              <span className="flex items-center gap-1 text-amber-400">
+                <Clock className="w-3 h-3" /><span className="font-bold">{pending}</span> معلَّق
+              </span>
+            )}
+            {m.invoicePrice != null && (
+              <span className="flex items-center gap-1 text-primary font-bold mr-auto">
+                {new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(m.invoicePrice))}
+              </span>
+            )}
+          </div>
+
+          {total > 0 && (
+            <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden flex mt-2">
+              <div className="h-1.5 bg-emerald-500" style={{ width: `${deliveryRate}%` }} />
+              <div className="h-1.5 bg-red-500" style={{ width: `${total > 0 ? (returned / total) * 100 : 0}%` }} />
+              <div className="h-1.5 bg-amber-500" style={{ width: `${total > 0 ? (pending / total) * 100 : 0}%` }} />
+            </div>
+          )}
+        </div>
+      </div>
+    </a>
+  );
+}
+
 export default function ShippingCompanyDetailPage() {
   const params = useParams();
   const companyId = Number(params.id);
@@ -163,8 +251,8 @@ export default function ShippingCompanyDetailPage() {
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["company-stats", companyId],
-    queryFn: () => manifestsApi.companyStats(companyId),
+    queryKey: ["company-shipment-stats", companyId],
+    queryFn: () => shipmentManifestsApi.companyStats(companyId),
     enabled: !isNaN(companyId),
   });
 
@@ -178,7 +266,7 @@ export default function ShippingCompanyDetailPage() {
   const { data: shipmentManifests } = useQuery({
     queryKey: ["shipment-manifests", companyId],
     queryFn: () => shipmentManifestsApi.list(companyId),
-    enabled: !isNaN(companyId) && activeTab === "shipments",
+    enabled: !isNaN(companyId),
   });
   const openShipmentManifest = shipmentManifests?.find((m) => m.status === "open") ?? null;
 
@@ -313,7 +401,7 @@ export default function ShippingCompanyDetailPage() {
         >
           <FileText className="w-3.5 h-3.5" />
           البيانات
-          {manifests && <Badge variant="outline" className="text-[9px] ml-1">{manifests.length}</Badge>}
+          {shipmentManifests && <Badge variant="outline" className="text-[9px] ml-1">{shipmentManifests.length}</Badge>}
         </button>
         <button
           onClick={() => setActiveTab("shipments")}
@@ -330,18 +418,7 @@ export default function ShippingCompanyDetailPage() {
       </div>
 
       {/* ─── Tab: Manifests ─── */}
-      {activeTab === "manifests" && <div>
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2 pt-3">
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />مفتوح: {openManifests.length}
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />مغلق: {closedManifests.length}
-            </span>
-          </div>
-        </div>
-
+      {activeTab === "manifests" && <div className="pt-3">
         {/* ── فلتر التاريخ ── */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
@@ -361,64 +438,61 @@ export default function ShippingCompanyDetailPage() {
             className="h-7 text-xs w-36 px-2"
           />
           {hasDateFilter && (
-            <Button
-              variant="ghost"
-              size="sm"
+            <Button variant="ghost" size="sm"
               className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
-              onClick={() => { setDateFrom(""); setDateTo(""); }}
-            >
+              onClick={() => { setDateFrom(""); setDateTo(""); }}>
               <X className="w-3 h-3" />مسح
             </Button>
           )}
-          {hasDateFilter && (
-            <span className="text-[10px] text-muted-foreground">
-              ({filteredOpen.length + filteredClosed.length} نتيجة)
-            </span>
-          )}
         </div>
 
-        {isLoading ? (
+        {!shipmentManifests ? (
           <div className="py-12 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</div>
-        ) : !manifests || manifests.length === 0 ? (
+        ) : shipmentManifests.length === 0 ? (
           <div className="py-16 text-center">
             <Truck className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
             <p className="text-muted-foreground text-sm">لا توجد بيانات شحن بعد</p>
-            <Button size="sm" className="mt-4 gap-1" onClick={() => setShowNewManifest(true)}>
-              <PackagePlus className="w-3.5 h-3.5" />إنشاء أول بيان
-            </Button>
+            {canManifests && (
+              <Button size="sm" className="mt-4 gap-1" onClick={() => setShowNewShipmentManifest(true)}>
+                <PackagePlus className="w-3.5 h-3.5" />إنشاء أول بيان
+              </Button>
+            )}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredOpen.length > 0 && (
-              <>
-                <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider px-1">
-                  مفتوح — يحتاج متابعة
-                </p>
-                {filteredOpen.map((m) => (
-                  <ManifestCard key={m.id} m={m} isLatest={m.id === latestOpenId} />
-                ))}
-                {filteredClosed.length > 0 && <div className="border-t border-border my-3" />}
-              </>
-            )}
-            {filteredClosed.length > 0 && (
-              <>
-                {filteredOpen.length > 0 && (
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
-                    مُغلق — مكتمل
-                  </p>
-                )}
-                {filteredClosed.map((m) => (
-                  <ManifestCard key={m.id} m={m} isLatest={false} />
-                ))}
-              </>
-            )}
-            {hasDateFilter && filteredOpen.length === 0 && filteredClosed.length === 0 && (
-              <div className="py-10 text-center text-muted-foreground text-sm">
-                لا توجد بيانات في هذا النطاق الزمني
+        ) : (() => {
+          const filtered = shipmentManifests.filter(m => {
+            if (!dateFrom && !dateTo) return true;
+            const d = new Date(m.createdAt);
+            if (dateFrom && d < new Date(dateFrom)) return false;
+            if (dateTo   && d > new Date(dateTo + "T23:59:59")) return false;
+            return true;
+          });
+          const openSM   = filtered.filter(m => m.status === "open");
+          const closedSM = filtered.filter(m => m.status === "closed");
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-2">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />مفتوح: {openSM.length}</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />مغلق: {closedSM.length}</span>
               </div>
-            )}
-          </div>
-        )}
+              {openSM.length > 0 && (
+                <>
+                  <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider px-1">مفتوح — يحتاج متابعة</p>
+                  {openSM.map(m => <ShipmentManifestCard key={m.id} m={m} isLatest={m.id === openSM[0].id} />)}
+                  {closedSM.length > 0 && <div className="border-t border-border my-3" />}
+                </>
+              )}
+              {closedSM.length > 0 && (
+                <>
+                  {openSM.length > 0 && <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">مُغلق — مكتمل</p>}
+                  {closedSM.map(m => <ShipmentManifestCard key={m.id} m={m} isLatest={false} />)}
+                </>
+              )}
+              {hasDateFilter && filtered.length === 0 && (
+                <div className="py-10 text-center text-muted-foreground text-sm">لا توجد بيانات في هذا النطاق الزمني</div>
+              )}
+            </div>
+          );
+        })()}
       </div>}
 
       {/* ─── Tab: Shipments ─── */}
