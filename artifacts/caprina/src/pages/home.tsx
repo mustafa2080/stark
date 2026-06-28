@@ -5,6 +5,26 @@ import { useLocation } from "wouter";
 import { Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LayoutDashboard, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+// ─── STARK Glow Animation CSS ─────────────────────────────────────────────────
+const starkGlowStyle = `
+@keyframes starkGlow {
+  0%   { filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)) drop-shadow(0 0 20px rgba(255,255,255,0.08)); }
+  50%  { filter: drop-shadow(0 0 30px rgba(255,255,255,0.55)) drop-shadow(0 0 60px rgba(255,255,255,0.25)) drop-shadow(0 0 100px rgba(200,200,255,0.15)); }
+  100% { filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)) drop-shadow(0 0 20px rgba(255,255,255,0.08)); }
+}
+@keyframes starkGlowSm {
+  0%   { text-shadow: 0 0 4px rgba(255,255,255,0.1); }
+  50%  { text-shadow: 0 0 12px rgba(255,255,255,0.6), 0 0 30px rgba(255,255,255,0.25), 0 0 50px rgba(200,200,255,0.15); }
+  100% { text-shadow: 0 0 4px rgba(255,255,255,0.1); }
+}
+.stark-glow-text {
+  animation: starkGlow 3s ease-in-out infinite;
+}
+.stark-glow-text-sm {
+  animation: starkGlowSm 3s ease-in-out infinite;
+}
+`;
+
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggleDarkMode: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -79,11 +99,10 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
             <img src={logoBase64} alt="STARK" className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
           </div>
           <span
-            className="hidden sm:block font-black text-lg tracking-[0.25em]"
+            className="hidden sm:block font-black text-lg tracking-[0.25em] stark-glow-text-sm"
             style={{
               color: darkMode ? "#ffffff" : "#111111",
               letterSpacing: "0.25em",
-              textShadow: darkMode ? "0 0 20px rgba(255,255,255,0.3)" : "none",
             }}
           >
             {logoText}
@@ -241,13 +260,12 @@ function HeroSection() {
         </div>
         <h1 className="flex items-center justify-center gap-3 mb-4" dir="ltr">
           <span
-            className="inline-block text-5xl md:text-7xl font-black"
+            className="inline-block text-5xl md:text-7xl font-black stark-glow-text"
             style={{
               background: "linear-gradient(135deg, #ffffff 0%, #e0e0e0 40%, #a0a0a0 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
-              filter: "drop-shadow(0 0 40px rgba(255,255,255,0.25))",
               letterSpacing: "-0.02em",
             }}
           >
@@ -1243,6 +1261,7 @@ export default function HomePage() {
   const toggleDarkMode = () => setDarkMode(v => !v);
   return (
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? "bg-black" : "bg-gray-50"}`}>
+      <style>{starkGlowStyle}</style>
       <Navbar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
       <HeroSection />
       <TrackingSection darkMode={darkMode} />
