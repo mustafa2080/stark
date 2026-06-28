@@ -1915,14 +1915,16 @@ function StatusSelect({
   );
 }
 
-// ─── Urgent Button (للشحنات مباشرة) ──────────────────────────────────────────
+// ─── Urgent Button (نفس زرار البيان بالظبط) ─────────────────────────────────
 function ShipmentUrgentButton({
+  manifestId,
   shipmentId,
   isUrgent,
   urgentNote,
   onToggled,
   disabled = false,
 }: {
+  manifestId: number;
   shipmentId: number;
   isUrgent: boolean;
   urgentNote?: string | null;
@@ -1935,7 +1937,7 @@ function ShipmentUrgentButton({
 
   const mutation = useMutation({
     mutationFn: (payload: { isUrgent: boolean; urgentNote?: string | null }) =>
-      apiFetch(`/shipments/${shipmentId}/urgent`, {
+      apiFetch(`/shipment-manifests/${manifestId}/items/${shipmentId}/urgent`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -1947,20 +1949,11 @@ function ShipmentUrgentButton({
       setShowNoteDialog(false);
       onToggled();
     },
-    onError: (e: any) => {
-      const msg = e?.message ?? "";
-      toast({
-        title: msg.includes("غير مرتبطة") ? "⚠️ الشحنة غير مرتبطة ببيان" : "خطأ",
-        description: msg.includes("غير مرتبطة")
-          ? "لا يمكن وضع استعجال على شحنة غير مضافة لبيان شحن بعد"
-          : msg,
-        variant: "destructive",
-      });
-    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  const handleClick = (ev: React.MouseEvent) => {
-    ev.stopPropagation();
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isUrgent) {
       mutation.mutate({ isUrgent: false, urgentNote: null });
     } else {
@@ -1977,49 +1970,59 @@ function ShipmentUrgentButton({
         disabled={disabled || mutation.isPending}
         title={isUrgent ? `إلغاء الاستعجال${urgentNote ? ` — ${urgentNote}` : ""}` : "استعجال هذه الشحنة"}
         className={`
-          flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[11px] font-black border transition-all duration-200
+          flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-black border transition-all duration-200
           ${isUrgent
             ? "bg-red-500/20 border-red-500/60 text-red-400 hover:bg-red-500/30 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]"
-            : "bg-card border-border/50 text-muted-foreground hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400"}
-          disabled:opacity-40 disabled:cursor-not-allowed h-8
+            : "bg-muted/30 border-border/50 text-muted-foreground hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400"}
+          ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} h-8
         `}
       >
-        <Zap className={`w-3.5 h-3.5 shrink-0 ${isUrgent ? "fill-red-400" : ""}`} />
-        {mutation.isPending ? "..." : isUrgent ? "استعجال!" : "استعجال"}
+        <Zap className={`w-3 h-3 shrink-0 ${isUrgent ? "fill-red-400" : ""}`} />
+        {isUrgent ? "مستعجل!" : "استعجال"}
       </button>
 
-      {/* Dialog إدخال سبب الاستعجال */}
-      <Dialog open={showNoteDialog} onOpenChange={v => !v && setShowNoteDialog(false)}>
-        <DialogContent className="max-w-sm" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-sm">
-              <Zap className="w-4 h-4 text-red-400" />
-              استعجال الشحنة
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground">يمكنك إضافة ملاحظة للمندوب (اختياري)</p>
-          <input
-            type="text"
-            placeholder="سبب الاستعجال..."
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null }); }}
-            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
-          />
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowNoteDialog(false)}>إلغاء</Button>
-            <Button
-              size="sm"
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-1"
-              onClick={() => mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null })}
-              disabled={mutation.isPending}
-            >
-              <Zap className="w-3.5 h-3.5" />
-              {mutation.isPending ? "جاري..." : "تفعيل الاستعجال"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {showNoteDialog && (
+        <Dialog open onOpenChange={open => { if (!open) setShowNoteDialog(false); }}>
+          <DialogContent className="bg-card border-red-500/30 max-w-sm" dir="rtl"
+            onClick={e => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-400">
+                <Zap className="w-4 h-4 fill-red-400" />
+                استعجال الشحنة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 mt-1">
+              <p className="text-xs text-muted-foreground">
+                سيصل إشعار استعجال للمندوب فور الحفظ. أضف سبباً اختيارياً يظهر له.
+              </p>
+              <div>
+                <Label className="text-xs mb-1.5 block">سبب الاستعجال (اختياري)</Label>
+                <Input
+                  placeholder="مثال: العميل مستعجل جداً — اتصل قبل التوصيل"
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  className="h-8 text-sm bg-background border-red-500/30 focus:border-red-500"
+                  autoFocus
+                  onKeyDown={e => { if (e.key === "Enter") mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null }); }}
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  className="flex-1 h-8 text-xs font-black bg-red-500 hover:bg-red-600 text-white gap-1.5"
+                  onClick={() => mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null })}
+                  disabled={mutation.isPending}
+                >
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  {mutation.isPending ? "جاري الإرسال..." : "استعجال الآن"}
+                </Button>
+                <Button variant="outline" className="h-8 text-xs border-border" onClick={() => setShowNoteDialog(false)}>
+                  إلغاء
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
@@ -3215,13 +3218,16 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   );
                 })()}
 
-                {/* استعجال — جنب الإغلاق */}
-                <ShipmentUrgentButton
-                  shipmentId={id}
-                  isUrgent={!!(order as any).isUrgent}
-                  urgentNote={(order as any).urgentNote}
-                  onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
-                />
+                {/* استعجال — جنب الإغلاق، يظهر بس لو الشحنة في بيان */}
+                {!!(order as any).manifestId && (
+                  <ShipmentUrgentButton
+                    manifestId={(order as any).manifestId}
+                    shipmentId={id}
+                    isUrgent={!!(order as any).isUrgent}
+                    urgentNote={(order as any).urgentNote}
+                    onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
+                  />
+                )}
               </>)}
 
               {/* واتساب — للكل */}
