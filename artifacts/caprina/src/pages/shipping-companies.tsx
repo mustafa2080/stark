@@ -484,7 +484,8 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
       </AlertDialog>
 
       {expanded && (
-        <div className="mt-2 space-y-1.5 max-h-72 overflow-y-auto pr-1">
+        <div className="mt-2 space-y-1.5 max-h-[320px] overflow-y-auto pr-1"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.15) transparent" }}>
           {/* بيانات الشحنات (النظام الجديد) */}
           {shipmentManifests && shipmentManifests.length > 0 && (
             <>
