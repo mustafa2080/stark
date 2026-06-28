@@ -2079,7 +2079,7 @@ export default function OrderDetail() {
     queryKey: ["shipment-detail", id],
     queryFn: () => apiFetch<any>(`/shipments/${id}`),
     enabled: !!id,
-    staleTime: 15_000,
+    staleTime: 0,
   });
 
   // الشحنات مش بيها invoiceNumber — نعطل الـ query ده
