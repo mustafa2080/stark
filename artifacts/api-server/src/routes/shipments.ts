@@ -545,9 +545,6 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
         shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
         zoneLabel: shipmentZonesTable.name,
         zoneGovernorate: shipmentZonesTable.governorate,
-        isUrgent:   shipmentManifestItemsTable.isUrgent,
-        urgentNote: shipmentManifestItemsTable.urgentNote,
-        manifestId: shipmentManifestItemsTable.manifestId,
       })
       .from(shipmentsTable)
       .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
@@ -563,6 +560,20 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
     if (!row.receiverCity && row.zoneGovernorate) {
       (row as any).receiverCity = row.zoneGovernorate;
     }
+    // جيب manifestId + isUrgent + urgentNote بـ subquery مستقل عشان تجنب تعارض الأسماء
+    const [manifestItem] = await db
+      .select({
+        manifestId: shipmentManifestItemsTable.manifestId,
+        isUrgent:   shipmentManifestItemsTable.isUrgent,
+        urgentNote: shipmentManifestItemsTable.urgentNote,
+      })
+      .from(shipmentManifestItemsTable)
+      .where(eq(shipmentManifestItemsTable.shipmentId, id))
+      .orderBy(desc(shipmentManifestItemsTable.id))
+      .limit(1);
+    (row as any).manifestId = manifestItem?.manifestId ?? null;
+    (row as any).isUrgent   = manifestItem?.isUrgent   ?? 0;
+    (row as any).urgentNote = manifestItem?.urgentNote  ?? null;
     res.json(row);
   } catch (e) {
     res.status(500).json({ error: "خطأ" });
