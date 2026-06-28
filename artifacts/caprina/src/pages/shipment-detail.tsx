@@ -3395,6 +3395,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 </Button>
               );
             })()}
+
+            {/* استعجال — جنب الإغلاق */}
+            {!!(order as any).manifestId && (
+              <ShipmentUrgentButton
+                manifestId={(order as any).manifestId}
+                shipmentId={id}
+                isUrgent={!!(order as any).isUrgent}
+                urgentNote={(order as any).urgentNote}
+                onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
+              />
+            )}
           </>)}
         </div>
       </div>
