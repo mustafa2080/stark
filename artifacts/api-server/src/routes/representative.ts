@@ -179,69 +179,95 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
     : req.query.companyId ? parseInt(req.query.companyId as string) : null;
   if (!companyId) { res.status(400).json({ error: "companyId مطلوب" }); return; }
 
-  const shipmentIds = await getShipmentIdsByCompany(companyId);
-  if (!shipmentIds.length) { res.json({ tasks: [], summary: { urgent: 0, outForDelivery: 0, pending: 0, total: 0 } }); return; }
-
-  // جيب الشحنات النشطة فقط (مش مسلمة ولا ملغية ولا مرتجعة بالكامل)
-  const activeStatuses = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery", "delayed"];
-  const rows = await db.select({
-    id: shipmentsTable.id,
-    shipmentNumber: shipmentsTable.shipmentNumber,
-    receiverName: shipmentsTable.receiverName,
-    receiverPhone: shipmentsTable.receiverPhone,
-    receiverCity: shipmentsTable.receiverCity,
-    status: shipmentsTable.status,
-    codAmount: shipmentsTable.codAmount,
-    createdAt: shipmentsTable.createdAt,
-    zoneName: shipmentZonesTable.name,
-  })
-    .from(shipmentsTable)
-    .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
+  // جيب كل البيانات المفتوحة للشركة
+  const manifests = await db.select({ id: shipmentManifestsTable.id })
+    .from(shipmentManifestsTable)
     .where(and(
-      inArray(shipmentsTable.id, shipmentIds),
-      isNull(shipmentsTable.deletedAt),
-      inArray(shipmentsTable.status, activeStatuses),
-    ))
-    .orderBy(desc(shipmentsTable.createdAt));
+      eq(shipmentManifestsTable.shippingCompanyId, companyId),
+      eq(shipmentManifestsTable.status, "open"),
+    ));
 
-  // جيب الشحنات المستعجلة من manifest items
-  const manifestItems = await db.select({
-    shipmentId: shipmentManifestItemsTable.shipmentId,
-    isUrgent: shipmentManifestItemsTable.isUrgent,
-    urgentNote: shipmentManifestItemsTable.urgentNote,
-    urgentAt: shipmentManifestItemsTable.urgentAt,
+  if (!manifests.length) {
+    res.json({ tasks: [], summary: { urgent: 0, outForDelivery: 0, pending: 0, total: 0 } });
+    return;
+  }
+
+  const manifestIds = manifests.map(m => m.id);
+
+  // جيب الـ items من البيانات المفتوحة — الغير مسلمة ولا مرتجعة
+  const activeDeliveryStatuses = ["pending", "delayed", "partial_delivered"];
+  const items = await db.select({
+    id:             shipmentManifestItemsTable.id,
+    manifestId:     shipmentManifestItemsTable.manifestId,
+    shipmentId:     shipmentManifestItemsTable.shipmentId,
+    deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
+    isUrgent:       shipmentManifestItemsTable.isUrgent,
+    urgentNote:     shipmentManifestItemsTable.urgentNote,
+    urgentAt:       shipmentManifestItemsTable.urgentAt,
+    addedAt:        shipmentManifestItemsTable.addedAt,
+    // بيانات الشحنة الأصلية
+    customerName:   (shipmentManifestItemsTable as any).customerName,
+    phone:          (shipmentManifestItemsTable as any).phone,
+    city:           (shipmentManifestItemsTable as any).city,
+    invoiceNumber:  (shipmentManifestItemsTable as any).invoiceNumber,
+    totalPrice:     (shipmentManifestItemsTable as any).totalPrice,
   })
     .from(shipmentManifestItemsTable)
     .where(and(
-      inArray(shipmentManifestItemsTable.shipmentId, rows.map(r => r.id)),
-      eq(shipmentManifestItemsTable.isUrgent, 1),
-    ));
+      inArray(shipmentManifestItemsTable.manifestId, manifestIds),
+      inArray(shipmentManifestItemsTable.deliveryStatus, activeDeliveryStatuses),
+    ))
+    .orderBy(desc(shipmentManifestItemsTable.addedAt));
 
-  const urgentMap = new Map(manifestItems.map(i => [i.shipmentId, i]));
+  // لو مفيش customerName column — جيب بيانات الشحنة من shipmentsTable
+  const shipmentIds = [...new Set(items.map(i => i.shipmentId))];
+  let shipmentMap = new Map<number, any>();
+  if (shipmentIds.length > 0) {
+    const shipments = await db.select({
+      id: shipmentsTable.id,
+      receiverName: shipmentsTable.receiverName,
+      receiverPhone: shipmentsTable.receiverPhone,
+      receiverCity: shipmentsTable.receiverCity,
+      shipmentNumber: shipmentsTable.shipmentNumber,
+      codAmount: shipmentsTable.codAmount,
+    })
+      .from(shipmentsTable)
+      .where(inArray(shipmentsTable.id, shipmentIds));
+    shipmentMap = new Map(shipments.map(s => [s.id, s]));
+  }
 
-  // رتب: مستعجل أولاً → out_for_delivery → باقي الحالات
-  const priority = (s: any) => {
-    if (urgentMap.has(s.id)) return 0;
-    if (s.status === "out_for_delivery") return 1;
-    if (s.status === "delayed") return 2;
-    if (s.status === "in_transit") return 3;
-    return 4;
+  const tasks = items.map(item => {
+    const sh = shipmentMap.get(item.shipmentId);
+    return {
+      id: item.shipmentId,
+      manifestId: item.manifestId,
+      deliveryStatus: item.deliveryStatus,
+      isUrgent: item.isUrgent === 1 || item.isUrgent === true,
+      urgentNote: item.urgentNote ?? null,
+      urgentAt: item.urgentAt ?? null,
+      // اجيب من manifest item أو fallback لـ shipmentsTable
+      receiverName:   (item as any).customerName ?? sh?.receiverName ?? "",
+      receiverPhone:  (item as any).phone        ?? sh?.receiverPhone ?? "",
+      receiverCity:   (item as any).city         ?? sh?.receiverCity  ?? "",
+      shipmentNumber: (item as any).invoiceNumber ?? sh?.shipmentNumber ?? "",
+      codAmount:      (item as any).totalPrice    ?? sh?.codAmount    ?? 0,
+    };
+  });
+
+  // رتب: مستعجل أولاً → delayed → partial_delivered → pending
+  const priority = (t: any) => {
+    if (t.isUrgent) return 0;
+    if (t.deliveryStatus === "delayed") return 1;
+    if (t.deliveryStatus === "partial_delivered") return 2;
+    return 3;
   };
-
-  const tasks = rows
-    .sort((a, b) => priority(a) - priority(b))
-    .map(s => ({
-      ...s,
-      isUrgent: urgentMap.has(s.id),
-      urgentNote: urgentMap.get(s.id)?.urgentNote ?? null,
-      urgentAt: urgentMap.get(s.id)?.urgentAt ?? null,
-    }));
+  tasks.sort((a, b) => priority(a) - priority(b));
 
   const summary = {
-    urgent: tasks.filter(t => t.isUrgent).length,
-    outForDelivery: tasks.filter(t => t.status === "out_for_delivery").length,
-    pending: tasks.filter(t => !t.isUrgent && t.status !== "out_for_delivery").length,
-    total: tasks.length,
+    urgent:          tasks.filter(t => t.isUrgent).length,
+    outForDelivery:  tasks.filter(t => !t.isUrgent && t.deliveryStatus === "pending").length,
+    pending:         tasks.filter(t => !t.isUrgent && t.deliveryStatus !== "pending").length,
+    total:           tasks.length,
   };
 
   res.json({ tasks, summary });
@@ -255,10 +281,31 @@ router.patch("/shipments/bulk-start-day", requireRepresentativeOrAdmin, async (r
     : (req.body?.companyId ? parseInt(req.body.companyId) : null);
   if (!companyId) { res.status(400).json({ error: "companyId مطلوب" }); return; }
 
-  const shipmentIds = await getShipmentIdsByCompany(companyId);
-  if (!shipmentIds.length) { res.json({ updated: 0 }); return; }
+  // جيب البيانات المفتوحة
+  const manifests = await db.select({ id: shipmentManifestsTable.id })
+    .from(shipmentManifestsTable)
+    .where(and(
+      eq(shipmentManifestsTable.shippingCompanyId, companyId),
+      eq(shipmentManifestsTable.status, "open"),
+    ));
 
-  // غير الحالات: waiting / confirmed / picked_up / in_transit → out_for_delivery
+  if (!manifests.length) { res.json({ updated: 0 }); return; }
+  const manifestIds = manifests.map(m => m.id);
+
+  // غير حالة الـ items الـ pending فقط → delayed (لإظهارها كـ "في الطريق")
+  // في الواقع نغير حالة الشحنات المقابلة في shipmentsTable
+  const pendingItems = await db.select({ shipmentId: shipmentManifestItemsTable.shipmentId })
+    .from(shipmentManifestItemsTable)
+    .where(and(
+      inArray(shipmentManifestItemsTable.manifestId, manifestIds),
+      eq(shipmentManifestItemsTable.deliveryStatus, "pending"),
+    ));
+
+  if (!pendingItems.length) { res.json({ updated: 0 }); return; }
+
+  const shipmentIds = [...new Set(pendingItems.map(i => i.shipmentId))];
+
+  // غير حالة الشحنات في shipmentsTable لـ out_for_delivery
   const eligibleStatuses = ["waiting", "confirmed", "picked_up", "in_transit", "delayed"];
   const result = await db
     .update(shipmentsTable)
@@ -278,7 +325,7 @@ router.patch("/shipments/bulk-start-day", requireRepresentativeOrAdmin, async (r
     userName: user.displayName,
   });
 
-  res.json({ updated: (result as any).affectedRows ?? 0 });
+  res.json({ updated: (result as any).affectedRows ?? shipmentIds.length });
 });
 
 // ─── GET /representative/admin/representatives — قائمة المناديب للأدمن ────────

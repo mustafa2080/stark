@@ -920,17 +920,17 @@ function ManifestsTab({ companyId }: { companyId: number | null }) {
 
 // ─── Today Tasks Tab ──────────────────────────────────────────────────────────
 const TASK_STATUS_PRIORITY: Record<string, { label: string; color: string; dot: string }> = {
-  urgent:           { label: "مستعجل",        color: "bg-red-500/15 text-red-400 border-red-500/40",     dot: "bg-red-500" },
-  out_for_delivery: { label: "خرج للتسليم",  color: "bg-blue-500/15 text-blue-400 border-blue-500/40",  dot: "bg-blue-500" },
-  delayed:          { label: "مؤجل",          color: "bg-amber-500/15 text-amber-400 border-amber-500/40", dot: "bg-amber-500" },
-  in_transit:       { label: "في الطريق",    color: "bg-indigo-500/15 text-indigo-400 border-indigo-500/40", dot: "bg-indigo-400" },
-  waiting:          { label: "انتظار",        color: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",  dot: "bg-zinc-500" },
-  confirmed:        { label: "مؤكدة",         color: "bg-violet-500/15 text-violet-400 border-violet-500/30", dot: "bg-violet-500" },
-  picked_up:        { label: "تم الاستلام",  color: "bg-sky-500/15 text-sky-400 border-sky-500/30",     dot: "bg-sky-400" },
+  urgent:            { label: "مستعجل",        color: "bg-red-500/15 text-red-400 border-red-500/40",       dot: "bg-red-500" },
+  pending:           { label: "قيد التسليم",  color: "bg-blue-500/15 text-blue-400 border-blue-500/40",    dot: "bg-blue-500" },
+  delayed:           { label: "مؤجل",          color: "bg-amber-500/15 text-amber-400 border-amber-500/40", dot: "bg-amber-500" },
+  partial_delivered: { label: "جزئي",          color: "bg-teal-500/15 text-teal-400 border-teal-500/30",    dot: "bg-teal-400" },
+  out_for_delivery:  { label: "خرج للتسليم",  color: "bg-blue-500/15 text-blue-400 border-blue-500/40",    dot: "bg-blue-500" },
+  in_transit:        { label: "في الطريق",    color: "bg-indigo-500/15 text-indigo-400 border-indigo-500/40", dot: "bg-indigo-400" },
+  waiting:           { label: "انتظار",        color: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",    dot: "bg-zinc-500" },
 };
 
 function TaskCard({ task }: { task: any }) {
-  const statusKey = task.isUrgent ? "urgent" : task.status;
+  const statusKey = task.isUrgent ? "urgent" : (task.deliveryStatus ?? task.status ?? "pending");
   const info = TASK_STATUS_PRIORITY[statusKey] ?? TASK_STATUS_PRIORITY["waiting"];
 
   return (
@@ -1021,10 +1021,11 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
   const summary = d?.summary ?? { urgent: 0, outForDelivery: 0, pending: 0, total: 0 };
 
   // فصل المهام لمجموعات
-  const urgentTasks = tasks.filter(t => t.isUrgent);
-  const outTasks    = tasks.filter(t => !t.isUrgent && t.status === "out_for_delivery");
-  const pendingTasks = tasks.filter(t => !t.isUrgent && t.status !== "out_for_delivery");
-  const canStartDay = pendingTasks.length > 0 || urgentTasks.filter(t => t.status !== "out_for_delivery").length > 0;
+  const urgentTasks   = tasks.filter(t => t.isUrgent);
+  const outTasks      = tasks.filter(t => !t.isUrgent && t.deliveryStatus === "pending");
+  const delayedTasks  = tasks.filter(t => !t.isUrgent && t.deliveryStatus === "delayed");
+  const partialTasks  = tasks.filter(t => !t.isUrgent && t.deliveryStatus === "partial_delivered");
+  const canStartDay   = outTasks.length > 0;
 
   if (isLoading) {
     return (
@@ -1070,7 +1071,7 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
           <div className="flex items-center gap-2">
             <PlayCircle className="w-4 h-4 text-primary" />
             <p className="text-xs font-bold">
-              {pendingTasks.length} شحنة جاهزة للتسليم — ابدأ يومك دلوقتي
+              {outTasks.length} شحنة جاهزة للتسليم — ابدأ يومك دلوقتي
             </p>
           </div>
           {!confirmed ? (
@@ -1082,7 +1083,7 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
           ) : (
             <div className="space-y-2">
               <p className="text-[11px] text-amber-400 text-center font-bold">
-                ⚠️ هيغيّر {pendingTasks.length} شحنة لـ "خرجت للتسليم" — متأكد؟
+                ⚠️ هيغيّر {outTasks.length} شحنة لـ "خرجت للتسليم" — متأكد؟
               </p>
               <div className="flex gap-2">
                 <button onClick={() => bulkMutation.mutate()}
@@ -1106,27 +1107,37 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
           <p className="text-xs font-black text-red-400 flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5 fill-red-400" /> مستعجلة — سلّمها فوراً ({urgentTasks.length})
           </p>
-          {urgentTasks.map(t => <TaskCard key={t.id} task={t} />)}
+          {urgentTasks.map(t => <TaskCard key={`${t.id}-${t.manifestId}`} task={t} />)}
         </div>
       )}
 
-      {/* ── خرجت للتسليم ── */}
+      {/* ── قيد التسليم (pending) ── */}
       {outTasks.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
-            <Truck className="w-3.5 h-3.5" /> خرجت للتسليم ({outTasks.length})
+            <Truck className="w-3.5 h-3.5" /> قيد التسليم ({outTasks.length})
           </p>
-          {outTasks.map(t => <TaskCard key={t.id} task={t} />)}
+          {outTasks.map(t => <TaskCard key={`${t.id}-${t.manifestId}`} task={t} />)}
         </div>
       )}
 
-      {/* ── معلقة / مؤجلة ── */}
-      {pendingTasks.length > 0 && (
+      {/* ── مؤجلة ── */}
+      {delayedTasks.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" /> معلقة / مؤجلة ({pendingTasks.length})
+          <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" /> مؤجلة ({delayedTasks.length})
           </p>
-          {pendingTasks.map(t => <TaskCard key={t.id} task={t} />)}
+          {delayedTasks.map(t => <TaskCard key={`${t.id}-${t.manifestId}`} task={t} />)}
+        </div>
+      )}
+
+      {/* ── استلام جزئي ── */}
+      {partialTasks.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-teal-400 flex items-center gap-1.5">
+            <PackageCheck className="w-3.5 h-3.5" /> استلام جزئي ({partialTasks.length})
+          </p>
+          {partialTasks.map(t => <TaskCard key={`${t.id}-${t.manifestId}`} task={t} />)}
         </div>
       )}
     </div>
