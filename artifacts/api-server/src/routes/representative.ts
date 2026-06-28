@@ -32,6 +32,40 @@ async function getShipmentIdsByCompany(companyId: number): Promise<number[]> {
 }
 
 const router: IRouter = Router();
+
+// ─── GET /representative/sse — لازم يتسجل قبل requireAuth لأن EventSource مش بيبعت header ───
+router.get("/sse", (req: Request, res: Response): void => {
+  const rawToken = (req.query.token as string) || (req.headers.authorization?.replace("Bearer ", "") ?? "");
+  if (!rawToken) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const user = verifyToken(rawToken) as any;
+  if (!user) { res.status(401).json({ error: "انتهت الجلسة" }); return; }
+  const allowed = ["representative", "admin", "super_admin", "super-admin"];
+  if (!allowed.includes(user.role)) { res.status(403).json({ error: "غير مصرح" }); return; }
+  const companyId = user.shippingCompanyId as number | undefined;
+  if (!companyId) { res.status(400).json({ error: "المندوب غير مرتبط بشركة شحن" }); return; }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  if (!repSseClients.has(companyId)) repSseClients.set(companyId, new Set());
+  repSseClients.get(companyId)!.add(res);
+
+  const heartbeat = setInterval(() => {
+    try { res.write(": ping\n\n"); } catch (_) { cleanup(); }
+  }, 25000);
+
+  function cleanup() {
+    clearInterval(heartbeat);
+    repSseClients.get(companyId!)?.delete(res);
+  }
+
+  req.on("close", cleanup);
+  req.on("error", cleanup);
+});
+
 router.use(requireAuth);
 
 // ─── Block PATCH/POST/DELETE for representatives ──────────────────────────────
@@ -382,43 +416,6 @@ router.get("/admin/representatives/:id/audit", async (req: Request, res: Respons
     db.select({ cnt: count() }).from(auditLogsTable).where(eq(auditLogsTable.userId, repId)).then(r => Number(r[0]?.cnt ?? 0)),
   ]);
   res.json({ data: logs, total, page, limit });
-});
-
-// ─── GET /representative/sse — اشتراك المندوب في الإشعارات الفورية ────────────
-// EventSource مش بيبعت Authorization header — فنقرأ الـ token من query param
-router.get("/sse", (req: Request, res: Response): void => {
-  const rawToken = (req.query.token as string) || (req.headers.authorization?.replace("Bearer ", "") ?? "");
-  if (!rawToken) { res.status(401).json({ error: "غير مصرح" }); return; }
-  const user = verifyToken(rawToken) as any;
-  if (!user) { res.status(401).json({ error: "انتهت الجلسة" }); return; }
-  const allowed = ["representative", "admin", "super_admin", "super-admin"];
-  if (!allowed.includes(user.role)) { res.status(403).json({ error: "غير مصرح" }); return; }
-
-  const companyId = user.shippingCompanyId as number | undefined;
-  if (!companyId) { res.status(400).json({ error: "المندوب غير مرتبط بشركة شحن" }); return; }
-
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // لـ nginx
-  res.flushHeaders();
-
-  // أضف الـ connection للمجموعة
-  if (!repSseClients.has(companyId)) repSseClients.set(companyId, new Set());
-  repSseClients.get(companyId)!.add(res);
-
-  // heartbeat كل 25 ثانية عشان الـ connection ما تنقطعش
-  const heartbeat = setInterval(() => {
-    try { res.write(": ping\n\n"); } catch (_) { cleanup(); }
-  }, 25000);
-
-  function cleanup() {
-    clearInterval(heartbeat);
-    repSseClients.get(companyId!)?.delete(res);
-  }
-
-  req.on("close", cleanup);
-  req.on("error", cleanup);
 });
 
 export default router;
