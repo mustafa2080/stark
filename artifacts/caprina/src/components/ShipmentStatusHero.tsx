@@ -421,3 +421,34 @@ function CourierScooterIllustration({ accent, accent2 }: { accent: string; accen
     </svg>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6) استثناء — مرتجع / ملغي / مؤجل
+// ─────────────────────────────────────────────────────────────────────────────
+function ExceptionIllustration({ accent, accent2 }: { accent: string; accent2: string }) {
+  return (
+    <svg viewBox="0 0 320 180" width="280" height="158" style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id="excBox" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={accent2} stopOpacity="0.9" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0.6" />
+        </linearGradient>
+      </defs>
+      {/* أرضية */}
+      <ellipse cx="160" cy="155" rx="90" ry="10" fill={accent} fillOpacity="0.12" />
+      {/* صندوق مرتجع */}
+      <rect x="110" y="80" width="100" height="70" rx="8" fill="url(#excBox)" />
+      <rect x="110" y="80" width="100" height="18" rx="8" fill={accent} fillOpacity="0.3" />
+      {/* سهم إرجاع */}
+      <path d="M145 55 Q130 40 115 55 Q100 70 115 80" stroke={accent2} strokeWidth="3" fill="none" strokeLinecap="round">
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,-4;0,0" dur="1.2s" repeatCount="indefinite" />
+      </path>
+      <polygon points="108,76 118,76 113,86" fill={accent2}>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,-4;0,0" dur="1.2s" repeatCount="indefinite" />
+      </polygon>
+      {/* علامة X */}
+      <line x1="140" y1="105" x2="180" y2="140" stroke="white" strokeWidth="4" strokeLinecap="round" strokeOpacity="0.8" />
+      <line x1="180" y1="105" x2="140" y2="140" stroke="white" strokeWidth="4" strokeLinecap="round" strokeOpacity="0.8" />
+    </svg>
+  );
+}
