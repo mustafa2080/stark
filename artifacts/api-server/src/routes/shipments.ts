@@ -571,8 +571,8 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
       .where(eq(shipmentManifestItemsTable.shipmentId, id))
       .orderBy(desc(shipmentManifestItemsTable.id))
       .limit(1);
-    (row as any).manifestId = manifestItem?.manifestId ?? null;
-    (row as any).isUrgent   = manifestItem?.isUrgent   ?? 0;
+    (row as any).manifestId = manifestItem?.manifestId != null ? Number(manifestItem.manifestId) : null;
+    (row as any).isUrgent   = manifestItem?.isUrgent   != null ? Number(manifestItem.isUrgent)   : 0;
     (row as any).urgentNote = manifestItem?.urgentNote  ?? null;
     res.json(row);
   } catch (e) {
