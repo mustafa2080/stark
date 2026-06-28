@@ -102,9 +102,9 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
   const logoText = "STARK";
 
   return (
-    <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-4xl" dir="rtl">
+    <nav className="fixed top-3 sm:top-4 left-1/2 -translate-x-1/2 z-50 w-[95%] sm:w-[92%] max-w-4xl" dir="rtl">
       <div
-        className="flex items-center justify-between px-5 h-[58px] rounded-2xl backdrop-blur-xl transition-all duration-500"
+        className="flex items-center justify-between px-3 sm:px-5 h-[52px] sm:h-[58px] rounded-2xl backdrop-blur-xl transition-all duration-500"
         style={{
           background: darkMode
             ? "rgba(10,10,10,0.85)"
@@ -118,9 +118,9 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
         }}
       >
         {/* Logo */}
-        <button onClick={() => scrollTo("home")} className="flex items-center gap-3 group">
+        <button onClick={() => scrollTo("home")} className="flex items-center gap-2 sm:gap-3 group">
           <div className="relative">
-            <img src={logoBase64} alt="STARK" className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
+            <img src={logoBase64} alt="STARK" className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
           </div>
           <span
             className="hidden sm:block font-black text-lg tracking-[0.25em] stark-glow-text-sm"
@@ -175,7 +175,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* Dark/Light Toggle */}
           <button
             onClick={toggleDarkMode}
@@ -192,7 +192,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
           {/* Login Button */}
           <button
             onClick={() => navigate("/login")}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300"
+            className="flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300"
             style={{
               background: darkMode
                 ? "linear-gradient(135deg, #c0c0c0 0%, #f5f5f5 50%, #a8a8a8 100%)"
@@ -315,7 +315,7 @@ function HeroSection() {
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center"
-        style={{ paddingBottom: "clamp(180px, 32vw, 360px)" }}>
+        style={{ paddingBottom: "clamp(120px, 30vw, 360px)" }}>
 
         {/* Badge */}
         <div
@@ -448,7 +448,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-12 sm:pb-16"
       dir="rtl"
       style={{
-        marginTop: "clamp(-160px, -22vw, -240px)",
+        marginTop: "clamp(-110px, -20vw, -240px)",
         background: "transparent",
       }}
     >
@@ -462,7 +462,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             borderTop: "1px solid rgba(255,255,255,0.04)",
           }}
         >
-          <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2, marginTop: "clamp(-160px, -22vw, -260px)" }}>
+          <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2 }}>
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4"
               style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 20px rgba(255,255,255,0.1)" }}>
               <Package size={24} className="text-white sm:hidden" />
@@ -759,30 +759,31 @@ function ContractSection({ darkMode }: { darkMode: boolean }) {
           <FileText size={22} className={`sm:hidden ${darkMode ? "text-white" : "text-black"}`} />
           <FileText size={28} className={`hidden sm:block ${darkMode ? "text-white" : "text-black"}`} />
         </div>
-        <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>
+        <h2 className={`text-2xl sm:text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>
           عقد شركة <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
         </h2>
-        <p className={`mb-8 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+        <p className={`mb-6 sm:mb-8 text-sm sm:text-base px-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
           عقد خدمات الشحن والتوصيل • شركة <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
         </p>
-        <div className="space-y-3 mb-8 text-right">
+        <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 text-right">
           {items.map((item, i) => (
-            <div key={i} className={`flex items-center gap-4 border rounded-xl px-5 py-4 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
-                <item.icon size={18} className={darkMode ? "text-gray-300" : "text-gray-600"} />
+            <div key={i} className={`flex items-center gap-3 sm:gap-4 border rounded-xl px-4 sm:px-5 py-3 sm:py-4 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
+              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+                <item.icon size={16} className={`sm:hidden ${darkMode ? "text-gray-300" : "text-gray-600"}`} />
+                <item.icon size={18} className={`hidden sm:block ${darkMode ? "text-gray-300" : "text-gray-600"}`} />
               </div>
-              <span className={`font-medium ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{item.label}</span>
+              <span className={`font-medium text-sm sm:text-base ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{item.label}</span>
             </div>
           ))}
         </div>
         <a
           href="/contract"
-          className={`inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-all duration-300 ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
+          className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 font-bold px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl transition-all duration-300 text-sm sm:text-base ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
           style={{ boxShadow: darkMode ? "0 4px 20px rgba(255,255,255,0.15)" : "0 4px 20px rgba(0,0,0,0.2)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px)"; }}
           onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)"; }}
         >
-          <FileText size={18} /> عرض العقد كاملاً
+          <FileText size={16} className="sm:hidden" /><FileText size={18} className="hidden sm:block" /> عرض العقد كاملاً
         </a>
       </div>
     </section>
@@ -802,7 +803,7 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
   const accentColor = darkMode ? "rgba(192,192,192,0.10)" : "rgba(0,0,0,0.06)";
 
   return (
-    <section id="features" className={`relative py-20 sm:py-24 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
+    <section id="features" className={`relative py-16 sm:py-24 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
       {/* SVG bg lines */}
       <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
         <path d="M0,150 C200,80 400,220 600,150 C800,80 1000,220 1200,150"   fill="none" stroke={lineColor}   strokeWidth="1.5"/>
@@ -819,25 +820,25 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6">
         {/* Header */}
-        <div className="text-center mb-10 sm:mb-14">
+        <div className="text-center mb-8 sm:mb-14">
           <span className={`inline-block text-xs font-bold tracking-widest uppercase px-3 sm:px-4 py-1.5 rounded-full mb-3 sm:mb-4 ${darkMode ? "bg-white/8 text-gray-400 border border-white/10" : "bg-black/5 text-gray-500 border border-black/8"}`}>
             مميزاتنا
           </span>
-          <h2 className={`text-3xl sm:text-4xl font-black mb-2 sm:mb-3 ${darkMode ? "text-white" : "text-black"}`}>
+          <h2 className={`text-2xl sm:text-4xl font-black mb-2 sm:mb-3 ${darkMode ? "text-white" : "text-black"}`}>
             لماذا <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span>؟
           </h2>
-          <p className={`text-sm sm:text-base max-w-xl mx-auto ${darkMode ? "text-gray-400" : "text-gray-500"}`}>حلول لوجستية متكاملة مناسبة لكل احتياجاتك</p>
+          <p className={`text-xs sm:text-base max-w-xl mx-auto px-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>حلول لوجستية متكاملة مناسبة لكل احتياجاتك</p>
         </div>
 
         {/* Cards — 2 col on mobile, 4 col on desktop, no alternating heights on mobile */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {features.map((f, i) => (
             <div
               key={i}
-              className={`relative rounded-2xl sm:rounded-3xl p-5 sm:p-7 flex flex-col items-center text-center border
+              className={`relative rounded-xl sm:rounded-3xl p-3.5 sm:p-7 flex flex-col items-center text-center border
                 ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}
               style={{
-                minHeight: "200px",
+                minHeight: "160px",
                 transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
               }}
               onMouseEnter={e => {
@@ -853,15 +854,15 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
                 el.style.boxShadow = "none";
               }}
             >
-              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl pointer-events-none opacity-0 transition-opacity duration-500 hover:opacity-100"
+              <div className="absolute inset-0 rounded-xl sm:rounded-3xl pointer-events-none opacity-0 transition-opacity duration-500 hover:opacity-100"
                 style={{ background: darkMode ? "linear-gradient(135deg,rgba(255,255,255,0.04),transparent 60%)" : "linear-gradient(135deg,rgba(0,0,0,0.025),transparent 60%)" }} />
-              <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mb-4 sm:mb-6 mt-1 sm:mt-2
+              <div className={`w-10 h-10 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mb-2.5 sm:mb-6 mt-0.5 sm:mt-2
                 ${darkMode ? "bg-[#1a1a1a] border border-[#2a2a2a]" : "bg-gray-100 border border-gray-200"}`}>
-                <f.icon size={20} className={`sm:hidden ${darkMode ? "text-gray-300" : "text-gray-600"}`} strokeWidth={1.5} />
+                <f.icon size={17} className={`sm:hidden ${darkMode ? "text-gray-300" : "text-gray-600"}`} strokeWidth={1.5} />
                 <f.icon size={26} className={`hidden sm:block ${darkMode ? "text-gray-300" : "text-gray-600"}`} strokeWidth={1.5} />
               </div>
-              <h3 className={`text-base sm:text-xl font-black mb-2 sm:mb-3 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
-              <p className={`text-xs sm:text-sm leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
+              <h3 className={`text-sm sm:text-xl font-black mb-1.5 sm:mb-3 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
+              <p className={`text-[11px] sm:text-sm leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
             </div>
           ))}
         </div>
@@ -928,7 +929,7 @@ function ClientsSection() {
   const avatarColors = ["#1e3a5f","#2d1b4e","#1a3c2e","#3c1a1a","#2e2a10","#12303c"];
 
   return (
-    <section ref={sectionRef} className="relative py-24 bg-[#050505] overflow-hidden" dir="rtl">
+    <section ref={sectionRef} className="relative py-16 sm:py-24 bg-[#050505] overflow-hidden" dir="rtl">
       <style>{`
         @keyframes clientsScrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
         @keyframes clientsScrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
@@ -961,21 +962,21 @@ function ClientsSection() {
 
         {/* ── Header ── */}
         <div
-          className="text-center mb-16"
+          className="text-center mb-10 sm:mb-16"
           style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s ease both" : "none" }}
         >
-          <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-5 text-xs font-bold tracking-widest"
+          <div className="inline-flex items-center gap-2 rounded-full px-3 sm:px-4 py-1.5 mb-4 sm:mb-5 text-[11px] sm:text-xs font-bold tracking-widest"
             style={{ color:"rgba(255,255,255,0.35)", border:"1px solid rgba(255,255,255,0.09)", background:"rgba(255,255,255,0.03)" }}>
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             عملاؤنا الموثوقون
           </div>
 
           {/* Big animated counter */}
-          <div className="flex items-end justify-center gap-3 mb-3">
+          <div className="flex items-end justify-center gap-2 sm:gap-3 mb-3">
             <span
               className="font-black leading-none"
               style={{
-                fontSize: "clamp(72px, 10vw, 120px)",
+                fontSize: "clamp(56px, 16vw, 120px)",
                 background: "linear-gradient(135deg, #ffffff 0%, #b0b0b0 50%, #606060 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
@@ -988,7 +989,7 @@ function ClientsSection() {
               {count}
             </span>
             <span
-              className="font-black pb-3 text-5xl"
+              className="font-black pb-1.5 sm:pb-3 text-3xl sm:text-5xl"
               style={{
                 background: "linear-gradient(135deg,#ffffff 0%,#888 100%)",
                 WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
@@ -996,13 +997,13 @@ function ClientsSection() {
             >+</span>
           </div>
           <h2
-            className="text-2xl md:text-3xl font-black text-white mb-2"
+            className="text-xl sm:text-2xl md:text-3xl font-black text-white mb-2"
             style={{ letterSpacing:"-0.02em", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.15s ease both" : "none" }}
           >
             عميل يثق في STARK يومياً
           </h2>
           <p
-            className="text-sm md:text-base"
+            className="text-xs sm:text-sm md:text-base px-2"
             style={{ color:"rgba(255,255,255,0.3)", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.25s ease both" : "none" }}
           >
             من القاهرة لأسوان — نوصل في 27 محافظة بكل احترافية
@@ -1011,13 +1012,13 @@ function ClientsSection() {
 
         {/* ── Stats strip ── */}
         <div
-          className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-14"
+          className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 mb-10 sm:mb-14"
           style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.35s ease both" : "none" }}
         >
           {stats.map((s, i) => (
             <div
               key={i}
-              className="relative rounded-2xl px-5 py-5 text-center overflow-hidden group"
+              className="relative rounded-xl sm:rounded-2xl px-3 sm:px-5 py-4 sm:py-5 text-center overflow-hidden group"
               style={{
                 background:"linear-gradient(135deg,#111 0%,#0d0d0d 100%)",
                 border:"1px solid rgba(255,255,255,0.07)",
@@ -1028,8 +1029,8 @@ function ClientsSection() {
             >
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                 style={{ background:"linear-gradient(135deg,rgba(255,255,255,0.03),transparent 60%)" }} />
-              <div className="text-2xl font-black text-white mb-1" style={{ letterSpacing:"-0.02em" }}>{s.value}</div>
-              <div className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>{s.label}</div>
+              <div className="text-lg sm:text-2xl font-black text-white mb-1" style={{ letterSpacing:"-0.02em" }}>{s.value}</div>
+              <div className="text-[10px] sm:text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -1038,7 +1039,7 @@ function ClientsSection() {
         <div
           style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.45s ease both" : "none" }}
         >
-          <p className="text-center text-xs mb-6" style={{ color:"rgba(255,255,255,0.18)", letterSpacing:"0.12em" }}>— عملاؤنا —</p>
+          <p className="text-center text-[11px] sm:text-xs mb-4 sm:mb-6" style={{ color:"rgba(255,255,255,0.18)", letterSpacing:"0.12em" }}>— عملاؤنا —</p>
 
           <div
             className="relative overflow-hidden"
@@ -1051,10 +1052,10 @@ function ClientsSection() {
               {[...items, ...items].map((item, i) => (
                 <div
                   key={`c-${i}`}
-                  className="group relative flex-shrink-0"
+                  className="group relative flex-shrink-0 w-[60px] h-[60px] sm:w-[76px] sm:h-[76px]"
                   style={{
-                    width:76, height:76, borderRadius:"50%",
-                    margin:"0 10px",
+                    borderRadius:"50%",
+                    margin:"0 8px",
                     background:`linear-gradient(135deg, ${avatarColors[i % avatarColors.length]} 0%, #0d0d0d 100%)`,
                     border:"1px solid rgba(255,255,255,0.1)",
                     boxShadow:"0 4px 20px rgba(0,0,0,0.5)",
