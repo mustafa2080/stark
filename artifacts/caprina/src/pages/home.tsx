@@ -315,7 +315,7 @@ function HeroSection() {
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center"
-        style={{ paddingBottom: "clamp(120px, 30vw, 360px)" }}>
+        style={{ paddingBottom: "clamp(60px, 16vw, 200px)" }}>
 
         {/* Badge */}
         <div
@@ -375,27 +375,9 @@ function HeroSection() {
         </h1>
 
         {/* Subtitle */}
-        <p className="text-white/50 text-sm sm:text-base max-w-xs sm:max-w-md mx-auto leading-relaxed mb-6 sm:mb-8 px-2">
+        <p className="text-white/50 text-sm sm:text-base max-w-xs sm:max-w-md mx-auto leading-relaxed px-2">
           نوصل شحنتك لأي مكان في مصر بسرعة وأمان — 27 محافظة تحت خدمتك
         </p>
-
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-xs sm:max-w-none sm:w-auto">
-          <button
-            onClick={() => document.getElementById("tracking")?.scrollIntoView({ behavior: "smooth" })}
-            className="w-full sm:w-auto font-bold px-6 py-3 sm:px-8 sm:py-3.5 rounded-xl text-sm transition-all duration-300 hover:scale-105 active:scale-95"
-            style={{ background: "linear-gradient(135deg, #fff 0%, #d8d8d8 100%)", color: "#000", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 16px rgba(0,0,0,0.4)" }}
-          >
-            تتبع شحنتك الآن
-          </button>
-          <button
-            onClick={() => navigate("/contract")}
-            className="w-full sm:w-auto font-bold px-6 py-3 sm:px-8 sm:py-3.5 rounded-xl text-sm border text-white transition-all duration-300 hover:bg-white/10 active:scale-95"
-            style={{ border: "1px solid rgba(255,255,255,0.3)", backdropFilter: "blur(8px)" }}
-          >
-            تعاقد معنا
-          </button>
-        </div>
       </div>
     </section>
   );
@@ -448,7 +430,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-12 sm:pb-16"
       dir="rtl"
       style={{
-        marginTop: "clamp(-110px, -20vw, -240px)",
+        marginTop: "clamp(-50px, -14vw, -180px)",
         background: "transparent",
       }}
     >
