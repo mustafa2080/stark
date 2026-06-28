@@ -1947,7 +1947,16 @@ function ShipmentUrgentButton({
       setShowNoteDialog(false);
       onToggled();
     },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      const msg = e?.message ?? "";
+      toast({
+        title: msg.includes("غير مرتبطة") ? "⚠️ الشحنة غير مرتبطة ببيان" : "خطأ",
+        description: msg.includes("غير مرتبطة")
+          ? "لا يمكن وضع استعجال على شحنة غير مضافة لبيان شحن بعد"
+          : msg,
+        variant: "destructive",
+      });
+    },
   });
 
   const handleClick = (ev: React.MouseEvent) => {
@@ -3150,8 +3159,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 <Printer className="w-3.5 h-3.5" />طباعة
               </Button>
 
-              {/* زرار الاستعجال — للأدمن فقط، لو الشحنة مرتبطة ببيان */}
-              {isAdmin && !!(order as any).manifestId && (
+              {/* زرار الاستعجال — للأدمن فقط */}
+              {isAdmin && (
                 <ShipmentUrgentButton
                   shipmentId={id}
                   isUrgent={!!(order as any).isUrgent}
