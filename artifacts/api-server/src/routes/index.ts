@@ -44,6 +44,7 @@ router.use(settingsRouter);
 router.use(clientsShowcaseRouter); // GET /clients-showcase — public for landing page
 router.use(publicAdminRouter); // GET /public/plan-prices — بدون auth
 router.use(publicShipmentsRouter); // GET /shipments/track/:number — public for tracking
+router.use("/representative", representativeRouter); // SSE route داخله بيعمل auth يدوياً
 
 // All routes below require authentication
 router.use(requireAuth);
@@ -73,7 +74,6 @@ router.use(financeSalesRouter);
 router.use(financeClientsRouter);
 router.use(shipmentsRouter);
 router.use(shipmentManifestsRouter);
-router.use("/representative", representativeRouter);
 router.use(adminTenantsRouter); // /admin/* — بعد requireAuth عشان req.user يكون موجود
 
 export default router;
