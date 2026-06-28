@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Redirect } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -1364,7 +1364,7 @@ function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: Ta
 }
 
 export default function RepresentativeDashboard() {
-  const { user, isRepresentative } = useAuth();
+  const { user, isRepresentative, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<"shipments" | "manifests" | "performance" | "tasks">("performance");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
@@ -1492,22 +1492,44 @@ export default function RepresentativeDashboard() {
       {/* ─── Main Content ─── */}
       <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarOpen ? "md:mr-56" : "md:mr-0"}`}>
         {/* Mobile header */}
-        <div className="md:hidden sticky top-0 z-40 flex items-center gap-3 px-4 py-3 border-b border-border/50"
-          style={{ background: "hsl(var(--card))", backdropFilter: "blur(8px)" }}>
-          {company?.logo
-            ? <img src={company.logo} className="w-8 h-8 rounded-lg object-cover border border-border" alt="" />
-            : <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Truck className="w-4 h-4 text-primary/60" />
-              </div>}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-black truncate">{company?.name ?? user?.displayName}</h1>
-            <p className="text-[10px] text-muted-foreground">بوابة المندوب</p>
+        <div className="md:hidden sticky top-0 z-40 border-b border-border/50"
+          style={{ background: "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)", backdropFilter: "blur(12px)" }}>
+          {/* Row 1: logo + name + logout */}
+          <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+            {company?.logo
+              ? <img src={company.logo} className="w-12 h-12 rounded-xl object-cover border-2 border-primary/20 shadow-lg" alt="" />
+              : <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border-2 border-primary/20 flex items-center justify-center shadow-lg">
+                  <Truck className="w-6 h-6 text-primary" />
+                </div>}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base font-black truncate leading-tight">{company?.name ?? user?.displayName}</h1>
+              <p className="text-[11px] text-muted-foreground font-medium">بوابة المندوب · {user?.displayName}</p>
+            </div>
+            <button onClick={logout}
+              className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded-xl hover:bg-destructive/10">
+              <LogOut className="w-5 h-5" />
+              <span className="text-[9px] font-bold">خروج</span>
+            </button>
           </div>
+          {/* Row 2: KPI strip */}
           {d && (
-            <Badge variant="outline"
-              className={d.deliveryRate >= 70 ? "text-[10px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : d.deliveryRate >= 40 ? "text-[10px] border-amber-500/40 text-amber-400 bg-amber-500/10" : "text-[10px] border-red-500/40 text-red-400 bg-red-500/10"}>
-              {d.deliveryRate}% تسليم
-            </Badge>
+            <div className="flex items-center gap-2 px-4 pb-3">
+              <div className={`flex-1 flex items-center gap-1.5 rounded-xl px-3 py-1.5 border ${d.deliveryRate >= 70 ? "bg-emerald-500/10 border-emerald-500/30" : d.deliveryRate >= 40 ? "bg-amber-500/10 border-amber-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+                <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${d.deliveryRate >= 70 ? "text-emerald-400" : d.deliveryRate >= 40 ? "text-amber-400" : "text-red-400"}`} />
+                <span className="text-[11px] font-black" style={{ color: d.deliveryRate >= 70 ? "#34d399" : d.deliveryRate >= 40 ? "#fbbf24" : "#f87171" }}>{d.deliveryRate}%</span>
+                <span className="text-[10px] text-muted-foreground">تسليم</span>
+              </div>
+              <div className="flex-1 flex items-center gap-1.5 rounded-xl px-3 py-1.5 border bg-blue-500/10 border-blue-500/30">
+                <Package className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span className="text-[11px] font-black text-blue-400">{d.total}</span>
+                <span className="text-[10px] text-muted-foreground">شحنة</span>
+              </div>
+              <div className="flex-1 flex items-center gap-1.5 rounded-xl px-3 py-1.5 border bg-violet-500/10 border-violet-500/30">
+                <DollarSign className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                <span className="text-[11px] font-black text-violet-400">{Math.round((d.totalCollected ?? 0) / 1000)}K</span>
+                <span className="text-[10px] text-muted-foreground">ج.م</span>
+              </div>
+            </div>
           )}
         </div>
 
