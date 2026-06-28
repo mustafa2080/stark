@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 
@@ -151,6 +151,120 @@ function TrendBadge({ current, prev, label }: { current: number; prev: number; l
       {up ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
       {pct}% {label}
     </span>
+  );
+}
+
+// ─── Urgent Banner Component ──────────────────────────────────────────────────
+function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
+  const alertedRef = useRef(false);
+
+  useEffect(() => {
+    if (alertedRef.current) return;
+    alertedRef.current = true;
+
+    // اهتزاز الموبايل (3 نبضات قوية)
+    if (navigator.vibrate) {
+      navigator.vibrate([300, 100, 300, 100, 500]);
+    }
+
+    // صوت تنبيه قوي بالـ Web Audio API
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const playBeep = (freq: number, start: number, duration: number, gain: number) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        osc.type = "square";
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+        gainNode.gain.setValueAtTime(0, ctx.currentTime + start);
+        gainNode.gain.linearRampToValueAtTime(gain, ctx.currentTime + start + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + start + duration);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + duration + 0.05);
+      };
+      // 3 نغمات تصاعدية حادة
+      playBeep(880, 0,    0.18, 0.6);
+      playBeep(1100, 0.22, 0.18, 0.6);
+      playBeep(1320, 0.44, 0.30, 0.7);
+      // تكرار بعد 1.5 ثانية
+      setTimeout(() => {
+        playBeep(880, 0,    0.18, 0.6);
+        playBeep(1100, 0.22, 0.18, 0.6);
+        playBeep(1320, 0.44, 0.30, 0.7);
+      }, 1500);
+    } catch (_) {}
+  }, []);
+
+  return (
+    <>
+      <style>{`
+        @keyframes urgentShake {
+          0%,100% { transform: translateX(0); }
+          10%,30%,50%,70%,90% { transform: translateX(-5px); }
+          20%,40%,60%,80% { transform: translateX(5px); }
+        }
+        @keyframes urgentGlow {
+          0%,100% { box-shadow: 0 0 18px rgba(239,68,68,0.5), 0 0 40px rgba(239,68,68,0.2); }
+          50% { box-shadow: 0 0 35px rgba(239,68,68,0.9), 0 0 70px rgba(239,68,68,0.4), inset 0 0 20px rgba(239,68,68,0.1); }
+        }
+        @keyframes urgentFlash {
+          0%,100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .urgent-banner { animation: urgentShake 0.6s ease 0.1s, urgentGlow 1.2s ease-in-out infinite; }
+        .urgent-icon { animation: urgentFlash 0.8s ease-in-out infinite; }
+        .urgent-dot { animation: urgentFlash 0.5s ease-in-out infinite; }
+      `}</style>
+      <div className="urgent-banner relative overflow-hidden rounded-2xl border-2 border-red-500 bg-red-950/60 p-3">
+        {/* خلفية نابضة */}
+        <div className="absolute inset-0 bg-gradient-to-br from-red-500/20 via-transparent to-red-900/20 pointer-events-none" />
+        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-red-500/30 blur-2xl pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="urgent-icon w-9 h-9 rounded-full bg-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.8)] shrink-0">
+              <Zap className="w-5 h-5 fill-white text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-black text-red-300 leading-tight">
+                ⚠️ {urgentItems.length} {urgentItems.length === 1 ? "شحنة مستعجلة!" : "شحنات مستعجلة!"}
+              </p>
+              <p className="text-[11px] text-red-400 font-bold">سلّمها فوراً — أولوية قصوى</p>
+            </div>
+            <span className="urgent-dot relative flex h-3 w-3 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+            </span>
+          </div>
+          <div className="space-y-2">
+            {urgentItems.map((i: any) => (
+              <div key={i.shipmentId ?? i.id}
+                className="flex items-start gap-2 rounded-xl bg-red-500/20 border border-red-500/50 px-3 py-2.5">
+                <Zap className="w-3.5 h-3.5 fill-red-400 text-red-400 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black text-white truncate">{i.customerName}</p>
+                  {i.urgentNote && (
+                    <p className="text-[10px] text-red-200 mt-0.5 truncate">↳ {i.urgentNote}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    {i.phone && <span className="text-[10px] text-red-300 font-bold">{i.phone}</span>}
+                    {i.city && <span className="text-[10px] text-red-300">📍 {i.city}</span>}
+                    {i.urgentAt && (
+                      <span className="text-[9px] text-red-400/80">
+                        {format(new Date(i.urgentAt), "HH:mm", { locale: ar })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-sm font-black text-emerald-300 shrink-0">
+                  {Number(i.totalPrice ?? 0).toLocaleString("ar-EG")} ج.م
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -637,56 +751,7 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
       {(() => {
         const urgentItems = items.filter((i: any) => i.isUrgent === 1 || i.isUrgent === true);
         if (urgentItems.length === 0) return null;
-        return (
-          <div className="relative overflow-hidden rounded-2xl border border-red-500/40 bg-red-500/10 p-3 animate-pulse"
-            style={{ boxShadow: "0 0 20px rgba(239,68,68,0.2), 0 0 40px rgba(239,68,68,0.1)" }}>
-            {/* خلفية ضوئية */}
-            <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-red-500/20 blur-xl pointer-events-none" />
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-[0_0_12px_rgba(239,68,68,0.6)]">
-                  <Zap className="w-4 h-4 fill-white text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-black text-red-400">
-                    {urgentItems.length} {urgentItems.length === 1 ? "شحنة مستعجلة" : "شحنات مستعجلة"}
-                  </p>
-                  <p className="text-[10px] text-red-300/70">سلّمها بأولوية قصوى</p>
-                </div>
-                <span className="mr-auto flex h-2 w-2">
-                  <span className="animate-ping absolute h-2 w-2 rounded-full bg-red-400 opacity-75" />
-                  <span className="relative rounded-full h-2 w-2 bg-red-500" />
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {urgentItems.map((i: any) => (
-                  <div key={i.shipmentId ?? i.id}
-                    className="flex items-start gap-2 rounded-lg bg-red-500/15 border border-red-500/30 px-2.5 py-2">
-                    <Zap className="w-3 h-3 fill-red-400 text-red-400 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-black text-red-300 truncate">{i.customerName}</p>
-                      {i.urgentNote && (
-                        <p className="text-[10px] text-red-200/70 mt-0.5 truncate">↳ {i.urgentNote}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {i.phone && <span className="text-[10px] text-red-300/60">{i.phone}</span>}
-                        {i.city && <span className="text-[10px] text-red-300/60">📍 {i.city}</span>}
-                        {i.urgentAt && (
-                          <span className="text-[9px] text-red-400/60">
-                            {format(new Date(i.urgentAt), "HH:mm", { locale: ar })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-xs font-black text-emerald-400 shrink-0">
-                      {Number(i.totalPrice ?? 0).toLocaleString("ar-EG")} ج.م
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
+        return <UrgentBanner urgentItems={urgentItems} />;
       })()}
 
       {/* KPI cards */}
