@@ -305,7 +305,7 @@ function HeroSection() {
   const [, navigate] = useLocation();
   return (
     <section id="hero" className="relative flex items-center justify-center overflow-hidden bg-black" dir="rtl"
-      style={{ minHeight: "100svh", paddingTop: "80px" }}>
+      style={{ minHeight: "clamp(420px, 62svh, 620px)", paddingTop: "80px" }}>
       {/* BG */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
       <div className="absolute inset-0" style={{ opacity: 0.50 }}>
@@ -315,7 +315,7 @@ function HeroSection() {
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center"
-        style={{ paddingBottom: "clamp(30px, 9vw, 110px)" }}>
+        style={{ paddingBottom: "0px" }}>
 
         {/* Badge */}
         <div
@@ -430,7 +430,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-12 sm:pb-16"
       dir="rtl"
       style={{
-        marginTop: "clamp(-10px, -4vw, -90px)",
+        marginTop: "0px",
         background: "transparent",
       }}
     >
