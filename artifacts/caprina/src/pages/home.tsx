@@ -305,7 +305,7 @@ function HeroSection() {
   const [, navigate] = useLocation();
   return (
     <section id="hero" className="relative flex items-center justify-center overflow-hidden bg-black" dir="rtl"
-      style={{ minHeight: "clamp(420px, 62svh, 620px)", paddingTop: "80px" }}>
+      style={{ minHeight: "auto", paddingTop: "100px", paddingBottom: "32px" }}>
       {/* BG */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
       <div className="absolute inset-0" style={{ opacity: 0.50 }}>
