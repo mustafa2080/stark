@@ -484,7 +484,7 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
       </AlertDialog>
 
       {expanded && (
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-2 space-y-1.5 max-h-72 overflow-y-auto pr-1">
           {/* بيانات الشحنات (النظام الجديد) */}
           {shipmentManifests && shipmentManifests.length > 0 && (
             <>
