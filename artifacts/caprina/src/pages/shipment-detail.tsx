@@ -3159,16 +3159,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 <Printer className="w-3.5 h-3.5" />طباعة
               </Button>
 
-              {/* زرار الاستعجال — للأدمن فقط */}
-              {isAdmin && (
-                <ShipmentUrgentButton
-                  shipmentId={id}
-                  isUrgent={!!(order as any).isUrgent}
-                  urgentNote={(order as any).urgentNote}
-                  onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
-                />
-              )}
-
               {/* الأزرار دي للأدمن فقط */}
               {isAdmin && (<>
                 {/* حذف */}
@@ -3224,6 +3214,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </Button>
                   );
                 })()}
+
+                {/* استعجال — جنب الإغلاق */}
+                <ShipmentUrgentButton
+                  shipmentId={id}
+                  isUrgent={!!(order as any).isUrgent}
+                  urgentNote={(order as any).urgentNote}
+                  onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
+                />
               </>)}
 
               {/* واتساب — للكل */}
