@@ -483,7 +483,7 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
           <div>
             <h2 className={`text-3xl font-black mb-4 ${darkMode ? "text-white" : "text-black"}`}>من نحن</h2>
             <p className={`leading-relaxed mb-6 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
-              تُعدّ <bdi className="font-bold" style={{ unicodeBidi: "embed", direction: "ltr" }}>STARK</bdi> لوجستيك من أبرز شركات الشحن والخدمات اللوجستية داخل مصر،
+              تُعدّ <bdi className="stark-glow-text-sm font-black" style={{ unicodeBidi: "embed", direction: "ltr", display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</bdi> لوجستيك من أبرز شركات الشحن والخدمات اللوجستية داخل مصر،
               حيث تقدّم خدماتها للأفراد والشركات في جميع المحافظات والمدن على مستوى الجمهورية منذ عام 2001.
             </p>
             <div className="grid grid-cols-2 gap-4">
@@ -502,7 +502,9 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
           </div>
           <div className={`border rounded-2xl p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
             <img src={logoBase64} alt="STARK" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
-            <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>STARK للشحن</h3>
+            <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>
+              <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
+            </h3>
             <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>خدمة الشحن الموثوقة في مصر</p>
             <div className={`grid grid-cols-3 gap-4 mt-6 pt-6 border-t ${darkMode ? "border-[#222]" : "border-gray-200"}`}>
               {[["4+", "سنة خبرة"], ["27", "محافظة"], ["99%", "رضا العملاء"]].map(([val, lbl], i) => (
@@ -739,8 +741,12 @@ function ContractSection({ darkMode }: { darkMode: boolean }) {
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
           <FileText size={28} className={darkMode ? "text-white" : "text-black"} />
         </div>
-        <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>عقد شركة STARK للشحن</h2>
-        <p className={`mb-8 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>عقد خدمات الشحن والتوصيل • شركة STARK للشحن</p>
+        <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>
+          عقد شركة <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
+        </h2>
+        <p className={`mb-8 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+          عقد خدمات الشحن والتوصيل • شركة <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
+        </p>
         <div className="space-y-3 mb-8 text-right">
           {items.map((item, i) => (
             <div key={i} className={`flex items-center gap-4 border rounded-xl px-5 py-4 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
@@ -800,7 +806,9 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
           <span className={`inline-block text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-4 ${darkMode ? "bg-white/8 text-gray-400 border border-white/10" : "bg-black/5 text-gray-500 border border-black/8"}`}>
             مميزاتنا
           </span>
-          <h2 className={`text-4xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>لماذا STARK؟</h2>
+          <h2 className={`text-4xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>
+            لماذا <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span>؟
+          </h2>
           <p className={`text-base max-w-xl mx-auto ${darkMode ? "text-gray-400" : "text-gray-500"}`}>حلول لوجستية متكاملة مناسبة لكل احتياجاتك</p>
         </div>
 
@@ -1100,7 +1108,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <img src={logoBase64} alt="STARK" className="w-8 h-8 rounded-lg object-cover" />
-          <span className="text-gray-400 text-sm">STARK للشحن</span>
+          <span className="text-gray-400 text-sm"><span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن</span>
         </div>
         <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2026</p>
         <div className="flex items-center gap-4">
