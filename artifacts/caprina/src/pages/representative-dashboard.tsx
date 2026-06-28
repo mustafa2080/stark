@@ -1376,7 +1376,7 @@ export default function RepresentativeDashboard() {
   const { toast } = useToast();
   useEffect(() => {
     if (!user) return;
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    const token = localStorage.getItem("caprina_token") || "";
     const url = `/api/representative/sse${token ? `?token=${encodeURIComponent(token)}` : ""}`;
     const es = new EventSource(url);
 
