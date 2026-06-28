@@ -315,7 +315,7 @@ function HeroSection() {
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center"
-        style={{ paddingBottom: "clamp(60px, 16vw, 200px)" }}>
+        style={{ paddingBottom: "clamp(30px, 9vw, 110px)" }}>
 
         {/* Badge */}
         <div
@@ -430,7 +430,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       className="relative z-20 pb-12 sm:pb-16"
       dir="rtl"
       style={{
-        marginTop: "clamp(-50px, -14vw, -180px)",
+        marginTop: "clamp(-10px, -4vw, -90px)",
         background: "transparent",
       }}
     >
