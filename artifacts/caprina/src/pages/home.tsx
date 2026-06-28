@@ -255,15 +255,22 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
 function HeroSection() {
   const [, navigate] = useLocation();
   return (
-    <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black pt-20" dir="rtl">
+    <section id="hero" className="relative flex items-center justify-center overflow-hidden bg-black" dir="rtl"
+      style={{ minHeight: "100svh", paddingTop: "80px" }}>
+      {/* BG */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
-      <div className="absolute inset-0" style={{ opacity: 0.55 }}>
+      <div className="absolute inset-0" style={{ opacity: 0.50 }}>
         <img src={trackingImg} alt="" className="w-full h-full object-cover object-center" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/80" />
       </div>
-      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto" style={{ paddingBottom: "340px", marginTop: "-40px" }}>
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center"
+        style={{ paddingBottom: "clamp(180px, 32vw, 360px)" }}>
+
+        {/* Badge */}
         <div
-          className="inline-flex items-center gap-3 rounded-full px-5 py-2.5 mb-8"
+          className="inline-flex items-center gap-2 sm:gap-3 rounded-full px-4 sm:px-5 py-2 sm:py-2.5 mb-6 sm:mb-8"
           style={{
             background: "rgba(255,255,255,0.07)",
             border: "1px solid rgba(255,255,255,0.18)",
@@ -271,21 +278,23 @@ function HeroSection() {
             boxShadow: "0 4px 24px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.08) inset",
           }}
         >
-          <span
-            className="flex items-center justify-center rounded-full"
-            style={{ width: 28, height: 28, background: "rgba(255,255,255,0.12)" }}
-          >
-            <Truck size={14} className="text-white" />
+          <span className="flex items-center justify-center rounded-full w-6 h-6 sm:w-7 sm:h-7"
+            style={{ background: "rgba(255,255,255,0.12)" }}>
+            <Truck size={12} className="text-white sm:hidden" />
+            <Truck size={14} className="text-white hidden sm:block" />
           </span>
-          <span className="text-white/90 text-sm font-medium tracking-wide">
+          <span className="text-white/90 text-xs sm:text-sm font-medium tracking-wide">
             شركة شحن محلية موثوقة منذ 2001
           </span>
           <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
         </div>
-        <h1 className="flex items-center justify-center gap-3 mb-4" dir="ltr">
+
+        {/* Title */}
+        <h1 className="flex items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-5 flex-wrap" dir="ltr">
           <span
-            className="inline-block text-5xl md:text-7xl font-black stark-glow-text"
+            className="inline-block font-black stark-glow-text"
             style={{
+              fontSize: "clamp(52px, 14vw, 112px)",
               background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 20%, #f0f0f0 35%, #ffffff 50%, #d0d0ff 65%, #ffffff 80%, #b0b0b0 100%)",
               backgroundSize: "300% 300%",
               WebkitBackgroundClip: "text",
@@ -294,26 +303,50 @@ function HeroSection() {
               letterSpacing: "-0.02em",
               textShadow: "none",
               willChange: "filter, letter-spacing",
+              lineHeight: 1,
             }}
           >
             STARK
           </span>
-          <span style={{ width: 1, height: 40, background: "rgba(255,255,255,0.2)", display: "inline-block", borderRadius: 1 }} />
+          <span style={{ width: 1, height: "clamp(28px,5vw,48px)", background: "rgba(255,255,255,0.2)", display: "inline-block", borderRadius: 1, alignSelf: "center" }} />
           <span
-            className="inline-block text-xl md:text-2xl font-light tracking-widest"
+            className="inline-block font-light"
             style={{
+              fontSize: "clamp(16px, 4vw, 28px)",
               background: "linear-gradient(135deg, #b0b0b0 0%, #e0e0e0 35%, #909090 65%, #c8c8c8 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
               filter: "drop-shadow(0 0 10px rgba(180,180,180,0.25))",
-              letterSpacing: "0.25em",
+              letterSpacing: "0.2em",
             }}
           >
             للشحن
           </span>
         </h1>
 
+        {/* Subtitle */}
+        <p className="text-white/50 text-sm sm:text-base max-w-xs sm:max-w-md mx-auto leading-relaxed mb-6 sm:mb-8 px-2">
+          نوصل شحنتك لأي مكان في مصر بسرعة وأمان — 27 محافظة تحت خدمتك
+        </p>
+
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-xs sm:max-w-none sm:w-auto">
+          <button
+            onClick={() => document.getElementById("tracking")?.scrollIntoView({ behavior: "smooth" })}
+            className="w-full sm:w-auto font-bold px-6 py-3 sm:px-8 sm:py-3.5 rounded-xl text-sm transition-all duration-300 hover:scale-105 active:scale-95"
+            style={{ background: "linear-gradient(135deg, #fff 0%, #d8d8d8 100%)", color: "#000", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 16px rgba(0,0,0,0.4)" }}
+          >
+            تتبع شحنتك الآن
+          </button>
+          <button
+            onClick={() => navigate("/contract")}
+            className="w-full sm:w-auto font-bold px-6 py-3 sm:px-8 sm:py-3.5 rounded-xl text-sm border text-white transition-all duration-300 hover:bg-white/10 active:scale-95"
+            style={{ border: "1px solid rgba(255,255,255,0.3)", backdropFilter: "blur(8px)" }}
+          >
+            تعاقد معنا
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -363,17 +396,16 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
   return (
     <section
       id="tracking"
-      className="relative z-20 pb-16"
+      className="relative z-20 pb-12 sm:pb-16"
       dir="rtl"
       style={{
-        marginTop: "-220px",
+        marginTop: "clamp(-160px, -22vw, -240px)",
         background: "transparent",
       }}
     >
-      {/* overlay */}
       <div className="w-full relative" style={{ zIndex: 1 }}>
         <div
-          className="relative p-8 text-center"
+          className="relative px-4 sm:px-8 pt-4 pb-8 sm:pb-10 text-center"
           style={{
             background: "rgba(0,0,0,0.25)",
             backdropFilter: "blur(12px)",
@@ -381,88 +413,94 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
             borderTop: "1px solid rgba(255,255,255,0.04)",
           }}
         >
-          <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2, marginTop: "-240px" }}>
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 20px rgba(255,255,255,0.1)" }}>
-          <Package size={28} className="text-white" />
-        </div>
-        <h2 className="text-3xl font-black mb-2"
-          style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
-          تتبع الشحنة
-        </h2>
-        <p className="mb-8 text-sm" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>أدخل اسم الراسل ورقم هاتفك أنت لمعرفة حالة شحنتك</p>
-        <div className="flex flex-col gap-3 max-w-lg mx-auto mb-10">
-          <input
-            type="text"
-            value={senderName}
-            onChange={e => setSenderName(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-            placeholder="اسم الراسل   مثال: CELIA"
-            disabled={isTracking}
-            dir="rtl"
-            className="w-full rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
-            style={{
-              background: "rgba(255,255,255,0.12)",
-              border: "1.5px solid rgba(255,255,255,0.6)",
-              boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
-            }}
-            onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
-            onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
-          />
-          <input
-            type="tel"
-            value={senderPhone}
-            onChange={e => setSenderPhone(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-            placeholder="رقم هاتفك أنت   مثال: 01012345678"
-            disabled={isTracking}
-            dir="ltr"
-            className="w-full rounded-xl px-4 py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
-            style={{
-              background: "rgba(255,255,255,0.12)",
-              border: "1.5px solid rgba(255,255,255,0.6)",
-              boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
-            }}
-            onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
-            onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
-          />
-          <button
-            onClick={handleTrack}
-            disabled={isTracking}
-            className="w-full font-bold px-6 py-3 rounded-xl transition-all duration-300 text-sm text-black hover:scale-105 disabled:opacity-60 disabled:hover:scale-100 flex items-center justify-center gap-2"
-            style={{ background: "linear-gradient(135deg, #ffffff 0%, #d8d8d8 100%)", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.3)" }}>
-            {isTracking ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                جاري البحث...
-              </>
-            ) : (
-              "بحث عن الشحنة"
-            )}
-          </button>
-        </div>
-        <div className="flex items-center justify-center gap-2 flex-wrap">
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center backdrop-blur-sm transition-all duration-300 hover:scale-110"
-                  style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 0 12px rgba(255,255,255,0.06)" }}>
-                  <step.icon size={18} style={{ color: "rgba(220,220,220,0.9)" }} />
-                </div>
-                <span className="text-xs" style={{ color: "rgba(180,180,180,0.8)", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>{step.label}</span>
-              </div>
-              {i < steps.length - 1 && <div className="w-8 h-px mb-4" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)" }} />}
+          <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2, marginTop: "clamp(-160px, -22vw, -260px)" }}>
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4"
+              style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 20px rgba(255,255,255,0.1)" }}>
+              <Package size={24} className="text-white sm:hidden" />
+              <Package size={28} className="text-white hidden sm:block" />
             </div>
-          ))}
-        </div>
-          </div>{/* end content */}
-          {/* CTA buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-            <button onClick={() => navigate("/contract")} className="cursor-pointer border border-[#555] text-white font-bold px-8 py-3 rounded-xl hover:border-white/50 transition-colors flex items-center gap-2 text-sm">
-              <FileText size={16} /> تعاقد معنا
-            </button>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2"
+              style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
+              تتبع الشحنة
+            </h2>
+            <p className="mb-6 sm:mb-8 text-xs sm:text-sm px-2" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
+              أدخل اسم الراسل ورقم هاتفك أنت لمعرفة حالة شحنتك
+            </p>
+
+            {/* Inputs */}
+            <div className="flex flex-col gap-3 max-w-lg mx-auto mb-8 sm:mb-10 px-2 sm:px-0">
+              <input
+                type="text"
+                value={senderName}
+                onChange={e => setSenderName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
+                placeholder="اسم الراسل   مثال: CELIA"
+                disabled={isTracking}
+                dir="rtl"
+                className="w-full rounded-xl px-4 py-3.5 sm:py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1.5px solid rgba(255,255,255,0.6)",
+                  boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
+                  fontSize: "16px",
+                }}
+                onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
+                onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
+              />
+              <input
+                type="tel"
+                value={senderPhone}
+                onChange={e => setSenderPhone(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
+                placeholder="رقم هاتفك أنت   مثال: 01012345678"
+                disabled={isTracking}
+                dir="ltr"
+                className="w-full rounded-xl px-4 py-3.5 sm:py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1.5px solid rgba(255,255,255,0.6)",
+                  boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
+                  fontSize: "16px",
+                }}
+                onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
+                onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
+              />
+              <button
+                onClick={handleTrack}
+                disabled={isTracking}
+                className="w-full font-bold px-6 py-3.5 sm:py-3 rounded-xl transition-all duration-300 text-sm text-black hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg, #ffffff 0%, #d8d8d8 100%)", boxShadow: "0 0 20px rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.3)", fontSize: "16px" }}>
+                {isTracking ? (
+                  <><Loader2 size={16} className="animate-spin" />جاري البحث...</>
+                ) : "بحث عن الشحنة"}
+              </button>
+            </div>
+
+            {/* Steps */}
+            <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap px-2">
+              {steps.map((step, i) => (
+                <div key={i} className="flex items-center gap-1 sm:gap-2">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center backdrop-blur-sm transition-all duration-300 hover:scale-110"
+                      style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 0 12px rgba(255,255,255,0.06)" }}>
+                      <step.icon size={14} className="sm:hidden" style={{ color: "rgba(220,220,220,0.9)" }} />
+                      <step.icon size={18} className="hidden sm:block" style={{ color: "rgba(220,220,220,0.9)" }} />
+                    </div>
+                    <span className="text-[10px] sm:text-xs" style={{ color: "rgba(180,180,180,0.8)", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>{step.label}</span>
+                  </div>
+                  {i < steps.length - 1 && <div className="w-4 sm:w-8 h-px mb-4" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)" }} />}
+                </div>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6 sm:mt-8 px-2 sm:px-0">
+              <button onClick={() => navigate("/contract")} className="w-full sm:w-auto cursor-pointer border border-[#555] text-white font-bold px-8 py-3.5 sm:py-3 rounded-xl hover:border-white/50 transition-colors flex items-center justify-center gap-2 text-sm">
+                <FileText size={16} /> تعاقد معنا
+              </button>
+            </div>
           </div>
-        </div>{/* end glass card */}
+        </div>
       </div>
     </section>
   );
@@ -477,40 +515,40 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
     { icon: Users, label: "الخدمة" },
   ];
   return (
-    <section id="about" className={`py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
+    <section id="about" className={`py-16 sm:py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 items-center">
           <div>
-            <h2 className={`text-3xl font-black mb-4 ${darkMode ? "text-white" : "text-black"}`}>من نحن</h2>
-            <p className={`leading-relaxed mb-6 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+            <h2 className={`text-2xl sm:text-3xl font-black mb-3 sm:mb-4 ${darkMode ? "text-white" : "text-black"}`}>من نحن</h2>
+            <p className={`leading-relaxed mb-5 sm:mb-6 text-sm sm:text-base ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
               تُعدّ <bdi className="stark-glow-text-sm font-black" style={{ unicodeBidi: "embed", direction: "ltr", display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</bdi> لوجستيك من أبرز شركات الشحن والخدمات اللوجستية داخل مصر،
               حيث تقدّم خدماتها للأفراد والشركات في جميع المحافظات والمدن على مستوى الجمهورية منذ عام 2001.
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {features.map((f, i) => (
-                <div key={i} className={`border rounded-xl p-4 flex items-center gap-3 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
-                    <f.icon size={18} className={darkMode ? "text-gray-300" : "text-gray-600"} />
+                <div key={i} className={`border rounded-xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3 ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
+                  <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+                    <f.icon size={16} className={darkMode ? "text-gray-300" : "text-gray-600"} />
                   </div>
-                  <span className={`font-semibold text-sm ${darkMode ? "text-gray-200" : "text-gray-800"}`}>{f.label}</span>
+                  <span className={`font-semibold text-xs sm:text-sm ${darkMode ? "text-gray-200" : "text-gray-800"}`}>{f.label}</span>
                 </div>
               ))}
             </div>
-            <button onClick={() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" })} className={`inline-flex items-center gap-2 mt-6 transition-colors text-sm ${darkMode ? "text-gray-300 hover:text-white" : "text-gray-500 hover:text-black"}`}>
+            <button onClick={() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" })} className={`inline-flex items-center gap-2 mt-5 sm:mt-6 transition-colors text-sm ${darkMode ? "text-gray-300 hover:text-white" : "text-gray-500 hover:text-black"}`}>
               المزيد <ArrowLeft size={16} />
             </button>
           </div>
-          <div className={`border rounded-2xl p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
-            <img src={logoBase64} alt="STARK" className="w-24 h-24 rounded-2xl mx-auto mb-4 object-cover" />
-            <h3 className={`font-bold text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>
+          <div className={`border rounded-2xl p-6 sm:p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
+            <img src={logoBase64} alt="STARK" className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl mx-auto mb-3 sm:mb-4 object-cover" />
+            <h3 className={`font-bold text-lg sm:text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>
               <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
             </h3>
-            <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>خدمة الشحن الموثوقة في مصر</p>
-            <div className={`grid grid-cols-3 gap-4 mt-6 pt-6 border-t ${darkMode ? "border-[#222]" : "border-gray-200"}`}>
+            <p className={`text-xs sm:text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>خدمة الشحن الموثوقة في مصر</p>
+            <div className={`grid grid-cols-3 gap-3 sm:gap-4 mt-5 sm:mt-6 pt-5 sm:pt-6 border-t ${darkMode ? "border-[#222]" : "border-gray-200"}`}>
               {[["4+", "سنة خبرة"], ["27", "محافظة"], ["99%", "رضا العملاء"]].map(([val, lbl], i) => (
                 <div key={i}>
-                  <div className={`text-2xl font-black ${darkMode ? "text-white" : "text-black"}`}>{val}</div>
-                  <div className={`text-xs mt-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{lbl}</div>
+                  <div className={`text-xl sm:text-2xl font-black ${darkMode ? "text-white" : "text-black"}`}>{val}</div>
+                  <div className={`text-[10px] sm:text-xs mt-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{lbl}</div>
                 </div>
               ))}
             </div>
@@ -545,7 +583,7 @@ function ShippingCycleSection({ darkMode }: { darkMode: boolean }) {
   ];
 
   return (
-    <section ref={sectionRef} id="services" className={`py-20 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
+    <section ref={sectionRef} id="services" className={`py-16 sm:py-20 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
       <style>{`
         @keyframes cycleCardIn {
           from { opacity: 0; transform: translateY(40px) scale(0.94); }
@@ -566,139 +604,75 @@ function ShippingCycleSection({ darkMode }: { darkMode: boolean }) {
         }
       `}</style>
 
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
         {/* Header */}
-        <div className="text-center mb-14">
-          <div
-            className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}
-            style={{
-              opacity: visible ? 1 : 0,
-              transform: visible ? "translateY(0)" : "translateY(20px)",
-              transition: "opacity 0.5s ease, transform 0.5s ease",
-            }}
-          >
-            <Truck size={28} className={darkMode ? "text-white" : "text-black"} />
+        <div className="text-center mb-10 sm:mb-14">
+          <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}
+            style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)", transition: "opacity 0.5s ease, transform 0.5s ease" }}>
+            <Truck size={24} className={`sm:hidden ${darkMode ? "text-white" : "text-black"}`} />
+            <Truck size={28} className={`hidden sm:block ${darkMode ? "text-white" : "text-black"}`} />
           </div>
-          <h2
-            className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}
-            style={{
-              opacity: visible ? 1 : 0,
-              transform: visible ? "translateY(0)" : "translateY(20px)",
-              transition: "opacity 0.5s 0.1s ease, transform 0.5s 0.1s ease",
-            }}
-          >
+          <h2 className={`text-2xl sm:text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}
+            style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)", transition: "opacity 0.5s 0.1s ease, transform 0.5s 0.1s ease" }}>
             دورة الشحن
           </h2>
-          <p
-            className={darkMode ? "text-gray-400" : "text-gray-500"}
-            style={{
-              opacity: visible ? 1 : 0,
-              transform: visible ? "translateY(0)" : "translateY(20px)",
-              transition: "opacity 0.5s 0.18s ease, transform 0.5s 0.18s ease",
-            }}
-          >
+          <p className={`text-sm sm:text-base ${darkMode ? "text-gray-400" : "text-gray-500"}`}
+            style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)", transition: "opacity 0.5s 0.18s ease, transform 0.5s 0.18s ease" }}>
             كيف توصل شحنتك من باب التاجر لباب العميل في خطوات بسيطة
           </p>
         </div>
 
-        {/* Cards + connectors */}
-        <div className="relative flex flex-col md:flex-row items-stretch gap-0 md:gap-0">
+        {/* Cards — vertical on mobile, horizontal on desktop */}
+        <div className="relative flex flex-col sm:flex-row items-stretch gap-3 sm:gap-0">
           {steps.map((s, i) => {
             const isHovered = hoveredIdx === i;
             const delay = visible ? `${i * 0.1}s` : "0s";
             return (
               <React.Fragment key={i}>
-                {/* Card */}
                 <div
                   className="flex-1 relative"
-                  style={{
-                    animation: visible ? `cycleCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) ${delay} both` : "none",
-                    opacity: visible ? undefined : 0,
-                  }}
+                  style={{ animation: visible ? `cycleCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) ${delay} both` : "none", opacity: visible ? undefined : 0 }}
                   onMouseEnter={() => setHoveredIdx(i)}
                   onMouseLeave={() => setHoveredIdx(null)}
                 >
                   <div
-                    className={`border rounded-2xl p-5 text-center relative h-full flex flex-col items-center mx-1 md:mx-2 transition-all duration-300 ${
-                      darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"
-                    }`}
+                    className={`border rounded-2xl p-4 sm:p-5 relative flex sm:flex-col items-center sm:text-center gap-4 sm:gap-0 mx-0 sm:mx-2 transition-all duration-300 h-full ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}
                     style={{
                       transform: isHovered ? "translateY(-10px) scale(1.03)" : "translateY(0) scale(1)",
-                      boxShadow: isHovered
-                        ? darkMode
-                          ? "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.12)"
-                          : "0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.08)"
-                        : "none",
-                      borderColor: isHovered
-                        ? darkMode ? "rgba(192,192,192,0.4)" : "rgba(0,0,0,0.25)"
-                        : undefined,
+                      boxShadow: isHovered ? (darkMode ? "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.12)" : "0 20px 60px rgba(0,0,0,0.12)") : "none",
+                      borderColor: isHovered ? (darkMode ? "rgba(192,192,192,0.4)" : "rgba(0,0,0,0.25)") : undefined,
                       transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
                     }}
                   >
                     {/* Number badge */}
                     <div
-                      className={`absolute -top-3 right-1/2 w-6 h-6 rounded-full text-xs font-black flex items-center justify-center z-10 ${
-                        darkMode ? "bg-white text-black" : "bg-black text-white"
-                      }`}
-                      style={{
-                        animation: visible ? `cycleNumPop 0.5s cubic-bezier(0.34,1.56,0.64,1) ${parseFloat(delay) + 0.25}s both` : "none",
-                        opacity: visible ? undefined : 0,
-                        right: "50%",
-                        transform: "translateX(50%)",
-                      }}
-                    >
-                      {s.num}
-                    </div>
+                      className={`absolute -top-3 right-1/2 w-6 h-6 rounded-full text-xs font-black flex items-center justify-center z-10 hidden sm:flex ${darkMode ? "bg-white text-black" : "bg-black text-white"}`}
+                      style={{ animation: visible ? `cycleNumPop 0.5s cubic-bezier(0.34,1.56,0.64,1) ${parseFloat(delay) + 0.25}s both` : "none", right: "50%", transform: "translateX(50%)" }}
+                    >{s.num}</div>
+                    {/* Mobile number */}
+                    <div className={`sm:hidden w-8 h-8 rounded-full text-xs font-black flex items-center justify-center flex-shrink-0 ${darkMode ? "bg-white text-black" : "bg-black text-white"}`}>{s.num}</div>
 
                     {/* Icon */}
-                    <div
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 mt-4 transition-all duration-300 ${
-                        darkMode ? "bg-white/10" : "bg-black/6"
-                      }`}
-                      style={{
-                        animation: isHovered ? "cycleIconSpin 0.6s ease" : "none",
-                        background: isHovered
-                          ? darkMode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)"
-                          : undefined,
-                      }}
-                    >
-                      <s.icon size={22} className={darkMode ? "text-gray-300" : "text-gray-600"} />
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center sm:mb-3 sm:mt-4 flex-shrink-0 transition-all duration-300 ${darkMode ? "bg-white/10" : "bg-black/6"}`}
+                      style={{ animation: isHovered ? "cycleIconSpin 0.6s ease" : "none" }}>
+                      <s.icon size={18} className={`sm:hidden ${darkMode ? "text-gray-300" : "text-gray-600"}`} />
+                      <s.icon size={22} className={`hidden sm:block ${darkMode ? "text-gray-300" : "text-gray-600"}`} />
                     </div>
 
-                    <h3 className={`font-bold text-sm mb-2 ${darkMode ? "text-white" : "text-black"}`}>{s.title}</h3>
-                    <p className={`text-xs leading-relaxed flex-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{s.desc}</p>
+                    <div className="flex-1 sm:flex-none">
+                      <h3 className={`font-bold text-sm mb-1 sm:mb-2 ${darkMode ? "text-white" : "text-black"}`}>{s.title}</h3>
+                      <p className={`text-xs leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{s.desc}</p>
+                    </div>
 
-                    {/* Bottom glow line on hover */}
-                    <div
-                      className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: isHovered ? "70%" : "0%",
-                        background: darkMode
-                          ? "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)"
-                          : "linear-gradient(90deg, transparent, rgba(0,0,0,0.3), transparent)",
-                      }}
-                    />
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-500"
+                      style={{ width: isHovered ? "70%" : "0%", background: darkMode ? "linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)" : "linear-gradient(90deg,transparent,rgba(0,0,0,0.3),transparent)" }} />
                   </div>
                 </div>
 
-                {/* Connector arrow between cards */}
+                {/* Connector — only on desktop */}
                 {i < steps.length - 1 && (
-                  <div
-                    className="hidden md:flex items-center justify-center flex-shrink-0 w-6 z-10"
-                    style={{ marginTop: "0" }}
-                  >
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "2px",
-                        background: darkMode
-                          ? "linear-gradient(90deg, rgba(255,255,255,0.15), rgba(255,255,255,0.35), rgba(255,255,255,0.15))"
-                          : "linear-gradient(90deg, rgba(0,0,0,0.1), rgba(0,0,0,0.25), rgba(0,0,0,0.1))",
-                        transformOrigin: "right",
-                        animation: visible ? `connectorGrow 0.4s ease ${i * 0.1 + 0.45}s both` : "none",
-                        opacity: visible ? undefined : 0,
-                      }}
-                    />
+                  <div className="hidden sm:flex items-center justify-center flex-shrink-0 w-6 z-10">
+                    <div style={{ width: "100%", height: "2px", background: darkMode ? "linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.35),rgba(255,255,255,0.15))" : "linear-gradient(90deg,rgba(0,0,0,0.1),rgba(0,0,0,0.25),rgba(0,0,0,0.1))", transformOrigin: "right", animation: visible ? `connectorGrow 0.4s ease ${i * 0.1 + 0.45}s both` : "none" }} />
                   </div>
                 )}
               </React.Fragment>
@@ -707,19 +681,13 @@ function ShippingCycleSection({ darkMode }: { darkMode: boolean }) {
         </div>
 
         {/* Tags */}
-        <div className="flex flex-wrap gap-3 justify-center mt-10">
+        <div className="flex flex-wrap gap-2 sm:gap-3 justify-center mt-8 sm:mt-10">
           {[{ icon: Shield, label: "الخدمة" }, { icon: MapPin, label: "الاعتمادية" }, { icon: Users, label: "الوصول المحلي" }, { icon: Star, label: "الخبرة" }].map((t, i) => (
-            <div
-              key={i}
-              className={`flex items-center gap-2 border rounded-xl px-4 py-2 transition-all duration-300 cursor-default ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444] hover:bg-[#1a1a1a]" : "bg-white border-gray-200 hover:border-gray-400 hover:bg-gray-50"}`}
-              style={{
-                opacity: visible ? 1 : 0,
-                transform: visible ? "translateY(0)" : "translateY(16px)",
-                transition: `opacity 0.4s ${0.55 + i * 0.07}s ease, transform 0.4s ${0.55 + i * 0.07}s ease, background 0.3s, border-color 0.3s`,
-              }}
-            >
-              <t.icon size={15} className={darkMode ? "text-gray-400" : "text-gray-500"} />
-              <span className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.label}</span>
+            <div key={i}
+              className={`flex items-center gap-2 border rounded-xl px-3 sm:px-4 py-2 transition-all duration-300 cursor-default ${darkMode ? "bg-[#111] border-[#222] hover:border-[#444] hover:bg-[#1a1a1a]" : "bg-white border-gray-200 hover:border-gray-400 hover:bg-gray-50"}`}
+              style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(16px)", transition: `opacity 0.4s ${0.55 + i * 0.07}s ease, transform 0.4s ${0.55 + i * 0.07}s ease, background 0.3s, border-color 0.3s` }}>
+              <t.icon size={14} className={darkMode ? "text-gray-400" : "text-gray-500"} />
+              <span className={`text-xs sm:text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.label}</span>
             </div>
           ))}
         </div>
@@ -736,10 +704,11 @@ function ContractSection({ darkMode }: { darkMode: boolean }) {
     { icon: Star, label: "بنود العقد" },
   ];
   return (
-    <section id="contract" className={`py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
-      <div className="max-w-3xl mx-auto px-4 text-center">
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
-          <FileText size={28} className={darkMode ? "text-white" : "text-black"} />
+    <section id="contract" className={`py-16 sm:py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+        <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 ${darkMode ? "bg-white/10" : "bg-black/8"}`}>
+          <FileText size={22} className={`sm:hidden ${darkMode ? "text-white" : "text-black"}`} />
+          <FileText size={28} className={`hidden sm:block ${darkMode ? "text-white" : "text-black"}`} />
         </div>
         <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>
           عقد شركة <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
@@ -784,9 +753,8 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
   const accentColor = darkMode ? "rgba(192,192,192,0.10)" : "rgba(0,0,0,0.06)";
 
   return (
-    <section id="features" className={`relative py-24 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
-
-      {/* ─── SVG curved lines background ─── */}
+    <section id="features" className={`relative py-20 sm:py-24 overflow-hidden ${darkMode ? "bg-[#0a0a0a]" : "bg-gray-100"}`} dir="rtl">
+      {/* SVG bg lines */}
       <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
         <path d="M0,150 C200,80 400,220 600,150 C800,80 1000,220 1200,150"   fill="none" stroke={lineColor}   strokeWidth="1.5"/>
         <path d="M0,250 C150,180 350,320 550,250 C750,180 950,320 1200,250"  fill="none" stroke={lineColor}   strokeWidth="1"/>
@@ -800,36 +768,34 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
         <ellipse cx="300" cy="400" rx="250" ry="100" fill="none" stroke={lineColor}   strokeWidth="1"/>
       </svg>
 
-      <div className="relative z-10 max-w-5xl mx-auto px-4">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6">
         {/* Header */}
-        <div className="text-center mb-14">
-          <span className={`inline-block text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-4 ${darkMode ? "bg-white/8 text-gray-400 border border-white/10" : "bg-black/5 text-gray-500 border border-black/8"}`}>
+        <div className="text-center mb-10 sm:mb-14">
+          <span className={`inline-block text-xs font-bold tracking-widest uppercase px-3 sm:px-4 py-1.5 rounded-full mb-3 sm:mb-4 ${darkMode ? "bg-white/8 text-gray-400 border border-white/10" : "bg-black/5 text-gray-500 border border-black/8"}`}>
             مميزاتنا
           </span>
-          <h2 className={`text-4xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>
+          <h2 className={`text-3xl sm:text-4xl font-black mb-2 sm:mb-3 ${darkMode ? "text-white" : "text-black"}`}>
             لماذا <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span>؟
           </h2>
-          <p className={`text-base max-w-xl mx-auto ${darkMode ? "text-gray-400" : "text-gray-500"}`}>حلول لوجستية متكاملة مناسبة لكل احتياجاتك</p>
+          <p className={`text-sm sm:text-base max-w-xl mx-auto ${darkMode ? "text-gray-400" : "text-gray-500"}`}>حلول لوجستية متكاملة مناسبة لكل احتياجاتك</p>
         </div>
 
-        {/* Cards — alternating short / tall */}
-        <div className="flex items-end gap-5 justify-center">
+        {/* Cards — 2 col on mobile, 4 col on desktop, no alternating heights on mobile */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           {features.map((f, i) => (
             <div
               key={i}
-              className={`relative flex-1 rounded-3xl p-7 flex flex-col items-center text-center border
+              className={`relative rounded-2xl sm:rounded-3xl p-5 sm:p-7 flex flex-col items-center text-center border
                 ${darkMode ? "bg-[#111] border-[#222]" : "bg-white border-gray-200"}`}
               style={{
-                minHeight: f.tall ? "380px" : "260px",
+                minHeight: "200px",
                 transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.35s ease, border-color 0.35s ease",
               }}
               onMouseEnter={e => {
                 const el = e.currentTarget;
-                el.style.transform = "translateY(-12px)";
+                el.style.transform = "translateY(-10px)";
                 el.style.borderColor = darkMode ? "rgba(192,192,192,0.5)" : "rgba(0,0,0,0.3)";
-                el.style.boxShadow = darkMode
-                  ? "0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(192,192,192,0.15), 0 0 40px rgba(192,192,192,0.07)"
-                  : "0 24px 64px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.10)";
+                el.style.boxShadow = darkMode ? "0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(192,192,192,0.15)" : "0 24px 64px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.10)";
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget;
@@ -838,20 +804,15 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
                 el.style.boxShadow = "none";
               }}
             >
-              {/* inner glow on hover */}
-              <div
-                className="absolute inset-0 rounded-3xl pointer-events-none opacity-0 transition-opacity duration-500 hover:opacity-100"
-                style={{ background: darkMode ? "linear-gradient(135deg,rgba(255,255,255,0.04),transparent 60%)" : "linear-gradient(135deg,rgba(0,0,0,0.025),transparent 60%)" }}
-              />
-
-              {/* icon circle */}
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 mt-2
+              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl pointer-events-none opacity-0 transition-opacity duration-500 hover:opacity-100"
+                style={{ background: darkMode ? "linear-gradient(135deg,rgba(255,255,255,0.04),transparent 60%)" : "linear-gradient(135deg,rgba(0,0,0,0.025),transparent 60%)" }} />
+              <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mb-4 sm:mb-6 mt-1 sm:mt-2
                 ${darkMode ? "bg-[#1a1a1a] border border-[#2a2a2a]" : "bg-gray-100 border border-gray-200"}`}>
-                <f.icon size={26} className={darkMode ? "text-gray-300" : "text-gray-600"} strokeWidth={1.5} />
+                <f.icon size={20} className={`sm:hidden ${darkMode ? "text-gray-300" : "text-gray-600"}`} strokeWidth={1.5} />
+                <f.icon size={26} className={`hidden sm:block ${darkMode ? "text-gray-300" : "text-gray-600"}`} strokeWidth={1.5} />
               </div>
-
-              <h3 className={`text-xl font-black mb-3 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
-              <p className={`text-sm leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
+              <h3 className={`text-base sm:text-xl font-black mb-2 sm:mb-3 ${darkMode ? "text-white" : "text-black"}`}>{f.title}</h3>
+              <p className={`text-xs sm:text-sm leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{f.desc}</p>
             </div>
           ))}
         </div>
@@ -1082,16 +1043,16 @@ function ClientsSection() {
 // ─── Contact Section ──────────────────────────────────────────────────────────
 function ContactSection({ darkMode }: { darkMode: boolean }) {
   return (
-    <section id="contact" className={`py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className={`text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>اتصل بنا</h2>
-          <p className={darkMode ? "text-gray-400" : "text-gray-500"}>افضل طرق للحصول على المساعدة المطلوبة</p>
+    <section id="contact" className={`py-16 sm:py-20 ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        <div className="text-center mb-8 sm:mb-12">
+          <h2 className={`text-2xl sm:text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}>اتصل بنا</h2>
+          <p className={`text-sm sm:text-base ${darkMode ? "text-gray-400" : "text-gray-500"}`}>افضل طرق للحصول على المساعدة المطلوبة</p>
         </div>
         <div className="text-center">
           <a
             href="mailto:info@alexander-eg.com"
-            className={`inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-colors ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
+            className={`inline-flex items-center gap-2 font-bold px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl transition-colors text-sm sm:text-base ${darkMode ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}
           >
             <Mail size={18} /> تواصل معنا
           </a>
