@@ -1277,39 +1277,54 @@ function InvoiceGroupDeliveryRow({
                 )}
               </div>
             )}
-            {/* زرار التقفيل داخل عمود الحالة */}
+            {/* زرار التقفيل + الاستعجال جنب بعض */}
             {!locked && (
-              bulkEditing ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-[10px] px-1.5 text-muted-foreground mt-1 self-start"
-                  onClick={() => setBulkEditing(false)}
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-[10px] px-1.5 text-primary hover:text-primary mt-1 self-start"
-                  onClick={() => {
-                    setBulkEditing(true);
-                    setBulkStatus(groupStatus);
-                    setBulkNote(rep.deliveryNote ?? "");
-                    setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
-                    setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
-                    setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
-                    const existingPartialReturn = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null;
-                    setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn);
-                  }}
-                >
-                  <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
-                </Button>
-              )
+              <div className="flex items-center gap-1 mt-1">
+                {bulkEditing ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-1.5 text-muted-foreground self-start"
+                    onClick={() => setBulkEditing(false)}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-1.5 text-primary hover:text-primary self-start"
+                    onClick={() => {
+                      setBulkEditing(true);
+                      setBulkStatus(groupStatus);
+                      setBulkNote(rep.deliveryNote ?? "");
+                      setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
+                      setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+                      setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
+                      const existingPartialReturn = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null;
+                      setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn);
+                    }}
+                  >
+                    <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
+                  </Button>
+                )}
+                {/* ── زرار الاستعجال جنب التقفيل ── */}
+                {isShipmentManifest && (
+                  <div onClick={e => e.stopPropagation()}>
+                    <UrgentButton
+                      manifestId={manifestId}
+                      shipmentId={(rep as any).shipmentId ?? rep.id}
+                      isUrgent={!!(rep as any).isUrgent}
+                      urgentNote={(rep as any).urgentNote}
+                      onToggled={onSaved}
+                      disabled={false}
+                    />
+                  </div>
+                )}
+              </div>
             )}
-            {/* ── زرار الاستعجال ── */}
-            {isShipmentManifest && (
+            {/* لو البيان مغلق وعايزين نعرض الاستعجال بس */}
+            {locked && isShipmentManifest && (
               <div className="mt-1" onClick={e => e.stopPropagation()}>
                 <UrgentButton
                   manifestId={manifestId}
@@ -1347,18 +1362,6 @@ function InvoiceGroupDeliveryRow({
               </div>
             </div>
             <div className="shrink-0 flex items-start gap-1.5">
-              {/* زرار الاستعجال mobile */}
-              {isShipmentManifest && (
-                <div onClick={e => e.stopPropagation()}>
-                  <UrgentButton
-                    manifestId={manifestId}
-                    shipmentId={(rep as any).shipmentId ?? rep.id}
-                    isUrgent={!!(rep as any).isUrgent}
-                    urgentNote={(rep as any).urgentNote}
-                    onToggled={onSaved}
-                  />
-                </div>
-              )}
               {hasMultipleStatuses && !hasMixedPartial ? (
                 <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground">حالات متعددة</Badge>
               ) : (
@@ -1418,7 +1421,7 @@ function InvoiceGroupDeliveryRow({
           {displayStatus === "partial_received" && (rep as any).returnReceived === 0 && <p className="text-[10px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>}
           {/* Action button */}
           {!locked && (
-            <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-end items-center gap-1" onClick={e => e.stopPropagation()}>
               {bulkEditing ? (
                 <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground" onClick={() => setBulkEditing(false)}>
                   <X className="w-3 h-3" />
@@ -1428,6 +1431,19 @@ function InvoiceGroupDeliveryRow({
                   onClick={() => { setBulkEditing(true); setBulkStatus(groupStatus); setBulkNote(rep.deliveryNote ?? ""); setBulkReturnReason((rep as any).returnReason ?? ""); setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""]))); setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus]))); setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null); const ep = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null; setPartialReturnReceived(groupStatus === "partial_received" && ep === null ? false : ep); }}>
                   <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
                 </Button>
+              )}
+              {/* ── زرار الاستعجال mobile جنب التقفيل ── */}
+              {isShipmentManifest && (
+                <div onClick={e => e.stopPropagation()}>
+                  <UrgentButton
+                    manifestId={manifestId}
+                    shipmentId={(rep as any).shipmentId ?? rep.id}
+                    isUrgent={!!(rep as any).isUrgent}
+                    urgentNote={(rep as any).urgentNote}
+                    onToggled={onSaved}
+                    disabled={false}
+                  />
+                </div>
               )}
             </div>
           )}
