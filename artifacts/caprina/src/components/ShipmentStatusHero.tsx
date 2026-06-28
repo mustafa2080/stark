@@ -423,6 +423,66 @@ function CourierScooterIllustration({ accent, accent2 }: { accent: string; accen
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 5) تم التسليم بنجاح — صندوق مفتوح وعلامة صح متوهجة
+// ─────────────────────────────────────────────────────────────────────────────
+function DeliveredIllustration({ accent, accent2 }: { accent: string; accent2: string }) {
+  return (
+    <svg viewBox="0 0 320 180" width="280" height="158" style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id="deliveredBox" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={accent2} stopOpacity="0.95" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0.7" />
+        </linearGradient>
+        <radialGradient id="deliveredGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* وهج أرضي */}
+      <ellipse cx="160" cy="155" rx="100" ry="12" fill="url(#deliveredGlow)" />
+      {/* ظل الصندوق */}
+      <ellipse cx="160" cy="150" rx="62" ry="9" fill="black" opacity="0.3" />
+
+      {/* الصندوق المفتوح */}
+      <g transform="translate(160,118)">
+        {/* جانب يسار */}
+        <path d="M-55,-10 L-2,-26 L-2,32 L-55,46 Z" fill={accent} fillOpacity="0.45" stroke={accent} strokeOpacity="0.4" strokeWidth="1" />
+        {/* جانب يمين */}
+        <path d="M55,-10 L2,-26 L2,32 L55,46 Z" fill="url(#deliveredBox)" stroke={accent2} strokeOpacity="0.5" strokeWidth="1" />
+        {/* الفتحات الداخلية (الصندوق مفتوح) */}
+        <path d="M-55,-10 L-2,-26 L55,-10 L2,6 Z" fill={accent} fillOpacity="0.2" stroke={accent} strokeOpacity="0.5" strokeWidth="1" />
+
+        {/* غطاء الصندوق المفتوح — يسار */}
+        <path d="M-55,-10 L-30,-44 L20,-30 L-2,-26 Z" fill={accent2} fillOpacity="0.55" stroke={accent2} strokeOpacity="0.4" strokeWidth="1">
+          <animateTransform attributeName="transform" type="rotate" values="0 -55 -10; -8 -55 -10; 0 -55 -10" dur="2.4s" repeatCount="indefinite" />
+        </path>
+        {/* غطاء الصندوق المفتوح — يمين */}
+        <path d="M55,-10 L30,-44 L-20,-30 L2,-26 Z" fill={accent2} fillOpacity="0.4" stroke={accent2} strokeOpacity="0.4" strokeWidth="1">
+          <animateTransform attributeName="transform" type="rotate" values="0 55 -10; 8 55 -10; 0 55 -10" dur="2.4s" repeatCount="indefinite" />
+        </path>
+      </g>
+
+      {/* دائرة العلامة الناجحة */}
+      <g transform="translate(160,72)">
+        <circle r="26" fill={accent} fillOpacity="0.18" />
+        <circle r="20" fill="url(#deliveredBox)" stroke="white" strokeOpacity="0.25" strokeWidth="1.5">
+          <animate attributeName="r" values="18;21;18" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+        <path d="M-9,0 L-2,8 L11,-9" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <animate attributeName="opacity" values="0;1;1" dur="0.6s" begin="0.2s" fill="freeze" />
+        </path>
+        {/* توهج نابض حول العلامة */}
+        <circle r="26" fill="none" stroke={accent2} strokeOpacity="0.3" strokeWidth="2">
+          <animate attributeName="r" values="22;32;22" dur="1.8s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.5;0;0.5" dur="1.8s" repeatCount="indefinite" />
+        </circle>
+      </g>
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 6) استثناء — مرتجع / ملغي / مؤجل
 // ─────────────────────────────────────────────────────────────────────────────
 function ExceptionIllustration({ accent, accent2 }: { accent: string; accent2: string }) {
