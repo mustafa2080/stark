@@ -171,6 +171,116 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     totalCollected, zones, topZone: zones[0] ?? null, lastLogin: lastLogin?.createdAt ?? null });
 });
 
+// ─── GET /representative/today-tasks — مهام اليوم للمندوب ───────────────────
+router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const companyId = user.role === "representative"
+    ? user.shippingCompanyId
+    : req.query.companyId ? parseInt(req.query.companyId as string) : null;
+  if (!companyId) { res.status(400).json({ error: "companyId مطلوب" }); return; }
+
+  const shipmentIds = await getShipmentIdsByCompany(companyId);
+  if (!shipmentIds.length) { res.json({ tasks: [], summary: { urgent: 0, outForDelivery: 0, pending: 0, total: 0 } }); return; }
+
+  // جيب الشحنات النشطة فقط (مش مسلمة ولا ملغية ولا مرتجعة بالكامل)
+  const activeStatuses = ["waiting", "confirmed", "picked_up", "in_transit", "out_for_delivery", "delayed"];
+  const rows = await db.select({
+    id: shipmentsTable.id,
+    shipmentNumber: shipmentsTable.shipmentNumber,
+    receiverName: shipmentsTable.receiverName,
+    receiverPhone: shipmentsTable.receiverPhone,
+    receiverCity: shipmentsTable.receiverCity,
+    status: shipmentsTable.status,
+    codAmount: shipmentsTable.codAmount,
+    createdAt: shipmentsTable.createdAt,
+    zoneName: shipmentZonesTable.name,
+  })
+    .from(shipmentsTable)
+    .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
+    .where(and(
+      inArray(shipmentsTable.id, shipmentIds),
+      isNull(shipmentsTable.deletedAt),
+      inArray(shipmentsTable.status, activeStatuses),
+    ))
+    .orderBy(desc(shipmentsTable.createdAt));
+
+  // جيب الشحنات المستعجلة من manifest items
+  const manifestItems = await db.select({
+    shipmentId: shipmentManifestItemsTable.shipmentId,
+    isUrgent: shipmentManifestItemsTable.isUrgent,
+    urgentNote: shipmentManifestItemsTable.urgentNote,
+    urgentAt: shipmentManifestItemsTable.urgentAt,
+  })
+    .from(shipmentManifestItemsTable)
+    .where(and(
+      inArray(shipmentManifestItemsTable.shipmentId, rows.map(r => r.id)),
+      eq(shipmentManifestItemsTable.isUrgent, 1),
+    ));
+
+  const urgentMap = new Map(manifestItems.map(i => [i.shipmentId, i]));
+
+  // رتب: مستعجل أولاً → out_for_delivery → باقي الحالات
+  const priority = (s: any) => {
+    if (urgentMap.has(s.id)) return 0;
+    if (s.status === "out_for_delivery") return 1;
+    if (s.status === "delayed") return 2;
+    if (s.status === "in_transit") return 3;
+    return 4;
+  };
+
+  const tasks = rows
+    .sort((a, b) => priority(a) - priority(b))
+    .map(s => ({
+      ...s,
+      isUrgent: urgentMap.has(s.id),
+      urgentNote: urgentMap.get(s.id)?.urgentNote ?? null,
+      urgentAt: urgentMap.get(s.id)?.urgentAt ?? null,
+    }));
+
+  const summary = {
+    urgent: tasks.filter(t => t.isUrgent).length,
+    outForDelivery: tasks.filter(t => t.status === "out_for_delivery").length,
+    pending: tasks.filter(t => !t.isUrgent && t.status !== "out_for_delivery").length,
+    total: tasks.length,
+  };
+
+  res.json({ tasks, summary });
+});
+
+// ─── PATCH /representative/shipments/bulk-start-day — بدأت اليوم ─────────────
+router.patch("/shipments/bulk-start-day", requireRepresentativeOrAdmin, async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const companyId = user.role === "representative"
+    ? user.shippingCompanyId
+    : (req.body?.companyId ? parseInt(req.body.companyId) : null);
+  if (!companyId) { res.status(400).json({ error: "companyId مطلوب" }); return; }
+
+  const shipmentIds = await getShipmentIdsByCompany(companyId);
+  if (!shipmentIds.length) { res.json({ updated: 0 }); return; }
+
+  // غير الحالات: waiting / confirmed / picked_up / in_transit → out_for_delivery
+  const eligibleStatuses = ["waiting", "confirmed", "picked_up", "in_transit", "delayed"];
+  const result = await db
+    .update(shipmentsTable)
+    .set({ status: "out_for_delivery", updatedAt: new Date() } as any)
+    .where(and(
+      inArray(shipmentsTable.id, shipmentIds),
+      isNull(shipmentsTable.deletedAt),
+      inArray(shipmentsTable.status, eligibleStatuses),
+    ));
+
+  await logAudit({
+    action: "bulk_start_day",
+    entityType: "shipment",
+    entityId: companyId,
+    entityName: `bulk-start-day-company-${companyId}`,
+    userId: user.id,
+    userName: user.displayName,
+  });
+
+  res.json({ updated: (result as any).affectedRows ?? 0 });
+});
+
 // ─── GET /representative/admin/representatives — قائمة المناديب للأدمن ────────
 router.get("/admin/representatives", async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;

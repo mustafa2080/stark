@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Redirect } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -918,8 +918,223 @@ function ManifestsTab({ companyId }: { companyId: number | null }) {
   );
 }
 
+// ─── Today Tasks Tab ──────────────────────────────────────────────────────────
+const TASK_STATUS_PRIORITY: Record<string, { label: string; color: string; dot: string }> = {
+  urgent:           { label: "مستعجل",        color: "bg-red-500/15 text-red-400 border-red-500/40",     dot: "bg-red-500" },
+  out_for_delivery: { label: "خرج للتسليم",  color: "bg-blue-500/15 text-blue-400 border-blue-500/40",  dot: "bg-blue-500" },
+  delayed:          { label: "مؤجل",          color: "bg-amber-500/15 text-amber-400 border-amber-500/40", dot: "bg-amber-500" },
+  in_transit:       { label: "في الطريق",    color: "bg-indigo-500/15 text-indigo-400 border-indigo-500/40", dot: "bg-indigo-400" },
+  waiting:          { label: "انتظار",        color: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",  dot: "bg-zinc-500" },
+  confirmed:        { label: "مؤكدة",         color: "bg-violet-500/15 text-violet-400 border-violet-500/30", dot: "bg-violet-500" },
+  picked_up:        { label: "تم الاستلام",  color: "bg-sky-500/15 text-sky-400 border-sky-500/30",     dot: "bg-sky-400" },
+};
+
+function TaskCard({ task }: { task: any }) {
+  const statusKey = task.isUrgent ? "urgent" : task.status;
+  const info = TASK_STATUS_PRIORITY[statusKey] ?? TASK_STATUS_PRIORITY["waiting"];
+
+  return (
+    <div className={`rounded-2xl border p-3 space-y-2.5 transition-all ${task.isUrgent ? "border-red-500/50 bg-red-950/30" : "border-border/60 bg-card/60"}`}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {task.isUrgent && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-red-400 bg-red-500/15 border border-red-500/40 rounded-full px-1.5 py-0.5 animate-pulse shrink-0">
+                <Zap className="w-2.5 h-2.5 fill-red-400" /> مستعجل
+              </span>
+            )}
+            <p className="text-xs font-black truncate">{task.receiverName}</p>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5 font-mono text-primary/60">{task.shipmentNumber}</p>
+        </div>
+        <Badge variant="outline" className={`text-[9px] shrink-0 border ${info.color}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${info.dot} ml-1 inline-block`} />
+          {info.label}
+        </Badge>
+      </div>
+
+      {/* Info row */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {task.receiverCity && (
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <MapPin className="w-3 h-3 text-primary/50" /> {task.receiverCity}
+          </span>
+        )}
+        {task.zoneName && task.zoneName !== task.receiverCity && (
+          <span className="text-[10px] text-muted-foreground/60">({task.zoneName})</span>
+        )}
+        <span className="text-[11px] font-bold text-emerald-400 mr-auto">
+          {Number(task.codAmount ?? 0).toLocaleString("ar-EG")} ج.م
+        </span>
+      </div>
+
+      {/* Urgent note */}
+      {task.isUrgent && task.urgentNote && (
+        <p className="text-[10px] text-red-300/80 bg-red-500/10 rounded-lg px-2 py-1">
+          ⚡ {task.urgentNote}
+        </p>
+      )}
+
+      {/* Call button */}
+      {task.receiverPhone && (
+        <a href={`tel:${task.receiverPhone}`}
+          className="flex items-center justify-center gap-1.5 w-full h-8 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors">
+          <PhoneCall className="w-3.5 h-3.5" /> {task.receiverPhone}
+        </a>
+      )}
+    </div>
+  );
+}
+
+function TodayTasksTab({ companyId }: { companyId: number | null }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [confirmed, setConfirmed] = useState(false);
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["rep-today-tasks", companyId],
+    queryFn: () => apiFetch(`/representative/today-tasks${companyId ? `?companyId=${companyId}` : ""}`),
+    enabled: true,
+    refetchInterval: 60_000, // تحديث تلقائي كل دقيقة
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: () => apiFetch("/representative/shipments/bulk-start-day", {
+      method: "PATCH",
+      body: JSON.stringify({ companyId }),
+    }),
+    onSuccess: (res: any) => {
+      const updated = res?.updated ?? 0;
+      toast({ title: `🚀 تم تحديث ${updated} شحنة إلى "خرجت للتسليم"` });
+      setConfirmed(false);
+      refetch();
+      qc.invalidateQueries({ queryKey: ["rep-shipments"] });
+      qc.invalidateQueries({ queryKey: ["rep-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["rep-all-shipments"] });
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const d = data as any;
+  const tasks: any[] = d?.tasks ?? [];
+  const summary = d?.summary ?? { urgent: 0, outForDelivery: 0, pending: 0, total: 0 };
+
+  // فصل المهام لمجموعات
+  const urgentTasks = tasks.filter(t => t.isUrgent);
+  const outTasks    = tasks.filter(t => !t.isUrgent && t.status === "out_for_delivery");
+  const pendingTasks = tasks.filter(t => !t.isUrgent && t.status !== "out_for_delivery");
+  const canStartDay = pendingTasks.length > 0 || urgentTasks.filter(t => t.status !== "out_for_delivery").length > 0;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1,2,3].map(i => <div key={i} className="h-24 rounded-2xl bg-muted/20 animate-pulse" />)}
+      </div>
+    );
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+        <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+          <CheckCheck className="w-8 h-8 text-emerald-400" />
+        </div>
+        <p className="text-sm font-bold text-emerald-400">مفيش مهام نشطة اليوم!</p>
+        <p className="text-xs text-muted-foreground">كل الشحنات مسلَّمة أو ملغية</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* ── Summary Strip ── */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-center">
+          <p className="text-xl font-black text-red-400">{summary.urgent}</p>
+          <p className="text-[10px] text-red-400/80 font-bold">مستعجل</p>
+        </div>
+        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3 text-center">
+          <p className="text-xl font-black text-blue-400">{summary.outForDelivery}</p>
+          <p className="text-[10px] text-blue-400/80 font-bold">خرج للتسليم</p>
+        </div>
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-center">
+          <p className="text-xl font-black text-amber-400">{summary.pending}</p>
+          <p className="text-[10px] text-amber-400/80 font-bold">معلّق / مؤجل</p>
+        </div>
+      </div>
+
+      {/* ── زر بدأت اليوم ── */}
+      {canStartDay && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <PlayCircle className="w-4 h-4 text-primary" />
+            <p className="text-xs font-bold">
+              {pendingTasks.length} شحنة جاهزة للتسليم — ابدأ يومك دلوقتي
+            </p>
+          </div>
+          {!confirmed ? (
+            <button onClick={() => setConfirmed(true)}
+              className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-black flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg"
+              style={{ boxShadow: "0 0 20px rgba(var(--primary-rgb, 99,102,241),0.3)" }}>
+              <PlayCircle className="w-4 h-4" /> 🚀 بدأت اليوم — حوّل الكل للتسليم
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[11px] text-amber-400 text-center font-bold">
+                ⚠️ هيغيّر {pendingTasks.length} شحنة لـ "خرجت للتسليم" — متأكد؟
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => bulkMutation.mutate()}
+                  disabled={bulkMutation.isPending}
+                  className="flex-1 h-9 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-500 disabled:opacity-60 transition-all">
+                  {bulkMutation.isPending ? "بيحدّث..." : "✅ أيوه، ابدأ"}
+                </button>
+                <button onClick={() => setConfirmed(false)}
+                  className="flex-1 h-9 rounded-xl border border-border bg-muted/30 text-xs text-muted-foreground hover:bg-muted/60">
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── مستعجلة أولاً ── */}
+      {urgentTasks.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-black text-red-400 flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 fill-red-400" /> مستعجلة — سلّمها فوراً ({urgentTasks.length})
+          </p>
+          {urgentTasks.map(t => <TaskCard key={t.id} task={t} />)}
+        </div>
+      )}
+
+      {/* ── خرجت للتسليم ── */}
+      {outTasks.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+            <Truck className="w-3.5 h-3.5" /> خرجت للتسليم ({outTasks.length})
+          </p>
+          {outTasks.map(t => <TaskCard key={t.id} task={t} />)}
+        </div>
+      )}
+
+      {/* ── معلقة / مؤجلة ── */}
+      {pendingTasks.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" /> معلقة / مؤجلة ({pendingTasks.length})
+          </p>
+          {pendingTasks.map(t => <TaskCard key={t.id} task={t} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── NAV ITEMS definition ─────────────────────────────────────────────────────
-type TabId = "performance" | "shipments" | "manifests";
+type TabId = "performance" | "shipments" | "manifests" | "tasks";
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: React.ElementType; activeColor: string; activeBg: string; glowColor: string }[] = [
   {
     id: "performance",
@@ -947,6 +1162,15 @@ const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: React.Eleme
     activeColor: "text-emerald-400",
     activeBg: "bg-emerald-500/15 border-emerald-500/30",
     glowColor: "rgba(52,211,153,0.35)",
+  },
+  {
+    id: "tasks",
+    label: "مهامي",
+    sublabel: "قائمة اليوم",
+    Icon: ListChecks,
+    activeColor: "text-orange-400",
+    activeBg: "bg-orange-500/15 border-orange-500/30",
+    glowColor: "rgba(249,115,22,0.35)",
   },
 ];
 
@@ -1130,7 +1354,7 @@ function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: Ta
 
 export default function RepresentativeDashboard() {
   const { user, isRepresentative } = useAuth();
-  const [activeTab, setActiveTab] = useState<"shipments" | "manifests" | "performance">("performance");
+  const [activeTab, setActiveTab] = useState<"shipments" | "manifests" | "performance" | "tasks">("tasks");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -1289,6 +1513,9 @@ export default function RepresentativeDashboard() {
 
           {/* ─── Manifests Tab ─── */}
           {activeTab === "manifests" && <ManifestsTab companyId={company?.id ?? null} />}
+
+          {/* ─── Today Tasks Tab ─── */}
+          {activeTab === "tasks" && <TodayTasksTab companyId={company?.id ?? null} />}
 
           {/* ─── Shipments Tab ─── */}
           {activeTab === "shipments" && (
