@@ -1309,7 +1309,7 @@ function InvoiceGroupDeliveryRow({
                   </Button>
                 )}
                 {/* ── زرار الاستعجال جنب التقفيل ── */}
-                {isShipmentManifest && (
+                {false && isShipmentManifest && (
                   <div onClick={e => e.stopPropagation()}>
                     <UrgentButton
                       manifestId={manifestId}
@@ -1324,7 +1324,7 @@ function InvoiceGroupDeliveryRow({
               </div>
             )}
             {/* لو البيان مغلق وعايزين نعرض الاستعجال بس */}
-            {locked && isShipmentManifest && (
+            {false && locked && isShipmentManifest && (
               <div className="mt-1" onClick={e => e.stopPropagation()}>
                 <UrgentButton
                   manifestId={manifestId}
@@ -1433,7 +1433,7 @@ function InvoiceGroupDeliveryRow({
                 </Button>
               )}
               {/* ── زرار الاستعجال mobile جنب التقفيل ── */}
-              {isShipmentManifest && (
+              {false && isShipmentManifest && (
                 <div onClick={e => e.stopPropagation()}>
                   <UrgentButton
                     manifestId={manifestId}
