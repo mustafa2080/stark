@@ -240,12 +240,6 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
     urgentNote:     shipmentManifestItemsTable.urgentNote,
     urgentAt:       shipmentManifestItemsTable.urgentAt,
     addedAt:        shipmentManifestItemsTable.addedAt,
-    // بيانات الشحنة الأصلية
-    customerName:   (shipmentManifestItemsTable as any).customerName,
-    phone:          (shipmentManifestItemsTable as any).phone,
-    city:           (shipmentManifestItemsTable as any).city,
-    invoiceNumber:  (shipmentManifestItemsTable as any).invoiceNumber,
-    totalPrice:     (shipmentManifestItemsTable as any).totalPrice,
   })
     .from(shipmentManifestItemsTable)
     .where(and(
@@ -280,12 +274,11 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
       isUrgent: item.isUrgent === 1 || item.isUrgent === true,
       urgentNote: item.urgentNote ?? null,
       urgentAt: item.urgentAt ?? null,
-      // اجيب من manifest item أو fallback لـ shipmentsTable
-      receiverName:   (item as any).customerName ?? sh?.receiverName ?? "",
-      receiverPhone:  (item as any).phone        ?? sh?.receiverPhone ?? "",
-      receiverCity:   (item as any).city         ?? sh?.receiverCity  ?? "",
-      shipmentNumber: (item as any).invoiceNumber ?? sh?.shipmentNumber ?? "",
-      codAmount:      (item as any).totalPrice    ?? sh?.codAmount    ?? 0,
+      receiverName:   sh?.receiverName   ?? "",
+      receiverPhone:  sh?.receiverPhone  ?? "",
+      receiverCity:   sh?.receiverCity   ?? "",
+      shipmentNumber: sh?.shipmentNumber ?? "",
+      codAmount:      sh?.codAmount      ?? 0,
     };
   });
 
