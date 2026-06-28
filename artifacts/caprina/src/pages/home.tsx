@@ -209,44 +209,93 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
             <span className="hidden sm:inline">تسجيل الدخول</span>
           </button>
 
-          {/* Mobile Menu Toggle */}
+          {/* Mobile Menu Toggle — Animated Hamburger */}
           <button
-            className={`md:hidden p-2 rounded-xl transition-colors ${darkMode ? "text-white hover:bg-white/10" : "text-black hover:bg-black/10"}`}
+            className={`md:hidden p-2 rounded-xl transition-colors focus:outline-none ${darkMode ? "text-white hover:bg-white/10" : "text-black hover:bg-black/10"}`}
             onClick={() => setMenuOpen(v => !v)}
+            aria-label={menuOpen ? "إغلاق القائمة" : "فتح القائمة"}
           >
-            {menuOpen ? <X size={22} /> : <Menu size={22} />}
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              {/* Top line */}
+              <line
+                x1="3" y1="6" x2="19" y2="6"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                style={{
+                  transformOrigin: "11px 6px",
+                  transition: "transform 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.2s",
+                  transform: menuOpen ? "rotate(45deg) translate(0px, 5px)" : "rotate(0deg) translate(0,0)",
+                }}
+              />
+              {/* Middle line */}
+              <line
+                x1="3" y1="11" x2="19" y2="11"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                style={{
+                  transformOrigin: "11px 11px",
+                  transition: "opacity 0.2s 0.1s, transform 0.2s",
+                  opacity: menuOpen ? 0 : 1,
+                  transform: menuOpen ? "scaleX(0)" : "scaleX(1)",
+                }}
+              />
+              {/* Bottom line */}
+              <line
+                x1="3" y1="16" x2="19" y2="16"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                style={{
+                  transformOrigin: "11px 16px",
+                  transition: "transform 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.2s",
+                  transform: menuOpen ? "rotate(-45deg) translate(0px, -5px)" : "rotate(0deg) translate(0,0)",
+                }}
+              />
+            </svg>
           </button>
         </div>
       </div>
-      {/* Mobile Menu — تحت الـ pill */}
-      {menuOpen && (
+      {/* Mobile Menu — animated slide + fade */}
+      <div
+        className="md:hidden overflow-hidden"
+        style={{
+          maxHeight: menuOpen ? "400px" : "0px",
+          opacity: menuOpen ? 1 : 0,
+          marginTop: menuOpen ? "8px" : "0px",
+          transition: menuOpen
+            ? "max-height 0.42s cubic-bezier(0.4,0,0.2,1), opacity 0.28s ease 0.05s, margin-top 0.3s ease"
+            : "max-height 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease, margin-top 0.3s ease",
+        }}
+      >
         <div
-          className="mt-2 rounded-2xl overflow-hidden px-3 py-3 flex flex-col gap-1"
+          className="rounded-2xl px-3 py-3 flex flex-col gap-1"
           style={{
-            background: darkMode ? "rgba(10,10,10,0.95)" : "rgba(255,255,255,0.97)",
+            background: darkMode ? "rgba(10,10,10,0.97)" : "rgba(255,255,255,0.98)",
             border: darkMode ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.09)",
             boxShadow: darkMode ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 32px rgba(0,0,0,0.10)",
+            backdropFilter: "blur(16px)",
           }}
         >
-          {navLinks.map(l => {
+          {navLinks.map((l, idx) => {
             const isActive = activeSection === l.id;
             return (
               <button
                 key={l.id}
                 onClick={() => { scrollTo(l.id); setMenuOpen(false); }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-right w-full ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-right w-full ${
                   isActive
                     ? darkMode ? "bg-white/10 text-white" : "bg-black/6 text-black"
                     : darkMode ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-gray-500 hover:text-black hover:bg-black/4"
                 }`}
+                style={{
+                  transition: `opacity 0.25s ease ${menuOpen ? idx * 0.05 + 0.08 : 0}s, transform 0.3s cubic-bezier(0.34,1.56,0.64,1) ${menuOpen ? idx * 0.05 + 0.06 : 0}s`,
+                  opacity: menuOpen ? 1 : 0,
+                  transform: menuOpen ? "translateY(0)" : "translateY(-8px)",
+                }}
               >
-                {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{ background: darkMode ? "#c0c0c0" : "#333" }} />}
+                {isActive && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: darkMode ? "#c0c0c0" : "#333" }} />}
                 {l.label}
               </button>
             );
           })}
         </div>
-      )}
+      </div>
     </nav>
   );
 }
