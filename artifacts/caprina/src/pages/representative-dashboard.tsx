@@ -1354,7 +1354,7 @@ function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: Ta
 
 export default function RepresentativeDashboard() {
   const { user, isRepresentative } = useAuth();
-  const [activeTab, setActiveTab] = useState<"shipments" | "manifests" | "performance" | "tasks">("tasks");
+  const [activeTab, setActiveTab] = useState<"shipments" | "manifests" | "performance" | "tasks">("performance");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
