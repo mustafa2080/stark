@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { eq, and, desc, isNull, count, sql, inArray } from "drizzle-orm";
 import { db, shipmentsTable, shippingCompaniesTable, usersTable, shipmentZonesTable, auditLogsTable, shipmentManifestsTable, shipmentManifestItemsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { verifyToken } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { getTenantId, buildTenantCondition } from "../middlewares/requireTenant.js";
 
@@ -384,8 +385,15 @@ router.get("/admin/representatives/:id/audit", async (req: Request, res: Respons
 });
 
 // ─── GET /representative/sse — اشتراك المندوب في الإشعارات الفورية ────────────
-router.get("/sse", requireRepresentativeOrAdmin, (req: Request, res: Response): void => {
-  const user = (req as any).user;
+// EventSource مش بيبعت Authorization header — فنقرأ الـ token من query param
+router.get("/sse", (req: Request, res: Response): void => {
+  const rawToken = (req.query.token as string) || (req.headers.authorization?.replace("Bearer ", "") ?? "");
+  if (!rawToken) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const user = verifyToken(rawToken) as any;
+  if (!user) { res.status(401).json({ error: "انتهت الجلسة" }); return; }
+  const allowed = ["representative", "admin", "super_admin", "super-admin"];
+  if (!allowed.includes(user.role)) { res.status(403).json({ error: "غير مصرح" }); return; }
+
   const companyId = user.shippingCompanyId as number | undefined;
   if (!companyId) { res.status(400).json({ error: "المندوب غير مرتبط بشركة شحن" }); return; }
 
