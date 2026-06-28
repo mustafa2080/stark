@@ -545,6 +545,9 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
         shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
         zoneLabel: shipmentZonesTable.name,
         zoneGovernorate: shipmentZonesTable.governorate,
+        isUrgent:   shipmentManifestItemsTable.isUrgent,
+        urgentNote: shipmentManifestItemsTable.urgentNote,
+        manifestId: shipmentManifestItemsTable.manifestId,
       })
       .from(shipmentsTable)
       .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
@@ -1081,6 +1084,89 @@ const ShipmentItemSchema = z.object({
   unitPrice:   z.coerce.number().min(0).default(0),
   costPrice:   z.coerce.number().min(0).default(0),
   notes:       z.string().nullish(),
+});
+
+// ─── PATCH /shipments/:id/urgent — تفعيل/إلغاء الاستعجال مباشرةً من تفاصيل الشحنة ──
+router.patch("/shipments/:id/urgent", async (req, res): Promise<void> => {
+  try {
+    const shipmentId = Number(req.params.id);
+    const tenantId   = getTenantId(req);
+    const { isUrgent, urgentNote } = z.object({
+      isUrgent:   z.boolean(),
+      urgentNote: z.string().max(255).optional().nullable(),
+    }).parse(req.body);
+
+    // المندوب لا يملك صلاحية هذا الإجراء
+    const reqUser = (req as any).user;
+    if (reqUser?.role === "representative") {
+      res.status(403).json({ error: "المندوب لا يملك صلاحية هذا الإجراء" });
+      return;
+    }
+
+    // ابحث عن آخر بيان (مفتوح أو أي بيان) يحتوي هذه الشحنة
+    const conditions: any[] = [eq(shipmentManifestItemsTable.shipmentId, shipmentId)];
+    if (tenantId !== null) conditions.push(eq(shipmentManifestItemsTable.tenantId, tenantId));
+
+    const [item] = await db
+      .select({
+        id:         shipmentManifestItemsTable.id,
+        manifestId: shipmentManifestItemsTable.manifestId,
+        customerName: shipmentManifestItemsTable.customerName,
+        phone:      shipmentManifestItemsTable.phone,
+        city:       shipmentManifestItemsTable.city,
+        invoiceNumber: shipmentManifestItemsTable.invoiceNumber,
+        totalPrice: shipmentManifestItemsTable.totalPrice,
+      })
+      .from(shipmentManifestItemsTable)
+      .innerJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+      .where(and(...conditions))
+      .orderBy(desc(shipmentManifestItemsTable.id))
+      .limit(1);
+
+    if (!item) {
+      res.status(404).json({ error: "هذه الشحنة غير مرتبطة بأي بيان شحن" });
+      return;
+    }
+
+    await db
+      .update(shipmentManifestItemsTable)
+      .set({
+        isUrgent:   isUrgent ? 1 : 0,
+        urgentNote: isUrgent ? (urgentNote ?? null) : null,
+        urgentAt:   isUrgent ? new Date() : null,
+      })
+      .where(eq(shipmentManifestItemsTable.id, item.id));
+
+    // ─── SSE: أبلّغ المندوب فوراً ───────────────────────────────────────────
+    if (isUrgent) {
+      const [manifest] = await db
+        .select({ shippingCompanyId: shipmentManifestsTable.shippingCompanyId, manifestNumber: shipmentManifestsTable.manifestNumber })
+        .from(shipmentManifestsTable)
+        .where(eq(shipmentManifestsTable.id, item.manifestId))
+        .limit(1);
+      if (manifest?.shippingCompanyId) {
+        const { broadcastUrgentToCompany } = await import("./representative.js");
+        broadcastUrgentToCompany(manifest.shippingCompanyId, {
+          type: "urgent",
+          manifestId:     item.manifestId,
+          manifestNumber: manifest.manifestNumber,
+          shipmentId,
+          urgentNote:     urgentNote ?? null,
+          urgentAt:       new Date().toISOString(),
+          customerName:   item.customerName,
+          phone:          item.phone,
+          city:           item.city,
+          invoiceNumber:  item.invoiceNumber,
+          totalPrice:     item.totalPrice,
+        });
+      }
+    }
+
+    res.json({ success: true, isUrgent });
+  } catch (e: any) {
+    console.error("[PATCH /shipments/:id/urgent]", e);
+    res.status(500).json({ error: "خطأ في تحديث حالة الاستعجال" });
+  }
 });
 
 // GET /shipments/:id/items
