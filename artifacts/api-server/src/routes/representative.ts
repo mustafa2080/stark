@@ -5,6 +5,18 @@ import { requireAuth } from "../middlewares/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
 import { getTenantId, buildTenantCondition } from "../middlewares/requireTenant.js";
 
+// ─── SSE: مخزن connections المناديب مرتبة بـ companyId ───────────────────────
+export const repSseClients = new Map<number, Set<Response>>();
+
+export function broadcastUrgentToCompany(companyId: number, payload: object) {
+  const clients = repSseClients.get(companyId);
+  if (!clients || clients.size === 0) return;
+  const data = `data: ${JSON.stringify(payload)}\n\n`;
+  for (const res of clients) {
+    try { res.write(data); } catch (_) {}
+  }
+}
+
 // ─── helper: جيب IDs الشحنات بتاعة شركة الشحن عن طريق الـ manifests ──────────
 async function getShipmentIdsByCompany(companyId: number): Promise<number[]> {
   const manifests = await db.select({ id: shipmentManifestsTable.id })
@@ -212,6 +224,36 @@ router.get("/admin/representatives/:id/audit", async (req: Request, res: Respons
     db.select({ cnt: count() }).from(auditLogsTable).where(eq(auditLogsTable.userId, repId)).then(r => Number(r[0]?.cnt ?? 0)),
   ]);
   res.json({ data: logs, total, page, limit });
+});
+
+// ─── GET /representative/sse — اشتراك المندوب في الإشعارات الفورية ────────────
+router.get("/sse", requireRepresentativeOrAdmin, (req: Request, res: Response): void => {
+  const user = (req as any).user;
+  const companyId = user.shippingCompanyId as number | undefined;
+  if (!companyId) { res.status(400).json({ error: "المندوب غير مرتبط بشركة شحن" }); return; }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // لـ nginx
+  res.flushHeaders();
+
+  // أضف الـ connection للمجموعة
+  if (!repSseClients.has(companyId)) repSseClients.set(companyId, new Set());
+  repSseClients.get(companyId)!.add(res);
+
+  // heartbeat كل 25 ثانية عشان الـ connection ما تنقطعش
+  const heartbeat = setInterval(() => {
+    try { res.write(": ping\n\n"); } catch (_) { cleanup(); }
+  }, 25000);
+
+  function cleanup() {
+    clearInterval(heartbeat);
+    repSseClients.get(companyId!)?.delete(res);
+  }
+
+  req.on("close", cleanup);
+  req.on("error", cleanup);
 });
 
 export default router;

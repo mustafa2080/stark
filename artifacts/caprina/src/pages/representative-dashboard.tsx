@@ -1137,6 +1137,54 @@ export default function RepresentativeDashboard() {
   const [page, setPage] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // ─── SSE: استقبال إشعارات الاستعجال الفورية ───────────────────────────────
+  const { toast } = useToast();
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    const url = `/api/representative/sse${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const es = new EventSource(url);
+
+    es.onmessage = (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        if (payload.type !== "urgent") return;
+
+        // اهتزاز قوي
+        if (navigator.vibrate) navigator.vibrate([400, 100, 400, 100, 600]);
+
+        // صوت إنذار حاد
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const beep = (f: number, t: number, d: number) => {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.type = "square";
+            o.frequency.setValueAtTime(f, ctx.currentTime + t);
+            g.gain.setValueAtTime(0, ctx.currentTime + t);
+            g.gain.linearRampToValueAtTime(0.7, ctx.currentTime + t + 0.01);
+            g.gain.linearRampToValueAtTime(0, ctx.currentTime + t + d);
+            o.start(ctx.currentTime + t);
+            o.stop(ctx.currentTime + t + d + 0.05);
+          };
+          beep(880, 0, 0.18); beep(1100, 0.22, 0.18); beep(1320, 0.44, 0.3);
+          setTimeout(() => { beep(880, 0, 0.18); beep(1100, 0.22, 0.18); beep(1320, 0.44, 0.3); }, 1000);
+        } catch (_) {}
+
+        // توست إشعار
+        toast({
+          title: `⚡ شحنة مستعجلة — بيان ${payload.manifestNumber ?? ""}`,
+          description: `${payload.customerName ?? ""} ${payload.urgentNote ? `· ${payload.urgentNote}` : ""}`,
+          variant: "destructive",
+          duration: 8000,
+        });
+      } catch (_) {}
+    };
+
+    return () => es.close();
+  }, [user]);
+
   // الصفحة دي خاصة بالمندوب بس — السوبر أدمن والأدمن عندهم صفحة "مناديب الشحن" الكاملة
   if (user && !isRepresentative) return <Redirect to="/dashboard" />;
 

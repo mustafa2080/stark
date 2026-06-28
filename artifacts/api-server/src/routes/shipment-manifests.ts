@@ -14,6 +14,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
+import { broadcastUrgentToCompany } from "./representative.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -444,6 +445,37 @@ router.patch("/shipment-manifests/:id/items/:shipmentId/urgent", async (req, res
         urgentAt:   isUrgent ? new Date() : null,
       })
       .where(eq(shipmentManifestItemsTable.id, item.id));
+
+    // ─── SSE: أبلّغ المندوب فوراً ───────────────────────────────────────────
+    if (isUrgent) {
+      const [manifest] = await db
+        .select({ shippingCompanyId: shipmentManifestsTable.shippingCompanyId, manifestNumber: shipmentManifestsTable.manifestNumber })
+        .from(shipmentManifestsTable)
+        .where(eq(shipmentManifestsTable.id, manifestId))
+        .limit(1);
+      if (manifest?.shippingCompanyId) {
+        const [shipmentItem] = await db
+          .select({
+            customerName: shipmentManifestItemsTable.customerName,
+            phone:        shipmentManifestItemsTable.phone,
+            city:         shipmentManifestItemsTable.city,
+            invoiceNumber:shipmentManifestItemsTable.invoiceNumber,
+            totalPrice:   shipmentManifestItemsTable.totalPrice,
+          })
+          .from(shipmentManifestItemsTable)
+          .where(eq(shipmentManifestItemsTable.id, item.id))
+          .limit(1);
+        broadcastUrgentToCompany(manifest.shippingCompanyId, {
+          type: "urgent",
+          manifestId,
+          manifestNumber: manifest.manifestNumber,
+          shipmentId,
+          urgentNote: urgentNote ?? null,
+          urgentAt: new Date().toISOString(),
+          ...(shipmentItem ?? {}),
+        });
+      }
+    }
 
     res.json({ success: true, isUrgent });
   } catch (e: any) {
