@@ -1129,18 +1129,18 @@ function ZonesTab() {
                         {/* عمود المعلومات: إلى + من / اسم */}
                         <div className="flex flex-col gap-2 sm:w-48 sm:shrink-0">
                           {/* إلى محافظة — بارزة وكبيرة */}
-                          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/8 w-full">
-                            <span className="text-[10px] font-normal text-cyan-500/60">إلى</span>
-                            <span className="text-sm sm:text-base font-black text-cyan-600 dark:text-cyan-400 tracking-wide truncate">
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/8 w-full">
+                            <span className="text-[9px] font-normal text-cyan-500/60">إلى</span>
+                            <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 truncate">
                               {z.toGovernorate || "—"}
                             </span>
                           </div>
                           {/* من محافظة — اسم المنطقة */}
                           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 w-full">
-                            <span className="text-[10px] font-normal text-muted-foreground shrink-0">من</span>
-                            <span className="text-xs font-bold text-muted-foreground truncate">{z.fromGovernorate || "—"}</span>
+                            <span className="text-[9px] font-normal text-muted-foreground shrink-0">من</span>
+                            <span className="text-[10px] font-bold text-muted-foreground truncate">{z.fromGovernorate || "—"}</span>
                             <span className="text-muted-foreground/30 shrink-0">—</span>
-                            <span className="text-xs font-bold text-foreground truncate">{z.name}</span>
+                            <span className="text-[10px] font-bold text-foreground truncate">{z.name}</span>
                           </div>
                         </div>
 
