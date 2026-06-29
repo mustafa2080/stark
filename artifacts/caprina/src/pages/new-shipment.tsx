@@ -75,6 +75,18 @@ export default function NewShipmentPage() {
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
 
+  // محافظات "إلى" — unique بدون تكرار
+  const toGovernorates = useMemo(() => {
+    const seen = new Set<string>();
+    return zones.filter(z => z.isActive !== false).reduce<{ label: string; zone: ShipmentZone }[]>((acc, z) => {
+      const label = z.toGovernorate?.trim() || z.name?.trim();
+      if (!label) return acc;
+      const key = label.replace(/\s+/g, " ").toLowerCase();
+      if (!seen.has(key)) { seen.add(key); acc.push({ label, zone: z }); }
+      return acc;
+    }, []);
+  }, [zones]);
+
   const selectedZone    = zones.find(z => String(z.id) === form.zoneId);
   const selectedPricing = parcelPricing.find(p => p.parcelType === form.parcelType);
   const zonePrice       = Number(selectedZone?.price) || 0;
@@ -211,14 +223,24 @@ export default function NewShipmentPage() {
             <div><Label className="text-xs font-bold mb-1.5 block">هاتف 2</Label><Input className="text-sm" placeholder="رقم بديل" value={form.receiverPhone2} onChange={e => set("receiverPhone2", e.target.value)} /></div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block">المنطقة / المدينة</Label>
-              <Select value={form.zoneId} onValueChange={v => set("zoneId", v)}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المنطقة..." /></SelectTrigger>
+              <Select
+                value={selectedZone ? (selectedZone.toGovernorate?.trim() || selectedZone.name?.trim() || "") : ""}
+                onValueChange={v => {
+                  // جيب أول zone بنفس المحافظة
+                  const firstZone = zones.filter(z => z.isActive !== false).find(z =>
+                    (z.toGovernorate?.trim() || z.name?.trim() || "").replace(/\s+/g, " ").toLowerCase() ===
+                    v.replace(/\s+/g, " ").toLowerCase()
+                  );
+                  if (firstZone) set("zoneId", String(firstZone.id));
+                }}
+              >
+                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
                 <SelectContent>
-                  {zones.filter(z => z.isActive !== false).map(z => (
-                    <SelectItem key={z.id} value={String(z.id)}>
+                  {toGovernorates.map(({ label, zone }) => (
+                    <SelectItem key={zone.id} value={label}>
                       <div className="flex items-center justify-between gap-4 w-full">
-                        <span>{z.toGovernorate || z.name}</span>
-                        <span className="text-xs text-muted-foreground font-bold">{fc(z.price)}</span>
+                        <span>{label}</span>
+                        <span className="text-xs text-muted-foreground font-bold">{fc(zone.price)}</span>
                       </div>
                     </SelectItem>
                   ))}
