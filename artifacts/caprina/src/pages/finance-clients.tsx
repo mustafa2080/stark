@@ -206,12 +206,14 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
-  // محافظات بدون تكرار — بتاخد fromGovernorate لو موجودة، وإلا name المنطقة
+  // محافظات بدون تكرار — normalize الاسم (trim + lowercase للمقارنة فقط)
   const fromGovernorates = useMemo(() => {
     const seen = new Set<string>();
     return zones.reduce<string[]>((acc, z) => {
-      const g = (z.fromGovernorate?.trim()) || z.name?.trim();
-      if (g && !seen.has(g)) { seen.add(g); acc.push(g); }
+      const raw = (z.fromGovernorate?.trim()) || z.name?.trim();
+      if (!raw) return acc;
+      const key = raw.replace(/\s+/g, " ").toLowerCase();
+      if (!seen.has(key)) { seen.add(key); acc.push(raw); }
       return acc;
     }, []);
   }, [zones]);
