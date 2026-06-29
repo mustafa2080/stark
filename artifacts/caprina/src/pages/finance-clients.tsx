@@ -204,13 +204,13 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
   // جلب المناطق (المحافظات)
   const { data: zones = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string }[]>({
     queryKey: ["shipment-zones"],
-    queryFn: () => apiFetch("/shipment-zones"),
+    queryFn: () => apiFetch("/shipments/zones"),
   });
-  // محافظات "من" فقط — بدون تكرار
+  // محافظات بدون تكرار — بتاخد fromGovernorate لو موجودة، وإلا name المنطقة
   const fromGovernorates = useMemo(() => {
     const seen = new Set<string>();
     return zones.reduce<string[]>((acc, z) => {
-      const g = z.fromGovernorate?.trim();
+      const g = (z.fromGovernorate?.trim()) || z.name?.trim();
       if (g && !seen.has(g)) { seen.add(g); acc.push(g); }
       return acc;
     }, []);
