@@ -1120,7 +1120,7 @@ export function SocialFloat({ darkMode }: { darkMode: boolean }) {
   const socials = [
     {
       label: "واتساب",
-      href: "https://wa.me/",
+      href: "https://wa.me/201015684864",
       color: "#25D366",
       glow: "rgba(37,211,102,0.45)",
       icon: (
@@ -1131,7 +1131,7 @@ export function SocialFloat({ darkMode }: { darkMode: boolean }) {
     },
     {
       label: "فيسبوك",
-      href: "https://facebook.com/",
+      href: "https://www.facebook.com/share/1GteNycKri/",
       color: "#1877F2",
       glow: "rgba(24,119,242,0.45)",
       icon: (
