@@ -389,7 +389,7 @@ function ShipmentFormDialog({
                     }
                   }}>
                   <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false} className="max-h-[220px] overflow-y-auto w-[var(--radix-select-trigger-width)]">
                     {toGovernorates.map(({ label, zone }) => (
                       <SelectItem key={zone.id} value={label}>
                         <div className="flex items-center justify-between gap-4 w-full">
