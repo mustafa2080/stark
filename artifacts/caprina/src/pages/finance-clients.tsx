@@ -202,7 +202,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
   });
 
   // جلب المناطق (المحافظات)
-  const { data: zones = [] } = useQuery<{ id: number; name: string; toGovernorate?: string }[]>({
+  const { data: zones = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipment-zones"),
   });
@@ -315,8 +315,10 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
               <Select value={form.region} onValueChange={v => f("region", v)}>
                 <SelectTrigger className="h-9 text-sm bg-background"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
                 <SelectContent>
-                  {zones.filter(z => z.toGovernorate).map(z => (
-                    <SelectItem key={z.id} value={z.toGovernorate!}>{z.toGovernorate}</SelectItem>
+                  {zones.map(z => (
+                    <SelectItem key={z.id} value={z.toGovernorate || z.name}>
+                      {z.fromGovernorate && z.toGovernorate ? `${z.fromGovernorate} ← ${z.toGovernorate}` : z.toGovernorate || z.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select></div>
