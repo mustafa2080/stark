@@ -212,7 +212,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     return zones
       .filter(z => (z as any).isActive !== false)
       .reduce<string[]>((acc, z) => {
-        const raw = z.toGovernorate?.trim() || z.name?.trim();
+        const raw = z.fromGovernorate?.trim() || z.name?.trim();
         if (!raw) return acc;
         const key = raw.replace(/\s+/g, " ").toLowerCase();
         if (!seen.has(key)) { seen.add(key); acc.push(raw); }
