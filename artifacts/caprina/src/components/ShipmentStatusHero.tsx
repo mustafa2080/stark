@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { returnReasonLabel } from "@/lib/order-constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ShipmentStatusHero
@@ -94,7 +95,7 @@ export default function ShipmentStatusHero({ status, trackingNumber, returnReaso
                 color: meta.accent,
               }}
             >
-              السبب: {returnReason}
+              السبب: {returnReasonLabel(returnReason)}
             </div>
           )}
           {trackingNumber && (
