@@ -1123,9 +1123,9 @@ function ZonesTab() {
                       </div>
 
                       {/* سطر 1: إلى محافظة */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyan-500/25 bg-cyan-500/5 text-[11px] font-bold text-cyan-600 dark:text-cyan-400 w-fit">
-                        <span className="text-cyan-500/60 font-normal text-[10px]">إلى</span>
-                        <span>{z.toGovernorate || "—"}</span>
+                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/8 w-full">
+                        <span className="text-[11px] font-normal text-cyan-500/70">إلى</span>
+                        <span className="text-base font-black text-cyan-600 dark:text-cyan-400 tracking-wide">{z.toGovernorate || "—"}</span>
                       </div>
 
                       {/* سطر 2: من محافظة — اسم المنطقة + أسعار */}
