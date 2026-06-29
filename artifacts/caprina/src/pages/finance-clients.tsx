@@ -206,6 +206,15 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipment-zones"),
   });
+  // محافظات "من" فقط — بدون تكرار
+  const fromGovernorates = useMemo(() => {
+    const seen = new Set<string>();
+    return zones.reduce<string[]>((acc, z) => {
+      const g = z.fromGovernorate?.trim();
+      if (g && !seen.has(g)) { seen.add(g); acc.push(g); }
+      return acc;
+    }, []);
+  }, [zones]);
   const [form, setForm] = useState(() => editClient ? {
     name: editClient.name, phone: editClient.phone ?? "", phone2: editClient.phone2 ?? "",
     email: editClient.email ?? "", address: editClient.address ?? "",
@@ -315,10 +324,8 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
               <Select value={form.region} onValueChange={v => f("region", v)}>
                 <SelectTrigger className="h-9 text-sm bg-background"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
                 <SelectContent>
-                  {zones.map(z => (
-                    <SelectItem key={z.id} value={z.toGovernorate || z.name}>
-                      {z.fromGovernorate && z.toGovernorate ? `${z.fromGovernorate} ← ${z.toGovernorate}` : z.toGovernorate || z.name}
-                    </SelectItem>
+                  {fromGovernorates.map(g => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
                   ))}
                 </SelectContent>
               </Select></div>
