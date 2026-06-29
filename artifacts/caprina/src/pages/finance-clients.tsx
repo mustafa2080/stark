@@ -214,7 +214,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
       .reduce<string[]>((acc, z) => {
         const raw = z.fromGovernorate?.trim() || z.name?.trim();
         if (!raw) return acc;
-        const key = raw.replace(/\s+/g, " ").toLowerCase();
+        const key = raw.replace(/\s+/g, " ").toLowerCase().replace(/ة/g, "ه");
         if (!seen.has(key)) { seen.add(key); acc.push(raw); }
         return acc;
       }, []);
