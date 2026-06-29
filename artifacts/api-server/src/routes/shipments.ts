@@ -961,7 +961,7 @@ router.post("/shipment-zones", async (req, res): Promise<void> => {
     const id = (result as any)[0]?.insertId ?? (result as any).insertId;
     const rows = await db.select().from(shipmentZonesTable).where(eq(shipmentZonesTable.id, id)).limit(1);
     res.status(201).json(rows[0]);
-  } catch (e) { res.status(500).json({ error: "خطأ في إضافة المنطقة" }); }
+  } catch (e) { console.error("[POST /shipment-zones]", e); res.status(500).json({ error: "خطأ في إضافة المنطقة" }); }
 });
 
 router.put("/shipment-zones/:id", async (req, res): Promise<void> => {
@@ -980,7 +980,7 @@ router.put("/shipment-zones/:id", async (req, res): Promise<void> => {
     await db.update(shipmentZonesTable).set(upd).where(eq(shipmentZonesTable.id, id));
     const rows = await db.select().from(shipmentZonesTable).where(eq(shipmentZonesTable.id, id)).limit(1);
     res.json(rows[0]);
-  } catch (e) { res.status(500).json({ error: "خطأ" }); }
+  } catch (e) { console.error("[PUT /shipment-zones/:id]", e); res.status(500).json({ error: "خطأ" }); }
 });
 
 router.delete("/shipment-zones/:id", async (req, res): Promise<void> => {
