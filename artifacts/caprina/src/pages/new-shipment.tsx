@@ -13,7 +13,7 @@ import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 
-interface ShipmentZone        { id: number; name: string; governorate?: string; price: number; isActive?: boolean }
+interface ShipmentZone        { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; isActive?: boolean }
 interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; isActive?: boolean }
 interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null }
 
@@ -217,7 +217,7 @@ export default function NewShipmentPage() {
                   {zones.filter(z => z.isActive !== false).map(z => (
                     <SelectItem key={z.id} value={String(z.id)}>
                       <div className="flex items-center justify-between gap-4 w-full">
-                        <span>{z.name}{z.governorate ? ` — ${z.governorate}` : ""}</span>
+                        <span>{z.name}{z.fromGovernorate || z.toGovernorate ? ` — ${z.fromGovernorate ?? "؟"} → ${z.toGovernorate ?? "؟"}` : ""}</span>
                         <span className="text-xs text-muted-foreground font-bold">{fc(z.price)}</span>
                       </div>
                     </SelectItem>

@@ -38,7 +38,7 @@ function ZonesMultiSelect({
 }: {
   value: number[];
   onChange: (ids: number[]) => void;
-  zones: { id: number; name: string; governorate?: string }[];
+  zones: { id: number; name: string; fromGovernorate?: string; toGovernorate?: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -47,7 +47,8 @@ function ZonesMultiSelect({
     zones.filter(z =>
       !search.trim() ||
       z.name.toLowerCase().includes(search.toLowerCase()) ||
-      (z.governorate?.toLowerCase().includes(search.toLowerCase()) ?? false)
+      (z.fromGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      (z.toGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false)
     ), [zones, search]);
 
   const toggle = (id: number) => {
@@ -119,7 +120,9 @@ function ZonesMultiSelect({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium truncate">{zone.name}</p>
-                    {zone.governorate && <p className="text-[10px] text-muted-foreground">{zone.governorate}</p>}
+                    {(zone.fromGovernorate || zone.toGovernorate) && (
+                      <p className="text-[10px] text-muted-foreground">{zone.fromGovernorate ?? "؟"} → {zone.toGovernorate ?? "؟"}</p>
+                    )}
                   </div>
                 </div>
               );
@@ -1026,7 +1029,7 @@ export default function ShippingCompanies() {
   const [form, setForm] = useState(emptyForm);
 
   const { data: companies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
-  const { data: zones = [] } = useQuery<{ id: number; name: string; governorate?: string; price: number }[]>({
+  const { data: zones = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
@@ -1287,7 +1290,7 @@ export default function ShippingCompanies() {
                               color: "rgba(255,255,255,0.5)",
                             }}
                           >
-                            {z!.name}{z!.governorate ? ` · ${z!.governorate}` : ""}
+                            {z!.name}{z!.fromGovernorate || z!.toGovernorate ? ` · ${z!.fromGovernorate ?? "؟"} → ${z!.toGovernorate ?? "؟"}` : ""}
                           </span>
                         ))}
                       </div>

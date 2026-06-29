@@ -32,7 +32,7 @@ type ShipmentStatus =
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 
-interface ShipmentZone      { id: number; name: string; governorate?: string; price: string | number; isActive?: boolean }
+interface ShipmentZone      { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: string | number; isActive?: boolean }
 interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number }
 interface Client            { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; warehouseId?: number | null }
 
@@ -454,7 +454,7 @@ function ShipmentFormDialog({
                     {zones.filter(z => z.isActive !== false).map(z => (
                       <SelectItem key={z.id} value={String(z.id)}>
                         <div className="flex items-center justify-between gap-4 w-full">
-                          <span>{z.name}{z.governorate ? ` – ${z.governorate}` : ""}</span>
+                          <span>{z.name}{z.fromGovernorate || z.toGovernorate ? ` – ${z.fromGovernorate ?? "؟"} → ${z.toGovernorate ?? "؟"}` : ""}</span>
                           <span className="text-xs text-muted-foreground font-bold">{fc(Number(z.price))}</span>
                         </div>
                       </SelectItem>
@@ -863,10 +863,10 @@ const TIER_INFO = [
 ] as const;
 
 type ZoneFormState = {
-  name: string; governorate: string;
+  name: string; fromGovernorate: string; toGovernorate: string;
   priceNormal: string; priceCommercial: string; priceVip: string;
 };
-const emptyZoneForm = (): ZoneFormState => ({ name: "", governorate: "", priceNormal: "", priceCommercial: "", priceVip: "" });
+const emptyZoneForm = (): ZoneFormState => ({ name: "", fromGovernorate: "", toGovernorate: "", priceNormal: "", priceCommercial: "", priceVip: "" });
 
 // ─── Zones Settings Tab ───────────────────────────────────────────────────────
 function ZonesTab() {
@@ -911,7 +911,8 @@ function ZonesTab() {
     setEditId(z.id);
     setEditForm({
       name:           z.name,
-      governorate:    z.governorate || "",
+      fromGovernorate: z.fromGovernorate || "",
+      toGovernorate:   z.toGovernorate   || "",
       priceNormal:    String(z.priceNormal     ?? z.price ?? "0"),
       priceCommercial:String(z.priceCommercial ?? "0"),
       priceVip:       String(z.priceVip        ?? "0"),
@@ -922,7 +923,8 @@ function ZonesTab() {
     if (!form.name) return;
     addMutation.mutate({
       name: form.name,
-      governorate: form.governorate || undefined,
+      fromGovernorate: form.fromGovernorate || undefined,
+      toGovernorate:   form.toGovernorate   || undefined,
       priceNormal:     Number(form.priceNormal     || 0),
       priceCommercial: Number(form.priceCommercial || 0),
       priceVip:        Number(form.priceVip        || 0),
@@ -934,7 +936,8 @@ function ZonesTab() {
     updateMutation.mutate({
       id,
       name:            editForm.name,
-      governorate:     editForm.governorate || undefined,
+      fromGovernorate: editForm.fromGovernorate || undefined,
+      toGovernorate:   editForm.toGovernorate   || undefined,
       priceNormal:     Number(editForm.priceNormal     || 0),
       priceCommercial: Number(editForm.priceCommercial || 0),
       priceVip:        Number(editForm.priceVip        || 0),
@@ -986,17 +989,30 @@ function ZonesTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* الاسم والمحافظة */}
+          {/* اسم المنطقة */}
+          <div>
+            <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
+            <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+
+          {/* من محافظة - إلى محافظة */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
-              <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <Label className="text-xs font-bold mb-1.5 block">من محافظة</Label>
+              <Select value={form.fromGovernorate} onValueChange={v => setForm(f => ({ ...f, fromGovernorate: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر محافظة المصدر..." /></SelectTrigger>
+                <SelectContent>
+                  {EGYPT_GOVERNORATES.map(g => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <Label className="text-xs font-bold mb-1.5 block">المحافظة</Label>
-              <Select value={form.governorate} onValueChange={v => setForm(f => ({ ...f, governorate: v }))}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
+              <Label className="text-xs font-bold mb-1.5 block">إلى محافظة</Label>
+              <Select value={form.toGovernorate} onValueChange={v => setForm(f => ({ ...f, toGovernorate: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر محافظة الوجهة..." /></SelectTrigger>
                 <SelectContent>
                   {EGYPT_GOVERNORATES.map(g => (
                     <SelectItem key={g} value={g}>{g}</SelectItem>
@@ -1058,14 +1074,32 @@ function ZonesTab() {
                   {editId === z.id ? (
                     /* ── وضع التعديل ── */
                     <div className="p-3 space-y-3">
+                      <div>
+                        <Label className="text-[10px] font-bold mb-1 block">الاسم</Label>
+                        <Input className="text-xs h-8" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-[10px] font-bold mb-1 block">الاسم</Label>
-                          <Input className="text-xs h-8" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                          <Label className="text-[10px] font-bold mb-1 block">من محافظة</Label>
+                          <Select value={editForm.fromGovernorate} onValueChange={v => setEditForm(f => ({ ...f, fromGovernorate: v }))}>
+                            <SelectTrigger className="text-xs h-8"><SelectValue placeholder="اختر..." /></SelectTrigger>
+                            <SelectContent>
+                              {EGYPT_GOVERNORATES.map(g => (
+                                <SelectItem key={g} value={g}>{g}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div>
-                          <Label className="text-[10px] font-bold mb-1 block">المحافظة</Label>
-                          <Input className="text-xs h-8" value={editForm.governorate} onChange={e => setEditForm(f => ({ ...f, governorate: e.target.value }))} />
+                          <Label className="text-[10px] font-bold mb-1 block">إلى محافظة</Label>
+                          <Select value={editForm.toGovernorate} onValueChange={v => setEditForm(f => ({ ...f, toGovernorate: v }))}>
+                            <SelectTrigger className="text-xs h-8"><SelectValue placeholder="اختر..." /></SelectTrigger>
+                            <SelectContent>
+                              {EGYPT_GOVERNORATES.map(g => (
+                                <SelectItem key={g} value={g}>{g}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                       <div className="p-2.5 rounded-lg border border-border bg-muted/10 space-y-2">
@@ -1100,7 +1134,11 @@ function ZonesTab() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold">{z.name}</p>
-                          {z.governorate && <p className="text-[10px] text-muted-foreground">{z.governorate}</p>}
+                          {(z.fromGovernorate || z.toGovernorate) && (
+                            <p className="text-[10px] text-muted-foreground">
+                              {z.fromGovernorate || "؟"} → {z.toGovernorate || "؟"}
+                            </p>
+                          )}
                         </div>
                         <div className="flex gap-1 shrink-0">
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>

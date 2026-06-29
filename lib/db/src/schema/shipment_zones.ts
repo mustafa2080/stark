@@ -5,7 +5,8 @@ export const shipmentZonesTable = mysqlTable("shipment_zones", {
   id:              int("id").primaryKey().autoincrement(),
   tenantId:        int("tenant_id"),
   name:            varchar("name",        { length: 255 }).notNull(),
-  governorate:     varchar("governorate", { length: 100 }),
+  fromGovernorate: varchar("from_governorate", { length: 100 }),
+  toGovernorate:   varchar("to_governorate",   { length: 100 }),
 
   // ── سعر التوصيل حسب تصنيف العميل ────────────────────────────────────────
   // normal     = 1–200 شحنة/شهر

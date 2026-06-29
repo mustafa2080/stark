@@ -402,11 +402,11 @@ router.get("/shipments", async (req, res): Promise<void> => {
           assignedUserName: usersTable.displayName,
           // ── JOIN: المنطقة ──
           zoneLabel:       shipmentZonesTable.name,
-          zoneGovernorate: shipmentZonesTable.governorate,
+          zoneGovernorate: shipmentZonesTable.toGovernorate,
           // ── JOIN: محافظة العميل (الراسل) ──
           senderGovernorate: clientsTable.region,
           // ── JOIN: محافظة مدينة الراسل (مطابقة من جدول المناطق) ──
-          senderCityGovernorate: senderZoneTable.governorate,
+          senderCityGovernorate: senderZoneTable.toGovernorate,
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
@@ -544,7 +544,7 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
         assignedUserName: usersTable.displayName,
         shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
         zoneLabel: shipmentZonesTable.name,
-        zoneGovernorate: shipmentZonesTable.governorate,
+        zoneGovernorate: shipmentZonesTable.toGovernorate,
       })
       .from(shipmentsTable)
       .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
@@ -592,14 +592,14 @@ router.post("/shipments", async (req, res): Promise<void> => {
     const shipmentNumber = await generateShipmentNumber(tenantId);
     const now = new Date();
 
-    // لو receiverCity فاضي وعنده zoneId، خد governorate من الـ zone
+    // لو receiverCity فاضي وعنده zoneId، خد toGovernorate من الـ zone
     let resolvedReceiverCity = d.receiverCity ?? undefined;
     if (!resolvedReceiverCity && d.zoneId) {
-      const zone = await db.select({ governorate: shipmentZonesTable.governorate })
+      const zone = await db.select({ toGovernorate: shipmentZonesTable.toGovernorate })
         .from(shipmentZonesTable)
         .where(eq(shipmentZonesTable.id, d.zoneId))
         .limit(1);
-      resolvedReceiverCity = zone[0]?.governorate ?? undefined;
+      resolvedReceiverCity = zone[0]?.toGovernorate ?? undefined;
     }
 
     const result = await db.insert(shipmentsTable).values({
@@ -710,11 +710,11 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.receiverCity     !== undefined) updateData.receiverCity     = d.receiverCity;
     if (d.zoneId           !== undefined) {
       updateData.zoneId = d.zoneId;
-      // لو مفيش receiverCity جديد، خد governorate من الـ zone
+      // لو مفيش receiverCity جديد، خد toGovernorate من الـ zone
       if (d.receiverCity === undefined && d.zoneId) {
-        const zone = await db.select({ governorate: shipmentZonesTable.governorate })
+        const zone = await db.select({ toGovernorate: shipmentZonesTable.toGovernorate })
           .from(shipmentZonesTable).where(eq(shipmentZonesTable.id, d.zoneId)).limit(1);
-        if (zone[0]?.governorate) updateData.receiverCity = zone[0].governorate;
+        if (zone[0]?.toGovernorate) updateData.receiverCity = zone[0].toGovernorate;
       }
     }
     if (d.zonePrice        !== undefined) updateData.zonePrice        = String(d.zonePrice);
@@ -945,12 +945,12 @@ router.get("/shipment-zones", async (req, res): Promise<void> => {
 router.post("/shipment-zones", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { name, governorate, price, priceNormal, priceCommercial, priceVip, isActive = true } = req.body;
+    const { name, fromGovernorate, toGovernorate, price, priceNormal, priceCommercial, priceVip, isActive = true } = req.body;
     if (!name) { res.status(400).json({ error: "اسم المنطقة مطلوب" }); return; }
     const normalPrice = priceNormal ?? price ?? 0;
     const result = await db.insert(shipmentZonesTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
-      name, governorate: governorate ?? null,
+      name, fromGovernorate: fromGovernorate ?? null, toGovernorate: toGovernorate ?? null,
       price:           String(normalPrice),
       priceNormal:     String(normalPrice),
       priceCommercial: String(priceCommercial ?? 0),
@@ -967,10 +967,11 @@ router.post("/shipment-zones", async (req, res): Promise<void> => {
 router.put("/shipment-zones/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { name, governorate, price, priceNormal, priceCommercial, priceVip, isActive } = req.body;
+    const { name, fromGovernorate, toGovernorate, price, priceNormal, priceCommercial, priceVip, isActive } = req.body;
     const upd: any = { updatedAt: new Date() };
     if (name            !== undefined) upd.name            = name;
-    if (governorate     !== undefined) upd.governorate     = governorate;
+    if (fromGovernorate !== undefined) upd.fromGovernorate = fromGovernorate;
+    if (toGovernorate   !== undefined) upd.toGovernorate   = toGovernorate;
     if (priceNormal     !== undefined) { upd.priceNormal   = String(priceNormal);     upd.price = String(priceNormal); }
     else if (price      !== undefined) { upd.price         = String(price);           upd.priceNormal = String(price); }
     if (priceCommercial !== undefined) upd.priceCommercial = String(priceCommercial);

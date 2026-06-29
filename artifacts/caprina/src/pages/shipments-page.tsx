@@ -115,7 +115,7 @@ const formatCurrency = (amount: number) =>
 // ── Types للشحنات ────────────────────────────────────────────────────────────
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
-interface ShipmentZone      { id: number; name: string; governorate?: string; price: string | number; isActive?: boolean }
+interface ShipmentZone      { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: string | number; isActive?: boolean }
 interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number; isActive?: boolean }
 interface ShipmentClient    { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; warehouseId?: number | null }
 
@@ -365,16 +365,16 @@ function ShipmentFormDialog({
                 <Label className="text-xs font-bold mb-1.5 block">المنطقة / المدينة</Label>
                 <Select value={form.zoneId} onValueChange={v => {
                     set("zoneId", v);
-                    // عبي المحافظة تلقائياً من الـ zone
+                    // عبي المحافظة تلقائياً من toGovernorate بتاع الـ zone
                     const zone = zones.find(z => String(z.id) === v);
-                    if (zone?.governorate) set("receiverCity", zone.governorate);
+                    if (zone?.toGovernorate) set("receiverCity", zone.toGovernorate);
                   }}>
                   <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المنطقة..." /></SelectTrigger>
                   <SelectContent>
                     {zones.filter(z => z.isActive !== false).map(z => (
                       <SelectItem key={z.id} value={String(z.id)}>
                         <div className="flex items-center justify-between gap-4 w-full">
-                          <span>{z.name}{z.governorate ? ` — ${z.governorate}` : ""}</span>
+                          <span>{z.name}{z.fromGovernorate || z.toGovernorate ? ` — ${z.fromGovernorate ?? "؟"} → ${z.toGovernorate ?? "؟"}` : ""}</span>
                           <span className="text-xs text-muted-foreground font-bold">{fc(z.price)}</span>
                         </div>
                       </SelectItem>
