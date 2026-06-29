@@ -1002,7 +1002,7 @@ function ZonesTab() {
               <Label className="text-xs font-bold mb-1.5 block">من محافظة</Label>
               <Select value={form.fromGovernorate} onValueChange={v => setForm(f => ({ ...f, fromGovernorate: v }))}>
                 <SelectTrigger className="text-sm"><SelectValue placeholder="اختر محافظة المصدر..." /></SelectTrigger>
-                <SelectContent>
+                <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
                   {EGYPT_GOVERNORATES.map(g => (
                     <SelectItem key={g} value={g}>{g}</SelectItem>
                   ))}
@@ -1013,7 +1013,7 @@ function ZonesTab() {
               <Label className="text-xs font-bold mb-1.5 block">إلى محافظة</Label>
               <Select value={form.toGovernorate} onValueChange={v => setForm(f => ({ ...f, toGovernorate: v }))}>
                 <SelectTrigger className="text-sm"><SelectValue placeholder="اختر محافظة الوجهة..." /></SelectTrigger>
-                <SelectContent>
+                <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
                   {EGYPT_GOVERNORATES.map(g => (
                     <SelectItem key={g} value={g}>{g}</SelectItem>
                   ))}
@@ -1083,7 +1083,7 @@ function ZonesTab() {
                           <Label className="text-[10px] font-bold mb-1 block">من محافظة</Label>
                           <Select value={editForm.fromGovernorate} onValueChange={v => setEditForm(f => ({ ...f, fromGovernorate: v }))}>
                             <SelectTrigger className="text-xs h-8"><SelectValue placeholder="اختر..." /></SelectTrigger>
-                            <SelectContent>
+                            <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
                               {EGYPT_GOVERNORATES.map(g => (
                                 <SelectItem key={g} value={g}>{g}</SelectItem>
                               ))}
@@ -1094,7 +1094,7 @@ function ZonesTab() {
                           <Label className="text-[10px] font-bold mb-1 block">إلى محافظة</Label>
                           <Select value={editForm.toGovernorate} onValueChange={v => setEditForm(f => ({ ...f, toGovernorate: v }))}>
                             <SelectTrigger className="text-xs h-8"><SelectValue placeholder="اختر..." /></SelectTrigger>
-                            <SelectContent>
+                            <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
                               {EGYPT_GOVERNORATES.map(g => (
                                 <SelectItem key={g} value={g}>{g}</SelectItem>
                               ))}
