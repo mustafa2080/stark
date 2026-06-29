@@ -217,7 +217,7 @@ export default function NewShipmentPage() {
                   {zones.filter(z => z.isActive !== false).map(z => (
                     <SelectItem key={z.id} value={String(z.id)}>
                       <div className="flex items-center justify-between gap-4 w-full">
-                        <span>{z.name}{z.fromGovernorate || z.toGovernorate ? ` — ${z.fromGovernorate ?? "؟"} → ${z.toGovernorate ?? "؟"}` : ""}</span>
+                        <span>{z.toGovernorate || z.name}</span>
                         <span className="text-xs text-muted-foreground font-bold">{fc(z.price)}</span>
                       </div>
                     </SelectItem>
