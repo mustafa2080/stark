@@ -73,7 +73,7 @@ export default function ShipmentStatusHero({ status, trackingNumber, returnReaso
       <div className="relative px-5 sm:px-8 pt-7 pb-6 flex flex-col items-center">
         {/* الرسمة */}
         <div className="w-full flex items-center justify-center" style={{ height: 180 }}>
-          <StatusIllustration group={group} accent={meta.accent} accent2={meta.accent2} />
+          <StatusIllustration group={group} accent={meta.accent} accent2={meta.accent2} status={status} />
         </div>
 
         {/* النص */}
@@ -111,7 +111,8 @@ export default function ShipmentStatusHero({ status, trackingNumber, returnReaso
 // ─────────────────────────────────────────────────────────────────────────────
 // StatusIllustration — بوابة اختيار الرسمة المناسبة
 // ─────────────────────────────────────────────────────────────────────────────
-function StatusIllustration({ group, accent, accent2 }: { group: StatusGroup; accent: string; accent2: string }) {
+function StatusIllustration({ group, accent, accent2, status }: { group: StatusGroup; accent: string; accent2: string; status: string }) {
+  const isReturned = ["returned","returned_to_warehouse","return_delivered"].includes(status);
   switch (group) {
     case "pending":
       return <PendingIllustration accent={accent} accent2={accent2} />;
@@ -124,7 +125,9 @@ function StatusIllustration({ group, accent, accent2 }: { group: StatusGroup; ac
     case "delivered":
       return <DeliveredIllustration accent={accent} accent2={accent2} />;
     case "exception":
-      return <ExceptionIllustration accent={accent} accent2={accent2} />;
+      return isReturned
+        ? <ReturnedIllustration />
+        : <ExceptionIllustration accent={accent} accent2={accent2} />;
     default:
       return <PendingIllustration accent={accent} accent2={accent2} />;
   }
@@ -498,6 +501,83 @@ function DeliveredIllustration({ accent, accent2 }: { accent: string; accent2: s
 // ─────────────────────────────────────────────────────────────────────────────
 // 6) استثناء — مرتجع / ملغي / مؤجل
 // ─────────────────────────────────────────────────────────────────────────────
+function ReturnedIllustration() {
+  return (
+    <svg viewBox="0 0 320 180" width="280" height="158" style={{ overflow: "visible" }}>
+      <defs>
+        <style>{`
+          @keyframes sadWalkR { 0%,100%{transform:translateX(0)} 30%{transform:translateX(-10px)} 70%{transform:translateX(10px)} }
+          @keyframes tearR    { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(22px);opacity:0} }
+          @keyframes headBowR { 0%,100%{transform:rotate(-6deg)} 50%{transform:rotate(-16deg)} }
+          @keyframes wheelR   { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+          @keyframes arrowR   { 0%,100%{opacity:0.5;transform:translateX(0)} 50%{opacity:1;transform:translateX(-6px)} }
+        `}</style>
+      </defs>
+
+      {/* أرضية */}
+      <ellipse cx="160" cy="163" rx="110" ry="9" fill="rgba(248,113,113,0.1)"/>
+
+      {/* المندوب + السكوتر */}
+      <g style={{ animation:"sadWalkR 2.2s ease-in-out infinite", transformOrigin:"160px 130px" }}>
+
+        {/* هيكل السكوتر */}
+        <path d="M90 130 Q118 112 148 117 L180 117 L190 130" fill="none" stroke="#f87171" strokeWidth="3" strokeLinecap="round"/>
+        <ellipse cx="136" cy="110" rx="22" ry="5" fill="rgba(248,113,113,0.25)" stroke="#f87171" strokeWidth="1.5"/>
+
+        {/* موتور */}
+        <ellipse cx="148" cy="121" rx="14" ry="9" fill="rgba(248,113,113,0.15)" stroke="#f87171" strokeWidth="1"/>
+
+        {/* حقيبة فاضية + X */}
+        <rect x="155" y="95" width="32" height="23" rx="5" fill="rgba(248,113,113,0.18)" stroke="#f87171" strokeWidth="1.5"/>
+        <line x1="162" y1="102" x2="180" y2="114" stroke="#f87171" strokeWidth="2" opacity="0.7"/>
+        <line x1="180" y1="102" x2="162" y2="114" stroke="#f87171" strokeWidth="2" opacity="0.7"/>
+
+        {/* عجلة أمامية */}
+        <circle cx="190" cy="142" r="16" fill="rgba(248,113,113,0.1)" stroke="#f87171" strokeWidth="2"/>
+        <circle cx="190" cy="142" r="7"  fill="rgba(248,113,113,0.2)" stroke="#f87171" strokeWidth="1.5"/>
+        <line x1="174" y1="142" x2="206" y2="142" stroke="#f87171" strokeWidth="1" style={{ transformOrigin:"190px 142px", animation:"wheelR 0.6s linear infinite" }}/>
+        <line x1="190" y1="126" x2="190" y2="158" stroke="#f87171" strokeWidth="1" style={{ transformOrigin:"190px 142px", animation:"wheelR 0.6s linear infinite" }}/>
+
+        {/* عجلة خلفية */}
+        <circle cx="88"  cy="142" r="16" fill="rgba(248,113,113,0.1)" stroke="#f87171" strokeWidth="2"/>
+        <circle cx="88"  cy="142" r="7"  fill="rgba(248,113,113,0.2)" stroke="#f87171" strokeWidth="1.5"/>
+        <line x1="72"  y1="142" x2="104" y2="142" stroke="#f87171" strokeWidth="1" style={{ transformOrigin:"88px 142px", animation:"wheelR 0.6s linear infinite" }}/>
+        <line x1="88"  y1="126" x2="88"  y2="158" stroke="#f87171" strokeWidth="1" style={{ transformOrigin:"88px 142px", animation:"wheelR 0.6s linear infinite" }}/>
+
+        {/* جسم المندوب الحزين */}
+        <g style={{ transformOrigin:"136px 108px", animation:"headBowR 2.2s ease-in-out infinite" }}>
+          {/* جسم */}
+          <path d="M124 109 Q126 88 136 82 Q146 88 148 109" fill="rgba(248,113,113,0.28)" stroke="#f87171" strokeWidth="1.5"/>
+          {/* رأس */}
+          <circle cx="136" cy="72" r="13" fill="rgba(248,113,113,0.32)" stroke="#f87171" strokeWidth="1.5"/>
+          {/* خوذة */}
+          <path d="M123 72 Q136 56 149 72" fill="#f87171" stroke="#f87171" strokeWidth="1" opacity="0.65"/>
+          {/* وجه حزين */}
+          <circle cx="131" cy="71" r="1.8" fill="#f87171"/>
+          <circle cx="141" cy="71" r="1.8" fill="#f87171"/>
+          <path d="M131 79 Q136 75 141 79" fill="none" stroke="#f87171" strokeWidth="1.8" strokeLinecap="round"/>
+          {/* حواجب حزينة */}
+          <line x1="128" y1="66" x2="133" y2="68" stroke="#f87171" strokeWidth="1.4" strokeLinecap="round"/>
+          <line x1="139" y1="68" x2="144" y2="66" stroke="#f87171" strokeWidth="1.4" strokeLinecap="round"/>
+        </g>
+
+        {/* دموع */}
+        <circle cx="131" cy="84" r="2.2" fill="#f87171" style={{ animation:"tearR 1.6s 0s ease-in infinite" }} opacity="0.85"/>
+        <circle cx="141" cy="84" r="2.2" fill="#f87171" style={{ animation:"tearR 1.6s 0.8s ease-in infinite" }} opacity="0.85"/>
+      </g>
+
+      {/* سهم رجوع */}
+      <g style={{ animation:"arrowR 1.4s ease-in-out infinite" }}>
+        <path d="M252 55 Q272 72 252 89" fill="none" stroke="#f87171" strokeWidth="3" strokeLinecap="round"/>
+        <polygon points="252,46 243,59 261,59" fill="#f87171"/>
+      </g>
+
+      {/* نص */}
+      <text x="160" y="175" textAnchor="middle" fontSize="11" fill="#f87171" fontWeight="bold" opacity="0.75">مرتجع 😔</text>
+    </svg>
+  );
+}
+
 function ExceptionIllustration({ accent, accent2 }: { accent: string; accent2: string }) {
   return (
     <svg viewBox="0 0 320 180" width="280" height="158" style={{ overflow: "visible" }}>
