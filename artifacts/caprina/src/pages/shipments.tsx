@@ -1000,25 +1000,11 @@ function ZonesTab() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs font-bold mb-1.5 block">من محافظة</Label>
-              <Select value={form.fromGovernorate} onValueChange={v => setForm(f => ({ ...f, fromGovernorate: v }))}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر محافظة المصدر..." /></SelectTrigger>
-                <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
-                  {EGYPT_GOVERNORATES.map(g => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input className="text-sm" placeholder="اكتب المحافظة..." value={form.fromGovernorate} onChange={e => setForm(f => ({ ...f, fromGovernorate: e.target.value }))} />
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block">إلى محافظة</Label>
-              <Select value={form.toGovernorate} onValueChange={v => setForm(f => ({ ...f, toGovernorate: v }))}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر محافظة الوجهة..." /></SelectTrigger>
-                <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
-                  {EGYPT_GOVERNORATES.map(g => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input className="text-sm" placeholder="اكتب المحافظة..." value={form.toGovernorate} onChange={e => setForm(f => ({ ...f, toGovernorate: e.target.value }))} />
             </div>
           </div>
 
@@ -1081,25 +1067,11 @@ function ZonesTab() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-[10px] font-bold mb-1 block">من محافظة</Label>
-                          <Select value={editForm.fromGovernorate} onValueChange={v => setEditForm(f => ({ ...f, fromGovernorate: v }))}>
-                            <SelectTrigger className="text-xs h-8"><SelectValue placeholder="اختر..." /></SelectTrigger>
-                            <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
-                              {EGYPT_GOVERNORATES.map(g => (
-                                <SelectItem key={g} value={g}>{g}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Input className="text-xs h-8" placeholder="اكتب المحافظة..." value={editForm.fromGovernorate} onChange={e => setEditForm(f => ({ ...f, fromGovernorate: e.target.value }))} />
                         </div>
                         <div>
                           <Label className="text-[10px] font-bold mb-1 block">إلى محافظة</Label>
-                          <Select value={editForm.toGovernorate} onValueChange={v => setEditForm(f => ({ ...f, toGovernorate: v }))}>
-                            <SelectTrigger className="text-xs h-8"><SelectValue placeholder="اختر..." /></SelectTrigger>
-                            <SelectContent side="bottom" align="start" avoidCollisions={false} className="max-h-[300px] overflow-y-auto">
-                              {EGYPT_GOVERNORATES.map(g => (
-                                <SelectItem key={g} value={g}>{g}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Input className="text-xs h-8" placeholder="اكتب المحافظة..." value={editForm.toGovernorate} onChange={e => setEditForm(f => ({ ...f, toGovernorate: e.target.value }))} />
                         </div>
                       </div>
                       <div className="p-2.5 rounded-lg border border-border bg-muted/10 space-y-2">
