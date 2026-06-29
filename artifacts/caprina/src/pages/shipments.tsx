@@ -999,7 +999,7 @@ function ZonesTab() {
               <Label className="text-xs font-bold mb-1.5 block">إلى محافظة / اسم المنطقة <span className="text-red-500">*</span></Label>
               <div className="flex rounded-md border border-input overflow-hidden focus-within:ring-1 focus-within:ring-ring">
                 <input
-                  className="flex-1 bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
+                  className="w-2/5 bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
                   placeholder="إلى محافظة..."
                   value={form.toGovernorate}
                   onChange={e => setForm(f => ({ ...f, toGovernorate: e.target.value }))}
