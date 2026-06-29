@@ -1105,8 +1105,9 @@ function ZonesTab() {
                     </div>
                   ) : (
                     /* ── وضع العرض ── */
-                    <div className="p-3 space-y-2.5">
-                      {/* رأس البطاقة: أيقونة + أزرار التحكم */}
+                    <div className="p-3 sm:p-4 space-y-3">
+
+                      {/* ─── Header: أيقونة + أزرار ─── */}
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
                           <MapPin className="w-4 h-4 text-cyan-500" />
@@ -1122,25 +1123,34 @@ function ZonesTab() {
                         </div>
                       </div>
 
-                      {/* سطر 1: إلى محافظة */}
-                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/8 w-full">
-                        <span className="text-[11px] font-normal text-cyan-500/70">إلى</span>
-                        <span className="text-base font-black text-cyan-600 dark:text-cyan-400 tracking-wide">{z.toGovernorate || "—"}</span>
-                      </div>
+                      {/* ─── Body: على موبايل عمودي، على desktop أفقي ─── */}
+                      <div className="flex flex-col sm:flex-row sm:items-stretch gap-3">
 
-                      {/* سطر 2: من محافظة — اسم المنطقة + أسعار */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-muted/20 text-[11px] font-bold text-muted-foreground shrink-0">
-                          <span className="text-[10px] font-normal">من</span>
-                          <span>{z.fromGovernorate || "—"}</span>
-                          <span className="text-muted-foreground/40">—</span>
-                          <span className="text-foreground">{z.name}</span>
+                        {/* عمود المعلومات: إلى + من / اسم */}
+                        <div className="flex flex-col gap-2 sm:w-48 sm:shrink-0">
+                          {/* إلى محافظة — بارزة وكبيرة */}
+                          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/8 w-full">
+                            <span className="text-[10px] font-normal text-cyan-500/60">إلى</span>
+                            <span className="text-sm sm:text-base font-black text-cyan-600 dark:text-cyan-400 tracking-wide truncate">
+                              {z.toGovernorate || "—"}
+                            </span>
+                          </div>
+                          {/* من محافظة — اسم المنطقة */}
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 w-full">
+                            <span className="text-[10px] font-normal text-muted-foreground shrink-0">من</span>
+                            <span className="text-xs font-bold text-muted-foreground truncate">{z.fromGovernorate || "—"}</span>
+                            <span className="text-muted-foreground/30 shrink-0">—</span>
+                            <span className="text-xs font-bold text-foreground truncate">{z.name}</span>
+                          </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-[180px]">
+
+                        {/* عمود الأسعار — يملأ الباقي */}
+                        <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 flex-1">
                           {TIER_INFO.map(t => (
                             <TierPriceChip key={t.key} tier={t} value={z[t.field] ?? (t.field === "priceNormal" ? z.price : "0")} />
                           ))}
                         </div>
+
                       </div>
                     </div>
                   )}
