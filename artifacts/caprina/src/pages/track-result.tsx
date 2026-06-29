@@ -758,7 +758,7 @@ export default function TrackResultPage() {
             )}
 
             {/* ── مخزن و مندوب ── */}
-            {(shipment.warehouseName || (COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName)) && (
+            {(shipment.warehouseName || shipment.courierName) && (
               <div className="pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ borderTop: `1px solid ${cfg.color}18` }}>
                 {shipment.warehouseName && (
                   <div className="rounded-2xl p-3.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -771,7 +771,7 @@ export default function TrackResultPage() {
                     </p>
                   </div>
                 )}
-                {COURIER_VISIBLE_STATUSES.has(shipment.status) && shipment.courierName && (
+                {shipment.courierName && (
                   <div className="rounded-2xl p-3.5 relative overflow-hidden"
                     style={{
                       background: `linear-gradient(135deg, ${cfg.color}0e 0%, rgba(0,0,0,0.25) 100%)`,
