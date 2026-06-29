@@ -1113,6 +1113,16 @@ function ZonesTab() {
                           <MapPin className="w-4 h-4 text-cyan-500" />
                         </div>
                         <div className="flex gap-1 shrink-0 mr-auto">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className={`h-7 px-2 gap-1 text-[10px] font-bold ${z.isActive === false ? "text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"}`}
+                            disabled={updateMutation.isPending}
+                            onClick={() => updateMutation.mutate({ id: z.id, isActive: z.isActive === false })}
+                          >
+                            {z.isActive === false ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                            {z.isActive === false ? "غير نشط" : "نشط"}
+                          </Button>
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
