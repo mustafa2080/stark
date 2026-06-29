@@ -35,6 +35,16 @@ type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics"
 interface ShipmentZone      { id: number; name: string; governorate?: string; price: string | number; isActive?: boolean }
 interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number }
 interface Client            { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; warehouseId?: number | null }
+
+// ─── Egypt Governorates (27) ───────────────────────────────────────────────────
+const EGYPT_GOVERNORATES = [
+  "القاهرة", "الجيزة", "الإسكندرية", "القليوبية", "الدقهلية", "الشرقية",
+  "الغربية", "المنوفية", "البحيرة", "كفر الشيخ", "دمياط", "بورسعيد",
+  "الإسماعيلية", "السويس", "شمال سيناء", "جنوب سيناء", "بني سويف",
+  "الفيوم", "المنيا", "أسيوط", "سوهاج", "قنا", "الأقصر", "أسوان",
+  "البحر الأحمر", "الوادي الجديد", "مطروح",
+];
+
 interface Shipment {
   id: number;
   shipmentNumber?: string;
@@ -985,8 +995,14 @@ function ZonesTab() {
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block">المحافظة</Label>
-              <Input className="text-sm" placeholder="مثال: القاهرة الكبرى" value={form.governorate}
-                onChange={e => setForm(f => ({ ...f, governorate: e.target.value }))} />
+              <Select value={form.governorate} onValueChange={v => setForm(f => ({ ...f, governorate: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
+                <SelectContent>
+                  {EGYPT_GOVERNORATES.map(g => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
