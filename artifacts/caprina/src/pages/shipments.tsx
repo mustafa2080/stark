@@ -1004,7 +1004,7 @@ function ZonesTab() {
           {/* اسم المنطقة */}
           <div>
             <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
-            <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name}
+            <Input className="text-sm" placeholder="المنطقة" value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
 
