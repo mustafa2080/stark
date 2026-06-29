@@ -206,16 +206,18 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
-  // محافظات بدون تكرار — normalize الاسم (trim + lowercase للمقارنة فقط)
-  const fromGovernorates = useMemo(() => {
+  // محافظات التوصيل (to) بدون تكرار — من جدول المناطق والأسعار
+  const zoneGovernorates = useMemo(() => {
     const seen = new Set<string>();
-    return zones.reduce<string[]>((acc, z) => {
-      const raw = (z.fromGovernorate?.trim()) || z.name?.trim();
-      if (!raw) return acc;
-      const key = raw.replace(/\s+/g, " ").toLowerCase();
-      if (!seen.has(key)) { seen.add(key); acc.push(raw); }
-      return acc;
-    }, []);
+    return zones
+      .filter(z => (z as any).isActive !== false)
+      .reduce<string[]>((acc, z) => {
+        const raw = z.toGovernorate?.trim() || z.name?.trim();
+        if (!raw) return acc;
+        const key = raw.replace(/\s+/g, " ").toLowerCase();
+        if (!seen.has(key)) { seen.add(key); acc.push(raw); }
+        return acc;
+      }, []);
   }, [zones]);
   const [form, setForm] = useState(() => editClient ? {
     name: editClient.name, phone: editClient.phone ?? "", phone2: editClient.phone2 ?? "",
@@ -325,8 +327,8 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
             <div><Label className="text-xs mb-1.5 block">المحافظة</Label>
               <Select value={form.region} onValueChange={v => f("region", v)}>
                 <SelectTrigger className="h-9 text-sm bg-background"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
-                <SelectContent>
-                  {fromGovernorates.map(g => (
+                <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false} className="max-h-[220px] overflow-y-auto w-[var(--radix-select-trigger-width)]">
+                  {zoneGovernorates.map(g => (
                     <SelectItem key={g} value={g}>{g}</SelectItem>
                   ))}
                 </SelectContent>
