@@ -996,16 +996,23 @@ function ZonesTab() {
               <Input className="text-sm" placeholder="اكتب المحافظة..." value={form.fromGovernorate} onChange={e => setForm(f => ({ ...f, fromGovernorate: e.target.value }))} />
             </div>
             <div>
-              <Label className="text-xs font-bold mb-1.5 block">إلى محافظة</Label>
-              <Input className="text-sm" placeholder="اكتب المحافظة..." value={form.toGovernorate} onChange={e => setForm(f => ({ ...f, toGovernorate: e.target.value }))} />
+              <Label className="text-xs font-bold mb-1.5 block">إلى محافظة / اسم المنطقة <span className="text-red-500">*</span></Label>
+              <div className="flex rounded-md border border-input overflow-hidden focus-within:ring-1 focus-within:ring-ring">
+                <input
+                  className="flex-1 bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
+                  placeholder="إلى محافظة..."
+                  value={form.toGovernorate}
+                  onChange={e => setForm(f => ({ ...f, toGovernorate: e.target.value }))}
+                />
+                <div className="w-px bg-border self-stretch" />
+                <input
+                  className="flex-1 bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
+                  placeholder="المنطقة *"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                />
+              </div>
             </div>
-          </div>
-
-          {/* اسم المنطقة */}
-          <div>
-            <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
-            <Input className="text-sm" placeholder="المنطقة" value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
 
           {/* أسعار التيرز */}
