@@ -1376,6 +1376,8 @@ export default function RepresentativeDashboard() {
   const { toast } = useToast();
   useEffect(() => {
     if (!user) return;
+    // SSE خاص بالمناديب فقط — السوبر أدمن والأدمن مش عندهم shippingCompanyId
+    if (user.role !== "representative") return;
     const token = localStorage.getItem("caprina_token") || "";
     const url = `/api/representative/sse${token ? `?token=${encodeURIComponent(token)}` : ""}`;
     const es = new EventSource(url);

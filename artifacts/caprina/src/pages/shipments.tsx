@@ -989,13 +989,6 @@ function ZonesTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* اسم المنطقة */}
-          <div>
-            <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
-            <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          </div>
-
           {/* من محافظة - إلى محافظة */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -1006,6 +999,13 @@ function ZonesTab() {
               <Label className="text-xs font-bold mb-1.5 block">إلى محافظة</Label>
               <Input className="text-sm" placeholder="اكتب المحافظة..." value={form.toGovernorate} onChange={e => setForm(f => ({ ...f, toGovernorate: e.target.value }))} />
             </div>
+          </div>
+
+          {/* اسم المنطقة */}
+          <div>
+            <Label className="text-xs font-bold mb-1.5 block">اسم المنطقة / المدينة <span className="text-red-500">*</span></Label>
+            <Input className="text-sm" placeholder="مثال: القاهرة" value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
 
           {/* أسعار التيرز */}
