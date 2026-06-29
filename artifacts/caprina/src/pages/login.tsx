@@ -115,12 +115,28 @@ export default function LoginPage() {
                 />
               </div>
               <h1
-                className="text-3xl font-black tracking-[0.4em] mb-2"
+                className="text-3xl font-black tracking-[0.4em] mb-2 stark-glow-text"
                 style={{
-                  color: dm ? "#ffffff" : "#111",
-                  textShadow: dm ? "0 2px 24px rgba(255,255,255,0.2)" : "none",
+                  background: "linear-gradient(135deg, #ffffff 0%, #f5c842 40%, #ff8c00 70%, #ffffff 100%)",
+                  backgroundSize: "200% 200%",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  animation: "starkGradientShift 3s ease-in-out infinite, starkGlowPulse 3s ease-in-out infinite",
+                  filter: "drop-shadow(0 0 18px rgba(245,200,66,0.9))",
                 }}
               >
+                <style>{`
+                  @keyframes starkGradientShift {
+                    0%   { background-position: 0% 50%; }
+                    50%  { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
+                  }
+                  @keyframes starkGlowPulse {
+                    0%,100% { filter: drop-shadow(0 0 8px rgba(245,200,66,0.5)) drop-shadow(0 0 24px rgba(255,140,0,0.3)); }
+                    50%     { filter: drop-shadow(0 0 22px rgba(245,200,66,1))   drop-shadow(0 0 48px rgba(255,140,0,0.7)) drop-shadow(0 0 80px rgba(255,200,0,0.4)); }
+                  }
+                `}</style>
                 STARK
               </h1>
               <p
