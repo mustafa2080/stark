@@ -1099,13 +1099,12 @@ function ZonesTab() {
                   ) : (
                     /* ── وضع العرض ── */
                     <div className="p-3 space-y-2.5">
-                      {/* رأس البطاقة: الاسم + أزرار التحكم */}
+                      {/* رأس البطاقة: أيقونة + أزرار التحكم */}
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
                           <MapPin className="w-4 h-4 text-cyan-500" />
                         </div>
-                        <p className="text-sm font-bold flex-1 min-w-0 truncate">{z.name}</p>
-                        <div className="flex gap-1 shrink-0">
+                        <div className="flex gap-1 shrink-0 mr-auto">
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
@@ -1116,12 +1115,19 @@ function ZonesTab() {
                         </div>
                       </div>
 
-                      {/* صف واحد: من → إلى + شرائح الأسعار جنب بعض */}
+                      {/* سطر 1: إلى محافظة */}
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyan-500/25 bg-cyan-500/5 text-[11px] font-bold text-cyan-600 dark:text-cyan-400 w-fit">
+                        <span className="text-cyan-500/60 font-normal text-[10px]">إلى</span>
+                        <span>{z.toGovernorate || "—"}</span>
+                      </div>
+
+                      {/* سطر 2: من محافظة — اسم المنطقة + أسعار */}
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyan-500/25 bg-cyan-500/5 text-[11px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-muted/20 text-[11px] font-bold text-muted-foreground shrink-0">
+                          <span className="text-[10px] font-normal">من</span>
                           <span>{z.fromGovernorate || "—"}</span>
-                          <span className="text-cyan-500/70">→</span>
-                          <span>{z.toGovernorate || "—"}</span>
+                          <span className="text-muted-foreground/40">—</span>
+                          <span className="text-foreground">{z.name}</span>
                         </div>
                         <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-[180px]">
                           {TIER_INFO.map(t => (
