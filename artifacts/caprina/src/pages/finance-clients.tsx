@@ -200,6 +200,12 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     queryKey: ["warehouses-list"],
     queryFn: () => apiFetch("/warehouses"),
   });
+
+  // جلب المناطق (المحافظات)
+  const { data: zones = [] } = useQuery<{ id: number; name: string; toGovernorate?: string }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipment-zones"),
+  });
   const [form, setForm] = useState(() => editClient ? {
     name: editClient.name, phone: editClient.phone ?? "", phone2: editClient.phone2 ?? "",
     email: editClient.email ?? "", address: editClient.address ?? "",
@@ -306,7 +312,14 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs mb-1.5 block">المحافظة</Label>
-              <Input placeholder="القاهرة، الجيزة..." className="h-9 text-sm bg-background" value={form.region} onChange={e => f("region", e.target.value)} /></div>
+              <Select value={form.region} onValueChange={v => f("region", v)}>
+                <SelectTrigger className="h-9 text-sm bg-background"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
+                <SelectContent>
+                  {zones.filter(z => z.toGovernorate).map(z => (
+                    <SelectItem key={z.id} value={z.toGovernorate!}>{z.toGovernorate}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select></div>
             <div><Label className="text-xs mb-1.5 block">العنوان التفصيلي</Label>
               <Input placeholder="الشارع والحي والمبنى" className="h-9 text-sm bg-background" value={form.address} onChange={e => f("address", e.target.value)} /></div>
           </div>
