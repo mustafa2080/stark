@@ -1126,20 +1126,13 @@ function ZonesTab() {
                     </div>
                   ) : (
                     /* ── وضع العرض ── */
-                    <div className="p-3">
-                      {/* رأس البطاقة */}
-                      <div className="flex items-center gap-3 mb-2.5">
+                    <div className="p-3 space-y-2.5">
+                      {/* رأس البطاقة: الاسم + أزرار التحكم */}
+                      <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
                           <MapPin className="w-4 h-4 text-cyan-500" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold">{z.name}</p>
-                          {(z.fromGovernorate || z.toGovernorate) && (
-                            <p className="text-[10px] text-muted-foreground">
-                              {z.fromGovernorate || "؟"} → {z.toGovernorate || "؟"}
-                            </p>
-                          )}
-                        </div>
+                        <p className="text-sm font-bold flex-1 min-w-0 truncate">{z.name}</p>
                         <div className="flex gap-1 shrink-0">
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
                             <Edit className="w-3.5 h-3.5" />
@@ -1151,11 +1144,20 @@ function ZonesTab() {
                         </div>
                       </div>
 
-                      {/* شرائح الأسعار */}
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {TIER_INFO.map(t => (
-                          <TierPriceChip key={t.key} tier={t} value={z[t.field] ?? (t.field === "priceNormal" ? z.price : "0")} />
-                        ))}
+                      {/* صف واحد: من → إلى + شرائح الأسعار جنب بعض */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(z.fromGovernorate || z.toGovernorate) && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyan-500/25 bg-cyan-500/5 text-[11px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
+                            <span>{z.fromGovernorate || "؟"}</span>
+                            <span className="text-cyan-500/70">→</span>
+                            <span>{z.toGovernorate || "؟"}</span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-[180px]">
+                          {TIER_INFO.map(t => (
+                            <TierPriceChip key={t.key} tier={t} value={z[t.field] ?? (t.field === "priceNormal" ? z.price : "0")} />
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
