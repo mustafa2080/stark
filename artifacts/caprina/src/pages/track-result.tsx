@@ -4,7 +4,7 @@ import { Package, Truck, MapPin, CheckCircle, Clock, AlertTriangle, XCircle, Arr
 import { Navbar, Footer } from "./home";
 
 // ─── Status Illustration Banner ───────────────────────────────────────────────
-function StatusIllustration({ status, color }: { status: string; color: string }) {
+function StatusIllustration({ status, color, warehouseName, courierName }: { status: string; color: string; warehouseName?: string | null; courierName?: string | null }) {
   // تصنيف الحالات
   const isPending    = ["pending","waiting","confirmed"].includes(status);
   const isWarehouse  = ["warehouse_ready","at_warehouse"].includes(status);
@@ -74,7 +74,7 @@ function StatusIllustration({ status, color }: { status: string; color: string }
           {/* نص حالة */}
           <div className="flex items-center gap-1.5 mt-1">
             <span className="inline-block w-2 h-2 rounded-full" style={{ background:c, animation:"dotBlink 1.2s ease-in-out infinite" }} />
-            <span className="text-xs font-bold" style={{ color:c }}>في انتظار المعالجة</span>
+            <span className="text-xs font-bold" style={{ color:c }}>طلبك حالياً قيد الانتظار وفي انتظار استلامه في المخزن</span>
             <span className="inline-block w-2 h-2 rounded-full" style={{ background:c, animation:"dotBlink 1.2s 0.4s ease-in-out infinite" }} />
           </div>
         </div>
@@ -119,7 +119,9 @@ function StatusIllustration({ status, color }: { status: string; color: string }
             {/* إشارة المخزن */}
             <text x="85" y="22" textAnchor="middle" fontSize="6" fill={c} opacity="0.8" fontWeight="bold">STARK</text>
           </svg>
-          <span className="text-xs font-bold" style={{ color:c }}>الشحنة في مخزن الشحن</span>
+          <span className="text-xs font-bold" style={{ color:c }}>
+            {warehouseName ? `طلبك الآن في مخزن فرع ${warehouseName}` : "الشحنة في مخزن الشحن"}
+          </span>
         </div>
       )}
 
@@ -177,7 +179,9 @@ function StatusIllustration({ status, color }: { status: string; color: string }
             <line x1="0" y1="9" x2="300" y2="9" stroke={c} strokeWidth="1.5" strokeDasharray="24 12"
               style={{ animation:"roadLine 0.5s linear infinite" }}/>
           </svg>
-          <span className="text-xs font-bold mt-1" style={{ color:c }}>الشحنة في طريقها إليك</span>
+          <span className="text-xs font-bold mt-1" style={{ color:c }}>
+            {courierName ? `طلبك حالياً قيد الشحن مع المندوب ${courierName}` : "الشحنة في طريقها إليك"}
+          </span>
         </div>
       )}
 
@@ -230,7 +234,9 @@ function StatusIllustration({ status, color }: { status: string; color: string }
             <line x1="0" y1="7" x2="300" y2="7" stroke={c} strokeWidth="1" strokeDasharray="18 10"
               style={{ animation:"roadLine 0.35s linear infinite" }}/>
           </svg>
-          <span className="text-xs font-bold mt-1" style={{ color:c }}>المندوب في طريقه إليك الآن</span>
+          <span className="text-xs font-bold mt-1" style={{ color:c }}>
+            {courierName ? `طلبك حالياً قيد الشحن مع المندوب ${courierName}` : "المندوب في طريقه إليك الآن"}
+          </span>
         </div>
       )}
 
@@ -271,31 +277,77 @@ function StatusIllustration({ status, color }: { status: string; color: string }
               <text key={i} x={x} y={y} textAnchor="middle" fontSize={s} style={{ animation:`starSpin ${1.5+i*0.3}s linear infinite` }}>⭐</text>
             ))}
           </svg>
-          <span className="text-sm font-black" style={{ color:c, textShadow:`0 0 12px ${c}88` }}>تم التسليم بنجاح! 🎉</span>
+          <span className="text-sm font-black" style={{ color:c, textShadow:`0 0 12px ${c}88` }}>
+            {status === "partial_received" ? "تم الاستلام الجزئي ✅" : "تم التسليم بنجاح! 🎉"}
+          </span>
         </div>
       )}
 
-      {/* ══ RETURNED ══ */}
+      {/* ══ RETURNED (مندوب حزين راجع) ══ */}
       {isReturned && (
         <div className="relative flex flex-col items-center gap-3">
           <style>{`
-            @keyframes returnBounce { 0%,100%{transform:translateX(0)} 50%{transform:translateX(-12px)} }
-            @keyframes arrowPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+            @keyframes sadWalk { 0%,100%{transform:translateX(0) rotate(0deg)} 25%{transform:translateX(-8px) rotate(-2deg)} 75%{transform:translateX(8px) rotate(2deg)} }
+            @keyframes tearDrop { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(18px);opacity:0} }
+            @keyframes sadPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+            @keyframes headDrop { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(-15deg)} }
           `}</style>
-          <svg width="150" height="120" viewBox="0 0 150 120">
-            {/* صندوق */}
-            <rect x="40" y="40" width="70" height="60" rx="5" fill={`${c}18`} stroke={c} strokeWidth="1.5"/>
-            <path d="M37 40 Q75 25 113 40" fill={`${c}14`} stroke={c} strokeWidth="1.5"/>
-            <line x1="75" y1="40" x2="75" y2="100" stroke={c} strokeWidth="1" strokeDasharray="4 3" opacity="0.4"/>
-            <rect x="53" y="43" width="44" height="8" rx="2" fill={`${c}33`} stroke={c} strokeWidth="1"/>
-            {/* سهم ارتداد */}
-            <g style={{ animation:"returnBounce 1.5s ease-in-out infinite" }}>
-              <path d="M25 30 Q8 50 25 70" fill="none" stroke={c} strokeWidth="3" strokeLinecap="round"/>
-              <polygon points="25,22 18,34 32,34" fill={c}/>
+          <svg width="180" height="160" viewBox="0 0 180 160">
+            {/* خلفية دوائر حزينة */}
+            <circle cx="90" cy="80" r="60" fill="rgba(248,113,113,0.06)" stroke="rgba(248,113,113,0.15)" strokeWidth="1"/>
+            <circle cx="90" cy="80" r="45" fill="rgba(248,113,113,0.04)" stroke="rgba(248,113,113,0.1)" strokeWidth="1"/>
+
+            {/* المندوب على السكوتر (راجع — يمين لشمال) */}
+            <g style={{ animation:"sadWalk 2s ease-in-out infinite" }}>
+              {/* السكوتر */}
+              <path d="M55 105 Q75 92 100 96 L125 96 L133 105" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round"/>
+              <ellipse cx="88" cy="91" rx="18" ry="4" fill="rgba(248,113,113,0.3)" stroke="#f87171" strokeWidth="1.5"/>
+              {/* حقيبة توصيل فاضية */}
+              <rect x="102" y="80" width="26" height="19" rx="4" fill="rgba(248,113,113,0.2)" stroke="#f87171" strokeWidth="1.5"/>
+              <line x1="108" y1="89" x2="122" y2="89" stroke="#f87171" strokeWidth="1" opacity="0.5"/>
+              {/* علامة X على الحقيبة */}
+              <line x1="108" y1="83" x2="122" y2="96" stroke="#f87171" strokeWidth="1.5" opacity="0.7"/>
+              <line x1="122" y1="83" x2="108" y2="96" stroke="#f87171" strokeWidth="1.5" opacity="0.7"/>
+              {/* عجلة أمامية */}
+              <circle cx="133" cy="115" r="14" fill="rgba(248,113,113,0.12)" stroke="#f87171" strokeWidth="2"/>
+              <circle cx="133" cy="115" r="6" fill="rgba(248,113,113,0.25)" stroke="#f87171" strokeWidth="1.5"/>
+              {/* عجلة خلفية */}
+              <circle cx="52" cy="115" r="14" fill="rgba(248,113,113,0.12)" stroke="#f87171" strokeWidth="2"/>
+              <circle cx="52" cy="115" r="6" fill="rgba(248,113,113,0.25)" stroke="#f87171" strokeWidth="1.5"/>
+              {/* جسم المندوب الحزين */}
+              <g style={{ transformOrigin:"88px 90px", animation:"headDrop 2s ease-in-out infinite" }}>
+                {/* جسم */}
+                <path d="M78 90 Q80 72 88 67 Q96 72 98 90" fill="rgba(248,113,113,0.3)" stroke="#f87171" strokeWidth="1.5"/>
+                {/* رأس محنية للأسفل */}
+                <circle cx="88" cy="58" r="11" fill="rgba(248,113,113,0.35)" stroke="#f87171" strokeWidth="1.5"/>
+                {/* خوذة */}
+                <path d="M77 58 Q88 45 99 58" fill="#f87171" stroke="#f87171" strokeWidth="1" opacity="0.7"/>
+                {/* وجه حزين */}
+                {/* عيون حزينة */}
+                <circle cx="84" cy="57" r="1.5" fill="#f87171"/>
+                <circle cx="92" cy="57" r="1.5" fill="#f87171"/>
+                {/* فم حزين (منحني للأسفل) */}
+                <path d="M84 64 Q88 61 92 64" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"/>
+                {/* حاجب حزين */}
+                <line x1="82" y1="53" x2="86" y2="55" stroke="#f87171" strokeWidth="1.2" strokeLinecap="round"/>
+                <line x1="90" y1="55" x2="94" y2="53" stroke="#f87171" strokeWidth="1.2" strokeLinecap="round"/>
+              </g>
+              {/* دموع */}
+              <circle cx="84" cy="70" r="2" fill="#f87171" style={{ animation:"tearDrop 1.5s 0s ease-in infinite"}} opacity="0.8"/>
+              <circle cx="92" cy="70" r="2" fill="#f87171" style={{ animation:"tearDrop 1.5s 0.7s ease-in infinite"}} opacity="0.8"/>
             </g>
-            <text x="75" y="75" textAnchor="middle" fontSize="22" style={{ animation:"arrowPulse 1.5s ease-in-out infinite" }}>↩</text>
+
+            {/* سهم الرجوع */}
+            <g opacity="0.7" style={{ animation:"sadPulse 1.5s ease-in-out infinite" }}>
+              <path d="M148 40 Q165 55 148 70" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round"/>
+              <polygon points="148,32 140,44 156,44" fill="#f87171"/>
+              <text x="152" y="58" textAnchor="middle" fontSize="11" fill="#f87171">↩</text>
+            </g>
+
+            {/* نص مرتجع */}
+            <text x="90" y="148" textAnchor="middle" fontSize="10" fill="#f87171" fontWeight="bold" opacity="0.8">مرتجع</text>
           </svg>
-          <span className="text-xs font-bold" style={{ color:c }}>الشحنة في طريق العودة</span>
+          <span className="text-xs font-bold" style={{ color:"#f87171" }}>عذراً، الشحنة في طريق العودة 😔</span>
         </div>
       )}
 
@@ -482,7 +534,7 @@ export default function TrackResultPage() {
         <div className="w-full max-w-lg lg:max-w-2xl flex flex-col gap-4 sm:gap-5">
 
           {/* ── Status Illustration Banner ── */}
-          <StatusIllustration status={shipment.status} color={cfg.color} />
+          <StatusIllustration status={shipment.status} color={cfg.color} warehouseName={shipment.warehouseName} courierName={shipment.courierName} />
 
           {/* ── Status Card (upgraded) ── */}
           <div className="rounded-3xl relative overflow-hidden"
