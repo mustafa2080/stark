@@ -1118,13 +1118,11 @@ function ZonesTab() {
 
                       {/* صف واحد: من → إلى + شرائح الأسعار جنب بعض */}
                       <div className="flex flex-wrap items-center gap-2">
-                        {(z.fromGovernorate || z.toGovernorate) && (
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyan-500/25 bg-cyan-500/5 text-[11px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
-                            <span>{z.fromGovernorate || "؟"}</span>
-                            <span className="text-cyan-500/70">→</span>
-                            <span>{z.toGovernorate || "؟"}</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyan-500/25 bg-cyan-500/5 text-[11px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
+                          <span>{z.fromGovernorate || "—"}</span>
+                          <span className="text-cyan-500/70">→</span>
+                          <span>{z.toGovernorate || "—"}</span>
+                        </div>
                         <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-[180px]">
                           {TIER_INFO.map(t => (
                             <TierPriceChip key={t.key} tier={t} value={z[t.field] ?? (t.field === "priceNormal" ? z.price : "0")} />
