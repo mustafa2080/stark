@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck } from "lucide-react";
+import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Check, ChevronsUpDown } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
@@ -89,6 +91,7 @@ export default function NewShipmentPage() {
     adSource: "", adCampaign: "", warehouseId: "", assignedUserId: "",
     shippingCompanyId: "",
   });
+  const [govOpen, setGovOpen] = useState(false);
 
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -246,29 +249,45 @@ export default function NewShipmentPage() {
             <div><Label className="text-xs font-bold mb-1.5 block">هاتف 2</Label><Input className="text-sm" placeholder="رقم بديل" value={form.receiverPhone2} onChange={e => set("receiverPhone2", e.target.value)} /></div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block">المنطقة / المدينة</Label>
-              <Select
-                value={selectedZone ? (selectedZone.toGovernorate?.trim() || selectedZone.name?.trim() || "") : ""}
-                onValueChange={v => {
-                  // جيب أول zone بنفس المحافظة
-                  const firstZone = zones.filter(z => z.isActive !== false).find(z =>
-                    (z.toGovernorate?.trim() || z.name?.trim() || "").replace(/\s+/g, " ").toLowerCase() ===
-                    v.replace(/\s+/g, " ").toLowerCase()
-                  );
-                  if (firstZone) set("zoneId", String(firstZone.id));
-                }}
-              >
-                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر المحافظة..." /></SelectTrigger>
-                <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false} className="max-h-[260px] overflow-y-auto w-[var(--radix-select-trigger-width)]">
-                  {toGovernorates.map(({ label, zone }) => (
-                    <SelectItem key={zone.id} value={label}>
-                      <div className="flex items-center justify-between gap-4 w-full">
-                        <span>{label}</span>
-                        <span className="text-xs text-muted-foreground font-bold">{fc(zone.price)}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={govOpen} onOpenChange={setGovOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    role="combobox"
+                    aria-expanded={govOpen}
+                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <span className={selectedZone ? "" : "text-muted-foreground"}>
+                      {selectedZone ? (selectedZone.toGovernorate?.trim() || selectedZone.name?.trim()) : "اختر المحافظة..."}
+                    </span>
+                    <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+                  <Command>
+                    <CommandInput placeholder="ابحث عن المحافظة..." className="text-sm" />
+                    <CommandList className="max-h-[260px]">
+                      <CommandEmpty className="text-xs text-muted-foreground py-4">لا توجد محافظة بهذا الاسم</CommandEmpty>
+                      <CommandGroup>
+                        {toGovernorates.map(({ label, zone }) => (
+                          <CommandItem
+                            key={zone.id}
+                            value={label}
+                            onSelect={() => { set("zoneId", String(zone.id)); setGovOpen(false); }}
+                            className="text-sm flex items-center justify-between gap-3"
+                          >
+                            <span className="flex items-center gap-2">
+                              <Check className={`w-3.5 h-3.5 shrink-0 ${form.zoneId === String(zone.id) ? "opacity-100 text-primary" : "opacity-0"}`} />
+                              {label}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-bold">{fc(zone.price)}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {selectedZone && <p className="text-[10px] text-primary mt-1">سعر التوصيل: {fc(selectedZone.price)}</p>}
             </div>
             <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">العنوان التفصيلي</Label><Input className="text-sm" placeholder="الشارع، المبنى، الشقة..." value={form.receiverAddress} onChange={e => set("receiverAddress", e.target.value)} /></div>
