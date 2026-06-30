@@ -338,6 +338,21 @@ async function ensureUsersDefaultAdSource() {
 }
 ensureUsersDefaultAdSource();
 
+// ─── Ensure clients.default_ad_source column exists (مصدر الطلب الافتراضي للعميل التجاري) ──
+async function ensureClientsDefaultAdSource() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS default_ad_source VARCHAR(50) NULL
+    `);
+    logger.info("clients.default_ad_source column ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure clients.default_ad_source column");
+    }
+  }
+}
+ensureClientsDefaultAdSource();
+
 // ─── Ensure employee_profiles.avatar column exists ────────────────────────────
 async function ensureEmployeeProfileAvatar() {
   try {

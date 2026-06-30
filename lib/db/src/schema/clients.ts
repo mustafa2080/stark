@@ -35,6 +35,9 @@ export const clientsTable = mysqlTable("clients", {
   // ── مخزن مرتبط ────────────────────────────────────────────────────────
   warehouseId:    int("warehouse_id"),                                      // المخزن المرتبط بالعميل (اختياري)
 
+  // ── مصدر الطلب الافتراضي للعميل (يُستخدم تلقائياً عند اختيار العميل كراسل في الشحنة) ──
+  defaultAdSource: varchar("default_ad_source", { length: 50 }),
+
   // ── ميتا ──────────────────────────────────────────────────────────────
   notes:          text("notes"),
   isActive:       boolean("is_active").default(true),

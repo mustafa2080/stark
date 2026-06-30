@@ -37,7 +37,7 @@ type Client = {
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
-  clientType: ClientType | null; warehouseId: number | null;
+  clientType: ClientType | null; warehouseId: number | null; defaultAdSource: string | null;
 };
 
 // ── Tier config & badge ────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ const emptyForm = {
   name: "", phone: "", phone2: "", email: "", address: "", city: "", region: "",
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
   creditLimit: "0", notes: "", isActive: true, avatar: "", clientType: "normal" as ClientType,
-  warehouseId: "" as string,
+  warehouseId: "" as string, defaultAdSource: "" as string,
 };
 
 // ── Column Filter Dropdown ────────────────────────────────────────────────
@@ -230,6 +230,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     avatar: editClient.avatar ?? "🧑‍💼",
     clientType: (editClient.clientType ?? "normal") as ClientType,
     warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
+    defaultAdSource: editClient.defaultAdSource ?? "",
   } : { ...emptyForm });
 
   // إعادة تعبئة الـ form لما editClient يتغير (مهم لو الـ Dialog مش بيتـunmount)
@@ -246,6 +247,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         avatar: editClient.avatar ?? "🧑‍💼",
         clientType: (editClient.clientType ?? "normal") as ClientType,
         warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
+        defaultAdSource: editClient.defaultAdSource ?? "",
       });
     } else {
       setForm({ ...emptyForm });
@@ -264,6 +266,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         notes: form.notes || null, isActive: form.isActive, avatar: form.avatar || "🧑‍💼",
         clientType: form.clientType || "normal",
         warehouseId: form.warehouseId ? parseInt(form.warehouseId) : null,
+        defaultAdSource: form.defaultAdSource || null,
       };
       if (isEdit) return apiFetch<any>(`/finance/clients/${editClient!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       return apiFetch<any>("/finance/clients", { method: "POST", body: JSON.stringify(body) });
@@ -348,6 +351,25 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
               </Select></div>
             <div><Label className="text-xs mb-1.5 block flex items-center gap-1"><Target className="w-3 h-3" />الهدف</Label>
               <Input type="number" min={0} placeholder="1000000" className="h-9 text-sm bg-background" value={form.creditLimit} onChange={e => f("creditLimit", e.target.value)} /></div>
+          </div>
+          <div><Label className="text-xs mb-1.5 block">مصدر الطلب الافتراضي</Label>
+            <Select value={form.defaultAdSource || "none"} onValueChange={v => f("defaultAdSource", v === "none" ? "" : v)}>
+              <SelectTrigger className="h-9 text-sm bg-background"><SelectValue placeholder="اختر المصدر" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— غير محدد —</SelectItem>
+                {[
+                  { value: "facebook",  label: "فيسبوك" },
+                  { value: "tiktok",    label: "تيك توك" },
+                  { value: "instagram", label: "إنستجرام" },
+                  { value: "whatsapp",  label: "واتساب" },
+                  { value: "organic",   label: "ويبسايت" },
+                  { value: "other",     label: "أخرى" },
+                ].map(s => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground mt-1">يُستخدم تلقائياً عند اختيار هذا العميل كـ"الراسل" في نموذج إنشاء شحنة جديدة</p>
           </div>
           <div><Label className="text-xs mb-1.5 block">ملاحظات</Label>
             <Textarea placeholder="أي ملاحظات..." className="min-h-[60px] text-sm resize-none bg-background" value={form.notes} onChange={e => f("notes", e.target.value)} rows={2} /></div>

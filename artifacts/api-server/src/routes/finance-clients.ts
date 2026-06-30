@@ -23,6 +23,7 @@ const ClientSchema = z.object({
   avatar:        z.string().nullish(),
   clientType:    z.enum(["normal", "commercial", "vip"]).nullish(),
   warehouseId:   z.number().nullish(),
+  defaultAdSource: z.string().nullish(),
 });
 
 // ── حساب نوع العميل تلقائياً بناءً على عدد الشحنات الشهرية ────────────
@@ -77,6 +78,7 @@ router.get("/finance/clients/for-shipment", async (req, res): Promise<void> => {
         address:     clientsTable.address,
         warehouseId: clientsTable.warehouseId,
         avatar:      clientsTable.avatar,
+        defaultAdSource: clientsTable.defaultAdSource,
       })
       .from(clientsTable)
       .where(
@@ -390,8 +392,8 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
     const now = new Date();
-    // warehouseId و region يتفصلان لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفهم — نضيفهم بـ raw SQL بعد الإنشاء
-    const { warehouseId, region, ...restData } = parsed.data;
+    // warehouseId و region و defaultAdSource يتفصلان لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفهم — نضيفهم بـ raw SQL بعد الإنشاء
+    const { warehouseId, region, defaultAdSource, ...restData } = parsed.data;
     const [result] = await db.insert(clientsTable).values({
       ...restData,
       creditLimit:  String(parsed.data.creditLimit ?? 0),
@@ -409,10 +411,13 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     if (region !== undefined) {
       await db.execute(sql`UPDATE clients SET region = ${region ?? null} WHERE id = ${id}`);
     }
+    if (defaultAdSource !== undefined) {
+      await db.execute(sql`UPDATE clients SET default_ad_source = ${defaultAdSource ?? null} WHERE id = ${id}`);
+    }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
-    const [[whRow]] = await db.execute(sql`SELECT warehouse_id FROM clients WHERE id = ${id}`) as any;
-    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null });
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source FROM clients WHERE id = ${id}`) as any;
+    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -428,8 +433,8 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     const updates: any = { ...parsed.data, updatedAt: new Date() };
     if (parsed.data.creditLimit !== undefined) updates.creditLimit = String(parsed.data.creditLimit);
 
-    // warehouseId و region يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
-    const { warehouseId, region, ...rest } = updates;
+    // warehouseId و region و defaultAdSource يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
+    const { warehouseId, region, defaultAdSource, ...rest } = updates;
     await db.update(clientsTable).set(rest).where(eq(clientsTable.id, id));
     if (warehouseId !== undefined) {
       await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
@@ -437,13 +442,16 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     if (region !== undefined) {
       await db.execute(sql`UPDATE clients SET region = ${region ?? null} WHERE id = ${id}`);
     }
+    if (defaultAdSource !== undefined) {
+      await db.execute(sql`UPDATE clients SET default_ad_source = ${defaultAdSource ?? null} WHERE id = ${id}`);
+    }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
-    // جلب warehouse_id بـ raw SQL عشان نضمن رجوعه في الـ response مهما كانت حالة الـ compiled schema
-    const [[whRow]] = await db.execute(sql`SELECT warehouse_id FROM clients WHERE id = ${id}`) as any;
-    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null });
+    // جلب warehouse_id و default_ad_source بـ raw SQL عشان نضمن رجوعهم في الـ response مهما كانت حالة الـ compiled schema
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source FROM clients WHERE id = ${id}`) as any;
+    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

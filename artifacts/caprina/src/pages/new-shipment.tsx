@@ -17,7 +17,7 @@ type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics"
 
 interface ShipmentZone        { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; isActive?: boolean }
 interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; isActive?: boolean }
-interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null }
+interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null; defaultAdSource?: string | null }
 
 const PARCEL_LABELS: Record<string, string> = {
   document: "مستندات", normal: "عادي", fragile: "قابل للكسر",
@@ -440,7 +440,7 @@ export default function NewShipmentPage() {
                 const c = clients.find(x => String(x.id) === v);
                 if (c) {
                   const gov = c.region || c.city || c.governorate || "";
-                  setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId }));
+                  setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
                 }
               }}>
                 <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر العميل التجاري" /></SelectTrigger>
