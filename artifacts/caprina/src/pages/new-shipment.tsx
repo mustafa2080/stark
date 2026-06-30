@@ -101,8 +101,9 @@ export default function NewShipmentPage() {
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
 
-  // كل مناطق التوصيل — محافظة - منطقة (بدون دمج، كل zone بيظهر لوحده)
+  // كل مناطق التوصيل — محافظة - منطقة (بدون تكرار لنفس الاسم)
   const toGovernorates = useMemo(() => {
+    const seen = new Set<string>();
     return zones
       .filter(z => z.isActive !== false)
       .map(z => {
@@ -112,6 +113,12 @@ export default function NewShipmentPage() {
         return { label, zone: z };
       })
       .filter(x => x.label)
+      .filter(x => {
+        const key = x.label.replace(/\s+/g, " ").toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
       .sort((a, b) => a.label.localeCompare(b.label, "ar"));
   }, [zones]);
 
