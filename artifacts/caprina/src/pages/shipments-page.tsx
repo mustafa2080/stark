@@ -1368,7 +1368,7 @@ export default function Orders() {
                   boxShadow: "0 2px 12px rgba(156,163,175,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
                   textShadow: "0 1px 0 rgba(255,255,255,0.4)",
                 }}
-                onClick={() => setShowNewShipment(true)}
+                onClick={() => navigate("/shipments/new")}
               >
                 <span
                   className="absolute inset-0 rounded-md pointer-events-none"
