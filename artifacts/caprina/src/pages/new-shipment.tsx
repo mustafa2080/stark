@@ -435,11 +435,25 @@ export default function NewShipmentPage() {
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> الراسل</Label>
-              <Select value={form.assignedUserId || "none"} onValueChange={v => handleAssignedUserChange(v === "none" ? "" : v)}>
-                <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
+              <Select value={form.clientId || "none"} onValueChange={v => {
+                if (v === "none") { setForm(f => ({ ...f, clientId: "" })); return; }
+                const c = clients.find(x => String(x.id) === v);
+                if (c) {
+                  const gov = c.region || c.city || c.governorate || "";
+                  setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId }));
+                }
+              }}>
+                <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر العميل التجاري" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— غير محدد —</SelectItem>
-                  {(users as any[])?.filter((u: any) => u.isActive).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{u.displayName}</SelectItem>)}
+                  {clients.filter(c => c.name).map(c => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      <div className="flex items-center gap-2">
+                        <ClientAvatar avatar={c.avatar} name={c.name} className="w-6 h-6 text-[10px]" />
+                        <span className="text-xs font-bold">{c.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
