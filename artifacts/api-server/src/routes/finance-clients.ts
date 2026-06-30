@@ -76,6 +76,7 @@ router.get("/finance/clients/for-shipment", async (req, res): Promise<void> => {
         region:      clientsTable.region,
         address:     clientsTable.address,
         warehouseId: clientsTable.warehouseId,
+        avatar:      clientsTable.avatar,
       })
       .from(clientsTable)
       .where(

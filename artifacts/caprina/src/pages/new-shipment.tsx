@@ -15,7 +15,7 @@ type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics"
 
 interface ShipmentZone        { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; isActive?: boolean }
 interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; isActive?: boolean }
-interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null }
+interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null }
 
 const PARCEL_LABELS: Record<string, string> = {
   document: "مستندات", normal: "عادي", fragile: "قابل للكسر",
@@ -48,6 +48,29 @@ const AD_SOURCES = [
   { value: "organic",  label: "ويبسايت" },
   { value: "other",    label: "أخرى" },
 ];
+
+// ── Avatar helpers (نفس منطق صفحة العملاء التجاريون) ─────────────────────────
+const AVATAR_COLORS = [
+  ["#f59e0b","#78350f"],["#10b981","#064e3b"],["#3b82f6","#1e3a8a"],
+  ["#8b5cf6","#4c1d95"],["#ef4444","#7f1d1d"],["#ec4899","#831843"],
+  ["#06b6d4","#164e63"],["#f97316","#7c2d12"],
+];
+function getAvatarColor(name: string) {
+  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function ClientAvatar({ avatar, name, className = "w-6 h-6 text-[10px]" }: { avatar?: string | null; name: string; className?: string }) {
+  if (avatar && avatar.startsWith("data:")) {
+    return <img src={avatar} className={`${className} rounded-full object-cover border border-border/50 shrink-0`} />;
+  }
+  const [bg, fg] = getAvatarColor(name || "؟");
+  return (
+    <div className={`${className} rounded-full flex items-center justify-center font-bold shrink-0 border border-primary/20`}
+      style={{ background: bg, color: fg }}>
+      {(name || "؟").charAt(0)}
+    </div>
+  );
+}
 
 export default function NewShipmentPage() {
   const [, navigate] = useLocation();
@@ -187,7 +210,7 @@ export default function NewShipmentPage() {
                   return (
                   <SelectItem key={c.id} value={String(c.id)}>
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">{(c.name || "؟").charAt(0)}</div>
+                      <ClientAvatar avatar={c.avatar} name={c.name} className="w-6 h-6 text-[10px]" />
                       <div className="flex flex-col">
                         <span className="text-xs font-bold">{c.name}</span>
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
