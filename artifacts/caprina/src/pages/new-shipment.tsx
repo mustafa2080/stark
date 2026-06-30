@@ -101,16 +101,18 @@ export default function NewShipmentPage() {
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
 
-  // محافظات "إلى" — unique بدون تكرار
+  // كل مناطق التوصيل — محافظة - منطقة (بدون دمج، كل zone بيظهر لوحده)
   const toGovernorates = useMemo(() => {
-    const seen = new Set<string>();
-    return zones.filter(z => z.isActive !== false).reduce<{ label: string; zone: ShipmentZone }[]>((acc, z) => {
-      const label = z.toGovernorate?.trim() || z.name?.trim();
-      if (!label) return acc;
-      const key = label.replace(/\s+/g, " ").toLowerCase();
-      if (!seen.has(key)) { seen.add(key); acc.push({ label, zone: z }); }
-      return acc;
-    }, []);
+    return zones
+      .filter(z => z.isActive !== false)
+      .map(z => {
+        const gov = z.toGovernorate?.trim() || "";
+        const area = z.name?.trim() || "";
+        const label = gov && area ? `${gov} - ${area}` : (gov || area);
+        return { label, zone: z };
+      })
+      .filter(x => x.label)
+      .sort((a, b) => a.label.localeCompare(b.label, "ar"));
   }, [zones]);
 
   const selectedZone    = zones.find(z => String(z.id) === form.zoneId);
@@ -258,7 +260,7 @@ export default function NewShipmentPage() {
                     className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   >
                     <span className={selectedZone ? "" : "text-muted-foreground"}>
-                      {selectedZone ? (selectedZone.toGovernorate?.trim() || selectedZone.name?.trim()) : "اختر المحافظة..."}
+                      {selectedZone ? (toGovernorates.find(g => g.zone.id === selectedZone.id)?.label ?? selectedZone.name) : "اختر المحافظة / المنطقة..."}
                     </span>
                     <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
                   </button>
