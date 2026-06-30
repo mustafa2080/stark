@@ -223,7 +223,7 @@ export default function NewShipmentPage() {
               const c = clients.find(x => String(x.id) === v);
               if (c) {
                 const gov = c.region || c.city || c.governorate || "";
-                setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId }));
+                setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
               }
             }}>
               <SelectTrigger className="text-sm h-10"><div className="flex items-center gap-2"><User className="w-3.5 h-3.5 text-muted-foreground" /><SelectValue placeholder="اختر العميل..." /></div></SelectTrigger>
