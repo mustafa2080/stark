@@ -74,7 +74,7 @@ function StatusIllustration({ status, color, warehouseName, courierName }: { sta
           {/* نص حالة */}
           <div className="flex items-center gap-1.5 mt-1">
             <span className="inline-block w-2 h-2 rounded-full" style={{ background:c, animation:"dotBlink 1.2s ease-in-out infinite" }} />
-            <span className="text-xs font-bold" style={{ color:c }}>طلبك حالياً قيد الانتظار وفي انتظار استلامه في المخزن</span>
+            <span className="text-xs font-bold" style={{ color:c }}>طلبك حاليا فى انتظار استلامه فى احد مخازنا</span>
             <span className="inline-block w-2 h-2 rounded-full" style={{ background:c, animation:"dotBlink 1.2s 0.4s ease-in-out infinite" }} />
           </div>
         </div>
