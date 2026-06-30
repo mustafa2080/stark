@@ -95,6 +95,18 @@ export default function NewShipmentPage() {
 
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  // لما يتم اختيار "الموظف المسؤول"، يتم تعبئة "مصدر الطلب" تلقائياً حسب المصدر الافتراضي المرتبط بالموظف
+  const handleAssignedUserChange = (userId: string) => {
+    setForm(f => {
+      const next = { ...f, assignedUserId: userId };
+      const selectedUser = (users as any[])?.find((u: any) => String(u.id) === userId);
+      if (selectedUser?.defaultAdSource) {
+        next.adSource = selectedUser.defaultAdSource;
+      }
+      return next;
+    });
+  };
+
   const { data: zones = [] }         = useQuery<ShipmentZone[]>({ queryKey: ["shipment-zones"],        queryFn: () => apiFetch("/shipments/zones") });
   const { data: parcelPricing = [] } = useQuery<ParcelTypePricing[]>({ queryKey: ["parcel-pricing"],   queryFn: () => apiFetch("/shipments/parcel-pricing") });
   const { data: clients = [] }       = useQuery<ShipmentClient[]>({ queryKey: ["clients-for-shipment"], queryFn: () => apiFetch<ShipmentClient[]>("/finance/clients/for-shipment") });
@@ -422,8 +434,8 @@ export default function NewShipmentPage() {
               <Input className="text-sm h-10 bg-card" placeholder="Summer 2025..." value={form.adCampaign} onChange={e => set("adCampaign", e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> الموظف المسؤول</Label>
-              <Select value={form.assignedUserId || "none"} onValueChange={v => set("assignedUserId", v === "none" ? "" : v)}>
+              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> الراسل</Label>
+              <Select value={form.assignedUserId || "none"} onValueChange={v => handleAssignedUserChange(v === "none" ? "" : v)}>
                 <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— غير محدد —</SelectItem>

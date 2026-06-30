@@ -652,7 +652,7 @@ export default function OrderForm() {
                     )} />
                     <FormField control={form.control} name="assignedUserId" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs flex items-center gap-1"><UserCheck className="w-3 h-3" />الموظف المسؤول</FormLabel>
+                        <FormLabel className="text-xs flex items-center gap-1"><UserCheck className="w-3 h-3" />الراسل</FormLabel>
                         <Select value={field.value?.toString() ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
                           <SelectTrigger className="h-9 text-sm bg-card"><SelectValue placeholder="اختر موظف" /></SelectTrigger>
                           <SelectContent>

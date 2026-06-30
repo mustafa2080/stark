@@ -420,12 +420,22 @@ interface UserForm {
   jobTitle: string;
   department: string;
   showProfileLink: boolean;
+  defaultAdSource: string;
 }
+
+const AD_SOURCES = [
+  { value: "facebook",  label: "فيسبوك" },
+  { value: "tiktok",    label: "تيك توك" },
+  { value: "instagram", label: "إنستجرام" },
+  { value: "whatsapp",  label: "واتساب" },
+  { value: "organic",   label: "ويبسايت" },
+  { value: "other",     label: "أخرى" },
+];
 
 const emptyForm = (): UserForm => ({
   username: "", password: "", displayName: "",
   role: "employee", permissions: DEFAULT_PERMISSIONS["employee"]?.() ?? [],
-  avatar: "", jobTitle: "", department: "", showProfileLink: true,
+  avatar: "", jobTitle: "", department: "", showProfileLink: true, defaultAdSource: "",
 });
 
 export default function UsersPage() {
@@ -534,6 +544,7 @@ export default function UsersPage() {
       jobTitle: (u as any).jobTitle ?? "",
       department: (u as any).department ?? "",
       showProfileLink: (u as any).showProfileLink ?? true,
+      defaultAdSource: (u as any).defaultAdSource ?? "",
     });
     setShowPassword(false);
     // استخرج الـ customRoleName من الـ permissions markers
@@ -640,6 +651,7 @@ export default function UsersPage() {
         jobTitle: form.jobTitle || null,
         department: form.department || null,
         showProfileLink: form.showProfileLink,
+        defaultAdSource: form.defaultAdSource || null,
       };
       if (form.password) data.password = form.password;
       updateMutation.mutate({ id: editingUser.id, data });
@@ -1078,6 +1090,22 @@ export default function UsersPage() {
                         placeholder="المبيعات"
                       />
                     </div>
+                  </div>
+
+                  {/* مصدر الإعلان الافتراضي */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] text-muted-foreground font-semibold">مصدر الإعلان الافتراضي</Label>
+                    <p className="text-[10px] text-muted-foreground/70 -mt-0.5">عند اختيار هذا الموظف كـ"الموظف المسؤول" في شحنة جديدة، سيتم تعبئة هذا المصدر تلقائياً</p>
+                    <select
+                      className="w-full h-10 text-sm bg-white/[0.04] border border-white/[0.08] focus:border-primary/50 rounded-xl px-3 text-white"
+                      value={form.defaultAdSource}
+                      onChange={e => setForm(f => ({ ...f, defaultAdSource: e.target.value }))}
+                    >
+                      <option value="" className="bg-background">— غير محدد —</option>
+                      {AD_SOURCES.map(s => (
+                        <option key={s.value} value={s.value} className="bg-background">{s.label}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* إظهار لينك البروفايل */}
