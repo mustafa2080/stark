@@ -263,7 +263,7 @@ export default function NewShipmentPage() {
                     <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+                <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
                   <Command>
                     <CommandInput placeholder="ابحث عن المحافظة..." className="text-sm" />
                     <CommandList className="max-h-[260px]">
