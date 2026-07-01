@@ -2536,4 +2536,78 @@ router.get("/analytics/performance-metrics", requireAuth, async (req, res): Prom
   }
 });
 
+// ─── GET /analytics/city-activity ────────────────────────────────────────────
+// الخريطة الرمزية: تجميع الشحنات النشطة حسب المحافظة (receiverCity) مع
+// تفصيل الحالات (قيد التوصيل / متأخرة / تم التسليم / مشكلة) لكل محافظة.
+router.get("/analytics/city-activity", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `city-activity:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    // نجيب بس الشحنات "النشطة" (مش قديمة جدًا) عشان الخريطة تعكس الوضع الحالي —
+    // آخر 30 يوم كافية لعرض حركة حقيقية بدون إثقال الكويري بكل تاريخ الشحنات.
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const rows = await db
+      .select({
+        city: shipmentsTable.receiverCity,
+        status: shipmentsTable.status,
+      })
+      .from(shipmentsTable)
+      .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo)));
+
+    type CityBucket = {
+      city: string;
+      total: number;
+      inTransit: number;   // قيد التوصيل
+      delivered: number;   // تم التسليم
+      delayed: number;     // متأخرة
+      problem: number;     // مرتجعة/ملغية (بها مشكلة)
+    };
+
+    const byCity = new Map<string, CityBucket>();
+    for (const r of rows) {
+      const cityName = (r.city ?? "").trim();
+      if (!cityName) continue; // نتجاهل الشحنات من غير محافظة محددة
+
+      const status = normalize(r.status);
+      if (!byCity.has(cityName)) {
+        byCity.set(cityName, { city: cityName, total: 0, inTransit: 0, delivered: 0, delayed: 0, problem: 0 });
+      }
+      const bucket = byCity.get(cityName)!;
+      bucket.total++;
+      if (status === "in_shipping" || status === "warehouse_ready") bucket.inTransit++;
+      else if (status === "received") bucket.delivered++;
+      else if (status === "delayed") bucket.delayed++;
+      else if (status === "returned") bucket.problem++;
+    }
+
+    const cities = Array.from(byCity.values()).sort((a, b) => b.total - a.total);
+
+    const result = {
+      cities,
+      totalActiveCities: cities.length,
+      generatedAt: new Date().toISOString(),
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

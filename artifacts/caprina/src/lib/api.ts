@@ -583,6 +583,20 @@ export interface PerformanceMetricsResponse {
   generatedAt: string;
 }
 
+export interface CityActivityItem {
+  city: string;
+  total: number;
+  inTransit: number;
+  delivered: number;
+  delayed: number;
+  problem: number;
+}
+export interface CityActivityResponse {
+  cities: CityActivityItem[];
+  totalActiveCities: number;
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -613,6 +627,7 @@ export const analyticsApi = {
   shipmentCharts: () => apiFetch<ShipmentChartsData>("/analytics/shipment-charts"),
   operationsKpis: () => apiFetch<OperationsKpisResponse>("/analytics/operations-kpis"),
   performanceMetrics: () => apiFetch<PerformanceMetricsResponse>("/analytics/performance-metrics"),
+  cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
 };
 
 export interface BatchCreateOrderBody {
