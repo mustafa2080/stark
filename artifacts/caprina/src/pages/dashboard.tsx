@@ -17,7 +17,7 @@ import {
 import {
   analyticsApi, type PeriodProfit, type ProductProfit,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
-  employeeApi, usersApi, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
+  employeeApi, usersApi, type OperationsKpiCard, type PerformanceMetric, type OpsAlertsResponse, type OpsAlert,
   type ShipmentsProfitResponse, type TopPerformersResponse, type OperationsCenterResponse,
   type RecentEventsResponse, type RecentEvent, shipmentsApi, type ShipmentsListResponse,
 } from "@/lib/api";
@@ -314,138 +314,6 @@ function PerformanceMetricsCompact() {
               <RadialMetricGauge key={metric.key} metric={metric} compact />
             ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── الخريطة الرمزية (توزيع الشحنات على المحافظات) ──────────────────────────────
-// إحداثيات تقريبية (0-100) لموقع كل محافظة على خريطة SVG مبسطة لمصر — رمزية
-// وليست جغرافية دقيقة، مرتبة نسبيًا (شمال/جنوب، شرق/غرب) لتعطي إحساسًا صحيحًا بالموقع.
-const GOVERNORATE_COORDS: Record<string, { x: number; y: number }> = {
-  "الإسكندرية":     { x: 28, y: 10 },
-  "مطروح":          { x: 14, y: 14 },
-  "البحيرة":        { x: 32, y: 18 },
-  "كفر الشيخ":      { x: 42, y: 14 },
-  "دمياط":          { x: 52, y: 12 },
-  "بورسعيد":        { x: 60, y: 14 },
-  "الإسماعيلية":    { x: 58, y: 22 },
-  "السويس":         { x: 60, y: 28 },
-  "شمال سيناء":     { x: 74, y: 16 },
-  "جنوب سيناء":     { x: 72, y: 34 },
-  "القليوبية":      { x: 44, y: 24 },
-  "الغربية":        { x: 40, y: 20 },
-  "المنوفية":       { x: 38, y: 22 },
-  "الشرقية":        { x: 50, y: 22 },
-  "القاهرة":        { x: 46, y: 28 },
-  "الجيزة":         { x: 40, y: 30 },
-  "الفيوم":         { x: 36, y: 36 },
-  "بني سويف":       { x: 40, y: 42 },
-  "المنيا":         { x: 38, y: 50 },
-  "أسيوط":          { x: 40, y: 58 },
-  "الوادي الجديد":  { x: 20, y: 60 },
-  "سوهاج":          { x: 42, y: 66 },
-  "قنا":            { x: 44, y: 74 },
-  "الأقصر":         { x: 46, y: 82 },
-  "أسوان":          { x: 46, y: 90 },
-  "البحر الأحمر":   { x: 62, y: 60 },
-};
-
-const CITY_STATUS_COLOR = { inTransit: "#3b82f6", delivered: "#10b981", delayed: "#ef4444", problem: "#f59e0b" } as const;
-
-function EgyptActivityMap() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["analytics-city-activity"],
-    queryFn: analyticsApi.cityActivity,
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-    refetchInterval: 5 * 60_000,
-    placeholderData: (prev: CityActivityResponse | undefined) => prev,
-  });
-  const [selectedCity, setSelectedCity] = useState<string | null>(null);
-
-  if (isLoading && !data) {
-    return (
-      <Card className="border-border bg-card overflow-hidden">
-        <CardContent className="p-3 sm:p-4">
-          <div className="h-64 sm:h-80 bg-muted/30 rounded-lg animate-pulse" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data || data.cities.length === 0) {
-    return (
-      <Card className="border-border bg-card overflow-hidden">
-        <CardContent className="p-4 sm:p-6 text-center text-xs sm:text-sm text-muted-foreground">
-          مفيش نشاط شحنات مسجل بمحافظة محددة خلال آخر 30 يوم
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const maxTotal = Math.max(...data.cities.map(c => c.total), 1);
-  const selected = selectedCity ? data.cities.find(c => c.city === selectedCity) : null;
-
-  return (
-    <Card className="border-border bg-card overflow-hidden h-full">
-      <CardContent className="p-3 sm:p-4">
-        <div className="flex items-center justify-between mb-2 sm:mb-3">
-          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">الخريطة المباشرة</h2>
-          <span className="text-[9px] sm:text-[10px] text-muted-foreground">{data.totalActiveCities} محافظة نشطة</span>
-        </div>
-
-        <div className="relative w-full aspect-[4/5] sm:aspect-[3/4] max-h-80 sm:max-h-96 mx-auto">
-          <svg viewBox="0 0 100 100" className="w-full h-full">
-            {/* مربع خلفية رمزي يمثل حدود مصر تقريبًا */}
-            <rect x="10" y="8" width="70" height="86" rx="3" className="fill-muted/20 stroke-border" strokeWidth="0.4" />
-            {data.cities.map((c) => {
-              const coord = GOVERNORATE_COORDS[c.city];
-              if (!coord) return null;
-              const radius = 1.6 + (c.total / maxTotal) * 3;
-              const dominant: keyof typeof CITY_STATUS_COLOR =
-                c.problem >= c.delayed && c.problem >= c.inTransit && c.problem >= c.delivered ? "problem"
-                : c.delayed >= c.inTransit && c.delayed >= c.delivered ? "delayed"
-                : c.inTransit >= c.delivered ? "inTransit"
-                : "delivered";
-              const isSelected = selectedCity === c.city;
-              return (
-                <g key={c.city} onClick={() => setSelectedCity(isSelected ? null : c.city)} className="cursor-pointer">
-                  {isSelected && (
-                    <circle cx={coord.x} cy={coord.y} r={radius + 2} fill="none" stroke={CITY_STATUS_COLOR[dominant]} strokeWidth="0.5" opacity="0.5" />
-                  )}
-                  <circle cx={coord.x} cy={coord.y} r={radius} fill={CITY_STATUS_COLOR[dominant]} opacity={isSelected ? 1 : 0.85} />
-                  <title>{c.city}: {c.total} شحنة</title>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-2 sm:mt-3 text-[8px] sm:text-[10px]">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: CITY_STATUS_COLOR.delivered }} />تسليم</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: CITY_STATUS_COLOR.inTransit }} />قيد التوصيل</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: CITY_STATUS_COLOR.delayed }} />متأخر</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: CITY_STATUS_COLOR.problem }} />مشكلة</span>
-        </div>
-
-        {/* تفاصيل المحافظة المختارة */}
-        {selected && (
-          <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-muted/30 border border-border">
-            <p className="text-[10px] sm:text-xs font-bold mb-1.5">{selected.city} — {fn(selected.total)} شحنة</p>
-            <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
-              <div><p className="text-[9px] sm:text-[11px] font-black" style={{ color: CITY_STATUS_COLOR.delivered }}>{selected.delivered}</p><p className="text-[7px] sm:text-[9px] text-muted-foreground">تسليم</p></div>
-              <div><p className="text-[9px] sm:text-[11px] font-black" style={{ color: CITY_STATUS_COLOR.inTransit }}>{selected.inTransit}</p><p className="text-[7px] sm:text-[9px] text-muted-foreground">توصيل</p></div>
-              <div><p className="text-[9px] sm:text-[11px] font-black" style={{ color: CITY_STATUS_COLOR.delayed }}>{selected.delayed}</p><p className="text-[7px] sm:text-[9px] text-muted-foreground">تأخير</p></div>
-              <div><p className="text-[9px] sm:text-[11px] font-black" style={{ color: CITY_STATUS_COLOR.problem }}>{selected.problem}</p><p className="text-[7px] sm:text-[9px] text-muted-foreground">مشكلة</p></div>
-            </div>
-          </div>
-        )}
-
-        {!selected && (
-          <p className="text-center text-[8px] sm:text-[9px] text-muted-foreground mt-2">اضغط على أي نقطة لعرض تفاصيل المحافظة</p>
         )}
       </CardContent>
     </Card>
@@ -1838,21 +1706,48 @@ export default function Dashboard() {
       {/* === Operations KPI Cards === */}
       <OperationsKpiRow />
 
-      {/* === الخريطة + مؤشرات الأداء (مصغّرة) + الذكاء الاصطناعي — صف واحد === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
-        <div className="lg:col-span-1">
-          <EgyptActivityMap />
-        </div>
-        <div className="lg:col-span-1">
+      {/* === مؤشرات الأداء (مصغّرة) + الذكاء الاصطناعي — صف واحد === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-stretch">
+        <div>
           <PerformanceMetricsCompact />
         </div>
-        <div className="lg:col-span-1">
+        <div>
           <OpsSmartAlertsPanel />
         </div>
       </div>
 
       {/* === سايدبار (نظرة سريعة) === */}
       <OpsSidebarCards />
+
+      {/* === ملخص الأرباح + اتجاه الإيرادات والأرباح === */}
+      {canViewFinancials && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
+          <ShipmentsProfitDonut />
+          <ShipmentsRevenueTrendChart />
+        </div>
+      )}
+
+      {/* === أفضل العملاء + أفضل المندوبين === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
+        <TopClientsCard />
+        <TopRepsCard />
+      </div>
+
+      {/* === توزيع الشحنات حسب الحالة + آخر التنبيهات + آخر الشحنات === */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 px-3 sm:px-0">
+        <ShipmentsStatusOpsDonut data={shipmentsStatus} />
+        <RecentEventsCard />
+        <RecentShipmentsTable />
+      </div>
+
+      {/* === جدول المندوبين اليوم === */}
+      <div className="px-3 sm:px-0">
+        <RepsTodayTable />
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+          الأقسام الإضافية (بانرات وتحذيرات مالية) — تحت الأقسام الرئيسية
+         ══════════════════════════════════════════════════════════════ */}
 
       {/* === تحذير متابعة الشحن === */}
       {shippingFollowup.length > 0 && (() => {
@@ -2059,32 +1954,6 @@ export default function Dashboard() {
           ) : null}
         </div>
       )}
-
-      {/* === ملخص الأرباح + اتجاه الإيرادات والأرباح === */}
-      {canViewFinancials && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
-          <ShipmentsProfitDonut />
-          <ShipmentsRevenueTrendChart />
-        </div>
-      )}
-
-      {/* === أفضل العملاء + أفضل المندوبين === */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
-        <TopClientsCard />
-        <TopRepsCard />
-      </div>
-
-      {/* === توزيع الشحنات حسب الحالة + آخر التنبيهات + آخر الشحنات === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 px-3 sm:px-0">
-        <ShipmentsStatusOpsDonut data={shipmentsStatus} />
-        <RecentEventsCard />
-        <RecentShipmentsTable />
-      </div>
-
-      {/* === جدول المندوبين اليوم === */}
-      <div className="px-3 sm:px-0">
-        <RepsTodayTable />
-      </div>
 
       {/* === PWA INSTALL BANNER === */}
       <PwaInstallBanner />
