@@ -167,6 +167,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
 
 // ─── Lazy-loaded pages (loaded only when navigated to) ───────────────────────
 const Dashboard             = lazy(() => import("@/pages/dashboard"));
+const OperationsCenterPage  = lazy(() => import("@/pages/operations-center"));
 const ShipmentsPage         = lazy(() => import("@/pages/shipments-page"));
 const NewShipmentPage       = lazy(() => import("@/pages/new-shipment"));
 const ShipmentDetailPage    = lazy(() => import("@/pages/shipment-detail"));
@@ -512,6 +513,7 @@ function Router() {
           <Route path="/client-profile"           component={ClientProfilePage} />
           <Route path="/representative"           component={RepresentativePage} />
           <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
+          <Route path="/operations"               component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
           <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/orders"                   component={() => <ProtectedRoute permission="orders.view" component={ShipmentsPage} />} />
           <Route path="/shipments/new"            component={() => <ProtectedRoute permission="orders.create" component={NewShipmentPage} />} />

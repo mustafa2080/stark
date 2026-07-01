@@ -2779,6 +2779,186 @@ router.get("/analytics/ops-alerts", requireAuth, async (req, res): Promise<void>
   }
 });
 
+// ─── GET /analytics/operations-center ────────────────────────────────────────
+// صفحة "مركز العمليات": نفس منطق ops-alerts لكن برجّع القوائم التفصيلية الكاملة
+// (شحنة بشحنة، مندوب بمندوب، عميل بعميل) بدل الأرقام الملخصة فقط.
+router.get("/analytics/operations-center", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `ops-center:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const now = new Date();
+    const todayStart = new Date(now.toDateString());
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [rows, users] = await Promise.all([
+      db.select({
+          id: shipmentsTable.id,
+          trackingNumber: shipmentsTable.trackingNumber,
+          status: shipmentsTable.status,
+          createdAt: shipmentsTable.createdAt,
+          updatedAt: shipmentsTable.updatedAt,
+          receiverCity: shipmentsTable.receiverCity,
+          receiverName: shipmentsTable.receiverName,
+          receiverPhone: shipmentsTable.receiverPhone,
+          senderName: shipmentsTable.senderName,
+          clientId: shipmentsTable.clientId,
+          assignedUserId: shipmentsTable.assignedUserId,
+          totalAmount: shipmentsTable.totalAmount,
+        })
+        .from(shipmentsTable)
+        .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
+      tenantId !== null
+        ? db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+        : db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
+            .from(usersTable).where(eq(usersTable.role, "representative")),
+    ]);
+
+    type OpsRow = typeof rows[number];
+
+    // ─── شحنات متأخرة (تفصيلي) ──────────────────────────────────────────────
+    const hoursSince = (d: Date) => Math.round((now.getTime() - new Date(d).getTime()) / (1000 * 60 * 60));
+    const delayedShipments = rows
+      .filter((r: OpsRow) => normalize(r.status) === "delayed")
+      .sort((a: OpsRow, b: OpsRow) => new Date(a.updatedAt ?? a.createdAt).getTime() - new Date(b.updatedAt ?? b.createdAt).getTime())
+      .slice(0, 30)
+      .map((r: OpsRow) => ({
+        id: r.id,
+        trackingNumber: r.trackingNumber,
+        receiverName: r.receiverName,
+        receiverPhone: r.receiverPhone,
+        receiverCity: r.receiverCity,
+        senderName: r.senderName,
+        delayedHours: hoursSince(r.updatedAt ?? r.createdAt),
+        totalAmount: r.totalAmount,
+      }));
+
+    // ─── شحنات بها مشكلة (مرتجعة) ────────────────────────────────────────────
+    const problemShipments = rows
+      .filter((r: OpsRow) => normalize(r.status) === "returned")
+      .sort((a: OpsRow, b: OpsRow) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime())
+      .slice(0, 30)
+      .map((r: OpsRow) => ({
+        id: r.id,
+        trackingNumber: r.trackingNumber,
+        receiverName: r.receiverName,
+        receiverPhone: r.receiverPhone,
+        receiverCity: r.receiverCity,
+        senderName: r.senderName,
+        totalAmount: r.totalAmount,
+      }));
+
+    // ─── شحنات خارجة اليوم ──────────────────────────────────────────────────
+    const outToday = rows
+      .filter((r: OpsRow) => {
+        const st = normalize(r.status);
+        return (st === "in_shipping" || st === "warehouse_ready") && new Date(r.createdAt) >= todayStart;
+      })
+      .sort((a: OpsRow, b: OpsRow) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 30)
+      .map((r: OpsRow) => ({
+        id: r.id,
+        trackingNumber: r.trackingNumber,
+        receiverName: r.receiverName,
+        receiverCity: r.receiverCity,
+        status: normalize(r.status),
+        assignedUserId: r.assignedUserId,
+        totalAmount: r.totalAmount,
+      }));
+
+    // ─── المندوبين (تفصيلي: متصل الآن + إحصائياته آخر 30 يوم) ────────────────
+    const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    const repIds = users.map((u: typeof users[number]) => u.id);
+    const openSessions = repIds.length > 0
+      ? await db.select({ userId: sessionLogsTable.userId, loginAt: sessionLogsTable.loginAt })
+          .from(sessionLogsTable)
+          .where(and(
+            isNull(sessionLogsTable.logoutAt),
+            gte(sessionLogsTable.loginAt, twelveHoursAgo),
+            inArray(sessionLogsTable.userId, repIds),
+          ))
+      : [];
+    const onlineRepMap = new Map(openSessions.map((s: typeof openSessions[number]) => [s.userId, s.loginAt]));
+
+    const representatives = users.map((u: typeof users[number]) => {
+      const repShipments = rows.filter((r: OpsRow) => r.assignedUserId === u.id);
+      const delivered = repShipments.filter((r: OpsRow) => normalize(r.status) === "received").length;
+      const active = repShipments.filter((r: OpsRow) => ["in_shipping", "warehouse_ready", "pending"].includes(normalize(r.status))).length;
+      const isOnline = onlineRepMap.has(u.id);
+      return {
+        id: u.id,
+        displayName: u.displayName,
+        isOnline,
+        onlineSince: isOnline ? onlineRepMap.get(u.id) : null,
+        totalShipments: repShipments.length,
+        deliveredShipments: delivered,
+        activeShipments: active,
+        successRate: repShipments.length > 0 ? Math.round((delivered / repShipments.length) * 100) : 0,
+      };
+    }).sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0) || b.activeShipments - a.activeShipments);
+
+    // ─── عملاء يحتاجون متابعة (تفصيلي) ───────────────────────────────────────
+    const clientIssues = new Map<string, { count: number; lastIssueAt: Date; shipmentIds: number[] }>();
+    for (const r of rows) {
+      const status = normalize(r.status);
+      if (status !== "returned" && status !== "delayed") continue;
+      const key = r.senderName?.trim();
+      if (!key) continue;
+      const entry = clientIssues.get(key) ?? { count: 0, lastIssueAt: new Date(0), shipmentIds: [] };
+      entry.count++;
+      entry.shipmentIds.push(r.id);
+      const issueDate = new Date(r.updatedAt ?? r.createdAt);
+      if (issueDate > entry.lastIssueAt) entry.lastIssueAt = issueDate;
+      clientIssues.set(key, entry);
+    }
+    const clientsNeedingFollowup = Array.from(clientIssues.entries())
+      .filter(([, v]) => v.count >= 2)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 20)
+      .map(([name, v]) => ({
+        clientName: name,
+        issueCount: v.count,
+        lastIssueAt: v.lastIssueAt.toISOString(),
+        shipmentIds: v.shipmentIds.slice(0, 5),
+      }));
+
+    const result = {
+      summary: {
+        delayedCount: delayedShipments.length,
+        problemCount: problemShipments.length,
+        outTodayCount: outToday.length,
+        onlineRepsCount: representatives.filter(r => r.isOnline).length,
+        totalRepsCount: representatives.length,
+        followupCount: clientsNeedingFollowup.length,
+      },
+      delayedShipments,
+      problemShipments,
+      outToday,
+      representatives,
+      clientsNeedingFollowup,
+      generatedAt: now.toISOString(),
+    };
+
+    setCached(cacheKey, result, 2 * 60 * 1000); // cache دقيقتين — بيانات حساسة تشغيليًا
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /analytics/shipments-profit ─────────────────────────────────────────
 // لوحة العمليات: ملخص الأرباح (donut) + اتجاه الإيرادات والأرباح اليومي (line chart).
 // مبني بالكامل على shipmentsTable (وليس ordersTable) — الإيرادات = المبلغ المحصَّل

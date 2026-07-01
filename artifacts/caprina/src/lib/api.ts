@@ -616,6 +616,68 @@ export interface OpsAlertsResponse {
   generatedAt: string;
 }
 
+// ─── مركز العمليات (تفصيلي) ──────────────────────────────────────────────────
+export interface OpsDelayedShipment {
+  id: number;
+  trackingNumber: string | null;
+  receiverName: string;
+  receiverPhone: string | null;
+  receiverCity: string | null;
+  senderName: string;
+  delayedHours: number;
+  totalAmount: string | null;
+}
+export interface OpsProblemShipment {
+  id: number;
+  trackingNumber: string | null;
+  receiverName: string;
+  receiverPhone: string | null;
+  receiverCity: string | null;
+  senderName: string;
+  totalAmount: string | null;
+}
+export interface OpsOutTodayShipment {
+  id: number;
+  trackingNumber: string | null;
+  receiverName: string;
+  receiverCity: string | null;
+  status: string;
+  assignedUserId: number | null;
+  totalAmount: string | null;
+}
+export interface OpsRepresentative {
+  id: number;
+  displayName: string;
+  isOnline: boolean;
+  onlineSince: string | null;
+  totalShipments: number;
+  deliveredShipments: number;
+  activeShipments: number;
+  successRate: number;
+}
+export interface OpsClientFollowup {
+  clientName: string;
+  issueCount: number;
+  lastIssueAt: string;
+  shipmentIds: number[];
+}
+export interface OperationsCenterResponse {
+  summary: {
+    delayedCount: number;
+    problemCount: number;
+    outTodayCount: number;
+    onlineRepsCount: number;
+    totalRepsCount: number;
+    followupCount: number;
+  };
+  delayedShipments: OpsDelayedShipment[];
+  problemShipments: OpsProblemShipment[];
+  outToday: OpsOutTodayShipment[];
+  representatives: OpsRepresentative[];
+  clientsNeedingFollowup: OpsClientFollowup[];
+  generatedAt: string;
+}
+
 export interface ShipmentsProfitPeriod {
   orders: number;
   revenue: number;
@@ -708,6 +770,7 @@ export const analyticsApi = {
   performanceMetrics: () => apiFetch<PerformanceMetricsResponse>("/analytics/performance-metrics"),
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
+  operationsCenter: () => apiFetch<OperationsCenterResponse>("/analytics/operations-center"),
   shipmentsProfit: () => apiFetch<ShipmentsProfitResponse>("/analytics/shipments-profit"),
   topPerformers: () => apiFetch<TopPerformersResponse>("/analytics/top-performers"),
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),

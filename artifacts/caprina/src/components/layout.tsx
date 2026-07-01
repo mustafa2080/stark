@@ -32,6 +32,7 @@ interface LayoutProps {
 const ALL_NAV = [
   { href: "/my-dashboard",      label: "لوحتي",              icon: LayoutDashboard, exact: true, permission: null, section: null, employeeOnly: true,  iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/",                  label: "لوحة التحكم",        icon: LayoutDashboard, exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-blue-400",       group: "dashboard"    },
+  { href: "/operations",        label: "مركز العمليات",      icon: Activity,        exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-red-400",        group: "dashboard"    },
   { href: "/shipments",         label: "المناطق",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "inventory"    },
   { href: "/finance/clients",   label: "العملاء التجاريون",   icon: UserCheck,                   permission: "finance.view",            section: "section_dashboard",          iconColor: "text-cyan-400",       group: "clients_business" },
   { href: "/orders",            label: "الشحنات",             icon: Package,                     permission: "orders.view",             section: "section_orders",             iconColor: "text-orange-400",     group: "orders"       },
