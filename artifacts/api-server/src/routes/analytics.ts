@@ -1,6 +1,6 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable } from "@workspace/db";
-import { eq, isNull, and, desc, lte, gte, sql, inArray, count } from "drizzle-orm";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable } from "@workspace/db";
+import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { getTenantId } from "../middlewares/requireTenant.js";
@@ -2604,6 +2604,175 @@ router.get("/analytics/city-activity", requireAuth, async (req, res): Promise<vo
     };
 
     setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /analytics/ops-alerts ────────────────────────────────────────────────
+// لوحة العمليات: تنبيهات ذكية (AI) عن أنماط تشغيلية حقيقية + أرقام السايدبار
+// الخمسة (شحنات متأخرة، بها مشكلة، خارجة اليوم، مندوبين متصلين، عملاء يحتاجون متابعة).
+router.get("/analytics/ops-alerts", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `ops-alerts:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const now = new Date();
+    const todayStart = new Date(now.toDateString());
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [rows, users] = await Promise.all([
+      db.select({
+          id: shipmentsTable.id,
+          status: shipmentsTable.status,
+          createdAt: shipmentsTable.createdAt,
+          receiverCity: shipmentsTable.receiverCity,
+          senderName: shipmentsTable.senderName,
+          clientId: shipmentsTable.clientId,
+          assignedUserId: shipmentsTable.assignedUserId,
+        })
+        .from(shipmentsTable)
+        .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
+      tenantId !== null
+        ? db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+        : db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
+            .from(usersTable).where(eq(usersTable.role, "representative")),
+    ]);
+
+    // ─── أرقام السايدبار ────────────────────────────────────────────────────
+    type OpsRow = typeof rows[number];
+    const delayedShipments = rows.filter((r: OpsRow) => normalize(r.status) === "delayed");
+    const problemShipments = rows.filter((r: OpsRow) => normalize(r.status) === "returned");
+    const outToday = rows.filter((r: OpsRow) => {
+      const st = normalize(r.status);
+      return (st === "in_shipping" || st === "warehouse_ready") && new Date(r.createdAt) >= todayStart;
+    });
+
+    // مندوبين متصلين الآن: جلسة مفتوحة (logoutAt IS NULL) بدأت خلال آخر 12 ساعة
+    // (استبعاد جلسات قديمة اتنسيت من غير logout صريح)
+    const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    const repIds = users.map((u: typeof users[number]) => u.id);
+    const openSessions = repIds.length > 0
+      ? await db.select({ userId: sessionLogsTable.userId })
+          .from(sessionLogsTable)
+          .where(and(
+            isNull(sessionLogsTable.logoutAt),
+            gte(sessionLogsTable.loginAt, twelveHoursAgo),
+            inArray(sessionLogsTable.userId, repIds),
+          ))
+      : [];
+    const onlineRepIds = new Set(openSessions.map((s: typeof openSessions[number]) => s.userId));
+
+    // عملاء يحتاجون متابعة: عميل (بالاسم) عنده شحنتين+ مرتجعة/متأخرة خلال آخر 30 يوم
+    const clientIssueCount = new Map<string, number>();
+    for (const r of rows) {
+      const status = normalize(r.status);
+      if (status !== "returned" && status !== "delayed") continue;
+      const key = r.senderName?.trim();
+      if (!key) continue;
+      clientIssueCount.set(key, (clientIssueCount.get(key) ?? 0) + 1);
+    }
+    const clientsNeedingFollowup = Array.from(clientIssueCount.entries()).filter(([, n]) => n >= 2);
+
+    // ─── التنبيهات الذكية ───────────────────────────────────────────────────
+    type SmartAlert = { id: string; type: "warning" | "info" | "critical" | "opportunity"; title: string; detail: string };
+    const alerts: SmartAlert[] = [];
+
+    // 1) منطقة بتأخير عالي (نسبة delayed لكل مدينة، لو ≥3 شحنات وأعلى من 20%)
+    const cityTotals = new Map<string, { total: number; delayed: number }>();
+    for (const r of rows) {
+      const city = r.receiverCity?.trim();
+      if (!city) continue;
+      if (!cityTotals.has(city)) cityTotals.set(city, { total: 0, delayed: 0 });
+      const b = cityTotals.get(city)!;
+      b.total++;
+      if (normalize(r.status) === "delayed") b.delayed++;
+    }
+    let worstCity: { city: string; rate: number; total: number } | null = null;
+    for (const [city, b] of cityTotals) {
+      if (b.total < 3) continue;
+      const rate = (b.delayed / b.total) * 100;
+      if (rate > 20 && (!worstCity || rate > worstCity.rate)) worstCity = { city, rate: Math.round(rate), total: b.total };
+    }
+    if (worstCity) {
+      alerts.push({
+        id: "high-delay-city",
+        type: "warning",
+        title: `منطقة ${worstCity.city} تأخيرًا عاليًا`,
+        detail: `نسبة التأخير ارتفعت إلى ${worstCity.rate}% من إجمالي ${worstCity.total} شحنة للمعتاد`,
+      });
+    }
+
+    // 2) أفضل مدينة (أعلى نسبة تسليم ناجح، لو ≥5 شحنات)
+    let bestCity: { city: string; rate: number; total: number } | null = null;
+    for (const [city, b] of cityTotals) {
+      if (b.total < 5) continue;
+      const delivered = rows.filter((r: OpsRow) => r.receiverCity?.trim() === city && normalize(r.status) === "received").length;
+      const rate = (delivered / b.total) * 100;
+      if (rate >= 90 && (!bestCity || rate > bestCity.rate)) bestCity = { city, rate: Math.round(rate), total: b.total };
+    }
+    if (bestCity) {
+      alerts.push({
+        id: "best-performing-city",
+        type: "info",
+        title: `منطقة ${bestCity.city} أفضل أداء هذا الأسبوع`,
+        detail: `نسبة نجاح ${bestCity.rate}% في ${bestCity.total} شحنة`,
+      });
+    }
+
+    // 3) عملاء يحتاجون متابعة (تنبيه critical لو فيه عملاء بمشاكل متكررة)
+    if (clientsNeedingFollowup.length > 0) {
+      const [topClient, topCount] = clientsNeedingFollowup.sort((a, b) => b[1] - a[1])[0];
+      alerts.push({
+        id: "client-repeated-issues",
+        type: "critical",
+        title: `العميل ${topClient} شحنات مرتجعة متكررة`,
+        detail: `${topCount} شحنات متأخرة/مرتجعة خلال آخر 30 يوم، يوصى بمتابعة جودة الشحن`,
+      });
+    }
+
+    // 4) فرصة نمو (منطقة نشطة بحجم شحنات مرتفع نسبيًا وبدون مشاكل تُذكر)
+    const growthCandidates = Array.from(cityTotals.entries())
+      .filter(([, b]) => b.total >= 8 && b.delayed / b.total < 0.1)
+      .sort((a, b) => b[1].total - a[1].total);
+    if (growthCandidates.length > 0) {
+      const [city, b] = growthCandidates[0];
+      alerts.push({
+        id: "growth-opportunity",
+        type: "opportunity",
+        title: `منطقة ${city} فرصة نمو ممتازة`,
+        detail: `${b.total} شحنة بأداء مستقر هذا الشهر، فرصة للتوسع في المنطقة`,
+      });
+    }
+
+    const result = {
+      sidebar: {
+        delayedShipments: delayedShipments.length,
+        problemShipments: problemShipments.length,
+        outToday: outToday.length,
+        activeRepresentatives: onlineRepIds.size,
+        totalRepresentatives: users.length,
+        clientsNeedingFollowup: clientsNeedingFollowup.length,
+      },
+      alerts,
+      generatedAt: now.toISOString(),
+    };
+
+    setCached(cacheKey, result, 3 * 60 * 1000); // cache 3 دقائق
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

@@ -17,7 +17,7 @@ import {
 import {
   analyticsApi, type PeriodProfit, type ProductProfit, type FinancialSummary, type Alert,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
-  employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse,
+  employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
@@ -431,6 +431,124 @@ function EgyptActivityMap() {
 
         {!selected && (
           <p className="text-center text-[8px] sm:text-[9px] text-muted-foreground mt-2">اضغط على أي نقطة لعرض تفاصيل المحافظة</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── سايدبار العمليات (شحنات متأخرة/بها مشكلة/خارجة اليوم/مندوبين/متابعة) ────────
+function useOpsAlerts() {
+  return useQuery({
+    queryKey: ["analytics-ops-alerts"],
+    queryFn: analyticsApi.opsAlerts,
+    staleTime: 2 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 3 * 60_000,
+    placeholderData: (prev: OpsAlertsResponse | undefined) => prev,
+  });
+}
+
+function OpsSidebarCards() {
+  const { data, isLoading } = useOpsAlerts();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card">
+        <CardContent className="p-3 sm:p-4 space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-10 bg-muted/40 rounded-lg animate-pulse" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  const items = [
+    { icon: Clock, label: "شحنات متأخرة", value: data.sidebar.delayedShipments, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950/30" },
+    { icon: AlertTriangle, label: "شحنات بها مشكلة", value: data.sidebar.problemShipments, color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30" },
+    { icon: Truck, label: "شحنات خارجة اليوم", value: data.sidebar.outToday, color: "text-sky-600 dark:text-sky-400", bg: "bg-sky-50 dark:bg-sky-950/30" },
+    { icon: Users, label: "مندوبين متصلين الآن", value: data.sidebar.activeRepresentatives, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/30", sub: `من ${data.sidebar.totalRepresentatives}` },
+    { icon: AlertCircle, label: "عملاء يحتاجون متابعة", value: data.sidebar.clientsNeedingFollowup, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/30" },
+  ];
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <h2 className="text-xs sm:text-sm font-bold text-muted-foreground mb-2 sm:mb-3">نظرة سريعة</h2>
+        <div className="space-y-1.5 sm:space-y-2">
+          {items.map((it) => (
+            <div key={it.label} className={`flex items-center justify-between gap-2 rounded-lg p-2 sm:p-2.5 ${it.bg}`}>
+              <div className="flex items-center gap-2 min-w-0">
+                <it.icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${it.color}`} />
+                <span className="text-[10px] sm:text-xs font-medium text-foreground truncate">{it.label}</span>
+              </div>
+              <div className="text-left shrink-0">
+                <span className={`text-sm sm:text-base font-black ${it.color}`}>{it.value}</span>
+                {it.sub && <span className="text-[8px] sm:text-[9px] text-muted-foreground block">{it.sub}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── قسم الذكاء الاصطناعي (تنبيهات تشغيلية ذكية) ────────────────────────────────
+const OPS_ALERT_STYLE: Record<OpsAlert["type"], { icon: any; color: string; bg: string; label: string }> = {
+  critical:    { icon: AlertOctagon,   color: "text-red-600 dark:text-red-400",     bg: "bg-red-50 dark:bg-red-950/30",     label: "تحذير" },
+  warning:     { icon: AlertTriangle,  color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30", label: "تنبيه" },
+  info:        { icon: Zap,            color: "text-sky-600 dark:text-sky-400",     bg: "bg-sky-50 dark:bg-sky-950/30",     label: "ملحوظة" },
+  opportunity: { icon: TrendingUp,     color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/30", label: "فرصة" },
+};
+
+function OpsSmartAlertsPanel() {
+  const { data, isLoading } = useOpsAlerts();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card">
+        <CardContent className="p-3 sm:p-4 space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-14 bg-muted/40 rounded-lg animate-pulse" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+          <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">الذكاء الاصطناعي</h2>
+        </div>
+        {data.alerts.length === 0 ? (
+          <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-4">
+            مفيش تنبيهات لافتة حاليًا — الأداء ضمن المعدل الطبيعي
+          </p>
+        ) : (
+          <div className="space-y-1.5 sm:space-y-2">
+            {data.alerts.map((alert) => {
+              const style = OPS_ALERT_STYLE[alert.type];
+              return (
+                <div key={alert.id} className={`flex items-start gap-2 sm:gap-2.5 rounded-lg p-2 sm:p-2.5 ${style.bg}`}>
+                  <style.icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 mt-0.5 ${style.color}`} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[8px] sm:text-[9px] font-bold ${style.color}`}>{style.label}</span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold text-foreground leading-tight mt-0.5">{alert.title}</p>
+                    <p className="text-[9px] sm:text-[11px] text-muted-foreground leading-tight mt-0.5">{alert.detail}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -1197,6 +1315,12 @@ export default function Dashboard() {
       {/* === Performance Metrics (6 دوائر) === */}
       <PerformanceMetricsRow />
       <EgyptActivityMap />
+
+      {/* === سايدبار (نظرة سريعة) + الذكاء الاصطناعي === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+        <OpsSidebarCards />
+        <OpsSmartAlertsPanel />
+      </div>
 
       {/* === تحذير متابعة الشحن === */}
       {shippingFollowup.length > 0 && (() => {

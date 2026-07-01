@@ -597,6 +597,25 @@ export interface CityActivityResponse {
   generatedAt: string;
 }
 
+export interface OpsAlert {
+  id: string;
+  type: "warning" | "info" | "critical" | "opportunity";
+  title: string;
+  detail: string;
+}
+export interface OpsAlertsResponse {
+  sidebar: {
+    delayedShipments: number;
+    problemShipments: number;
+    outToday: number;
+    activeRepresentatives: number;
+    totalRepresentatives: number;
+    clientsNeedingFollowup: number;
+  };
+  alerts: OpsAlert[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -628,6 +647,7 @@ export const analyticsApi = {
   operationsKpis: () => apiFetch<OperationsKpisResponse>("/analytics/operations-kpis"),
   performanceMetrics: () => apiFetch<PerformanceMetricsResponse>("/analytics/performance-metrics"),
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
+  opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
 };
 
 export interface BatchCreateOrderBody {
