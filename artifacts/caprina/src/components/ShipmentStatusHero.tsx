@@ -36,7 +36,7 @@ const STATUS_GROUP_MAP: Record<string, StatusGroup> = {
 };
 
 const GROUP_META: Record<StatusGroup, { title: string; subtitle: string; accent: string; accent2: string; glow: string }> = {
-  pending:   { title: "قيد الانتظار",      subtitle: "طلبك تم استلامه وفي انتظار التجهيز",       accent: "#facc15", accent2: "#fde68a", glow: "rgba(250,204,21,0.35)" },
+  pending:   { title: "قيد الانتظار",      subtitle: "طلبك حاليا فى انتظار استلامه فى احد مخازنا", accent: "#facc15", accent2: "#fde68a", glow: "rgba(250,204,21,0.35)" },
   warehouse: { title: "في مخزن الشحن",     subtitle: "شحنتك الآن داخل أحد مخازننا للتجهيز",       accent: "#2dd4bf", accent2: "#5eead4", glow: "rgba(45,212,191,0.35)" },
   shipping:  { title: "قيد الشحن",         subtitle: "الشحنة في الطريق إليك الآن",                accent: "#60a5fa", accent2: "#93c5fd", glow: "rgba(96,165,250,0.35)" },
   courier:   { title: "مع مندوب التوصيل",  subtitle: "المندوب في طريقه لتسليم الشحنة",            accent: "#f97316", accent2: "#fdba74", glow: "rgba(249,115,22,0.35)" },
