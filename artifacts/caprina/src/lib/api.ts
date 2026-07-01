@@ -701,6 +701,50 @@ export interface LiveMapResponse {
   generatedAt: string;
 }
 
+// ─── لوحة الأرباح (Financial Dashboard) ───────────────────────────────────────
+export interface FinancialDashboardPeriod {
+  orders: number;
+  revenue: number;
+  cost: number;
+  shippingSpend: number;
+  otherExpenses: number;
+  operatingCost: number;
+  netProfit: number;
+}
+export interface FinancialDashboardRepCost {
+  repId: number;
+  repName: string;
+  orders: number;
+  revenue: number;
+  cost: number;
+  shippingSpend: number;
+  operatingCost: number;
+  netProfit: number;
+}
+export interface FinancialDashboardZoneCost {
+  city: string;
+  orders: number;
+  revenue: number;
+  operatingCost: number;
+  netProfit: number;
+}
+export interface FinancialDashboardClient {
+  name: string;
+  orders: number;
+  revenue: number;
+  netProfit: number;
+}
+export interface FinancialDashboardResponse {
+  today: FinancialDashboardPeriod;
+  month: FinancialDashboardPeriod;
+  last30Days: FinancialDashboardPeriod;
+  repCosts: FinancialDashboardRepCost[];
+  zoneCosts: FinancialDashboardZoneCost[];
+  topClients: FinancialDashboardClient[];
+  bottomClients: FinancialDashboardClient[];
+  generatedAt: string;
+}
+
 export interface ShipmentsProfitPeriod {
   orders: number;
   revenue: number;
@@ -795,6 +839,7 @@ export const analyticsApi = {
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
   operationsCenter: () => apiFetch<OperationsCenterResponse>("/analytics/operations-center"),
   liveMap: () => apiFetch<LiveMapResponse>("/analytics/live-map"),
+  financialDashboard: () => apiFetch<FinancialDashboardResponse>("/analytics/financial-dashboard"),
   shipmentsProfit: () => apiFetch<ShipmentsProfitResponse>("/analytics/shipments-profit"),
   topPerformers: () => apiFetch<TopPerformersResponse>("/analytics/top-performers"),
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),

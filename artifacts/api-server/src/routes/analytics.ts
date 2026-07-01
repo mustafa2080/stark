@@ -3169,6 +3169,149 @@ router.get("/analytics/shipments-profit", requirePermission("orders.financials")
   }
 });
 
+// ─── GET /analytics/financial-dashboard ───────────────────────────────────────
+// لوحة الأرباح: أرباح اليوم/الشهر، تكلفة التشغيل، تكلفة كل مندوب، تكلفة كل منطقة،
+// أعلى وأقل العملاء ربحًا. مبني بالكامل على shipmentsTable (الإيراد = المبلغ المحصَّل
+// فعليًا بعد التسليم). آخر 30 يوم لتكلفة المندوب/المنطقة، وaggregate كامل للعملاء.
+router.get("/analytics/financial-dashboard", requirePermission("orders.financials"), async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `financial-dashboard:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const todayStart = new Date(now.toDateString());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [rows, reps] = await Promise.all([
+      db.select({
+          status: shipmentsTable.status,
+          createdAt: shipmentsTable.createdAt,
+          collectedAmount: shipmentsTable.collectedAmount,
+          totalAmount: shipmentsTable.totalAmount,
+          costPrice: shipmentsTable.costPrice,
+          shippingFee: shipmentsTable.shippingFee,
+          insuranceFee: shipmentsTable.insuranceFee,
+          receiverCity: shipmentsTable.receiverCity,
+          assignedUserId: shipmentsTable.assignedUserId,
+          senderName: shipmentsTable.senderName,
+          clientId: shipmentsTable.clientId,
+        })
+        .from(shipmentsTable)
+        .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
+      tenantId !== null
+        ? db.select({ id: usersTable.id, displayName: usersTable.displayName })
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+        : db.select({ id: usersTable.id, displayName: usersTable.displayName })
+            .from(usersTable).where(eq(usersTable.role, "representative")),
+    ]);
+    const repNameById = new Map(reps.map((u: typeof reps[number]) => [u.id, u.displayName]));
+
+    type Row = typeof rows[number];
+
+    function computePeriod(subset: Row[]) {
+      let revenue = 0, cost = 0, shippingSpend = 0, otherExpenses = 0, orders = 0;
+      for (const r of subset) {
+        if (normalize(r.status) !== "received") continue;
+        orders++;
+        revenue += Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+        cost += Number(r.costPrice ?? 0);
+        shippingSpend += Number(r.shippingFee ?? 0);
+        otherExpenses += Number(r.insuranceFee ?? 0);
+      }
+      const operatingCost = cost + shippingSpend + otherExpenses;
+      const netProfit = revenue - operatingCost;
+      return { orders, revenue: Math.round(revenue), cost: Math.round(cost), shippingSpend: Math.round(shippingSpend), otherExpenses: Math.round(otherExpenses), operatingCost: Math.round(operatingCost), netProfit: Math.round(netProfit) };
+    }
+
+    const todayRows = rows.filter((r: Row) => new Date(r.createdAt) >= todayStart);
+    const monthRows = rows.filter((r: Row) => new Date(r.createdAt) >= monthStart);
+
+    // ─── تكلفة كل مندوب (آخر 30 يوم) ────────────────────────────────────────
+    type RepBucket = { repId: number; repName: string; orders: number; revenue: number; cost: number; shippingSpend: number; operatingCost: number; netProfit: number };
+    const byRep = new Map<number, RepBucket>();
+    for (const r of rows) {
+      if (normalize(r.status) !== "received" || !r.assignedUserId) continue;
+      const id = r.assignedUserId;
+      if (!byRep.has(id)) {
+        byRep.set(id, { repId: id, repName: repNameById.get(id) ?? "غير معروف", orders: 0, revenue: 0, cost: 0, shippingSpend: 0, operatingCost: 0, netProfit: 0 });
+      }
+      const b = byRep.get(id)!;
+      const revenue = Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+      const cost = Number(r.costPrice ?? 0);
+      const shippingSpend = Number(r.shippingFee ?? 0);
+      b.orders++; b.revenue += revenue; b.cost += cost; b.shippingSpend += shippingSpend;
+      b.operatingCost += cost + shippingSpend + Number(r.insuranceFee ?? 0);
+      b.netProfit += revenue - cost - shippingSpend - Number(r.insuranceFee ?? 0);
+    }
+    const repCosts = [...byRep.values()]
+      .map(b => ({ ...b, revenue: Math.round(b.revenue), cost: Math.round(b.cost), shippingSpend: Math.round(b.shippingSpend), operatingCost: Math.round(b.operatingCost), netProfit: Math.round(b.netProfit) }))
+      .sort((a, b) => b.operatingCost - a.operatingCost);
+
+    // ─── تكلفة كل منطقة (آخر 30 يوم) ────────────────────────────────────────
+    type ZoneBucket = { city: string; orders: number; revenue: number; operatingCost: number; netProfit: number };
+    const byZone = new Map<string, ZoneBucket>();
+    for (const r of rows) {
+      if (normalize(r.status) !== "received") continue;
+      const city = (r.receiverCity ?? "").trim() || "غير محدد";
+      if (!byZone.has(city)) byZone.set(city, { city, orders: 0, revenue: 0, operatingCost: 0, netProfit: 0 });
+      const b = byZone.get(city)!;
+      const revenue = Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+      const opCost = Number(r.costPrice ?? 0) + Number(r.shippingFee ?? 0) + Number(r.insuranceFee ?? 0);
+      b.orders++; b.revenue += revenue; b.operatingCost += opCost; b.netProfit += revenue - opCost;
+    }
+    const zoneCosts = [...byZone.values()]
+      .map(b => ({ ...b, revenue: Math.round(b.revenue), operatingCost: Math.round(b.operatingCost), netProfit: Math.round(b.netProfit) }))
+      .sort((a, b) => b.operatingCost - a.operatingCost);
+
+    // ─── العملاء (بالاسم senderName، آخر 30 يوم) — الأعلى والأقل ربحًا ───────
+    type ClientBucket = { name: string; orders: number; revenue: number; netProfit: number };
+    const byClient = new Map<string, ClientBucket>();
+    for (const r of rows) {
+      if (normalize(r.status) !== "received") continue;
+      const name = (r.senderName ?? "").trim() || "غير محدد";
+      if (!byClient.has(name)) byClient.set(name, { name, orders: 0, revenue: 0, netProfit: 0 });
+      const b = byClient.get(name)!;
+      const revenue = Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+      const opCost = Number(r.costPrice ?? 0) + Number(r.shippingFee ?? 0) + Number(r.insuranceFee ?? 0);
+      b.orders++; b.revenue += revenue; b.netProfit += revenue - opCost;
+    }
+    const clientsSorted = [...byClient.values()]
+      .map(b => ({ ...b, revenue: Math.round(b.revenue), netProfit: Math.round(b.netProfit) }))
+      .filter(c => c.orders >= 2); // استبعاد العملاء بشحنة واحدة فقط لتقليل التشويش
+    const topClients = [...clientsSorted].sort((a, b) => b.netProfit - a.netProfit).slice(0, 10);
+    const bottomClients = [...clientsSorted].sort((a, b) => a.netProfit - b.netProfit).slice(0, 10);
+
+    const result = {
+      today: computePeriod(todayRows),
+      month: computePeriod(monthRows),
+      last30Days: computePeriod(rows),
+      repCosts: repCosts.slice(0, 20),
+      zoneCosts: zoneCosts.slice(0, 20),
+      topClients,
+      bottomClients,
+      generatedAt: now.toISOString(),
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /analytics/top-performers ────────────────────────────────────────────
 // لوحة العمليات: أفضل العملاء (الأكثر تعاملاً بالشحنات) + أفضل المندوبين
 // (بأعلى متوسط تقييم عملاء) — آخر 30 يوم، بيانات حقيقية 100%.
