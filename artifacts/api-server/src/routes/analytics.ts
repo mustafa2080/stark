@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable } from "@workspace/db";
 import { eq, isNull, and, desc, lte, gte, sql, inArray, count } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -2382,6 +2382,154 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
     };
 
     setCached(cacheKey, result, 2 * 60 * 1000); // cache دقيقتين — بيانات شبه لحظية
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /analytics/performance-metrics ──────────────────────────────────────
+// لوحة العمليات: 6 مؤشرات دائرية — الالتزام، وقت التوصيل، المرتجعات،
+// التأخير، تقييم العملاء، زمن الاستلام. كل مؤشر مع نسبة تغيّر عن أمس.
+router.get("/analytics/performance-metrics", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `performance-metrics:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const now = new Date();
+    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const rows = await db
+      .select({
+        id: shipmentsTable.id,
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+        updatedAt: shipmentsTable.updatedAt,
+        estimatedDelivery: shipmentsTable.estimatedDelivery,
+      })
+      .from(shipmentsTable)
+      .where(cond);
+
+    // ─── دالة حساب المؤشرات لمجموعة صفوف (تُستخدم لحساب اليوم وأمس بنفس المنطق) ───
+    function computeMetrics(subset: typeof rows) {
+      const total = subset.length;
+      if (total === 0) {
+        return { onTimeRate: 0, avgDeliveryHours: 0, returnRate: 0, delayRate: 0, avgPickupHours: 0 };
+      }
+
+      let delivered = 0, onTime = 0, returned = 0, delayed = 0;
+      let deliveryHoursSum = 0, deliveryCount = 0;
+      let pickupHoursSum = 0, pickupCount = 0;
+
+      for (const r of subset) {
+        const status = normalize(r.status);
+        if (status === "received") {
+          delivered++;
+          const created = new Date(r.createdAt).getTime();
+          const updated = new Date(r.updatedAt).getTime();
+          const hours = (updated - created) / (1000 * 60 * 60);
+          if (hours >= 0 && hours < 24 * 30) { // استبعاد قيم شاذة (أكتر من شهر)
+            deliveryHoursSum += hours;
+            deliveryCount++;
+          }
+          // نسبة الالتزام: قورن وقت الوصول الفعلي (updatedAt) بالمتوقع
+          if (r.estimatedDelivery) {
+            const est = new Date(r.estimatedDelivery).getTime();
+            if (updated <= est) onTime++;
+          } else {
+            onTime++; // مفيش موعد متوقع = مانعتبروش تأخير
+          }
+        }
+        if (status === "returned") returned++;
+        if (status === "delayed") delayed++;
+
+        // زمن الاستلام بالمخزن (warehouse_ready) — من الإنشاء لحد أول تجهيز
+        if (status === "warehouse_ready" || status === "in_shipping" || status === "received") {
+          const created = new Date(r.createdAt).getTime();
+          const updated = new Date(r.updatedAt).getTime();
+          const hours = (updated - created) / (1000 * 60 * 60);
+          if (hours >= 0 && hours < 24 * 7) {
+            pickupHoursSum += hours;
+            pickupCount++;
+          }
+        }
+      }
+
+      return {
+        onTimeRate: delivered > 0 ? Math.round((onTime / delivered) * 1000) / 10 : 0,
+        avgDeliveryHours: deliveryCount > 0 ? Math.round((deliveryHoursSum / deliveryCount) * 10) / 10 : 0,
+        returnRate: Math.round((returned / total) * 1000) / 10,
+        delayRate: Math.round((delayed / total) * 1000) / 10,
+        avgPickupHours: pickupCount > 0 ? Math.round((pickupHoursSum / pickupCount) * 10) / 10 : 0,
+      };
+    }
+
+    const todayRows = rows.filter((r: typeof rows[number]) => new Date(r.createdAt) >= new Date(now.toDateString()));
+    const yesterdayRows = rows.filter((r: typeof rows[number]) => {
+      const d = new Date(r.createdAt);
+      return d >= new Date(yesterday.toDateString()) && d < new Date(now.toDateString());
+    });
+
+    const overall = computeMetrics(rows);
+    const todayMetrics = computeMetrics(todayRows);
+    const yesterdayMetrics = computeMetrics(yesterdayRows);
+
+    const pctPointChange = (curr: number, prev: number): number =>
+      Math.round((curr - prev) * 10) / 10;
+
+    // ─── متوسط تقييم العملاء من جدول shipment_ratings ─────────────────────────
+    const ratingCond = tenantId !== null ? eq(shipmentRatingsTable.tenantId, tenantId) : undefined;
+    const ratingRows = await db.select({ rating: shipmentRatingsTable.rating })
+      .from(shipmentRatingsTable)
+      .where(ratingCond);
+    const avgRating = ratingRows.length > 0
+      ? Math.round((ratingRows.reduce((s: number, r: typeof ratingRows[number]) => s + r.rating, 0) / ratingRows.length) * 10) / 10
+      : 0;
+
+    const result = {
+      metrics: [
+        {
+          key: "onTimeRate", label: "نسبة الالتزام", value: overall.onTimeRate, unit: "%", max: 100,
+          change: pctPointChange(todayMetrics.onTimeRate, yesterdayMetrics.onTimeRate),
+        },
+        {
+          key: "avgDeliveryHours", label: "متوسط وقت التوصيل", value: overall.avgDeliveryHours, unit: "ساعة", max: null,
+          change: pctPointChange(todayMetrics.avgDeliveryHours, yesterdayMetrics.avgDeliveryHours),
+        },
+        {
+          key: "returnRate", label: "نسبة المرتجعات", value: overall.returnRate, unit: "%", max: 100,
+          change: pctPointChange(todayMetrics.returnRate, yesterdayMetrics.returnRate),
+        },
+        {
+          key: "delayRate", label: "نسبة التأخير", value: overall.delayRate, unit: "%", max: 100,
+          change: pctPointChange(todayMetrics.delayRate, yesterdayMetrics.delayRate),
+        },
+        {
+          key: "avgRating", label: "متوسط تقييم العملاء", value: avgRating, unit: "/5", max: 5,
+          change: 0, // مفيش تاريخ كافي للمقارنة اليومية حاليًا
+          ratingsCount: ratingRows.length,
+        },
+        {
+          key: "avgPickupHours", label: "متوسط زمن الاستلام", value: overall.avgPickupHours, unit: "ساعة", max: null,
+          change: pctPointChange(todayMetrics.avgPickupHours, yesterdayMetrics.avgPickupHours),
+        },
+      ],
+      generatedAt: now.toISOString(),
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

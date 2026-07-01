@@ -17,7 +17,7 @@ import {
 import {
   analyticsApi, type PeriodProfit, type ProductProfit, type FinancialSummary, type Alert,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
-  employeeApi, usersApi, apiFetch, type OperationsKpiCard,
+  employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
@@ -192,6 +192,115 @@ function OperationsKpiRow() {
       {data.cards.map((card) => (
         <OperationsKpiCardItem key={card.key} card={card} formatAsCurrency={card.key === "revenue"} />
       ))}
+    </div>
+  );
+}
+
+// ─── Performance Metrics (6 دوائر) ──────────────────────────────────────────
+// اتجاه "الأفضل": هل ارتفاع القيمة كويس ولا وحش، لتلوين الدائرة والسهم بشكل صحيح
+const METRIC_DIRECTION: Record<string, "higher_is_better" | "lower_is_better"> = {
+  onTimeRate:       "higher_is_better",
+  avgDeliveryHours: "lower_is_better",
+  returnRate:       "lower_is_better",
+  delayRate:        "lower_is_better",
+  avgRating:        "higher_is_better",
+  avgPickupHours:   "lower_is_better",
+};
+
+function RadialMetricGauge({ metric }: { metric: PerformanceMetric }) {
+  const direction = METRIC_DIRECTION[metric.key] ?? "higher_is_better";
+  const isGoodTrend = direction === "higher_is_better" ? metric.change >= 0 : metric.change <= 0;
+
+  // نسبة الملء للدائرة (0-100%)
+  let pct: number;
+  if (metric.max != null) {
+    pct = Math.min(100, Math.max(0, (metric.value / metric.max) * 100));
+  } else {
+    // للساعات (بدون سقف ثابت): نعتبر 6 ساعات = 100% كمرجع بصري فقط
+    pct = Math.min(100, Math.max(0, 100 - (metric.value / 6) * 100));
+  }
+
+  const color = direction === "higher_is_better"
+    ? (pct >= 70 ? "#10b981" : pct >= 40 ? "#f59e0b" : "#ef4444")
+    : (pct >= 70 ? "#10b981" : pct >= 40 ? "#f59e0b" : "#ef4444");
+
+  const size = 84, stroke = 8, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const offset = c - (pct / 100) * c;
+
+  const displayValue = metric.unit === "/5"
+    ? metric.value.toFixed(1)
+    : metric.unit === "%"
+      ? `${metric.value}%`
+      : metric.value.toFixed(1);
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4 flex flex-col items-center text-center gap-1.5 sm:gap-2">
+        <div className="relative" style={{ width: size, height: size }}>
+          <svg width={size} height={size} className="-rotate-90">
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted/30" />
+            <circle
+              cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+              strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+              style={{ transition: "stroke-dashoffset 0.6s ease" }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm sm:text-lg font-black" style={{ color }}>{displayValue}</span>
+          </div>
+        </div>
+        <p className="text-[9px] sm:text-[11px] font-bold text-muted-foreground leading-tight">{metric.label}</p>
+        {metric.key === "avgRating" ? (
+          <span className="text-[8px] sm:text-[9px] text-muted-foreground">
+            {metric.ratingsCount ? `${fn(metric.ratingsCount)} تقييم` : "لا توجد تقييمات بعد"}
+          </span>
+        ) : (
+          <span className={`text-[8px] sm:text-[9px] font-bold flex items-center gap-0.5 ${
+            isGoodTrend ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+          }`}>
+            {metric.change > 0 ? "+" : ""}{metric.change} عن أمس
+          </span>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PerformanceMetricsRow() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["analytics-performance-metrics"],
+    queryFn: analyticsApi.performanceMetrics,
+    staleTime: 3 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: any) => prev,
+  });
+
+  if (isLoading && !data) {
+    return (
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i} className="border-border bg-card overflow-hidden">
+            <CardContent className="p-3 sm:p-4 flex flex-col items-center gap-2 animate-pulse">
+              <div className="w-[84px] h-[84px] rounded-full bg-muted" />
+              <div className="h-2.5 w-16 bg-muted rounded" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div>
+      <h2 className="text-xs sm:text-sm font-bold text-muted-foreground mb-2 sm:mb-3">مؤشرات الأداء الرئيسية</h2>
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
+        {data.metrics.map((metric) => (
+          <RadialMetricGauge key={metric.key} metric={metric} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -778,7 +887,7 @@ export default function Dashboard() {
     queryFn: analyticsApi.productPerformance,
     staleTime: 30 * 60 * 1000,          // ✅ 30 دقيقة — متطابق مع cache الـ backend
     gcTime: 60 * 60 * 1000,             // ✅ يفضل في الـ cache ساعة كاملة
-    placeholderData: (prev) => prev,     // ✅ يعرض الداتا القديمة فوراً عند الـ reload
+    placeholderData: (prev: any[] | undefined) => prev,     // ✅ يعرض الداتا القديمة فوراً عند الـ reload
     refetchOnWindowFocus: false,         // ✅ مش يعيد التحميل كل ما تفتح التاب
     refetchOnMount: false,               // ✅ لو الداتا موجودة في الكاش متجيبهاش تاني
     enabled: canViewFinancials,
@@ -952,6 +1061,9 @@ export default function Dashboard() {
 
       {/* === Operations KPI Cards === */}
       <OperationsKpiRow />
+
+      {/* === Performance Metrics (6 دوائر) === */}
+      <PerformanceMetricsRow />
 
       {/* === تحذير متابعة الشحن === */}
       {shippingFollowup.length > 0 && (() => {

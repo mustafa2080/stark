@@ -569,6 +569,20 @@ export interface OperationsKpisResponse {
   generatedAt: string;
 }
 
+export interface PerformanceMetric {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  max: number | null;
+  change: number;
+  ratingsCount?: number;
+}
+export interface PerformanceMetricsResponse {
+  metrics: PerformanceMetric[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -598,6 +612,7 @@ export const analyticsApi = {
     ),
   shipmentCharts: () => apiFetch<ShipmentChartsData>("/analytics/shipment-charts"),
   operationsKpis: () => apiFetch<OperationsKpisResponse>("/analytics/operations-kpis"),
+  performanceMetrics: () => apiFetch<PerformanceMetricsResponse>("/analytics/performance-metrics"),
 };
 
 export interface BatchCreateOrderBody {
