@@ -20,6 +20,7 @@ import {
   employeeApi, usersApi, type OperationsKpiCard, type PerformanceMetric, type OpsAlertsResponse, type OpsAlert,
   type ShipmentsProfitResponse, type TopPerformersResponse, type OperationsCenterResponse,
   type RecentEventsResponse, type RecentEvent, shipmentsApi, type ShipmentsListResponse,
+  type FinancialDashboardResponse,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
@@ -780,6 +781,169 @@ function ShipmentsRevenueTrendChart() {
             <Line type="monotone" dataKey="profit" stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── لوحة الأرباح التفصيلية (أرباح اليوم/الشهر، تكلفة كل مندوب/منطقة، أعلى/أقل عملاء) ──
+function useFinancialDashboard() {
+  return useQuery({
+    queryKey: ["analytics-financial-dashboard"],
+    queryFn: analyticsApi.financialDashboard,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: FinancialDashboardResponse | undefined) => prev,
+  });
+}
+
+function FinancialDashboardPanel() {
+  const { data, isLoading } = useFinancialDashboard();
+  const [tab, setTab] = useState<"reps" | "zones" | "clients">("reps");
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-72 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">لوحة الأرباح</h2>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">آخر 30 يوم</span>
+        </div>
+
+        {/* أرباح اليوم / الشهر */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="rounded-lg border border-border bg-muted/20 p-2.5 sm:p-3">
+            <p className="text-[9px] sm:text-[10px] text-muted-foreground mb-1">أرباح اليوم</p>
+            <p className={`text-sm sm:text-lg font-black ${data.today.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+              {fc(data.today.netProfit)}
+            </p>
+            <p className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5">{data.today.orders} طلب مُسلَّم</p>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/20 p-2.5 sm:p-3">
+            <p className="text-[9px] sm:text-[10px] text-muted-foreground mb-1">أرباح الشهر</p>
+            <p className={`text-sm sm:text-lg font-black ${data.month.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+              {fc(data.month.netProfit)}
+            </p>
+            <p className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5">{data.month.orders} طلب مُسلَّم</p>
+          </div>
+        </div>
+
+        {/* تكلفة التشغيل (آخر 30 يوم) */}
+        <div className="grid grid-cols-3 gap-1.5 mb-3 p-2 sm:p-2.5 rounded-lg bg-muted/10 border border-border/50">
+          <div className="text-center">
+            <p className="text-[8px] sm:text-[9px] text-muted-foreground">تكلفة البضاعة</p>
+            <p className="text-[10px] sm:text-xs font-bold text-amber-700 dark:text-amber-400">{fn(data.last30Days.cost)}</p>
+          </div>
+          <div className="text-center border-x border-border/50">
+            <p className="text-[8px] sm:text-[9px] text-muted-foreground">تكلفة الشحن</p>
+            <p className="text-[10px] sm:text-xs font-bold text-orange-600 dark:text-orange-400">{fn(data.last30Days.shippingSpend)}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[8px] sm:text-[9px] text-muted-foreground">إجمالي التشغيل</p>
+            <p className="text-[10px] sm:text-xs font-bold text-foreground">{fn(data.last30Days.operatingCost)}</p>
+          </div>
+        </div>
+
+        {/* تابات: تكلفة كل مندوب / تكلفة كل منطقة / أعلى وأقل العملاء */}
+        <div className="flex items-center gap-1 border border-border rounded-md p-0.5 bg-muted/30 mb-2">
+          {([
+            { key: "reps", label: "تكلفة المندوبين" },
+            { key: "zones", label: "تكلفة المناطق" },
+            { key: "clients", label: "العملاء" },
+          ] as { key: typeof tab; label: string }[]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`flex-1 px-1.5 py-1 rounded text-[9px] sm:text-[10px] font-bold transition-colors ${
+                tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "reps" && (
+          <div className="space-y-1">
+            {data.repCosts.length === 0 ? (
+              <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-4">لا توجد بيانات كافية بعد</p>
+            ) : data.repCosts.slice(0, 6).map((r) => (
+              <div key={r.repId} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/20 transition-colors">
+                <span className="text-[10px] sm:text-xs font-bold text-foreground truncate flex-1">{r.repName}</span>
+                <span className="text-[9px] sm:text-[10px] text-muted-foreground shrink-0">{r.orders} طلب</span>
+                <span className="text-[9px] sm:text-[10px] font-bold text-amber-700 dark:text-amber-400 shrink-0 w-16 text-left">{fn(r.operatingCost)}</span>
+                <span className={`text-[10px] sm:text-xs font-black shrink-0 w-16 text-left ${r.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                  {fn(r.netProfit)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "zones" && (
+          <div className="space-y-1">
+            {data.zoneCosts.length === 0 ? (
+              <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-4">لا توجد بيانات كافية بعد</p>
+            ) : data.zoneCosts.slice(0, 6).map((z) => (
+              <div key={z.city} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/20 transition-colors">
+                <span className="text-[10px] sm:text-xs font-bold text-foreground truncate flex-1">{z.city}</span>
+                <span className="text-[9px] sm:text-[10px] text-muted-foreground shrink-0">{z.orders} طلب</span>
+                <span className="text-[9px] sm:text-[10px] font-bold text-amber-700 dark:text-amber-400 shrink-0 w-16 text-left">{fn(z.operatingCost)}</span>
+                <span className={`text-[10px] sm:text-xs font-black shrink-0 w-16 text-left ${z.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                  {fn(z.netProfit)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "clients" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <p className="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" /> الأعلى ربحًا
+              </p>
+              <div className="space-y-1">
+                {data.topClients.length === 0 ? (
+                  <p className="text-[9px] text-muted-foreground text-center py-3">لا توجد بيانات كافية</p>
+                ) : data.topClients.slice(0, 5).map((c) => (
+                  <div key={c.name} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 bg-emerald-50/50 dark:bg-emerald-950/10">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-foreground truncate flex-1">{c.name}</span>
+                    <span className="text-[9px] sm:text-[10px] font-black text-emerald-600 dark:text-emerald-400 shrink-0">{fn(c.netProfit)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[9px] sm:text-[10px] font-bold text-red-600 dark:text-red-400 mb-1 flex items-center gap-1">
+                <TrendingDown className="w-3 h-3" /> الأقل ربحًا
+              </p>
+              <div className="space-y-1">
+                {data.bottomClients.length === 0 ? (
+                  <p className="text-[9px] text-muted-foreground text-center py-3">لا توجد بيانات كافية</p>
+                ) : data.bottomClients.slice(0, 5).map((c) => (
+                  <div key={c.name} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 bg-red-50/50 dark:bg-red-950/10">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-foreground truncate flex-1">{c.name}</span>
+                    <span className={`text-[9px] sm:text-[10px] font-black shrink-0 ${c.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                      {fn(c.netProfit)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1724,6 +1888,13 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
           <ShipmentsProfitDonut />
           <ShipmentsRevenueTrendChart />
+        </div>
+      )}
+
+      {/* === لوحة الأرباح التفصيلية (تكلفة المندوبين/المناطق، أعلى وأقل العملاء) === */}
+      {canViewFinancials && (
+        <div className="px-3 sm:px-0">
+          <FinancialDashboardPanel />
         </div>
       )}
 
