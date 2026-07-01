@@ -19,6 +19,7 @@ import {
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
   employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
   type ShipmentsProfitResponse, type TopPerformersResponse,
+  type RecentEventsResponse, type RecentEvent, shipmentsApi, type ShipmentsListResponse,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
@@ -820,6 +821,229 @@ function ShipmentsRevenueTrendChart() {
             <Line type="monotone" dataKey="profit" stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── توزيع الشحنات حسب الحالة (Ops donut) ──────────────────────────────────────
+const OPS_STATUS_META: Record<string, { label: string; color: string }> = {
+  received:         { label: "تم التسليم",   color: "#10b981" },
+  in_shipping:      { label: "قيد التوصيل",  color: "#3b82f6" },
+  returned:         { label: "مرتجعة",        color: "#ef4444" },
+  delayed:          { label: "مؤجلة",         color: "#f59e0b" },
+  partial_received: { label: "استلام جزئي",  color: "#06b6d4" },
+  warehouse_ready:  { label: "في المخزن",     color: "#f97316" },
+  pending:          { label: "قيد الانتظار",  color: "#a855f7" },
+};
+
+function ShipmentsStatusOpsDonut({ data }: { data?: { statusBreakdown: { status: string; count: number; pct: number }[]; total: number } }) {
+  if (!data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-56 sm:h-64 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const segments = data.statusBreakdown
+    .filter(s => s.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .map(s => ({ ...s, meta: OPS_STATUS_META[s.status] ?? { label: s.status, color: "#6b7280" } }));
+
+  const size = 140, stroke = 20, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  let cumulative = 0;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">توزيع الشحنات حسب الحالة</h2>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">اليوم</span>
+        </div>
+
+        <div className="flex items-center gap-4 sm:gap-6">
+          <div className="relative shrink-0" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="-rotate-90">
+              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted/20" />
+              {segments.map((seg) => {
+                const fraction = data.total > 0 ? seg.count / data.total : 0;
+                const dashArray = c;
+                const dashOffset = c - fraction * c;
+                const rotation = (cumulative / (data.total || 1)) * 360;
+                cumulative += seg.count;
+                return (
+                  <circle
+                    key={seg.status} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={seg.meta.color} strokeWidth={stroke}
+                    strokeDasharray={dashArray} strokeDashoffset={dashOffset}
+                    style={{ transform: `rotate(${rotation}deg)`, transformOrigin: "50% 50%", transition: "stroke-dashoffset 0.6s ease" }}
+                  />
+                );
+              })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-base sm:text-xl font-black text-foreground">{fn(data.total)}</span>
+              <span className="text-[8px] sm:text-[9px] text-muted-foreground">إجمالي الشحنات</span>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-1.5 sm:space-y-2 min-w-0">
+            {segments.map((seg) => (
+              <div key={seg.status} className="flex items-center justify-between text-[10px] sm:text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground truncate">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: seg.meta.color }} />
+                  {seg.meta.label}
+                </span>
+                <span className="font-bold text-foreground shrink-0">{fn(seg.count)} ({seg.pct}%)</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── آخر التنبيهات (سجل زمني حقيقي للشحنات الحرجة) ─────────────────────────────
+function useRecentEvents() {
+  return useQuery({
+    queryKey: ["analytics-recent-events"],
+    queryFn: analyticsApi.recentEvents,
+    staleTime: 2 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 3 * 60_000,
+    placeholderData: (prev: RecentEventsResponse | undefined) => prev,
+  });
+}
+
+const EVENT_TYPE_STYLE: Record<RecentEvent["type"], { icon: any; color: string; bg: string }> = {
+  delayed:  { icon: Clock,       color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30" },
+  returned: { icon: Undo2,       color: "text-red-600 dark:text-red-400",     bg: "bg-red-50 dark:bg-red-950/30" },
+  partial:  { icon: PackageCheck,color: "text-cyan-600 dark:text-cyan-400",   bg: "bg-cyan-50 dark:bg-cyan-950/30" },
+  other:    { icon: Bell,        color: "text-muted-foreground",              bg: "bg-muted/30" },
+};
+
+function timeAgo(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "الآن";
+  if (mins < 60) return `منذ ${mins} دقيقة`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `منذ ${hours} ساعة`;
+  const days = Math.floor(hours / 24);
+  return `منذ ${days} يوم`;
+}
+
+function RecentEventsCard() {
+  const { data, isLoading } = useRecentEvents();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-56 sm:h-64 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">آخر التنبيهات</h2>
+        </div>
+
+        {data.events.length === 0 ? (
+          <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-6">لا توجد تنبيهات حالياً</p>
+        ) : (
+          <div className="space-y-1.5 sm:space-y-2">
+            {data.events.map((ev) => {
+              const style = EVENT_TYPE_STYLE[ev.type];
+              return (
+                <div key={ev.id} className={`flex items-start gap-2 rounded-lg p-2 sm:p-2.5 ${style.bg}`}>
+                  <style.icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 mt-0.5 ${style.color}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] sm:text-xs font-bold text-foreground truncate">
+                      {ev.label} <span className="text-muted-foreground font-normal">— {ev.shipmentNumber}</span>
+                    </p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">
+                      {ev.receiverName} • {timeAgo(ev.updatedAt)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── آخر الشحنات (جدول مباشر من قائمة الشحنات) ──────────────────────────────────
+function useRecentShipmentsList() {
+  return useQuery({
+    queryKey: ["shipments-recent-list"],
+    queryFn: () => shipmentsApi.list({ limit: 8 }),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: ShipmentsListResponse | undefined) => prev,
+  });
+}
+
+function RecentShipmentsTable() {
+  const { data, isLoading } = useRecentShipmentsList();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-56 sm:h-64 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">آخر الشحنات</h2>
+          <Link href="/shipments" className="text-[9px] sm:text-[10px] text-primary hover:underline">عرض الكل ←</Link>
+        </div>
+
+        {data.data.length === 0 ? (
+          <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-6">لا توجد شحنات بعد</p>
+        ) : (
+          <div className="space-y-1.5 sm:space-y-2">
+            {data.data.map((s) => {
+              const normStatus = STATUS_LABELS[s.status] ? s.status : (
+                s.status === "picked_up" ? "warehouse_ready" :
+                s.status === "in_transit" || s.status === "out_for_delivery" ? "in_shipping" :
+                s.status === "delivered" ? "received" :
+                s.status === "waiting" || s.status === "confirmed" ? "pending" :
+                s.status === "cancelled" ? "returned" : s.status
+              );
+              return (
+                <div key={s.id} className="flex items-center gap-2 sm:gap-3 rounded-lg p-2 sm:p-2.5 hover:bg-muted/20 transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] sm:text-xs font-bold text-foreground truncate">{s.receiverName}</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">{s.shipmentNumber ?? `#${s.id}`} • {s.receiverCity ?? "—"}</p>
+                  </div>
+                  <span className={`shrink-0 text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded border ${STATUS_CLASSES[normStatus] ?? "bg-muted/30 text-muted-foreground border-border"}`}>
+                    {STATUS_LABELS[normStatus] ?? s.status}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1810,6 +2034,13 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
         <TopClientsCard />
         <TopRepsCard />
+      </div>
+
+      {/* === توزيع الشحنات حسب الحالة + آخر التنبيهات + آخر الشحنات === */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 px-3 sm:px-0">
+        <ShipmentsStatusOpsDonut data={shipmentsStatus} />
+        <RecentEventsCard />
+        <RecentShipmentsTable />
       </div>
 
       {/* === PWA INSTALL BANNER === */}

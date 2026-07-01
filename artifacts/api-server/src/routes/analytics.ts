@@ -3020,4 +3020,75 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
   }
 });
 
+// ─── GET /analytics/recent-events ─────────────────────────────────────────────
+// لوحة العمليات: "آخر التنبيهات" — سجل زمني حقيقي لآخر الشحنات ذات الحالات
+// الحرجة (متأخرة/مرتجعة/استلام جزئي)، حسب آخر تحديث فعلي على الشحنة.
+router.get("/analytics/recent-events", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `recent-events:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    type RecentRow = {
+      id: number;
+      shipmentNumber: string | null;
+      receiverName: string | null;
+      status: string | null;
+      updatedAt: Date;
+    };
+    const rows: RecentRow[] = await db
+      .select({
+        id: shipmentsTable.id,
+        shipmentNumber: shipmentsTable.shipmentNumber,
+        receiverName: shipmentsTable.receiverName,
+        status: shipmentsTable.status,
+        updatedAt: shipmentsTable.updatedAt,
+      })
+      .from(shipmentsTable)
+      .where(and(cond, gte(shipmentsTable.updatedAt, thirtyDaysAgo)))
+      .orderBy(desc(shipmentsTable.updatedAt))
+      .limit(200); // نجيب دفعة أكبر ونفلتر الحالات الحرجة يدويًا، لأن status قيم متعددة قديمة/جديدة
+
+    const CRITICAL_STATUSES = new Set(["delayed", "returned", "partial_received"]);
+    const EVENT_META: Record<string, { label: string; type: "delayed" | "returned" | "partial" }> = {
+      delayed:          { label: "تم تأجيل الشحنة",         type: "delayed" },
+      returned:         { label: "تم إرجاع الشحنة",          type: "returned" },
+      partial_received: { label: "استلام جزئي للشحنة",       type: "partial" },
+    };
+
+    const events = rows
+      .map(r => ({ ...r, normStatus: normalize(r.status) }))
+      .filter(r => CRITICAL_STATUSES.has(r.normStatus))
+      .slice(0, 8)
+      .map(r => ({
+        id: r.id,
+        shipmentNumber: r.shipmentNumber ?? `#${r.id}`,
+        receiverName: r.receiverName ?? "—",
+        type: EVENT_META[r.normStatus]?.type ?? "other",
+        label: EVENT_META[r.normStatus]?.label ?? "تحديث حالة",
+        updatedAt: r.updatedAt,
+      }));
+
+    const result = { events, generatedAt: new Date().toISOString() };
+    setCached(cacheKey, result, 3 * 60 * 1000); // cache 3 دقائق (أحدث من غيرها لأنها زمنية)
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
