@@ -12,11 +12,12 @@ import {
   Plus, Activity, Boxes, ArrowUpRight, ArrowDownRight,
   Star, Wallet, BarChart3, ShoppingCart, AlertTriangle, RefreshCw, Bell, Brain, Zap, Archive, Clock,
   Receipt, Building2, FileText, X, AlertOctagon, Users, Truck, Globe, Search, PackageCheck, CheckCircle2, Loader2,
+  Undo2, Timer,
 } from "lucide-react";
 import {
   analyticsApi, type PeriodProfit, type ProductProfit, type FinancialSummary, type Alert,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
-  employeeApi, usersApi, apiFetch,
+  employeeApi, usersApi, apiFetch, type OperationsKpiCard,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
@@ -90,6 +91,110 @@ const STATUS_CLASSES: Record<string, string> = {
   delayed:          "bg-violet-50   dark:bg-violet-900/30  text-violet-700  dark:text-violet-300  border-violet-200  dark:border-violet-700",
   returned:         "bg-red-50      dark:bg-red-900/30     text-red-700     dark:text-red-300     border-red-200     dark:border-red-700",
 };
+
+// ─── Operations KPI Cards (شريط الكروت العلوي) ──────────────────────────────
+const KPI_META: Record<string, { icon: any; iconBg: string; iconColor: string; sparkColor: string }> = {
+  total:      { icon: Boxes,       iconBg: "bg-blue-500/10",    iconColor: "text-blue-500",    sparkColor: "#3b82f6" },
+  delivered:  { icon: PackageCheck,iconBg: "bg-emerald-500/10", iconColor: "text-emerald-500", sparkColor: "#10b981" },
+  inShipping: { icon: Truck,       iconBg: "bg-sky-500/10",     iconColor: "text-sky-500",     sparkColor: "#0ea5e9" },
+  returned:   { icon: Undo2,       iconBg: "bg-amber-500/10",   iconColor: "text-amber-500",   sparkColor: "#f59e0b" },
+  delayed:    { icon: Timer,       iconBg: "bg-violet-500/10",  iconColor: "text-violet-500",  sparkColor: "#8b5cf6" },
+  revenue:    { icon: DollarSign,  iconBg: "bg-teal-500/10",    iconColor: "text-teal-500",    sparkColor: "#14b8a6" },
+};
+
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  if (!data || data.length < 2) return <div className="h-8" />;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const w = 100, h = 32;
+  const step = w / (data.length - 1);
+  const points = data.map((v, i) => `${i * step},${h - ((v - min) / range) * h}`).join(" ");
+  const areaPoints = `0,${h} ${points} ${w},${h}`;
+  const gradId = `spark-grad-${color.replace("#", "")}`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-8" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPoints} fill={`url(#${gradId})`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function OperationsKpiCardItem({ card, formatAsCurrency }: { card: OperationsKpiCard; formatAsCurrency?: boolean }) {
+  const meta = KPI_META[card.key] ?? KPI_META.total;
+  const Icon = meta.icon;
+  const isPositiveTrend = card.change >= 0;
+  // للمرتجع/المؤجل: الزيادة سيئة (أحمر) بعكس باقي الكروت
+  const inverseTrend = card.key === "returned" || card.key === "delayed";
+  const trendIsGood = inverseTrend ? !isPositiveTrend : isPositiveTrend;
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-2.5 sm:p-4">
+        <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
+          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 ${meta.iconBg}`}>
+            <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${meta.iconColor}`} />
+          </div>
+          <span className={`text-[9px] sm:text-[10px] font-bold flex items-center gap-0.5 shrink-0 ${
+            trendIsGood ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+          }`}>
+            {isPositiveTrend ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {Math.abs(card.change)}%
+          </span>
+        </div>
+        <p className="text-[10px] sm:text-xs text-muted-foreground font-bold mb-0.5 truncate">{card.label}</p>
+        <p className="text-base sm:text-2xl font-black truncate">
+          {formatAsCurrency ? fc(card.value) : fn(card.value)}
+        </p>
+        <div className="mt-1.5 sm:mt-2 -mx-1">
+          <MiniSparkline data={card.sparkline} color={meta.sparkColor} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OperationsKpiRow() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["analytics-operations-kpis"],
+    queryFn: analyticsApi.operationsKpis,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: any) => prev,
+  });
+
+  if (isLoading && !data) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i} className="border-border bg-card overflow-hidden">
+            <CardContent className="p-2.5 sm:p-4 space-y-2 animate-pulse">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-muted" />
+              <div className="h-2.5 w-16 bg-muted rounded" />
+              <div className="h-5 w-12 bg-muted rounded" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+      {data.cards.map((card) => (
+        <OperationsKpiCardItem key={card.key} card={card} formatAsCurrency={card.key === "revenue"} />
+      ))}
+    </div>
+  );
+}
 
 // ─── Period Card ───────────────────────────────────────────────────────────────
 function PeriodCard({ label, data, accent }: { label: string; data: PeriodProfit; accent: string }) {
@@ -844,6 +949,9 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* === Operations KPI Cards === */}
+      <OperationsKpiRow />
 
       {/* === تحذير متابعة الشحن === */}
       {shippingFollowup.length > 0 && (() => {

@@ -36,3 +36,4 @@ export * from "./shipments";
 export * from "./shipment_zones";
 export * from "./parcel_type_pricing";
 export * from "./shipment_manifests";
+export * from "./shipment_ratings";

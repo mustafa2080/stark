@@ -2258,4 +2258,134 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /analytics/operations-kpis ──────────────────────────────────────────
+// لوحة العمليات: 7 كروت KPI + نسبة تغيّر عن أمس + بيانات آخر 7 أيام (sparkline) لكل كارت
+router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `operations-kpis:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const localDateStr = (d: Date): string =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+
+    const now = new Date();
+    // آخر 8 أيام (اليوم + 7 قبله) عشان نقدر نحسب %تغيّر اليوم مقابل إمبارح كمان
+    const from = new Date(now);
+    from.setDate(from.getDate() - 7);
+    from.setHours(0, 0, 0, 0);
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, from))
+      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, from));
+
+    const rows = await db
+      .select({
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+        codAmount: shipmentsTable.codAmount,
+        collectedAmount: shipmentsTable.collectedAmount,
+        shippingFee: shipmentsTable.shippingFee,
+      })
+      .from(shipmentsTable)
+      .where(cond);
+
+    // ── تجميع يومي لآخر 7 أيام ──────────────────────────────────────────────
+    const days: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      days.push(localDateStr(d));
+    }
+    const todayStr = days[days.length - 1];
+    const yesterdayStr = days[days.length - 2];
+
+    type DayBucket = { total: number; delivered: number; inShipping: number; returned: number; delayed: number; revenue: number };
+    const emptyBucket = (): DayBucket => ({ total: 0, delivered: 0, inShipping: 0, returned: 0, delayed: 0, revenue: 0 });
+    const buckets: Record<string, DayBucket> = {};
+    for (const day of days) buckets[day] = emptyBucket();
+
+    for (const r of rows) {
+      const day = localDateStr(new Date(r.createdAt));
+      if (!buckets[day]) continue; // خارج نطاق الـ 7 أيام
+      const status = normalize(r.status);
+      const b = buckets[day];
+      b.total += 1;
+      if (status === "received") b.delivered += 1;
+      if (status === "in_shipping") b.inShipping += 1;
+      if (status === "returned") b.returned += 1;
+      if (status === "delayed") b.delayed += 1;
+      b.revenue += Number(r.collectedAmount ?? r.codAmount ?? 0);
+    }
+
+    const sparkline = (key: keyof DayBucket) => days.map(d => buckets[d][key]);
+
+    const todayBucket = buckets[todayStr] ?? emptyBucket();
+    const yesterdayBucket = buckets[yesterdayStr] ?? emptyBucket();
+
+    const pctChange = (curr: number, prev: number): number => {
+      if (prev === 0) return curr > 0 ? 100 : 0;
+      return Math.round(((curr - prev) / prev) * 1000) / 10;
+    };
+
+    // ── إجماليات كل الفترة (7 أيام) للكروت الرئيسية ─────────────────────────
+    const totals = Object.values(buckets).reduce((acc, b) => ({
+      total: acc.total + b.total,
+      delivered: acc.delivered + b.delivered,
+      inShipping: acc.inShipping + b.inShipping,
+      returned: acc.returned + b.returned,
+      delayed: acc.delayed + b.delayed,
+      revenue: acc.revenue + b.revenue,
+    }), { total: 0, delivered: 0, inShipping: 0, returned: 0, delayed: 0, revenue: 0 });
+
+    const result = {
+      cards: [
+        {
+          key: "total", label: "إجمالي الشحنات", value: totals.total,
+          change: pctChange(todayBucket.total, yesterdayBucket.total),
+          sparkline: sparkline("total"),
+        },
+        {
+          key: "delivered", label: "تم التسليم", value: totals.delivered,
+          change: pctChange(todayBucket.delivered, yesterdayBucket.delivered),
+          sparkline: sparkline("delivered"),
+        },
+        {
+          key: "inShipping", label: "قيد التوصيل", value: totals.inShipping,
+          change: pctChange(todayBucket.inShipping, yesterdayBucket.inShipping),
+          sparkline: sparkline("inShipping"),
+        },
+        {
+          key: "returned", label: "مرتجعة", value: totals.returned,
+          change: pctChange(todayBucket.returned, yesterdayBucket.returned),
+          sparkline: sparkline("returned"),
+        },
+        {
+          key: "delayed", label: "مؤجلة", value: totals.delayed,
+          change: pctChange(todayBucket.delayed, yesterdayBucket.delayed),
+          sparkline: sparkline("delayed"),
+        },
+        {
+          key: "revenue", label: "إجمالي الإيرادات", value: Math.round(totals.revenue),
+          change: pctChange(todayBucket.revenue, yesterdayBucket.revenue),
+          sparkline: sparkline("revenue"),
+        },
+      ],
+      generatedAt: now.toISOString(),
+    };
+
+    setCached(cacheKey, result, 2 * 60 * 1000); // cache دقيقتين — بيانات شبه لحظية
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull, gte } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -283,6 +283,54 @@ router.get("/shipments/track/:number", async (req, res): Promise<void> => {
   } catch (e) {
     console.error("[GET /shipments/track]", e);
     res.status(500).json({ error: "خطأ في البحث عن الشحنة" });
+  }
+});
+
+// ─── POST /shipments/track/:number/rating (public — no auth) ──────────────────
+// يسمح للعميل بتقييم الشحنة من صفحة التتبع بعد التسليم
+router.post("/shipments/track/:number/rating", async (req, res): Promise<void> => {
+  try {
+    const { number } = req.params;
+    const { rating, comment } = req.body as { rating?: number; comment?: string };
+
+    if (!rating || rating < 1 || rating > 5) {
+      res.status(400).json({ error: "التقييم يجب أن يكون رقم من 1 إلى 5" });
+      return;
+    }
+
+    const [shipment] = await db
+      .select({ id: shipmentsTable.id, tenantId: shipmentsTable.tenantId, status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(
+        and(
+          isNull(shipmentsTable.deletedAt),
+          or(eq(shipmentsTable.trackingNumber, number), eq(shipmentsTable.shipmentNumber, number))
+        )
+      )
+      .limit(1);
+
+    if (!shipment) { res.status(404).json({ error: "لم يتم العثور على الشحنة" }); return; }
+
+    // منع التقييم المتكرر لنفس الشحنة
+    const [existing] = await db.select({ id: shipmentRatingsTable.id })
+      .from(shipmentRatingsTable)
+      .where(eq(shipmentRatingsTable.shipmentId, shipment.id))
+      .limit(1);
+    if (existing) { res.status(409).json({ error: "تم تقييم هذه الشحنة من قبل" }); return; }
+
+    await db.insert(shipmentRatingsTable).values({
+      tenantId: shipment.tenantId,
+      shipmentId: shipment.id,
+      rating: Math.round(rating),
+      comment: comment?.trim() || null,
+      source: "tracking_link",
+      createdAt: new Date(),
+    });
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /shipments/track/rating]", e);
+    res.status(500).json({ error: "خطأ في حفظ التقييم" });
   }
 });
 
@@ -577,6 +625,47 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
     res.json(row);
   } catch (e) {
     res.status(500).json({ error: "خطأ" });
+  }
+});
+
+// ─── POST /shipments/:id/rating — إدخال تقييم يدوي (موظف) ────────────────────
+router.post("/shipments/:id/rating", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = parseInt(req.params.id);
+    const { rating, comment } = req.body as { rating?: number; comment?: string };
+
+    if (!rating || rating < 1 || rating > 5) {
+      res.status(400).json({ error: "التقييم يجب أن يكون رقم من 1 إلى 5" });
+      return;
+    }
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
+      : eq(shipmentsTable.id, id);
+    const [shipment] = await db.select({ id: shipmentsTable.id, tenantId: shipmentsTable.tenantId })
+      .from(shipmentsTable).where(cond).limit(1);
+    if (!shipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+
+    const [existing] = await db.select({ id: shipmentRatingsTable.id })
+      .from(shipmentRatingsTable)
+      .where(eq(shipmentRatingsTable.shipmentId, shipment.id))
+      .limit(1);
+    if (existing) { res.status(409).json({ error: "تم تقييم هذه الشحنة من قبل" }); return; }
+
+    await db.insert(shipmentRatingsTable).values({
+      tenantId: shipment.tenantId,
+      shipmentId: shipment.id,
+      rating: Math.round(rating),
+      comment: comment?.trim() || null,
+      source: "manual",
+      createdAt: new Date(),
+    });
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /shipments/:id/rating]", e);
+    res.status(500).json({ error: "خطأ في حفظ التقييم" });
   }
 });
 

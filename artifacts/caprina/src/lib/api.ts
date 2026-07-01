@@ -557,6 +557,18 @@ export interface ShipmentChartsData {
   statusBreakdownThisWeek: { status: string; count: number }[];
 }
 
+export interface OperationsKpiCard {
+  key: string;
+  label: string;
+  value: number;
+  change: number;
+  sparkline: number[];
+}
+export interface OperationsKpisResponse {
+  cards: OperationsKpiCard[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -585,6 +597,7 @@ export const analyticsApi = {
       `/analytics/monthly-sales${month ? `?month=${month}` : ""}`
     ),
   shipmentCharts: () => apiFetch<ShipmentChartsData>("/analytics/shipment-charts"),
+  operationsKpis: () => apiFetch<OperationsKpisResponse>("/analytics/operations-kpis"),
 };
 
 export interface BatchCreateOrderBody {
