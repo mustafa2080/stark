@@ -2876,4 +2876,148 @@ router.get("/analytics/shipments-profit", requirePermission("orders.financials")
   }
 });
 
+// ─── GET /analytics/top-performers ────────────────────────────────────────────
+// لوحة العمليات: أفضل العملاء (الأكثر تعاملاً بالشحنات) + أفضل المندوبين
+// (بأعلى متوسط تقييم عملاء) — آخر 30 يوم، بيانات حقيقية 100%.
+router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `top-performers:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateCond = and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo));
+
+    // ═══ 1) أفضل العملاء — تجميع حسب اسم + رقم هاتف المستلم ═══
+    type ShipmentPerfRow = {
+      id: number;
+      receiverName: string | null;
+      receiverPhone: string | null;
+      status: string | null;
+      totalAmount: string | null;
+      collectedAmount: string | null;
+      assignedUserId: number | null;
+    };
+    const shipmentRows: ShipmentPerfRow[] = await db
+      .select({
+        id: shipmentsTable.id,
+        receiverName: shipmentsTable.receiverName,
+        receiverPhone: shipmentsTable.receiverPhone,
+        status: shipmentsTable.status,
+        totalAmount: shipmentsTable.totalAmount,
+        collectedAmount: shipmentsTable.collectedAmount,
+        assignedUserId: shipmentsTable.assignedUserId,
+      })
+      .from(shipmentsTable)
+      .where(dateCond);
+
+    type ClientBucket = { name: string; phone: string; shipmentsCount: number; revenue: number; delivered: number };
+    const byClient = new Map<string, ClientBucket>();
+    for (const r of shipmentRows) {
+      const name = (r.receiverName ?? "").trim();
+      const phone = (r.receiverPhone ?? "").trim();
+      if (!name) continue;
+      const key = `${name}|${phone}`;
+      if (!byClient.has(key)) byClient.set(key, { name, phone, shipmentsCount: 0, revenue: 0, delivered: 0 });
+      const b = byClient.get(key)!;
+      b.shipmentsCount++;
+      b.revenue += Number(r.collectedAmount || r.totalAmount || 0);
+      if (normalize(r.status) === "received") b.delivered++;
+    }
+
+    const topClients = Array.from(byClient.values())
+      .sort((a, b) => b.shipmentsCount - a.shipmentsCount)
+      .slice(0, 5)
+      .map(c => ({
+        name: c.name,
+        phone: c.phone,
+        shipmentsCount: c.shipmentsCount,
+        revenue: Math.round(c.revenue),
+        successRate: c.shipmentsCount > 0 ? Math.round((c.delivered / c.shipmentsCount) * 100) : 0,
+      }));
+
+    // ═══ 2) أفضل المندوبين — تجميع حسب المندوب المسؤول + التقييمات ═══
+    const repIds = Array.from(new Set(shipmentRows.map((r): number | null => r.assignedUserId).filter((id): id is number => !!id)));
+
+    type RepBucket = { userId: number; assigned: number; delivered: number };
+    const byRep = new Map<number, RepBucket>();
+    for (const r of shipmentRows) {
+      if (!r.assignedUserId) continue;
+      if (!byRep.has(r.assignedUserId)) byRep.set(r.assignedUserId, { userId: r.assignedUserId, assigned: 0, delivered: 0 });
+      const b = byRep.get(r.assignedUserId)!;
+      b.assigned++;
+      if (normalize(r.status) === "received") b.delivered++;
+    }
+
+    type RepUserRow = { id: number; displayName: string; avatar: string | null };
+    type RatingRow = { shipmentId: number; rating: number };
+
+    const repUsers: RepUserRow[] = repIds.length > 0
+      ? await db.select({ id: usersTable.id, displayName: usersTable.displayName, avatar: usersTable.avatar })
+          .from(usersTable).where(inArray(usersTable.id, repIds))
+      : [];
+    const ratingRows: RatingRow[] = repIds.length > 0
+      ? await db.select({ shipmentId: shipmentRatingsTable.shipmentId, rating: shipmentRatingsTable.rating })
+          .from(shipmentRatingsTable)
+          .innerJoin(shipmentsTable, eq(shipmentRatingsTable.shipmentId, shipmentsTable.id))
+          .where(and(inArray(shipmentsTable.assignedUserId, repIds), gte(shipmentRatingsTable.createdAt, thirtyDaysAgo)))
+      : [];
+
+    // نحتاج ربط التقييم بالمندوب عبر الشحنة — نجيب خريطة shipmentId → assignedUserId
+    const shipmentToRep = new Map(shipmentRows.map(r => [r.id, r.assignedUserId]));
+    const ratingSumByRep = new Map<number, { sum: number; count: number }>();
+    for (const rt of ratingRows) {
+      const repId = shipmentToRep.get(rt.shipmentId);
+      if (!repId) continue;
+      if (!ratingSumByRep.has(repId)) ratingSumByRep.set(repId, { sum: 0, count: 0 });
+      const acc = ratingSumByRep.get(repId)!;
+      acc.sum += rt.rating;
+      acc.count++;
+    }
+
+    const userMap = new Map(repUsers.map(u => [u.id, u]));
+    const topReps = Array.from(byRep.values())
+      .map(rep => {
+        const user = userMap.get(rep.userId);
+        const ratingAcc = ratingSumByRep.get(rep.userId);
+        return {
+          userId: rep.userId,
+          name: user?.displayName ?? `مندوب #${rep.userId}`,
+          avatar: user?.avatar ?? null,
+          assigned: rep.assigned,
+          delivered: rep.delivered,
+          successRate: rep.assigned > 0 ? Math.round((rep.delivered / rep.assigned) * 100) : 0,
+          avgRating: ratingAcc && ratingAcc.count > 0 ? Math.round((ratingAcc.sum / ratingAcc.count) * 10) / 10 : 0,
+          ratingsCount: ratingAcc?.count ?? 0,
+        };
+      })
+      .sort((a, b) => b.avgRating - a.avgRating || b.successRate - a.successRate)
+      .slice(0, 5);
+
+    const result = {
+      topClients,
+      topReps,
+      periodDays: 30,
+      generatedAt: new Date().toISOString(),
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

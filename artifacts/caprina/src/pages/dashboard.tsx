@@ -18,7 +18,7 @@ import {
   analyticsApi, type PeriodProfit, type ProductProfit, type FinancialSummary, type Alert,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
   employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
-  type ShipmentsProfitResponse,
+  type ShipmentsProfitResponse, type TopPerformersResponse,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
@@ -571,6 +571,121 @@ function useShipmentsProfit() {
 const PROFIT_SEGMENT_COLORS = {
   revenue: "#10b981", operating: "#f59e0b", shipping: "#3b82f6", other: "#a855f7", loss: "#ef4444",
 } as const;
+
+// ─── أفضل العملاء + أفضل المندوبين (آخر 30 يوم) ────────────────────────────────
+function useTopPerformers() {
+  return useQuery({
+    queryKey: ["analytics-top-performers"],
+    queryFn: analyticsApi.topPerformers,
+    staleTime: 3 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: TopPerformersResponse | undefined) => prev,
+  });
+}
+
+function TopClientsCard() {
+  const { data, isLoading } = useTopPerformers();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-56 sm:h-64 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">أفضل العملاء</h2>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">آخر {data.periodDays} يوم</span>
+        </div>
+
+        {data.topClients.length === 0 ? (
+          <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</p>
+        ) : (
+          <div className="space-y-1.5 sm:space-y-2">
+            {data.topClients.map((c, i) => (
+              <div key={`${c.name}-${c.phone}`} className="flex items-center gap-2 sm:gap-3 rounded-lg p-2 sm:p-2.5 hover:bg-muted/20 transition-colors">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-muted/40 flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-muted-foreground shrink-0">
+                  {i + 1}
+                </span>
+                <DashClientAvatar avatar={null} name={c.name} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] sm:text-xs font-bold text-foreground truncate">{c.name}</p>
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">{c.shipmentsCount} شحنة</p>
+                </div>
+                <div className="text-left shrink-0">
+                  <p className="text-[10px] sm:text-xs font-black text-foreground">{fc(c.revenue)}</p>
+                  <p className="text-[8px] sm:text-[9px] text-emerald-600 dark:text-emerald-400">{c.successRate}% نجاح</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TopRepsCard() {
+  const { data, isLoading } = useTopPerformers();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-56 sm:h-64 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">أفضل المندوبين</h2>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">آخر {data.periodDays} يوم</span>
+        </div>
+
+        {data.topReps.length === 0 ? (
+          <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</p>
+        ) : (
+          <div className="space-y-1.5 sm:space-y-2">
+            {data.topReps.map((r, i) => (
+              <div key={r.userId} className="flex items-center gap-2 sm:gap-3 rounded-lg p-2 sm:p-2.5 hover:bg-muted/20 transition-colors">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-muted/40 flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-muted-foreground shrink-0">
+                  {i + 1}
+                </span>
+                <DashClientAvatar avatar={r.avatar} name={r.name} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] sm:text-xs font-bold text-foreground truncate">{r.name}</p>
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">{r.delivered}/{r.assigned} تسليم</p>
+                </div>
+                <div className="text-left shrink-0">
+                  <div className="flex items-center gap-1 justify-end">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    <span className="text-[10px] sm:text-xs font-black text-foreground">
+                      {r.ratingsCount > 0 ? r.avgRating.toFixed(1) : "—"}
+                    </span>
+                  </div>
+                  <p className="text-[8px] sm:text-[9px] text-emerald-600 dark:text-emerald-400">{r.successRate}% نجاح</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function ShipmentsProfitDonut() {
   const { data, isLoading } = useShipmentsProfit();
@@ -1690,6 +1805,12 @@ export default function Dashboard() {
           <ShipmentsRevenueTrendChart />
         </div>
       )}
+
+      {/* === أفضل العملاء + أفضل المندوبين === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
+        <TopClientsCard />
+        <TopRepsCard />
+      </div>
 
       {/* === PWA INSTALL BANNER === */}
       <PwaInstallBanner />

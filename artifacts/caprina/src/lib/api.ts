@@ -639,6 +639,30 @@ export interface ShipmentsProfitResponse {
   generatedAt: string;
 }
 
+export interface TopClient {
+  name: string;
+  phone: string;
+  shipmentsCount: number;
+  revenue: number;
+  successRate: number;
+}
+export interface TopRep {
+  userId: number;
+  name: string;
+  avatar: string | null;
+  assigned: number;
+  delivered: number;
+  successRate: number;
+  avgRating: number;
+  ratingsCount: number;
+}
+export interface TopPerformersResponse {
+  topClients: TopClient[];
+  topReps: TopRep[];
+  periodDays: number;
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -672,6 +696,7 @@ export const analyticsApi = {
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
   shipmentsProfit: () => apiFetch<ShipmentsProfitResponse>("/analytics/shipments-profit"),
+  topPerformers: () => apiFetch<TopPerformersResponse>("/analytics/top-performers"),
 };
 
 export interface BatchCreateOrderBody {
