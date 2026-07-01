@@ -4,26 +4,25 @@ import { useGetOrdersSummary, useGetRecentOrders } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { ChartsSection, WeeklyBars, ChartCard, StatusDonutWithOrders, ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
+import { ChartsSection, ChartCard, StatusDonutWithOrders, ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   TrendingUp, TrendingDown, DollarSign, Package, AlertCircle,
   Plus, Activity, Boxes, ArrowUpRight, ArrowDownRight,
-  Star, Wallet, BarChart3, ShoppingCart, AlertTriangle, RefreshCw, Bell, Brain, Zap, Archive, Clock,
-  Receipt, Building2, FileText, X, AlertOctagon, Users, Truck, Globe, Search, PackageCheck, CheckCircle2, Loader2,
+  Star, BarChart3, ShoppingCart, AlertTriangle, RefreshCw, Bell, Brain, Zap, Archive, Clock,
+  Receipt, X, AlertOctagon, Users, Truck, Globe, PackageCheck,
   Undo2, Timer,
 } from "lucide-react";
 import {
-  analyticsApi, type PeriodProfit, type ProductProfit, type FinancialSummary, type Alert,
+  analyticsApi, type PeriodProfit, type ProductProfit,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
-  employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
+  employeeApi, usersApi, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
   type ShipmentsProfitResponse, type TopPerformersResponse, type OperationsCenterResponse,
   type RecentEventsResponse, type RecentEvent, shipmentsApi, type ShipmentsListResponse,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
-import { PiPlantFill } from "react-icons/pi";
 import { FiMoreHorizontal } from "react-icons/fi";
 
 // ── Avatar helpers ──────────────────────────────────────────────────────────
@@ -68,10 +67,6 @@ function DashClientAvatar({ avatar, name }: { avatar?: string|null; name: string
 const fc = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n));
-const pct = (n: number, color = true) => {
-  if (!color) return `${n}%`;
-  return n;
-};
 
 // حالات الشحنة — تتطابق مع DB schema (نفس enum في shipments-page.tsx)
 const STATUS_LABELS: Record<string, string> = {
@@ -286,45 +281,6 @@ function RadialMetricGauge({ metric, compact = false }: { metric: PerformanceMet
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function PerformanceMetricsRow() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["analytics-performance-metrics"],
-    queryFn: analyticsApi.performanceMetrics,
-    staleTime: 3 * 60_000,
-    refetchOnWindowFocus: false,
-    refetchInterval: 5 * 60_000,
-    placeholderData: (prev: any) => prev,
-  });
-
-  if (isLoading && !data) {
-    return (
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i} className="border-border bg-card overflow-hidden">
-            <CardContent className="p-3 sm:p-4 flex flex-col items-center gap-2 animate-pulse">
-              <div className="w-[84px] h-[84px] rounded-full bg-muted" />
-              <div className="h-2.5 w-16 bg-muted rounded" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  return (
-    <div>
-      <h2 className="text-xs sm:text-sm font-bold text-muted-foreground mb-2 sm:mb-3">مؤشرات الأداء الرئيسية</h2>
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
-        {data.metrics.map((metric) => (
-          <RadialMetricGauge key={metric.key} metric={metric} />
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -1502,63 +1458,6 @@ function DashAdSourceCard({ source, orders, revenue, profit, returnRate, maxReve
   );
 }
 
-// ─── Team member row for dashboard ────────────────────────────────────────────
-function DashTeamMemberRow({ member, rank, maxScore, showProfit }: {
-  member: TeamMemberExtStats; rank: number; maxScore: number; showProfit: boolean;
-}) {
-  const scorePct = maxScore > 0 ? Math.round((member.score / maxScore) * 100) : 0;
-  const avatarColors = dbAvatarColor(member.displayName || "?");
-  const rankColors = [
-    "bg-yellow-400/20 text-yellow-600 dark:text-yellow-400 ring-1 ring-yellow-400/40",
-    "bg-slate-300/20 text-slate-500 dark:text-slate-300 ring-1 ring-slate-400/30",
-    "bg-orange-400/20 text-orange-600 dark:text-orange-400 ring-1 ring-orange-400/30",
-  ];
-  const rankCls = rank <= 3 ? rankColors[Math.max(0, Math.min(rankColors.length - 1, rank - 1))] : "bg-muted/20 text-muted-foreground";
-
-  return (
-    <div className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/20 transition-colors">
-      {/* rank + avatar */}
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${rankCls}`}>
-        {rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank}
-      </div>
-      {member.avatar && member.avatar.startsWith("data:") ? (
-        <img src={member.avatar} className="w-8 h-8 rounded-full object-cover border border-border/50 shrink-0" alt={member.displayName} />
-      ) : (
-        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 border border-border/30"
-          style={{ background: avatarColors[0], color: avatarColors[1] }}>
-          {dbInitials(member.displayName || "?")}
-        </div>
-      )}
-      {/* info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs font-bold truncate">{member.displayName}</p>
-          <span className={`text-[10px] font-black shrink-0 ${
-            member.deliveryRate >= 70 ? "text-emerald-500" : member.deliveryRate >= 50 ? "text-amber-500" : "text-red-500"
-          }`}>{member.deliveryRate}%</span>
-        </div>
-        {/* mini progress bar */}
-        <div className="h-1 bg-muted/40 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all duration-700 ${
-            scorePct >= 70 ? "bg-emerald-500" : scorePct >= 40 ? "bg-amber-400" : "bg-rose-400"
-          }`} style={{ width: `${scorePct}%` }} />
-        </div>
-        {/* stats row */}
-        <div className="flex gap-2.5 mt-1">
-          <span className="text-[9px] text-emerald-600 dark:text-emerald-400">✓ {member.delivered}</span>
-          <span className="text-[9px] text-red-500">↩ {member.returned}</span>
-          <span className="text-[9px] text-muted-foreground">{member.returnRate}% مرتجع</span>
-          {showProfit && (
-            <span className={`text-[9px] font-semibold ms-auto shrink-0 ${member.profit >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-              {new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(member.profit)}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 type Period = "today" | "week" | "month";
 
@@ -1667,11 +1566,10 @@ export default function Dashboard() {
   const canSeeTeam          = isAdmin || can("dashboard.team");
   const [period, setPeriod] = useState<Period>("today");
   const [showDamagedModal, setShowDamagedModal] = useState(false);
-  const [clientPeriod, setClientPeriod] = useState<"thisWeek" | "lastWeek" | "thisMonth">("thisWeek");
   const { data: summary } = useGetOrdersSummary({
     query: { queryKey: ["orders-summary"], staleTime: 60_000, refetchOnWindowFocus: false, refetchInterval: 120_000 },
   });
-  const { data: recentOrders, isLoading: isRecentLoading } = useGetRecentOrders({
+  const { data: recentOrders } = useGetRecentOrders({
     query: { queryKey: ["recent-orders"], staleTime: 60_000, refetchOnWindowFocus: false, refetchInterval: 120_000 },
   });
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list, staleTime: 5 * 60_000, refetchOnWindowFocus: false });
@@ -1683,7 +1581,7 @@ export default function Dashboard() {
     placeholderData: (prev: any) => prev,
     enabled: canViewFinancials,
   });
-  const { data: fin, isLoading: isFinLoading } = useQuery({
+  const { data: fin } = useQuery({
     queryKey: ["analytics-financial", period],
     queryFn: () => analyticsApi.financialSummary({ period }),
     staleTime: 5 * 60_000,
@@ -1766,7 +1664,7 @@ export default function Dashboard() {
     queryFn: analyticsApi.productPerformance,
     staleTime: 30 * 60 * 1000,          // ✅ 30 دقيقة — متطابق مع cache الـ backend
     gcTime: 60 * 60 * 1000,             // ✅ يفضل في الـ cache ساعة كاملة
-    placeholderData: (prev: any[] | undefined) => prev,     // ✅ يعرض الداتا القديمة فوراً عند الـ reload
+    placeholderData: (prev: any) => prev,     // ✅ يعرض الداتا القديمة فوراً عند الـ reload
     refetchOnWindowFocus: false,         // ✅ مش يعيد التحميل كل ما تفتح التاب
     refetchOnMount: false,               // ✅ لو الداتا موجودة في الكاش متجيبهاش تاني
     enabled: canViewFinancials,
@@ -1889,7 +1787,6 @@ export default function Dashboard() {
 
   const lowStockAlerts = alertsData?.alerts.filter(a => a.type === "LOW_STOCK") ?? [];
 
-  const hasCostData = fin && (fin.cashIn > 0 || fin.inventoryAtCost > 0);
   const noCostWarning = fin && fin.cashIn > 0 && fin.costOfGoods === 0;
 
   return (
