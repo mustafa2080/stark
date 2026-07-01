@@ -18,7 +18,7 @@ import {
   analyticsApi, type PeriodProfit, type ProductProfit, type FinancialSummary, type Alert,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
   employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
-  type ShipmentsProfitResponse, type TopPerformersResponse,
+  type ShipmentsProfitResponse, type TopPerformersResponse, type OperationsCenterResponse,
   type RecentEventsResponse, type RecentEvent, shipmentsApi, type ShipmentsListResponse,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -209,7 +209,7 @@ const METRIC_DIRECTION: Record<string, "higher_is_better" | "lower_is_better"> =
   avgPickupHours:   "lower_is_better",
 };
 
-function RadialMetricGauge({ metric }: { metric: PerformanceMetric }) {
+function RadialMetricGauge({ metric, compact = false }: { metric: PerformanceMetric; compact?: boolean }) {
   const direction = METRIC_DIRECTION[metric.key] ?? "higher_is_better";
   const isGoodTrend = direction === "higher_is_better" ? metric.change >= 0 : metric.change <= 0;
 
@@ -226,7 +226,7 @@ function RadialMetricGauge({ metric }: { metric: PerformanceMetric }) {
     ? (pct >= 70 ? "#10b981" : pct >= 40 ? "#f59e0b" : "#ef4444")
     : (pct >= 70 ? "#10b981" : pct >= 40 ? "#f59e0b" : "#ef4444");
 
-  const size = 84, stroke = 8, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const size = compact ? 56 : 84, stroke = compact ? 6 : 8, r = (size - stroke) / 2, c = 2 * Math.PI * r;
   const offset = c - (pct / 100) * c;
 
   const displayValue = metric.unit === "/5"
@@ -234,6 +234,27 @@ function RadialMetricGauge({ metric }: { metric: PerformanceMetric }) {
     : metric.unit === "%"
       ? `${metric.value}%`
       : metric.value.toFixed(1);
+
+  if (compact) {
+    return (
+      <div className="flex flex-col items-center text-center gap-1">
+        <div className="relative" style={{ width: size, height: size }}>
+          <svg width={size} height={size} className="-rotate-90">
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted/30" />
+            <circle
+              cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+              strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+              style={{ transition: "stroke-dashoffset 0.6s ease" }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[10px] font-black" style={{ color }}>{displayValue}</span>
+          </div>
+        </div>
+        <p className="text-[8px] font-bold text-muted-foreground leading-tight truncate w-full">{metric.label}</p>
+      </div>
+    );
+  }
 
   return (
     <Card className="border-border bg-card overflow-hidden">
@@ -307,6 +328,42 @@ function PerformanceMetricsRow() {
   );
 }
 
+// ─── نسخة مصغّرة من مؤشرات الأداء (تتحط جنب الخريطة فى صف واحد) ──────────────
+function PerformanceMetricsCompact() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["analytics-performance-metrics"],
+    queryFn: analyticsApi.performanceMetrics,
+    staleTime: 3 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: any) => prev,
+  });
+
+  return (
+    <Card className="border-border bg-card h-full">
+      <CardContent className="p-3 sm:p-4">
+        <h2 className="text-xs sm:text-sm font-bold text-muted-foreground mb-2 sm:mb-3">مؤشرات الأداء الرئيسية</h2>
+        {isLoading && !data ? (
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex flex-col items-center gap-1 animate-pulse">
+                <div className="w-14 h-14 rounded-full bg-muted" />
+                <div className="h-2 w-10 bg-muted rounded" />
+              </div>
+            ))}
+          </div>
+        ) : !data ? null : (
+          <div className="grid grid-cols-3 gap-x-2 gap-y-3">
+            {data.metrics.map((metric) => (
+              <RadialMetricGauge key={metric.key} metric={metric} compact />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── الخريطة الرمزية (توزيع الشحنات على المحافظات) ──────────────────────────────
 // إحداثيات تقريبية (0-100) لموقع كل محافظة على خريطة SVG مبسطة لمصر — رمزية
 // وليست جغرافية دقيقة، مرتبة نسبيًا (شمال/جنوب، شرق/غرب) لتعطي إحساسًا صحيحًا بالموقع.
@@ -376,7 +433,7 @@ function EgyptActivityMap() {
   const selected = selectedCity ? data.cities.find(c => c.city === selectedCity) : null;
 
   return (
-    <Card className="border-border bg-card overflow-hidden">
+    <Card className="border-border bg-card overflow-hidden h-full">
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-center justify-between mb-2 sm:mb-3">
           <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">الخريطة المباشرة</h2>
@@ -523,7 +580,7 @@ function OpsSmartAlertsPanel() {
   if (!data) return null;
 
   return (
-    <Card className="border-border bg-card overflow-hidden">
+    <Card className="border-border bg-card overflow-hidden h-full">
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
           <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
@@ -683,6 +740,84 @@ function TopRepsCard() {
             ))}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── جدول المندوبين اليوم (متصلين الآن + نشاطهم الفعلي) ─────────────────────
+function RepsTodayTable() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["analytics-operations-center"],
+    queryFn: analyticsApi.operationsCenter,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: OperationsCenterResponse | undefined) => prev,
+  });
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-48 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data || data.representatives.length === 0) return null;
+
+  const reps = [...data.representatives]
+    .sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0) || b.activeShipments - a.activeShipments)
+    .slice(0, 8);
+
+  const timeAgo = (iso: string | null) => {
+    if (!iso) return "—";
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return "الآن";
+    if (mins < 60) return `منذ ${mins}د`;
+    const hrs = Math.floor(mins / 60);
+    return `منذ ${hrs}س`;
+  };
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">جدول المندوبين اليوم</h2>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">
+            {data.summary.onlineRepsCount} متصل الآن من {data.summary.totalRepsCount}
+          </span>
+        </div>
+        <div className="space-y-1">
+          {reps.map((r, i) => {
+            const [bg, fg] = dbAvatarColor(r.displayName || "?");
+            return (
+              <div key={r.id} className="flex items-center gap-2 sm:gap-3 rounded-lg px-2 py-1.5 sm:py-2 hover:bg-muted/20 transition-colors">
+                <span className="w-4 sm:w-5 text-[9px] sm:text-[10px] font-bold text-muted-foreground shrink-0">{i + 1}</span>
+                <div className="relative shrink-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    style={{ background: bg, color: fg }}>
+                    {dbInitials(r.displayName || "?")}
+                  </div>
+                  <span className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
+                    r.isOnline ? "bg-emerald-500" : "bg-muted-foreground/40"
+                  }`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] sm:text-xs font-bold text-foreground truncate">{r.displayName}</p>
+                  <p className="text-[8px] sm:text-[9px] text-muted-foreground">
+                    {r.isOnline ? `متصل ${timeAgo(r.onlineSince)}` : "غير متصل"}
+                  </p>
+                </div>
+                <div className="text-left shrink-0">
+                  <p className="text-[10px] sm:text-xs font-black text-foreground">{r.activeShipments} نشطة</p>
+                  <p className="text-[8px] sm:text-[9px] text-emerald-600 dark:text-emerald-400">{r.successRate}% نجاح</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );
@@ -1806,15 +1941,21 @@ export default function Dashboard() {
       {/* === Operations KPI Cards === */}
       <OperationsKpiRow />
 
-      {/* === Performance Metrics (6 دوائر) === */}
-      <PerformanceMetricsRow />
-      <EgyptActivityMap />
-
-      {/* === سايدبار (نظرة سريعة) + الذكاء الاصطناعي === */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-        <OpsSidebarCards />
-        <OpsSmartAlertsPanel />
+      {/* === الخريطة + مؤشرات الأداء (مصغّرة) + الذكاء الاصطناعي — صف واحد === */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
+        <div className="lg:col-span-1">
+          <EgyptActivityMap />
+        </div>
+        <div className="lg:col-span-1">
+          <PerformanceMetricsCompact />
+        </div>
+        <div className="lg:col-span-1">
+          <OpsSmartAlertsPanel />
+        </div>
       </div>
+
+      {/* === سايدبار (نظرة سريعة) === */}
+      <OpsSidebarCards />
 
       {/* === تحذير متابعة الشحن === */}
       {shippingFollowup.length > 0 && (() => {
@@ -2041,6 +2182,11 @@ export default function Dashboard() {
         <ShipmentsStatusOpsDonut data={shipmentsStatus} />
         <RecentEventsCard />
         <RecentShipmentsTable />
+      </div>
+
+      {/* === جدول المندوبين اليوم === */}
+      <div className="px-3 sm:px-0">
+        <RepsTodayTable />
       </div>
 
       {/* === PWA INSTALL BANNER === */}
