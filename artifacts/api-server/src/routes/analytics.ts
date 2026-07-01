@@ -2779,4 +2779,101 @@ router.get("/analytics/ops-alerts", requireAuth, async (req, res): Promise<void>
   }
 });
 
+// ─── GET /analytics/shipments-profit ─────────────────────────────────────────
+// لوحة العمليات: ملخص الأرباح (donut) + اتجاه الإيرادات والأرباح اليومي (line chart).
+// مبني بالكامل على shipmentsTable (وليس ordersTable) — الإيرادات = المبلغ المحصَّل
+// فعليًا، التشغيل = تكلفة البضاعة، الشحن = رسوم الشحن، مصروفات أخرى = رسوم التأمين.
+router.get("/analytics/shipments-profit", requirePermission("orders.financials"), async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `shipments-profit:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const rows = await db
+      .select({
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+        collectedAmount: shipmentsTable.collectedAmount,
+        totalAmount: shipmentsTable.totalAmount,
+        costPrice: shipmentsTable.costPrice,
+        shippingFee: shipmentsTable.shippingFee,
+        insuranceFee: shipmentsTable.insuranceFee,
+      })
+      .from(shipmentsTable)
+      .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo)));
+
+    type ProfitRow = typeof rows[number];
+
+    // الشحنات المُسلَّمة فقط تُحتسب كإيرادات فعلية (received = تم التسليم والتحصيل)
+    function computeProfit(subset: ProfitRow[]) {
+      let revenue = 0, cost = 0, shippingSpend = 0, otherExpenses = 0, returnCount = 0, ordersCount = 0;
+      for (const r of subset) {
+        const status = normalize(r.status);
+        if (status === "returned") { returnCount++; continue; }
+        if (status !== "received") continue; // نحسب الإيراد فقط بعد التسليم الفعلي
+        ordersCount++;
+        revenue += Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+        cost += Number(r.costPrice ?? 0);
+        shippingSpend += Number(r.shippingFee ?? 0);
+        otherExpenses += Number(r.insuranceFee ?? 0);
+      }
+      const netProfit = revenue - cost - shippingSpend - otherExpenses;
+      const total = subset.length;
+      const returnRate = total > 0 ? Math.round((returnCount / total) * 1000) / 10 : 0;
+      return { orders: ordersCount, revenue, cost, shippingSpend, otherExpenses, netProfit, returnRate, returnCount };
+    }
+
+    const todayStart = new Date(now.toDateString());
+    const weekStart = new Date(now); weekStart.setDate(weekStart.getDate() - 7);
+    const monthStart = new Date(now); monthStart.setDate(monthStart.getDate() - 30);
+
+    const todayRows = rows.filter((r: ProfitRow) => new Date(r.createdAt) >= todayStart);
+    const weekRows = rows.filter((r: ProfitRow) => new Date(r.createdAt) >= weekStart);
+    const monthRows = rows; // آخر 30 يوم بالفعل
+
+    // ─── اتجاه يومي (آخر 30 يوم) للرسم البياني ────────────────────────────────
+    const dayBuckets = new Map<string, ProfitRow[]>();
+    for (const r of rows) {
+      const dayKey = new Date(r.createdAt).toISOString().slice(0, 10);
+      if (!dayBuckets.has(dayKey)) dayBuckets.set(dayKey, []);
+      dayBuckets.get(dayKey)!.push(r);
+    }
+    const dailyTrend: { date: string; revenue: number; profit: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now); d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const dayRows = dayBuckets.get(key) ?? [];
+      const p = computeProfit(dayRows);
+      dailyTrend.push({ date: key, revenue: Math.round(p.revenue), profit: Math.round(p.netProfit) });
+    }
+
+    const result = {
+      today: computeProfit(todayRows),
+      week: computeProfit(weekRows),
+      month: computeProfit(monthRows),
+      dailyTrend,
+      generatedAt: now.toISOString(),
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

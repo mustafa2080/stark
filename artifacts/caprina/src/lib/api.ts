@@ -616,6 +616,29 @@ export interface OpsAlertsResponse {
   generatedAt: string;
 }
 
+export interface ShipmentsProfitPeriod {
+  orders: number;
+  revenue: number;
+  cost: number;
+  shippingSpend: number;
+  otherExpenses: number;
+  netProfit: number;
+  returnRate: number;
+  returnCount: number;
+}
+export interface ShipmentsProfitTrendDay {
+  date: string;
+  revenue: number;
+  profit: number;
+}
+export interface ShipmentsProfitResponse {
+  today: ShipmentsProfitPeriod;
+  week: ShipmentsProfitPeriod;
+  month: ShipmentsProfitPeriod;
+  dailyTrend: ShipmentsProfitTrendDay[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -648,6 +671,7 @@ export const analyticsApi = {
   performanceMetrics: () => apiFetch<PerformanceMetricsResponse>("/analytics/performance-metrics"),
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
+  shipmentsProfit: () => apiFetch<ShipmentsProfitResponse>("/analytics/shipments-profit"),
 };
 
 export interface BatchCreateOrderBody {

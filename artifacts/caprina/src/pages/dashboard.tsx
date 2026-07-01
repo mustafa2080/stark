@@ -18,6 +18,7 @@ import {
   analyticsApi, type PeriodProfit, type ProductProfit, type FinancialSummary, type Alert,
   productsApi, cashRegistersApi, shippingApi, manifestsApi, teamAnalyticsApi, type TeamMemberExtStats,
   employeeApi, usersApi, apiFetch, type OperationsKpiCard, type PerformanceMetric, type CityActivityResponse, type OpsAlertsResponse, type OpsAlert,
+  type ShipmentsProfitResponse,
 } from "@/lib/api";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { FaFacebook, FaTiktok, FaInstagram, FaWhatsapp } from "react-icons/fa";
@@ -550,6 +551,160 @@ function OpsSmartAlertsPanel() {
             })}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── ملخص الأرباح (donut) + اتجاه الإيرادات والأرباح ─────────────────────────────
+function useShipmentsProfit() {
+  return useQuery({
+    queryKey: ["analytics-shipments-profit"],
+    queryFn: analyticsApi.shipmentsProfit,
+    staleTime: 3 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: ShipmentsProfitResponse | undefined) => prev,
+  });
+}
+
+const PROFIT_SEGMENT_COLORS = {
+  revenue: "#10b981", operating: "#f59e0b", shipping: "#3b82f6", other: "#a855f7", loss: "#ef4444",
+} as const;
+
+function ShipmentsProfitDonut() {
+  const { data, isLoading } = useShipmentsProfit();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-56 sm:h-64 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  const m = data.month;
+  // نبني شرائح الدونات من التكاليف الثلاثة (تشغيل/شحن/أخرى) بالنسبة للإيراد الإجمالي
+  const segments = [
+    { key: "operating", label: "تكلفة التشغيل", value: m.cost, color: PROFIT_SEGMENT_COLORS.operating },
+    { key: "shipping", label: "تكلفة الشحن", value: m.shippingSpend, color: PROFIT_SEGMENT_COLORS.shipping },
+    { key: "other", label: "مصروفات أخرى", value: m.otherExpenses, color: PROFIT_SEGMENT_COLORS.other },
+    { key: "net", label: "صافي الربح", value: Math.max(0, m.netProfit), color: PROFIT_SEGMENT_COLORS.revenue },
+  ].filter(s => s.value > 0);
+
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const size = 140, stroke = 20, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  let cumulative = 0;
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">ملخص الأرباح</h2>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">آخر 30 يوم</span>
+        </div>
+
+        <div className="flex items-center gap-4 sm:gap-6">
+          <div className="relative shrink-0" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="-rotate-90">
+              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted/20" />
+              {segments.map((seg) => {
+                const fraction = seg.value / total;
+                const dashArray = c;
+                const dashOffset = c - fraction * c;
+                const rotation = (cumulative / total) * 360;
+                cumulative += seg.value;
+                return (
+                  <circle
+                    key={seg.key} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={seg.color} strokeWidth={stroke}
+                    strokeDasharray={dashArray} strokeDashoffset={dashOffset}
+                    style={{ transform: `rotate(${rotation}deg)`, transformOrigin: "50% 50%", transition: "stroke-dashoffset 0.6s ease" }}
+                  />
+                );
+              })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-base sm:text-xl font-black text-foreground">{fn(Math.round(m.netProfit))}</span>
+              <span className="text-[8px] sm:text-[9px] text-muted-foreground">صافي الربح</span>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-1.5 sm:space-y-2 min-w-0">
+            <div className="flex items-center justify-between text-[10px] sm:text-xs">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2 h-2 rounded-full" style={{ background: PROFIT_SEGMENT_COLORS.revenue }} />إجمالي الإيرادات</span>
+              <span className="font-bold text-foreground">{fn(Math.round(m.revenue))}</span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] sm:text-xs">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2 h-2 rounded-full" style={{ background: PROFIT_SEGMENT_COLORS.operating }} />تكلفة التشغيل</span>
+              <span className="font-bold text-foreground">{fn(Math.round(m.cost))}</span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] sm:text-xs">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2 h-2 rounded-full" style={{ background: PROFIT_SEGMENT_COLORS.shipping }} />تكلفة الشحن</span>
+              <span className="font-bold text-foreground">{fn(Math.round(m.shippingSpend))}</span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] sm:text-xs">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2 h-2 rounded-full" style={{ background: PROFIT_SEGMENT_COLORS.other }} />مصروفات أخرى</span>
+              <span className="font-bold text-foreground">{fn(Math.round(m.otherExpenses))}</span>
+            </div>
+            <div className="pt-1.5 sm:pt-2 border-t border-border flex items-center justify-between text-[10px] sm:text-xs">
+              <span className="font-bold text-foreground">صافي الربح</span>
+              <span className={`font-black ${m.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                {fn(Math.round(m.netProfit))}
+              </span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ShipmentsRevenueTrendChart() {
+  const { data, isLoading } = useShipmentsProfit();
+
+  if (isLoading && !data) {
+    return (
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="h-56 sm:h-64 bg-muted/30 rounded-lg animate-pulse" />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  const chartData = data.dailyTrend.map(d => ({
+    ...d,
+    label: new Date(d.date).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }),
+  }));
+
+  return (
+    <Card className="border-border bg-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-xs sm:text-sm font-bold text-muted-foreground">اتجاه الإيرادات والأرباح</h2>
+          <div className="flex items-center gap-2 sm:gap-3 text-[9px] sm:text-[10px]">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />الإيرادات</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />الأرباح</span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={4} />
+            <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={40} />
+            <Tooltip
+              contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11, padding: "6px 10px" }}
+              formatter={(v: number, name: string) => [fn(v), name === "revenue" ? "الإيرادات" : "الأرباح"]}
+              labelStyle={{ color: "hsl(var(--foreground))", fontSize: 10, fontWeight: "bold" }}
+            />
+            <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+            <Line type="monotone" dataKey="profit" stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+          </LineChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );
@@ -1525,6 +1680,14 @@ export default function Dashboard() {
               ))}
             </>
           ) : null}
+        </div>
+      )}
+
+      {/* === ملخص الأرباح + اتجاه الإيرادات والأرباح === */}
+      {canViewFinancials && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
+          <ShipmentsProfitDonut />
+          <ShipmentsRevenueTrendChart />
         </div>
       )}
 
