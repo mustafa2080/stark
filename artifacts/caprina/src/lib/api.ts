@@ -678,6 +678,29 @@ export interface OperationsCenterResponse {
   generatedAt: string;
 }
 
+// ─── الخريطة المباشرة (موسّعة) ────────────────────────────────────────────────
+export interface LiveMapCity {
+  city: string;
+  total: number;
+  inTransit: number;
+  delivered: number;
+  delayed: number;
+  problem: number;
+  delayRate: number;
+  heatScore: number;
+  representatives: string[];
+  representativesCount: number;
+}
+export interface LiveMapResponse {
+  cities: LiveMapCity[];
+  totalActiveCities: number;
+  totalActiveShipments: number;
+  totalOnlineReps: number;
+  busiestCity: { city: string; total: number } | null;
+  mostDelayedCity: { city: string; delayRate: number } | null;
+  generatedAt: string;
+}
+
 export interface ShipmentsProfitPeriod {
   orders: number;
   revenue: number;
@@ -771,6 +794,7 @@ export const analyticsApi = {
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
   operationsCenter: () => apiFetch<OperationsCenterResponse>("/analytics/operations-center"),
+  liveMap: () => apiFetch<LiveMapResponse>("/analytics/live-map"),
   shipmentsProfit: () => apiFetch<ShipmentsProfitResponse>("/analytics/shipments-profit"),
   topPerformers: () => apiFetch<TopPerformersResponse>("/analytics/top-performers"),
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),

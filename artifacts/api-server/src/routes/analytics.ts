@@ -2610,6 +2610,119 @@ router.get("/analytics/city-activity", requireAuth, async (req, res): Promise<vo
   }
 });
 
+// ─── GET /analytics/live-map ──────────────────────────────────────────────────
+// خريطة موسّعة لصفحة "الخريطة المباشرة": نفس تجميع city-activity + مندوبين
+// نشطين لكل محافظة + نسبة تأخير (heat score) لتحديد المناطق المزدحمة/المتأخرة.
+router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `live-map:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [rows, users] = await Promise.all([
+      db.select({
+          city: shipmentsTable.receiverCity,
+          status: shipmentsTable.status,
+          assignedUserId: shipmentsTable.assignedUserId,
+        })
+        .from(shipmentsTable)
+        .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
+      tenantId !== null
+        ? db.select({ id: usersTable.id, displayName: usersTable.displayName })
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+        : db.select({ id: usersTable.id, displayName: usersTable.displayName })
+            .from(usersTable).where(eq(usersTable.role, "representative")),
+    ]);
+    const repNameById = new Map(users.map((u: typeof users[number]) => [u.id, u.displayName]));
+
+    type LiveCityBucket = {
+      city: string;
+      total: number;
+      inTransit: number;
+      delivered: number;
+      delayed: number;
+      problem: number;
+      repIds: Set<number>;
+    };
+
+    const byCityLive = new Map<string, LiveCityBucket>();
+    for (const r of rows) {
+      const cityName = (r.city ?? "").trim();
+      if (!cityName) continue;
+
+      const status = normalize(r.status);
+      if (!byCityLive.has(cityName)) {
+        byCityLive.set(cityName, { city: cityName, total: 0, inTransit: 0, delivered: 0, delayed: 0, problem: 0, repIds: new Set() });
+      }
+      const bucket = byCityLive.get(cityName)!;
+      bucket.total++;
+      if (status === "in_shipping" || status === "warehouse_ready") bucket.inTransit++;
+      else if (status === "received") bucket.delivered++;
+      else if (status === "delayed") bucket.delayed++;
+      else if (status === "returned") bucket.problem++;
+      if (r.assignedUserId) bucket.repIds.add(r.assignedUserId);
+    }
+
+    const liveCities = Array.from(byCityLive.values())
+      .sort((a, b) => b.total - a.total)
+      .map((b) => {
+        const delayRate = b.total > 0 ? Math.round(((b.delayed + b.problem) / b.total) * 100) : 0;
+        // heat score: يجمع بين الحجم (ازدحام) ونسبة التأخير (مشاكل) في مؤشر واحد 0-100
+        const congestionScore = Math.min(100, Math.round((b.total / 5) * 10));
+        const heatScore = Math.min(100, Math.round(congestionScore * 0.5 + delayRate * 0.5));
+        return {
+          city: b.city,
+          total: b.total,
+          inTransit: b.inTransit,
+          delivered: b.delivered,
+          delayed: b.delayed,
+          problem: b.problem,
+          delayRate,
+          heatScore,
+          representatives: Array.from(b.repIds).map((id) => repNameById.get(id) ?? "مندوب").slice(0, 8),
+          representativesCount: b.repIds.size,
+        };
+      });
+
+    const busiestCity = liveCities.length > 0 ? liveCities.reduce((a, b) => (b.total > a.total ? b : a)) : null;
+    const mostDelayedCity = liveCities.filter(c => c.total >= 3).length > 0
+      ? liveCities.filter(c => c.total >= 3).reduce((a, b) => (b.delayRate > a.delayRate ? b : a))
+      : null;
+
+    const liveMapResult = {
+      cities: liveCities,
+      totalActiveCities: liveCities.length,
+      totalActiveShipments: rows.filter((r: typeof rows[number]) => {
+        const s = normalize(r.status);
+        return s === "in_shipping" || s === "warehouse_ready";
+      }).length,
+      totalOnlineReps: users.length,
+      busiestCity: busiestCity ? { city: busiestCity.city, total: busiestCity.total } : null,
+      mostDelayedCity: mostDelayedCity ? { city: mostDelayedCity.city, delayRate: mostDelayedCity.delayRate } : null,
+      generatedAt: new Date().toISOString(),
+    };
+
+    setCached(cacheKey, liveMapResult, 3 * 60 * 1000); // cache 3 دقائق
+    res.json(liveMapResult);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /analytics/ops-alerts ────────────────────────────────────────────────
 // لوحة العمليات: تنبيهات ذكية (AI) عن أنماط تشغيلية حقيقية + أرقام السايدبار
 // الخمسة (شحنات متأخرة، بها مشكلة، خارجة اليوم، مندوبين متصلين، عملاء يحتاجون متابعة).
