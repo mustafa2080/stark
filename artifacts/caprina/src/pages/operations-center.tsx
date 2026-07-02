@@ -334,7 +334,7 @@ function LeaderLineDonut({
 
   return (
     <div className="w-full flex items-center justify-center py-2">
-      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height={size} style={{ maxWidth: 320, overflow: "visible" }}>
+      <svg viewBox={`0 0 ${vbWidth} ${size}`} width="100%" height={size} style={{ maxWidth: "100%" }} preserveAspectRatio="xMidYMid meet">
         {segments.map((s) => (
           <path key={s.status} d={arcPath(s.startDeg, s.endDeg)} fill={s.color} />
         ))}
