@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import {
-  Search, Bell, Mail, Globe, Sun, Moon, Download,
+  Search, Bell, Mail, Globe, Sun, Moon, Clock, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
   AlertTriangle, AlertOctagon, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
@@ -266,6 +267,47 @@ function useLiveMap() {
   });
 }
 
+// ── ساعة مباشرة بتوقيت القاهرة ───────────────────────────────────────────────
+function LiveClock() {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const timeParts = useMemo(() => {
+    const formatted = new Intl.DateTimeFormat("ar-EG", {
+      timeZone: "Africa/Cairo",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    }).formatToParts(now);
+    const get = (type: string) => formatted.find((p) => p.type === type)?.value ?? "";
+    return {
+      h: get("hour"),
+      m: get("minute"),
+      s: get("second"),
+      period: get("dayPeriod"),
+    };
+  }, [now]);
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card">
+      <Clock className="w-4 h-4 text-sky-500 shrink-0" />
+      <div className="flex items-baseline gap-0.5 font-mono tabular-nums leading-none">
+        <span className="text-lg font-bold">{timeParts.h}</span>
+        <span className="text-lg font-bold text-muted-foreground">:</span>
+        <span className="text-lg font-bold">{timeParts.m}</span>
+        <span className="text-sm font-semibold text-muted-foreground">:{timeParts.s}</span>
+      </div>
+      <span className="text-[10px] font-semibold text-muted-foreground">{timeParts.period}</span>
+      <span className="text-[10px] text-muted-foreground border-r pr-2 mr-0.5">توقيت القاهرة</span>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -308,7 +350,10 @@ export default function OperationsCenterPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black">مرحباً بك، {user?.displayName} 👋</h1>
-          <p className="text-sm text-muted-foreground mt-1">{today} — هذه نظرة شاملة على حالة الشركة الآن</p>
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            <p className="text-sm text-muted-foreground">{today} — هذه نظرة شاملة على حالة الشركة الآن</p>
+            <LiveClock />
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
