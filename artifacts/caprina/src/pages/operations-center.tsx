@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse } from "@/lib/api";
 import {
@@ -255,7 +256,8 @@ function useRevenueTrend() {
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
 export default function OperationsCenterPage() {
-  const { user } = useAuth();
+  const { user, logout, can } = useAuth();
+  const [, navigate] = useLocation();
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -853,18 +855,34 @@ export default function OperationsCenterPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
             {[
-              { label: "شحنة جديدة", icon: Plus, color: "text-emerald-500" },
-              { label: "استيراد Excel", icon: Upload, color: "text-amber-500" },
-              { label: "عمل جديد", icon: Briefcase, color: "text-blue-500" },
-              { label: "مندوب جديد", icon: UserPlus, color: "text-sky-500" },
-              { label: "تقرير جديد", icon: FileText, color: "text-purple-500" },
-              { label: "إغلاق شيفت", icon: LogOut, color: "text-red-500" },
-            ].map((a) => (
-              <Button key={a.label} variant="outline" className="h-16 flex-col gap-1 text-xs">
-                <a.icon className={`w-4 h-4 ${a.color}`} />
-                {a.label}
-              </Button>
-            ))}
+              { label: "شحنة جديدة", icon: Plus, color: "text-emerald-500", path: "/shipments/new", permission: "orders.create" },
+              { label: "استيراد Excel", icon: Upload, color: "text-amber-500", path: "/import", permission: "import.view" },
+              { label: "عمل جديد", icon: Briefcase, color: "text-blue-500", path: "/orders/new", permission: "orders.create" },
+              { label: "مندوب جديد", icon: UserPlus, color: "text-sky-500", path: "/users/manage", permission: "settings.users" },
+              { label: "تقرير الأداء", icon: FileText, color: "text-purple-500", path: "/team-performance", permission: "analytics.team" },
+              { label: "تسجيل الخروج", icon: LogOut, color: "text-red-500", action: "logout" as const },
+            ].map((a) => {
+              const allowed = a.action === "logout" ? true : can(a.permission);
+              return (
+                <Button
+                  key={a.label}
+                  variant="outline"
+                  disabled={!allowed}
+                  title={allowed ? undefined : "لا تملك صلاحية الوصول لهذا الإجراء"}
+                  className="h-16 flex-col gap-1 text-xs disabled:opacity-40"
+                  onClick={() => {
+                    if (a.action === "logout") {
+                      if (window.confirm("هل أنت متأكد من تسجيل الخروج وإنهاء الجلسة الحالية؟")) logout();
+                      return;
+                    }
+                    if (a.path) navigate(a.path);
+                  }}
+                >
+                  <a.icon className={`w-4 h-4 ${a.color}`} />
+                  {a.label}
+                </Button>
+              );
+            })}
           </CardContent>
         </Card>
 
