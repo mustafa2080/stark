@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -17,8 +17,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
 import {
-  mockDelayedShipments, mockProblemShipments,
-  mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
+  mockProblemShipments, mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
   mockFinancials, mockKpis, mockAiInsights, mockAlerts,
   mockRevenueTrend,
   mockStatusDistribution, mockRecentShipments, mockDailyReps,
@@ -140,6 +139,18 @@ function useOperationsKpis() {
   });
 }
 
+// ── جلب بيانات العمود الجانبي (شحنات متأخرة/مشكلة/خارجة/مندوبين/عملاء) ───────
+function useOperationsCenter() {
+  return useQuery({
+    queryKey: ["analytics-operations-center"],
+    queryFn: analyticsApi.operationsCenter,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: OperationsCenterResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -150,6 +161,12 @@ export default function OperationsCenterPage() {
   const topReps = topPerformers?.topReps ?? [];
   const { data: opsKpis, isLoading: opsKpisLoading } = useOperationsKpis();
   const overviewCards = opsKpis?.cards ?? [];
+  const { data: opsCenter, isLoading: opsCenterLoading } = useOperationsCenter();
+  const delayedShipments = opsCenter?.delayedShipments ?? [];
+  const problemShipments = opsCenter?.problemShipments ?? [];
+  const outTodayShipments = opsCenter?.outToday ?? [];
+  const representatives = opsCenter?.representatives ?? [];
+  const clientsNeedingFollowup = opsCenter?.clientsNeedingFollowup ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -229,15 +246,29 @@ export default function OperationsCenterPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {mockDelayedShipments.map((s) => (
-                <div key={s.id} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
-                  <div>
-                    <div className="font-semibold">{s.id}</div>
-                    <div className="text-muted-foreground">{s.client} — {s.city}</div>
+              {opsCenterLoading && delayedShipments.length === 0 ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0 animate-pulse">
+                    <div className="space-y-1">
+                      <div className="h-3 w-20 bg-muted rounded" />
+                      <div className="h-2.5 w-28 bg-muted rounded" />
+                    </div>
+                    <div className="h-4 w-12 bg-muted rounded" />
                   </div>
-                  <Badge variant="destructive" className="text-[10px]">{s.hours} ساعة</Badge>
-                </div>
-              ))}
+                ))
+              ) : delayedShipments.length === 0 ? (
+                <div className="text-xs text-muted-foreground text-center py-4">لا توجد شحنات متأخرة حالياً 🎉</div>
+              ) : (
+                delayedShipments.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
+                    <div>
+                      <div className="font-semibold">{s.trackingNumber ?? `#${s.id}`}</div>
+                      <div className="text-muted-foreground">{s.receiverName} — {s.receiverCity ?? "—"}</div>
+                    </div>
+                    <Badge variant="destructive" className="text-[10px]">{s.delayedHours} ساعة</Badge>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
