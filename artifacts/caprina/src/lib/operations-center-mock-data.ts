@@ -97,13 +97,8 @@ export const mockRevenueTrend = [
   { day: "الجمعة", revenue: 55000, profit: 16900 },
 ];
 
-// ── 7) أفضل المندوبين (mock حالياً — سيُربط لاحقاً) ─────────────────────────
-// ملحوظة: "أفضل العملاء" أصبح يستخدم بيانات حقيقية من /analytics/top-performers
-export const mockTopReps = [
-  { name: "أحمد سعيد", rating: 4.9, shipments: 312, successRate: 96 },
-  { name: "محمود جابر", rating: 4.6, shipments: 268, successRate: 91 },
-  { name: "كريم عادل", rating: 4.4, shipments: 201, successRate: 89 },
-];
+// ملحوظة: "أفضل العملاء" و"أفضل المندوبين" أصبحا يستخدمان بيانات حقيقية
+// من /analytics/top-performers
 
 // ── 8) توزيع الشحنات حسب الحالة ──────────────────────────────────────────────
 export const mockStatusDistribution = [

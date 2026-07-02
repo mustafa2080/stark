@@ -20,7 +20,7 @@ import {
   mockOverviewCards, mockDelayedShipments, mockProblemShipments,
   mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
   mockFinancials, mockKpis, mockAiInsights, mockAlerts,
-  mockRevenueTrend, mockTopReps,
+  mockRevenueTrend,
   mockStatusDistribution, mockRecentShipments, mockDailyReps,
   mockExecutiveSummary,
 } from "@/lib/operations-center-mock-data";
@@ -94,6 +94,28 @@ const KPI_ICON_META: Record<string, { icon: any; bg: string; color: string; spar
   revenue:    { icon: DollarSign,   bg: "bg-teal-500/10",    color: "text-teal-500",    spark: "#14b8a6" },
 };
 
+// ── أفاتار مندوب بسيط (صورة أو أحرف اسم) ─────────────────────────────────────
+const AVATAR_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#f97316"];
+function repAvatarColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function repInitials(name: string): string {
+  const parts = (name || "؟").trim().split(/\s+/);
+  return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : (name || "؟").slice(0, 2);
+}
+function RepAvatar({ avatar, name }: { avatar: string | null; name: string }) {
+  if (avatar && avatar.startsWith("data:"))
+    return <img src={avatar} className="w-7 h-7 rounded-full object-cover border border-border/50 shrink-0" />;
+  return (
+    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+      style={{ background: repAvatarColor(name) }}>
+      {repInitials(name)}
+    </div>
+  );
+}
+
 // ── جلب أفضل العملاء (بيانات حقيقية من الباك اند) ────────────────────────────
 function useTopPerformers() {
   return useQuery({
@@ -113,6 +135,7 @@ export default function OperationsCenterPage() {
   const { user } = useAuth();
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
+  const topReps = topPerformers?.topReps ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -435,31 +458,54 @@ export default function OperationsCenterPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Truck className="w-4 h-4 text-sky-500" /> أفضل المندوبين
+              <span className="text-[10px] font-normal text-muted-foreground">(آخر 30 يوم)</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted-foreground border-b">
-                  <th className="text-right font-medium pb-2">المندوب</th>
-                  <th className="text-right font-medium pb-2">التقييم</th>
-                  <th className="text-right font-medium pb-2">الشحنات</th>
-                  <th className="text-right font-medium pb-2">نسبة النجاح</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockTopReps.map((r) => (
-                  <tr key={r.name} className="border-b last:border-0">
-                    <td className="py-2 font-semibold">{r.name}</td>
-                    <td className="py-2 flex items-center gap-1">
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> {r.rating}
-                    </td>
-                    <td className="py-2">{fn(r.shipments)}</td>
-                    <td className="py-2">{r.successRate}%</td>
+            {topPerformersLoading && topReps.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">جاري تحميل البيانات...</div>
+            ) : topReps.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground border-b">
+                    <th className="text-right font-medium pb-2">المندوب</th>
+                    <th className="text-right font-medium pb-2">التقييم</th>
+                    <th className="text-right font-medium pb-2">الشحنات</th>
+                    <th className="text-right font-medium pb-2">نسبة النجاح</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {topReps.map((r) => (
+                    <tr key={r.userId} className="border-b last:border-0">
+                      <td className="py-2">
+                        <div className="flex items-center gap-2">
+                          <RepAvatar avatar={r.avatar} name={r.name} />
+                          <span className="font-semibold">{r.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-2">
+                        {r.ratingsCount > 0 ? (
+                          <span className="flex items-center gap-1">
+                            <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> {r.avgRating}
+                            <span className="text-[10px] text-muted-foreground">({r.ratingsCount})</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">لا يوجد</span>
+                        )}
+                      </td>
+                      <td className="py-2">{fn(r.assigned)}</td>
+                      <td className="py-2">
+                        <Badge className={`text-[10px] ${r.successRate >= 80 ? "bg-emerald-500/15 text-emerald-600 border-emerald-300" :
+                          r.successRate >= 50 ? "bg-amber-500/15 text-amber-600 border-amber-300" :
+                          "bg-red-500/15 text-red-600 border-red-300"}`}>{r.successRate}%</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
       </div>
