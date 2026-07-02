@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
+import { NotificationBell } from "@/components/notification-bell";
 import {
   Search, Bell, Mail, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -602,7 +603,7 @@ export default function OperationsCenterPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <GlobalQuickSearch />
-          <Button variant="outline" size="icon"><Bell className="w-4 h-4" /></Button>
+          <NotificationBell className="flex items-center justify-center w-9 h-9 rounded-md border hover:bg-accent hover:text-accent-foreground" />
           <Button variant="outline" size="icon"><Mail className="w-4 h-4" /></Button>
           <Button variant="outline" size="icon" onClick={toggleTheme} title={theme === "dark" ? "التبديل للوضع الفاتح" : "التبديل للوضع الداكن"}>
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
