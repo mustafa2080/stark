@@ -84,12 +84,16 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 }
 
 // ── Radial KPI gauge ─────────────────────────────────────────────────────────
-function KpiGauge({ value, label, suffix }: { value: number; label: string; suffix: string }) {
+function KpiGauge({ value, label, suffix, onClick }: { value: number; label: string; suffix: string; onClick?: () => void }) {
   const r = 34, c = 2 * Math.PI * r;
   const offset = c - (value / 100) * c;
   const color = value >= 80 ? "#10b981" : value >= 50 ? "#f59e0b" : "#ef4444";
   return (
-    <div className="flex flex-col items-center gap-2 p-3">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-center gap-2 p-3 rounded-lg text-right ${onClick ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
+    >
       <div className="relative w-20 h-20">
         <svg viewBox="0 0 80 80" className="w-20 h-20 -rotate-90">
           <circle cx="40" cy="40" r={r} fill="none" stroke="currentColor" strokeOpacity="0.1" strokeWidth="8" />
@@ -102,7 +106,7 @@ function KpiGauge({ value, label, suffix }: { value: number; label: string; suff
         <div className="text-xs font-medium">{label}</div>
         <div className="text-[10px] text-muted-foreground">{suffix}</div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -592,6 +596,60 @@ function FinancialBreakdownDropdown({
   );
 }
 
+// ── قائمة منسدلة لتفاصيل مؤشر أداء معيّن (تُفتح أسفل شبكة المؤشرات الدائرية) ──
+function PerformanceMetricDropdown({
+  label, value, unit, max, onClose,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  max: number | null;
+  onClose: () => void;
+}) {
+  const pct = max != null ? value : Math.min(100, Math.round((value / 48) * 100));
+  const color = pct >= 80 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444";
+  const rating = pct >= 80 ? "ممتاز" : pct >= 50 ? "متوسط" : "يحتاج تحسين";
+
+  return (
+    <div className="relative mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="rounded-xl border bg-card shadow-lg overflow-hidden">
+        <div
+          className="absolute -top-1.5 right-1/2 translate-x-1/2 w-3 h-3 rotate-45 border-t border-r bg-card"
+          style={{ borderColor: "inherit" }}
+        />
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b" style={{ background: `${color}14` }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+            <span className="text-sm font-bold truncate">{label}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            aria-label="إغلاق"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="p-3 space-y-2 text-xs">
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">القيمة الحالية</span>
+            <span className="font-bold">{unit === "%" ? `${value}%` : `${value} ${unit}`}</span>
+          </div>
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">التقييم</span>
+            <Badge className="text-[10px]" style={{ background: `${color}22`, color, borderColor: `${color}55` }}>{rating}</Badge>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">النسبة الدائرية</span>
+            <span className="font-bold">{pct}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── قائمة منسدلة لتفاصيل الشحنات حسب الحالة (تُفتح أسفل الدونة مباشرة) ───────
 function StatusShipmentsDropdown({
   status, label, color, onClose,
@@ -881,6 +939,7 @@ export default function OperationsCenterPage() {
   const [isExportingReport, setIsExportingReport] = useState(false);
   const [statusModal, setStatusModal] = useState<{ status: string; label: string; color: string } | null>(null);
   const [financialModal, setFinancialModal] = useState<{ key: string; label: string; color: string } | null>(null);
+  const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -1198,8 +1257,27 @@ export default function OperationsCenterPage() {
                   // القيم بدون max (بالساعات) تُطبَّع لعرض دائري بحد أقصى منطقي 48 ساعة
                   const gaugeValue = m.max != null ? m.value : Math.min(100, Math.round((m.value / 48) * 100));
                   const suffix = m.unit === "%" ? "%" : `${m.value} ${m.unit}`;
-                  return <KpiGauge key={m.key} value={gaugeValue} label={m.label} suffix={suffix} />;
+                  return (
+                    <KpiGauge
+                      key={m.key}
+                      value={gaugeValue}
+                      label={m.label}
+                      suffix={suffix}
+                      onClick={() => setPerfMetricModal({ key: m.key, label: m.label, value: m.value, unit: m.unit, max: m.max ?? null })}
+                    />
+                  );
                 })
+              )}
+              {perfMetricModal && (
+                <div className="col-span-2">
+                  <PerformanceMetricDropdown
+                    label={perfMetricModal.label}
+                    value={perfMetricModal.value}
+                    unit={perfMetricModal.unit}
+                    max={perfMetricModal.max}
+                    onClose={() => setPerfMetricModal(null)}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
