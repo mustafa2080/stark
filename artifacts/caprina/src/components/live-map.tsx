@@ -52,19 +52,19 @@ export function LiveMap({ cities, isLoading }: LiveMapProps) {
   }, []);
 
   if (isLoading) {
-    return <div className="w-full h-72 rounded-xl bg-muted animate-pulse" />;
+    return <div className="w-full h-full min-h-[420px] rounded-xl bg-muted animate-pulse" />;
   }
 
   if (points.length === 0) {
     return (
-      <div className="w-full h-72 rounded-xl bg-muted/40 border border-dashed flex items-center justify-center">
+      <div className="w-full h-full min-h-[420px] rounded-xl bg-muted/40 border border-dashed flex items-center justify-center">
         <span className="text-xs text-muted-foreground">لا توجد بيانات شحن كافية لعرضها على الخريطة</span>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-72 rounded-xl overflow-hidden border">
+    <div className="relative w-full h-full min-h-[420px] rounded-xl overflow-hidden border">
       <Map
         initialViewState={{ longitude: EGYPT_CENTER.lng, latitude: EGYPT_CENTER.lat, zoom: EGYPT_DEFAULT_ZOOM }}
         mapStyle={mapStyle}

@@ -367,9 +367,9 @@ export default function OperationsCenterPage() {
       </div>
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch">
         {/* العمود الجانبي — مركز العمليات */}
-        <div className="xl:col-span-1 space-y-3">
+        <div className="xl:col-span-1 flex flex-col gap-3">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -496,8 +496,8 @@ export default function OperationsCenterPage() {
 
         {/* الخريطة المباشرة (MapLibre GL — تجميع الشحنات حسب المحافظة) */}
         <div className="xl:col-span-2">
-          <Card className="h-full">
-            <CardHeader className="pb-2 flex-row items-center justify-between">
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-2 flex-row items-center justify-between shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-cyan-500" /> الخريطة المباشرة
               </CardTitle>
@@ -507,7 +507,7 @@ export default function OperationsCenterPage() {
                 </span>
               )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 min-h-0">
               <LiveMap cities={liveMapCities} isLoading={liveMapLoading && liveMapCities.length === 0} />
             </CardContent>
           </Card>
