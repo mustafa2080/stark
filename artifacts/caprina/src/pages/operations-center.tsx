@@ -19,7 +19,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
 import {
-  mockProblemShipments, mockTodayOutbound,
+  mockTodayOutbound,
 } from "@/lib/operations-center-mock-data";
 
 const fc = (n: number) =>
@@ -410,15 +410,29 @@ export default function OperationsCenterPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {mockProblemShipments.map((s) => (
-                <div key={s.id} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
-                  <div>
-                    <div className="font-semibold">{s.id}</div>
-                    <div className="text-muted-foreground">{s.client} — {s.city}</div>
+              {opsCenterLoading && problemShipments.length === 0 ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0 animate-pulse">
+                    <div className="space-y-1">
+                      <div className="h-3 w-20 bg-muted rounded" />
+                      <div className="h-2.5 w-28 bg-muted rounded" />
+                    </div>
+                    <div className="h-4 w-12 bg-muted rounded" />
                   </div>
-                  <Badge className="text-[10px] bg-amber-500/15 text-amber-600 border-amber-300">{s.issue}</Badge>
-                </div>
-              ))}
+                ))
+              ) : problemShipments.length === 0 ? (
+                <div className="text-xs text-muted-foreground text-center py-4">لا توجد شحنات بها مشكلة حالياً 🎉</div>
+              ) : (
+                problemShipments.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
+                    <div>
+                      <div className="font-semibold">{s.trackingNumber ?? `#${s.id}`}</div>
+                      <div className="text-muted-foreground">{s.receiverName} — {s.receiverCity ?? "—"}</div>
+                    </div>
+                    <Badge className="text-[10px] bg-amber-500/15 text-amber-600 border-amber-300">مرتجعة</Badge>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
