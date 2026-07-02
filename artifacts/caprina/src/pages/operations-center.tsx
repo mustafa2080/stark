@@ -277,7 +277,7 @@ function LiveClock() {
   }, []);
 
   const timeParts = useMemo(() => {
-    const formatted = new Intl.DateTimeFormat("ar-EG", {
+    const formatted = new Intl.DateTimeFormat("en-US", {
       timeZone: "Africa/Cairo",
       hour: "2-digit",
       minute: "2-digit",
@@ -289,20 +289,20 @@ function LiveClock() {
       h: get("hour"),
       m: get("minute"),
       s: get("second"),
-      period: get("dayPeriod"),
+      period: get("dayPeriod").toUpperCase(),
     };
   }, [now]);
 
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card">
       <Clock className="w-4 h-4 text-sky-500 shrink-0" />
-      <div className="flex items-baseline gap-0.5 font-mono tabular-nums leading-none">
+      <div className="flex items-baseline gap-0.5 font-mono tabular-nums leading-none" dir="ltr">
         <span className="text-lg font-bold">{timeParts.h}</span>
         <span className="text-lg font-bold text-muted-foreground">:</span>
         <span className="text-lg font-bold">{timeParts.m}</span>
         <span className="text-sm font-semibold text-muted-foreground">:{timeParts.s}</span>
+        <span className="text-[10px] font-bold text-sky-500 mr-1">{timeParts.period}</span>
       </div>
-      <span className="text-[10px] font-semibold text-muted-foreground">{timeParts.period}</span>
       <span className="text-[10px] text-muted-foreground border-r pr-2 mr-0.5">توقيت القاهرة</span>
     </div>
   );
