@@ -1867,55 +1867,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* === Operations KPI Cards === */}
-      <OperationsKpiRow />
-
-      {/* === مؤشرات الأداء (مصغّرة) + الذكاء الاصطناعي — صف واحد === */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-stretch">
-        <div>
-          <PerformanceMetricsCompact />
-        </div>
-        <div>
-          <OpsSmartAlertsPanel />
-        </div>
-      </div>
-
-      {/* === سايدبار (نظرة سريعة) === */}
-      <OpsSidebarCards />
-
-      {/* === ملخص الأرباح + اتجاه الإيرادات والأرباح === */}
-      {canViewFinancials && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
-          <ShipmentsProfitDonut />
-          <ShipmentsRevenueTrendChart />
-        </div>
-      )}
-
-      {/* === لوحة الأرباح التفصيلية (تكلفة المندوبين/المناطق، أعلى وأقل العملاء) === */}
-      {canViewFinancials && (
-        <div className="px-3 sm:px-0">
-          <FinancialDashboardPanel />
-        </div>
-      )}
-
-      {/* === أفضل العملاء + أفضل المندوبين === */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 px-3 sm:px-0">
-        <TopClientsCard />
-        <TopRepsCard />
-      </div>
-
-      {/* === توزيع الشحنات حسب الحالة + آخر التنبيهات + آخر الشحنات === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 px-3 sm:px-0">
-        <ShipmentsStatusOpsDonut data={shipmentsStatus} />
-        <RecentEventsCard />
-        <RecentShipmentsTable />
-      </div>
-
-      {/* === جدول المندوبين اليوم === */}
-      <div className="px-3 sm:px-0">
-        <RepsTodayTable />
-      </div>
-
       {/* ══════════════════════════════════════════════════════════════
           الأقسام الإضافية (بانرات وتحذيرات مالية) — تحت الأقسام الرئيسية
          ══════════════════════════════════════════════════════════════ */}
