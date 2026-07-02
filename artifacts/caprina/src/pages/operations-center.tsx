@@ -3,12 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import {
-  Search, Bell, Mail, Globe, Sun, Download,
+  Search, Bell, Mail, Globe, Sun, Moon, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
   AlertTriangle, AlertOctagon, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
@@ -270,6 +271,7 @@ function useLiveMap() {
 // ══════════════════════════════════════════════════════════════════════════
 export default function OperationsCenterPage() {
   const { user, logout, can } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
@@ -316,7 +318,9 @@ export default function OperationsCenterPage() {
           <Button variant="outline" size="icon"><Bell className="w-4 h-4" /></Button>
           <Button variant="outline" size="icon"><Mail className="w-4 h-4" /></Button>
           <Button variant="outline" size="icon"><Globe className="w-4 h-4" /></Button>
-          <Button variant="outline" size="icon"><Sun className="w-4 h-4" /></Button>
+          <Button variant="outline" size="icon" onClick={toggleTheme} title={theme === "dark" ? "التبديل للوضع الفاتح" : "التبديل للوضع الداكن"}>
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </Button>
           <Button variant="default" className="gap-2">
             <Download className="w-4 h-4" /> تصدير تقرير شامل
           </Button>
