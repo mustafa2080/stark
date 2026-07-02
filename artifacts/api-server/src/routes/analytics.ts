@@ -3765,4 +3765,73 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
   }
 });
 
+// لوحة العمليات: اتجاه الإيرادات والأرباح اليومي — آخر 7 أيام، مبني على نفس
+// منطق financial-dashboard (الإيراد = المبلغ المحصَّل فعليًا بعد التسليم).
+router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `revenue-trend:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const rows = await db
+      .select({
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+        collectedAmount: shipmentsTable.collectedAmount,
+        totalAmount: shipmentsTable.totalAmount,
+        costPrice: shipmentsTable.costPrice,
+        shippingFee: shipmentsTable.shippingFee,
+        insuranceFee: shipmentsTable.insuranceFee,
+      })
+      .from(shipmentsTable)
+      .where(and(cond, gte(shipmentsTable.createdAt, sevenDaysAgo)));
+
+    const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const buckets: { day: string; date: string; revenue: number; profit: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      buckets.push({ day: DAY_NAMES[d.getDay()], date: d.toISOString().slice(0, 10), revenue: 0, profit: 0 });
+    }
+    const bucketByDate = new Map(buckets.map(b => [b.date, b]));
+
+    for (const r of rows) {
+      if (normalize(r.status) !== "received") continue;
+      const dateKey = new Date(r.createdAt).toISOString().slice(0, 10);
+      const bucket = bucketByDate.get(dateKey);
+      if (!bucket) continue;
+      const revenue = Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+      const cost = Number(r.costPrice ?? 0) + Number(r.shippingFee ?? 0) + Number(r.insuranceFee ?? 0);
+      bucket.revenue += revenue;
+      bucket.profit += revenue - cost;
+    }
+    for (const b of buckets) {
+      b.revenue = Math.round(b.revenue);
+      b.profit = Math.round(b.profit);
+    }
+
+    const result = { days: buckets, generatedAt: new Date().toISOString() };
+    setCached(cacheKey, result, 5 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
