@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -18,10 +18,8 @@ import {
 } from "recharts";
 import {
   mockProblemShipments, mockTodayOutbound,
-  mockKpis, mockAiInsights,
+  mockKpis,
   mockRevenueTrend,
-  mockDailyReps,
-  mockExecutiveSummary,
 } from "@/lib/operations-center-mock-data";
 
 const fc = (n: number) =>
@@ -207,6 +205,30 @@ function useFinancialDashboard() {
   });
 }
 
+// ── جلب تنبيهات الذكاء الاصطناعي/العمليات (بيانات حقيقية من الباك اند) ────────
+function useOpsAlerts() {
+  return useQuery({
+    queryKey: ["analytics-ops-alerts"],
+    queryFn: analyticsApi.opsAlerts,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: OpsAlertsResponse | undefined) => prev,
+  });
+}
+
+// ── جلب شاشة المدير التنفيذي (بيانات حقيقية من الباك اند) ─────────────────────
+function useExecutiveSummary() {
+  return useQuery({
+    queryKey: ["analytics-executive-summary"],
+    queryFn: analyticsApi.executiveSummary,
+    staleTime: 2 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: ExecutiveSummaryResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -230,6 +252,9 @@ export default function OperationsCenterPage() {
   const { data: recentShipmentsData, isLoading: recentShipmentsLoading } = useRecentShipments();
   const recentShipments = recentShipmentsData?.shipments ?? [];
   const { data: financialData, isLoading: financialLoading } = useFinancialDashboard();
+  const { data: opsAlertsData, isLoading: opsAlertsLoading } = useOpsAlerts();
+  const aiInsights = opsAlertsData?.alerts ?? [];
+  const { data: executiveSummary, isLoading: executiveSummaryLoading } = useExecutiveSummary();
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -541,14 +566,25 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {mockAiInsights.map((a, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs p-2 rounded-lg bg-muted/40">
-                <Zap className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${
-                  a.type === "warning" ? "text-amber-500" : a.type === "alert" ? "text-red-500" :
-                  a.type === "opportunity" ? "text-emerald-500" : "text-blue-500"}`} />
-                <span>{a.text}</span>
-              </div>
-            ))}
+            {opsAlertsLoading && aiInsights.length === 0 ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-8 rounded bg-muted animate-pulse" />
+              ))
+            ) : aiInsights.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-6">لا توجد تنبيهات حالياً — كل شيء يسير بشكل طبيعي</p>
+            ) : (
+              aiInsights.map((a) => (
+                <div key={a.id} className="flex items-start gap-2 text-xs p-2 rounded-lg bg-muted/40">
+                  <Zap className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${
+                    a.type === "warning" ? "text-amber-500" : a.type === "critical" ? "text-red-500" :
+                    a.type === "opportunity" ? "text-emerald-500" : "text-blue-500"}`} />
+                  <div>
+                    <div className="font-semibold">{a.title}</div>
+                    <div className="text-muted-foreground">{a.detail}</div>
+                  </div>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
@@ -800,26 +836,32 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted-foreground border-b">
-                  <th className="text-right font-medium pb-2">المندوب</th>
-                  <th className="text-right font-medium pb-2">الشحنات</th>
-                  <th className="text-right font-medium pb-2">تم التسليم</th>
-                  <th className="text-right font-medium pb-2">ساعات العمل</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockDailyReps.map((r) => (
-                  <tr key={r.name} className="border-b last:border-0">
-                    <td className="py-2 font-semibold">{r.name}</td>
-                    <td className="py-2">{r.shipments}</td>
-                    <td className="py-2">{r.delivered}</td>
-                    <td className="py-2">{r.hours}</td>
+            {opsCenterLoading && representatives.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">جاري تحميل البيانات...</div>
+            ) : representatives.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">لا يوجد مندوبين حالياً</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground border-b">
+                    <th className="text-right font-medium pb-2">المندوب</th>
+                    <th className="text-right font-medium pb-2">الشحنات</th>
+                    <th className="text-right font-medium pb-2">تم التسليم</th>
+                    <th className="text-right font-medium pb-2">نسبة النجاح</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {representatives.map((r) => (
+                    <tr key={r.id} className="border-b last:border-0">
+                      <td className="py-2 font-semibold">{r.displayName}</td>
+                      <td className="py-2">{r.totalShipments}</td>
+                      <td className="py-2">{r.deliveredShipments}</td>
+                      <td className="py-2">{r.successRate}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -832,14 +874,22 @@ export default function OperationsCenterPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4 text-center">
-          <div><div className="text-lg font-black">{fc(mockExecutiveSummary.revenue)}</div><div className="text-[11px] text-muted-foreground">الإيرادات</div></div>
-          <div><div className="text-lg font-black">{fc(mockExecutiveSummary.profit)}</div><div className="text-[11px] text-muted-foreground">الأرباح</div></div>
-          <div><div className="text-lg font-black text-emerald-500">{mockExecutiveSummary.growthRate}%</div><div className="text-[11px] text-muted-foreground">معدل النمو</div></div>
-          <div><div className="text-lg font-black">{fn(mockExecutiveSummary.clientsCount)}</div><div className="text-[11px] text-muted-foreground">عدد العملاء</div></div>
-          <div><div className="text-lg font-black">{fn(mockExecutiveSummary.shipmentsCount)}</div><div className="text-[11px] text-muted-foreground">عدد الشحنات</div></div>
-          <div><div className="text-lg font-black">{mockExecutiveSummary.successRate}%</div><div className="text-[11px] text-muted-foreground">نسبة النجاح</div></div>
-          <div><div className="text-lg font-black">{mockExecutiveSummary.topArea}</div><div className="text-[11px] text-muted-foreground">أكثر المناطق نشاطاً</div></div>
-          <div><div className="text-lg font-black text-blue-500">{fc(mockExecutiveSummary.nextMonthForecast)}</div><div className="text-[11px] text-muted-foreground">توقعات الشهر القادم</div></div>
+          {executiveSummaryLoading && !executiveSummary ? (
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-10 rounded bg-muted animate-pulse" />
+            ))
+          ) : (
+            <>
+              <div><div className="text-lg font-black">{fc(executiveSummary?.revenue ?? 0)}</div><div className="text-[11px] text-muted-foreground">الإيرادات</div></div>
+              <div><div className="text-lg font-black">{fc(executiveSummary?.profit ?? 0)}</div><div className="text-[11px] text-muted-foreground">الأرباح</div></div>
+              <div><div className={`text-lg font-black ${(executiveSummary?.growthRate ?? 0) >= 0 ? "text-emerald-500" : "text-red-500"}`}>{executiveSummary?.growthRate ?? 0}%</div><div className="text-[11px] text-muted-foreground">معدل النمو</div></div>
+              <div><div className="text-lg font-black">{fn(executiveSummary?.clientsCount ?? 0)}</div><div className="text-[11px] text-muted-foreground">عدد العملاء</div></div>
+              <div><div className="text-lg font-black">{fn(executiveSummary?.shipmentsCount ?? 0)}</div><div className="text-[11px] text-muted-foreground">عدد الشحنات</div></div>
+              <div><div className="text-lg font-black">{executiveSummary?.successRate ?? 0}%</div><div className="text-[11px] text-muted-foreground">نسبة النجاح</div></div>
+              <div><div className="text-lg font-black">{executiveSummary?.topArea ?? "—"}</div><div className="text-[11px] text-muted-foreground">أكثر المناطق نشاطاً</div></div>
+              <div><div className="text-lg font-black text-blue-500">{fc(executiveSummary?.nextMonthForecast ?? 0)}</div><div className="text-[11px] text-muted-foreground">توقعات الشهر القادم</div></div>
+            </>
+          )}
         </CardContent>
       </Card>
 

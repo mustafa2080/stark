@@ -3654,4 +3654,115 @@ router.get("/analytics/recent-shipments", requireAuth, async (req, res): Promise
   }
 });
 
+// شاشة المدير التنفيذي — نظرة سريعة: إيرادات/أرباح الشهر الحالي، معدل النمو
+// (مقارنة بنفس الفترة من الشهر السابق)، عدد العملاء الفريدين، عدد الشحنات،
+// نسبة النجاح، أكثر منطقة نشاطاً، وتوقع مبسّط للشهر القادم (extrapolation خطي
+// بناءً على المعدل اليومي الحالي).
+router.get("/analytics/executive-summary", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `executive-summary:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const daysElapsedThisMonth = Math.max(1, Math.ceil((now.getTime() - monthStart.getTime()) / (24 * 60 * 60 * 1000)));
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+    const rows = await db
+      .select({
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+        collectedAmount: shipmentsTable.collectedAmount,
+        totalAmount: shipmentsTable.totalAmount,
+        costPrice: shipmentsTable.costPrice,
+        shippingFee: shipmentsTable.shippingFee,
+        insuranceFee: shipmentsTable.insuranceFee,
+        receiverCity: shipmentsTable.receiverCity,
+        senderName: shipmentsTable.senderName,
+      })
+      .from(shipmentsTable)
+      .where(and(cond, gte(shipmentsTable.createdAt, prevMonthStart)));
+
+    const monthRows = rows.filter(r => new Date(r.createdAt) >= monthStart);
+    const prevMonthRows = rows.filter(r => new Date(r.createdAt) >= prevMonthStart && new Date(r.createdAt) < monthStart);
+
+    function sumRevenue(subset: typeof rows) {
+      let revenue = 0;
+      for (const r of subset) {
+        if (normalize(r.status) !== "received") continue;
+        revenue += Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+      }
+      return revenue;
+    }
+    function sumProfit(subset: typeof rows) {
+      let profit = 0;
+      for (const r of subset) {
+        if (normalize(r.status) !== "received") continue;
+        const revenue = Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
+        const cost = Number(r.costPrice ?? 0) + Number(r.shippingFee ?? 0) + Number(r.insuranceFee ?? 0);
+        profit += revenue - cost;
+      }
+      return profit;
+    }
+
+    const monthRevenue = sumRevenue(monthRows);
+    const monthProfit = sumProfit(monthRows);
+    const prevMonthRevenue = sumRevenue(prevMonthRows);
+    const growthRate = prevMonthRevenue > 0
+      ? Math.round(((monthRevenue - prevMonthRevenue) / prevMonthRevenue) * 1000) / 10
+      : 0;
+
+    const shipmentsCount = monthRows.length;
+    const deliveredCount = monthRows.filter(r => normalize(r.status) === "received").length;
+    const successRate = shipmentsCount > 0 ? Math.round((deliveredCount / shipmentsCount) * 100) : 0;
+
+    const clientsSet = new Set(monthRows.map(r => (r.senderName ?? "").trim()).filter(Boolean));
+    const clientsCount = clientsSet.size;
+
+    const cityCounts = new Map<string, number>();
+    for (const r of monthRows) {
+      const city = (r.receiverCity ?? "").trim() || "غير محدد";
+      cityCounts.set(city, (cityCounts.get(city) ?? 0) + 1);
+    }
+    let topArea = "—";
+    let topAreaCount = 0;
+    for (const [city, count] of cityCounts) {
+      if (count > topAreaCount) { topArea = city; topAreaCount = count; }
+    }
+
+    // توقع مبسّط: المعدل اليومي الحالي × عدد أيام الشهر القادم (نفس عدد أيام هذا الشهر تقريبًا)
+    const dailyAvgRevenue = monthRevenue / daysElapsedThisMonth;
+    const nextMonthForecast = Math.round(dailyAvgRevenue * daysInMonth);
+
+    const result = {
+      revenue: Math.round(monthRevenue),
+      profit: Math.round(monthProfit),
+      growthRate,
+      clientsCount,
+      shipmentsCount,
+      successRate,
+      topArea,
+      nextMonthForecast,
+      generatedAt: new Date().toISOString(),
+    };
+    setCached(cacheKey, result, 2 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

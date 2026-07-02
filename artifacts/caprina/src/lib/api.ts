@@ -830,6 +830,18 @@ export interface RecentShipmentsResponse {
   generatedAt: string;
 }
 
+export interface ExecutiveSummaryResponse {
+  revenue: number;
+  profit: number;
+  growthRate: number;
+  clientsCount: number;
+  shipmentsCount: number;
+  successRate: number;
+  topArea: string;
+  nextMonthForecast: number;
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -870,6 +882,7 @@ export const analyticsApi = {
   topPerformers: () => apiFetch<TopPerformersResponse>("/analytics/top-performers"),
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),
   recentShipments: () => apiFetch<RecentShipmentsResponse>("/analytics/recent-shipments"),
+  executiveSummary: () => apiFetch<ExecutiveSummaryResponse>("/analytics/executive-summary"),
 };
 
 export interface BatchCreateOrderBody {
