@@ -3589,4 +3589,69 @@ router.get("/analytics/recent-events", requireAuth, async (req, res): Promise<vo
   }
 });
 
+// ─── GET /analytics/recent-shipments ─────────────────────────────────────────
+// لوحة العمليات: "آخر الشحنات" — أحدث N شحنة بغض النظر عن الحالة، مرتبة بآخر تحديث
+router.get("/analytics/recent-shipments", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `recent-shipments:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const rows = await db
+      .select({
+        id: shipmentsTable.id,
+        trackingNumber: shipmentsTable.trackingNumber,
+        senderName: shipmentsTable.senderName,
+        receiverName: shipmentsTable.receiverName,
+        status: shipmentsTable.status,
+        totalAmount: shipmentsTable.totalAmount,
+        updatedAt: shipmentsTable.updatedAt,
+      })
+      .from(shipmentsTable)
+      .where(cond)
+      .orderBy(desc(shipmentsTable.updatedAt))
+      .limit(10);
+
+    const STATUS_META: Record<string, { label: string; color: string }> = {
+      pending:          { label: "قيد الانتظار",  color: "amber" },
+      warehouse_ready:  { label: "بالمخزن",        color: "amber" },
+      in_shipping:      { label: "قيد الشحن",      color: "sky" },
+      delayed:          { label: "مؤجلة",          color: "amber" },
+      partial_received: { label: "تسليم جزئي",     color: "sky" },
+      received:         { label: "تم التسليم",     color: "emerald" },
+      returned:         { label: "مرتجعة",         color: "red" },
+    };
+
+    const shipments = rows.map(r => {
+      const norm = normalize(r.status);
+      const meta = STATUS_META[norm] ?? { label: norm, color: "amber" };
+      return {
+        id: r.id,
+        trackingNumber: r.trackingNumber ?? `#${r.id}`,
+        clientName: r.senderName ?? r.receiverName ?? "—",
+        status: meta.label,
+        statusColor: meta.color,
+        amount: r.totalAmount ? Number(r.totalAmount) : 0,
+      };
+    });
+
+    const result = { shipments, generatedAt: new Date().toISOString() };
+    setCached(cacheKey, result, 60 * 1000); // cache دقيقة واحدة — بيانات شبه لحظية
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

@@ -817,6 +817,19 @@ export interface RecentEventsResponse {
   generatedAt: string;
 }
 
+export interface RecentShipmentRow {
+  id: number;
+  trackingNumber: string;
+  clientName: string;
+  status: string;
+  statusColor: string;
+  amount: number;
+}
+export interface RecentShipmentsResponse {
+  shipments: RecentShipmentRow[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -856,6 +869,7 @@ export const analyticsApi = {
   shipmentsProfit: () => apiFetch<ShipmentsProfitResponse>("/analytics/shipments-profit"),
   topPerformers: () => apiFetch<TopPerformersResponse>("/analytics/top-performers"),
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),
+  recentShipments: () => apiFetch<RecentShipmentsResponse>("/analytics/recent-shipments"),
 };
 
 export interface BatchCreateOrderBody {

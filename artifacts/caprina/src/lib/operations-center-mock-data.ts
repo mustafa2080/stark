@@ -68,15 +68,6 @@ export const mockAiInsights = [
   { type: "opportunity", text: "فرصة زيادة الشحنات في المعادي بناءً على نمو الطلب" },
 ];
 
-// ── 5) التنبيهات ─────────────────────────────────────────────────────────────
-export const mockAlerts = [
-  { id: 1, type: "delayed", text: "شحنة STK-10231 متأخرة 26 ساعة", time: "منذ 10 دقائق" },
-  { id: 2, type: "rep",     text: "المندوب محمود جابر متأخر عن الجدول", time: "منذ 25 دقيقة" },
-  { id: 3, type: "client",  text: "عميل جديد: فاشون هب", time: "منذ ساعة" },
-  { id: 4, type: "returned",text: "شحنة STK-10188 تم إرجاعها", time: "منذ ساعتين" },
-  { id: 5, type: "payment", text: "مشكلة دفع في فاتورة #4521", time: "منذ 3 ساعات" },
-];
-
 // ── 6) اتجاه الإيرادات والأرباح ──────────────────────────────────────────────
 export const mockRevenueTrend = [
   { day: "السبت", revenue: 42000, profit: 12000 },
@@ -92,13 +83,6 @@ export const mockRevenueTrend = [
 // من /analytics/top-performers
 
 // ── 9) آخر الشحنات + جدول المندوبين اليومي ───────────────────────────────────
-export const mockRecentShipments = [
-  { id: "STK-10312", client: "متجر النور", status: "تم التسليم", statusColor: "emerald", amount: 850 },
-  { id: "STK-10311", client: "بيوتي سنتر", status: "قيد التوصيل", statusColor: "sky", amount: 620 },
-  { id: "STK-10310", client: "تك ستور", status: "قيد الانتظار", statusColor: "amber", amount: 410 },
-  { id: "STK-10309", client: "فاشون هب", status: "مرتجعة", statusColor: "red", amount: 990 },
-  { id: "STK-10308", client: "سمارت شوب", status: "تم التسليم", statusColor: "emerald", amount: 340 },
-];
 export const mockDailyReps = [
   { name: "أحمد سعيد", shipments: 18, delivered: 16, hours: "8 ساعات" },
   { name: "محمود جابر", shipments: 14, delivered: 12, hours: "7.5 ساعة" },

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -18,15 +18,23 @@ import {
 } from "recharts";
 import {
   mockProblemShipments, mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
-  mockFinancials, mockKpis, mockAiInsights, mockAlerts,
+  mockFinancials, mockKpis, mockAiInsights,
   mockRevenueTrend,
-  mockRecentShipments, mockDailyReps,
+  mockDailyReps,
   mockExecutiveSummary,
 } from "@/lib/operations-center-mock-data";
 
 const fc = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n));
+const timeAgo = (iso: string): string => {
+  const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return "الآن";
+  if (diffMin < 60) return `منذ ${diffMin} دقيقة`;
+  const diffH = Math.round(diffMin / 60);
+  if (diffH < 24) return `منذ ${diffH} ساعة`;
+  return `منذ ${Math.round(diffH / 24)} يوم`;
+};
 
 // خريطة ثابتة لألوان حالات "آخر الشحنات" (تفادي Tailwind dynamic classes)
 const RECENT_STATUS_CLASSES: Record<string, string> = {
@@ -163,6 +171,30 @@ function useStatusDistribution() {
   });
 }
 
+// ── جلب أحدث التنبيهات (بيانات حقيقية من الباك اند) ───────────────────────────
+function useRecentEvents() {
+  return useQuery({
+    queryKey: ["analytics-recent-events"],
+    queryFn: analyticsApi.recentEvents,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: RecentEventsResponse | undefined) => prev,
+  });
+}
+
+// ── جلب آخر الشحنات (بيانات حقيقية من الباك اند) ──────────────────────────────
+function useRecentShipments() {
+  return useQuery({
+    queryKey: ["analytics-recent-shipments"],
+    queryFn: analyticsApi.recentShipments,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 60_000,
+    placeholderData: (prev: RecentShipmentsResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -181,6 +213,10 @@ export default function OperationsCenterPage() {
   const clientsNeedingFollowup = opsCenter?.clientsNeedingFollowup ?? [];
   const { data: statusDist, isLoading: statusDistLoading } = useStatusDistribution();
   const statusDistribution = statusDist?.distribution ?? [];
+  const { data: recentEventsData, isLoading: recentEventsLoading } = useRecentEvents();
+  const recentEvents = recentEventsData?.events ?? [];
+  const { data: recentShipmentsData, isLoading: recentShipmentsLoading } = useRecentShipments();
+  const recentShipments = recentShipmentsData?.shipments ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -630,12 +666,23 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {mockAlerts.map((a) => (
-              <div key={a.id} className="flex items-start justify-between gap-2 text-xs border-b last:border-0 pb-2 last:pb-0">
-                <span>{a.text}</span>
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{a.time}</span>
-              </div>
-            ))}
+            {recentEventsLoading && recentEvents.length === 0 ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-start justify-between gap-2 text-xs border-b last:border-0 pb-2 last:pb-0 animate-pulse">
+                  <div className="h-3 w-36 bg-muted rounded" />
+                  <div className="h-3 w-14 bg-muted rounded" />
+                </div>
+              ))
+            ) : recentEvents.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">لا توجد تنبيهات جديدة</div>
+            ) : (
+              recentEvents.map((a) => (
+                <div key={a.id} className="flex items-start justify-between gap-2 text-xs border-b last:border-0 pb-2 last:pb-0">
+                  <span>{a.label} — {a.receiverName} ({a.shipmentNumber})</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{timeAgo(a.updatedAt)}</span>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -647,28 +694,38 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted-foreground border-b">
-                  <th className="text-right font-medium pb-2">الرقم</th>
-                  <th className="text-right font-medium pb-2">العميل</th>
-                  <th className="text-right font-medium pb-2">الحالة</th>
-                  <th className="text-right font-medium pb-2">المبلغ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockRecentShipments.map((s) => (
-                  <tr key={s.id} className="border-b last:border-0">
-                    <td className="py-2 font-semibold">{s.id}</td>
-                    <td className="py-2">{s.client}</td>
-                    <td className="py-2">
-                      <Badge className={`text-[10px] ${RECENT_STATUS_CLASSES[s.statusColor] || ""}`}>{s.status}</Badge>
-                    </td>
-                    <td className="py-2">{fc(s.amount)}</td>
-                  </tr>
+            {recentShipmentsLoading && recentShipments.length === 0 ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-6 bg-muted rounded animate-pulse" />
                 ))}
-              </tbody>
-            </table>
+              </div>
+            ) : recentShipments.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات بعد</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground border-b">
+                    <th className="text-right font-medium pb-2">الرقم</th>
+                    <th className="text-right font-medium pb-2">العميل</th>
+                    <th className="text-right font-medium pb-2">الحالة</th>
+                    <th className="text-right font-medium pb-2">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentShipments.map((s) => (
+                    <tr key={s.id} className="border-b last:border-0">
+                      <td className="py-2 font-semibold">{s.trackingNumber}</td>
+                      <td className="py-2">{s.clientName}</td>
+                      <td className="py-2">
+                        <Badge className={`text-[10px] ${RECENT_STATUS_CLASSES[s.statusColor] || ""}`}>{s.status}</Badge>
+                      </td>
+                      <td className="py-2">{fc(s.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
       </div>
