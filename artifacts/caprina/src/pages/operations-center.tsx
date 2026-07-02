@@ -436,11 +436,11 @@ export default function OperationsCenterPage() {
             </CardHeader>
             <CardContent>
               <div className="relative w-full h-72 rounded-xl bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-transparent border border-dashed flex items-center justify-center overflow-hidden">
-                {mockActiveReps.map((r, i) => (
-                  <div key={r.name} className="absolute flex flex-col items-center gap-1"
+                {representatives.slice(0, 5).map((r, i) => (
+                  <div key={r.id} className="absolute flex flex-col items-center gap-1"
                     style={{ top: `${25 + i * 20}%`, left: `${20 + i * 25}%` }}>
                     <div className="w-3 h-3 rounded-full bg-sky-500 ring-4 ring-sky-500/20 animate-pulse" />
-                    <span className="text-[10px] bg-background/80 px-1.5 py-0.5 rounded border">{r.area}</span>
+                    <span className="text-[10px] bg-background/80 px-1.5 py-0.5 rounded border">{r.displayName}</span>
                   </div>
                 ))}
                 <span className="text-xs text-muted-foreground">عرض تفاعلي للخريطة قريباً — نسخة تجريبية حالياً</span>

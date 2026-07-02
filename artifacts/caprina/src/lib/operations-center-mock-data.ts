@@ -14,11 +14,6 @@ export const mockProblemShipments = [
   { id: "STK-10241", client: "سمارت شوب", issue: "عنوان خاطئ", city: "طنطا" },
 ];
 export const mockTodayOutbound = { count: 58, target: 70 };
-export const mockActiveReps = [
-  { name: "أحمد سعيد", area: "مدينة نصر", status: "متاح", load: 12 },
-  { name: "محمود جابر", area: "المعادي", status: "في الطريق", load: 9 },
-  { name: "كريم عادل", area: "6 أكتوبر", status: "متاح", load: 5 },
-];
 // ── 3) مؤشرات الأداء (KPIs) ──────────────────────────────────────────────────
 export const mockKpis = [
   { key: "firstAttempt", label: "التسليم أول محاولة", value: 87, suffix: "%" },
