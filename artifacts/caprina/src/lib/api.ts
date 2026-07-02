@@ -2000,3 +2000,19 @@ export const shipmentManifestsApi = {
       `/shipping-companies/${companyId}/shipment-stats`
     ),
 };
+
+
+// ─── Notifications API ─────────────────────────────────────────────────────
+export interface AppNotificationDTO {
+  id: number; tenantId: number | null; type: string;
+  severity: "info" | "success" | "warning" | "critical";
+  title: string; message: string | null;
+  entityType: string | null; entityId: number | null;
+  link: string | null; isRead: boolean; createdAt: string;
+}
+export const notificationsApi = {
+  list: (limit = 30) => apiFetch<{ notifications: AppNotificationDTO[] }>(`/notifications?limit=${limit}`),
+  unreadCount: () => apiFetch<{ count: number }>("/notifications/unread-count"),
+  markRead: (id: number) => apiFetch<{ success: boolean }>(`/notifications/${id}/read`, { method: "PATCH" }),
+  markAllRead: () => apiFetch<{ success: boolean }>("/notifications/read-all", { method: "PATCH" }),
+};

@@ -5,6 +5,7 @@ import { secondLogoBase64 } from "@/lib/second-logo";
 import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, ShoppingCart, ShoppingBag, Receipt, Building2, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin, Layers, Navigation } from "lucide-react";
 import { BrandFull, BrandLogoMark } from "@/components/brand-logo";
 import { BrandSettingsDialog } from "@/components/brand-settings-dialog";
+import { NotificationBell } from "@/components/notification-bell";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -662,6 +663,7 @@ export default function Layout({ children }: LayoutProps) {
             {sidebarCollapsed ? (
               /* Collapsed */
               <div className="py-3 flex flex-col items-center gap-2">
+                <NotificationBell />
                 <button type="button" onClick={toggleTheme} title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
                   className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95"
                   style={{
@@ -686,6 +688,7 @@ export default function Layout({ children }: LayoutProps) {
             ) : (
               /* Expanded */
               <div className="px-3 py-2.5 flex items-center gap-2">
+                <NotificationBell />
                 <button type="button" onClick={toggleTheme} title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
                   className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95"
                   style={{
@@ -757,6 +760,9 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* ── شمال: avatar أونلاين + dark/light toggle ── */}
             <div className="flex items-center gap-2 shrink-0">
+              {/* زر الإشعارات */}
+              <NotificationBell />
+
               {/* زر الثيم */}
               <button
                 type="button"

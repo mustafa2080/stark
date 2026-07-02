@@ -31,6 +31,7 @@ import shipmentsRouter, { publicShipmentsRouter } from "./shipments";
 import clientsShowcaseRouter from "./clients-showcase";
 import shipmentManifestsRouter from "./shipment-manifests";
 import representativeRouter from "./representative";
+import notificationsSseRouter, { notificationsProtectedRouter } from "./notifications";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { checkSubscription } from "../middlewares/checkSubscription.js";
 
@@ -45,6 +46,7 @@ router.use(clientsShowcaseRouter); // GET /clients-showcase — public for landi
 router.use(publicAdminRouter); // GET /public/plan-prices — بدون auth
 router.use(publicShipmentsRouter); // GET /shipments/track/:number — public for tracking
 router.use("/representative", representativeRouter); // SSE route داخله بيعمل auth يدوياً
+router.use(notificationsSseRouter); // GET /notifications/sse — بيعمل auth يدوياً زي مندوب
 
 // All routes below require authentication
 router.use(requireAuth);
@@ -75,5 +77,6 @@ router.use(financeClientsRouter);
 router.use(shipmentsRouter);
 router.use(shipmentManifestsRouter);
 router.use(adminTenantsRouter); // /admin/* — بعد requireAuth عشان req.user يكون موجود
+router.use(notificationsProtectedRouter);
 
 export default router;

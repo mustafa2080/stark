@@ -5,6 +5,7 @@ import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypeP
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
+import { pushNotification } from "../lib/notifications.js";
 
 const router: IRouter = Router();
 
@@ -768,6 +769,20 @@ router.post("/shipments", async (req, res): Promise<void> => {
     }
 
     res.status(201).json(newShipment[0]);
+
+    // إشعار فوري بشحنة جديدة (بعد الرد — ما يأخرش الاستجابة)
+    if (newShipment[0]) {
+      pushNotification({
+        tenantId: tenantId,
+        type: "shipment_new",
+        severity: "info",
+        title: "شحنة جديدة",
+        message: `${d.receiverName} — ${resolvedReceiverCity ?? "بدون محافظة"}`,
+        entityType: "shipment",
+        entityId: insertId,
+        link: `/shipments/${insertId}`,
+      });
+    }
   } catch (e) {
     console.error("[POST /shipments]", e);
     res.status(500).json({ error: "خطأ في إنشاء الشحنة" });
@@ -957,6 +972,32 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     await db.update(shipmentsTable).set(updateData).where(cond);
     const updated = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
     res.json(updated[0]);
+
+    // إشعار فوري عند تغيير الحالة لحالة حرجة (بعد الرد — ما يأخرش الاستجابة)
+    const newStatus = updateData.status;
+    if (newStatus && newStatus !== existingShipment.status && updated[0]) {
+      const s = updated[0];
+      const statusNotifMap: Record<string, { title: string; severity: "warning" | "critical" | "success" }> = {
+        delayed:          { title: "شحنة متأخرة", severity: "warning" },
+        returned:         { title: "شحنة مرتجعة",  severity: "critical" },
+        partial_received: { title: "استلام جزئي لشحنة مرتجعة", severity: "warning" },
+        received:         { title: "تم تسليم الشحنة", severity: "success" },
+      };
+      const meta = statusNotifMap[newStatus];
+      if (meta) {
+        pushNotification({
+          tenantId,
+          type: newStatus === "returned" || newStatus === "partial_received" ? "shipment_returned"
+              : newStatus === "received" ? "shipment_delivered" : "shipment_delayed",
+          severity: meta.severity,
+          title: meta.title,
+          message: `${s.trackingNumber ?? `#${s.id}`} — ${s.receiverName} — ${s.receiverCity ?? "—"}`,
+          entityType: "shipment",
+          entityId: s.id,
+          link: `/shipments/${s.id}`,
+        });
+      }
+    }
   } catch (e) {
     console.error("[PATCH /shipments/:id]", e);
     res.status(500).json({ error: "خطأ في تحديث الشحنة" });
