@@ -7,10 +7,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import {
-  Search, Bell, Mail, Sun, Moon, Clock, Download,
+  Search, Bell, Mail, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
   AlertTriangle, AlertOctagon, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
@@ -267,6 +267,144 @@ function useLiveMap() {
   });
 }
 
+// ── بحث سريع شامل (شحنات + عملاء + شركات شحن) ────────────────────────────────
+type QuickSearchResult =
+  | { kind: "shipment"; item: Shipment }
+  | { kind: "client"; item: FinanceClientSearchResult }
+  | { kind: "company"; item: ShippingCompany };
+
+function GlobalQuickSearch() {
+  const [, navigate] = useLocation();
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(id);
+  }, [query]);
+
+  const { data: shipmentsRes, isFetching: shipmentsLoading } = useQuery({
+    queryKey: ["quick-search-shipments", debouncedQuery],
+    queryFn: () => shipmentsApi.list({ search: debouncedQuery, limit: 5 }),
+    enabled: debouncedQuery.length >= 2,
+    staleTime: 30_000,
+  });
+
+  const { data: clientsRes, isFetching: clientsLoading } = useQuery({
+    queryKey: ["quick-search-clients", debouncedQuery],
+    queryFn: () => financeClientsApi.search(debouncedQuery),
+    enabled: debouncedQuery.length >= 2,
+    staleTime: 30_000,
+  });
+
+  const { data: companiesRes, isFetching: companiesLoading } = useQuery({
+    queryKey: ["quick-search-companies"],
+    queryFn: () => shippingApi.list(),
+    staleTime: 5 * 60_000,
+  });
+
+  const isLoading = shipmentsLoading || clientsLoading || companiesLoading;
+
+  const results: QuickSearchResult[] = useMemo(() => {
+    if (debouncedQuery.length < 2) return [];
+    const out: QuickSearchResult[] = [];
+    for (const s of shipmentsRes?.data ?? []) out.push({ kind: "shipment", item: s });
+    for (const c of clientsRes ?? []) out.push({ kind: "client", item: c });
+    const qLower = debouncedQuery.toLowerCase();
+    for (const co of companiesRes ?? []) {
+      if (co.name.toLowerCase().includes(qLower) || (co.phone ?? "").includes(debouncedQuery)) {
+        out.push({ kind: "company", item: co });
+      }
+    }
+    return out.slice(0, 15);
+  }, [shipmentsRes, clientsRes, companiesRes, debouncedQuery]);
+
+  const goTo = (r: QuickSearchResult) => {
+    setIsOpen(false);
+    setQuery("");
+    if (r.kind === "shipment") navigate(`/shipments/${r.item.id}`);
+    else if (r.kind === "client") navigate(`/finance/clients/${r.item.id}`);
+    else navigate(`/shipping`);
+  };
+
+  return (
+    <div className="relative">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (results.length > 0) goTo(results[0]);
+        }}
+      >
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="بحث سريع: شحنة، عميل، شركة شحن..."
+          className="pr-9 w-64"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+        />
+        {isLoading && debouncedQuery.length >= 2 && (
+          <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground animate-spin" />
+        )}
+      </form>
+
+      {isOpen && debouncedQuery.length >= 2 && (
+        <div className="absolute top-full mt-1.5 w-80 max-h-96 overflow-y-auto rounded-lg border bg-popover shadow-lg z-50 text-right">
+          {isLoading && results.length === 0 ? (
+            <div className="p-4 text-xs text-muted-foreground text-center">جارٍ البحث...</div>
+          ) : results.length === 0 ? (
+            <div className="p-4 text-xs text-muted-foreground text-center">لا توجد نتائج لـ "{debouncedQuery}"</div>
+          ) : (
+            <div className="py-1">
+              {results.map((r, i) => (
+                <button
+                  key={`${r.kind}-${r.item.id}-${i}`}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => goTo(r)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-muted transition-colors text-right"
+                >
+                  {r.kind === "shipment" && <Package className="w-4 h-4 text-sky-500 shrink-0" />}
+                  {r.kind === "client" && <Users className="w-4 h-4 text-emerald-500 shrink-0" />}
+                  {r.kind === "company" && <Building2 className="w-4 h-4 text-amber-500 shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    {r.kind === "shipment" && (
+                      <>
+                        <div className="font-semibold truncate">{r.item.shipmentNumber ?? `#${r.item.id}`}</div>
+                        <div className="text-muted-foreground truncate">{r.item.receiverName} — {r.item.receiverCity ?? "—"}</div>
+                      </>
+                    )}
+                    {r.kind === "client" && (
+                      <>
+                        <div className="font-semibold truncate">{r.item.name}</div>
+                        <div className="text-muted-foreground truncate">{r.item.phone ?? "—"} {r.item.city ? `— ${r.item.city}` : ""}</div>
+                      </>
+                    )}
+                    {r.kind === "company" && (
+                      <>
+                        <div className="font-semibold truncate">{r.item.name}</div>
+                        <div className="text-muted-foreground truncate">{r.item.phone ?? "شركة شحن"}</div>
+                      </>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-[9px] shrink-0">
+                    {r.kind === "shipment" ? "شحنة" : r.kind === "client" ? "عميل" : "شركة"}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ساعة مباشرة بتوقيت القاهرة ───────────────────────────────────────────────
 function LiveClock() {
   const [now, setNow] = useState(new Date());
@@ -315,7 +453,6 @@ export default function OperationsCenterPage() {
   const { user, logout, can } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
-  const [quickSearch, setQuickSearch] = useState("");
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -357,22 +494,7 @@ export default function OperationsCenterPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <form
-            className="relative"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const q = quickSearch.trim();
-              if (q) navigate(`/track/${encodeURIComponent(q)}`);
-            }}
-          >
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="بحث سريع برقم الشحنة..."
-              className="pr-9 w-56"
-              value={quickSearch}
-              onChange={(e) => setQuickSearch(e.target.value)}
-            />
-          </form>
+          <GlobalQuickSearch />
           <Button variant="outline" size="icon"><Bell className="w-4 h-4" /></Button>
           <Button variant="outline" size="icon"><Mail className="w-4 h-4" /></Button>
           <Button variant="outline" size="icon" onClick={toggleTheme} title={theme === "dark" ? "التبديل للوضع الفاتح" : "التبديل للوضع الداكن"}>

@@ -201,6 +201,24 @@ export const variantsApi = {
     apiFetch<ProductVariant>(`/products/${productId}/variants/${variantId}/add-stock`, { method: "POST", body: JSON.stringify({ quantity, notes }) }),
 };
 
+export interface FinanceClientSearchResult {
+  id: number;
+  name: string;
+  phone: string | null;
+  phone2: string | null;
+  address: string | null;
+  city: string | null;
+  region: string | null;
+  paymentTerms: string | null;
+  totalOrders: number;
+  totalSales: string | null;
+}
+
+export const financeClientsApi = {
+  search: (q: string) =>
+    apiFetch<FinanceClientSearchResult[]>(`/finance/clients/search?q=${encodeURIComponent(q)}`),
+};
+
 export const shippingApi = {
   list: () => apiFetch<ShippingCompany[]>("/shipping-companies"),
   create: (data: Partial<ShippingCompany>) => apiFetch<ShippingCompany>("/shipping-companies", { method: "POST", body: JSON.stringify(data) }),
