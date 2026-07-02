@@ -1,10 +1,27 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import Map, { Marker, Popup, NavigationControl } from "react-map-gl/maplibre";
+import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getGovernorateCoord, EGYPT_CENTER, EGYPT_DEFAULT_ZOOM } from "@/lib/egypt-governorates";
 import type { LiveMapCity } from "@/lib/api";
 import { Users, Package, AlertTriangle } from "lucide-react";
+
+// تفعيل دعم عرض النصوص العربية/RTL بشكل صحيح (بدون هذا الـ plugin تظهر
+// الحروف العربية منفصلة/معكوسة على الخريطة لأن MapLibre لا يدعم RTL shaping افتراضيًا)
+let rtlPluginRegistered = false;
+function ensureRtlTextPlugin() {
+  if (rtlPluginRegistered) return;
+  rtlPluginRegistered = true;
+  try {
+    maplibregl.setRTLTextPlugin(
+      "/mapbox-gl-rtl-text.js",
+      true // lazy load — يتحمل فقط عند الحاجة لعرض نص RTL
+    );
+  } catch {
+    // بيرمي خطأ لو اتسجل قبل كده (مثلاً بسبب React StrictMode/HMR في التطوير) — آمن نتجاهله
+  }
+}
 
 // خرائط أساسية مجانية (بدون مفتاح API)
 const STYLE_LIGHT = "https://tiles.openfreemap.org/styles/positron";
@@ -32,6 +49,10 @@ function bubbleColor(heatScore: number): string {
 export function LiveMap({ cities, isLoading }: LiveMapProps) {
   const { theme } = useTheme();
   const [selected, setSelected] = useState<LiveMapCity | null>(null);
+
+  useEffect(() => {
+    ensureRtlTextPlugin();
+  }, []);
 
   const points = useMemo(() => {
     return cities
