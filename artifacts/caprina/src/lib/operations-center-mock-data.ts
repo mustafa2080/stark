@@ -19,37 +19,6 @@ export const mockActiveReps = [
   { name: "محمود جابر", area: "المعادي", status: "في الطريق", load: 9 },
   { name: "كريم عادل", area: "6 أكتوبر", status: "متاح", load: 5 },
 ];
-export const mockClientsNeedFollowup = [
-  { name: "متجر الأمل", reason: "شكوى مرتجع", lastContact: "منذ يومين" },
-  { name: "ستور بلس", reason: "تأخر سداد", lastContact: "منذ 3 أيام" },
-];
-
-// ── 2) لوحة الأرباح ──────────────────────────────────────────────────────────
-export const mockFinancials = {
-  todayProfit: 12400,
-  monthProfit: 268500,
-  operatingCost: 84200,
-  costPerRep: [
-    { name: "أحمد سعيد", cost: 4200 },
-    { name: "محمود جابر", cost: 3800 },
-    { name: "كريم عادل", cost: 3100 },
-  ],
-  costPerArea: [
-    { area: "مدينة نصر", cost: 12100 },
-    { area: "المعادي", cost: 9800 },
-    { area: "6 أكتوبر", cost: 8700 },
-  ],
-  topClients: [
-    { name: "متجر النور", profit: 42100 },
-    { name: "بيوتي سنتر", profit: 35600 },
-    { name: "تك ستور", profit: 28900 },
-  ],
-  lowClients: [
-    { name: "فاشون هب", profit: 1200 },
-    { name: "سمارت شوب", profit: 1800 },
-  ],
-};
-
 // ── 3) مؤشرات الأداء (KPIs) ──────────────────────────────────────────────────
 export const mockKpis = [
   { key: "firstAttempt", label: "التسليم أول محاولة", value: 87, suffix: "%" },

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -17,8 +17,8 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
 import {
-  mockProblemShipments, mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
-  mockFinancials, mockKpis, mockAiInsights,
+  mockProblemShipments, mockTodayOutbound,
+  mockKpis, mockAiInsights,
   mockRevenueTrend,
   mockDailyReps,
   mockExecutiveSummary,
@@ -195,6 +195,18 @@ function useRecentShipments() {
   });
 }
 
+// ── جلب ملخص الأرباح (بيانات حقيقية من الباك اند) ─────────────────────────────
+function useFinancialDashboard() {
+  return useQuery({
+    queryKey: ["analytics-financial-dashboard"],
+    queryFn: analyticsApi.financialDashboard,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: FinancialDashboardResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -217,6 +229,7 @@ export default function OperationsCenterPage() {
   const recentEvents = recentEventsData?.events ?? [];
   const { data: recentShipmentsData, isLoading: recentShipmentsLoading } = useRecentShipments();
   const recentShipments = recentShipmentsData?.shipments ?? [];
+  const { data: financialData, isLoading: financialLoading } = useFinancialDashboard();
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -362,15 +375,26 @@ export default function OperationsCenterPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {mockActiveReps.map((r) => (
-                <div key={r.name} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
-                  <div>
-                    <div className="font-semibold">{r.name}</div>
-                    <div className="text-muted-foreground">{r.area}</div>
+              {opsCenterLoading && representatives.length === 0 ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-8 rounded bg-muted animate-pulse" />
+                ))
+              ) : representatives.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3">لا يوجد مندوبين متصلين حالياً</p>
+              ) : (
+                representatives.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
+                    <div className="flex items-center gap-2">
+                      <RepAvatar avatar={null} name={r.displayName} />
+                      <div>
+                        <div className="font-semibold">{r.displayName}</div>
+                        <div className="text-muted-foreground">{r.activeShipments} شحنة نشطة · {r.successRate}% نجاح</div>
+                      </div>
+                    </div>
+                    <Badge variant={r.isOnline ? "default" : "secondary"} className="text-[10px]">{r.isOnline ? "متصل" : "غير متصل"}</Badge>
                   </div>
-                  <Badge variant={r.status === "متاح" ? "default" : "secondary"} className="text-[10px]">{r.status}</Badge>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -381,15 +405,23 @@ export default function OperationsCenterPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {mockClientsNeedFollowup.map((c) => (
-                <div key={c.name} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
-                  <div>
-                    <div className="font-semibold">{c.name}</div>
-                    <div className="text-muted-foreground">{c.reason}</div>
+              {opsCenterLoading && clientsNeedingFollowup.length === 0 ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-8 rounded bg-muted animate-pulse" />
+                ))
+              ) : clientsNeedingFollowup.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3">لا يوجد عملاء يحتاجون متابعة حالياً</p>
+              ) : (
+                clientsNeedingFollowup.map((c) => (
+                  <div key={c.clientName} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0">
+                    <div>
+                      <div className="font-semibold">{c.clientName}</div>
+                      <div className="text-muted-foreground">{c.issueCount} مشكلة مفتوحة</div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{timeAgo(c.lastIssueAt)}</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground">{c.lastContact}</span>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
@@ -444,25 +476,31 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="w-full h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={[
-                    { name: "أرباح اليوم", value: mockFinancials.todayProfit },
-                    { name: "تكلفة تشغيل", value: mockFinancials.operatingCost },
-                  ]} dataKey="value" innerRadius={40} outerRadius={60} paddingAngle={3}>
-                    <Cell fill="#14b8a6" />
-                    <Cell fill="#ef4444" />
-                  </Pie>
-                  <Tooltip formatter={(v: number) => fc(v)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><div className="text-muted-foreground">أرباح اليوم</div><div className="font-bold">{fc(mockFinancials.todayProfit)}</div></div>
-              <div><div className="text-muted-foreground">أرباح الشهر</div><div className="font-bold">{fc(mockFinancials.monthProfit)}</div></div>
-              <div><div className="text-muted-foreground">تكلفة التشغيل</div><div className="font-bold">{fc(mockFinancials.operatingCost)}</div></div>
-            </div>
+            {financialLoading && !financialData ? (
+              <div className="h-40 rounded bg-muted animate-pulse" />
+            ) : (
+              <>
+                <div className="w-full h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={[
+                        { name: "أرباح اليوم", value: financialData?.today.netProfit ?? 0 },
+                        { name: "تكلفة تشغيل", value: financialData?.month.operatingCost ?? 0 },
+                      ]} dataKey="value" innerRadius={40} outerRadius={60} paddingAngle={3}>
+                        <Cell fill="#14b8a6" />
+                        <Cell fill="#ef4444" />
+                      </Pie>
+                      <Tooltip formatter={(v: number) => fc(v)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><div className="text-muted-foreground">أرباح اليوم</div><div className="font-bold">{fc(financialData?.today.netProfit ?? 0)}</div></div>
+                  <div><div className="text-muted-foreground">أرباح الشهر</div><div className="font-bold">{fc(financialData?.month.netProfit ?? 0)}</div></div>
+                  <div><div className="text-muted-foreground">تكلفة التشغيل</div><div className="font-bold">{fc(financialData?.month.operatingCost ?? 0)}</div></div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
