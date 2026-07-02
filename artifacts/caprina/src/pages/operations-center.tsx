@@ -24,6 +24,7 @@ import {
 import {
   mockTodayOutbound,
 } from "@/lib/operations-center-mock-data";
+import { exportOperationsReportPdf } from "@/lib/operations-report";
 
 const fc = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
@@ -561,6 +562,7 @@ export default function OperationsCenterPage() {
   const { user, logout, can } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
+  const [isExportingReport, setIsExportingReport] = useState(false);
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -590,6 +592,47 @@ export default function OperationsCenterPage() {
   const liveMapCities = liveMapData?.cities ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
+  const handleExportReport = async () => {
+    if (isExportingReport) return;
+    setIsExportingReport(true);
+    try {
+      await exportOperationsReportPdf({
+        companyName: "STARK Logistics",
+        generatedAt: new Date(),
+        overviewCards: overviewCards.map((c) => ({ key: c.key, label: c.label, value: c.value, change: c.change })),
+        executiveSummary: executiveSummary ?? null,
+        financial: financialData
+          ? {
+              today: { netProfit: financialData.today.netProfit },
+              month: { netProfit: financialData.month.netProfit, operatingCost: financialData.month.operatingCost },
+            }
+          : null,
+        statusDistribution,
+        topClients: topClients.map((c) => ({
+          name: c.name, phone: c.phone ?? null, shipmentsCount: c.shipmentsCount, revenue: c.revenue, successRate: c.successRate,
+        })),
+        topReps: topReps.map((r) => ({
+          name: r.name, assigned: r.assigned, successRate: r.successRate, avgRating: r.avgRating, ratingsCount: r.ratingsCount,
+        })),
+        representatives: representatives.map((r) => ({
+          displayName: r.displayName, totalShipments: r.totalShipments, deliveredShipments: r.deliveredShipments, successRate: r.successRate,
+        })),
+        delayedShipments: delayedShipments.map((s) => ({
+          trackingNumber: s.trackingNumber ?? null, receiverName: s.receiverName, receiverCity: s.receiverCity ?? null, delayedHours: s.delayedHours,
+        })),
+        recentShipments: recentShipments.map((s) => ({
+          trackingNumber: s.trackingNumber, clientName: s.clientName, status: s.status, amount: s.amount,
+        })),
+        revenueTrend: revenueTrend.map((d) => ({ day: d.day, revenue: d.revenue, profit: d.profit })),
+      });
+    } catch (err) {
+      console.error("فشل تصدير التقرير:", err);
+      window.alert("حدث خطأ أثناء تصدير التقرير. حاول مرة أخرى.");
+    } finally {
+      setIsExportingReport(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6" dir="rtl">
       {/* ── الهيدر العلوي ───────────────────────────────────────────────── */}
@@ -608,8 +651,9 @@ export default function OperationsCenterPage() {
           <Button variant="outline" size="icon" onClick={toggleTheme} title={theme === "dark" ? "التبديل للوضع الفاتح" : "التبديل للوضع الداكن"}>
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
-          <Button variant="default" className="gap-2">
-            <Download className="w-4 h-4" /> تصدير تقرير شامل
+          <Button variant="default" className="gap-2" onClick={handleExportReport} disabled={isExportingReport}>
+            {isExportingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isExportingReport ? "جارٍ تجهيز التقرير..." : "تصدير تقرير شامل"}
           </Button>
         </div>
       </div>
