@@ -3,7 +3,6 @@ import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
@@ -389,68 +388,81 @@ function LeaderLineDonut({
   );
 }
 
-// ── نافذة تفاصيل الشحنات حسب الحالة (تُفتح بالضغط على الدونات) ───────────────
-function StatusShipmentsModal({
-  open, onOpenChange, status, label, color,
+// ── قائمة منسدلة لتفاصيل الشحنات حسب الحالة (تُفتح أسفل الدونة مباشرة) ───────
+function StatusShipmentsDropdown({
+  status, label, color, onClose,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  status: string | null;
+  status: string;
   label: string;
   color: string;
+  onClose: () => void;
 }) {
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["status-shipments-modal", status],
-    queryFn: () => shipmentsApi.list({ status: status!, limit: 100 }),
-    enabled: open && !!status,
+    queryKey: ["status-shipments-dropdown", status],
+    queryFn: () => shipmentsApi.list({ status, limit: 100 }),
     staleTime: 30_000,
   });
 
   const shipments = data?.data ?? [];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col" dir="rtl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
-            شحنات: {label}
-            <span className="text-xs font-normal text-muted-foreground">
-              ({isFetching ? "..." : fn(data?.total ?? shipments.length)} شحنة)
-            </span>
-          </DialogTitle>
-        </DialogHeader>
+    <div className="relative mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="rounded-xl border bg-card shadow-lg overflow-hidden">
+        {/* سهم صغير يوصل القائمة بصريًا بالدونة فوقها */}
+        <div
+          className="absolute -top-1.5 right-1/2 translate-x-1/2 w-3 h-3 rotate-45 border-t border-r bg-card"
+          style={{ borderColor: "inherit" }}
+        />
+        {/* هيدر القائمة */}
+        <div
+          className="flex items-center justify-between gap-2 px-3 py-2.5 border-b"
+          style={{ background: `${color}14` }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+            <span className="text-sm font-bold truncate">{label}</span>
+            <Badge variant="outline" className="text-[10px] shrink-0">
+              {isFetching ? "..." : `${fn(data?.total ?? shipments.length)} شحنة`}
+            </Badge>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            aria-label="إغلاق"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-        <div className="flex-1 overflow-y-auto -mx-1 px-1">
+        {/* محتوى القائمة */}
+        <div className="max-h-80 overflow-y-auto">
           {isLoading ? (
-            <div className="space-y-2 py-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+            <div className="space-y-2 p-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-9 bg-muted rounded animate-pulse" />
               ))}
             </div>
           ) : shipments.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-10">لا توجد شحنات بهذه الحالة حالياً</div>
+            <div className="text-xs text-muted-foreground text-center py-8">لا توجد شحنات بهذه الحالة حالياً</div>
           ) : (
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-background">
+            <table className="w-full text-[11px]">
+              <thead className="sticky top-0 bg-card z-10">
                 <tr className="text-muted-foreground border-b">
-                  <th className="text-right font-medium py-2 px-2">رقم الشحنة</th>
-                  <th className="text-right font-medium py-2 px-2">المستلم</th>
-                  <th className="text-right font-medium py-2 px-2">الوجهة</th>
-                  <th className="text-right font-medium py-2 px-2">شركة الشحن</th>
-                  <th className="text-right font-medium py-2 px-2">القيمة</th>
-                  <th className="text-right font-medium py-2 px-2">التاريخ</th>
+                  <th className="text-right font-medium py-2 px-3">رقم الشحنة</th>
+                  <th className="text-right font-medium py-2 px-3">المستلم</th>
+                  <th className="text-right font-medium py-2 px-3">الوجهة</th>
+                  <th className="text-right font-medium py-2 px-3">القيمة</th>
+                  <th className="text-right font-medium py-2 px-3">التاريخ</th>
                 </tr>
               </thead>
               <tbody>
                 {shipments.map((s) => (
-                  <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40">
-                    <td className="py-2 px-2 font-semibold">{s.shipmentNumber ?? `#${s.id}`}</td>
-                    <td className="py-2 px-2">{s.receiverName}</td>
-                    <td className="py-2 px-2">{s.zoneGovernorate ?? s.receiverCity ?? "—"}</td>
-                    <td className="py-2 px-2">{s.shippingCompanyName ?? "—"}</td>
-                    <td className="py-2 px-2 font-semibold">{fc(Number(s.totalAmount ?? 0))}</td>
-                    <td className="py-2 px-2 text-muted-foreground">
+                  <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
+                    <td className="py-2 px-3 font-semibold whitespace-nowrap">{s.shipmentNumber ?? `#${s.id}`}</td>
+                    <td className="py-2 px-3 truncate max-w-[110px]">{s.receiverName}</td>
+                    <td className="py-2 px-3 whitespace-nowrap">{s.zoneGovernorate ?? s.receiverCity ?? "—"}</td>
+                    <td className="py-2 px-3 font-semibold whitespace-nowrap">{fc(Number(s.totalAmount ?? 0))}</td>
+                    <td className="py-2 px-3 text-muted-foreground whitespace-nowrap">
                       {new Intl.DateTimeFormat("ar-EG", { day: "numeric", month: "short" }).format(new Date(s.createdAt))}
                     </td>
                   </tr>
@@ -459,8 +471,20 @@ function StatusShipmentsModal({
             </table>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* فوتر: رابط لعرض الكل في صفحة الشحنات */}
+        {shipments.length > 0 && (
+          <div className="border-t px-3 py-2 bg-muted/20">
+            <a
+              href={`/shipments?status=${encodeURIComponent(status)}`}
+              className="text-[11px] font-semibold text-primary hover:underline flex items-center justify-center gap-1"
+            >
+              عرض كل الشحنات في صفحة الشحنات ←
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1220,6 +1244,15 @@ export default function OperationsCenterPage() {
                     </div>
                   ))}
                 </div>
+
+                {statusModal && (
+                  <StatusShipmentsDropdown
+                    status={statusModal.status}
+                    label={statusModal.label}
+                    color={statusModal.color}
+                    onClose={() => setStatusModal(null)}
+                  />
+                )}
               </>
             )}
           </CardContent>
@@ -1414,15 +1447,6 @@ export default function OperationsCenterPage() {
         <div>آخر نسخة احتياطية: اليوم 03:00 صباحاً</div>
         <div>© {new Date().getFullYear()} STARK Logistics — جميع الحقوق محفوظة</div>
       </div>
-
-      {/* ── نافذة تفاصيل الشحنات حسب الحالة ─────────────────────────────── */}
-      <StatusShipmentsModal
-        open={!!statusModal}
-        onOpenChange={(open) => { if (!open) setStatusModal(null); }}
-        status={statusModal?.status ?? null}
-        label={statusModal?.label ?? ""}
-        color={statusModal?.color ?? "#6b7280"}
-      />
     </div>
   );
 }
