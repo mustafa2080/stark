@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -17,7 +17,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
 import {
-  mockOverviewCards, mockDelayedShipments, mockProblemShipments,
+  mockDelayedShipments, mockProblemShipments,
   mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
   mockFinancials, mockKpis, mockAiInsights, mockAlerts,
   mockRevenueTrend,
@@ -90,7 +90,7 @@ const KPI_ICON_META: Record<string, { icon: any; bg: string; color: string; spar
   delivered:  { icon: PackageCheck, bg: "bg-emerald-500/10", color: "text-emerald-500", spark: "#10b981" },
   inShipping: { icon: Truck,        bg: "bg-sky-500/10",     color: "text-sky-500",     spark: "#0ea5e9" },
   returned:   { icon: Undo2,        bg: "bg-amber-500/10",   color: "text-amber-500",   spark: "#f59e0b" },
-  rating:     { icon: Star,         bg: "bg-violet-500/10",  color: "text-violet-500",  spark: "#8b5cf6" },
+  delayed:    { icon: AlertTriangle, bg: "bg-violet-500/10",  color: "text-violet-500",  spark: "#8b5cf6" },
   revenue:    { icon: DollarSign,   bg: "bg-teal-500/10",    color: "text-teal-500",    spark: "#14b8a6" },
 };
 
@@ -128,6 +128,18 @@ function useTopPerformers() {
   });
 }
 
+// ── جلب كروت KPI الرئيسية (بيانات حقيقية من الباك اند) ───────────────────────
+function useOperationsKpis() {
+  return useQuery({
+    queryKey: ["analytics-operations-kpis"],
+    queryFn: analyticsApi.operationsKpis,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: OperationsKpisResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -136,6 +148,8 @@ export default function OperationsCenterPage() {
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
+  const { data: opsKpis, isLoading: opsKpisLoading } = useOperationsKpis();
+  const overviewCards = opsKpis?.cards ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -163,33 +177,45 @@ export default function OperationsCenterPage() {
 
       {/* ── صف الكروت العلوي ────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        {mockOverviewCards.map((c) => {
-          const meta = KPI_ICON_META[c.key];
-          const Icon = meta.icon;
-          const isUp = c.change >= 0;
-          return (
-            <Card key={c.key} className="overflow-hidden">
+        {opsKpisLoading && overviewCards.length === 0 ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden animate-pulse">
               <CardContent className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${meta.bg}`}>
-                    <Icon className={`w-4.5 h-4.5 ${meta.color}`} />
-                  </div>
-                  <Badge variant={isUp ? "default" : "destructive"} className="gap-1 text-[10px]">
-                    {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {Math.abs(c.change)}%
-                  </Badge>
-                </div>
-                <div>
-                  <div className="text-xl font-black">
-                    {c.key === "revenue" ? fc(c.value) : c.key === "rating" ? c.value.toFixed(1) : fn(c.value)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{c.label}</div>
-                </div>
-                <MiniSparkline data={c.spark} color={meta.spark} />
+                <div className="w-9 h-9 rounded-lg bg-muted" />
+                <div className="h-5 w-16 bg-muted rounded" />
+                <div className="h-3 w-20 bg-muted rounded" />
               </CardContent>
             </Card>
-          );
-        })}
+          ))
+        ) : (
+          overviewCards.map((c) => {
+            const meta = KPI_ICON_META[c.key] ?? KPI_ICON_META.total;
+            const Icon = meta.icon;
+            const isUp = c.change >= 0;
+            return (
+              <Card key={c.key} className="overflow-hidden">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${meta.bg}`}>
+                      <Icon className={`w-4.5 h-4.5 ${meta.color}`} />
+                    </div>
+                    <Badge variant={isUp ? "default" : "destructive"} className="gap-1 text-[10px]">
+                      {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {Math.abs(c.change)}%
+                    </Badge>
+                  </div>
+                  <div>
+                    <div className="text-xl font-black">
+                      {c.key === "revenue" ? fc(c.value) : fn(c.value)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{c.label}</div>
+                  </div>
+                  <MiniSparkline data={c.sparkline} color={meta.spark} />
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}

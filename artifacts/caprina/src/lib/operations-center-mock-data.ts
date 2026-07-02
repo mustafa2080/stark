@@ -3,15 +3,6 @@
 // عند ربط الـ API لاحقاً، استبدل الاستدعاءات هنا بـ react-query hooks
 // ══════════════════════════════════════════════════════════════════════════
 
-export const mockOverviewCards = [
-  { key: "total",      label: "إجمالي الشحنات",  value: 1284, change: 8.2,  spark: [40,52,48,60,55,70,65,80] },
-  { key: "delivered",  label: "تم التسليم",       value: 942,  change: 5.4,  spark: [30,35,40,42,50,55,60,65] },
-  { key: "inShipping", label: "قيد التوصيل",      value: 213,  change: -2.1, spark: [50,48,45,44,40,38,35,33] },
-  { key: "returned",   label: "مرتجعة",           value: 47,   change: 1.3,  spark: [10,12,11,13,14,12,15,14] },
-  { key: "rating",     label: "متوسط التقييم",    value: 4.6,  change: 0.3,  spark: [4,4.2,4.1,4.3,4.4,4.5,4.5,4.6] },
-  { key: "revenue",    label: "إجمالي الإيرادات", value: 386400, change: 12.7, spark: [200,220,250,270,300,320,350,386] },
-];
-
 // ── 1) مركز العمليات ────────────────────────────────────────────────────────
 export const mockDelayedShipments = [
   { id: "STK-10231", client: "متجر النور", city: "القاهرة", hours: 26 },

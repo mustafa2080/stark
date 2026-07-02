@@ -2358,7 +2358,7 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
           sparkline: sparkline("delivered"),
         },
         {
-          key: "inShipping", label: "قيد التوصيل", value: totals.inShipping,
+          key: "inShipping", label: "قيد الشحن", value: totals.inShipping,
           change: pctChange(todayBucket.inShipping, yesterdayBucket.inShipping),
           sparkline: sparkline("inShipping"),
         },
