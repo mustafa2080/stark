@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { analyticsApi, type TopPerformersResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -18,7 +20,7 @@ import {
   mockOverviewCards, mockDelayedShipments, mockProblemShipments,
   mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
   mockFinancials, mockKpis, mockAiInsights, mockAlerts,
-  mockRevenueTrend, mockTopClients, mockTopReps,
+  mockRevenueTrend, mockTopReps,
   mockStatusDistribution, mockRecentShipments, mockDailyReps,
   mockExecutiveSummary,
 } from "@/lib/operations-center-mock-data";
@@ -92,11 +94,25 @@ const KPI_ICON_META: Record<string, { icon: any; bg: string; color: string; spar
   revenue:    { icon: DollarSign,   bg: "bg-teal-500/10",    color: "text-teal-500",    spark: "#14b8a6" },
 };
 
+// ── جلب أفضل العملاء (بيانات حقيقية من الباك اند) ────────────────────────────
+function useTopPerformers() {
+  return useQuery({
+    queryKey: ["analytics-top-performers"],
+    queryFn: analyticsApi.topPerformers,
+    staleTime: 3 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: TopPerformersResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
 export default function OperationsCenterPage() {
   const { user } = useAuth();
+  const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
+  const topClients = topPerformers?.topClients ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -375,33 +391,43 @@ export default function OperationsCenterPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-500" /> أفضل العملاء
+              <span className="text-[10px] font-normal text-muted-foreground">(آخر 30 يوم)</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted-foreground border-b">
-                  <th className="text-right font-medium pb-2">العميل</th>
-                  <th className="text-right font-medium pb-2">الشحنات</th>
-                  <th className="text-right font-medium pb-2">الأرباح</th>
-                  <th className="text-right font-medium pb-2">Health Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockTopClients.map((c) => (
-                  <tr key={c.name} className="border-b last:border-0">
-                    <td className="py-2 font-semibold">{c.name}</td>
-                    <td className="py-2">{fn(c.shipments)}</td>
-                    <td className="py-2">{fc(c.profit)}</td>
-                    <td className="py-2">
-                      <Badge className={`text-[10px] ${c.health >= 80 ? "bg-emerald-500/15 text-emerald-600 border-emerald-300" :
-                        c.health >= 60 ? "bg-amber-500/15 text-amber-600 border-amber-300" :
-                        "bg-red-500/15 text-red-600 border-red-300"}`}>{c.health}/100</Badge>
-                    </td>
+            {topPerformersLoading && topClients.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">جاري تحميل البيانات...</div>
+            ) : topClients.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground border-b">
+                    <th className="text-right font-medium pb-2">العميل</th>
+                    <th className="text-right font-medium pb-2">الشحنات</th>
+                    <th className="text-right font-medium pb-2">الإيرادات</th>
+                    <th className="text-right font-medium pb-2">نسبة النجاح</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {topClients.map((c) => (
+                    <tr key={`${c.name}-${c.phone}`} className="border-b last:border-0">
+                      <td className="py-2">
+                        <div className="font-semibold">{c.name}</div>
+                        {c.phone && <div className="text-[10px] text-muted-foreground" dir="ltr">{c.phone}</div>}
+                      </td>
+                      <td className="py-2">{fn(c.shipmentsCount)}</td>
+                      <td className="py-2">{fc(c.revenue)}</td>
+                      <td className="py-2">
+                        <Badge className={`text-[10px] ${c.successRate >= 80 ? "bg-emerald-500/15 text-emerald-600 border-emerald-300" :
+                          c.successRate >= 50 ? "bg-amber-500/15 text-amber-600 border-amber-300" :
+                          "bg-red-500/15 text-red-600 border-red-300"}`}>{c.successRate}%</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
 
