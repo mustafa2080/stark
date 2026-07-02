@@ -91,14 +91,6 @@ export const mockRevenueTrend = [
 // ملحوظة: "أفضل العملاء" و"أفضل المندوبين" أصبحا يستخدمان بيانات حقيقية
 // من /analytics/top-performers
 
-// ── 8) توزيع الشحنات حسب الحالة ──────────────────────────────────────────────
-export const mockStatusDistribution = [
-  { status: "تم التسليم", value: 942, color: "#10b981" },
-  { status: "قيد التوصيل", value: 213, color: "#0ea5e9" },
-  { status: "قيد الانتظار", value: 82,  color: "#f59e0b" },
-  { status: "مرتجعة", value: 47,  color: "#ef4444" },
-];
-
 // ── 9) آخر الشحنات + جدول المندوبين اليومي ───────────────────────────────────
 export const mockRecentShipments = [
   { id: "STK-10312", client: "متجر النور", status: "تم التسليم", statusColor: "emerald", amount: 850 },

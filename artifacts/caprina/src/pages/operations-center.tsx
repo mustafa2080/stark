@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -20,7 +20,7 @@ import {
   mockProblemShipments, mockTodayOutbound, mockActiveReps, mockClientsNeedFollowup,
   mockFinancials, mockKpis, mockAiInsights, mockAlerts,
   mockRevenueTrend,
-  mockStatusDistribution, mockRecentShipments, mockDailyReps,
+  mockRecentShipments, mockDailyReps,
   mockExecutiveSummary,
 } from "@/lib/operations-center-mock-data";
 
@@ -151,6 +151,18 @@ function useOperationsCenter() {
   });
 }
 
+// ── جلب توزيع الشحنات حسب الحالة (بيانات حقيقية من الباك اند) ────────────────
+function useStatusDistribution() {
+  return useQuery({
+    queryKey: ["analytics-status-distribution"],
+    queryFn: analyticsApi.statusDistribution,
+    staleTime: 2 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 3 * 60_000,
+    placeholderData: (prev: StatusDistributionResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -167,6 +179,8 @@ export default function OperationsCenterPage() {
   const outTodayShipments = opsCenter?.outToday ?? [];
   const representatives = opsCenter?.representatives ?? [];
   const clientsNeedingFollowup = opsCenter?.clientsNeedingFollowup ?? [];
+  const { data: statusDist, isLoading: statusDistLoading } = useStatusDistribution();
+  const statusDistribution = statusDist?.distribution ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -577,24 +591,34 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-full h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={mockStatusDistribution} dataKey="value" nameKey="status" innerRadius={38} outerRadius={60} paddingAngle={3}>
-                    {mockStatusDistribution.map((s, i) => <Cell key={i} fill={s.color} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-1 mt-2">
-              {mockStatusDistribution.map((s) => (
-                <div key={s.status} className="flex items-center justify-between text-[11px]">
-                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: s.color }} />{s.status}</span>
-                  <span className="font-semibold">{fn(s.value)}</span>
+            {statusDistLoading && statusDistribution.length === 0 ? (
+              <div className="h-40 flex items-center justify-center">
+                <div className="w-24 h-24 rounded-full border-8 border-muted animate-pulse" />
+              </div>
+            ) : statusDistribution.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-10">لا توجد بيانات كافية</div>
+            ) : (
+              <>
+                <div className="w-full h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={statusDistribution} dataKey="value" nameKey="label" innerRadius={38} outerRadius={60} paddingAngle={3}>
+                        {statusDistribution.map((s, i) => <Cell key={i} fill={s.color} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="space-y-1 mt-2">
+                  {statusDistribution.map((s) => (
+                    <div key={s.status} className="flex items-center justify-between text-[11px]">
+                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: s.color }} />{s.label}</span>
+                      <span className="font-semibold">{fn(s.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

@@ -2388,6 +2388,68 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
   }
 });
 
+// ─── GET /analytics/status-distribution ──────────────────────────────────────
+// توزيع كل الشحنات النشطة (آخر 90 يوم) حسب الحالة الحقيقية — لكارت "توزيع الشحنات حسب الحالة"
+router.get("/analytics/status-distribution", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `status-distribution:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const now = new Date();
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, ninetyDaysAgo))
+      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, ninetyDaysAgo));
+
+    const rows = await db
+      .select({ status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(cond);
+
+    const STATUS_META: Record<string, { label: string; color: string }> = {
+      pending:          { label: "قيد الانتظار",  color: "#f59e0b" },
+      warehouse_ready:  { label: "بالمخزن",        color: "#a855f7" },
+      in_shipping:      { label: "قيد الشحن",      color: "#0ea5e9" },
+      delayed:          { label: "مؤجلة",          color: "#eab308" },
+      partial_received: { label: "تسليم جزئي",     color: "#6366f1" },
+      received:         { label: "تم التسليم",     color: "#10b981" },
+      returned:         { label: "مرتجعة",         color: "#ef4444" },
+    };
+
+    const counts: Record<string, number> = {};
+    for (const r of rows) {
+      const status = normalize(r.status);
+      counts[status] = (counts[status] ?? 0) + 1;
+    }
+
+    const distribution = Object.entries(counts)
+      .filter(([, value]) => value > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, value]) => ({
+        status,
+        label: STATUS_META[status]?.label ?? status,
+        color: STATUS_META[status]?.color ?? "#94a3b8",
+        value,
+      }));
+
+    const result = { distribution, total: rows.length, generatedAt: now.toISOString() };
+
+    setCached(cacheKey, result, 3 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /analytics/performance-metrics ──────────────────────────────────────
 // لوحة العمليات: 6 مؤشرات دائرية — الالتزام، وقت التوصيل، المرتجعات،
 // التأخير، تقييم العملاء، زمن الاستلام. كل مؤشر مع نسبة تغيّر عن أمس.

@@ -569,6 +569,18 @@ export interface OperationsKpisResponse {
   generatedAt: string;
 }
 
+export interface StatusDistributionItem {
+  status: string;
+  label: string;
+  color: string;
+  value: number;
+}
+export interface StatusDistributionResponse {
+  distribution: StatusDistributionItem[];
+  total: number;
+  generatedAt: string;
+}
+
 export interface PerformanceMetric {
   key: string;
   label: string;
@@ -834,6 +846,7 @@ export const analyticsApi = {
     ),
   shipmentCharts: () => apiFetch<ShipmentChartsData>("/analytics/shipment-charts"),
   operationsKpis: () => apiFetch<OperationsKpisResponse>("/analytics/operations-kpis"),
+  statusDistribution: () => apiFetch<StatusDistributionResponse>("/analytics/status-distribution"),
   performanceMetrics: () => apiFetch<PerformanceMetricsResponse>("/analytics/performance-metrics"),
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
