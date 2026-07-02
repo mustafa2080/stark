@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
+import { LiveMap } from "@/components/live-map";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -252,6 +253,18 @@ function useRevenueTrend() {
   });
 }
 
+// ── جلب بيانات الخريطة المباشرة (تجميع حسب المحافظة + مندوبين) ───────────────
+function useLiveMap() {
+  return useQuery({
+    queryKey: ["analytics-live-map"],
+    queryFn: analyticsApi.liveMap,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000, // تحديث كل دقيقتين لأنها "مباشرة"
+    placeholderData: (prev: LiveMapResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -283,6 +296,8 @@ export default function OperationsCenterPage() {
   const performanceMetrics = perfMetricsData?.metrics ?? [];
   const { data: revenueTrendData, isLoading: revenueTrendLoading } = useRevenueTrend();
   const revenueTrend = revenueTrendData?.days ?? [];
+  const { data: liveMapData, isLoading: liveMapLoading } = useLiveMap();
+  const liveMapCities = liveMapData?.cities ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -479,25 +494,21 @@ export default function OperationsCenterPage() {
           </Card>
         </div>
 
-        {/* الخريطة المباشرة (نسخة بصرية ثابتة) */}
+        {/* الخريطة المباشرة (MapLibre GL — تجميع الشحنات حسب المحافظة) */}
         <div className="xl:col-span-2">
           <Card className="h-full">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex-row items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-cyan-500" /> الخريطة المباشرة
               </CardTitle>
+              {liveMapData && (
+                <span className="text-[10px] text-muted-foreground">
+                  {liveMapData.totalActiveCities} محافظة نشطة · {liveMapData.totalActiveShipments} شحنة جارية
+                </span>
+              )}
             </CardHeader>
             <CardContent>
-              <div className="relative w-full h-72 rounded-xl bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-transparent border border-dashed flex items-center justify-center overflow-hidden">
-                {representatives.slice(0, 5).map((r, i) => (
-                  <div key={r.id} className="absolute flex flex-col items-center gap-1"
-                    style={{ top: `${25 + i * 20}%`, left: `${20 + i * 25}%` }}>
-                    <div className="w-3 h-3 rounded-full bg-sky-500 ring-4 ring-sky-500/20 animate-pulse" />
-                    <span className="text-[10px] bg-background/80 px-1.5 py-0.5 rounded border">{r.displayName}</span>
-                  </div>
-                ))}
-                <span className="text-xs text-muted-foreground">عرض تفاعلي للخريطة قريباً — نسخة تجريبية حالياً</span>
-              </div>
+              <LiveMap cities={liveMapCities} isLoading={liveMapLoading && liveMapCities.length === 0} />
             </CardContent>
           </Card>
         </div>
