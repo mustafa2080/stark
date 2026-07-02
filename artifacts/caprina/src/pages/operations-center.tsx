@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
@@ -15,7 +16,7 @@ import {
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
   AlertTriangle, AlertOctagon, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
-  UserPlus, FileText, LogOut, Wallet, Activity,
+  UserPlus, FileText, LogOut, Wallet, Activity, X,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Line,
@@ -273,9 +274,11 @@ function useLiveMap() {
 function LeaderLineDonut({
   data,
   total,
+  onSegmentClick,
 }: {
   data: { status: string; label: string; color: string; value: number }[];
   total: number;
+  onSegmentClick?: (status: string, label: string, color: string) => void;
 }) {
   const size = 280;
   const padX = 64; // مساحة إضافية يمين ويسار لصناديق الـ labels داخل الـ viewBox نفسه
@@ -337,7 +340,13 @@ function LeaderLineDonut({
     <div className="w-full flex items-center justify-center py-2">
       <svg viewBox={`0 0 ${vbWidth} ${size}`} width="100%" height={size} style={{ maxWidth: "100%" }} preserveAspectRatio="xMidYMid meet">
         {segments.map((s) => (
-          <path key={s.status} d={arcPath(s.startDeg, s.endDeg)} fill={s.color} />
+          <path
+            key={s.status}
+            d={arcPath(s.startDeg, s.endDeg)}
+            fill={s.color}
+            className={onSegmentClick ? "cursor-pointer transition-opacity hover:opacity-80" : undefined}
+            onClick={() => onSegmentClick?.(s.status, s.label, s.color)}
+          />
         ))}
 
         <text x={cx} y={cy - 6} textAnchor="middle" className="fill-foreground" style={{ fontSize: 22, fontWeight: 900 }}>
@@ -352,7 +361,11 @@ function LeaderLineDonut({
           const bendX = cx + (size / 2 - 4) * Math.sign(edge.x - cx || 1) * 0.62;
           const boxX = s.side === "left" ? bendX - labelWidth : bendX;
           return (
-            <g key={`label-${s.status}`}>
+            <g
+              key={`label-${s.status}`}
+              className={onSegmentClick ? "cursor-pointer" : undefined}
+              onClick={() => onSegmentClick?.(s.status, s.label, s.color)}
+            >
               <polyline
                 points={`${edge.x},${edge.y} ${bendX},${s.labelY} ${s.side === "left" ? boxX + labelWidth : boxX},${s.labelY}`}
                 fill="none"
@@ -373,6 +386,81 @@ function LeaderLineDonut({
         })}
       </svg>
     </div>
+  );
+}
+
+// ── نافذة تفاصيل الشحنات حسب الحالة (تُفتح بالضغط على الدونات) ───────────────
+function StatusShipmentsModal({
+  open, onOpenChange, status, label, color,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  status: string | null;
+  label: string;
+  color: string;
+}) {
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["status-shipments-modal", status],
+    queryFn: () => shipmentsApi.list({ status: status!, limit: 100 }),
+    enabled: open && !!status,
+    staleTime: 30_000,
+  });
+
+  const shipments = data?.data ?? [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
+            شحنات: {label}
+            <span className="text-xs font-normal text-muted-foreground">
+              ({isFetching ? "..." : fn(data?.total ?? shipments.length)} شحنة)
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto -mx-1 px-1">
+          {isLoading ? (
+            <div className="space-y-2 py-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
+          ) : shipments.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-10">لا توجد شحنات بهذه الحالة حالياً</div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-background">
+                <tr className="text-muted-foreground border-b">
+                  <th className="text-right font-medium py-2 px-2">رقم الشحنة</th>
+                  <th className="text-right font-medium py-2 px-2">المستلم</th>
+                  <th className="text-right font-medium py-2 px-2">الوجهة</th>
+                  <th className="text-right font-medium py-2 px-2">شركة الشحن</th>
+                  <th className="text-right font-medium py-2 px-2">القيمة</th>
+                  <th className="text-right font-medium py-2 px-2">التاريخ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shipments.map((s) => (
+                  <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40">
+                    <td className="py-2 px-2 font-semibold">{s.shipmentNumber ?? `#${s.id}`}</td>
+                    <td className="py-2 px-2">{s.receiverName}</td>
+                    <td className="py-2 px-2">{s.zoneGovernorate ?? s.receiverCity ?? "—"}</td>
+                    <td className="py-2 px-2">{s.shippingCompanyName ?? "—"}</td>
+                    <td className="py-2 px-2 font-semibold">{fc(Number(s.totalAmount ?? 0))}</td>
+                    <td className="py-2 px-2 text-muted-foreground">
+                      {new Intl.DateTimeFormat("ar-EG", { day: "numeric", month: "short" }).format(new Date(s.createdAt))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -563,6 +651,7 @@ export default function OperationsCenterPage() {
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
   const [isExportingReport, setIsExportingReport] = useState(false);
+  const [statusModal, setStatusModal] = useState<{ status: string; label: string; color: string } | null>(null);
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -1114,10 +1203,18 @@ export default function OperationsCenterPage() {
               <div className="text-xs text-muted-foreground text-center py-10">لا توجد بيانات كافية</div>
             ) : (
               <>
-                <LeaderLineDonut data={statusDistribution} total={statusDistribution.reduce((s, d) => s + d.value, 0)} />
+                <LeaderLineDonut
+                  data={statusDistribution}
+                  total={statusDistribution.reduce((s, d) => s + d.value, 0)}
+                  onSegmentClick={(status, label, color) => setStatusModal({ status, label, color })}
+                />
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1">
                   {statusDistribution.map((s) => (
-                    <div key={s.status} className="flex items-center justify-between text-[11px]">
+                    <div
+                      key={s.status}
+                      className="flex items-center justify-between text-[11px] cursor-pointer hover:opacity-70 transition-opacity"
+                      onClick={() => setStatusModal({ status: s.status, label: s.label, color: s.color })}
+                    >
                       <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: s.color }} />{s.label}</span>
                       <span className="font-semibold">{fn(s.value)}</span>
                     </div>
@@ -1317,6 +1414,15 @@ export default function OperationsCenterPage() {
         <div>آخر نسخة احتياطية: اليوم 03:00 صباحاً</div>
         <div>© {new Date().getFullYear()} STARK Logistics — جميع الحقوق محفوظة</div>
       </div>
+
+      {/* ── نافذة تفاصيل الشحنات حسب الحالة ─────────────────────────────── */}
+      <StatusShipmentsModal
+        open={!!statusModal}
+        onOpenChange={(open) => { if (!open) setStatusModal(null); }}
+        status={statusModal?.status ?? null}
+        label={statusModal?.label ?? ""}
+        color={statusModal?.color ?? "#6b7280"}
+      />
     </div>
   );
 }
