@@ -842,6 +842,17 @@ export interface ExecutiveSummaryResponse {
   generatedAt: string;
 }
 
+export interface RevenueTrendDay {
+  day: string;
+  date: string;
+  revenue: number;
+  profit: number;
+}
+export interface RevenueTrendResponse {
+  days: RevenueTrendDay[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -883,6 +894,7 @@ export const analyticsApi = {
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),
   recentShipments: () => apiFetch<RecentShipmentsResponse>("/analytics/recent-shipments"),
   executiveSummary: () => apiFetch<ExecutiveSummaryResponse>("/analytics/executive-summary"),
+  revenueTrend: () => apiFetch<RevenueTrendResponse>("/analytics/revenue-trend"),
 };
 
 export interface BatchCreateOrderBody {

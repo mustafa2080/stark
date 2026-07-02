@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse } from "@/lib/api";
+import { analyticsApi, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse } from "@/lib/api";
 import {
   Search, Bell, Mail, Globe, Sun, Download,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -18,8 +18,6 @@ import {
 } from "recharts";
 import {
   mockProblemShipments, mockTodayOutbound,
-  mockKpis,
-  mockRevenueTrend,
 } from "@/lib/operations-center-mock-data";
 
 const fc = (n: number) =>
@@ -229,6 +227,30 @@ function useExecutiveSummary() {
   });
 }
 
+// ── جلب مؤشرات الأداء الدائرية (بيانات حقيقية من الباك اند) ───────────────────
+function usePerformanceMetrics() {
+  return useQuery({
+    queryKey: ["analytics-performance-metrics"],
+    queryFn: analyticsApi.performanceMetrics,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: PerformanceMetricsResponse | undefined) => prev,
+  });
+}
+
+// ── جلب اتجاه الإيرادات والأرباح اليومي (بيانات حقيقية من الباك اند) ──────────
+function useRevenueTrend() {
+  return useQuery({
+    queryKey: ["analytics-revenue-trend"],
+    queryFn: analyticsApi.revenueTrend,
+    staleTime: 2 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: RevenueTrendResponse | undefined) => prev,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -255,6 +277,10 @@ export default function OperationsCenterPage() {
   const { data: opsAlertsData, isLoading: opsAlertsLoading } = useOpsAlerts();
   const aiInsights = opsAlertsData?.alerts ?? [];
   const { data: executiveSummary, isLoading: executiveSummaryLoading } = useExecutiveSummary();
+  const { data: perfMetricsData, isLoading: perfMetricsLoading } = usePerformanceMetrics();
+  const performanceMetrics = perfMetricsData?.metrics ?? [];
+  const { data: revenueTrendData, isLoading: revenueTrendLoading } = useRevenueTrend();
+  const revenueTrend = revenueTrendData?.days ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   return (
@@ -483,9 +509,18 @@ export default function OperationsCenterPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-1">
-              {mockKpis.map((k) => (
-                <KpiGauge key={k.key} value={k.value} label={k.label} suffix={k.suffix} />
-              ))}
+              {perfMetricsLoading && performanceMetrics.length === 0 ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-20 rounded bg-muted animate-pulse" />
+                ))
+              ) : (
+                performanceMetrics.map((m) => {
+                  // القيم بدون max (بالساعات) تُطبَّع لعرض دائري بحد أقصى منطقي 48 ساعة
+                  const gaugeValue = m.max != null ? m.value : Math.min(100, Math.round((m.value / 48) * 100));
+                  const suffix = m.unit === "%" ? "%" : `${m.value} ${m.unit}`;
+                  return <KpiGauge key={m.key} value={gaugeValue} label={m.label} suffix={suffix} />;
+                })
+              )}
             </CardContent>
           </Card>
         </div>
@@ -537,9 +572,12 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {revenueTrendLoading && revenueTrend.length === 0 ? (
+              <div className="h-56 rounded bg-muted animate-pulse" />
+            ) : (
             <div className="w-full h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockRevenueTrend}>
+                <AreaChart data={revenueTrend}>
                   <defs>
                     <linearGradient id="rev-grad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
@@ -555,6 +593,7 @@ export default function OperationsCenterPage() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            )}
           </CardContent>
         </Card>
 
