@@ -101,17 +101,24 @@ export function LiveMap({ cities, isLoading }: LiveMapProps) {
           return (
             <Marker key={p.city} longitude={p.lng} latitude={p.lat} anchor="center"
               onClick={(e) => handleMarkerClick(p, e)}>
-              <div
-                className="flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110"
-                style={{
-                  width: size, height: size,
-                  backgroundColor: `${color}33`,
-                  border: `2px solid ${color}`,
-                  boxShadow: p.delayed + p.problem > 0 ? `0 0 0 4px ${color}22` : undefined,
-                }}
-                title={p.city}
-              >
-                <span className="text-[10px] font-bold" style={{ color }}>{p.total}</span>
+              <div className="flex flex-col items-center cursor-pointer transition-transform hover:scale-110" title={p.city}>
+                <div
+                  className="flex items-center justify-center rounded-full"
+                  style={{
+                    width: size, height: size,
+                    backgroundColor: `${color}33`,
+                    border: `2px solid ${color}`,
+                    boxShadow: p.delayed + p.problem > 0 ? `0 0 0 4px ${color}22` : undefined,
+                  }}
+                >
+                  <span className="text-[10px] font-bold" style={{ color }}>{p.total}</span>
+                </div>
+                <span
+                  dir="rtl"
+                  className="mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap bg-background/90 backdrop-blur border shadow-sm"
+                >
+                  {p.city}
+                </span>
               </div>
             </Marker>
           );
