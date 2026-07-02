@@ -122,8 +122,9 @@ export const mockRecentShipments = {
 
 // ── ملخص الأرباح ──────────────────────────────────────────────────────────────
 export const mockFinancialDashboard = {
-  today: { netProfit: 19700 },
-  month: { netProfit: 362000, operatingCost: 145000 },
+  today: { orders: 42, revenue: 58000, cost: 21000, shippingSpend: 9800, otherExpenses: 3500, operatingCost: 13300, netProfit: 19700 },
+  month: { orders: 1284, revenue: 362000, cost: 128000, shippingSpend: 61000, otherExpenses: 21500, operatingCost: 82500, netProfit: 96500 },
+  last30Days: { orders: 1284, revenue: 362000, cost: 128000, shippingSpend: 61000, otherExpenses: 21500, operatingCost: 82500, netProfit: 96500 },
 };
 
 // ── تنبيهات الذكاء الاصطناعي / العمليات ─────────────────────────────────────

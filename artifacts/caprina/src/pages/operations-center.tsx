@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import {
@@ -412,6 +412,186 @@ function LeaderLineDonut({
   );
 }
 
+// ── دونات مصغّرة بخطوط توصيل خارجية (leader lines) — لكارد ملخص الأرباح ──────
+function MiniLeaderLineDonut({
+  data,
+  centerLabel,
+  centerValue,
+  onSegmentClick,
+}: {
+  data: { key: string; label: string; color: string; value: number }[];
+  centerLabel: string;
+  centerValue: string;
+  onSegmentClick?: (key: string, label: string, color: string) => void;
+}) {
+  const size = 190;
+  const padX = 46;
+  const vbWidth = size + padX * 2;
+  const cx = vbWidth / 2;
+  const cy = size / 2;
+  const rOuter = 50;
+  const rInner = 32;
+  const gapDeg = 2.5;
+
+  const sum = data.reduce((s, d) => s + Math.max(d.value, 0), 0) || 1;
+
+  let cursor = 0;
+  const segments = data.map((d) => {
+    const val = Math.max(d.value, 0);
+    const sweep = (val / sum) * 360;
+    const startDeg = cursor + gapDeg / 2;
+    const endDeg = cursor + sweep - gapDeg / 2;
+    cursor += sweep;
+    const midDeg = (startDeg + endDeg) / 2;
+    return { ...d, value: val, startDeg, endDeg: Math.max(endDeg, startDeg), midDeg, pct: Math.round((val / sum) * 100) };
+  });
+
+  const toRad = (deg: number) => ((deg - 90) * Math.PI) / 180;
+  const point = (r: number, deg: number) => ({ x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)) });
+
+  const arcPath = (startDeg: number, endDeg: number) => {
+    const large = endDeg - startDeg > 180 ? 1 : 0;
+    const p1 = point(rOuter, startDeg);
+    const p2 = point(rOuter, endDeg);
+    const p3 = point(rInner, endDeg);
+    const p4 = point(rInner, startDeg);
+    return [
+      `M ${p1.x} ${p1.y}`,
+      `A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y}`,
+      `L ${p3.x} ${p3.y}`,
+      `A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y}`,
+      "Z",
+    ].join(" ");
+  };
+
+  const labelWidth = 46;
+  const leftLabels = segments.filter((s) => Math.cos(toRad(s.midDeg)) < 0).sort((a, b) => point(0, a.midDeg).y - point(0, b.midDeg).y);
+  const rightLabels = segments.filter((s) => Math.cos(toRad(s.midDeg)) >= 0).sort((a, b) => point(0, a.midDeg).y - point(0, b.midDeg).y);
+
+  const spaceOut = (list: typeof segments, side: "left" | "right") => {
+    const minGap = 22;
+    const anchors = list.map((s) => point(rOuter + 4, s.midDeg).y);
+    for (let i = 1; i < anchors.length; i++) {
+      if (anchors[i] - anchors[i - 1] < minGap) anchors[i] = anchors[i - 1] + minGap;
+    }
+    return list.map((s, i) => ({ ...s, labelY: anchors[i], side }));
+  };
+
+  const placed = [...spaceOut(leftLabels, "left"), ...spaceOut(rightLabels, "right")];
+
+  return (
+    <div className="w-full flex items-center justify-center py-1">
+      <svg viewBox={`0 0 ${vbWidth} ${size}`} width="100%" height={size} style={{ maxWidth: "100%" }} preserveAspectRatio="xMidYMid meet">
+        {segments.map((s) => (
+          <path
+            key={s.key}
+            d={arcPath(s.startDeg, s.endDeg)}
+            fill={s.color}
+            className={onSegmentClick ? "cursor-pointer transition-opacity hover:opacity-80" : undefined}
+            onClick={() => onSegmentClick?.(s.key, s.label, s.color)}
+          />
+        ))}
+
+        <text x={cx} y={cy - 4} textAnchor="middle" className="fill-foreground" style={{ fontSize: 14, fontWeight: 900 }}>
+          {centerValue}
+        </text>
+        <text x={cx} y={cy + 13} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 9 }}>
+          {centerLabel}
+        </text>
+
+        {placed.map((s) => {
+          const edge = point(rOuter, s.midDeg);
+          const bendX = cx + (size / 2 - 2) * Math.sign(edge.x - cx || 1) * 0.66;
+          const boxX = s.side === "left" ? bendX - labelWidth : bendX;
+          return (
+            <g
+              key={`label-${s.key}`}
+              className={onSegmentClick ? "cursor-pointer" : undefined}
+              onClick={() => onSegmentClick?.(s.key, s.label, s.color)}
+            >
+              <polyline
+                points={`${edge.x},${edge.y} ${bendX},${s.labelY} ${s.side === "left" ? boxX + labelWidth : boxX},${s.labelY}`}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={1.3}
+              />
+              <rect x={boxX} y={s.labelY - 9} width={labelWidth} height={18} rx={4} fill={s.color} />
+              <text
+                x={boxX + labelWidth / 2}
+                y={s.labelY + 4}
+                textAnchor="middle"
+                style={{ fontSize: 9, fontWeight: 800, fill: "#fff" }}
+              >
+                {s.pct}%
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ── قائمة منسدلة لتفاصيل بند مالي معيّن (تُفتح أسفل دونة ملخص الأرباح) ───────
+function FinancialBreakdownDropdown({
+  itemKey, label, color, financialData, onClose,
+}: {
+  itemKey: string;
+  label: string;
+  color: string;
+  financialData: FinancialDashboardResponse | undefined;
+  onClose: () => void;
+}) {
+  const FIELD_MAP: Record<string, keyof FinancialDashboardPeriod> = {
+    revenue: "revenue",
+    cost: "cost",
+    shippingSpend: "shippingSpend",
+    otherExpenses: "otherExpenses",
+  };
+  const field = FIELD_MAP[itemKey] ?? "revenue";
+  const today = financialData?.today;
+  const month = financialData?.month;
+
+  return (
+    <div className="relative mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="rounded-xl border bg-card shadow-lg overflow-hidden">
+        <div
+          className="absolute -top-1.5 right-1/2 translate-x-1/2 w-3 h-3 rotate-45 border-t border-r bg-card"
+          style={{ borderColor: "inherit" }}
+        />
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b" style={{ background: `${color}14` }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+            <span className="text-sm font-bold truncate">{label}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            aria-label="إغلاق"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="p-3 space-y-2 text-xs">
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">اليوم</span>
+            <span className="font-bold">{fc(today ? Number(today[field] ?? 0) : 0)}</span>
+          </div>
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">الشهر الحالي</span>
+            <span className="font-bold">{fc(month ? Number(month[field] ?? 0) : 0)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">عدد الطلبات (الشهر)</span>
+            <span className="font-bold">{fn(month?.orders ?? 0)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── قائمة منسدلة لتفاصيل الشحنات حسب الحالة (تُفتح أسفل الدونة مباشرة) ───────
 function StatusShipmentsDropdown({
   status, label, color, onClose,
@@ -700,6 +880,7 @@ export default function OperationsCenterPage() {
   const [, navigate] = useLocation();
   const [isExportingReport, setIsExportingReport] = useState(false);
   const [statusModal, setStatusModal] = useState<{ status: string; label: string; color: string } | null>(null);
+  const [financialModal, setFinancialModal] = useState<{ key: string; label: string; color: string } | null>(null);
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -1039,20 +1220,28 @@ export default function OperationsCenterPage() {
               <div className="h-40 rounded bg-muted animate-pulse" />
             ) : (
               <>
-                <div className="w-full h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={[
-                        { name: "أرباح اليوم", value: financialData?.today.netProfit ?? 0 },
-                        { name: "تكلفة تشغيل", value: financialData?.month.operatingCost ?? 0 },
-                      ]} dataKey="value" innerRadius={40} outerRadius={60} paddingAngle={3}>
-                        <Cell fill="#14b8a6" />
-                        <Cell fill="#ef4444" />
-                      </Pie>
-                      <Tooltip formatter={(v: number) => fc(v)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+                <MiniLeaderLineDonut
+                  centerLabel="الإجمالي"
+                  centerValue={fc(financialData?.month.revenue ?? 0)}
+                  data={[
+                    { key: "revenue", label: "إيرادات", color: "#10b981", value: financialData?.month.revenue ?? 0 },
+                    { key: "cost", label: "تكلفة", color: "#ef4444", value: financialData?.month.cost ?? 0 },
+                    { key: "shippingSpend", label: "شحن", color: "#f59e0b", value: financialData?.month.shippingSpend ?? 0 },
+                    { key: "otherExpenses", label: "أخرى", color: "#64748b", value: financialData?.month.otherExpenses ?? 0 },
+                  ]}
+                  onSegmentClick={(key, label, color) => setFinancialModal({ key, label, color })}
+                />
+
+                {financialModal && (
+                  <FinancialBreakdownDropdown
+                    itemKey={financialModal.key}
+                    label={financialModal.label}
+                    color={financialModal.color}
+                    financialData={financialData}
+                    onClose={() => setFinancialModal(null)}
+                  />
+                )}
+
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div><div className="text-muted-foreground">أرباح اليوم</div><div className="font-bold">{fc(financialData?.today.netProfit ?? 0)}</div></div>
                   <div><div className="text-muted-foreground">أرباح الشهر</div><div className="font-bold">{fc(financialData?.month.netProfit ?? 0)}</div></div>
