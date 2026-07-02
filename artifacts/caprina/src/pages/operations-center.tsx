@@ -157,7 +157,7 @@ export default function OperationsCenterPage() {
       {/* ── الهيدر العلوي ───────────────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black">مرحباً بك، {user?.name} 👋</h1>
+          <h1 className="text-2xl font-black">مرحباً بك، {user?.displayName} 👋</h1>
           <p className="text-sm text-muted-foreground mt-1">{today} — هذه نظرة شاملة على حالة الشركة الآن</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
