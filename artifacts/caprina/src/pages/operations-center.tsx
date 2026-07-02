@@ -276,10 +276,12 @@ function LeaderLineDonut({
   total: number;
 }) {
   const size = 280;
-  const cx = size / 2;
+  const padX = 64; // مساحة إضافية يمين ويسار لصناديق الـ labels داخل الـ viewBox نفسه
+  const vbWidth = size + padX * 2;
+  const cx = vbWidth / 2;
   const cy = size / 2;
-  const rOuter = 78;
-  const rInner = 50;
+  const rOuter = 72;
+  const rInner = 46;
   const gapDeg = 2.2; // فجوة صغيرة بين القطاعات
 
   const sum = data.reduce((s, d) => s + d.value, 0) || 1;
@@ -958,7 +960,8 @@ export default function OperationsCenterPage() {
             ) : topClients.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</div>
             ) : (
-              <table className="w-full text-xs">
+              <div className="overflow-x-auto -mx-2 px-2">
+              <table className="w-full text-xs min-w-[420px]">
                 <thead>
                   <tr className="text-muted-foreground border-b">
                     <th className="text-right font-medium pb-2">العميل</th>
@@ -985,6 +988,7 @@ export default function OperationsCenterPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1002,7 +1006,8 @@ export default function OperationsCenterPage() {
             ) : topReps.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</div>
             ) : (
-              <table className="w-full text-xs">
+              <div className="overflow-x-auto -mx-2 px-2">
+              <table className="w-full text-xs min-w-[420px]">
                 <thead>
                   <tr className="text-muted-foreground border-b">
                     <th className="text-right font-medium pb-2">المندوب</th>
@@ -1040,6 +1045,7 @@ export default function OperationsCenterPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1122,7 +1128,8 @@ export default function OperationsCenterPage() {
             ) : recentShipments.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات بعد</div>
             ) : (
-              <table className="w-full text-xs">
+              <div className="overflow-x-auto -mx-2 px-2">
+              <table className="w-full text-xs min-w-[420px]">
                 <thead>
                   <tr className="text-muted-foreground border-b">
                     <th className="text-right font-medium pb-2">الرقم</th>
@@ -1144,6 +1151,7 @@ export default function OperationsCenterPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1202,7 +1210,8 @@ export default function OperationsCenterPage() {
             ) : representatives.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا يوجد مندوبين حالياً</div>
             ) : (
-              <table className="w-full text-xs">
+              <div className="overflow-x-auto -mx-2 px-2">
+              <table className="w-full text-xs min-w-[380px]">
                 <thead>
                   <tr className="text-muted-foreground border-b">
                     <th className="text-right font-medium pb-2">المندوب</th>
@@ -1222,6 +1231,7 @@ export default function OperationsCenterPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </CardContent>
         </Card>
