@@ -83,7 +83,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
-// ── Radial KPI gauge ─────────────────────────────────────────────────────────
+// ── Radial KPI gauge (مع سهم/خط توصيل لصندوق النسبة فوقها) ───────────────────
 function KpiGauge({ value, label, suffix, onClick }: { value: number; label: string; suffix: string; onClick?: () => void }) {
   const r = 34, c = 2 * Math.PI * r;
   const offset = c - (value / 100) * c;
@@ -92,8 +92,16 @@ function KpiGauge({ value, label, suffix, onClick }: { value: number; label: str
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col items-center gap-2 p-3 rounded-lg text-right ${onClick ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
+      className={`flex flex-col items-center gap-0.5 p-3 pt-1 rounded-lg text-right ${onClick ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
     >
+      {/* خط توصيل قصير + صندوق النسبة فوق الدائرة */}
+      <svg viewBox="0 0 80 26" className="w-20 h-[26px]" style={{ overflow: "visible" }}>
+        <line x1="40" y1="26" x2="40" y2="8" stroke={color} strokeWidth={1.3} />
+        <rect x="16" y="0" width="48" height="16" rx="4" fill={color} />
+        <text x="40" y="11.5" textAnchor="middle" style={{ fontSize: 10, fontWeight: 800, fill: "#fff" }}>
+          {value}%
+        </text>
+      </svg>
       <div className="relative w-20 h-20">
         <svg viewBox="0 0 80 80" className="w-20 h-20 -rotate-90">
           <circle cx="40" cy="40" r={r} fill="none" stroke="currentColor" strokeOpacity="0.1" strokeWidth="8" />
