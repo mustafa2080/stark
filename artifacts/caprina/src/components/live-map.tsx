@@ -1,11 +1,11 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
-import Map, { Marker, Popup, NavigationControl } from "react-map-gl/maplibre";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import Map, { Marker, Popup, NavigationControl, type MapRef } from "react-map-gl/maplibre";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getGovernorateCoord, EGYPT_CENTER, EGYPT_DEFAULT_ZOOM } from "@/lib/egypt-governorates";
 import type { LiveMapCity } from "@/lib/api";
-import { Users, Package, AlertTriangle } from "lucide-react";
+import { Users, Package, AlertTriangle, MapPinned, Filter } from "lucide-react";
 
 // تفعيل دعم عرض النصوص العربية/RTL بشكل صحيح (بدون هذا الـ plugin تظهر
 // الحروف العربية منفصلة/معكوسة على الخريطة لأن MapLibre لا يدعم RTL shaping افتراضيًا)
@@ -49,12 +49,15 @@ function bubbleColor(heatScore: number): string {
 export function LiveMap({ cities, isLoading }: LiveMapProps) {
   const { theme } = useTheme();
   const [selected, setSelected] = useState<LiveMapCity | null>(null);
+  const [selectedGov, setSelectedGov] = useState<string>("all");
+  const [activeOnly, setActiveOnly] = useState(false);
+  const mapRef = useRef<MapRef | null>(null);
 
   useEffect(() => {
     ensureRtlTextPlugin();
   }, []);
 
-  const points = useMemo(() => {
+  const allPoints = useMemo(() => {
     return cities
       .map((c) => {
         const coord = getGovernorateCoord(c.city);
@@ -64,6 +67,19 @@ export function LiveMap({ cities, isLoading }: LiveMapProps) {
       .filter((p): p is LiveMapCity & { lat: number; lng: number } => p !== null);
   }, [cities]);
 
+  // قائمة المحافظات المتاحة فعليًا في البيانات الحالية (مرتبة أبجديًا)
+  const availableGovernorates = useMemo(
+    () => [...allPoints].map((p) => p.city).sort((a, b) => a.localeCompare(b, "ar")),
+    [allPoints]
+  );
+
+  const points = useMemo(() => {
+    let list = allPoints;
+    if (activeOnly) list = list.filter((p) => p.inTransit > 0);
+    if (selectedGov !== "all") list = list.filter((p) => p.city === selectedGov);
+    return list;
+  }, [allPoints, activeOnly, selectedGov]);
+
   const maxTotal = useMemo(() => Math.max(1, ...points.map((p) => p.total)), [points]);
   const mapStyle = theme === "dark" ? STYLE_DARK : STYLE_LIGHT;
 
@@ -72,11 +88,24 @@ export function LiveMap({ cities, isLoading }: LiveMapProps) {
     setSelected(city);
   }, []);
 
+  // لما تتغير المحافظة المختارة، نزوم على مركزها أو نرجع لعرض مصر كلها
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (selectedGov === "all") {
+      mapRef.current.flyTo({ center: [EGYPT_CENTER.lng, EGYPT_CENTER.lat], zoom: EGYPT_DEFAULT_ZOOM, duration: 900 });
+      return;
+    }
+    const coord = getGovernorateCoord(selectedGov);
+    if (coord) {
+      mapRef.current.flyTo({ center: [coord.lng, coord.lat], zoom: 9, duration: 900 });
+    }
+  }, [selectedGov]);
+
   if (isLoading) {
     return <div className="w-full h-full min-h-[420px] rounded-xl bg-muted animate-pulse" />;
   }
 
-  if (points.length === 0) {
+  if (allPoints.length === 0) {
     return (
       <div className="w-full h-full min-h-[420px] rounded-xl bg-muted/40 border border-dashed flex items-center justify-center">
         <span className="text-xs text-muted-foreground">لا توجد بيانات شحن كافية لعرضها على الخريطة</span>
@@ -86,7 +115,39 @@ export function LiveMap({ cities, isLoading }: LiveMapProps) {
 
   return (
     <div className="relative w-full h-full min-h-[420px] rounded-xl overflow-hidden border">
+      {/* شريط الفلترة: اختيار محافظة + تبديل "نشطة فقط" */}
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 flex-wrap max-w-[calc(100%-1rem)]">
+        <div className="flex items-center gap-1.5 bg-background/90 backdrop-blur border rounded-md px-2 py-1 shadow-sm">
+          <MapPinned className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <select
+            value={selectedGov}
+            onChange={(e) => setSelectedGov(e.target.value)}
+            className="text-[11px] bg-transparent outline-none max-w-[120px] cursor-pointer"
+            dir="rtl"
+          >
+            <option value="all">كل المحافظات</option>
+            {availableGovernorates.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => setActiveOnly((v) => !v)}
+          className={`flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md border shadow-sm transition-colors ${
+            activeOnly
+              ? "bg-sky-500 text-white border-sky-500"
+              : "bg-background/90 backdrop-blur text-muted-foreground hover:text-foreground"
+          }`}
+          title="عرض المحافظات اللي فيها شحنات قيد التوصيل فقط"
+        >
+          <Filter className="w-3.5 h-3.5" />
+          نشطة فقط
+        </button>
+      </div>
+
       <Map
+        ref={mapRef}
         initialViewState={{ longitude: EGYPT_CENTER.lng, latitude: EGYPT_CENTER.lat, zoom: EGYPT_DEFAULT_ZOOM }}
         mapStyle={mapStyle}
         style={{ width: "100%", height: "100%" }}
@@ -169,6 +230,14 @@ export function LiveMap({ cities, isLoading }: LiveMapProps) {
           );
         })()}
       </Map>
+
+      {points.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="text-xs text-muted-foreground bg-background/90 backdrop-blur px-3 py-1.5 rounded-md border shadow-sm">
+            لا توجد شحنات مطابقة لهذا الفلتر
+          </span>
+        </div>
+      )}
 
       <div className="absolute bottom-2 right-2 flex items-center gap-2 bg-background/85 backdrop-blur px-2 py-1 rounded-md border text-[10px]">
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> هادئ</span>
