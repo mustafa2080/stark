@@ -1741,7 +1741,7 @@ export default function OperationsCenterPage() {
             {[
               { label: "شحنة جديدة", icon: Plus, color: "text-emerald-500", path: "/shipments/new", permission: "orders.create" },
               { label: "استيراد Excel", icon: Upload, color: "text-amber-500", path: "/import", permission: "import.view" },
-              { label: "عمل جديد", icon: Briefcase, color: "text-blue-500", path: "/orders/new", permission: "orders.create" },
+              { label: "طلب جديد", icon: Briefcase, color: "text-blue-500", path: "/orders/new", permission: "orders.create" },
               { label: "مندوب جديد", icon: UserPlus, color: "text-sky-500", path: "/users/manage", permission: "settings.users" },
               { label: "تقرير الأداء", icon: FileText, color: "text-purple-500", path: "/team-performance", permission: "analytics.team" },
               { label: "تسجيل الخروج", icon: LogOut, color: "text-red-500", action: "logout" as const },
