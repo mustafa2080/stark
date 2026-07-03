@@ -856,8 +856,8 @@ function GlobalQuickSearch() {
   );
 }
 
-// ── ساعة مباشرة بتوقيت القاهرة ───────────────────────────────────────────────
-function LiveClock() {
+// ── ساعة مباشرة بتوقيت القاهرة (hook) ────────────────────────────────────────
+function useLiveClock() {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -865,7 +865,7 @@ function LiveClock() {
     return () => clearInterval(id);
   }, []);
 
-  const timeParts = useMemo(() => {
+  return useMemo(() => {
     const formatted = new Intl.DateTimeFormat("en-US", {
       timeZone: "Africa/Cairo",
       hour: "2-digit",
@@ -881,22 +881,7 @@ function LiveClock() {
       period: get("dayPeriod").toUpperCase(),
     };
   }, [now]);
-
-  return (
-    <div className="oc-kpi-card flex items-center gap-3 px-4 py-2 rounded-xl" style={{ ["--tone" as any]: "#0ea5e9" }}>
-      <Clock className="w-5 h-5 text-sky-500 shrink-0" />
-      <div className="flex items-baseline gap-0.5 font-mono tabular-nums leading-none" dir="ltr">
-        <span className="text-2xl font-black">{timeParts.h}</span>
-        <span className="text-2xl font-black text-muted-foreground">:</span>
-        <span className="text-2xl font-black">{timeParts.m}</span>
-        <span className="text-base font-bold text-muted-foreground">:{timeParts.s}</span>
-        <span className="text-xs font-bold text-sky-500 mr-1.5">{timeParts.period}</span>
-      </div>
-      <span className="text-xs text-muted-foreground border-r pr-2.5 mr-1">توقيت القاهرة</span>
-    </div>
-  );
 }
-
 // ══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ══════════════════════════════════════════════════════════════════════════
@@ -904,6 +889,7 @@ export default function OperationsCenterPage() {
   const { user, logout, can } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
+  const timeParts = useLiveClock();
   const [isExportingReport, setIsExportingReport] = useState(false);
   const [financialModal, setFinancialModal] = useState<{ key: string; label: string; color: string } | null>(null);
   const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
@@ -1029,24 +1015,46 @@ export default function OperationsCenterPage() {
         }
       `}</style>
       {/* ── الهيدر العلوي ───────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black">مرحباً بك، {user?.displayName} 👋</h1>
-          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            <p className="text-sm text-muted-foreground">{today} — هذه نظرة شاملة على حالة الشركة الآن</p>
-            <LiveClock />
+      <div className="oc-card rounded-2xl px-4 sm:px-5 py-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* يمين: الترحيب + التاريخ */}
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-black flex items-center gap-2">
+              مرحباً بك، {user?.displayName} <span className="inline-block">👋</span>
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">{today} — هذه نظرة شاملة على حالة الشركة الآن</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <GlobalQuickSearch />
-          <NotificationBell className="flex items-center justify-center w-9 h-9 rounded-md border hover:bg-accent hover:text-accent-foreground" />
-          <Button variant="outline" size="icon" onClick={toggleTheme} title={theme === "dark" ? "التبديل للوضع الفاتح" : "التبديل للوضع الداكن"}>
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
-          <Button variant="default" className="gap-2" onClick={handleExportReport} disabled={isExportingReport}>
-            {isExportingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {isExportingReport ? "جارٍ تجهيز التقرير..." : "تصدير تقرير شامل"}
-          </Button>
+
+          {/* شمال: الساعة + الأدوات */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 lg:shrink-0">
+            {/* الساعة */}
+            <div className="flex items-center gap-2 text-muted-foreground shrink-0">
+              <Clock className="w-4 h-4 text-sky-500" />
+              <div className="flex items-baseline gap-0.5 font-mono tabular-nums leading-none" dir="ltr">
+                <span className="text-base font-bold text-foreground">{timeParts.h}</span>
+                <span className="text-base font-bold text-muted-foreground">:</span>
+                <span className="text-base font-bold text-foreground">{timeParts.m}</span>
+                <span className="text-xs font-semibold text-sky-500 mr-1">{timeParts.period}</span>
+              </div>
+              <span className="text-xs hidden sm:inline">توقيت القاهرة</span>
+            </div>
+
+            <div className="hidden sm:block w-px h-6 bg-border shrink-0" />
+
+            {/* شريط الأدوات */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <GlobalQuickSearch />
+              <NotificationBell className="flex items-center justify-center w-9 h-9 rounded-lg border border-border hover:bg-accent hover:text-accent-foreground transition-colors shrink-0" />
+              <Button variant="outline" size="icon" className="shrink-0" onClick={toggleTheme} title={theme === "dark" ? "التبديل للوضع الفاتح" : "التبديل للوضع الداكن"}>
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
+              <Button variant="default" className="gap-2 shrink-0" onClick={handleExportReport} disabled={isExportingReport}>
+                {isExportingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                <span className="hidden sm:inline">{isExportingReport ? "جارٍ تجهيز التقرير..." : "تصدير تقرير شامل"}</span>
+                <span className="sm:hidden">تصدير</span>
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
