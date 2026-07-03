@@ -662,13 +662,13 @@ function PerformanceMetricDropdown({
 function StatusShipmentsDropdown({
   status, label, color, onClose,
 }: {
-  status: string;
+  status?: string;
   label: string;
   color: string;
   onClose: () => void;
 }) {
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["status-shipments-dropdown", status],
+    queryKey: ["status-shipments-dropdown", status ?? "all"],
     queryFn: () => shipmentsApi.list({ status, limit: 100 }),
     staleTime: 30_000,
   });
@@ -746,13 +746,72 @@ function StatusShipmentsDropdown({
         {shipments.length > 0 && (
           <div className="border-t px-3 py-2 bg-muted/20">
             <a
-              href={`/shipments?status=${encodeURIComponent(status)}`}
+              href={status ? `/shipments?status=${encodeURIComponent(status)}` : "/shipments"}
               className="text-[11px] font-semibold text-primary hover:underline flex items-center justify-center gap-1"
             >
               عرض كل الشحنات في صفحة الشحنات ←
             </a>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── قائمة منسدلة لتفاصيل الإيرادات (تُفتح أسفل كارد "إجمالي الإيرادات") ──────
+function RevenueBreakdownDropdown({
+  color, financialData, onClose,
+}: {
+  color: string;
+  financialData: FinancialDashboardResponse | undefined;
+  onClose: () => void;
+}) {
+  const today = financialData?.today;
+  const month = financialData?.month;
+
+  return (
+    <div className="relative mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="rounded-xl border bg-card shadow-lg overflow-hidden">
+        <div
+          className="absolute -top-1.5 right-1/2 translate-x-1/2 w-3 h-3 rotate-45 border-t border-r bg-card"
+          style={{ borderColor: "inherit" }}
+        />
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b" style={{ background: `${color}14` }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+            <span className="text-sm font-bold truncate">تفاصيل الإيرادات</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            aria-label="إغلاق"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="p-3 space-y-2 text-xs">
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">إيرادات اليوم</span>
+            <span className="font-bold">{fc(today?.revenue ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">إيرادات الشهر</span>
+            <span className="font-bold">{fc(month?.revenue ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">مصاريف الشحن (الشهر)</span>
+            <span className="font-bold">{fc(month?.shippingSpend ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-muted-foreground">مصاريف أخرى (الشهر)</span>
+            <span className="font-bold">{fc(month?.otherExpenses ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">صافي الربح (الشهر)</span>
+            <span className="font-bold text-emerald-500">{fc(month?.netProfit ?? 0)}</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -948,6 +1007,7 @@ export default function OperationsCenterPage() {
   const [statusModal, setStatusModal] = useState<{ status: string; label: string; color: string } | null>(null);
   const [financialModal, setFinancialModal] = useState<{ key: string; label: string; color: string } | null>(null);
   const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
+  const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -1094,8 +1154,9 @@ export default function OperationsCenterPage() {
             return (
               <Card
                 key={c.key}
-                className="oc-kpi-card overflow-hidden"
+                className="oc-kpi-card overflow-hidden cursor-pointer"
                 style={{ ["--tone" as any]: meta.tone }}
+                onClick={() => setOverviewCardModal(overviewCardModal === c.key ? null : c.key)}
               >
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
@@ -1120,6 +1181,36 @@ export default function OperationsCenterPage() {
           })
         )}
       </div>
+
+      {overviewCardModal && (() => {
+        const activeCard = overviewCards.find((c) => c.key === overviewCardModal);
+        if (!activeCard) return null;
+        const meta = KPI_ICON_META[overviewCardModal] ?? KPI_ICON_META.total;
+        if (overviewCardModal === "revenue") {
+          return (
+            <RevenueBreakdownDropdown
+              color={meta.tone}
+              financialData={financialData}
+              onClose={() => setOverviewCardModal(null)}
+            />
+          );
+        }
+        const statusMap: Record<string, string | undefined> = {
+          total: undefined,
+          delivered: "delivered",
+          inShipping: "inShipping",
+          returned: "returned",
+          delayed: "delayed",
+        };
+        return (
+          <StatusShipmentsDropdown
+            status={statusMap[overviewCardModal]}
+            label={activeCard.label}
+            color={meta.tone}
+            onClose={() => setOverviewCardModal(null)}
+          />
+        );
+      })()}
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch">
