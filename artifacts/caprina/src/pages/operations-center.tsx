@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData, type AlertsResponse } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
@@ -66,6 +66,59 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
       <polygon points={areaPoints} fill={`url(#${gradId})`} />
       <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+// ── كارت ربح الفترة (اليوم/الأسبوع/الشهر) — منقول من لوحة التحكم ─────────────
+function OcPeriodCard({
+  label, data, tone, active, onClick,
+}: {
+  label: string;
+  data: { orders: number; revenue: number; cost: number; shippingCost: number; netProfit: number; returnRate: number; returnCount: number };
+  tone: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const isProfit = data.netProfit >= 0;
+  return (
+    <Card
+      className={`oc-kpi-card overflow-hidden cursor-pointer transition-all duration-200 ${active ? "" : "opacity-70 hover:opacity-100"}`}
+      style={{ ["--tone" as any]: tone, ...(active ? { borderColor: tone } : {}) }}
+      onClick={onClick}
+    >
+      <CardContent className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+        <div className="flex items-center justify-between gap-1">
+          <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
+          <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 px-1.5 ${
+            data.returnRate > 20 ? "border-red-400 text-red-600 dark:border-red-800 dark:text-red-400" : "border-border text-muted-foreground"
+          }`}>{data.returnRate}%↩</Badge>
+        </div>
+        <div className="min-w-0">
+          <p className={`text-lg sm:text-2xl font-black leading-tight truncate ${isProfit ? "" : "text-red-600 dark:text-red-400"}`} style={isProfit ? { color: active ? tone : undefined } : undefined}>
+            {fc(data.netProfit)}
+          </p>
+          <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الربح</p>
+        </div>
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
+          <div className="min-w-0">
+            <p className="text-[9px] text-muted-foreground leading-tight">إيرادات</p>
+            <p className="text-[11px] sm:text-xs font-bold text-primary truncate">{fc(data.revenue - data.shippingCost)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] text-muted-foreground leading-tight">التكلفة</p>
+            <p className="text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-400 truncate">{fc(data.cost)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] text-muted-foreground leading-tight">الطلبات</p>
+            <p className="text-[11px] sm:text-xs font-bold">{fn(data.orders)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] text-muted-foreground leading-tight">مرتجع</p>
+            <p className="text-[11px] sm:text-xs font-bold text-red-600 dark:text-red-400">{fn(data.returnCount)}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -311,6 +364,17 @@ function useShipmentCharts() {
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
     placeholderData: (prev: ShipmentChartsData | undefined) => prev,
+  });
+}
+
+// ── جلب ملخص الربح لكل الفترات (اليوم/الأسبوع/الشهر) — منقول من لوحة التحكم ────
+function usePeriodProfit() {
+  return useQuery({
+    queryKey: ["analytics-profit-oc"],
+    queryFn: () => analyticsApi.profit(),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev: ProfitAnalytics | undefined) => prev,
   });
 }
 
@@ -898,6 +962,8 @@ export default function OperationsCenterPage() {
   const { data: cashRegisters, isLoading: cashRegistersLoading } = useCashRegisters();
   const totalCash = cashRegisters?.totalBalance ?? 0;
   const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(cashPeriod);
+  const [profitPeriod, setProfitPeriod] = useState<"today" | "week" | "month">("today");
+  const { data: periodProfitData, isLoading: periodProfitLoading } = usePeriodProfit();
   const { data: shipmentChartsOc, isLoading: shipmentChartsOcLoading } = useShipmentCharts();
   const { data: smartAlertsData } = useSmartAlerts();
   const smartHighAlerts = smartAlertsData?.alerts.filter((a) => a.severity === "high" && a.type !== "HIGH_RETURN") ?? [];
@@ -1222,6 +1288,28 @@ export default function OperationsCenterPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── ربح الفترات: اليوم / الأسبوع / الشهر (منقول من لوحة التحكم) ──── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {periodProfitLoading && !periodProfitData ? (
+          [1, 2, 3].map((i) => <Card key={i} className="oc-kpi-card animate-pulse h-40" />)
+        ) : periodProfitData ? (
+          ([
+            { key: "today" as const, label: "اليوم", data: periodProfitData.today, tone: "#3b82f6" },
+            { key: "week" as const, label: "هذا الأسبوع", data: periodProfitData.week, tone: "#10b981" },
+            { key: "month" as const, label: "هذا الشهر", data: periodProfitData.month, tone: "#f59e0b" },
+          ]).map(({ key, label, data, tone }) => (
+            <OcPeriodCard
+              key={key}
+              label={label}
+              data={data}
+              tone={tone}
+              active={profitPeriod === key}
+              onClick={() => setProfitPeriod(key)}
+            />
+          ))
+        ) : null}
+      </div>
 
       {overviewCardModal && (() => {
         const activeCard = overviewCards.find((c) => c.key === overviewCardModal);
