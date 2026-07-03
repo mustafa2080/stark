@@ -982,16 +982,16 @@ function LiveClock() {
   }, [now]);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card">
-      <Clock className="w-4 h-4 text-sky-500 shrink-0" />
+    <div className="oc-kpi-card flex items-center gap-3 px-4 py-2 rounded-xl" style={{ ["--tone" as any]: "#0ea5e9" }}>
+      <Clock className="w-5 h-5 text-sky-500 shrink-0" />
       <div className="flex items-baseline gap-0.5 font-mono tabular-nums leading-none" dir="ltr">
-        <span className="text-lg font-bold">{timeParts.h}</span>
-        <span className="text-lg font-bold text-muted-foreground">:</span>
-        <span className="text-lg font-bold">{timeParts.m}</span>
-        <span className="text-sm font-semibold text-muted-foreground">:{timeParts.s}</span>
-        <span className="text-[10px] font-bold text-sky-500 mr-1">{timeParts.period}</span>
+        <span className="text-2xl font-black">{timeParts.h}</span>
+        <span className="text-2xl font-black text-muted-foreground">:</span>
+        <span className="text-2xl font-black">{timeParts.m}</span>
+        <span className="text-base font-bold text-muted-foreground">:{timeParts.s}</span>
+        <span className="text-xs font-bold text-sky-500 mr-1.5">{timeParts.period}</span>
       </div>
-      <span className="text-[10px] text-muted-foreground border-r pr-2 mr-0.5">توقيت القاهرة</span>
+      <span className="text-xs text-muted-foreground border-r pr-2.5 mr-1">توقيت القاهرة</span>
     </div>
   );
 }
