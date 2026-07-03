@@ -1020,6 +1020,19 @@ export default function OperationsCenterPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6" dir="rtl">
+      <style>{`
+        .oc-card {
+          position: relative;
+          background: linear-gradient(160deg, hsl(var(--card)) 0%, hsl(var(--card)) 55%, color-mix(in srgb, hsl(var(--primary)) 6%, hsl(var(--card))) 100%);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.02) inset;
+          transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+        }
+        .oc-card:hover {
+          box-shadow: 0 2px 4px rgba(0,0,0,0.06), 0 16px 36px -14px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.03) inset, 0 0 24px -6px color-mix(in srgb, hsl(var(--primary)) 35%, transparent);
+          transform: translateY(-2px);
+          border-color: color-mix(in srgb, hsl(var(--primary)) 30%, hsl(var(--border)));
+        }
+      `}</style>
       {/* ── الهيدر العلوي ───────────────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
@@ -1047,7 +1060,7 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {opsKpisLoading && overviewCards.length === 0 ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="overflow-hidden animate-pulse">
+            <Card key={i} className="oc-card overflow-hidden animate-pulse">
               <CardContent className="p-4 space-y-2">
                 <div className="w-9 h-9 rounded-lg bg-muted" />
                 <div className="h-5 w-16 bg-muted rounded" />
@@ -1061,7 +1074,7 @@ export default function OperationsCenterPage() {
             const Icon = meta.icon;
             const isUp = c.change >= 0;
             return (
-              <Card key={c.key} className="overflow-hidden">
+              <Card key={c.key} className="oc-card overflow-hidden">
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${meta.bg}`}>
@@ -1090,7 +1103,7 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch">
         {/* العمود الجانبي — مركز العمليات */}
         <div className="xl:col-span-1 flex flex-col gap-3">
-          <Card>
+          <Card className="oc-card oc-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
@@ -1123,7 +1136,7 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="oc-card oc-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500" /> شحنات فيها مشكلة
@@ -1156,7 +1169,7 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="oc-card oc-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <PackageCheck className="w-4 h-4 text-emerald-500" /> شحنات خارجة اليوم
@@ -1170,7 +1183,7 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="oc-card oc-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Truck className="w-4 h-4 text-sky-500" /> المندوبين الموجودين حالياً
@@ -1200,7 +1213,7 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="oc-card oc-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Phone className="w-4 h-4 text-fuchsia-500" /> عملاء محتاجين متابعة
@@ -1230,7 +1243,7 @@ export default function OperationsCenterPage() {
 
         {/* الخريطة المباشرة (MapLibre GL — تجميع الشحنات حسب المحافظة) */}
         <div className="xl:col-span-2">
-          <Card className="h-full flex flex-col">
+          <Card className="oc-card h-full flex flex-col">
             <CardHeader className="pb-2 flex-row items-center justify-between shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-cyan-500" /> الخريطة المباشرة
@@ -1249,7 +1262,7 @@ export default function OperationsCenterPage() {
 
         {/* مؤشرات الأداء الرئيسية */}
         <div className="xl:col-span-1">
-          <Card className="h-full">
+          <Card className="oc-card h-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Activity className="w-4 h-4 text-indigo-500" /> مؤشرات الأداء
@@ -1295,7 +1308,7 @@ export default function OperationsCenterPage() {
       {/* ── الصف الثالث: أرباح + اتجاه إيرادات + AI ────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* ملخص الأرباح */}
-        <Card className="xl:col-span-1">
+        <Card className="oc-card xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-teal-500" /> ملخص الأرباح
@@ -1339,7 +1352,7 @@ export default function OperationsCenterPage() {
         </Card>
 
         {/* اتجاه الإيرادات والأرباح */}
-        <Card className="xl:col-span-2">
+        <Card className="oc-card xl:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-blue-500" /> اتجاه الإيرادات والأرباح
@@ -1372,7 +1385,7 @@ export default function OperationsCenterPage() {
         </Card>
 
         {/* مركز الذكاء الاصطناعي */}
-        <Card className="xl:col-span-1">
+        <Card className="oc-card xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Brain className="w-4 h-4 text-fuchsia-500" /> مركز الذكاء الاصطناعي
@@ -1404,7 +1417,7 @@ export default function OperationsCenterPage() {
 
       {/* ── أفضل العملاء / أفضل المندوبين ───────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
+        <Card className="oc-card oc-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-500" /> أفضل العملاء
@@ -1450,7 +1463,7 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="oc-card oc-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Truck className="w-4 h-4 text-sky-500" /> أفضل المندوبين
@@ -1511,7 +1524,7 @@ export default function OperationsCenterPage() {
       {/* ── الصف الرابع ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* توزيع الشحنات حسب الحالة */}
-        <Card className="xl:col-span-1">
+        <Card className="oc-card xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Package className="w-4 h-4 text-orange-500" /> توزيع الشحنات حسب الحالة
@@ -1558,7 +1571,7 @@ export default function OperationsCenterPage() {
         </Card>
 
         {/* أحدث التنبيهات */}
-        <Card className="xl:col-span-1">
+        <Card className="oc-card xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Bell className="w-4 h-4 text-red-500" /> أحدث التنبيهات
@@ -1586,7 +1599,7 @@ export default function OperationsCenterPage() {
         </Card>
 
         {/* آخر الشحنات */}
-        <Card className="xl:col-span-2">
+        <Card className="oc-card xl:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <FileText className="w-4 h-4 text-slate-500" /> آخر الشحنات
@@ -1633,7 +1646,7 @@ export default function OperationsCenterPage() {
 
       {/* ── إجراءات سريعة + جدول المندوبين اليومي ───────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card className="xl:col-span-1">
+        <Card className="oc-card xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Zap className="w-4 h-4 text-yellow-500" /> إجراءات سريعة
@@ -1672,7 +1685,7 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="oc-card xl:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Truck className="w-4 h-4 text-sky-500" /> جدول المندوبين اليومي
@@ -1712,7 +1725,7 @@ export default function OperationsCenterPage() {
       </div>
 
       {/* ── شاشة المدير التنفيذي ─────────────────────────────────────────── */}
-      <Card className="border-2">
+      <Card className="oc-card border-2">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <Wallet className="w-4 h-4 text-emerald-500" /> شاشة المدير التنفيذي — نظرة سريعة
