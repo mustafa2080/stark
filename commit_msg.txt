@@ -1,8 +1,1 @@
-ربط كروت KPI الرئيسية في مركز العمليات بالباك اند الحقيقي
-
-- استخدام endpoint /analytics/operations-kpis (بيانات حقيقية 100%)
-- استبدال mockOverviewCards بـ useOperationsKpis hook بنفس نمط dashboard.tsx
-- استبدال كارت "متوسط التقييم" بكارت "مؤجلة" (delayed) لعدم توفر rating في الباك اند
-- تغيير تسمية "قيد التوصيل" إلى "قيد الشحن" في الباك اند (مطابقة لحالة in_shipping)
-- إضافة حالة تحميل (skeleton) للكروت الست
-- حذف mockOverviewCards من ملف الـ mock data
+إصلاح: قائمة الإشعارات في operations-center كانت تظهر خلف الحاويات (z-index)

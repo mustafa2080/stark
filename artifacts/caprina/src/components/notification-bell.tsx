@@ -103,7 +103,7 @@ export function NotificationBell({ className }: { className?: string }) {
       {open && (
         <div
           dir="rtl"
-          className="absolute left-0 top-full mt-2 w-80 max-w-[90vw] rounded-xl border shadow-2xl z-[999] overflow-hidden"
+          className="absolute left-0 top-full mt-2 w-80 max-w-[90vw] rounded-xl border shadow-2xl z-[1000] overflow-hidden"
           style={{ background: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
         >
           <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: "hsl(var(--border))" }}>
