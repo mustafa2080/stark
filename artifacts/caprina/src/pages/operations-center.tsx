@@ -314,125 +314,6 @@ function useShipmentCharts() {
   });
 }
 
-// ── دونات بخطوط توصيل خارجية (leader lines) لتوزيع الشحنات حسب الحالة ────────
-function LeaderLineDonut({
-  data,
-  total,
-  onSegmentClick,
-}: {
-  data: { status: string; label: string; color: string; value: number }[];
-  total: number;
-  onSegmentClick?: (status: string, label: string, color: string) => void;
-}) {
-  const size = 280;
-  const padX = 64; // مساحة إضافية يمين ويسار لصناديق الـ labels داخل الـ viewBox نفسه
-  const vbWidth = size + padX * 2;
-  const cx = vbWidth / 2;
-  const cy = size / 2;
-  const rOuter = 72;
-  const rInner = 46;
-  const gapDeg = 2.2; // فجوة صغيرة بين القطاعات
-
-  const sum = data.reduce((s, d) => s + d.value, 0) || 1;
-
-  // نحسب زوايا كل قطاع (0deg = أعلى المنتصف، اتجاه عقارب الساعة)
-  let cursor = 0;
-  const segments = data.map((d) => {
-    const sweep = (d.value / sum) * 360;
-    const startDeg = cursor + gapDeg / 2;
-    const endDeg = cursor + sweep - gapDeg / 2;
-    cursor += sweep;
-    const midDeg = (startDeg + endDeg) / 2;
-    return { ...d, startDeg, endDeg: Math.max(endDeg, startDeg), midDeg, pct: Math.round((d.value / sum) * 100) };
-  });
-
-  const toRad = (deg: number) => ((deg - 90) * Math.PI) / 180;
-  const point = (r: number, deg: number) => ({ x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)) });
-
-  const arcPath = (startDeg: number, endDeg: number) => {
-    const large = endDeg - startDeg > 180 ? 1 : 0;
-    const p1 = point(rOuter, startDeg);
-    const p2 = point(rOuter, endDeg);
-    const p3 = point(rInner, endDeg);
-    const p4 = point(rInner, startDeg);
-    return [
-      `M ${p1.x} ${p1.y}`,
-      `A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y}`,
-      `L ${p3.x} ${p3.y}`,
-      `A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y}`,
-      "Z",
-    ].join(" ");
-  };
-
-  // نبعد التسميات الجانبية عن بعض رأسياً لو متقاربة عشان متتكسرش فوق بعض
-  const labelWidth = 58;
-  const leftLabels = segments.filter((s) => Math.cos(toRad(s.midDeg)) < 0).sort((a, b) => point(0, a.midDeg).y - point(0, b.midDeg).y);
-  const rightLabels = segments.filter((s) => Math.cos(toRad(s.midDeg)) >= 0).sort((a, b) => point(0, a.midDeg).y - point(0, b.midDeg).y);
-
-  const spaceOut = (list: typeof segments, side: "left" | "right") => {
-    const minGap = 26;
-    const anchors = list.map((s) => point(rOuter + 4, s.midDeg).y);
-    for (let i = 1; i < anchors.length; i++) {
-      if (anchors[i] - anchors[i - 1] < minGap) anchors[i] = anchors[i - 1] + minGap;
-    }
-    return list.map((s, i) => ({ ...s, labelY: anchors[i], side }));
-  };
-
-  const placed = [...spaceOut(leftLabels, "left"), ...spaceOut(rightLabels, "right")];
-
-  return (
-    <div className="w-full flex items-center justify-center py-2">
-      <svg viewBox={`0 0 ${vbWidth} ${size}`} width="100%" height={size} style={{ maxWidth: "100%" }} preserveAspectRatio="xMidYMid meet">
-        {segments.map((s) => (
-          <path
-            key={s.status}
-            d={arcPath(s.startDeg, s.endDeg)}
-            fill={s.color}
-            className={onSegmentClick ? "cursor-pointer transition-opacity hover:opacity-80" : undefined}
-            onClick={() => onSegmentClick?.(s.status, s.label, s.color)}
-          />
-        ))}
-
-        <text x={cx} y={cy - 6} textAnchor="middle" className="fill-foreground" style={{ fontSize: 22, fontWeight: 900 }}>
-          {total}
-        </text>
-        <text x={cx} y={cy + 14} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 11 }}>
-          الإجمالي
-        </text>
-
-        {placed.map((s) => {
-          const edge = point(rOuter, s.midDeg);
-          const bendX = cx + (size / 2 - 4) * Math.sign(edge.x - cx || 1) * 0.62;
-          const boxX = s.side === "left" ? bendX - labelWidth : bendX;
-          return (
-            <g
-              key={`label-${s.status}`}
-              className={onSegmentClick ? "cursor-pointer" : undefined}
-              onClick={() => onSegmentClick?.(s.status, s.label, s.color)}
-            >
-              <polyline
-                points={`${edge.x},${edge.y} ${bendX},${s.labelY} ${s.side === "left" ? boxX + labelWidth : boxX},${s.labelY}`}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={1.5}
-              />
-              <rect x={boxX} y={s.labelY - 10} width={labelWidth} height={20} rx={5} fill={s.color} />
-              <text
-                x={boxX + labelWidth / 2}
-                y={s.labelY + 4}
-                textAnchor="middle"
-                style={{ fontSize: 11, fontWeight: 800, fill: "#fff" }}
-              >
-                {s.value} ({s.pct}%)
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 // ── دونات مصغّرة بخطوط توصيل خارجية (leader lines) — لكارد ملخص الأرباح ──────
 function MiniLeaderLineDonut({
   data,
@@ -1013,7 +894,6 @@ export default function OperationsCenterPage() {
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
   const [isExportingReport, setIsExportingReport] = useState(false);
-  const [statusModal, setStatusModal] = useState<{ status: string; label: string; color: string } | null>(null);
   const [financialModal, setFinancialModal] = useState<{ key: string; label: string; color: string } | null>(null);
   const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
   const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
@@ -1775,55 +1655,8 @@ export default function OperationsCenterPage() {
 
       {/* ── الصف الرابع ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        {/* توزيع الشحنات حسب الحالة */}
-        <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#f97316" }}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Package className="w-4 h-4 text-orange-500" /> توزيع الشحنات حسب الحالة
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statusDistLoading && statusDistribution.length === 0 ? (
-              <div className="h-40 flex items-center justify-center">
-                <div className="w-24 h-24 rounded-full border-8 border-muted animate-pulse" />
-              </div>
-            ) : statusDistribution.length === 0 ? (
-              <div className="text-xs text-muted-foreground text-center py-10">لا توجد بيانات كافية</div>
-            ) : (
-              <>
-                <LeaderLineDonut
-                  data={statusDistribution}
-                  total={statusDistribution.reduce((s, d) => s + d.value, 0)}
-                  onSegmentClick={(status, label, color) => setStatusModal({ status, label, color })}
-                />
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1">
-                  {statusDistribution.map((s) => (
-                    <div
-                      key={s.status}
-                      className="flex items-center justify-between text-[11px] cursor-pointer hover:opacity-70 transition-opacity"
-                      onClick={() => setStatusModal({ status: s.status, label: s.label, color: s.color })}
-                    >
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: s.color }} />{s.label}</span>
-                      <span className="font-semibold">{fn(s.value)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {statusModal && (
-                  <StatusShipmentsDropdown
-                    status={statusModal.status}
-                    label={statusModal.label}
-                    color={statusModal.color}
-                    onClose={() => setStatusModal(null)}
-                  />
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
         {/* أحدث التنبيهات */}
-        <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#ef4444" }}>
+        <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#ef4444" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Bell className="w-4 h-4 text-red-500" /> أحدث التنبيهات
