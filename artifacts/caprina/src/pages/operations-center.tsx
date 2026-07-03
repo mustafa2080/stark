@@ -21,21 +21,6 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Line,
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
-import {
-  mockTodayOutbound,
-  mockTopPerformers,
-  mockOperationsKpis,
-  mockOperationsCenter,
-  mockStatusDistribution,
-  mockRecentEvents,
-  mockRecentShipments,
-  mockFinancialDashboard,
-  mockOpsAlerts,
-  mockExecutiveSummary,
-  mockPerformanceMetrics,
-  mockRevenueTrend as mockRevenueTrendDays,
-  mockLiveMap,
-} from "@/lib/operations-center-mock-data";
 import { exportOperationsReportPdf } from "@/lib/operations-report";
 
 const fc = (n: number) =>
@@ -157,7 +142,6 @@ function useTopPerformers() {
     staleTime: 3 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
-    initialData: mockTopPerformers as unknown as TopPerformersResponse,
     placeholderData: (prev: TopPerformersResponse | undefined) => prev,
   });
 }
@@ -170,7 +154,6 @@ function useOperationsKpis() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
-    initialData: mockOperationsKpis as unknown as OperationsKpisResponse,
     placeholderData: (prev: OperationsKpisResponse | undefined) => prev,
   });
 }
@@ -183,7 +166,6 @@ function useOperationsCenter() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
-    initialData: mockOperationsCenter as unknown as OperationsCenterResponse,
     placeholderData: (prev: OperationsCenterResponse | undefined) => prev,
   });
 }
@@ -196,7 +178,6 @@ function useStatusDistribution() {
     staleTime: 2 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 3 * 60_000,
-    initialData: mockStatusDistribution as unknown as StatusDistributionResponse,
     placeholderData: (prev: StatusDistributionResponse | undefined) => prev,
   });
 }
@@ -209,7 +190,6 @@ function useRecentEvents() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
-    initialData: mockRecentEvents as unknown as RecentEventsResponse,
     placeholderData: (prev: RecentEventsResponse | undefined) => prev,
   });
 }
@@ -222,7 +202,6 @@ function useRecentShipments() {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     refetchInterval: 60_000,
-    initialData: mockRecentShipments as unknown as RecentShipmentsResponse,
     placeholderData: (prev: RecentShipmentsResponse | undefined) => prev,
   });
 }
@@ -235,7 +214,6 @@ function useFinancialDashboard() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
-    initialData: mockFinancialDashboard as unknown as FinancialDashboardResponse,
     placeholderData: (prev: FinancialDashboardResponse | undefined) => prev,
   });
 }
@@ -248,7 +226,6 @@ function useOpsAlerts() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
-    initialData: mockOpsAlerts as unknown as OpsAlertsResponse,
     placeholderData: (prev: OpsAlertsResponse | undefined) => prev,
   });
 }
@@ -261,7 +238,6 @@ function useExecutiveSummary() {
     staleTime: 2 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
-    initialData: mockExecutiveSummary as unknown as ExecutiveSummaryResponse,
     placeholderData: (prev: ExecutiveSummaryResponse | undefined) => prev,
   });
 }
@@ -274,7 +250,6 @@ function usePerformanceMetrics() {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
-    initialData: mockPerformanceMetrics as unknown as PerformanceMetricsResponse,
     placeholderData: (prev: PerformanceMetricsResponse | undefined) => prev,
   });
 }
@@ -287,7 +262,6 @@ function useRevenueTrend() {
     staleTime: 2 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
-    initialData: { days: mockRevenueTrendDays } as unknown as RevenueTrendResponse,
     placeholderData: (prev: RevenueTrendResponse | undefined) => prev,
   });
 }
@@ -300,7 +274,6 @@ function useLiveMap() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000, // تحديث كل دقيقتين لأنها "مباشرة"
-    initialData: mockLiveMap as unknown as LiveMapResponse,
     placeholderData: (prev: LiveMapResponse | undefined) => prev,
   });
 }
@@ -1278,20 +1251,6 @@ export default function OperationsCenterPage() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#10b981" }}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <PackageCheck className="w-4 h-4 text-emerald-500" /> شحنات خارجة اليوم
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-black">{mockTodayOutbound.count} <span className="text-xs text-muted-foreground font-normal">/ {mockTodayOutbound.target}</span></div>
-              <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(mockTodayOutbound.count / mockTodayOutbound.target) * 100}%` }} />
-              </div>
             </CardContent>
           </Card>
 
