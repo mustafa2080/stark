@@ -118,13 +118,13 @@ function KpiGauge({ value, label, suffix, onClick }: { value: number; label: str
   );
 }
 
-const KPI_ICON_META: Record<string, { icon: any; bg: string; color: string; spark: string }> = {
-  total:      { icon: Package,      bg: "bg-blue-500/10",    color: "text-blue-500",    spark: "#3b82f6" },
-  delivered:  { icon: PackageCheck, bg: "bg-emerald-500/10", color: "text-emerald-500", spark: "#10b981" },
-  inShipping: { icon: Truck,        bg: "bg-sky-500/10",     color: "text-sky-500",     spark: "#0ea5e9" },
-  returned:   { icon: Undo2,        bg: "bg-amber-500/10",   color: "text-amber-500",   spark: "#f59e0b" },
-  delayed:    { icon: AlertTriangle, bg: "bg-violet-500/10",  color: "text-violet-500",  spark: "#8b5cf6" },
-  revenue:    { icon: DollarSign,   bg: "bg-teal-500/10",    color: "text-teal-500",    spark: "#14b8a6" },
+const KPI_ICON_META: Record<string, { icon: any; bg: string; color: string; spark: string; tone: string }> = {
+  total:      { icon: Package,      bg: "bg-blue-500/10",    color: "text-blue-500",    spark: "#3b82f6", tone: "#3b82f6" },
+  delivered:  { icon: PackageCheck, bg: "bg-emerald-500/10", color: "text-emerald-500", spark: "#10b981", tone: "#10b981" },
+  inShipping: { icon: Truck,        bg: "bg-sky-500/10",     color: "text-sky-500",     spark: "#0ea5e9", tone: "#0ea5e9" },
+  returned:   { icon: Undo2,        bg: "bg-amber-500/10",   color: "text-amber-500",   spark: "#f59e0b", tone: "#f59e0b" },
+  delayed:    { icon: AlertTriangle, bg: "bg-violet-500/10",  color: "text-violet-500",  spark: "#8b5cf6", tone: "#8b5cf6" },
+  revenue:    { icon: DollarSign,   bg: "bg-teal-500/10",    color: "text-teal-500",    spark: "#14b8a6", tone: "#14b8a6" },
 };
 
 // ── أفاتار مندوب بسيط (صورة أو أحرف اسم) ─────────────────────────────────────
@@ -1032,6 +1032,24 @@ export default function OperationsCenterPage() {
           transform: translateY(-2px);
           border-color: color-mix(in srgb, hsl(var(--primary)) 30%, hsl(var(--border)));
         }
+        .oc-kpi-card {
+          position: relative;
+          overflow: hidden;
+          background: linear-gradient(155deg, hsl(var(--card)) 0%, hsl(var(--card)) 60%, color-mix(in srgb, var(--tone, #3b82f6) 10%, hsl(var(--card))) 100%);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 26px -14px color-mix(in srgb, var(--tone, #3b82f6) 45%, transparent), 0 0 0 1px color-mix(in srgb, var(--tone, #3b82f6) 12%, hsl(var(--border)));
+          transition: box-shadow 0.28s ease, transform 0.28s ease, border-color 0.28s ease;
+        }
+        .oc-kpi-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(120px 90px at 88% -10%, color-mix(in srgb, var(--tone, #3b82f6) 22%, transparent), transparent 70%);
+          pointer-events: none;
+        }
+        .oc-kpi-card:hover {
+          box-shadow: 0 3px 6px rgba(0,0,0,0.05), 0 18px 40px -16px color-mix(in srgb, var(--tone, #3b82f6) 60%, transparent), 0 0 0 1px color-mix(in srgb, var(--tone, #3b82f6) 35%, hsl(var(--border))), 0 0 28px -8px color-mix(in srgb, var(--tone, #3b82f6) 55%, transparent);
+          transform: translateY(-3px);
+        }
       `}</style>
       {/* ── الهيدر العلوي ───────────────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1060,7 +1078,7 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {opsKpisLoading && overviewCards.length === 0 ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="oc-card overflow-hidden animate-pulse">
+            <Card key={i} className="oc-kpi-card overflow-hidden animate-pulse">
               <CardContent className="p-4 space-y-2">
                 <div className="w-9 h-9 rounded-lg bg-muted" />
                 <div className="h-5 w-16 bg-muted rounded" />
@@ -1074,7 +1092,11 @@ export default function OperationsCenterPage() {
             const Icon = meta.icon;
             const isUp = c.change >= 0;
             return (
-              <Card key={c.key} className="oc-card overflow-hidden">
+              <Card
+                key={c.key}
+                className="oc-kpi-card overflow-hidden"
+                style={{ ["--tone" as any]: meta.tone }}
+              >
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${meta.bg}`}>
