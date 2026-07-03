@@ -7,14 +7,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData, type AlertsResponse } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
 import {
   Search, Bell, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
-  AlertTriangle, AlertOctagon, Users, Phone, MapPin,
+  AlertTriangle, AlertOctagon, AlertCircle, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
   UserPlus, FileText, LogOut, Wallet, Activity, X,
 } from "lucide-react";
@@ -311,6 +311,17 @@ function useShipmentCharts() {
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
     placeholderData: (prev: ShipmentChartsData | undefined) => prev,
+  });
+}
+
+// ── جلب التنبيهات الذكية (مخزون منخفض / مرتجعات عالية) — منقول من لوحة التحكم ─
+function useSmartAlerts() {
+  return useQuery({
+    queryKey: ["analytics-alerts-oc"],
+    queryFn: analyticsApi.alerts,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev: AlertsResponse | undefined) => prev,
   });
 }
 
@@ -902,6 +913,9 @@ export default function OperationsCenterPage() {
   const totalCash = cashRegisters?.totalBalance ?? 0;
   const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(cashPeriod);
   const { data: shipmentChartsOc, isLoading: shipmentChartsOcLoading } = useShipmentCharts();
+  const { data: smartAlertsData } = useSmartAlerts();
+  const smartHighAlerts = smartAlertsData?.alerts.filter((a) => a.severity === "high" && a.type !== "HIGH_RETURN") ?? [];
+  const smartAllAlerts = smartAlertsData?.alerts ?? [];
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -1035,6 +1049,38 @@ export default function OperationsCenterPage() {
           </Button>
         </div>
       </div>
+
+      {/* ── التنبيهات الذكية (منقول من لوحة التحكم) ────────────────────── */}
+      {smartAllAlerts.length > 0 && (
+        <div className="space-y-1.5">
+          {smartHighAlerts.map((alert) => (
+            <div key={alert.id} className="flex items-center gap-2 sm:gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-lg p-2.5 sm:p-3">
+              <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 dark:text-red-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] sm:text-xs font-bold text-red-700 dark:text-red-400 truncate">{alert.title}</p>
+                <p className="text-[9px] sm:text-[11px] text-red-600/70 dark:text-red-400/70 truncate">{alert.detail}</p>
+              </div>
+              {alert.type === "LOW_STOCK" && (
+                <a href="/inventory" className="text-[9px] sm:text-xs text-primary hover:underline shrink-0">إدارة</a>
+              )}
+              {(alert.type === "HIGH_RETURN" || alert.type === "LOSING_PRODUCT") && (
+                <a href="/product-performance" className="text-[9px] sm:text-xs text-primary hover:underline shrink-0">تحليل</a>
+              )}
+            </div>
+          ))}
+          {smartAlertsData && smartAlertsData.counts.total > smartHighAlerts.length && (
+            <div className="flex items-center gap-2 sm:gap-3 bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-lg p-2 sm:p-2.5">
+              <Bell className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <p className="text-[9px] sm:text-xs text-amber-700/80 dark:text-amber-400/80 flex-1 min-w-0 truncate">
+                {smartAlertsData.counts.medium > 0 && `${smartAlertsData.counts.medium} تنبيه متوسط`}
+                {smartAlertsData.counts.medium > 0 && smartAlertsData.counts.low > 0 && " • "}
+                {smartAlertsData.counts.low > 0 && `${smartAlertsData.counts.low} تنبيه منخفض`}
+              </p>
+              <a href="/product-performance" className="text-[9px] sm:text-xs text-primary hover:underline shrink-0">عرض الكل ←</a>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── صف الكروت العلوي ────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
