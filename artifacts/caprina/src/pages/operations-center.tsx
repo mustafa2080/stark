@@ -11,7 +11,7 @@ import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, type Shipme
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import {
-  Search, Bell, Mail, Sun, Moon, Clock, Download, Loader2, Building2,
+  Search, Bell, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
   AlertTriangle, AlertOctagon, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
@@ -1123,7 +1123,6 @@ export default function OperationsCenterPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <GlobalQuickSearch />
           <NotificationBell className="flex items-center justify-center w-9 h-9 rounded-md border hover:bg-accent hover:text-accent-foreground" />
-          <Button variant="outline" size="icon"><Mail className="w-4 h-4" /></Button>
           <Button variant="outline" size="icon" onClick={toggleTheme} title={theme === "dark" ? "التبديل للوضع الفاتح" : "التبديل للوضع الداكن"}>
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
