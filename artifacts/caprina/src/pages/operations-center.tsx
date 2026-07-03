@@ -7,9 +7,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
+import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
 import {
   Search, Bell, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -275,6 +276,41 @@ function useLiveMap() {
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000, // تحديث كل دقيقتين لأنها "مباشرة"
     placeholderData: (prev: LiveMapResponse | undefined) => prev,
+  });
+}
+
+// ── جلب إجمالي أرصدة الخزن (بيانات حقيقية من الباك اند) ───────────────────────
+function useCashRegisters() {
+  return useQuery({
+    queryKey: ["cash-registers-list-oc"],
+    queryFn: cashRegistersApi.list,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev: { registers: any[]; totalBalance: number } | undefined) => prev,
+  });
+}
+
+// ── جلب الملخص المالي حسب الفترة (بيانات حقيقية من الباك اند) ─────────────────
+function useFinancialSummary(period: "today" | "week" | "month") {
+  return useQuery({
+    queryKey: ["analytics-financial-summary-oc", period],
+    queryFn: () => analyticsApi.financialSummary({ period }),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: FinancialSummary | undefined) => prev,
+  });
+}
+
+// ── جلب بيانات الشحنات الأسبوعية (بيانات حقيقية من الباك اند) ─────────────────
+function useShipmentCharts() {
+  return useQuery({
+    queryKey: ["analytics-shipment-charts-oc"],
+    queryFn: analyticsApi.shipmentCharts,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev: ShipmentChartsData | undefined) => prev,
   });
 }
 
@@ -981,6 +1017,11 @@ export default function OperationsCenterPage() {
   const [financialModal, setFinancialModal] = useState<{ key: string; label: string; color: string } | null>(null);
   const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
   const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
+  const [cashPeriod, setCashPeriod] = useState<"today" | "week" | "month">("today");
+  const { data: cashRegisters, isLoading: cashRegistersLoading } = useCashRegisters();
+  const totalCash = cashRegisters?.totalBalance ?? 0;
+  const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(cashPeriod);
+  const { data: shipmentChartsOc, isLoading: shipmentChartsOcLoading } = useShipmentCharts();
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
@@ -994,6 +1035,15 @@ export default function OperationsCenterPage() {
   const clientsNeedingFollowup = opsCenter?.clientsNeedingFollowup ?? [];
   const { data: statusDist, isLoading: statusDistLoading } = useStatusDistribution();
   const statusDistribution = statusDist?.distribution ?? [];
+  const statusDistTotal = statusDist?.total ?? 0;
+  const statusDonutData = useMemo(
+    () => statusDistribution.map((d) => ({
+      status: d.status,
+      count: d.value,
+      pct: statusDistTotal > 0 ? Math.round((d.value / statusDistTotal) * 100) : 0,
+    })),
+    [statusDistribution, statusDistTotal],
+  );
   const { data: recentEventsData, isLoading: recentEventsLoading } = useRecentEvents();
   const recentEvents = recentEventsData?.events ?? [];
   const { data: recentShipmentsData, isLoading: recentShipmentsLoading } = useRecentShipments();
@@ -1154,6 +1204,91 @@ export default function OperationsCenterPage() {
         )}
       </div>
 
+      {/* ── إجمالي أرصدة الخزن (منقول من لوحة التحكم) ────────────────────── */}
+      <Card className="oc-card overflow-hidden" style={{ ["--tone" as any]: "#10b981" }}>
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+            {/* العمود الأيمن: الرقم الكبير + التفاصيل */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                  <Wallet className="w-3.5 h-3.5 text-emerald-500" /> إجمالي أرصدة الخزن
+                </p>
+                <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5">
+                  {([
+                    { key: "today" as const, label: "اليوم" },
+                    { key: "week" as const, label: "أسبوع" },
+                    { key: "month" as const, label: "شهر" },
+                  ]).map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setCashPeriod(t.key)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                        cashPeriod === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {cashRegistersLoading && !cashRegisters ? (
+                <div className="h-10 w-40 bg-muted rounded animate-pulse mb-3" />
+              ) : (
+                <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-tight mb-3">
+                  {fc(totalCash)}
+                </p>
+              )}
+
+              {cashPeriodLoading && !cashPeriodSummary ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-14 bg-muted rounded-lg animate-pulse" />
+                  <div className="h-14 bg-muted rounded-lg animate-pulse" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-background/40 border border-border rounded-lg px-3 py-2">
+                    <p className="text-[9px] text-muted-foreground">صافي الربح</p>
+                    <p className={`text-sm sm:text-base font-black ${(cashPeriodSummary?.netProfit ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                      {fc(cashPeriodSummary?.netProfit ?? 0)}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">{cashPeriodSummary?.netMargin ?? 0}%</p>
+                  </div>
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+                    <p className="text-[9px] text-muted-foreground">في الطريق</p>
+                    <p className="text-sm sm:text-base font-black text-primary">{fc(cashPeriodSummary?.pendingRevenue ?? 0)}</p>
+                    <p className="text-[9px] text-muted-foreground">محتمل</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* العمود الأيسر: صف الإحصائيات الأربعة */}
+            <div className="lg:w-[46%] shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 bg-background/30 rounded-lg border border-border/40 self-stretch content-center">
+              <div className="text-center">
+                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">المقبوض</p>
+                <p className="font-black text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
+                  {fc((cashPeriodSummary?.cashIn ?? 0) - (cashPeriodSummary?.shippingSpend ?? 0))}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">تكلفة البضاعة</p>
+                <p className="font-black text-amber-700 dark:text-amber-400 text-xs sm:text-sm">{fc(cashPeriodSummary?.costOfGoods ?? 0)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">تكلفة الشحن</p>
+                <p className="font-black text-orange-600 dark:text-orange-400 text-xs sm:text-sm">{fc(cashPeriodSummary?.shippingSpend ?? 0)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">خسائر المرتجعات</p>
+                <p className="font-black text-red-600 dark:text-red-400 text-xs sm:text-sm">{fc(cashPeriodSummary?.returnLoss ?? 0)}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {overviewCardModal && (() => {
         const activeCard = overviewCards.find((c) => c.key === overviewCardModal);
         if (!activeCard) return null;
@@ -1183,6 +1318,52 @@ export default function OperationsCenterPage() {
           />
         );
       })()}
+
+      {/* ── توزيع حالات الشحنات + الشحنات الأسبوعية (منقول من لوحة التحكم) ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <Card className="oc-card xl:col-span-1 overflow-hidden">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 shrink-0" style={{ boxShadow: "0 0 8px #06b6d4cc, 0 0 20px #06b6d455" }} />
+              توزيع حالات الشحنات
+            </CardTitle>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> مباشر
+            </span>
+          </CardHeader>
+          <CardContent>
+            {statusDistLoading && statusDonutData.length === 0 ? (
+              <div className="h-56 rounded bg-muted animate-pulse" />
+            ) : statusDonutData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 gap-2">
+                <span className="text-3xl opacity-20">🚚</span>
+                <span className="text-xs text-muted-foreground">لا توجد شحنات بعد</span>
+              </div>
+            ) : (
+              <ShipmentStatusDonut data={statusDonutData} total={statusDistTotal} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="oc-card xl:col-span-2 overflow-hidden">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" style={{ boxShadow: "0 0 8px #3b82f6cc, 0 0 20px #3b82f655" }} />
+                الشحنات الأسبوعية
+              </CardTitle>
+              <p className="text-[10px] mt-0.5 text-muted-foreground">الأسبوع الحالي والأسبوع الماضي والشهر الحالي</p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {shipmentChartsOcLoading && !shipmentChartsOc ? (
+              <div className="h-56 rounded bg-muted animate-pulse" />
+            ) : (
+              <WeeklyShipmentBars data={shipmentChartsOc} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch">
