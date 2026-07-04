@@ -1,4 +1,5 @@
 ﻿import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   Search, User, Phone, MapPin, Printer, Lock, Package,
-  RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2,
+  RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, TrendingUp,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ type SheetOrder = {
   address: string | null;
   senderName: string | null;
   warehouseName: string | null;
+  assignedUserName: string | null;
   unitPrice: number;
   totalPrice: number;
   shippingCost: number;
@@ -47,6 +49,8 @@ type SheetResponse = {
     returnedNotReceived: number;
     delayedOrInDelivery: number;
     totalOrders: number;
+    statusDistribution: { status: string; count: number; percentage: number }[];
+    weeklyShipments: number;
   } | null;
 };
 
@@ -96,6 +100,7 @@ type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 export default function ClientAccountSheetPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   const [searchName, setSearchName] = useState("");
   const [searchPhone, setSearchPhone] = useState("");
@@ -308,6 +313,37 @@ export default function ClientAccountSheetPage() {
             </div>
           )}
 
+          {/* توزيع الحالات + شحنات الأسبوع */}
+          {data.stats && data.stats.statusDistribution.length > 0 && (
+            <Card className="p-4 border-border">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
+                <div>
+                  <p className="text-sm font-bold mb-3 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-primary" /> توزيع الحالات
+                  </p>
+                  <div className="space-y-2">
+                    {data.stats.statusDistribution.map((sd) => {
+                      const cfg = STATUS_CFG[sd.status] ?? { label: sd.status, color: "text-muted-foreground", bg: "bg-muted/10", border: "border-border" };
+                      return (
+                        <div key={sd.status} className="flex items-center gap-3">
+                          <span className={`text-[11px] w-24 shrink-0 ${cfg.color}`}>{cfg.label}</span>
+                          <div className="flex-1 h-2 rounded-full bg-muted/20 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${sd.percentage}%`, background: "currentColor" }} />
+                          </div>
+                          <span className="text-[11px] text-muted-foreground w-16 text-left">{sd.count} ({sd.percentage}%)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex flex-col items-center justify-center px-4 border-t md:border-t-0 md:border-r border-border pt-3 md:pt-0 md:pr-4">
+                  <p className="text-[11px] text-muted-foreground mb-1">شحنات آخر 7 أيام</p>
+                  <p className="text-3xl font-black text-primary">{data.stats.weeklyShipments}</p>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* الجدول */}
           <Card className="border-border overflow-x-auto">
             <table className="w-full text-xs">
@@ -319,6 +355,7 @@ export default function ClientAccountSheetPage() {
                   <th className="p-2.5 text-right font-bold">العنوان</th>
                   <th className="p-2.5 text-right font-bold">اسم الراسل</th>
                   <th className="p-2.5 text-right font-bold">الفرع المستلم منه</th>
+                  <th className="p-2.5 text-right font-bold">المندوب</th>
                   <th className="p-2.5 text-right font-bold">سعر الشحنة</th>
                   <th className="p-2.5 text-right font-bold">قيمة الشحنة</th>
                   <th className="p-2.5 text-right font-bold">قيمة الشحن</th>
@@ -329,13 +366,26 @@ export default function ClientAccountSheetPage() {
               </thead>
               <tbody>
                 {data.orders.map((o) => (
-                  <tr key={o.id} className="border-b border-border/50 hover:bg-muted/10">
+                  <tr
+                    key={o.id}
+                    className="border-b border-border/50 hover:bg-muted/10 cursor-pointer"
+                    onClick={(e) => {
+                      // منع فتح تفاصيل الشحنة لو المستخدم بيضغط على عنصر تفاعلي جوه الصف (تعديل المحصَّل مثلاً)
+                      if ((e.target as HTMLElement).closest("button, input")) return;
+                      navigate(`/shipments/${o.id}`);
+                    }}
+                  >
                     <td className="p-2.5 font-bold">{o.customerName}</td>
                     <td className="p-2.5">{o.phone || "—"}</td>
                     <td className="p-2.5">{o.city || "—"}</td>
                     <td className="p-2.5 max-w-[160px] truncate" title={o.address ?? ""}>{o.address || "—"}</td>
                     <td className="p-2.5">{o.senderName || "—"}</td>
                     <td className="p-2.5">{o.warehouseName || "—"}</td>
+                    <td className="p-2.5">
+                      {o.assignedUserName
+                        ? <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 bg-primary/10 text-primary"><UserCog className="w-3 h-3" /> {o.assignedUserName}</Badge>
+                        : <span className="text-muted-foreground">—</span>}
+                    </td>
                     <td className="p-2.5">{fmt(o.unitPrice)}</td>
                     <td className="p-2.5 font-bold">{fmt(o.totalPrice)}</td>
                     <td className="p-2.5">{fmt(o.shippingCost)}</td>
@@ -370,7 +420,7 @@ export default function ClientAccountSheetPage() {
                   </tr>
                 ))}
                 {data.orders.length === 0 && (
-                  <tr><td colSpan={12} className="p-8 text-center text-muted-foreground">لا يوجد أوردرات</td></tr>
+                  <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">لا يوجد أوردرات</td></tr>
                 )}
               </tbody>
             </table>

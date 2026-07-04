@@ -7,6 +7,7 @@ import {
   shipmentManifestItemsTable,
   warehousesTable,
   clientAccountClosuresTable,
+  usersTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -120,6 +121,13 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
       : [];
     const warehouseMap = new Map(warehouses.map((w: any) => [w.id, w.name]));
 
+    // ── جلب أسماء المندوبين المسؤولين عن الشحنات ──────────────────────────
+    const assignedUserIds = [...new Set(rows.map((r: any) => r.assignedUserId).filter((v: any): v is number => v != null))];
+    const assignedUsers = assignedUserIds.length
+      ? await db.select({ id: usersTable.id, displayName: usersTable.displayName }).from(usersTable).where(inArray(usersTable.id, assignedUserIds))
+      : [];
+    const assignedUserMap = new Map(assignedUsers.map((u: any) => [u.id, u.displayName]));
+
     const delayedMap = await getOpenManifestDelayedMap();
 
     const orders = rows.map((s: any) => {
@@ -147,6 +155,7 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
         address: s.receiverAddress,
         senderName: s.senderName,
         warehouseName: s.warehouseId ? (warehouseMap.get(s.warehouseId) ?? null) : null,
+        assignedUserName: s.assignedUserId ? (assignedUserMap.get(s.assignedUserId) ?? null) : null,
         unitPrice: s.codAmount,
         totalPrice: s.totalAmount,
         shippingCost: s.shippingFee,
@@ -160,6 +169,20 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
       };
     });
 
+    // ── توزيع الحالات بالنسبة المئوية ──────────────────────────────────────
+    const statusCounts = new Map<string, number>();
+    for (const o of orders) statusCounts.set(o.status, (statusCounts.get(o.status) ?? 0) + 1);
+    const statusDistribution = [...statusCounts.entries()].map(([status, count]) => ({
+      status,
+      count,
+      percentage: orders.length ? Math.round((count / orders.length) * 100) : 0,
+    })).sort((a, b) => b.count - a.count);
+
+    // ── شحنات آخر 7 أيام ───────────────────────────────────────────────────
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const weeklyShipments = orders.filter((o: any) => new Date(o.createdAt) >= sevenDaysAgo).length;
+
     const stats = {
       newOrders: orders.filter((o: any) => o.status === "waiting" || o.status === "confirmed").length,
       returnedNotReceived: orders.filter((o: any) => o.status === "returned" && o.returnReceived !== 1).length,
@@ -167,6 +190,8 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
         o.status === "delayed" || o.status === "in_transit" || o.status === "out_for_delivery" || o.status === "picked_up"
       ).length,
       totalOrders: orders.length,
+      statusDistribution,
+      weeklyShipments,
     };
 
     const first = rows[0];
