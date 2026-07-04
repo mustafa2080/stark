@@ -1,10 +1,12 @@
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   User, Phone, MapPin, ArrowRight, Wallet,
-  CheckCircle2, ListOrdered, TrendingUp, Lock, History, Ban,
+  CheckCircle2, ListOrdered, TrendingUp, Lock, History, Ban, Search,
 } from "lucide-react";
 
 const fmt = (n: string | number | null | undefined) =>
@@ -102,6 +104,7 @@ export default function ClientAccountDetailPage() {
   const params = useParams<{ phone: string }>();
   const [, navigate] = useLocation();
   const phone = decodeURIComponent(params.phone ?? "");
+  const [closureSearch, setClosureSearch] = useState("");
 
   const { data, isLoading } = useQuery<DetailResponse>({
     queryKey: ["client-account-detail", phone],
@@ -113,6 +116,20 @@ export default function ClientAccountDetailPage() {
     ? Math.round((data.totals.totalCollected / data.totals.totalShippingValue) * 100)
     : 0;
   const remainingPct = 100 - collectionPct;
+
+  const filteredClosures = useMemo(() => {
+    const list = data?.closures ?? [];
+    const q = closureSearch.trim();
+    if (!q) return list;
+    return list.filter(c =>
+      (c.closedByName ?? "").includes(q) ||
+      (c.notes ?? "").includes(q) ||
+      fmtDate(c.createdAt).includes(q) ||
+      String(c.ordersCount).includes(q) ||
+      fmt(c.totalShippingValue).includes(q) ||
+      fmt(c.totalCollected).includes(q)
+    );
+  }, [data?.closures, closureSearch]);
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1200px] mx-auto animate-in fade-in duration-500">
@@ -234,39 +251,70 @@ export default function ClientAccountDetailPage() {
             </div>
           </div>
 
-          {/* ── سجل إقفالات الحساب السابقة ── */}
+          {/* ── سجل إقفالات الحساب السابقة — جدول قابل للبحث ── */}
           <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            <p className="text-sm font-bold flex items-center gap-2 mb-3">
-              <History className="w-4 h-4 text-primary" /> سجل إقفالات الحساب السابقة
-            </p>
-            {data.closures.length === 0 && (
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <p className="text-sm font-bold flex items-center gap-2">
+                <History className="w-4 h-4 text-primary" /> سجل إقفالات الحساب السابقة
+              </p>
+              {data.closures.length > 0 && (
+                <div className="relative">
+                  <Search className="absolute right-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="بحث بالتاريخ أو الموظف أو الملاحظات..."
+                    className="h-8 text-xs bg-background pr-8 w-64"
+                    value={closureSearch}
+                    onChange={e => setClosureSearch(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {data.closures.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Lock className="w-6 h-6 mx-auto mb-1.5 opacity-30" />
                 <p className="text-xs">لا يوجد إقفالات سابقة لهذا العميل</p>
               </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-[10px] font-bold text-muted-foreground">
+                      <th className="text-right py-2 px-2">التاريخ</th>
+                      <th className="text-right py-2 px-2">عدد الأوردرات</th>
+                      <th className="text-right py-2 px-2">قيمة الشحنات</th>
+                      <th className="text-right py-2 px-2">المحصَّل</th>
+                      <th className="text-right py-2 px-2">بواسطة</th>
+                      <th className="text-right py-2 px-2">ملاحظات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredClosures.map((c) => (
+                      <tr key={c.id} className="border-b border-border/50 hover:bg-muted/10 transition-colors">
+                        <td className="py-2.5 px-2">
+                          <span className="flex items-center gap-1.5">
+                            <Lock className="w-3 h-3 text-red-400 shrink-0" />
+                            {fmtDate(c.createdAt)}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 font-bold">{c.ordersCount}</td>
+                        <td className="py-2.5 px-2 text-foreground font-bold">{fmt(c.totalShippingValue)}</td>
+                        <td className="py-2.5 px-2 text-emerald-400 font-bold">{fmt(c.totalCollected)}</td>
+                        <td className="py-2.5 px-2 text-muted-foreground">{c.closedByName || "—"}</td>
+                        <td className="py-2.5 px-2 text-muted-foreground">{c.notes || "—"}</td>
+                      </tr>
+                    ))}
+                    {filteredClosures.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-muted-foreground text-xs">
+                          لا توجد نتائج مطابقة للبحث
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
-            <div className="space-y-2">
-              {data.closures.map((c) => (
-                <div key={c.id} className="flex items-center justify-between flex-wrap gap-2 p-3 rounded-xl border border-border/60 bg-muted/10">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-red-500/10 border border-red-500/20">
-                      <Lock className="w-3.5 h-3.5 text-red-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold">{fmtDate(c.createdAt)}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {c.ordersCount} أوردر — بواسطة {c.closedByName || "—"}
-                      </p>
-                      {c.notes && <p className="text-[11px] text-muted-foreground mt-0.5">{c.notes}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-muted-foreground">قيمة: <b className="text-foreground">{fmt(c.totalShippingValue)}</b></span>
-                    <span className="text-muted-foreground">محصَّل: <b className="text-emerald-400">{fmt(c.totalCollected)}</b></span>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </>
       )}
