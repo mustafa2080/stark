@@ -9,7 +9,7 @@ import {
   Package, Clock, Info, ArrowLeft, Zap, Eye, ChevronRight,
   DollarSign, ArrowUpCircle, ArrowDownCircle, PiggyBank,
   ShieldAlert, Layers, CircleDot, Flame, Target, TrendingUp as TrendUp,
-  Crosshair, Minus, AlertTriangle, CheckCircle,
+  Crosshair, Minus, AlertTriangle, CheckCircle, Users,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -1286,6 +1286,7 @@ export default function FinanceHub() {
             <div className="space-y-1.5">
               {[
                 {href:"/finance/cash",           label:"الخزنة والحركات",   Icon:Wallet,      color:"#f59e0b"},
+                {href:"/finance/client-account-sheet", label:"حساب العميل", Icon:Users,       color:"#ec4899"},
                 {href:"/finance/sales",          label:"أوامر البيع (B2B)", Icon:ShoppingBag, color:"#14b8a6"},
                 {href:"/finance/expenses",       label:"إضافة مصروف",       Icon:Receipt,     color:"#f43f5e"},
                 {href:"/finance/suppliers",      label:"الموردون",          Icon:Building2,   color:"#3b82f6"},

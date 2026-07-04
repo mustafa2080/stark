@@ -32,6 +32,7 @@ import clientsShowcaseRouter from "./clients-showcase";
 import shipmentManifestsRouter from "./shipment-manifests";
 import representativeRouter from "./representative";
 import notificationsSseRouter, { notificationsProtectedRouter } from "./notifications";
+import clientAccountSheetRouter from "./client-account-sheet";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { checkSubscription } from "../middlewares/checkSubscription.js";
 
@@ -76,6 +77,7 @@ router.use(financeSalesRouter);
 router.use(financeClientsRouter);
 router.use(shipmentsRouter);
 router.use(shipmentManifestsRouter);
+router.use(clientAccountSheetRouter);
 router.use(adminTenantsRouter); // /admin/* — بعد requireAuth عشان req.user يكون موجود
 router.use(notificationsProtectedRouter);
 

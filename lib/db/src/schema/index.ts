@@ -40,3 +40,6 @@ export * from "./shipment_ratings";
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 export * from "./notifications";
+
+// ─── Client Account Sheet (حساب العميل) ──────────────────────────────────────
+export * from "./client_account_closures";

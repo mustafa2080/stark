@@ -34,6 +34,7 @@ export const ordersTable = mysqlTable("orders", {
   adCampaign: varchar("ad_campaign", { length: 255 }),
   costPrice: real("cost_price"),
   shippingCost: real("shipping_cost").default(0),
+  collectedAmount: real("collected_amount"), // المبلغ الفعلي اللي استلمه المندوب (null = لسه ماتحصلش)
   notes: text("notes"),
   returnReason: text("return_reason"),
   returnNote: text("return_note"),

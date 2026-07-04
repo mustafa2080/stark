@@ -224,6 +224,7 @@ export const UpdateOrderBody = zod.object({
   unitPrice: zod.number().min(updateOrderBodyUnitPriceMin).optional(),
   costPrice: zod.number().nullish(),
   shippingCost: zod.number().nullish(),
+  collectedAmount: zod.number().nullish(),
   status: zod
     .enum([
       "pending",
