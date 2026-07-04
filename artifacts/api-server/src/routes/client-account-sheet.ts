@@ -45,20 +45,48 @@ async function getOpenManifestPostponedSet() {
   return { postponedSet, noteMap };
 }
 
-// ─── GET /client-account-sheet/orders ── جلب كل أوردرات عميل (زبون نهائي) ────
+// ─── GET /client-account-sheet/search ── بحث بالاسم لإيجاد أرقام الهاتف المطابقة ─
+// البحث الدقيق بيتم بالفون فقط (مفتاح موحّد). البحث بالاسم بيرجع قائمة مرشحين
+// (اسم + فون + عدد أوردرات) عشان تختار الرقم الصح لو فيه أكتر من زبون بنفس الاسم.
+router.get("/client-account-sheet/search", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const name = (req.query.name as string | undefined)?.trim();
+    if (!name) { res.status(400).json({ error: "لازم اسم للبحث" }); return; }
+
+    const conditions: any[] = [isNull(ordersTable.deletedAt), like(ordersTable.customerName, `%${name}%`)];
+    if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
+
+    const rows = await db
+      .select({ customerName: ordersTable.customerName, phone: ordersTable.phone })
+      .from(ordersTable)
+      .where(and(...conditions));
+
+    const byPhone = new Map<string, { name: string; phone: string; ordersCount: number }>();
+    for (const r of rows) {
+      if (!r.phone) continue;
+      const existing = byPhone.get(r.phone);
+      if (existing) existing.ordersCount++;
+      else byPhone.set(r.phone, { name: r.customerName, phone: r.phone, ordersCount: 1 });
+    }
+
+    res.json({ matches: [...byPhone.values()].sort((a, b) => b.ordersCount - a.ordersCount) });
+  } catch (err: any) {
+    console.error("client-account-sheet/search error:", err);
+    res.status(500).json({ error: "حصل خطأ فى البحث" });
+  }
+});
+
+// ─── GET /client-account-sheet/orders ── جلب كل أوردرات عميل بالفون (مفتاح دقيق) ─
 router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const name  = (req.query.name as string | undefined)?.trim();
     const phone = (req.query.phone as string | undefined)?.trim();
 
-    if (!name && !phone) { res.status(400).json({ error: "لازم اسم أو رقم تليفون للبحث" }); return; }
+    if (!phone) { res.status(400).json({ error: "لازم رقم تليفون دقيق للبحث — استخدم /search للاسم أولاً" }); return; }
 
-    const conditions: any[] = [isNull(ordersTable.deletedAt)];
+    const conditions: any[] = [isNull(ordersTable.deletedAt), eq(ordersTable.phone, phone)];
     if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
-
-    if (phone) conditions.push(eq(ordersTable.phone, phone));
-    else if (name) conditions.push(like(ordersTable.customerName, `%${name}%`));
 
     const rows = await db
       .select()
@@ -186,8 +214,7 @@ router.patch("/client-account-sheet/orders/:id/collected", async (req, res): Pro
 
 // ─── POST /client-account-sheet/close ── إقفال حساب العميل ─────────────────
 const CloseAccountSchema = z.object({
-  name: z.string().nullish(),
-  phone: z.string().nullish(),
+  phone: z.string().min(1, "رقم التليفون مطلوب"),
   notes: z.string().nullish(),
 });
 
@@ -196,13 +223,10 @@ router.post("/client-account-sheet/close", async (req, res): Promise<void> => {
     const tenantId = getTenantId(req);
     const parsed = CloseAccountSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-    const { name, phone, notes } = parsed.data;
-    if (!name && !phone) { res.status(400).json({ error: "لازم اسم أو رقم تليفون" }); return; }
+    const { phone, notes } = parsed.data;
 
-    const conditions: any[] = [isNull(ordersTable.deletedAt)];
+    const conditions: any[] = [isNull(ordersTable.deletedAt), eq(ordersTable.phone, phone)];
     if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
-    if (phone) conditions.push(eq(ordersTable.phone, phone));
-    else if (name) conditions.push(like(ordersTable.customerName, `%${name}%`));
 
     const rows = await db.select().from(ordersTable).where(and(...conditions));
     if (rows.length === 0) { res.status(404).json({ error: "لا يوجد أوردرات لهذا العميل" }); return; }
@@ -225,8 +249,8 @@ router.post("/client-account-sheet/close", async (req, res): Promise<void> => {
 
     const insertResult = await db.insert(clientAccountClosuresTable).values({
       tenantId,
-      clientName: name || rows[0].customerName,
-      clientPhone: phone || rows[0].phone,
+      clientName: rows[0].customerName,
+      clientPhone: phone,
       orderIds: closable.map((o: any) => o.id),
       ordersCount: closable.length,
       totalShippingValue: String(totalShippingValue),
@@ -241,7 +265,7 @@ router.post("/client-account-sheet/close", async (req, res): Promise<void> => {
 
     await logAudit({
       action: "create", entityType: "client_account_closure", entityId: closureId,
-      entityName: `إقفال حساب ${name || rows[0].customerName}`,
+      entityName: `إقفال حساب ${rows[0].customerName}`,
       after: { ordersCount: closable.length, totalCollected },
       userId: (req as any).user?.id, userName: (req as any).user?.displayName,
     }).catch(() => {});
@@ -268,7 +292,7 @@ router.get("/client-account-sheet/closures", async (req, res): Promise<void> => 
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(clientAccountClosuresTable.tenantId, tenantId));
     if (phone) conditions.push(eq(clientAccountClosuresTable.clientPhone, phone));
-    else if (name) conditions.push(like(clientAccountClosuresTable.clientName, `%${name}%`));
+    else if (name) conditions.push(like(clientAccountClosuresTable.clientName, `%${name}%`)); // عرض/فلترة فقط، مش مفتاح دقيق
 
     const rows = await db
       .select()

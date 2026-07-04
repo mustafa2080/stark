@@ -89,39 +89,69 @@ function StatBox({ label, value, icon: Icon, color }: { label: string; value: nu
   );
 }
 
+type SearchMatch = { name: string; phone: string; ordersCount: number };
+
 export default function ClientAccountSheetPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [searchName, setSearchName] = useState("");
   const [searchPhone, setSearchPhone] = useState("");
-  const [activeName, setActiveName] = useState("");
   const [activePhone, setActivePhone] = useState("");
+  const [matches, setMatches] = useState<SearchMatch[] | null>(null);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [closeNotes, setCloseNotes] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [collectedInput, setCollectedInput] = useState("");
+  const [searching, setSearching] = useState(false);
 
-  const hasSearch = !!(activeName || activePhone);
+  const hasSearch = !!activePhone;
 
   const { data, isLoading, isFetching } = useQuery<SheetResponse>({
-    queryKey: ["client-account-sheet", activeName, activePhone],
-    queryFn: () => {
-      const q = new URLSearchParams();
-      if (activePhone) q.set("phone", activePhone);
-      else if (activeName) q.set("name", activeName);
-      return apiFetch<SheetResponse>(`/client-account-sheet/orders?${q.toString()}`);
-    },
+    queryKey: ["client-account-sheet", activePhone],
+    queryFn: () => apiFetch<SheetResponse>(`/client-account-sheet/orders?phone=${encodeURIComponent(activePhone)}`),
     enabled: hasSearch,
   });
 
-  const runSearch = () => {
-    if (!searchName.trim() && !searchPhone.trim()) {
+  // اختيار مباشر برقم تليفون (مفتاح دقيق)
+  const selectPhone = (phone: string) => {
+    setMatches(null);
+    setActivePhone(phone.trim());
+  };
+
+  const runSearch = async () => {
+    const name = searchName.trim();
+    const phone = searchPhone.trim();
+
+    if (!name && !phone) {
       toast({ title: "لازم تكتب اسم أو رقم تليفون للبحث", variant: "destructive" });
       return;
     }
-    setActiveName(searchName.trim());
-    setActivePhone(searchPhone.trim());
+
+    // البحث بالفون دايماً دقيق ومباشر — أفضل مفتاح لأن الاسم ممكن يتكرر أو يختلف فى الكتابة
+    if (phone) {
+      selectPhone(phone);
+      return;
+    }
+
+    // البحث بالاسم بيرجع قائمة أرقام مطابقة لاختيار الصح منها
+    setSearching(true);
+    setMatches(null);
+    setActivePhone("");
+    try {
+      const res = await apiFetch<{ matches: SearchMatch[] }>(`/client-account-sheet/search?name=${encodeURIComponent(name)}`);
+      if (res.matches.length === 0) {
+        toast({ title: "مفيش نتائج", description: "مفيش عميل بهذا الاسم فى الشحنات" });
+      } else if (res.matches.length === 1) {
+        selectPhone(res.matches[0].phone);
+      } else {
+        setMatches(res.matches);
+      }
+    } catch (e: any) {
+      toast({ title: "حصل خطأ فى البحث", description: e.message, variant: "destructive" });
+    } finally {
+      setSearching(false);
+    }
   };
 
   const collectedMutation = useMutation({
@@ -142,7 +172,7 @@ export default function ClientAccountSheetPage() {
     mutationFn: () =>
       apiFetch<{ success: boolean; remainingDelayedCount: number }>("/client-account-sheet/close", {
         method: "POST",
-        body: JSON.stringify({ name: activeName || null, phone: activePhone || null, notes: closeNotes || null }),
+        body: JSON.stringify({ phone: activePhone, notes: closeNotes || null }),
       }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["client-account-sheet"] });
@@ -188,14 +218,43 @@ export default function ClientAccountSheetPage() {
             onKeyDown={(e) => e.key === "Enter" && runSearch()}
             className="flex-1"
           />
-          <Button onClick={runSearch} disabled={isFetching} className="gap-2">
-            {isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+          <Button onClick={runSearch} disabled={isFetching || searching} className="gap-2">
+            {(isFetching || searching) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             بحث
           </Button>
         </div>
+        <p className="text-[11px] text-muted-foreground mt-2">
+          البحث بالتليفون دقيق ومباشر. البحث بالاسم فقط هيوريك كل الأرقام المطابقة عشان تختار العميل الصح
+          (لأن نفس الاسم ممكن يتكرر لأكتر من زبون).
+        </p>
       </Card>
 
-      {!hasSearch && (
+      {/* قائمة المرشحين لما البحث بالاسم يرجع أكتر من رقم */}
+      {matches && matches.length > 0 && (
+        <Card className="p-4 border-border print:hidden">
+          <p className="text-sm font-bold mb-3">فيه أكتر من عميل بنفس الاسم — اختار الرقم الصح:</p>
+          <div className="space-y-2">
+            {matches.map((m) => (
+              <button
+                key={m.phone}
+                onClick={() => selectPhone(m.phone)}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/20 transition-colors text-right"
+              >
+                <div className="flex items-center gap-3">
+                  <User className="w-4 h-4 text-primary" />
+                  <div>
+                    <p className="font-bold text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" /> {m.phone}</p>
+                  </div>
+                </div>
+                <Badge variant="outline">{m.ordersCount} أوردر</Badge>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {!hasSearch && !matches && (
         <Card className="p-10 border-border border-dashed text-center text-muted-foreground">
           <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
           دوّر عن عميل بالاسم أو رقم التليفون عشان تشوف شيت حسابه
