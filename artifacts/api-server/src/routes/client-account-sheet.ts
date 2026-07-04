@@ -88,6 +88,67 @@ router.get("/client-account-sheet/search", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /client-account-sheet/all-clients ── كل العملاء مجمّعين بالفون (لعرض الجدول قبل البحث) ─
+router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const conditions: any[] = [isNull(shipmentsTable.deletedAt)];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const rows = await db
+      .select({
+        receiverName: shipmentsTable.receiverName,
+        receiverPhone: shipmentsTable.receiverPhone,
+        receiverCity: shipmentsTable.receiverCity,
+        totalAmount: shipmentsTable.totalAmount,
+        collectedAmount: shipmentsTable.collectedAmount,
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+      })
+      .from(shipmentsTable)
+      .where(and(...conditions));
+
+    const byPhone = new Map<string, {
+      name: string; phone: string; city: string | null;
+      shipmentsCount: number; totalAmount: number; collectedAmount: number;
+      lastOrderAt: string;
+    }>();
+
+    for (const r of rows) {
+      if (!r.receiverPhone) continue;
+      const key = normalizePhone(r.receiverPhone) || r.receiverPhone;
+      const total = Number(r.totalAmount ?? 0);
+      const collected = Number(r.collectedAmount ?? 0);
+      const existing = byPhone.get(key);
+      if (existing) {
+        existing.shipmentsCount++;
+        existing.totalAmount += total;
+        existing.collectedAmount += collected;
+        if (new Date(r.createdAt) > new Date(existing.lastOrderAt)) existing.lastOrderAt = r.createdAt;
+      } else {
+        byPhone.set(key, {
+          name: r.receiverName,
+          phone: r.receiverPhone,
+          city: r.receiverCity,
+          shipmentsCount: 1,
+          totalAmount: total,
+          collectedAmount: collected,
+          lastOrderAt: r.createdAt,
+        });
+      }
+    }
+
+    const clients = [...byPhone.values()]
+      .map((c) => ({ ...c, remainingAmount: c.totalAmount - c.collectedAmount }))
+      .sort((a, b) => new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime());
+
+    res.json({ clients });
+  } catch (err: any) {
+    console.error("client-account-sheet/all-clients error:", err);
+    res.status(500).json({ error: "حصل خطأ فى جلب قائمة العملاء" });
+  }
+});
+
 // ─── GET /client-account-sheet/orders ── جلب كل شحنات عميل بالفون (مفتاح دقيق) ─
 router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
   try {

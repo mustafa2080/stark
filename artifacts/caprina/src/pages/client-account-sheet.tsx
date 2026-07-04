@@ -97,6 +97,12 @@ function StatBox({ label, value, icon: Icon, color }: { label: string; value: nu
 
 type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 
+type ClientRow = {
+  name: string; phone: string; city: string | null;
+  shipmentsCount: number; totalAmount: number; collectedAmount: number; remainingAmount: number;
+  lastOrderAt: string;
+};
+
 export default function ClientAccountSheetPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -111,6 +117,7 @@ export default function ClientAccountSheetPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [collectedInput, setCollectedInput] = useState("");
   const [searching, setSearching] = useState(false);
+  const [tableFilter, setTableFilter] = useState("");
 
   const hasSearch = !!activePhone;
 
@@ -119,6 +126,25 @@ export default function ClientAccountSheetPage() {
     queryFn: () => apiFetch<SheetResponse>(`/client-account-sheet/orders?phone=${encodeURIComponent(activePhone)}`),
     enabled: hasSearch,
   });
+
+  // كل العملاء — بتتحمّل لما لسه مفيش بحث نشط، وبتتفلتر محليًا فورًا مع الكتابة
+  const { data: allClientsData, isLoading: isLoadingAllClients } = useQuery<{ clients: ClientRow[] }>({
+    queryKey: ["client-account-sheet-all-clients"],
+    queryFn: () => apiFetch<{ clients: ClientRow[] }>("/client-account-sheet/all-clients"),
+    enabled: !hasSearch,
+  });
+
+  const filteredClients = useMemo(() => {
+    const list = allClientsData?.clients ?? [];
+    const q = tableFilter.trim();
+    if (!q) return list;
+    const qNorm = q.replace(/\D/g, "");
+    return list.filter((c) =>
+      c.name?.toLowerCase().includes(q.toLowerCase()) ||
+      (qNorm && c.phone?.replace(/\D/g, "").includes(qNorm)) ||
+      (!qNorm && c.phone?.includes(q))
+    );
+  }, [allClientsData, tableFilter]);
 
   // اختيار مباشر برقم تليفون (مفتاح دقيق)
   const selectPhone = (phone: string) => {
@@ -262,9 +288,61 @@ export default function ClientAccountSheetPage() {
       )}
 
       {!hasSearch && !matches && (
-        <Card className="p-10 border-border border-dashed text-center text-muted-foreground">
-          <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
-          دوّر عن عميل بالاسم أو رقم التليفون عشان تشوف شيت حسابه
+        <Card className="border-border overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <Input
+              placeholder="فلترة سريعة بالاسم أو رقم التليفون..."
+              value={tableFilter}
+              onChange={(e) => setTableFilter(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+
+          {isLoadingAllClients && (
+            <div className="p-10 text-center text-muted-foreground">
+              <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري تحميل قائمة العملاء...
+            </div>
+          )}
+
+          {!isLoadingAllClients && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20">
+                    <th className="p-2.5 text-right font-bold">اسم العميل</th>
+                    <th className="p-2.5 text-right font-bold">الفون</th>
+                    <th className="p-2.5 text-right font-bold">المحافظة</th>
+                    <th className="p-2.5 text-right font-bold">عدد الشحنات</th>
+                    <th className="p-2.5 text-right font-bold">إجمالي القيمة</th>
+                    <th className="p-2.5 text-right font-bold">المحصَّل</th>
+                    <th className="p-2.5 text-right font-bold">المتبقي</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClients.map((c) => (
+                    <tr
+                      key={c.phone}
+                      className="border-b border-border/50 hover:bg-muted/10 cursor-pointer"
+                      onClick={() => selectPhone(c.phone)}
+                    >
+                      <td className="p-2.5 font-bold hover:underline decoration-dotted underline-offset-2">{c.name}</td>
+                      <td className="p-2.5 flex items-center gap-1"><Phone className="w-3 h-3 text-muted-foreground" /> {c.phone}</td>
+                      <td className="p-2.5">{c.city || "—"}</td>
+                      <td className="p-2.5"><Badge variant="outline">{c.shipmentsCount}</Badge></td>
+                      <td className="p-2.5 font-bold">{fmt(c.totalAmount)}</td>
+                      <td className="p-2.5">{fmt(c.collectedAmount)}</td>
+                      <td className={`p-2.5 font-bold ${c.remainingAmount > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fmt(c.remainingAmount)}</td>
+                    </tr>
+                  ))}
+                  {filteredClients.length === 0 && (
+                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">
+                      {tableFilter ? "مفيش نتائج مطابقة" : "لا يوجد عملاء"}
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
 
