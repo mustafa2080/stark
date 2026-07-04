@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, like, isNull, inArray } from "drizzle-orm";
+import { eq, desc, and, like, isNull, inArray, sql } from "drizzle-orm";
 import {
   db,
   shipmentsTable,
@@ -15,6 +15,14 @@ import { logAudit } from "../lib/audit.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
+
+// ─── تطبيع رقم الهاتف للمقارنة المرنة ────────────────────────────────────────
+// بيشيل أي حروف غير رقمية (مسافات/شرطات/+20)، وياخد آخر 9 أرقام فقط
+// (ده بيتخطى مشاكل صفر البداية الناقص/الزيادة وكود الدولة، وكافي لتمييز رقم موبايل مصري)
+function normalizePhone(raw: string): string {
+  const digitsOnly = raw.replace(/\D/g, "");
+  return digitsOnly.slice(-9);
+}
 
 // ─── حالة الشحنة المعروضة فى شيت حساب العميل ────────────────────────────────
 type SheetStatus =
@@ -61,12 +69,15 @@ router.get("/client-account-sheet/search", async (req, res): Promise<void> => {
       .from(shipmentsTable)
       .where(and(...conditions));
 
+    // التجميع بيتم على الرقم المطبَّع عشان لو نفس العميل مكتوب فونه بصيغ مختلفة شوية
+    // (زي صفر ناقص/زيادة) يتجمع تحت نفس المرشح بدل ما يتقسم لعملاء وهميين مختلفين
     const byPhone = new Map<string, { name: string; phone: string; shipmentsCount: number }>();
     for (const r of rows) {
       if (!r.receiverPhone) continue;
-      const existing = byPhone.get(r.receiverPhone);
+      const key = normalizePhone(r.receiverPhone) || r.receiverPhone;
+      const existing = byPhone.get(key);
       if (existing) existing.shipmentsCount++;
-      else byPhone.set(r.receiverPhone, { name: r.receiverName, phone: r.receiverPhone, shipmentsCount: 1 });
+      else byPhone.set(key, { name: r.receiverName, phone: r.receiverPhone, shipmentsCount: 1 });
     }
 
     res.json({ matches: [...byPhone.values()].sort((a, b) => b.shipmentsCount - a.shipmentsCount) });
@@ -84,7 +95,15 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
 
     if (!phone) { res.status(400).json({ error: "لازم رقم تليفون دقيق للبحث — استخدم /search للاسم أولاً" }); return; }
 
-    const conditions: any[] = [isNull(shipmentsTable.deletedAt), eq(shipmentsTable.receiverPhone, phone)];
+    const normalized = normalizePhone(phone);
+    if (!normalized) { res.status(400).json({ error: "رقم التليفون غير صالح" }); return; }
+
+    // مطابقة مرنة: نقارن آخر 9 أرقام من الرقم المخزن مع آخر 9 أرقام من رقم البحث
+    // (بيتخطى فروق صفر البداية الناقص/الزيادة وكود الدولة)
+    const conditions: any[] = [
+      isNull(shipmentsTable.deletedAt),
+      sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalized}`,
+    ];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
     const rows = await db
@@ -210,7 +229,13 @@ router.post("/client-account-sheet/close", async (req, res): Promise<void> => {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const { phone, notes } = parsed.data;
 
-    const conditions: any[] = [isNull(shipmentsTable.deletedAt), eq(shipmentsTable.receiverPhone, phone)];
+    const normalized = normalizePhone(phone);
+    if (!normalized) { res.status(400).json({ error: "رقم التليفون غير صالح" }); return; }
+
+    const conditions: any[] = [
+      isNull(shipmentsTable.deletedAt),
+      sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalized}`,
+    ];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
     const rows = await db.select().from(shipmentsTable).where(and(...conditions));
