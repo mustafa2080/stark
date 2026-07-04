@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, or, like, isNull, inArray } from "drizzle-orm";
+import { eq, desc, and, like, isNull, inArray } from "drizzle-orm";
 import {
   db,
-  ordersTable,
-  shippingManifestOrdersTable,
-  shippingManifestsTable,
+  shipmentsTable,
+  shipmentManifestsTable,
+  shipmentManifestItemsTable,
   warehousesTable,
   clientAccountClosuresTable,
 } from "@workspace/db";
@@ -16,68 +16,67 @@ import { logAudit } from "../lib/audit.js";
 const router: IRouter = Router();
 router.use(requireAuth);
 
-// ─── حالة الأوردر المعروضة فى شيت حساب العميل ───────────────────────────────
+// ─── حالة الشحنة المعروضة فى شيت حساب العميل ────────────────────────────────
 type SheetStatus =
-  | "pending" | "warehouse_ready" | "in_shipping" | "delayed"
-  | "received" | "partial_received" | "returned" | "cancelled";
+  | "waiting" | "confirmed" | "picked_up" | "in_transit" | "out_for_delivery"
+  | "delayed" | "delivered" | "partial_received" | "returned" | "cancelled";
 
-async function getOpenManifestPostponedSet() {
+// ─── هل الشحنة "مؤجلة" حاليًا داخل بيان مفتوح؟ ────────────────────────────────
+// deliveryStatus = 'delayed' فى shipment_manifest_items ضمن بيان status='open'
+async function getOpenManifestDelayedMap() {
   const openManifests = await db
-    .select({ id: shippingManifestsTable.id })
-    .from(shippingManifestsTable)
-    .where(eq(shippingManifestsTable.status, "open"));
+    .select({ id: shipmentManifestsTable.id })
+    .from(shipmentManifestsTable)
+    .where(eq(shipmentManifestsTable.status, "open"));
   const openIds = openManifests.map((m: any) => m.id);
-  const postponedSet = new Set<number>();
-  const noteMap = new Map<number, string | null>();
+  const delayedMap = new Map<number, string | null>();
   if (openIds.length > 0) {
     const links = await db
-      .select({ orderId: shippingManifestOrdersTable.orderId, deliveryNote: shippingManifestOrdersTable.deliveryNote })
-      .from(shippingManifestOrdersTable)
+      .select({ shipmentId: shipmentManifestItemsTable.shipmentId, deliveryNote: shipmentManifestItemsTable.deliveryNote })
+      .from(shipmentManifestItemsTable)
       .where(and(
-        inArray(shippingManifestOrdersTable.manifestId, openIds),
-        eq(shippingManifestOrdersTable.deliveryStatus, "postponed"),
+        inArray(shipmentManifestItemsTable.manifestId, openIds),
+        eq(shipmentManifestItemsTable.deliveryStatus, "delayed"),
       ));
-    for (const l of links) {
-      postponedSet.add(l.orderId);
-      if (!noteMap.has(l.orderId)) noteMap.set(l.orderId, l.deliveryNote ?? null);
-    }
+    for (const l of links) delayedMap.set(l.shipmentId, l.deliveryNote ?? null);
   }
-  return { postponedSet, noteMap };
+  return delayedMap;
 }
 
 // ─── GET /client-account-sheet/search ── بحث بالاسم لإيجاد أرقام الهاتف المطابقة ─
 // البحث الدقيق بيتم بالفون فقط (مفتاح موحّد). البحث بالاسم بيرجع قائمة مرشحين
-// (اسم + فون + عدد أوردرات) عشان تختار الرقم الصح لو فيه أكتر من زبون بنفس الاسم.
+// (اسم + فون + عدد شحنات) عشان تختار الرقم الصح لو فيه أكتر من زبون بنفس الاسم.
+// "اسم العميل" = اسم المستلم (receiverName) لأنه هو الزبون النهائي اللي بيستلم الشحنة.
 router.get("/client-account-sheet/search", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
     const name = (req.query.name as string | undefined)?.trim();
     if (!name) { res.status(400).json({ error: "لازم اسم للبحث" }); return; }
 
-    const conditions: any[] = [isNull(ordersTable.deletedAt), like(ordersTable.customerName, `%${name}%`)];
-    if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
+    const conditions: any[] = [isNull(shipmentsTable.deletedAt), like(shipmentsTable.receiverName, `%${name}%`)];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
     const rows = await db
-      .select({ customerName: ordersTable.customerName, phone: ordersTable.phone })
-      .from(ordersTable)
+      .select({ receiverName: shipmentsTable.receiverName, receiverPhone: shipmentsTable.receiverPhone })
+      .from(shipmentsTable)
       .where(and(...conditions));
 
-    const byPhone = new Map<string, { name: string; phone: string; ordersCount: number }>();
+    const byPhone = new Map<string, { name: string; phone: string; shipmentsCount: number }>();
     for (const r of rows) {
-      if (!r.phone) continue;
-      const existing = byPhone.get(r.phone);
-      if (existing) existing.ordersCount++;
-      else byPhone.set(r.phone, { name: r.customerName, phone: r.phone, ordersCount: 1 });
+      if (!r.receiverPhone) continue;
+      const existing = byPhone.get(r.receiverPhone);
+      if (existing) existing.shipmentsCount++;
+      else byPhone.set(r.receiverPhone, { name: r.receiverName, phone: r.receiverPhone, shipmentsCount: 1 });
     }
 
-    res.json({ matches: [...byPhone.values()].sort((a, b) => b.ordersCount - a.ordersCount) });
+    res.json({ matches: [...byPhone.values()].sort((a, b) => b.shipmentsCount - a.shipmentsCount) });
   } catch (err: any) {
     console.error("client-account-sheet/search error:", err);
     res.status(500).json({ error: "حصل خطأ فى البحث" });
   }
 });
 
-// ─── GET /client-account-sheet/orders ── جلب كل أوردرات عميل بالفون (مفتاح دقيق) ─
+// ─── GET /client-account-sheet/orders ── جلب كل شحنات عميل بالفون (مفتاح دقيق) ─
 router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
@@ -85,14 +84,14 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
 
     if (!phone) { res.status(400).json({ error: "لازم رقم تليفون دقيق للبحث — استخدم /search للاسم أولاً" }); return; }
 
-    const conditions: any[] = [isNull(ordersTable.deletedAt), eq(ordersTable.phone, phone)];
-    if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
+    const conditions: any[] = [isNull(shipmentsTable.deletedAt), eq(shipmentsTable.receiverPhone, phone)];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
     const rows = await db
       .select()
-      .from(ordersTable)
+      .from(shipmentsTable)
       .where(and(...conditions))
-      .orderBy(desc(ordersTable.createdAt));
+      .orderBy(desc(shipmentsTable.createdAt));
 
     if (rows.length === 0) { res.json({ client: null, orders: [], stats: null }); return; }
 
@@ -102,72 +101,58 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
       : [];
     const warehouseMap = new Map(warehouses.map((w: any) => [w.id, w.name]));
 
-    const { postponedSet, noteMap } = await getOpenManifestPostponedSet();
+    const delayedMap = await getOpenManifestDelayedMap();
 
-    const returnedNullIds = rows.filter((o: any) => o.status === "returned" && o.returnReceived == null).map((o: any) => o.id);
-    const manifestReturnMap = new Map<number, number | null>();
-    if (returnedNullIds.length > 0) {
-      const links = await db
-        .select({ orderId: shippingManifestOrdersTable.orderId, returnReceived: shippingManifestOrdersTable.returnReceived })
-        .from(shippingManifestOrdersTable)
-        .where(inArray(shippingManifestOrdersTable.orderId, returnedNullIds));
-      for (const l of links) manifestReturnMap.set(l.orderId, l.returnReceived ?? null);
-    }
-
-    const orders = rows.map((o: any) => {
-      let resolvedStatus: SheetStatus = o.status as SheetStatus;
+    const orders = rows.map((s: any) => {
+      let resolvedStatus: SheetStatus = s.status as SheetStatus;
       let noteAuto: string | null = null;
 
-      if (o.status === "in_shipping" && postponedSet.has(o.id)) {
+      if (delayedMap.has(s.id)) {
         resolvedStatus = "delayed";
-        noteAuto = noteMap.get(o.id) ?? null;
-      } else if (o.status === "delayed") {
-        resolvedStatus = "delayed";
+        noteAuto = delayedMap.get(s.id) ?? null;
       }
 
-      const collected = o.collectedAmount;
+      const collected = s.collectedAmount;
       let collectedNote: string | null = null;
       if (collected != null) {
-        const diff = Number(o.totalPrice) - Number(collected);
+        const diff = Number(s.totalAmount) - Number(collected);
         if (diff > 0.01) collectedNote = `أقل بـ ${diff.toFixed(0)}`;
         else if (diff < -0.01) collectedNote = `زيادة ${Math.abs(diff).toFixed(0)}`;
       }
 
-      const returnStillPending = o.status === "returned"
-        ? (o.returnReceived ?? manifestReturnMap.get(o.id) ?? null)
-        : null;
-
       return {
-        id: o.id,
-        customerName: o.customerName,
-        phone: o.phone,
-        city: o.city,
-        address: o.address,
-        senderName: o.customerName,
-        warehouseName: o.warehouseId ? (warehouseMap.get(o.warehouseId) ?? null) : null,
-        unitPrice: o.unitPrice,
-        totalPrice: o.totalPrice,
-        shippingCost: o.shippingCost,
-        collectedAmount: o.collectedAmount,
+        id: s.id,
+        customerName: s.receiverName,
+        phone: s.receiverPhone,
+        city: s.receiverCity,
+        address: s.receiverAddress,
+        senderName: s.senderName,
+        warehouseName: s.warehouseId ? (warehouseMap.get(s.warehouseId) ?? null) : null,
+        unitPrice: s.codAmount,
+        totalPrice: s.totalAmount,
+        shippingCost: s.shippingFee,
+        collectedAmount: s.collectedAmount,
         status: resolvedStatus,
-        returnReceived: returnStillPending,
-        product: o.product,
-        invoiceNumber: o.invoiceNumber,
-        createdAt: o.createdAt,
-        notes: [o.notes, noteAuto, collectedNote].filter(Boolean).join(" — ") || null,
+        returnReceived: s.status === "returned" ? s.returnReceived : null,
+        product: s.description,
+        invoiceNumber: s.shipmentNumber,
+        createdAt: s.createdAt,
+        notes: [s.notes, noteAuto, collectedNote].filter(Boolean).join(" — ") || null,
       };
     });
 
     const stats = {
-      newOrders: orders.filter((o: any) => o.status === "pending").length,
+      newOrders: orders.filter((o: any) => o.status === "waiting" || o.status === "confirmed").length,
       returnedNotReceived: orders.filter((o: any) => o.status === "returned" && o.returnReceived !== 1).length,
-      delayedOrInDelivery: orders.filter((o: any) => o.status === "delayed" || o.status === "in_shipping").length,
+      delayedOrInDelivery: orders.filter((o: any) =>
+        o.status === "delayed" || o.status === "in_transit" || o.status === "out_for_delivery" || o.status === "picked_up"
+      ).length,
       totalOrders: orders.length,
     };
 
     const first = rows[0];
     res.json({
-      client: { name: first.customerName, phone: first.phone, city: first.city, address: first.address },
+      client: { name: first.receiverName, phone: first.receiverPhone, city: first.receiverCity, address: first.receiverAddress },
       orders,
       stats,
     });
@@ -190,16 +175,16 @@ router.patch("/client-account-sheet/orders/:id/collected", async (req, res): Pro
     const parsed = CollectedSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-    const [existing] = await db.select().from(ordersTable).where(and(eq(ordersTable.id, id), isNull(ordersTable.deletedAt)));
-    if (!existing) { res.status(404).json({ error: "الأوردر غير موجود" }); return; }
+    const [existing] = await db.select().from(shipmentsTable).where(and(eq(shipmentsTable.id, id), isNull(shipmentsTable.deletedAt)));
+    if (!existing) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
 
-    await db.update(ordersTable)
-      .set({ collectedAmount: parsed.data.collectedAmount, updatedAt: new Date() })
-      .where(eq(ordersTable.id, id));
+    await db.update(shipmentsTable)
+      .set({ collectedAmount: String(parsed.data.collectedAmount ?? 0) as any, updatedAt: new Date() })
+      .where(eq(shipmentsTable.id, id));
 
     await logAudit({
-      action: "update", entityType: "order", entityId: id,
-      entityName: `${existing.customerName} — تحديث المبلغ المحصَّل`,
+      action: "update", entityType: "shipment", entityId: id,
+      entityName: `${existing.receiverName} — تحديث المبلغ المحصَّل`,
       before: { collectedAmount: existing.collectedAmount },
       after: { collectedAmount: parsed.data.collectedAmount },
       userId: (req as any).user?.id, userName: (req as any).user?.displayName,
@@ -225,31 +210,27 @@ router.post("/client-account-sheet/close", async (req, res): Promise<void> => {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const { phone, notes } = parsed.data;
 
-    const conditions: any[] = [isNull(ordersTable.deletedAt), eq(ordersTable.phone, phone)];
-    if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
+    const conditions: any[] = [isNull(shipmentsTable.deletedAt), eq(shipmentsTable.receiverPhone, phone)];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
-    const rows = await db.select().from(ordersTable).where(and(...conditions));
-    if (rows.length === 0) { res.status(404).json({ error: "لا يوجد أوردرات لهذا العميل" }); return; }
+    const rows = await db.select().from(shipmentsTable).where(and(...conditions));
+    if (rows.length === 0) { res.status(404).json({ error: "لا يوجد شحنات لهذا العميل" }); return; }
 
-    const { postponedSet } = await getOpenManifestPostponedSet();
-    const closable = rows.filter((o: any) => {
-      if (o.status === "delayed") return false;
-      if (o.status === "in_shipping" && postponedSet.has(o.id)) return false;
-      return true;
-    });
+    const delayedMap = await getOpenManifestDelayedMap();
+    const closable = rows.filter((s: any) => !delayedMap.has(s.id) && s.status !== "delayed");
 
     if (closable.length === 0) {
-      res.status(400).json({ error: "كل الأوردرات مؤجلة/تحت التسليم — مفيش حاجة تتقفل دلوقتي" });
+      res.status(400).json({ error: "كل الشحنات مؤجلة/تحت التسليم — مفيش حاجة تتقفل دلوقتي" });
       return;
     }
 
-    const totalShippingValue = closable.reduce((s: number, o: any) => s + Number(o.totalPrice ?? 0), 0);
-    const totalCollected     = closable.reduce((s: number, o: any) => s + Number(o.collectedAmount ?? o.totalPrice ?? 0), 0);
-    const totalShippingFee   = closable.reduce((s: number, o: any) => s + Number(o.shippingCost ?? 0), 0);
+    const totalShippingValue = closable.reduce((s: number, o: any) => s + Number(o.totalAmount ?? 0), 0);
+    const totalCollected     = closable.reduce((s: number, o: any) => s + Number(o.collectedAmount ?? o.totalAmount ?? 0), 0);
+    const totalShippingFee   = closable.reduce((s: number, o: any) => s + Number(o.shippingFee ?? 0), 0);
 
     const insertResult = await db.insert(clientAccountClosuresTable).values({
       tenantId,
-      clientName: rows[0].customerName,
+      clientName: rows[0].receiverName,
       clientPhone: phone,
       orderIds: closable.map((o: any) => o.id),
       ordersCount: closable.length,
@@ -265,7 +246,7 @@ router.post("/client-account-sheet/close", async (req, res): Promise<void> => {
 
     await logAudit({
       action: "create", entityType: "client_account_closure", entityId: closureId,
-      entityName: `إقفال حساب ${rows[0].customerName}`,
+      entityName: `إقفال حساب ${rows[0].receiverName}`,
       after: { ordersCount: closable.length, totalCollected },
       userId: (req as any).user?.id, userName: (req as any).user?.displayName,
     }).catch(() => {});

@@ -51,14 +51,16 @@ type SheetResponse = {
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  pending:          { label: "جديد",          color: "text-amber-400",   bg: "bg-amber-900/20",   border: "border-amber-700" },
-  warehouse_ready:  { label: "جاهز للشحن",     color: "text-teal-400",    bg: "bg-teal-900/20",    border: "border-teal-700" },
-  in_shipping:      { label: "قيد الشحن",      color: "text-sky-400",     bg: "bg-sky-900/20",     border: "border-sky-700" },
-  delayed:          { label: "مؤجل",           color: "text-orange-400",  bg: "bg-orange-900/20",  border: "border-orange-700" },
-  received:         { label: "استلم",          color: "text-emerald-400", bg: "bg-emerald-900/20", border: "border-emerald-700" },
-  partial_received: { label: "استلام جزئي",    color: "text-cyan-400",    bg: "bg-cyan-900/20",    border: "border-cyan-700" },
-  returned:         { label: "مرتجع",          color: "text-red-400",    bg: "bg-red-900/20",     border: "border-red-700" },
-  cancelled:        { label: "ملغي",           color: "text-slate-400",   bg: "bg-slate-900/20",   border: "border-slate-700" },
+  waiting:           { label: "انتظار",        color: "text-amber-400",   bg: "bg-amber-900/20",   border: "border-amber-700" },
+  confirmed:         { label: "مؤكدة",         color: "text-teal-400",    bg: "bg-teal-900/20",    border: "border-teal-700" },
+  picked_up:         { label: "تم الاستلام",    color: "text-sky-400",     bg: "bg-sky-900/20",     border: "border-sky-700" },
+  in_transit:        { label: "في الطريق",      color: "text-sky-400",     bg: "bg-sky-900/20",     border: "border-sky-700" },
+  out_for_delivery:  { label: "خرجت للتسليم",   color: "text-blue-400",    bg: "bg-blue-900/20",    border: "border-blue-700" },
+  delayed:           { label: "مؤجل",           color: "text-orange-400",  bg: "bg-orange-900/20",  border: "border-orange-700" },
+  delivered:         { label: "تم التسليم",     color: "text-emerald-400", bg: "bg-emerald-900/20", border: "border-emerald-700" },
+  partial_received:  { label: "استلام جزئي",    color: "text-cyan-400",    bg: "bg-cyan-900/20",    border: "border-cyan-700" },
+  returned:          { label: "مرتجع",          color: "text-red-400",    bg: "bg-red-900/20",     border: "border-red-700" },
+  cancelled:         { label: "ملغي",           color: "text-slate-400",   bg: "bg-slate-900/20",   border: "border-slate-700" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -89,7 +91,7 @@ function StatBox({ label, value, icon: Icon, color }: { label: string; value: nu
   );
 }
 
-type SearchMatch = { name: string; phone: string; ordersCount: number };
+type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 
 export default function ClientAccountSheetPage() {
   const { toast } = useToast();
@@ -247,7 +249,7 @@ export default function ClientAccountSheetPage() {
                     <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" /> {m.phone}</p>
                   </div>
                 </div>
-                <Badge variant="outline">{m.ordersCount} أوردر</Badge>
+                <Badge variant="outline">{m.shipmentsCount} شحنة</Badge>
               </button>
             ))}
           </div>
