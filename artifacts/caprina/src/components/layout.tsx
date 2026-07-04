@@ -69,6 +69,7 @@ const FINANCE_NAV = [
   { href: "/finance/purchases",         label: "فواتير الشراء",      icon: ShoppingCart, iconColor: "text-violet-400"   },
   { href: "/finance/sales",             label: "فواتير البيع",       icon: ShoppingBag,  iconColor: "text-teal-400"     },
   { href: "/finance/shipping-invoices", label: "فواتير الشحن",       icon: Truck,        iconColor: "text-sky-400"      },
+  { href: "/finance/client-account-sheet", label: "حساب العميل",    icon: UserCheck,    iconColor: "text-cyan-400"     },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
