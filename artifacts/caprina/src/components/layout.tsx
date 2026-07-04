@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { firstLogoBase64 } from "@/lib/first-logo";
 import { secondLogoBase64 } from "@/lib/second-logo";
-import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, ShoppingCart, ShoppingBag, Receipt, Building2, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin, Layers, Navigation } from "lucide-react";
+import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, Receipt, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin, Layers, Navigation } from "lucide-react";
 import { BrandFull, BrandLogoMark } from "@/components/brand-logo";
 import { BrandSettingsDialog } from "@/components/brand-settings-dialog";
 import { NotificationBell } from "@/components/notification-bell";
@@ -64,11 +64,6 @@ const ALL_NAV = [
 const FINANCE_NAV = [
   { href: "/finance",                   label: "لوحة الماليات",     icon: DollarSign,   iconColor: "text-emerald-400"  },
   { href: "/finance/cash",              label: "الخزنة",             icon: Wallet,       iconColor: "text-yellow-400"   },
-  { href: "/finance/expenses",          label: "المصروفات",          icon: Receipt,      iconColor: "text-rose-400"     },
-  { href: "/finance/suppliers",         label: "الموردون",           icon: Building2,    iconColor: "text-blue-400"     },
-  { href: "/finance/purchases",         label: "فواتير الشراء",      icon: ShoppingCart, iconColor: "text-violet-400"   },
-  { href: "/finance/sales",             label: "فواتير البيع",       icon: ShoppingBag,  iconColor: "text-teal-400"     },
-  { href: "/finance/shipping-invoices", label: "فواتير الشحن",       icon: Truck,        iconColor: "text-sky-400"      },
   { href: "/finance/client-account-sheet", label: "حساب العميل",    icon: UserCheck,    iconColor: "text-cyan-400"     },
 ];
 
