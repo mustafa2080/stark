@@ -206,6 +206,85 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /client-account-sheet/detail ── شامل لصفحة تفاصيل الحساب ───────────
+// بيرجع: بيانات العميل + الإجماليات المالية + توزيع الحالات + شحنات الأسبوع + سجل الإقفالات
+router.get("/client-account-sheet/detail", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const phone = (req.query.phone as string | undefined)?.trim();
+
+    if (!phone) { res.status(400).json({ error: "لازم رقم تليفون دقيق" }); return; }
+
+    const normalized = normalizePhone(phone);
+    if (!normalized) { res.status(400).json({ error: "رقم التليفون غير صالح" }); return; }
+
+    const conditions: any[] = [
+      isNull(shipmentsTable.deletedAt),
+      sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalized}`,
+    ];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const rows = await db
+      .select()
+      .from(shipmentsTable)
+      .where(and(...conditions))
+      .orderBy(desc(shipmentsTable.createdAt));
+
+    if (rows.length === 0) { res.json({ client: null, totals: null, statusDistribution: [], weeklyShipments: 0, closures: [] }); return; }
+
+    const delayedMap = await getOpenManifestDelayedMap();
+
+    const resolvedStatuses = rows.map((s: any) => (delayedMap.has(s.id) ? "delayed" : (s.status as SheetStatus)));
+
+    // ── الإجماليات المالية ──────────────────────────────────────────────────
+    const totalShippingValue = rows.reduce((sum: number, s: any) => sum + Number(s.totalAmount ?? 0), 0);
+    const totalCollected = rows.reduce((sum: number, s: any) => sum + Number(s.collectedAmount ?? 0), 0);
+    const totalRemaining = totalShippingValue - totalCollected;
+
+    const totals = {
+      totalShippingValue,
+      totalCollected,
+      totalRemaining,
+      ordersCount: rows.length,
+    };
+
+    // ── توزيع الحالات بالنسبة المئوية ──────────────────────────────────────
+    const statusCounts = new Map<string, number>();
+    for (const st of resolvedStatuses) statusCounts.set(st, (statusCounts.get(st) ?? 0) + 1);
+    const statusDistribution = [...statusCounts.entries()].map(([status, count]) => ({
+      status,
+      count,
+      percentage: rows.length ? Math.round((count / rows.length) * 100) : 0,
+    })).sort((a, b) => b.count - a.count);
+
+    // ── شحنات آخر 7 أيام ───────────────────────────────────────────────────
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const weeklyShipments = rows.filter((s: any) => new Date(s.createdAt) >= sevenDaysAgo).length;
+
+    // ── سجل الإقفالات السابقة للعميل ده ─────────────────────────────────────
+    const closureConditions: any[] = [eq(clientAccountClosuresTable.clientPhone, phone)];
+    if (tenantId !== null) closureConditions.push(eq(clientAccountClosuresTable.tenantId, tenantId));
+    const closures = await db
+      .select()
+      .from(clientAccountClosuresTable)
+      .where(and(...closureConditions))
+      .orderBy(desc(clientAccountClosuresTable.createdAt));
+
+    const first = rows[0];
+    res.json({
+      client: { name: first.receiverName, phone: first.receiverPhone, city: first.receiverCity, address: first.receiverAddress },
+      totals,
+      statusDistribution,
+      weeklyShipments,
+      closures,
+    });
+  } catch (err: any) {
+    console.error("client-account-sheet/detail error:", err);
+    res.status(500).json({ error: "حصل خطأ فى جلب تفاصيل الحساب" });
+  }
+});
+
 // ─── PATCH /client-account-sheet/orders/:id/collected ── تحديث المبلغ المحصَّل ─
 const CollectedSchema = z.object({
   collectedAmount: z.number().nullable(),

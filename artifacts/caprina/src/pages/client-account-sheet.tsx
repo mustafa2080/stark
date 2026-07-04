@@ -13,7 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   Search, User, Phone, MapPin, Printer, Lock, Package,
-  RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, TrendingUp,
+  RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -286,13 +286,25 @@ export default function ClientAccountSheetPage() {
           <Card className="p-4 border-border">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="space-y-1">
-                <p className="font-bold text-lg flex items-center gap-2"><User className="w-4 h-4 text-primary" /> {data.client.name}</p>
+                <button
+                  className="font-bold text-lg flex items-center gap-2 hover:underline decoration-dotted underline-offset-4"
+                  onClick={() => navigate(`/finance/client-account-sheet/detail/${encodeURIComponent(activePhone)}`)}
+                >
+                  <User className="w-4 h-4 text-primary" /> {data.client.name}
+                </button>
                 <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                   {data.client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {data.client.phone}</span>}
                   {data.client.city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {data.client.city}</span>}
                 </div>
               </div>
               <div className="flex items-center gap-2 print:hidden">
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => navigate(`/finance/client-account-sheet/detail/${encodeURIComponent(activePhone)}`)}
+                  className="gap-2"
+                >
+                  <BarChart3 className="w-4 h-4" /> تفاصيل الحساب
+                </Button>
                 <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
                   <Printer className="w-4 h-4" /> طباعة
                 </Button>
@@ -311,37 +323,6 @@ export default function ClientAccountSheetPage() {
               <StatBox label="مؤجل / تحت التسليم" value={data.stats.delayedOrInDelivery} icon={Truck} color="#3b82f6" />
               <StatBox label="إجمالي عدد الأوردرات" value={data.stats.totalOrders} icon={ListOrdered} color="#10b981" />
             </div>
-          )}
-
-          {/* توزيع الحالات + شحنات الأسبوع */}
-          {data.stats && data.stats.statusDistribution.length > 0 && (
-            <Card className="p-4 border-border">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
-                <div>
-                  <p className="text-sm font-bold mb-3 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-primary" /> توزيع الحالات
-                  </p>
-                  <div className="space-y-2">
-                    {data.stats.statusDistribution.map((sd) => {
-                      const cfg = STATUS_CFG[sd.status] ?? { label: sd.status, color: "text-muted-foreground", bg: "bg-muted/10", border: "border-border" };
-                      return (
-                        <div key={sd.status} className="flex items-center gap-3">
-                          <span className={`text-[11px] w-24 shrink-0 ${cfg.color}`}>{cfg.label}</span>
-                          <div className="flex-1 h-2 rounded-full bg-muted/20 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${sd.percentage}%`, background: "currentColor" }} />
-                          </div>
-                          <span className="text-[11px] text-muted-foreground w-16 text-left">{sd.count} ({sd.percentage}%)</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="flex flex-col items-center justify-center px-4 border-t md:border-t-0 md:border-r border-border pt-3 md:pt-0 md:pr-4">
-                  <p className="text-[11px] text-muted-foreground mb-1">شحنات آخر 7 أيام</p>
-                  <p className="text-3xl font-black text-primary">{data.stats.weeklyShipments}</p>
-                </div>
-              </div>
-            </Card>
           )}
 
           {/* الجدول */}
@@ -366,15 +347,7 @@ export default function ClientAccountSheetPage() {
               </thead>
               <tbody>
                 {data.orders.map((o) => (
-                  <tr
-                    key={o.id}
-                    className="border-b border-border/50 hover:bg-muted/10 cursor-pointer"
-                    onClick={(e) => {
-                      // منع فتح تفاصيل الشحنة لو المستخدم بيضغط على عنصر تفاعلي جوه الصف (تعديل المحصَّل مثلاً)
-                      if ((e.target as HTMLElement).closest("button, input")) return;
-                      navigate(`/shipments/${o.id}`);
-                    }}
-                  >
+                  <tr key={o.id} className="border-b border-border/50 hover:bg-muted/10">
                     <td className="p-2.5 font-bold">{o.customerName}</td>
                     <td className="p-2.5">{o.phone || "—"}</td>
                     <td className="p-2.5">{o.city || "—"}</td>
