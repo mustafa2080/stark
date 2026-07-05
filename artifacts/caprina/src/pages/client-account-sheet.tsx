@@ -13,7 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   Search, User, Phone, MapPin, Printer, Lock, Package,
-  RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3,
+  RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3, ListFilter, X,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -95,6 +95,66 @@ function StatBox({ label, value, icon: Icon, color }: { label: string; value: nu
   );
 }
 
+// ── رأس عمود قابل للفلترة زي الإكسيل ─────────────────────────────────────
+function ColumnHeader({
+  label, col, enabled, values, active, open, onToggleOpen, onToggleValue, onClear,
+}: {
+  label: string;
+  col: string;
+  enabled: boolean;
+  values: string[];
+  active?: Set<string>;
+  open: boolean;
+  onToggleOpen: () => void;
+  onToggleValue: (col: string, value: string) => void;
+  onClear: (col: string) => void;
+}) {
+  const hasActive = !!active && active.size > 0;
+  return (
+    <div className="relative flex items-center gap-1.5">
+      <span>{label}</span>
+      {enabled && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleOpen(); }}
+          className={`p-0.5 rounded hover:bg-muted/40 ${hasActive ? "text-primary" : "text-muted-foreground"}`}
+          title="فلترة"
+        >
+          <ListFilter className="w-3 h-3" />
+        </button>
+      )}
+      {enabled && open && (
+        <div
+          className="absolute top-full right-0 mt-1 z-20 w-52 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg p-2 text-[11px] font-normal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-bold">فلترة {label}</span>
+            {hasActive && (
+              <button className="text-muted-foreground hover:text-foreground flex items-center gap-0.5" onClick={() => onClear(col)}>
+                <X className="w-3 h-3" /> مسح
+              </button>
+            )}
+          </div>
+          <div className="space-y-1">
+            {values.map((v) => (
+              <label key={v} className="flex items-center gap-2 cursor-pointer hover:bg-muted/20 rounded px-1 py-0.5">
+                <input
+                  type="checkbox"
+                  checked={active ? active.has(v) : false}
+                  onChange={() => onToggleValue(col, v)}
+                  className="accent-primary"
+                />
+                <span className="truncate">{v}</span>
+              </label>
+            ))}
+            {values.length === 0 && <p className="text-muted-foreground text-center py-2">لا يوجد قيم</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 
 type ClientRow = {
@@ -108,16 +168,16 @@ export default function ClientAccountSheetPage() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const [searchName, setSearchName] = useState("");
-  const [searchPhone, setSearchPhone] = useState("");
   const [activePhone, setActivePhone] = useState("");
   const [matches, setMatches] = useState<SearchMatch[] | null>(null);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [closeNotes, setCloseNotes] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [collectedInput, setCollectedInput] = useState("");
-  const [searching, setSearching] = useState(false);
   const [tableFilter, setTableFilter] = useState("");
+  const [filtersEnabled, setFiltersEnabled] = useState(false);
+  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
 
   const hasSearch = !!activePhone;
 
@@ -135,56 +195,59 @@ export default function ClientAccountSheetPage() {
   });
 
   const filteredClients = useMemo(() => {
-    const list = allClientsData?.clients ?? [];
+    let list = allClientsData?.clients ?? [];
     const q = tableFilter.trim();
-    if (!q) return list;
-    const qNorm = q.replace(/\D/g, "");
-    return list.filter((c) =>
-      c.name?.toLowerCase().includes(q.toLowerCase()) ||
-      (qNorm && c.phone?.replace(/\D/g, "").includes(qNorm)) ||
-      (!qNorm && c.phone?.includes(q))
-    );
-  }, [allClientsData, tableFilter]);
+    if (q) {
+      const qNorm = q.replace(/\D/g, "");
+      list = list.filter((c) =>
+        c.name?.toLowerCase().includes(q.toLowerCase()) ||
+        (qNorm && c.phone?.replace(/\D/g, "").includes(qNorm)) ||
+        (!qNorm && c.phone?.includes(q))
+      );
+    }
+    for (const [col, values] of Object.entries(columnFilters)) {
+      if (!values || values.size === 0) continue;
+      list = list.filter((c) => values.has(String((c as any)[col] ?? "—")));
+    }
+    return list;
+  }, [allClientsData, tableFilter, columnFilters]);
+
+  // القيم الفريدة لكل عمود، لبناء قائمة الفلتر زي الإكسيل
+  const columnValues = useMemo(() => {
+    const list = allClientsData?.clients ?? [];
+    const cols = ["name", "phone", "city"] as const;
+    const map: Record<string, string[]> = {};
+    for (const col of cols) {
+      const set = new Set<string>();
+      for (const c of list) set.add(String((c as any)[col] ?? "—"));
+      map[col] = Array.from(set).sort((a, b) => a.localeCompare(b, "ar"));
+    }
+    return map;
+  }, [allClientsData]);
+
+  const toggleColumnFilterValue = (col: string, value: string) => {
+    setColumnFilters((prev) => {
+      const next = { ...prev };
+      const current = new Set(next[col] ?? []);
+      if (current.has(value)) current.delete(value);
+      else current.add(value);
+      next[col] = current;
+      return next;
+    });
+  };
+
+  const clearColumnFilter = (col: string) => {
+    setColumnFilters((prev) => {
+      const next = { ...prev };
+      delete next[col];
+      return next;
+    });
+  };
 
   // اختيار مباشر برقم تليفون (مفتاح دقيق)
   const selectPhone = (phone: string) => {
     setMatches(null);
     setActivePhone(phone.trim());
-  };
-
-  const runSearch = async () => {
-    const name = searchName.trim();
-    const phone = searchPhone.trim();
-
-    if (!name && !phone) {
-      toast({ title: "لازم تكتب اسم أو رقم تليفون للبحث", variant: "destructive" });
-      return;
-    }
-
-    // البحث بالفون دايماً دقيق ومباشر — أفضل مفتاح لأن الاسم ممكن يتكرر أو يختلف فى الكتابة
-    if (phone) {
-      selectPhone(phone);
-      return;
-    }
-
-    // البحث بالاسم بيرجع قائمة أرقام مطابقة لاختيار الصح منها
-    setSearching(true);
-    setMatches(null);
-    setActivePhone("");
-    try {
-      const res = await apiFetch<{ matches: SearchMatch[] }>(`/client-account-sheet/search?name=${encodeURIComponent(name)}`);
-      if (res.matches.length === 0) {
-        toast({ title: "مفيش نتائج", description: "مفيش عميل بهذا الاسم فى الشحنات" });
-      } else if (res.matches.length === 1) {
-        selectPhone(res.matches[0].phone);
-      } else {
-        setMatches(res.matches);
-      }
-    } catch (e: any) {
-      toast({ title: "حصل خطأ فى البحث", description: e.message, variant: "destructive" });
-    } finally {
-      setSearching(false);
-    }
   };
 
   const collectedMutation = useMutation({
@@ -234,33 +297,31 @@ export default function ClientAccountSheetPage() {
         </div>
       </div>
 
-      {/* شريط البحث */}
-      <Card className="p-4 border-border print:hidden">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Input
-            placeholder="اسم العميل"
-            value={searchName}
-            onChange={(e) => setSearchName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runSearch()}
-            className="flex-1"
-          />
-          <Input
-            placeholder="رقم التليفون (أدق)"
-            value={searchPhone}
-            onChange={(e) => setSearchPhone(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runSearch()}
-            className="flex-1"
-          />
-          <Button onClick={runSearch} disabled={isFetching || searching} className="gap-2">
-            {(isFetching || searching) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            بحث
-          </Button>
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-2">
-          البحث بالتليفون دقيق ومباشر. البحث بالاسم فقط هيوريك كل الأرقام المطابقة عشان تختار العميل الصح
-          (لأن نفس الاسم ممكن يتكرر لأكتر من زبون).
-        </p>
-      </Card>
+      {/* ملخص سريع */}
+      {!hasSearch && (
+        <Card className="p-4 border-border print:hidden">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <div>
+                <p className="text-sm font-bold">{fmt(filteredClients.length)} عميل</p>
+                <p className="text-[11px] text-muted-foreground">
+                  اضغط على أي صف فى الجدول تحت لعرض حساب العميل بالتفصيل
+                </p>
+              </div>
+            </div>
+            <Button
+              variant={filtersEnabled ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => setFiltersEnabled((v) => !v)}
+            >
+              <ListFilter className="w-4 h-4" />
+              {filtersEnabled ? "إخفاء الفلاتر" : "إنشاء فلتر"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* قائمة المرشحين لما البحث بالاسم يرجع أكتر من رقم */}
       {matches && matches.length > 0 && (
@@ -309,9 +370,24 @@ export default function ClientAccountSheetPage() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border bg-muted/20">
-                    <th className="p-2.5 text-right font-bold">اسم العميل</th>
-                    <th className="p-2.5 text-right font-bold">الفون</th>
-                    <th className="p-2.5 text-right font-bold">المحافظة</th>
+                    <th className="p-2.5 text-right font-bold">
+                      <ColumnHeader label="اسم العميل" col="name" enabled={filtersEnabled}
+                        values={columnValues.name} active={columnFilters.name}
+                        open={openFilterCol === "name"} onToggleOpen={() => setOpenFilterCol((v) => v === "name" ? null : "name")}
+                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter} />
+                    </th>
+                    <th className="p-2.5 text-right font-bold">
+                      <ColumnHeader label="الفون" col="phone" enabled={filtersEnabled}
+                        values={columnValues.phone} active={columnFilters.phone}
+                        open={openFilterCol === "phone"} onToggleOpen={() => setOpenFilterCol((v) => v === "phone" ? null : "phone")}
+                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter} />
+                    </th>
+                    <th className="p-2.5 text-right font-bold">
+                      <ColumnHeader label="المحافظة" col="city" enabled={filtersEnabled}
+                        values={columnValues.city} active={columnFilters.city}
+                        open={openFilterCol === "city"} onToggleOpen={() => setOpenFilterCol((v) => v === "city" ? null : "city")}
+                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter} />
+                    </th>
                     <th className="p-2.5 text-right font-bold">عدد الشحنات</th>
                     <th className="p-2.5 text-right font-bold">إجمالي القيمة</th>
                     <th className="p-2.5 text-right font-bold">المحصَّل</th>
