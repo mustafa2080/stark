@@ -769,44 +769,63 @@ export default function ClientAccountSheetPage() {
         </>
       )}
 
-      {/* Dialog تفاصيل الأوردر — تصميم احترافي زي كشف STARK */}
+      {/* Dialog تفاصيل الأوردر — تصميم فاتورة احترافية بهوية STARK */}
       <Dialog open={!!detailOrder} onOpenChange={(open) => !open && setDetailOrder(null)}>
-        <DialogContent className="sm:max-w-lg p-0 overflow-hidden gap-0">
+        <DialogContent className="sm:max-w-xl p-0 overflow-hidden gap-0 border-border">
           {detailOrder && (() => {
             const o = detailOrder;
             const net = Number(o.totalPrice ?? 0) - Number(o.shippingCost ?? 0);
             const cfg = STATUS_CFG[o.status] ?? { label: o.status, color: "text-muted-foreground", bg: "bg-muted/10", border: "border-border" };
+            const collectPct = Number(o.totalPrice) > 0 && o.collectedAmount != null
+              ? Math.min(100, Math.round((Number(o.collectedAmount) / Number(o.totalPrice)) * 100))
+              : null;
             return (
               <>
-                {/* هيدر بهوية STARK */}
-                <div className="relative px-5 pt-5 pb-4 bg-gradient-to-l from-primary/15 via-primary/5 to-transparent border-b border-border">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <ClientAvatar name={o.customerName} />
-                      <div>
-                        <DialogTitle className="text-base font-black">{o.customerName}</DialogTitle>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <Hash className="w-3 h-3" /> أوردر #{o.id}
-                          {o.invoiceNumber && <span className="mx-1">•</span>}
-                          {o.invoiceNumber && <span>فاتورة {o.invoiceNumber}</span>}
-                        </p>
+                {/* هيدر داكن بهوية الشركة */}
+                <div className="relative bg-[#0b0f19] px-6 pt-6 pb-5 overflow-hidden">
+                  <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full bg-primary/10 blur-2xl" />
+                  <div className="absolute -bottom-14 -right-10 w-48 h-48 rounded-full bg-primary/5 blur-2xl" />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 text-white">
+                        <span className="text-lg font-black tracking-wide">STARK</span>
+                        <span className="text-[10px] text-white/40 font-medium">كشف تفاصيل شحنة</span>
                       </div>
+                      <p className="text-[11px] text-white/50 mt-2 flex items-center gap-1.5">
+                        <Hash className="w-3 h-3" /> أوردر #{o.id}
+                        {o.invoiceNumber && <span className="text-white/25">•</span>}
+                        {o.invoiceNumber && <span>فاتورة {o.invoiceNumber}</span>}
+                      </p>
+                      <p className="text-[11px] text-white/40 mt-1 flex items-center gap-1.5">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(o.createdAt).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })}
+                      </p>
                     </div>
-                    <Badge variant="outline" className={`text-[11px] shrink-0 ${cfg.border} ${cfg.bg} ${cfg.color}`}>
+                    <Badge variant="outline" className={`text-[11px] shrink-0 ${cfg.border} ${cfg.bg} ${cfg.color} px-2.5 py-1`}>
                       {cfg.label}
                     </Badge>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {new Date(o.createdAt).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })}
-                  </p>
+
+                  {/* بطاقة العميل داخل الهيدر */}
+                  <div className="relative mt-4 flex items-center gap-3 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-3">
+                    <ClientAvatar name={o.customerName} />
+                    <div className="min-w-0 flex-1">
+                      <DialogTitle className="text-sm font-black text-white truncate">{o.customerName}</DialogTitle>
+                      <p className="text-[11px] text-white/50 flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3" /> {o.phone || "—"}
+                        {o.city && <span className="text-white/25 mx-1">•</span>}
+                        {o.city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {o.city}</span>}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="px-5 py-2 max-h-[60vh] overflow-y-auto">
-                  {/* بيانات التواصل والعنوان */}
-                  <div className="py-1">
-                    <DetailRow icon={Phone} label="رقم الهاتف" value={o.phone || "—"} />
-                    <DetailRow icon={MapPin} label="المحافظة" value={o.city || "—"} />
+                <div className="px-6 py-4 max-h-[56vh] overflow-y-auto">
+                  {/* قسم: بيانات الشحن */}
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                    <Truck className="w-3 h-3" /> بيانات الشحن
+                  </p>
+                  <div className="rounded-xl border border-border overflow-hidden mb-4">
                     <DetailRow icon={Building2} label="العنوان" value={o.address || "—"} />
                     <DetailRow icon={Send} label="اسم الراسل" value={o.senderName || "—"} />
                     <DetailRow icon={Warehouse} label="الفرع المستلم منه" value={o.warehouseName || "—"} />
@@ -820,36 +839,53 @@ export default function ClientAccountSheetPage() {
                     <DetailRow icon={Package} label="المنتج" value={o.product || "—"} />
                   </div>
 
-                  {/* المبالغ المالية — كارت مميز */}
-                  <div className="my-3 rounded-xl border border-border bg-muted/10 p-3 space-y-0.5">
-                    <DetailRow icon={DollarSign} label="سعر الشحنة" value={fmt(o.unitPrice)} />
-                    <DetailRow icon={Package} label="قيمة الشحنة" value={fmt(o.totalPrice)} highlight />
-                    <DetailRow icon={Truck} label="قيمة الشحن" value={fmt(o.shippingCost)} />
-                    <DetailRow
-                      icon={Wallet}
-                      label="المحصَّل فعلياً"
-                      value={o.collectedAmount != null ? fmt(o.collectedAmount) : "لم يُحدَّد"}
-                      color={o.collectedAmount != null ? "#10b981" : undefined}
-                    />
-                    <div className="flex items-center justify-between pt-2 mt-1 border-t border-border">
-                      <span className="flex items-center gap-2 text-xs font-bold">
-                        <Receipt className="w-3.5 h-3.5 text-primary" /> الصافي
+                  {/* قسم: الحساب المالي */}
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                    <Receipt className="w-3 h-3" /> الحساب المالي
+                  </p>
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    <div className="p-3.5 space-y-0.5">
+                      <DetailRow icon={DollarSign} label="سعر الشحنة" value={fmt(o.unitPrice)} />
+                      <DetailRow icon={Package} label="قيمة الشحنة" value={fmt(o.totalPrice)} highlight />
+                      <DetailRow icon={Truck} label="قيمة الشحن" value={fmt(o.shippingCost)} />
+                      <DetailRow
+                        icon={Wallet}
+                        label="المحصَّل فعلياً"
+                        value={o.collectedAmount != null ? fmt(o.collectedAmount) : "لم يُحدَّد"}
+                        color={o.collectedAmount != null ? "#10b981" : undefined}
+                      />
+                    </div>
+
+                    {collectPct != null && (
+                      <div className="px-3.5 pb-3">
+                        <div className="w-full h-1.5 rounded-full bg-muted/30 overflow-hidden">
+                          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${collectPct}%` }} />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1 text-left">{collectPct}% من قيمة الشحنة</p>
+                      </div>
+                    )}
+
+                    {/* الصافي — بارز زي إجمالي فاتورة */}
+                    <div className="flex items-center justify-between px-3.5 py-3.5 bg-primary/5 border-t border-border">
+                      <span className="flex items-center gap-2 text-sm font-black">
+                        <Receipt className="w-4 h-4 text-primary" /> صافي المستحق
                       </span>
-                      <span className="text-base font-black text-primary">{fmt(net)}</span>
+                      <span className="text-xl font-black text-primary">{fmt(net)}</span>
                     </div>
                   </div>
 
                   {o.notes && (
-                    <div className="mb-3 rounded-lg border border-amber-700/30 bg-amber-900/10 p-3">
-                      <p className="text-[11px] text-amber-400 flex items-center gap-1.5 font-bold mb-1">
+                    <div className="mt-4 rounded-xl border border-amber-700/30 bg-amber-900/10 p-3.5">
+                      <p className="text-[11px] text-amber-400 flex items-center gap-1.5 font-black mb-1">
                         <StickyNote className="w-3.5 h-3.5" /> ملاحظات
                       </p>
-                      <p className="text-xs text-foreground/90">{o.notes}</p>
+                      <p className="text-xs text-foreground/90 leading-relaxed">{o.notes}</p>
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-muted/5">
+                <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-border bg-muted/5">
+                  <p className="text-[10px] text-muted-foreground">صادر إلكترونيًا عبر نظام STARK</p>
                   <Button variant="outline" size="sm" onClick={() => setDetailOrder(null)}>إغلاق</Button>
                 </div>
               </>
