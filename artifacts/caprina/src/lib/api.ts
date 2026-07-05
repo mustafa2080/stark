@@ -2016,3 +2016,140 @@ export const notificationsApi = {
   markRead: (id: number) => apiFetch<{ success: boolean }>(`/notifications/${id}/read`, { method: "PATCH" }),
   markAllRead: () => apiFetch<{ success: boolean }>("/notifications/read-all", { method: "PATCH" }),
 };
+
+// ─── Client Account Pro API (حساب العميل الاحترافي) ─────────────────────────
+export type ReceiverAccountStatus = "active" | "suspended";
+export type ReceiverPaymentMethod = "cod" | "prepaid" | "deferred";
+export type ClientPaymentMethod = "cash" | "bank_transfer" | "wallet" | "instapay" | "other";
+export type ClientInvoiceStatus = "unpaid" | "partial" | "paid";
+
+export interface ReceiverClientProfile {
+  id: number;
+  tenantId: number | null;
+  normalizedPhone: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  address: string | null;
+  accountNumber: string | null;
+  creditLimit: string;
+  paymentMethod: ReceiverPaymentMethod;
+  accountStatus: ReceiverAccountStatus;
+  internalNotes: string | null;
+  suspendedAt: string | null;
+  suspendedByUserId: number | null;
+  suspendedByName: string | null;
+  suspendReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientStatementEntry {
+  date: string;
+  type: "debit" | "credit";
+  description: string;
+  amount: number;
+  refId: number;
+  balance: number;
+}
+export interface ClientStatementResponse {
+  entries: ClientStatementEntry[];
+  totalDebit: number;
+  totalCredit: number;
+  currentBalance: number;
+}
+
+export interface ClientPaymentDTO {
+  id: number;
+  tenantId: number | null;
+  clientPhone: string;
+  normalizedPhone: string;
+  amount: string;
+  paymentMethod: ClientPaymentMethod;
+  receiptNumber: string | null;
+  linkedShipmentId: number | null;
+  receivedByUserId: number | null;
+  receivedByName: string | null;
+  notes: string | null;
+  paidAt: string;
+  createdAt: string;
+}
+
+export interface ClientInvoiceDTO {
+  id: number;
+  tenantId: number | null;
+  invoiceNumber: string;
+  clientPhone: string;
+  normalizedPhone: string;
+  periodFrom: string | null;
+  periodTo: string | null;
+  shipmentIds: number[];
+  totalAmount: string;
+  paidAmount: string;
+  status: ClientInvoiceStatus;
+  notes: string | null;
+  createdByUserId: number | null;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientMonthlyStat {
+  month: string;
+  shipmentsCount: number;
+  totalAmount: number;
+  delivered: number;
+  returned: number;
+}
+export interface ClientGovernorateStat { city: string; count: number; }
+export interface ClientAnalyticsResponse {
+  monthly: ClientMonthlyStat[];
+  byGovernorate: ClientGovernorateStat[];
+  returnRate: number;
+  healthScore: number;
+  healthBreakdown: {
+    returnHealthComponent: number;
+    paymentComplianceRate: number;
+    volumeScore: number;
+  } | null;
+}
+
+export const clientAccountProApi = {
+  getProfile: (phone: string) =>
+    apiFetch<{ client: ReceiverClientProfile | null }>(`/client-account-pro/profile?phone=${encodeURIComponent(phone)}`),
+  updateProfile: (data: {
+    phone: string; name?: string; email?: string | null; city?: string | null;
+    address?: string | null; creditLimit?: number | null;
+    paymentMethod?: ReceiverPaymentMethod; internalNotes?: string | null;
+  }) => apiFetch<{ success: boolean }>("/client-account-pro/profile", { method: "PATCH", body: JSON.stringify(data) }),
+  suspend: (phone: string, suspend: boolean, reason?: string | null) =>
+    apiFetch<{ success: boolean }>("/client-account-pro/suspend", {
+      method: "POST", body: JSON.stringify({ phone, suspend, reason }),
+    }),
+
+  getStatement: (phone: string) =>
+    apiFetch<ClientStatementResponse>(`/client-account-pro/statement?phone=${encodeURIComponent(phone)}`),
+
+  getPayments: (phone: string) =>
+    apiFetch<{ payments: ClientPaymentDTO[] }>(`/client-account-pro/payments?phone=${encodeURIComponent(phone)}`),
+  createPayment: (data: {
+    phone: string; amount: number; paymentMethod: ClientPaymentMethod;
+    receiptNumber?: string | null; linkedShipmentId?: number | null;
+    notes?: string | null; paidAt?: string | null;
+  }) => apiFetch<{ success: boolean; id: number }>("/client-account-pro/payments", { method: "POST", body: JSON.stringify(data) }),
+  deletePayment: (id: number) =>
+    apiFetch<{ success: boolean }>(`/client-account-pro/payments/${id}`, { method: "DELETE" }),
+
+  getInvoices: (phone: string) =>
+    apiFetch<{ invoices: ClientInvoiceDTO[] }>(`/client-account-pro/invoices?phone=${encodeURIComponent(phone)}`),
+  createInvoice: (data: {
+    phone: string; shipmentIds: number[]; periodFrom?: string | null;
+    periodTo?: string | null; notes?: string | null;
+  }) => apiFetch<{ success: boolean; id: number; invoiceNumber: string }>("/client-account-pro/invoices", { method: "POST", body: JSON.stringify(data) }),
+  updateInvoice: (id: number, data: { paidAmount?: number; status?: ClientInvoiceStatus }) =>
+    apiFetch<{ success: boolean }>(`/client-account-pro/invoices/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  getAnalytics: (phone: string) =>
+    apiFetch<ClientAnalyticsResponse>(`/client-account-pro/analytics?phone=${encodeURIComponent(phone)}`),
+};

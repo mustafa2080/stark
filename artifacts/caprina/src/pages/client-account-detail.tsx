@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import ClientAccountProPanel from "@/components/client-account-pro-panel";
 import {
   User, Phone, MapPin, ArrowRight, Wallet,
   CheckCircle2, ListOrdered, TrendingUp, Lock, History, Ban, Search,
@@ -197,6 +198,9 @@ export default function ClientAccountDetailPage() {
               )}
             </div>
           </div>
+
+          {/* ── الملف الاحترافي — بروفايل / كشف حساب / تحصيلات / فواتير / تحليلات ── */}
+          <ClientAccountProPanel phone={phone} clientName={data.client.name} />
 
           {/* ── الإجماليات المالية — دوائر نسبة ── */}
           {data.totals && (
