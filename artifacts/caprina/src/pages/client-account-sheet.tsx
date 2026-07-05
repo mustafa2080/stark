@@ -908,7 +908,7 @@ export default function ClientAccountSheetPage() {
 
           {/* المربعات الأربعة */}
           {data.stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:hidden">
               <StatBox label="الجاري" value={data.stats.delayedOrInDelivery} icon={Truck} color="#3b82f6" />
               <StatBox label="مرتجع لم يصل" value={data.stats.returnedNotReceived} icon={RotateCcw} color="#ef4444" />
               <StatBox label="الجديد" value={data.stats.newOrders} icon={Package} color="#f59e0b" />
