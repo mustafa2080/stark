@@ -404,7 +404,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* ── Sidebar wrapper (desktop) ── */}
       <div
         ref={sidebarRef}
-        className="hidden md:flex shrink-0 relative"
+        className="hidden md:flex print:hidden shrink-0 relative"
         style={{
           width: sidebarCollapsed ? "68px" : "240px",
           transition: "width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
@@ -736,7 +736,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* ── Main content ── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
-        <header className="border-b border-sidebar-border/40 bg-sidebar md:hidden shrink-0">
+        <header className="border-b border-sidebar-border/40 bg-sidebar md:hidden print:hidden shrink-0">
           <div className="flex items-center justify-between px-3 h-12 gap-2">
 
             {/* ── وسط: brand logo + name (same style as desktop) ── */}
@@ -985,7 +985,7 @@ export default function Layout({ children }: LayoutProps) {
           const visible = allowed.slice(0, 5);
 
           return (
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
+            <nav className="md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
               style={{
                 background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
                 borderTop: "1px solid rgba(255,255,255,0.06)",
