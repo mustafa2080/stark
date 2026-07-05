@@ -33,6 +33,10 @@ export const receiverClientsTable = mysqlTable("receiver_clients", {
 
   internalNotes:  text("internal_notes"),
 
+  // ─── آخر تاريخ اتقفل فيه حساب العميل (Period Lock) — أي شحنة/تحصيل بعد
+  // التاريخ ده يدخل في الفترة الجارية، وأي حاجة قبله محمية من التعديل ───────
+  lastClosedPeriodTo: datetime("last_closed_period_to"),
+
   suspendedAt:      datetime("suspended_at"),
   suspendedByUserId: int("suspended_by_user_id"),
   suspendedByName:   varchar("suspended_by_name", { length: 255 }),

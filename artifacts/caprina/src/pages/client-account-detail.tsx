@@ -18,13 +18,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   clientAccountProApi, type ReceiverPaymentMethod, type ClientPaymentMethod,
+  type AdjustmentType, type AdjustmentDirection, ADJUSTMENT_TYPE_LABELS,
 } from "@/lib/api";
 import {
   Phone, Mail, ArrowRight, Wallet, Plus, ChevronDown,
   Users2, MessageSquareText, RotateCcw, Receipt, FileSpreadsheet,
   Save, Ban, CheckCircle2, ShieldAlert, ShieldCheck, Loader2,
   ArrowDownCircle, ArrowUpCircle, Activity, TrendingUp, TrendingDown,
-  CreditCard, Trash2, Send, Building2,
+  CreditCard, Trash2, Send, Building2, Lock, LockOpen, AlertTriangle, XCircle,
 } from "lucide-react";
 
 const fmt = (n: string | number | null | undefined) =>
@@ -180,7 +181,7 @@ export default function ClientAccountDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<"statement" | "payments" | "invoices" | "analytics" | "closures">("statement");
+  const [activeTab, setActiveTab] = useState<"statement" | "payments" | "invoices" | "analytics" | "adjustments" | "closures">("statement");
   const [closureSearch, setClosureSearch] = useState("");
   const [statementFrom, setStatementFrom] = useState("");
   const [statementTo, setStatementTo] = useState("");
@@ -196,6 +197,18 @@ export default function ClientAccountDetailPage() {
   const [paymentForm, setPaymentForm] = useState({
     amount: "", paymentMethod: "cash" as ClientPaymentMethod, receiptNumber: "", notes: "",
   });
+
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [adjustmentForm, setAdjustmentForm] = useState<{
+    type: AdjustmentType; direction: AdjustmentDirection; amount: string; reason: string;
+  }>({ type: "discount", direction: "credit", amount: "", reason: "" });
+
+  const [closePeriodDialogOpen, setClosePeriodDialogOpen] = useState(false);
+  const [closePeriodForm, setClosePeriodForm] = useState({ periodFrom: "", periodTo: "", notes: "" });
+  const [closeSummary, setCloseSummary] = useState<{
+    openingBalance: number; totalDebit: number; totalCredit: number;
+    totalAdjustments: number; closingBalance: number; ordersCount: number;
+  } | null>(null);
 
   const { data, isLoading } = useQuery<DetailResponse>({
     queryKey: ["client-account-detail", phone],
@@ -234,6 +247,20 @@ export default function ClientAccountDetailPage() {
     queryFn: () => clientAccountProApi.getAnalytics(phone),
     enabled: !!phone,
   });
+
+  const { data: adjustmentsData, isLoading: adjustmentsLoading } = useQuery({
+    queryKey: ["client-account-pro-adjustments", phone],
+    queryFn: () => clientAccountProApi.getAdjustments(phone),
+    enabled: !!phone,
+  });
+
+  const { data: periodsData, isLoading: periodsLoading } = useQuery({
+    queryKey: ["client-account-pro-periods", phone],
+    queryFn: () => clientAccountProApi.getPeriods(phone),
+    enabled: !!phone,
+  });
+
+  const creditStatus = profileData?.creditStatus ?? null;
 
   const saveProfileMutation = useMutation({
     mutationFn: () => clientAccountProApi.updateProfile({
@@ -282,6 +309,55 @@ export default function ClientAccountDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["client-account-pro-payments", phone] });
       queryClient.invalidateQueries({ queryKey: ["client-account-pro-statement", phone] });
       toast({ title: "تم حذف التحصيل" });
+    },
+    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const createAdjustmentMutation = useMutation({
+    mutationFn: () => clientAccountProApi.createAdjustment({
+      phone, type: adjustmentForm.type, direction: adjustmentForm.direction,
+      amount: Number(adjustmentForm.amount), reason: adjustmentForm.reason,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-adjustments", phone] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-profile", phone] });
+      toast({ title: "تم إضافة التسوية" });
+      setAdjustmentDialogOpen(false);
+      setAdjustmentForm({ type: "discount", direction: "credit", amount: "", reason: "" });
+    },
+    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const voidAdjustmentMutation = useMutation({
+    mutationFn: (id: number) => clientAccountProApi.voidAdjustment(id, "إلغاء يدوي"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-adjustments", phone] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-profile", phone] });
+      toast({ title: "تم إلغاء التسوية" });
+    },
+    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const closePeriodMutation = useMutation({
+    mutationFn: () => clientAccountProApi.closePeriod({
+      phone, periodFrom: closePeriodForm.periodFrom, periodTo: closePeriodForm.periodTo,
+      notes: closePeriodForm.notes || null,
+    }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-periods", phone] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-profile", phone] });
+      setCloseSummary(res.summary);
+      toast({ title: "تم إقفال الفترة بنجاح" });
+    },
+    onError: (e: any) => toast({ title: "تعذر إقفال الفترة", description: e.message, variant: "destructive" }),
+  });
+
+  const reopenPeriodMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => clientAccountProApi.reopenPeriod(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-periods", phone] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-profile", phone] });
+      toast({ title: "تم إعادة فتح الفترة" });
     },
     onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
   });
@@ -425,6 +501,16 @@ export default function ClientAccountDetailPage() {
                     <ShieldCheck className="w-3 h-3" /> نشط
                   </Badge>
                 )}
+                {creditStatus?.overLimit && (
+                  <Badge variant="outline" className="text-red-400 bg-red-900/10 border-red-700 gap-1 text-[10px]">
+                    <AlertTriangle className="w-3 h-3" /> تجاوز حد الائتمان بـ {fmt(creditStatus.overLimitAmount)} ج.م
+                  </Badge>
+                )}
+                {client?.lastClosedPeriodTo && (
+                  <Badge variant="outline" className="text-blue-400 bg-blue-900/10 border-blue-700 gap-1 text-[10px]">
+                    <Lock className="w-3 h-3" /> مقفول حتى {fmtDate(client.lastClosedPeriodTo)}
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap mt-2">
                 {client?.accountNumber && <span>رقم العميل: {client.accountNumber}</span>}
@@ -447,6 +533,10 @@ export default function ClientAccountDetailPage() {
               <Button size="sm" variant="outline" className="gap-1.5" onClick={exportStatementCsv}>
                 <Send className="w-3.5 h-3.5" /> إرسال كشف حساب
               </Button>
+              <Button size="sm" variant="outline" className="gap-1.5 text-[#c9a227] border-[#c9a227]/40"
+                onClick={() => { setCloseSummary(null); setClosePeriodDialogOpen(true); }}>
+                <Lock className="w-3.5 h-3.5" /> إقفال فترة
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" variant="outline" className="gap-1.5">
@@ -455,6 +545,7 @@ export default function ClientAccountDetailPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem onClick={startEditProfile}>تعديل بيانات العميل</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setAdjustmentDialogOpen(true)}>إضافة تسوية/خصم</DropdownMenuItem>
                   {isSuspended ? (
                     <DropdownMenuItem onClick={() => suspendMutation.mutate(false)} className="text-emerald-500">
                       تفعيل الحساب
@@ -489,6 +580,7 @@ export default function ClientAccountDetailPage() {
           ["payments", "المدفوعات", CreditCard],
           ["invoices", "الفواتير", Receipt],
           ["analytics", "التحليلات", Activity],
+          ["adjustments", "التسويات", ShieldAlert],
           ["closures", "الإقفالات السابقة", Ban],
         ] as const).map(([key, label, Icon]) => (
           <button
@@ -751,6 +843,61 @@ export default function ClientAccountDetailPage() {
         </div>
       )}
 
+      {/* ══════════════ محتوى: التسويات/الخصومات ══════════════ */}
+      {activeTab === "adjustments" && (
+        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <p className="text-sm font-bold">التسويات والخصومات ({(adjustmentsData?.adjustments ?? []).length})</p>
+            <Button size="sm" className="gap-1.5" onClick={() => setAdjustmentDialogOpen(true)}>
+              <Plus className="w-3.5 h-3.5" /> إضافة تسوية
+            </Button>
+          </div>
+          {adjustmentsLoading ? (
+            <div className="p-10 text-center text-muted-foreground"><Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري التحميل...</div>
+          ) : (
+            <div className="space-y-2">
+              {(adjustmentsData?.adjustments ?? []).map(adj => {
+                const isVoided = !!adj.voidedAt;
+                const isCredit = adj.direction === "credit";
+                return (
+                  <div key={adj.id} className={`flex items-center justify-between gap-3 rounded-xl p-3 ${isVoided ? "opacity-50" : ""}`}
+                    style={{ background: "hsl(var(--muted)/0.15)" }}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: isCredit ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)" }}>
+                        {isCredit ? <ArrowDownCircle className="w-4.5 h-4.5 text-emerald-400" /> : <ArrowUpCircle className="w-4.5 h-4.5 text-red-400" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold flex items-center gap-1.5">
+                          {ADJUSTMENT_TYPE_LABELS[adj.type]}
+                          {isVoided && <Badge variant="outline" className="text-[9px] text-muted-foreground">ملغاة</Badge>}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate max-w-[280px]">{adj.reason}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{fmtDateTime(adj.adjustedAt)} {adj.createdByName ? `— بواسطة ${adj.createdByName}` : ""}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <p className={`text-sm font-black ${isCredit ? "text-emerald-400" : "text-red-400"}`}>
+                        {isCredit ? "-" : "+"}{fmt(adj.amount)} ج.م
+                      </p>
+                      {!isVoided && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400"
+                          onClick={() => voidAdjustmentMutation.mutate(adj.id)}>
+                          <XCircle className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {(adjustmentsData?.adjustments ?? []).length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-xs">لا توجد تسويات مسجلة</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ══════════════ محتوى: الإقفالات السابقة ══════════════ */}
       {activeTab === "closures" && (
         <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
@@ -801,6 +948,49 @@ export default function ClientAccountDetailPage() {
               </table>
             </div>
           )}
+
+          {/* ── فترات الإقفال الحقيقية (Period Lock) ── */}
+          <div className="mt-5 pt-4 border-t border-border">
+            <p className="text-sm font-bold mb-3 flex items-center gap-2"><Lock className="w-4 h-4 text-primary" /> فترات إقفال الحساب (رسمية)</p>
+            {periodsLoading ? (
+              <div className="p-6 text-center text-muted-foreground text-xs"><Loader2 className="w-5 h-5 mx-auto mb-1.5 animate-spin" /> جاري التحميل...</div>
+            ) : (periodsData?.periods ?? []).length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground text-xs">لا توجد فترات مقفولة رسميًا بعد</div>
+            ) : (
+              <div className="space-y-2">
+                {(periodsData?.periods ?? []).map(p => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl p-3 flex-wrap"
+                    style={{ background: "hsl(var(--muted)/0.15)" }}>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold flex items-center gap-1.5">
+                        {fmtDate(p.periodFrom)} → {fmtDate(p.periodTo)}
+                        <Badge variant="outline" className={`text-[9px] gap-1 ${p.status === "closed" ? "text-emerald-400 border-emerald-700" : "text-amber-400 border-amber-700"}`}>
+                          {p.status === "closed" ? <Lock className="w-2.5 h-2.5" /> : <LockOpen className="w-2.5 h-2.5" />}
+                          {p.status === "closed" ? "مقفولة" : "معاد فتحها"}
+                        </Badge>
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {p.ordersCount} شحنة — بواسطة {p.closedByName || "—"} — {fmtDateTime(p.createdAt)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] shrink-0">
+                      <div><p className="text-muted-foreground">افتتاحي</p><p className="font-bold">{fmt(p.openingBalance)}</p></div>
+                      <div><p className="text-muted-foreground">شحنات</p><p className="font-bold">{fmt(p.totalDebit)}</p></div>
+                      <div><p className="text-muted-foreground">تحصيل</p><p className="font-bold text-emerald-400">{fmt(p.totalCredit)}</p></div>
+                      <div><p className="text-muted-foreground">تسويات</p><p className="font-bold text-amber-400">{fmt(p.totalAdjustments)}</p></div>
+                      <div><p className="text-muted-foreground">ختامي</p><p className="font-black text-[#c9a227]">{fmt(p.closingBalance)}</p></div>
+                      {p.status === "closed" && (
+                        <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400"
+                          onClick={() => reopenPeriodMutation.mutate({ id: p.id, reason: "تصحيح يدوي" })}>
+                          <LockOpen className="w-3 h-3 ml-1" /> إعادة فتح
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -984,6 +1174,107 @@ export default function ClientAccountDetailPage() {
               تسجيل
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══════════════ Dialog: إضافة تسوية/خصم ══════════════ */}
+      <Dialog open={adjustmentDialogOpen} onOpenChange={setAdjustmentDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>إضافة تسوية / خصم</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">نوع التسوية</label>
+              <Select value={adjustmentForm.type} onValueChange={v => setAdjustmentForm(f => ({ ...f, type: v as AdjustmentType }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(ADJUSTMENT_TYPE_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">الأثر على الحساب</label>
+              <Select value={adjustmentForm.direction} onValueChange={v => setAdjustmentForm(f => ({ ...f, direction: v as AdjustmentDirection }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credit">لصالح العميل (يقلل المستحق)</SelectItem>
+                  <SelectItem value="debit">على العميل (يزود المستحق)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">المبلغ</label>
+              <Input type="number" value={adjustmentForm.amount} onChange={e => setAdjustmentForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">السبب / التفاصيل</label>
+              <Textarea placeholder="مثال: تلف في الشحنة رقم 1234 أثناء النقل..." value={adjustmentForm.reason}
+                onChange={e => setAdjustmentForm(f => ({ ...f, reason: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustmentDialogOpen(false)}>إلغاء</Button>
+            <Button disabled={!adjustmentForm.amount || adjustmentForm.reason.trim().length < 3 || createAdjustmentMutation.isPending}
+              onClick={() => createAdjustmentMutation.mutate()}>
+              حفظ التسوية
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══════════════ Dialog: إقفال فترة حساب رسمي ══════════════ */}
+      <Dialog open={closePeriodDialogOpen} onOpenChange={(open) => { setClosePeriodDialogOpen(open); if (!open) setCloseSummary(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="w-4 h-4 text-[#c9a227]" /> إقفال فترة حساب</DialogTitle></DialogHeader>
+          {!closeSummary ? (
+            <>
+              <div className="space-y-3">
+                {client?.lastClosedPeriodTo && (
+                  <p className="text-[11px] text-amber-400 bg-amber-900/10 border border-amber-700/40 rounded-lg p-2">
+                    آخر إقفال كان حتى {fmtDate(client.lastClosedPeriodTo)}. الفترة الجديدة لازم تبدأ بعد التاريخ ده.
+                  </p>
+                )}
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">من تاريخ</label>
+                  <Input type="date" value={closePeriodForm.periodFrom} onChange={e => setClosePeriodForm(f => ({ ...f, periodFrom: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">إلى تاريخ</label>
+                  <Input type="date" value={closePeriodForm.periodTo} onChange={e => setClosePeriodForm(f => ({ ...f, periodTo: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">ملاحظات (اختياري)</label>
+                  <Textarea value={closePeriodForm.notes} onChange={e => setClosePeriodForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setClosePeriodDialogOpen(false)}>إلغاء</Button>
+                <Button disabled={!closePeriodForm.periodFrom || !closePeriodForm.periodTo || closePeriodMutation.isPending}
+                  onClick={() => closePeriodMutation.mutate()}>
+                  إقفال الفترة
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2 rounded-lg bg-muted/10"><span>رصيد افتتاحي</span><b>{fmt(closeSummary.openingBalance)} ج.م</b></div>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-muted/10"><span>+ شحنات الفترة</span><b>{fmt(closeSummary.totalDebit)} ج.م</b></div>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-muted/10"><span>- تحصيلات الفترة</span><b className="text-emerald-400">{fmt(closeSummary.totalCredit)} ج.م</b></div>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-muted/10"><span>تسويات الفترة</span><b className="text-amber-400">{fmt(closeSummary.totalAdjustments)} ج.م</b></div>
+                <div className="flex items-center justify-between p-3 rounded-lg font-black" style={{ background: "rgba(201,162,39,0.12)", color: "#c9a227" }}>
+                  <span>الرصيد الختامي</span><span className="text-base">{fmt(closeSummary.closingBalance)} ج.م</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center">{closeSummary.ordersCount} شحنة تم تضمينها فى هذه الفترة</p>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => { setClosePeriodDialogOpen(false); setCloseSummary(null); setClosePeriodForm({ periodFrom: "", periodTo: "", notes: "" }); }}>
+                  تم
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

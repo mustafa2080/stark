@@ -2037,6 +2037,7 @@ export interface ReceiverClientProfile {
   paymentMethod: ReceiverPaymentMethod;
   accountStatus: ReceiverAccountStatus;
   internalNotes: string | null;
+  lastClosedPeriodTo: string | null;
   suspendedAt: string | null;
   suspendedByUserId: number | null;
   suspendedByName: string | null;
@@ -2115,9 +2116,75 @@ export interface ClientAnalyticsResponse {
   } | null;
 }
 
+export type AdjustmentType =
+  | "damage_deduction" | "return_deduction" | "discount" | "penalty"
+  | "manual_credit" | "manual_debit" | "correction";
+export type AdjustmentDirection = "credit" | "debit";
+
+export const ADJUSTMENT_TYPE_LABELS: Record<AdjustmentType, string> = {
+  damage_deduction: "خصم تالف",
+  return_deduction: "خصم بضاعة مرتجعة",
+  discount: "خصم تجاري",
+  penalty: "غرامة / خصم تأخير",
+  manual_credit: "إضافة لصالح العميل",
+  manual_debit: "إضافة على العميل",
+  correction: "تصحيح محاسبي",
+};
+
+export interface ClientAdjustmentDTO {
+  id: number;
+  tenantId: number | null;
+  clientPhone: string;
+  normalizedPhone: string;
+  type: AdjustmentType;
+  direction: AdjustmentDirection;
+  amount: string;
+  linkedShipmentId: number | null;
+  reason: string;
+  createdByUserId: number | null;
+  createdByName: string | null;
+  voidedAt: string | null;
+  voidedByUserId: number | null;
+  voidedByName: string | null;
+  voidReason: string | null;
+  adjustedAt: string;
+  createdAt: string;
+}
+
+export interface ClientAccountPeriodDTO {
+  id: number;
+  tenantId: number | null;
+  clientPhone: string;
+  normalizedPhone: string;
+  periodFrom: string;
+  periodTo: string;
+  openingBalance: string;
+  totalDebit: string;
+  totalCredit: string;
+  totalAdjustments: string;
+  closingBalance: string;
+  ordersCount: number;
+  orderIds: string | null;
+  notes: string | null;
+  closedByUserId: number | null;
+  closedByName: string | null;
+  reopenedAt: string | null;
+  reopenedByUserId: number | null;
+  reopenedByName: string | null;
+  status: "closed" | "reopened";
+  createdAt: string;
+}
+
+export interface ClientCreditStatus {
+  currentBalance: number;
+  creditLimit: number;
+  overLimit: boolean;
+  overLimitAmount: number;
+}
+
 export const clientAccountProApi = {
   getProfile: (phone: string) =>
-    apiFetch<{ client: ReceiverClientProfile | null }>(`/client-account-pro/profile?phone=${encodeURIComponent(phone)}`),
+    apiFetch<{ client: ReceiverClientProfile | null; creditStatus?: ClientCreditStatus }>(`/client-account-pro/profile?phone=${encodeURIComponent(phone)}`),
   updateProfile: (data: {
     phone: string; name?: string; email?: string | null; city?: string | null;
     address?: string | null; creditLimit?: number | null;
@@ -2152,4 +2219,23 @@ export const clientAccountProApi = {
 
   getAnalytics: (phone: string) =>
     apiFetch<ClientAnalyticsResponse>(`/client-account-pro/analytics?phone=${encodeURIComponent(phone)}`),
+
+  getAdjustments: (phone: string) =>
+    apiFetch<{ adjustments: ClientAdjustmentDTO[] }>(`/client-account-pro/adjustments?phone=${encodeURIComponent(phone)}`),
+  createAdjustment: (data: {
+    phone: string; type: AdjustmentType; direction: AdjustmentDirection;
+    amount: number; reason: string; linkedShipmentId?: number | null; adjustedAt?: string | null;
+  }) => apiFetch<{ success: boolean; id: number }>("/client-account-pro/adjustments", { method: "POST", body: JSON.stringify(data) }),
+  voidAdjustment: (id: number, voidReason?: string | null) =>
+    apiFetch<{ success: boolean }>(`/client-account-pro/adjustments/${id}`, { method: "DELETE", body: JSON.stringify({ voidReason }) }),
+
+  getPeriods: (phone: string) =>
+    apiFetch<{ periods: ClientAccountPeriodDTO[] }>(`/client-account-pro/periods?phone=${encodeURIComponent(phone)}`),
+  closePeriod: (data: { phone: string; periodFrom: string; periodTo: string; notes?: string | null }) =>
+    apiFetch<{ success: boolean; id: number; summary: {
+      openingBalance: number; totalDebit: number; totalCredit: number;
+      totalAdjustments: number; closingBalance: number; ordersCount: number;
+    } }>("/client-account-pro/periods/close", { method: "POST", body: JSON.stringify(data) }),
+  reopenPeriod: (id: number, reason: string) =>
+    apiFetch<{ success: boolean }>(`/client-account-pro/periods/${id}/reopen`, { method: "POST", body: JSON.stringify({ reason }) }),
 };
