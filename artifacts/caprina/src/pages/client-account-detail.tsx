@@ -1,13 +1,30 @@
 import { useParams, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ClientAccountProPanel from "@/components/client-account-pro-panel";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  User, Phone, MapPin, ArrowRight, Wallet,
-  CheckCircle2, ListOrdered, TrendingUp, Lock, History, Ban, Search,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import {
+  clientAccountProApi, type ReceiverPaymentMethod, type ClientPaymentMethod,
+} from "@/lib/api";
+import {
+  Phone, Mail, ArrowRight, Wallet, Plus, ChevronDown,
+  Users2, MessageSquareText, RotateCcw, Receipt, FileSpreadsheet,
+  Save, Ban, CheckCircle2, ShieldAlert, ShieldCheck, Loader2,
+  ArrowDownCircle, ArrowUpCircle, Activity, TrendingUp, TrendingDown,
+  CreditCard, Trash2, Send, Building2,
 } from "lucide-react";
 
 const fmt = (n: string | number | null | undefined) =>
@@ -16,34 +33,34 @@ const fmt = (n: string | number | null | undefined) =>
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" });
 
+const fmtDateTime = (d: string) => {
+  const date = new Date(d);
+  return date.toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" }) +
+    " " + date.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+};
+
+function timeAgo(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "الآن";
+  if (min < 60) return `منذ ${min} دقيقة`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `منذ ${hr} ساعة`;
+  const day = Math.floor(hr / 24);
+  return `منذ ${day} يوم`;
+}
+
 function initials(name: string) {
   return (name || "؟").trim().charAt(0);
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  waiting: "انتظار", confirmed: "مؤكدة", picked_up: "تم الاستلام",
-  in_transit: "في الطريق", out_for_delivery: "خرجت للتسليم", delayed: "مؤجل",
-  delivered: "تم التسليم", partial_received: "استلام جزئي", returned: "مرتجع", cancelled: "ملغي",
-  // ── حالات إضافية موجودة فى قاعدة البيانات (aliases قديمة/بيانات استيراد) ──
-  pending: "قيد الانتظار", warehouse_ready: "قيد الشحن في المخزن", in_shipping: "قيد الشحن",
-  received: "تم الاستلام",
+const PAYMENT_METHOD_LABELS: Record<ClientPaymentMethod, string> = {
+  cash: "نقدي", bank_transfer: "تحويل بنكي", wallet: "محفظة إلكترونية",
+  instapay: "انستاباي", other: "أخرى",
 };
-
-const STATUS_COLORS: Record<string, string> = {
-  waiting: "#f59e0b", confirmed: "#14b8a6", picked_up: "#0ea5e9",
-  in_transit: "#0ea5e9", out_for_delivery: "#3b82f6", delayed: "#f97316",
-  delivered: "#10b981", partial_received: "#06b6d4", returned: "#ef4444", cancelled: "#64748b",
-  pending: "#eab308", warehouse_ready: "#14b8a6", in_shipping: "#3b82f6", received: "#22c55e",
+const RECEIVER_PAYMENT_METHOD_LABELS: Record<ReceiverPaymentMethod, string> = {
+  cod: "الدفع عند الاستلام", prepaid: "مدفوع مسبقاً", deferred: "الدفع لاحق",
 };
-
-// أى حالة مش موجودة فى الـ map أعلاه (بيانات قديمة/غير متوقعة) تتحول لتسمية عربية عامة
-// بدل ما تظهر بالكود الإنجليزي الخام
-function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? "حالة أخرى";
-}
-function statusColor(status: string): string {
-  return STATUS_COLORS[status] ?? "#64748b";
-}
 
 type DetailResponse = {
   client: { name: string; phone: string | null; city: string | null; address: string | null } | null;
@@ -69,32 +86,87 @@ type DetailResponse = {
   }[];
 };
 
-// ─── دائرة نسبة صغيرة — بنفس روح EmployeeScoreRing فى صفحة الفريق ────────────
-function RingStat({ label, value, percentage, color, icon: Icon }: {
-  label: string; value: number; percentage: number; color: string; icon: any;
-}) {
-  const r = 30, circ = 2 * Math.PI * r;
-  const dash = (Math.min(percentage, 100) / 100) * circ;
+// ─── دائرة Health Score — نفس المؤشر فى صورة التصميم ─────────────────────────
+function HealthScoreRing({ score, size = 64 }: { score: number; size?: number }) {
+  const r = 27, circ = 2 * Math.PI * r;
+  const dash = (Math.min(score, 100) / 100) * circ;
+  const color = score >= 75 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
   return (
-    <div className="rounded-2xl p-4 relative overflow-hidden"
-      style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-      <div className="absolute -top-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
-        style={{ background: `${color}12`, filter: "blur(18px)" }} />
-      <div className="relative z-10 flex items-center gap-3">
-        <div className="relative w-16 h-16 shrink-0">
-          <svg viewBox="0 0 76 76" className="w-full h-full -rotate-90">
-            <circle cx="38" cy="38" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="7" />
-            <circle cx="38" cy="38" r={r} fill="none" stroke={color} strokeWidth="7"
-              strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
-              style={{ transition: "stroke-dasharray 0.6s ease" }} />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Icon className="w-5 h-5" style={{ color }} />
-          </div>
+    <div className="flex flex-col items-center gap-1 shrink-0">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
+          <circle cx="32" cy="32" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
+          <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="6"
+            strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+            style={{ transition: "stroke-dasharray 0.6s ease" }} />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-sm font-black" style={{ color }}>{score}</span>
+          <span className="text-[8px] text-muted-foreground">/100</span>
         </div>
+      </div>
+      <span className="text-[10px] font-bold" style={{ color }}>
+        {score >= 75 ? "ممتاز" : score >= 50 ? "متوسط" : "ضعيف"}
+      </span>
+    </div>
+  );
+}
+
+// ─── ميني تشارت SVG بسيط — خط بيانات حقيقية بدون مكتبات خارجية ────────────────
+function MiniSparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) {
+    return <div className="h-10 flex items-center justify-center text-[10px] text-muted-foreground">لا توجد بيانات كافية</div>;
+  }
+  const w = 220, h = 44, pad = 4;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const step = (w - pad * 2) / (values.length - 1);
+  const points = values.map((v, i) => {
+    const x = pad + i * step;
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
+    return `${x},${y}`;
+  });
+  const linePath = `M${points.join(" L")}`;
+  const areaPath = `${linePath} L${pad + (values.length - 1) * step},${h - pad} L${pad},${h - pad} Z`;
+  const gradId = `spark-${color.replace("#", "")}`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-11" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ─── كارت إحصائية علوي (6 كروت) ─────────────────────────────────────────────
+function StatCard({ label, value, icon: Icon, color, sub, trend }: {
+  label: string; value: string; icon: any; color: string; sub?: string; trend?: "up" | "down";
+}) {
+  return (
+    <div className="rounded-2xl p-4 relative overflow-hidden shrink-0"
+      style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+      <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
+        style={{ background: `${color}14`, filter: "blur(16px)" }} />
+      <div className="relative z-10 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xl font-black" style={{ color }}>{fmt(value)}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">{label}</p>
+          <p className="text-[11px] text-muted-foreground mb-1.5 truncate">{label}</p>
+          <p className="text-lg font-black truncate" style={{ color }}>{value}</p>
+          {sub && (
+            <p className={`text-[10px] mt-1 flex items-center gap-1 ${trend === "down" ? "text-red-400" : "text-emerald-400"}`}>
+              {trend === "down" ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+              {sub}
+            </p>
+          )}
+        </div>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `${color}18` }}>
+          <Icon className="w-4.5 h-4.5" style={{ color }} />
         </div>
       </div>
     </div>
@@ -105,7 +177,25 @@ export default function ClientAccountDetailPage() {
   const params = useParams<{ phone: string }>();
   const [, navigate] = useLocation();
   const phone = decodeURIComponent(params.phone ?? "");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [activeTab, setActiveTab] = useState<"statement" | "payments" | "invoices" | "analytics" | "closures">("statement");
   const [closureSearch, setClosureSearch] = useState("");
+  const [statementFrom, setStatementFrom] = useState("");
+  const [statementTo, setStatementTo] = useState("");
+
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState<{
+    email: string; city: string; address: string;
+    creditLimit: string; paymentMethod: ReceiverPaymentMethod; internalNotes: string;
+  } | null>(null);
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "", paymentMethod: "cash" as ClientPaymentMethod, receiptNumber: "", notes: "",
+  });
 
   const { data, isLoading } = useQuery<DetailResponse>({
     queryKey: ["client-account-detail", phone],
@@ -113,215 +203,789 @@ export default function ClientAccountDetailPage() {
     enabled: !!phone,
   });
 
+  const { data: profileData } = useQuery({
+    queryKey: ["client-account-pro-profile", phone],
+    queryFn: () => clientAccountProApi.getProfile(phone),
+    enabled: !!phone,
+  });
+  const client = profileData?.client ?? null;
+  const isSuspended = client?.accountStatus === "suspended";
+
+  const { data: statementData, isLoading: statementLoading } = useQuery({
+    queryKey: ["client-account-pro-statement", phone],
+    queryFn: () => clientAccountProApi.getStatement(phone),
+    enabled: !!phone,
+  });
+
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+    queryKey: ["client-account-pro-payments", phone],
+    queryFn: () => clientAccountProApi.getPayments(phone),
+    enabled: !!phone,
+  });
+
+  const { data: invoicesData, isLoading: invoicesLoading } = useQuery({
+    queryKey: ["client-account-pro-invoices", phone],
+    queryFn: () => clientAccountProApi.getInvoices(phone),
+    enabled: !!phone,
+  });
+
+  const { data: analyticsData, isLoading: analyticsLoading } = useQuery({
+    queryKey: ["client-account-pro-analytics", phone],
+    queryFn: () => clientAccountProApi.getAnalytics(phone),
+    enabled: !!phone,
+  });
+
+  const saveProfileMutation = useMutation({
+    mutationFn: () => clientAccountProApi.updateProfile({
+      phone, name: data?.client?.name,
+      email: profileForm!.email || null, city: profileForm!.city || null, address: profileForm!.address || null,
+      creditLimit: Number(profileForm!.creditLimit || 0), paymentMethod: profileForm!.paymentMethod,
+      internalNotes: profileForm!.internalNotes || null,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-profile", phone] });
+      toast({ title: "تم حفظ بيانات العميل" });
+      setEditingProfile(false);
+    },
+    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: (suspend: boolean) => clientAccountProApi.suspend(phone, suspend, suspend ? suspendReason : null),
+    onSuccess: (_r, suspend) => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-profile", phone] });
+      toast({ title: suspend ? "تم تعليق الحساب" : "تم تفعيل الحساب" });
+      setSuspendDialogOpen(false);
+      setSuspendReason("");
+    },
+    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const createPaymentMutation = useMutation({
+    mutationFn: () => clientAccountProApi.createPayment({
+      phone, amount: Number(paymentForm.amount), paymentMethod: paymentForm.paymentMethod,
+      receiptNumber: paymentForm.receiptNumber || null, notes: paymentForm.notes || null,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-payments", phone] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-statement", phone] });
+      toast({ title: "تم تسجيل التحصيل" });
+      setPaymentDialogOpen(false);
+      setPaymentForm({ amount: "", paymentMethod: "cash", receiptNumber: "", notes: "" });
+    },
+    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: (id: number) => clientAccountProApi.deletePayment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-payments", phone] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-pro-statement", phone] });
+      toast({ title: "تم حذف التحصيل" });
+    },
+    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
+  });
+
   const collectionPct = data?.totals && data.totals.totalShippingValue > 0
     ? Math.round((data.totals.totalCollected / data.totals.totalShippingValue) * 100)
     : 0;
-  const remainingPct = 100 - collectionPct;
+
+  const returnedCount = useMemo(() => {
+    const s = data?.statusDistribution.find(x => x.status === "returned");
+    return s?.count ?? 0;
+  }, [data?.statusDistribution]);
+
+  const returnedPct = data?.totals?.ordersCount
+    ? Math.round((returnedCount / data.totals.ordersCount) * 100 * 10) / 10
+    : 0;
 
   const filteredClosures = useMemo(() => {
     const list = data?.closures ?? [];
     const q = closureSearch.trim();
     if (!q) return list;
     return list.filter(c =>
-      (c.closedByName ?? "").includes(q) ||
-      (c.notes ?? "").includes(q) ||
-      fmtDate(c.createdAt).includes(q) ||
-      String(c.ordersCount).includes(q) ||
-      fmt(c.totalShippingValue).includes(q) ||
-      fmt(c.totalCollected).includes(q)
+      (c.closedByName ?? "").includes(q) || (c.notes ?? "").includes(q) ||
+      fmtDate(c.createdAt).includes(q) || String(c.ordersCount).includes(q)
     );
   }, [data?.closures, closureSearch]);
 
+  const statementEntries = useMemo(() => {
+    const entries = statementData?.entries ?? [];
+    if (!statementFrom && !statementTo) return entries;
+    return entries.filter(e => {
+      const t = new Date(e.date).getTime();
+      if (statementFrom && t < new Date(statementFrom).getTime()) return false;
+      if (statementTo && t > new Date(statementTo).getTime() + 86400000) return false;
+      return true;
+    });
+  }, [statementData?.entries, statementFrom, statementTo]);
+
+  const startEditProfile = () => {
+    if (!client) {
+      setProfileForm({ email: "", city: "", address: "", creditLimit: "0", paymentMethod: "cod", internalNotes: "" });
+    } else {
+      setProfileForm({
+        email: client.email ?? "", city: client.city ?? "", address: client.address ?? "",
+        creditLimit: client.creditLimit ?? "0", paymentMethod: client.paymentMethod, internalNotes: client.internalNotes ?? "",
+      });
+    }
+    setEditingProfile(true);
+  };
+
+  const exportStatementCsv = () => {
+    const rows = [["التاريخ", "البيان", "مدين", "دائن", "الرصيد"]];
+    statementEntries.forEach(e => rows.push([
+      fmtDate(e.date), e.description,
+      e.type === "debit" ? String(e.amount) : "", e.type === "credit" ? String(e.amount) : "", String(e.balance),
+    ]));
+    const csv = "\uFEFF" + rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `كشف-حساب-${data?.client?.name ?? phone}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const monthly = analyticsData?.monthly ?? [];
+  const returnRateValues = monthly.map(m => m.shipmentsCount > 0 ? Math.round((m.returned / m.shipmentsCount) * 1000) / 10 : 0);
+  const successRateValues = monthly.map(m => m.shipmentsCount > 0 ? Math.round((m.delivered / m.shipmentsCount) * 1000) / 10 : 0);
+  const revenueValues = monthly.map(m => m.totalAmount);
+  const shipmentsCountValues = monthly.map(m => m.shipmentsCount);
+
+  // ── تجميع "آخر النشاط" من التحصيلات + الفواتير + الإقفالات مرتبة بالوقت ──
+  const activityFeed = useMemo(() => {
+    const items: { icon: any; color: string; title: string; sub: string; at: string }[] = [];
+    (paymentsData?.payments ?? []).forEach(p => items.push({
+      icon: Wallet, color: "#10b981",
+      title: `تم تسجيل دفعة بمبلغ ${fmt(p.amount)} ج.م`,
+      sub: p.receiptNumber ? `إيصال ${p.receiptNumber}` : PAYMENT_METHOD_LABELS[p.paymentMethod],
+      at: p.paidAt,
+    }));
+    (invoicesData?.invoices ?? []).forEach(inv => items.push({
+      icon: Receipt, color: "#3b82f6",
+      title: `تم إصدار فاتورة ${inv.invoiceNumber}`,
+      sub: `${fmt(inv.totalAmount)} ج.م`,
+      at: inv.createdAt,
+    }));
+    (data?.closures ?? []).forEach(c => items.push({
+      icon: Ban, color: "#ef4444",
+      title: "تم إقفال الحساب",
+      sub: c.closedByName ? `بواسطة ${c.closedByName}` : "",
+      at: c.createdAt,
+    }));
+    return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 8);
+  }, [paymentsData?.payments, invoicesData?.invoices, data?.closures]);
+
+  if (isLoading) {
+    return <p className="text-center text-muted-foreground py-16 text-sm">جاري التحميل...</p>;
+  }
+
+  if (!data?.client) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <Users2 className="w-10 h-10 mx-auto mb-3 opacity-20" />
+        <p className="text-sm">مفيش بيانات لهذا العميل</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1200px] mx-auto animate-in fade-in duration-500">
-      <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon" onClick={() => navigate(`/finance/client-account-sheet`)}>
-          <ArrowRight className="w-4 h-4" />
+    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto animate-in fade-in duration-500">
+      {/* ── Breadcrumb ── */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/finance/client-account-sheet`)}>
+          <ArrowRight className="w-3.5 h-3.5" />
         </Button>
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" /> تفاصيل حساب العميل
-          </h1>
-          <p className="text-muted-foreground text-xs mt-0.5">الإجماليات المالية، توزيع الحالات، وسجل الإقفالات السابقة</p>
+        <span>العملاء</span>
+        <span>›</span>
+        <span className="text-foreground font-medium">تفاصيل العميل</span>
+      </div>
+
+      {/* ══════════════ Header ══════════════ */}
+      <div className="rounded-[22px] p-5 relative overflow-hidden"
+        style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+        <div className="absolute inset-x-0 top-0 h-px"
+          style={{ background: "linear-gradient(90deg, transparent, rgba(201,162,39,0.6), transparent)" }} />
+        <div className="relative z-10 flex items-start justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black shrink-0"
+              style={{ background: "rgba(201,162,39,0.15)", border: "2px solid rgba(201,162,39,0.35)", color: "#c9a227" }}>
+              {initials(data.client.name)}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg font-black">{data.client.name}</h1>
+                {isSuspended ? (
+                  <Badge variant="outline" className="text-red-400 bg-red-900/10 border-red-700 gap-1 text-[10px]">
+                    <ShieldAlert className="w-3 h-3" /> موقوف
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-emerald-400 bg-emerald-900/10 border-emerald-700 gap-1 text-[10px]">
+                    <ShieldCheck className="w-3 h-3" /> نشط
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap mt-2">
+                {client?.accountNumber && <span>رقم العميل: {client.accountNumber}</span>}
+                {data.client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {data.client.phone}</span>}
+                {client?.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {client.email}</span>}
+              </div>
+              <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap mt-1.5">
+                <span>حد الائتمان: <b className="text-foreground">{fmt(client?.creditLimit ?? 0)} ج.م</b></span>
+                <span>طريقة الدفع: <b className="text-foreground">{RECEIVER_PAYMENT_METHOD_LABELS[client?.paymentMethod ?? "cod"]}</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <HealthScoreRing score={analyticsData?.healthScore ?? 0} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button size="sm" className="gap-1.5" onClick={() => setPaymentDialogOpen(true)}>
+                <Plus className="w-3.5 h-3.5" /> تسجيل دفعة
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={exportStatementCsv}>
+                <Send className="w-3.5 h-3.5" /> إرسال كشف حساب
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="gap-1.5">
+                    المزيد <ChevronDown className="w-3.5 h-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={startEditProfile}>تعديل بيانات العميل</DropdownMenuItem>
+                  {isSuspended ? (
+                    <DropdownMenuItem onClick={() => suspendMutation.mutate(false)} className="text-emerald-500">
+                      تفعيل الحساب
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => setSuspendDialogOpen(true)} className="text-red-500">
+                      تعليق الحساب
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </div>
       </div>
 
-      {isLoading && <p className="text-center text-muted-foreground py-16 text-sm">جاري التحميل...</p>}
+      {/* ══════════════ 6 Stat Cards ══════════════ */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <StatCard label="إجمالي المستحقات" value={`${fmt(data.totals?.totalRemaining)} ج.م`} icon={Wallet} color="#f59e0b" />
+        <StatCard label="إجمالي المحصل" value={`${fmt(data.totals?.totalCollected)} ج.م`} icon={CheckCircle2} color="#10b981" sub={`${collectionPct}% نسبة تحصيل`} />
+        <StatCard label="المبالغ المعلقة" value={`${fmt(data.totals?.totalRemaining)} ج.م`} icon={RotateCcw} color="#3b82f6" />
+        <StatCard label="إجمالي الشحنات" value={fmt(data.totals?.ordersCount)} icon={Users2} color="#8b5cf6" sub={`${fmt(data.weeklyShipments)} آخر 7 أيام`} />
+        <StatCard label="الشحنات المسلمة" value={fmt(data.statusDistribution.find(s => s.status === "delivered")?.count ?? 0)} icon={MessageSquareText} color="#06b6d4" />
+        <StatCard label="المرتجعات" value={fmt(returnedCount)} icon={Ban} color="#ef4444" sub={`${returnedPct}% نسبة المرتجعات`} trend="down" />
+      </div>
 
-      {!isLoading && data && !data.client && (
-        <div className="text-center py-16 text-muted-foreground">
-          <User className="w-10 h-10 mx-auto mb-3 opacity-20" />
-          <p className="text-sm">مفيش بيانات لهذا العميل</p>
-        </div>
-      )}
+      {/* ══════════════ Tabs Bar ══════════════ */}
+      <div className="flex items-center gap-1 rounded-2xl p-1.5 overflow-x-auto"
+        style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+        {([
+          ["statement", "كشف الحساب", Wallet],
+          ["payments", "المدفوعات", CreditCard],
+          ["invoices", "الفواتير", Receipt],
+          ["analytics", "التحليلات", Activity],
+          ["closures", "الإقفالات السابقة", Ban],
+        ] as const).map(([key, label, Icon]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+              activeTab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/40"
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" /> {label}
+          </button>
+        ))}
+      </div>
 
-      {!isLoading && data?.client && (
-        <>
-          {/* ── كارت العميل — نفس روح كارت team.tsx ── */}
-          <div className="group relative overflow-hidden rounded-[22px] dark:border-white/10 border-black/10"
-            style={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.08), 0 4px 24px rgba(0,0,0,0.06)",
-            }}>
-            <div className="absolute inset-x-0 top-0 h-px"
-              style={{ background: "linear-gradient(90deg, transparent, rgba(201,162,39,0.6), transparent)" }} />
-            <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none"
-              style={{ background: "rgba(201,162,39,0.06)", filter: "blur(20px)" }} />
-
-            <div className="p-5 relative z-10 flex items-center gap-4 flex-wrap justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black shrink-0"
-                  style={{
-                    background: "rgba(201,162,39,0.15)",
-                    border: "2px solid rgba(201,162,39,0.35)",
-                    color: "#c9a227",
-                  }}>
-                  {initials(data.client.name)}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-base font-bold truncate">{data.client.name}</p>
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap mt-0.5">
-                    {data.client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {data.client.phone}</span>}
-                    {data.client.city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {data.client.city}</span>}
-                  </div>
-                </div>
-              </div>
-              {data.totals && (
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                  style={{
-                    background: "rgba(201,162,39,0.12)", color: "#c9a227",
-                    border: "1px solid rgba(201,162,39,0.28)",
-                  }}>
-                  {data.totals.ordersCount} أوردر إجمالي
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* ── الملف الاحترافي — بروفايل / كشف حساب / تحصيلات / فواتير / تحليلات ── */}
-          <ClientAccountProPanel phone={phone} clientName={data.client.name} />
-
-          {/* ── الإجماليات المالية — دوائر نسبة ── */}
-          {data.totals && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <RingStat label="قيمة الشحنات الكلية" value={data.totals.totalShippingValue} percentage={100} color="#3b82f6" icon={ListOrdered} />
-              <RingStat label="المحصَّل فعلياً" value={data.totals.totalCollected} percentage={collectionPct} color="#10b981" icon={CheckCircle2} />
-              <RingStat label="المتبقي" value={data.totals.totalRemaining} percentage={remainingPct} color="#f59e0b" icon={Wallet} />
-            </div>
-          )}
-
-          {/* شريط نسبة التحصيل الإجمالية */}
-          {data.totals && data.totals.totalShippingValue > 0 && (
-            <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-              <div className="flex justify-between text-[11px] text-muted-foreground mb-1.5">
-                <span>نسبة التحصيل الإجمالية</span>
-                <span className="font-bold">{collectionPct}%</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{ width: `${collectionPct}%`, background: "#10b981" }} />
-              </div>
-            </div>
-          )}
-
-          {/* ── توزيع حالات الشحنات ── */}
-          <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-primary" /> توزيع حالات الشحنات
-              </p>
-              <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-muted/40 text-muted-foreground">
-                {fmt(data.weeklyShipments)} شحنة آخر 7 أيام
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              {data.statusDistribution.map((s) => (
-                <div key={s.status} className="flex items-center gap-3">
-                  <span className="text-xs w-28 shrink-0 truncate">{statusLabel(s.status)}</span>
-                  <div className="flex-1 h-2.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full transition-all"
-                      style={{ width: `${s.percentage}%`, background: statusColor(s.status) }} />
-                  </div>
-                  <span className="text-xs w-16 shrink-0 text-left text-muted-foreground">{s.count} ({s.percentage}%)</span>
-                </div>
-              ))}
-              {data.statusDistribution.length === 0 && (
-                <div className="text-center py-6 text-muted-foreground">
-                  <Ban className="w-6 h-6 mx-auto mb-1.5 opacity-30" />
-                  <p className="text-xs">لا يوجد بيانات</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── سجل إقفالات الحساب السابقة — جدول قابل للبحث ── */}
+      {/* ══════════════ محتوى: كشف الحساب + آخر الفواتير ══════════════ */}
+      {activeTab === "statement" && (
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
           <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <p className="text-sm font-bold flex items-center gap-2">
-                <History className="w-4 h-4 text-primary" /> سجل إقفالات الحساب السابقة
-              </p>
-              {data.closures.length > 0 && (
-                <div className="relative">
-                  <Search className="absolute right-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="بحث بالتاريخ أو الموظف أو الملاحظات..."
-                    className="h-8 text-xs bg-background pr-8 w-64"
-                    value={closureSearch}
-                    onChange={e => setClosureSearch(e.target.value)}
-                  />
-                </div>
-              )}
+              <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={exportStatementCsv}>
+                <FileSpreadsheet className="w-3.5 h-3.5" /> تصدير Excel
+              </Button>
+              <div className="flex items-center gap-2">
+                <Input type="date" className="h-8 text-xs w-36" value={statementTo} onChange={e => setStatementTo(e.target.value)} />
+                <span className="text-[10px] text-muted-foreground">إلى تاريخ</span>
+                <Input type="date" className="h-8 text-xs w-36" value={statementFrom} onChange={e => setStatementFrom(e.target.value)} />
+                <span className="text-[10px] text-muted-foreground">من تاريخ</span>
+              </div>
             </div>
 
-            {data.closures.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Lock className="w-6 h-6 mx-auto mb-1.5 opacity-30" />
-                <p className="text-xs">لا يوجد إقفالات سابقة لهذا العميل</p>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="rounded-xl p-2.5 text-center bg-muted/10">
+                <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي مدين</p>
+                <p className="text-sm font-black text-blue-400">{fmt(statementData?.totalDebit)}</p>
               </div>
+              <div className="rounded-xl p-2.5 text-center bg-muted/10">
+                <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي دائن</p>
+                <p className="text-sm font-black text-emerald-400">{fmt(statementData?.totalCredit)}</p>
+              </div>
+              <div className="rounded-xl p-2.5 text-center bg-muted/10">
+                <p className="text-[10px] text-muted-foreground mb-0.5">الرصيد الحالي</p>
+                <p className={`text-sm font-black ${(statementData?.currentBalance ?? 0) > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                  {fmt(statementData?.currentBalance)}
+                </p>
+              </div>
+            </div>
+
+            {statementLoading ? (
+              <div className="p-10 text-center text-muted-foreground"><Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري التحميل...</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-border text-[10px] font-bold text-muted-foreground">
                       <th className="text-right py-2 px-2">التاريخ</th>
-                      <th className="text-right py-2 px-2">عدد الأوردرات</th>
-                      <th className="text-right py-2 px-2">قيمة الشحنات</th>
-                      <th className="text-right py-2 px-2">المحصَّل</th>
-                      <th className="text-right py-2 px-2">بواسطة</th>
-                      <th className="text-right py-2 px-2">ملاحظات</th>
+                      <th className="text-right py-2 px-2">نوع العملية</th>
+                      <th className="text-right py-2 px-2">مدين (ج.م)</th>
+                      <th className="text-right py-2 px-2">دائن (ج.م)</th>
+                      <th className="text-right py-2 px-2">الرصيد (ج.م)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredClosures.map((c) => (
-                      <tr key={c.id} className="border-b border-border/50 hover:bg-muted/10 transition-colors">
+                    {statementEntries.map((e, idx) => (
+                      <tr key={`${e.type}-${e.refId}-${idx}`} className="border-b border-border/40 hover:bg-muted/10">
+                        <td className="py-2.5 px-2 whitespace-nowrap text-muted-foreground">{fmtDateTime(e.date)}</td>
                         <td className="py-2.5 px-2">
                           <span className="flex items-center gap-1.5">
-                            <Lock className="w-3 h-3 text-red-400 shrink-0" />
-                            {fmtDate(c.createdAt)}
+                            {e.type === "debit"
+                              ? <ArrowDownCircle className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              : <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                            {e.description}
                           </span>
                         </td>
-                        <td className="py-2.5 px-2 font-bold">{c.ordersCount}</td>
-                        <td className="py-2.5 px-2 text-foreground font-bold">{fmt(c.totalShippingValue)}</td>
-                        <td className="py-2.5 px-2 text-emerald-400 font-bold">{fmt(c.totalCollected)}</td>
-                        <td className="py-2.5 px-2 text-muted-foreground">{c.closedByName || "—"}</td>
-                        <td className="py-2.5 px-2 text-muted-foreground">{c.notes || "—"}</td>
+                        <td className="py-2.5 px-2 font-bold text-blue-400">{e.type === "debit" ? fmt(e.amount) : "-"}</td>
+                        <td className="py-2.5 px-2 font-bold text-emerald-400">{e.type === "credit" ? fmt(e.amount) : "-"}</td>
+                        <td className="py-2.5 px-2 font-bold">{fmt(e.balance)}</td>
                       </tr>
                     ))}
-                    {filteredClosures.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8 text-muted-foreground text-xs">
-                          لا توجد نتائج مطابقة للبحث
-                        </td>
-                      </tr>
+                    {statementEntries.length === 0 && (
+                      <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">لا توجد حركات</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
-        </>
+
+          {/* آخر الفواتير — sidebar */}
+          <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold flex items-center gap-2"><Receipt className="w-4 h-4 text-primary" /> آخر الفواتير</p>
+              <button className="text-[11px] text-primary hover:underline" onClick={() => setActiveTab("invoices")}>عرض كل الفواتير</button>
+            </div>
+            <div className="space-y-2">
+              {(invoicesData?.invoices ?? []).slice(0, 5).map(inv => {
+                const cfg = inv.status === "paid"
+                  ? { label: "مدفوعة", color: "text-emerald-400", bg: "bg-emerald-900/10", border: "border-emerald-700" }
+                  : inv.status === "partial"
+                  ? { label: "مدفوعة جزئياً", color: "text-amber-400", bg: "bg-amber-900/10", border: "border-amber-700" }
+                  : { label: "غير مدفوعة", color: "text-red-400", bg: "bg-red-900/10", border: "border-red-700" };
+                return (
+                  <div key={inv.id} className="rounded-xl p-2.5 bg-muted/10 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-primary truncate">{inv.invoiceNumber}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{fmtDate(inv.createdAt)}</p>
+                    </div>
+                    <div className="text-left shrink-0">
+                      <p className="text-xs font-bold">{fmt(inv.totalAmount)}</p>
+                      <Badge variant="outline" className={`${cfg.border} ${cfg.bg} ${cfg.color} text-[9px] mt-1`}>{cfg.label}</Badge>
+                    </div>
+                  </div>
+                );
+              })}
+              {(invoicesData?.invoices ?? []).length === 0 && (
+                <p className="text-center text-muted-foreground text-xs py-6">لا توجد فواتير</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* ══════════════ محتوى: المدفوعات ══════════════ */}
+      {activeTab === "payments" && (
+        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold">سجل التحصيلات ({(paymentsData?.payments ?? []).length})</p>
+            <Button size="sm" className="gap-1.5" onClick={() => setPaymentDialogOpen(true)}>
+              <Plus className="w-3.5 h-3.5" /> تسجيل تحصيل
+            </Button>
+          </div>
+          {paymentsLoading ? (
+            <div className="p-10 text-center text-muted-foreground"><Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري التحميل...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-[10px] font-bold text-muted-foreground">
+                    <th className="text-right py-2 px-2">التاريخ</th>
+                    <th className="text-right py-2 px-2">المبلغ</th>
+                    <th className="text-right py-2 px-2">طريقة الدفع</th>
+                    <th className="text-right py-2 px-2">رقم الإيصال</th>
+                    <th className="text-right py-2 px-2">استلمها</th>
+                    <th className="text-right py-2 px-2">ملاحظات</th>
+                    <th className="text-left py-2 px-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(paymentsData?.payments ?? []).map(p => (
+                    <tr key={p.id} className="border-b border-border/40 hover:bg-muted/10">
+                      <td className="py-2.5 px-2 whitespace-nowrap text-muted-foreground">{fmtDate(p.paidAt)}</td>
+                      <td className="py-2.5 px-2 font-bold text-emerald-400">{fmt(p.amount)}</td>
+                      <td className="py-2.5 px-2">{PAYMENT_METHOD_LABELS[p.paymentMethod]}</td>
+                      <td className="py-2.5 px-2 text-muted-foreground">{p.receiptNumber || "—"}</td>
+                      <td className="py-2.5 px-2 text-muted-foreground">{p.receivedByName || "—"}</td>
+                      <td className="py-2.5 px-2 text-muted-foreground">{p.notes || "—"}</td>
+                      <td className="py-2.5 px-2 text-left">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-500"
+                          onClick={() => deletePaymentMutation.mutate(p.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {(paymentsData?.payments ?? []).length === 0 && (
+                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">لا توجد تحصيلات مسجلة</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ محتوى: الفواتير ══════════════ */}
+      {activeTab === "invoices" && (
+        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <p className="text-sm font-bold mb-3">الفواتير ({(invoicesData?.invoices ?? []).length})</p>
+          {invoicesLoading ? (
+            <div className="p-10 text-center text-muted-foreground"><Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري التحميل...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(invoicesData?.invoices ?? []).map(inv => {
+                const cfg = inv.status === "paid"
+                  ? { label: "مدفوعة", color: "text-emerald-400", bg: "bg-emerald-900/10", border: "border-emerald-700" }
+                  : inv.status === "partial"
+                  ? { label: "مدفوعة جزئياً", color: "text-amber-400", bg: "bg-amber-900/10", border: "border-amber-700" }
+                  : { label: "غير مدفوعة", color: "text-red-400", bg: "bg-red-900/10", border: "border-red-700" };
+                const remaining = Number(inv.totalAmount) - Number(inv.paidAmount);
+                return (
+                  <div key={inv.id} className="rounded-xl p-3.5 bg-muted/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-sm flex items-center gap-1.5"><Receipt className="w-4 h-4 text-primary" /> {inv.invoiceNumber}</span>
+                      <Badge variant="outline" className={`${cfg.border} ${cfg.bg} ${cfg.color}`}>{cfg.label}</Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center mt-3">
+                      <div><p className="text-[10px] text-muted-foreground">الإجمالي</p><p className="text-sm font-bold">{fmt(inv.totalAmount)}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">المدفوع</p><p className="text-sm font-bold text-emerald-400">{fmt(inv.paidAmount)}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">المتبقي</p><p className="text-sm font-bold text-amber-400">{fmt(remaining)}</p></div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-3">{inv.shipmentIds.length} شحنة — {fmtDate(inv.createdAt)}</p>
+                  </div>
+                );
+              })}
+              {(invoicesData?.invoices ?? []).length === 0 && (
+                <div className="col-span-full text-center py-8 text-muted-foreground">لا توجد فواتير</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ محتوى: التحليلات ══════════════ */}
+      {activeTab === "analytics" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+            <p className="text-xs text-muted-foreground mb-1">الإيرادات الشهرية (ج.م)</p>
+            <p className="text-lg font-black mb-2">{fmt(revenueValues.at(-1) ?? 0)}</p>
+            <MiniSparkline values={revenueValues} color="#8b5cf6" />
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+            <p className="text-xs text-muted-foreground mb-1">عدد الشحنات شهرياً</p>
+            <p className="text-lg font-black mb-2">{fmt(shipmentsCountValues.at(-1) ?? 0)}</p>
+            <MiniSparkline values={shipmentsCountValues} color="#3b82f6" />
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+            <p className="text-xs text-muted-foreground mb-1">نسبة النجاح (%)</p>
+            <p className="text-lg font-black mb-2 text-emerald-400">{successRateValues.at(-1) ?? 0}%</p>
+            <MiniSparkline values={successRateValues} color="#10b981" />
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+            <p className="text-xs text-muted-foreground mb-1">نسبة المرتجعات (%)</p>
+            <p className="text-lg font-black mb-2 text-red-400">{returnRateValues.at(-1) ?? 0}%</p>
+            <MiniSparkline values={returnRateValues} color="#ef4444" />
+          </div>
+
+          <div className="md:col-span-2 rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+            <p className="text-sm font-bold mb-3 flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" /> توزيع الشحنات بالمحافظة</p>
+            <div className="space-y-2">
+              {(analyticsData?.byGovernorate ?? []).slice(0, 8).map(g => {
+                const maxCount = Math.max(1, ...(analyticsData?.byGovernorate ?? []).map(x => x.count));
+                return (
+                  <div key={g.city} className="flex items-center gap-3">
+                    <span className="text-xs w-24 shrink-0 truncate">{g.city}</span>
+                    <div className="flex-1 h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                      <div className="h-full rounded-full bg-sky-500" style={{ width: `${(g.count / maxCount) * 100}%` }} />
+                    </div>
+                    <span className="text-xs w-8 text-left text-muted-foreground">{g.count}</span>
+                  </div>
+                );
+              })}
+              {(analyticsData?.byGovernorate ?? []).length === 0 && (
+                <p className="text-center text-muted-foreground text-xs py-4">لا توجد بيانات</p>
+              )}
+            </div>
+          </div>
+
+          {analyticsLoading && (
+            <div className="md:col-span-2 p-10 text-center text-muted-foreground"><Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري التحميل...</div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ محتوى: الإقفالات السابقة ══════════════ */}
+      {activeTab === "closures" && (
+        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <p className="text-sm font-bold">سجل إقفالات الحساب السابقة</p>
+            {data.closures.length > 0 && (
+              <Input
+                placeholder="بحث بالتاريخ أو الموظف أو الملاحظات..."
+                className="h-8 text-xs bg-background w-64"
+                value={closureSearch}
+                onChange={e => setClosureSearch(e.target.value)}
+              />
+            )}
+          </div>
+          {data.closures.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Ban className="w-6 h-6 mx-auto mb-1.5 opacity-30" />
+              <p className="text-xs">لا يوجد إقفالات سابقة لهذا العميل</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-[10px] font-bold text-muted-foreground">
+                    <th className="text-right py-2 px-2">التاريخ</th>
+                    <th className="text-right py-2 px-2">عدد الأوردرات</th>
+                    <th className="text-right py-2 px-2">قيمة الشحنات</th>
+                    <th className="text-right py-2 px-2">المحصَّل</th>
+                    <th className="text-right py-2 px-2">بواسطة</th>
+                    <th className="text-right py-2 px-2">ملاحظات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClosures.map(c => (
+                    <tr key={c.id} className="border-b border-border/50 hover:bg-muted/10">
+                      <td className="py-2.5 px-2">{fmtDate(c.createdAt)}</td>
+                      <td className="py-2.5 px-2 font-bold">{c.ordersCount}</td>
+                      <td className="py-2.5 px-2 font-bold">{fmt(c.totalShippingValue)}</td>
+                      <td className="py-2.5 px-2 text-emerald-400 font-bold">{fmt(c.totalCollected)}</td>
+                      <td className="py-2.5 px-2 text-muted-foreground">{c.closedByName || "—"}</td>
+                      <td className="py-2.5 px-2 text-muted-foreground">{c.notes || "—"}</td>
+                    </tr>
+                  ))}
+                  {filteredClosures.length === 0 && (
+                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-xs">لا توجد نتائج مطابقة للبحث</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ 3 أعمدة سفلية: مدفوعات / تحليلات مصغرة / نشاط ══════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* آخر المدفوعات */}
+        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold">آخر المدفوعات</p>
+            <button className="text-[11px] text-primary hover:underline" onClick={() => setActiveTab("payments")}>عرض الكل</button>
+          </div>
+          <div className="space-y-2">
+            {(paymentsData?.payments ?? []).slice(0, 5).map(p => (
+              <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl p-2.5 bg-muted/10">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">{PAYMENT_METHOD_LABELS[p.paymentMethod]}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{p.receiptNumber || fmtDate(p.paidAt)}</p>
+                </div>
+                <p className="text-xs font-bold text-emerald-400 shrink-0">{fmt(p.amount)}</p>
+              </div>
+            ))}
+            {(paymentsData?.payments ?? []).length === 0 && (
+              <p className="text-center text-muted-foreground text-xs py-6">لا توجد مدفوعات</p>
+            )}
+          </div>
+        </div>
+
+        {/* تحليلات العميل — mini charts */}
+        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <p className="text-sm font-bold mb-3">تحليلات العميل</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-muted-foreground">عدد الشحنات شهرياً</span>
+                <span className="text-[10px] font-bold text-blue-400">{fmt(data.totals?.ordersCount)}</span>
+              </div>
+              <MiniSparkline values={shipmentsCountValues} color="#3b82f6" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-muted-foreground">نسبة النجاح</span>
+                <span className="text-[10px] font-bold text-emerald-400">{successRateValues.at(-1) ?? 0}%</span>
+              </div>
+              <MiniSparkline values={successRateValues} color="#10b981" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-muted-foreground">نسبة المرتجعات</span>
+                <span className="text-[10px] font-bold text-red-400">{returnedPct}%</span>
+              </div>
+              <MiniSparkline values={returnRateValues} color="#ef4444" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-muted-foreground">إجمالي الإيرادات</span>
+                <span className="text-[10px] font-bold text-purple-400">{fmt(data.totals?.totalShippingValue)}</span>
+              </div>
+              <MiniSparkline values={revenueValues} color="#8b5cf6" />
+            </div>
+          </div>
+        </div>
+
+        {/* آخر النشاط */}
+        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold">آخر النشاط</p>
+          </div>
+          <div className="space-y-2.5">
+            {activityFeed.map((item, idx) => (
+              <div key={idx} className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: `${item.color}18` }}>
+                  <item.icon className="w-3.5 h-3.5" style={{ color: item.color }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium truncate">{item.title}</p>
+                  {item.sub && <p className="text-[10px] text-muted-foreground mt-0.5">{item.sub}</p>}
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{timeAgo(item.at)}</span>
+              </div>
+            ))}
+            {activityFeed.length === 0 && (
+              <p className="text-center text-muted-foreground text-xs py-6">لا يوجد نشاط بعد</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════ Dialogs ══════════════ */}
+      <Dialog open={editingProfile} onOpenChange={setEditingProfile}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>تعديل بيانات العميل</DialogTitle></DialogHeader>
+          {profileForm && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">البريد الإلكتروني</label>
+                <Input value={profileForm.email} onChange={e => setProfileForm(f => ({ ...f!, email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">المدينة</label>
+                <Input value={profileForm.city} onChange={e => setProfileForm(f => ({ ...f!, city: e.target.value }))} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-[11px] text-muted-foreground mb-1 block">العنوان</label>
+                <Input value={profileForm.address} onChange={e => setProfileForm(f => ({ ...f!, address: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">حد الائتمان</label>
+                <Input type="number" value={profileForm.creditLimit} onChange={e => setProfileForm(f => ({ ...f!, creditLimit: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">طريقة الدفع الافتراضية</label>
+                <Select value={profileForm.paymentMethod} onValueChange={v => setProfileForm(f => ({ ...f!, paymentMethod: v as ReceiverPaymentMethod }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(RECEIVER_PAYMENT_METHOD_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-[11px] text-muted-foreground mb-1 block">ملاحظات داخلية</label>
+                <Textarea value={profileForm.internalNotes} onChange={e => setProfileForm(f => ({ ...f!, internalNotes: e.target.value }))} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingProfile(false)}>إلغاء</Button>
+            <Button className="gap-1.5" disabled={saveProfileMutation.isPending} onClick={() => saveProfileMutation.mutate()}>
+              <Save className="w-3.5 h-3.5" /> حفظ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>تعليق حساب العميل</DialogTitle></DialogHeader>
+          <Textarea placeholder="سبب التعليق (اختياري)..." value={suspendReason} onChange={e => setSuspendReason(e.target.value)} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSuspendDialogOpen(false)}>إلغاء</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" disabled={suspendMutation.isPending} onClick={() => suspendMutation.mutate(true)}>
+              تأكيد التعليق
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>تسجيل تحصيل جديد</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">المبلغ</label>
+              <Input type="number" value={paymentForm.amount} onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">طريقة الدفع</label>
+              <Select value={paymentForm.paymentMethod} onValueChange={v => setPaymentForm(f => ({ ...f, paymentMethod: v as ClientPaymentMethod }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">رقم الإيصال (اختياري)</label>
+              <Input value={paymentForm.receiptNumber} onChange={e => setPaymentForm(f => ({ ...f, receiptNumber: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">ملاحظات (اختياري)</label>
+              <Textarea value={paymentForm.notes} onChange={e => setPaymentForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>إلغاء</Button>
+            <Button disabled={!paymentForm.amount || createPaymentMutation.isPending} onClick={() => createPaymentMutation.mutate()}>
+              تسجيل
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
