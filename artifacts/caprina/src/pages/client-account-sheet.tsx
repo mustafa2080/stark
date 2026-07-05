@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Search, User, Phone, MapPin, Printer, Lock, Package,
   RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3, ListFilter, X,
-  ArrowUp, ArrowDown, ArrowUpDown,
+  ArrowUp, ArrowDown, ArrowUpDown, LayoutGrid, List as ListIcon, Wallet,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -223,6 +223,7 @@ export default function ClientAccountSheetPage() {
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
   const [sortCol, setSortCol] = useState<keyof ClientRow>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const hasSearch = !!activePhone;
 
@@ -382,15 +383,33 @@ export default function ClientAccountSheetPage() {
                 </p>
               </div>
             </div>
-            <Button
-              variant={filtersEnabled ? "default" : "outline"}
-              size="sm"
-              className="gap-2"
-              onClick={() => setFiltersEnabled((v) => !v)}
-            >
-              <ListFilter className="w-4 h-4" />
-              {filtersEnabled ? "إخفاء الفلاتر" : "إنشاء فلتر"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center rounded-lg border border-border overflow-hidden">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`p-2 transition-colors ${viewMode === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted/30 text-muted-foreground"}`}
+                  title="عرض كروت"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`p-2 transition-colors border-r border-border ${viewMode === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted/30 text-muted-foreground"}`}
+                  title="عرض جدول"
+                >
+                  <ListIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <Button
+                variant={filtersEnabled ? "default" : "outline"}
+                size="sm"
+                className="gap-2"
+                onClick={() => setFiltersEnabled((v) => !v)}
+              >
+                <ListFilter className="w-4 h-4" />
+                {filtersEnabled ? "إخفاء الفلاتر" : "إنشاء فلتر"}
+              </Button>
+            </div>
           </div>
         </Card>
       )}
@@ -440,7 +459,55 @@ export default function ClientAccountSheetPage() {
             </div>
           )}
 
-          {!isLoadingAllClients && (
+          {!isLoadingAllClients && viewMode === "grid" && (
+            <div className="p-4">
+              {filteredClients.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  {tableFilter ? "مفيش نتائج مطابقة" : "لا يوجد عملاء"}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {filteredClients.map((c) => {
+                    const pct = c.totalAmount > 0 ? Math.min(100, Math.round((c.collectedAmount / c.totalAmount) * 100)) : 0;
+                    const color = nameToColor(c.name || "?");
+                    return (
+                      <button
+                        key={c.phone}
+                        onClick={() => selectPhone(c.phone)}
+                        className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
+                      >
+                        <div
+                          className="w-16 h-16 rounded-xl flex items-center justify-center text-xl font-black shrink-0 group-hover:scale-105 transition-transform"
+                          style={{ background: `${color}18`, color, border: `1px solid ${color}35` }}
+                        >
+                          {(c.name || "?").trim().charAt(0)}
+                        </div>
+                        <div className="w-full min-w-0">
+                          <p className="text-xs font-bold truncate">{c.name}</p>
+                          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
+                            <Phone className="w-2.5 h-2.5" /> {c.phone}
+                          </p>
+                        </div>
+                        <div className="w-full flex items-center justify-between text-[10px] px-0.5">
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Package className="w-2.5 h-2.5" /> {c.shipmentsCount}
+                          </span>
+                          <span className={`font-bold ${c.remainingAmount > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                            {fmt(c.remainingAmount)}
+                          </span>
+                        </div>
+                        <div className="w-full h-1 rounded-full bg-muted/30 overflow-hidden">
+                          <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isLoadingAllClients && viewMode === "table" && (
             <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
               <table className="w-full text-xs border-collapse">
                 <thead className="sticky top-0 z-10">
