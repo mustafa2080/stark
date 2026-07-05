@@ -2231,6 +2231,13 @@ export const clientAccountProApi = {
 
   getPeriods: (phone: string) =>
     apiFetch<{ periods: ClientAccountPeriodDTO[] }>(`/client-account-pro/periods?phone=${encodeURIComponent(phone)}`),
+  previewPeriodClose: (data: { phone: string; periodFrom: string; periodTo: string }) =>
+    apiFetch<{ summary: {
+      openingBalance: number; totalDebit: number; totalCredit: number;
+      totalAdjustments: number; closingBalance: number; ordersCount: number;
+      creditLimit: number; overLimit: boolean; overLimitAmount: number;
+      unpaidInvoicesCount: number; unpaidInvoicesTotal: number; pendingAdjustmentsCount: number;
+    } }>(`/client-account-pro/periods/preview?phone=${encodeURIComponent(data.phone)}&periodFrom=${encodeURIComponent(data.periodFrom)}&periodTo=${encodeURIComponent(data.periodTo)}`),
   closePeriod: (data: { phone: string; periodFrom: string; periodTo: string; notes?: string | null }) =>
     apiFetch<{ success: boolean; id: number; summary: {
       openingBalance: number; totalDebit: number; totalCredit: number;

@@ -685,6 +685,130 @@ router.get("/client-account-pro/periods", async (req, res): Promise<void> => {
   }
 });
 
+// ─── حساب ملخص إقفال الفترة (مشترك بين المعاينة والتنفيذ الفعلي) ───────────
+// read-only بالكامل — بيرجع نفس أرقام الإقفال الحقيقية زائد تحذيرات
+// (تجاوز حد الائتمان، فواتير غير محصلة) عشان تُعرض كمعاينة قبل الضغط على الزرار.
+async function computePeriodCloseSummary(
+  tenantId: number | null,
+  phoneRaw: string,
+  periodFrom: string,
+  periodTo: string,
+) {
+  const normalized = normalizePhone(phoneRaw);
+  if (!normalized) return { ok: false as const, status: 400, error: "رقم التليفون غير صالح" };
+
+  const clientConditions: any[] = [eq(receiverClientsTable.normalizedPhone, normalized)];
+  if (tenantId !== null) clientConditions.push(eq(receiverClientsTable.tenantId, tenantId));
+  const [client] = await db.select().from(receiverClientsTable).where(and(...clientConditions));
+  if (!client) return { ok: false as const, status: 404, error: "العميل غير موجود" };
+
+  if (client.lastClosedPeriodTo) {
+    const lastClosed = new Date(client.lastClosedPeriodTo);
+    const newFrom = new Date(periodFrom);
+    if (newFrom <= lastClosed) {
+      return {
+        ok: false as const, status: 400,
+        error: `فيه فترة مقفولة بالفعل حتى ${lastClosed.toLocaleDateString("ar-EG")}. لازم تبدأ الفترة الجديدة بعد التاريخ ده.`,
+      };
+    }
+  }
+
+  const periodFromDate = new Date(periodFrom);
+  const periodToDate = new Date(periodTo);
+  if (periodToDate < periodFromDate) {
+    return { ok: false as const, status: 400, error: "تاريخ نهاية الفترة لازم يكون بعد تاريخ البداية" };
+  }
+
+  const prevConditions: any[] = [eq(clientAccountPeriodsTable.normalizedPhone, normalized)];
+  if (tenantId !== null) prevConditions.push(eq(clientAccountPeriodsTable.tenantId, tenantId));
+  const prevPeriods = await db.select().from(clientAccountPeriodsTable)
+    .where(and(...prevConditions)).orderBy(desc(clientAccountPeriodsTable.periodTo)).limit(1);
+  const openingBalance = prevPeriods[0] ? Number(prevPeriods[0].closingBalance) : 0;
+
+  const shipConditions: any[] = [
+    isNull(shipmentsTable.deletedAt),
+    sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalized}`,
+    sql`${shipmentsTable.createdAt} >= ${periodFrom}`,
+    sql`${shipmentsTable.createdAt} <= ${periodTo} 23:59:59`,
+  ];
+  if (tenantId !== null) shipConditions.push(eq(shipmentsTable.tenantId, tenantId));
+  const shipments = await db.select().from(shipmentsTable).where(and(...shipConditions));
+  const totalDebit = shipments.reduce((s: number, o: any) => s + Number(o.totalAmount ?? 0), 0);
+
+  const payConditions: any[] = [
+    eq(clientPaymentsTable.normalizedPhone, normalized),
+    sql`${clientPaymentsTable.paidAt} >= ${periodFrom}`,
+    sql`${clientPaymentsTable.paidAt} <= ${periodTo} 23:59:59`,
+  ];
+  if (tenantId !== null) payConditions.push(eq(clientPaymentsTable.tenantId, tenantId));
+  const payments = await db.select().from(clientPaymentsTable).where(and(...payConditions));
+  const totalCredit = payments.reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0);
+
+  const adjConditions: any[] = [
+    eq(clientAccountAdjustmentsTable.normalizedPhone, normalized),
+    isNull(clientAccountAdjustmentsTable.voidedAt),
+    sql`${clientAccountAdjustmentsTable.adjustedAt} >= ${periodFrom}`,
+    sql`${clientAccountAdjustmentsTable.adjustedAt} <= ${periodTo} 23:59:59`,
+  ];
+  if (tenantId !== null) adjConditions.push(eq(clientAccountAdjustmentsTable.tenantId, tenantId));
+  const adjustments = await db.select().from(clientAccountAdjustmentsTable).where(and(...adjConditions));
+  const totalAdjustments = adjustments.reduce((s: number, a: any) =>
+    s + (a.direction === "credit" ? -Number(a.amount ?? 0) : Number(a.amount ?? 0)), 0);
+
+  const closingBalance = openingBalance + totalDebit - totalCredit + totalAdjustments;
+
+  const creditLimit = Number(client.creditLimit ?? 0);
+  const overLimit = creditLimit > 0 && closingBalance > creditLimit;
+  const overLimitAmount = overLimit ? closingBalance - creditLimit : 0;
+
+  const invConditions: any[] = [
+    eq(clientInvoicesTable.normalizedPhone, normalized),
+    sql`${clientInvoicesTable.status} != 'paid'`,
+  ];
+  if (tenantId !== null) invConditions.push(eq(clientInvoicesTable.tenantId, tenantId));
+  const unpaidInvoices = await db.select().from(clientInvoicesTable).where(and(...invConditions));
+  const unpaidInvoicesTotal = unpaidInvoices.reduce(
+    (s: number, i: any) => s + (Number(i.totalAmount ?? 0) - Number(i.paidAmount ?? 0)), 0);
+
+  return {
+    ok: true as const, client, normalized, shipments,
+    summary: {
+      openingBalance, totalDebit, totalCredit, totalAdjustments, closingBalance,
+      ordersCount: shipments.length, creditLimit, overLimit, overLimitAmount,
+      unpaidInvoicesCount: unpaidInvoices.length, unpaidInvoicesTotal,
+      pendingAdjustmentsCount: adjustments.length,
+    },
+  };
+}
+
+// ─── GET /client-account-pro/periods/preview ── معاينة إقفال قبل التنفيذ ───
+// نفس حسابات الإقفال بالظبط لكن read-only، عشان الموظف يشوف الملخص والتحذيرات
+// قبل ما يدوس زرار الإقفال الفعلي.
+const PreviewPeriodSchema = z.object({
+  phone: z.string().min(1),
+  periodFrom: z.string().min(1),
+  periodTo: z.string().min(1),
+});
+
+router.get("/client-account-pro/periods/preview", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const parsed = PreviewPeriodSchema.safeParse({
+      phone: req.query.phone, periodFrom: req.query.periodFrom, periodTo: req.query.periodTo,
+    });
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+    const { phone, periodFrom, periodTo } = parsed.data;
+
+    const result = await computePeriodCloseSummary(tenantId, phone, periodFrom, periodTo);
+    if (!result.ok) { res.status(result.status).json({ error: result.error }); return; }
+
+    res.json({ summary: result.summary });
+  } catch (err: any) {
+    console.error("client-account-pro/periods/preview error:", err);
+    res.status(500).json({ error: "حصل خطأ فى معاينة الإقفال" });
+  }
+});
+
 // ─── POST /client-account-pro/periods/close ── إقفال فترة حساب حقيقي ───────
 // بيحسب: رصيد افتتاحي (من آخر فترة مقفولة) + شحنات الفترة + تحصيلات الفترة
 // + تسويات الفترة = رصيد ختامي، وبيمنع إعادة قفل فترة متداخلة مع فترة سابقة.
@@ -701,74 +825,11 @@ router.post("/client-account-pro/periods/close", async (req, res): Promise<void>
     const parsed = ClosePeriodSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const data = parsed.data;
-    const normalized = normalizePhone(data.phone);
-    if (!normalized) { res.status(400).json({ error: "رقم التليفون غير صالح" }); return; }
 
-    const clientConditions: any[] = [eq(receiverClientsTable.normalizedPhone, normalized)];
-    if (tenantId !== null) clientConditions.push(eq(receiverClientsTable.tenantId, tenantId));
-    const [client] = await db.select().from(receiverClientsTable).where(and(...clientConditions));
-    if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
-
-    // ─── منع تداخل فترات القفل ──────────────────────────────────────────────
-    if (client.lastClosedPeriodTo) {
-      const lastClosed = new Date(client.lastClosedPeriodTo);
-      const newFrom = new Date(data.periodFrom);
-      if (newFrom <= lastClosed) {
-        res.status(400).json({
-          error: `فيه فترة مقفولة بالفعل حتى ${lastClosed.toLocaleDateString("ar-EG")}. لازم تبدأ الفترة الجديدة بعد التاريخ ده.`,
-        });
-        return;
-      }
-    }
-
-    const periodFromDate = new Date(data.periodFrom);
-    const periodToDate = new Date(data.periodTo);
-    if (periodToDate < periodFromDate) {
-      res.status(400).json({ error: "تاريخ نهاية الفترة لازم يكون بعد تاريخ البداية" });
-      return;
-    }
-
-    // ─── الرصيد الافتتاحي = رصيد ختامي آخر فترة مقفولة (أو صفر لأول مرة) ───
-    const prevConditions: any[] = [eq(clientAccountPeriodsTable.normalizedPhone, normalized)];
-    if (tenantId !== null) prevConditions.push(eq(clientAccountPeriodsTable.tenantId, tenantId));
-    const prevPeriods = await db.select().from(clientAccountPeriodsTable)
-      .where(and(...prevConditions)).orderBy(desc(clientAccountPeriodsTable.periodTo)).limit(1);
-    const openingBalance = prevPeriods[0] ? Number(prevPeriods[0].closingBalance) : 0;
-
-    // ─── شحنات الفترة ────────────────────────────────────────────────────────
-    const shipConditions: any[] = [
-      isNull(shipmentsTable.deletedAt),
-      sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalized}`,
-      sql`${shipmentsTable.createdAt} >= ${data.periodFrom}`,
-      sql`${shipmentsTable.createdAt} <= ${data.periodTo} 23:59:59`,
-    ];
-    if (tenantId !== null) shipConditions.push(eq(shipmentsTable.tenantId, tenantId));
-    const shipments = await db.select().from(shipmentsTable).where(and(...shipConditions));
-    const totalDebit = shipments.reduce((s: number, o: any) => s + Number(o.totalAmount ?? 0), 0);
-
-    // ─── تحصيلات الفترة ──────────────────────────────────────────────────────
-    const payConditions: any[] = [
-      eq(clientPaymentsTable.normalizedPhone, normalized),
-      sql`${clientPaymentsTable.paidAt} >= ${data.periodFrom}`,
-      sql`${clientPaymentsTable.paidAt} <= ${data.periodTo} 23:59:59`,
-    ];
-    if (tenantId !== null) payConditions.push(eq(clientPaymentsTable.tenantId, tenantId));
-    const payments = await db.select().from(clientPaymentsTable).where(and(...payConditions));
-    const totalCredit = payments.reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0);
-
-    // ─── تسويات الفترة (غير ملغاة) ──────────────────────────────────────────
-    const adjConditions: any[] = [
-      eq(clientAccountAdjustmentsTable.normalizedPhone, normalized),
-      isNull(clientAccountAdjustmentsTable.voidedAt),
-      sql`${clientAccountAdjustmentsTable.adjustedAt} >= ${data.periodFrom}`,
-      sql`${clientAccountAdjustmentsTable.adjustedAt} <= ${data.periodTo} 23:59:59`,
-    ];
-    if (tenantId !== null) adjConditions.push(eq(clientAccountAdjustmentsTable.tenantId, tenantId));
-    const adjustments = await db.select().from(clientAccountAdjustmentsTable).where(and(...adjConditions));
-    const totalAdjustments = adjustments.reduce((s: number, a: any) =>
-      s + (a.direction === "credit" ? -Number(a.amount ?? 0) : Number(a.amount ?? 0)), 0);
-
-    const closingBalance = openingBalance + totalDebit - totalCredit + totalAdjustments;
+    const result = await computePeriodCloseSummary(tenantId, data.phone, data.periodFrom, data.periodTo);
+    if (!result.ok) { res.status(result.status).json({ error: result.error }); return; }
+    const { client, normalized, shipments, summary } = result;
+    const { openingBalance, totalDebit, totalCredit, totalAdjustments, closingBalance } = summary;
 
     const { id: userId, name: userName } = currentUser(req);
     const now = new Date();
@@ -796,7 +857,7 @@ router.post("/client-account-pro/periods/close", async (req, res): Promise<void>
     const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
 
     await db.update(receiverClientsTable)
-      .set({ lastClosedPeriodTo: periodToDate, updatedAt: now })
+      .set({ lastClosedPeriodTo: new Date(data.periodTo), updatedAt: now })
       .where(eq(receiverClientsTable.id, client.id));
 
     await logAudit({

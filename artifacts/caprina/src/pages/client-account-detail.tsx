@@ -260,6 +260,16 @@ export default function ClientAccountDetailPage() {
     enabled: !!phone,
   });
 
+  // ── معاينة إقفال الفترة قبل التنفيذ: بتتحدث تلقائيًا مع تغيير التواريخ ──
+  const { data: closePreviewData, isFetching: closePreviewLoading, error: closePreviewError } = useQuery({
+    queryKey: ["client-account-pro-close-preview", phone, closePeriodForm.periodFrom, closePeriodForm.periodTo],
+    queryFn: () => clientAccountProApi.previewPeriodClose({
+      phone, periodFrom: closePeriodForm.periodFrom, periodTo: closePeriodForm.periodTo,
+    }),
+    enabled: !!phone && closePeriodDialogOpen && !closeSummary && !!closePeriodForm.periodFrom && !!closePeriodForm.periodTo,
+    retry: false,
+  });
+
   const creditStatus = profileData?.creditStatus ?? null;
 
   const saveProfileMutation = useMutation({
@@ -1247,12 +1257,64 @@ export default function ClientAccountDetailPage() {
                   <label className="text-[11px] text-muted-foreground mb-1 block">ملاحظات (اختياري)</label>
                   <Textarea value={closePeriodForm.notes} onChange={e => setClosePeriodForm(f => ({ ...f, notes: e.target.value }))} />
                 </div>
+
+                {/* ── معاينة فورية قبل الإقفال الفعلي ── */}
+                {closePeriodForm.periodFrom && closePeriodForm.periodTo && (
+                  <div className="pt-1">
+                    {closePreviewLoading ? (
+                      <div className="p-4 text-center text-muted-foreground text-xs">
+                        <Loader2 className="w-4 h-4 mx-auto mb-1.5 animate-spin" /> جاري حساب المعاينة...
+                      </div>
+                    ) : closePreviewError ? (
+                      <p className="text-[11px] text-red-400 bg-red-900/10 border border-red-700/40 rounded-lg p-2">
+                        {(closePreviewError as any)?.message || "تعذر حساب معاينة الإقفال"}
+                      </p>
+                    ) : closePreviewData?.summary ? (
+                      <div className="space-y-2 rounded-xl p-3" style={{ background: "hsl(var(--muted)/0.15)" }}>
+                        <p className="text-[11px] font-bold text-muted-foreground mb-1">معاينة الإقفال</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-background/40"><span className="text-[10px] text-muted-foreground">رصيد افتتاحي</span><b>{fmt(closePreviewData.summary.openingBalance)}</b></div>
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-background/40"><span className="text-[10px] text-muted-foreground">شحنات الفترة</span><b>{fmt(closePreviewData.summary.totalDebit)}</b></div>
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-background/40"><span className="text-[10px] text-muted-foreground">تحصيل الفترة</span><b className="text-emerald-400">{fmt(closePreviewData.summary.totalCredit)}</b></div>
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-background/40"><span className="text-[10px] text-muted-foreground">تسويات</span><b className="text-amber-400">{fmt(closePreviewData.summary.totalAdjustments)}</b></div>
+                        </div>
+                        <div className={`flex items-center justify-between p-2.5 rounded-lg font-black ${closePreviewData.summary.closingBalance > 0 ? "text-red-400" : "text-emerald-400"}`}
+                          style={{ background: closePreviewData.summary.closingBalance > 0 ? "rgba(239,68,68,0.1)" : "rgba(16,185,129,0.1)" }}>
+                          <span className="text-xs">الرصيد المتوقع بعد الإقفال</span>
+                          <span className="text-sm">{fmt(closePreviewData.summary.closingBalance)} ج.م</span>
+                        </div>
+
+                        {closePreviewData.summary.closingBalance > 0 && (
+                          <p className="text-[11px] text-red-400 bg-red-900/10 border border-red-700/40 rounded-lg p-2 flex items-start gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            هيقفل والعميل لسه عليه {fmt(closePreviewData.summary.closingBalance)} ج.م
+                          </p>
+                        )}
+                        {closePreviewData.summary.overLimit && (
+                          <p className="text-[11px] text-red-400 bg-red-900/10 border border-red-700/40 rounded-lg p-2 flex items-start gap-1.5">
+                            <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            الرصيد الختامي متجاوز حد الائتمان بمقدار {fmt(closePreviewData.summary.overLimitAmount)} ج.م
+                          </p>
+                        )}
+                        {closePreviewData.summary.unpaidInvoicesCount > 0 && (
+                          <p className="text-[11px] text-amber-400 bg-amber-900/10 border border-amber-700/40 rounded-lg p-2 flex items-start gap-1.5">
+                            <Receipt className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            فيه {closePreviewData.summary.unpaidInvoicesCount} فاتورة غير محصلة بالكامل ({fmt(closePreviewData.summary.unpaidInvoicesTotal)} ج.م)
+                          </p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground text-center">{closePreviewData.summary.ordersCount} شحنة ستُضمّن فى هذه الفترة</p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setClosePeriodDialogOpen(false)}>إلغاء</Button>
                 <Button disabled={!closePeriodForm.periodFrom || !closePeriodForm.periodTo || closePeriodMutation.isPending}
                   onClick={() => closePeriodMutation.mutate()}>
-                  إقفال الفترة
+                  {closePreviewData?.summary?.closingBalance != null && closePreviewData.summary.closingBalance > 0
+                    ? "إقفال رغم وجود مديونية"
+                    : "إقفال الفترة"}
                 </Button>
               </DialogFooter>
             </>
