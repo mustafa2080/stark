@@ -15,6 +15,7 @@ import {
   Search, User, Phone, MapPin, Printer, Lock, Package,
   RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3, ListFilter, X,
   ArrowUp, ArrowDown, ArrowUpDown, LayoutGrid, List as ListIcon, Wallet,
+  Building2, Send, Warehouse, StickyNote, Hash, Calendar, DollarSign, Receipt,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -198,6 +199,23 @@ function ClientAvatar({ name }: { name: string }) {
   );
 }
 
+// ── صف بيانات فى كارت تفاصيل الأوردر ──────────────────────────────────────
+function DetailRow({ icon: Icon, label, value, highlight, color }: {
+  icon: any; label: string; value: any; highlight?: boolean; color?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5 px-1 border-b border-border/40 last:border-b-0">
+      <span className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+        <Icon className="w-3.5 h-3.5" style={color ? { color } : undefined} />
+        {label}
+      </span>
+      <span className={`text-sm text-left truncate ${highlight ? "font-black" : "font-bold"}`} style={color ? { color } : undefined}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 
 type ClientRow = {
@@ -224,6 +242,7 @@ export default function ClientAccountSheetPage() {
   const [sortCol, setSortCol] = useState<keyof ClientRow>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [detailOrder, setDetailOrder] = useState<SheetOrder | null>(null);
 
   const hasSearch = !!activePhone;
 
@@ -692,8 +711,12 @@ export default function ClientAccountSheetPage() {
               </thead>
               <tbody>
                 {data.orders.map((o) => (
-                  <tr key={o.id} className="border-b border-border/50 hover:bg-muted/10">
-                    <td className="p-2.5 font-bold">{o.customerName}</td>
+                  <tr
+                    key={o.id}
+                    className="border-b border-border/50 hover:bg-primary/5 cursor-pointer transition-colors"
+                    onClick={() => setDetailOrder(o)}
+                  >
+                    <td className="p-2.5 font-bold hover:underline decoration-dotted underline-offset-2">{o.customerName}</td>
                     <td className="p-2.5">{o.phone || "—"}</td>
                     <td className="p-2.5">{o.city || "—"}</td>
                     <td className="p-2.5 max-w-[160px] truncate" title={o.address ?? ""}>{o.address || "—"}</td>
@@ -707,7 +730,7 @@ export default function ClientAccountSheetPage() {
                     <td className="p-2.5">{fmt(o.unitPrice)}</td>
                     <td className="p-2.5 font-bold">{fmt(o.totalPrice)}</td>
                     <td className="p-2.5">{fmt(o.shippingCost)}</td>
-                    <td className="p-2.5 print:hidden">
+                    <td className="p-2.5 print:hidden" onClick={(e) => e.stopPropagation()}>
                       {editingId === o.id ? (
                         <div className="flex items-center gap-1">
                           <Input
@@ -745,6 +768,95 @@ export default function ClientAccountSheetPage() {
           </Card>
         </>
       )}
+
+      {/* Dialog تفاصيل الأوردر — تصميم احترافي زي كشف STARK */}
+      <Dialog open={!!detailOrder} onOpenChange={(open) => !open && setDetailOrder(null)}>
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden gap-0">
+          {detailOrder && (() => {
+            const o = detailOrder;
+            const net = Number(o.totalPrice ?? 0) - Number(o.shippingCost ?? 0);
+            const cfg = STATUS_CFG[o.status] ?? { label: o.status, color: "text-muted-foreground", bg: "bg-muted/10", border: "border-border" };
+            return (
+              <>
+                {/* هيدر بهوية STARK */}
+                <div className="relative px-5 pt-5 pb-4 bg-gradient-to-l from-primary/15 via-primary/5 to-transparent border-b border-border">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <ClientAvatar name={o.customerName} />
+                      <div>
+                        <DialogTitle className="text-base font-black">{o.customerName}</DialogTitle>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <Hash className="w-3 h-3" /> أوردر #{o.id}
+                          {o.invoiceNumber && <span className="mx-1">•</span>}
+                          {o.invoiceNumber && <span>فاتورة {o.invoiceNumber}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={`text-[11px] shrink-0 ${cfg.border} ${cfg.bg} ${cfg.color}`}>
+                      {cfg.label}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {new Date(o.createdAt).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })}
+                  </p>
+                </div>
+
+                <div className="px-5 py-2 max-h-[60vh] overflow-y-auto">
+                  {/* بيانات التواصل والعنوان */}
+                  <div className="py-1">
+                    <DetailRow icon={Phone} label="رقم الهاتف" value={o.phone || "—"} />
+                    <DetailRow icon={MapPin} label="المحافظة" value={o.city || "—"} />
+                    <DetailRow icon={Building2} label="العنوان" value={o.address || "—"} />
+                    <DetailRow icon={Send} label="اسم الراسل" value={o.senderName || "—"} />
+                    <DetailRow icon={Warehouse} label="الفرع المستلم منه" value={o.warehouseName || "—"} />
+                    <DetailRow
+                      icon={UserCog}
+                      label="المندوب"
+                      value={o.assignedUserName
+                        ? <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 bg-primary/10 text-primary"><UserCog className="w-3 h-3" /> {o.assignedUserName}</Badge>
+                        : "—"}
+                    />
+                    <DetailRow icon={Package} label="المنتج" value={o.product || "—"} />
+                  </div>
+
+                  {/* المبالغ المالية — كارت مميز */}
+                  <div className="my-3 rounded-xl border border-border bg-muted/10 p-3 space-y-0.5">
+                    <DetailRow icon={DollarSign} label="سعر الشحنة" value={fmt(o.unitPrice)} />
+                    <DetailRow icon={Package} label="قيمة الشحنة" value={fmt(o.totalPrice)} highlight />
+                    <DetailRow icon={Truck} label="قيمة الشحن" value={fmt(o.shippingCost)} />
+                    <DetailRow
+                      icon={Wallet}
+                      label="المحصَّل فعلياً"
+                      value={o.collectedAmount != null ? fmt(o.collectedAmount) : "لم يُحدَّد"}
+                      color={o.collectedAmount != null ? "#10b981" : undefined}
+                    />
+                    <div className="flex items-center justify-between pt-2 mt-1 border-t border-border">
+                      <span className="flex items-center gap-2 text-xs font-bold">
+                        <Receipt className="w-3.5 h-3.5 text-primary" /> الصافي
+                      </span>
+                      <span className="text-base font-black text-primary">{fmt(net)}</span>
+                    </div>
+                  </div>
+
+                  {o.notes && (
+                    <div className="mb-3 rounded-lg border border-amber-700/30 bg-amber-900/10 p-3">
+                      <p className="text-[11px] text-amber-400 flex items-center gap-1.5 font-bold mb-1">
+                        <StickyNote className="w-3.5 h-3.5" /> ملاحظات
+                      </p>
+                      <p className="text-xs text-foreground/90">{o.notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-muted/5">
+                  <Button variant="outline" size="sm" onClick={() => setDetailOrder(null)}>إغلاق</Button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog إقفال الحساب */}
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
