@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Search, User, Phone, MapPin, Printer, Lock, Package,
   RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3, ListFilter, X,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -95,9 +96,10 @@ function StatBox({ label, value, icon: Icon, color }: { label: string; value: nu
   );
 }
 
-// ── رأس عمود قابل للفلترة زي الإكسيل ─────────────────────────────────────
+// ── رأس عمود قابل للفلترة والترتيب زي الإكسيل ────────────────────────────
 function ColumnHeader({
   label, col, enabled, values, active, open, onToggleOpen, onToggleValue, onClear,
+  sortable, sortActive, sortDir, onSort,
 }: {
   label: string;
   col: string;
@@ -108,11 +110,29 @@ function ColumnHeader({
   onToggleOpen: () => void;
   onToggleValue: (col: string, value: string) => void;
   onClear: (col: string) => void;
+  sortable?: boolean;
+  sortActive?: boolean;
+  sortDir?: "asc" | "desc";
+  onSort?: () => void;
 }) {
   const hasActive = !!active && active.size > 0;
   return (
     <div className="relative flex items-center gap-1.5">
-      <span>{label}</span>
+      {sortable ? (
+        <button
+          onClick={onSort}
+          className="flex items-center gap-1 hover:text-primary transition-colors"
+        >
+          <span>{label}</span>
+          {sortActive ? (
+            sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+          ) : (
+            <ArrowUpDown className="w-3 h-3 opacity-30" />
+          )}
+        </button>
+      ) : (
+        <span>{label}</span>
+      )}
       {enabled && (
         <button
           onClick={(e) => { e.stopPropagation(); onToggleOpen(); }}
@@ -155,6 +175,29 @@ function ColumnHeader({
   );
 }
 
+// ── أفاتار حرف أول من اسم العميل ──────────────────────────────────────────
+const AVATAR_PALETTE = [
+  "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444",
+  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#3b82f6",
+];
+function nameToColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}
+function ClientAvatar({ name }: { name: string }) {
+  const color = nameToColor(name || "?");
+  const letter = (name || "?").trim().charAt(0);
+  return (
+    <div
+      className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
+      style={{ background: `${color}22`, color, border: `1px solid ${color}44` }}
+    >
+      {letter}
+    </div>
+  );
+}
+
 type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 
 type ClientRow = {
@@ -178,6 +221,8 @@ export default function ClientAccountSheetPage() {
   const [filtersEnabled, setFiltersEnabled] = useState(false);
   const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
+  const [sortCol, setSortCol] = useState<keyof ClientRow>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const hasSearch = !!activePhone;
 
@@ -209,8 +254,21 @@ export default function ClientAccountSheetPage() {
       if (!values || values.size === 0) continue;
       list = list.filter((c) => values.has(String((c as any)[col] ?? "—")));
     }
-    return list;
-  }, [allClientsData, tableFilter, columnFilters]);
+    const sorted = [...list].sort((a, b) => {
+      const va = a[sortCol];
+      const vb = b[sortCol];
+      let cmp: number;
+      if (typeof va === "number" && typeof vb === "number") cmp = va - vb;
+      else cmp = String(va ?? "").localeCompare(String(vb ?? ""), "ar");
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [allClientsData, tableFilter, columnFilters, sortCol, sortDir]);
+
+  const toggleSort = (col: keyof ClientRow) => {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  };
 
   // القيم الفريدة لكل عمود، لبناء قائمة الفلتر زي الإكسيل
   const columnValues = useMemo(() => {
@@ -350,13 +408,16 @@ export default function ClientAccountSheetPage() {
 
       {!hasSearch && !matches && (
         <Card className="border-border overflow-hidden">
-          <div className="p-4 border-b border-border">
+          <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-3">
             <Input
               placeholder="فلترة سريعة بالاسم أو رقم التليفون..."
               value={tableFilter}
               onChange={(e) => setTableFilter(e.target.value)}
               className="max-w-sm"
             />
+            <p className="text-[11px] text-muted-foreground">
+              عرض <span className="font-bold text-foreground">{fmt(filteredClients.length)}</span> من <span className="font-bold text-foreground">{fmt(allClientsData?.clients?.length ?? 0)}</span> عميل
+            </p>
           </div>
 
           {isLoadingAllClients && (
@@ -366,50 +427,99 @@ export default function ClientAccountSheetPage() {
           )}
 
           {!isLoadingAllClients && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-muted/20">
-                    <th className="p-2.5 text-right font-bold">
+            <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-border bg-card shadow-sm">
+                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
                       <ColumnHeader label="اسم العميل" col="name" enabled={filtersEnabled}
                         values={columnValues.name} active={columnFilters.name}
                         open={openFilterCol === "name"} onToggleOpen={() => setOpenFilterCol((v) => v === "name" ? null : "name")}
-                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter} />
+                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter}
+                        sortable sortActive={sortCol === "name"} sortDir={sortDir} onSort={() => toggleSort("name")} />
                     </th>
-                    <th className="p-2.5 text-right font-bold">
+                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
                       <ColumnHeader label="الفون" col="phone" enabled={filtersEnabled}
                         values={columnValues.phone} active={columnFilters.phone}
                         open={openFilterCol === "phone"} onToggleOpen={() => setOpenFilterCol((v) => v === "phone" ? null : "phone")}
                         onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter} />
                     </th>
-                    <th className="p-2.5 text-right font-bold">
+                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
                       <ColumnHeader label="المحافظة" col="city" enabled={filtersEnabled}
                         values={columnValues.city} active={columnFilters.city}
                         open={openFilterCol === "city"} onToggleOpen={() => setOpenFilterCol((v) => v === "city" ? null : "city")}
-                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter} />
+                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter}
+                        sortable sortActive={sortCol === "city"} sortDir={sortDir} onSort={() => toggleSort("city")} />
                     </th>
-                    <th className="p-2.5 text-right font-bold">عدد الشحنات</th>
-                    <th className="p-2.5 text-right font-bold">إجمالي القيمة</th>
-                    <th className="p-2.5 text-right font-bold">المحصَّل</th>
-                    <th className="p-2.5 text-right font-bold">المتبقي</th>
+                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
+                      <ColumnHeader label="عدد الشحنات" col="shipmentsCount" enabled={false}
+                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
+                        sortable sortActive={sortCol === "shipmentsCount"} sortDir={sortDir} onSort={() => toggleSort("shipmentsCount")} />
+                    </th>
+                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
+                      <ColumnHeader label="إجمالي القيمة" col="totalAmount" enabled={false}
+                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
+                        sortable sortActive={sortCol === "totalAmount"} sortDir={sortDir} onSort={() => toggleSort("totalAmount")} />
+                    </th>
+                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
+                      <ColumnHeader label="المحصَّل" col="collectedAmount" enabled={false}
+                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
+                        sortable sortActive={sortCol === "collectedAmount"} sortDir={sortDir} onSort={() => toggleSort("collectedAmount")} />
+                    </th>
+                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
+                      <ColumnHeader label="المتبقي" col="remainingAmount" enabled={false}
+                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
+                        sortable sortActive={sortCol === "remainingAmount"} sortDir={sortDir} onSort={() => toggleSort("remainingAmount")} />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredClients.map((c) => (
-                    <tr
-                      key={c.phone}
-                      className="border-b border-border/50 hover:bg-muted/10 cursor-pointer"
-                      onClick={() => selectPhone(c.phone)}
-                    >
-                      <td className="p-2.5 font-bold hover:underline decoration-dotted underline-offset-2">{c.name}</td>
-                      <td className="p-2.5 flex items-center gap-1"><Phone className="w-3 h-3 text-muted-foreground" /> {c.phone}</td>
-                      <td className="p-2.5">{c.city || "—"}</td>
-                      <td className="p-2.5"><Badge variant="outline">{c.shipmentsCount}</Badge></td>
-                      <td className="p-2.5 font-bold">{fmt(c.totalAmount)}</td>
-                      <td className="p-2.5">{fmt(c.collectedAmount)}</td>
-                      <td className={`p-2.5 font-bold ${c.remainingAmount > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fmt(c.remainingAmount)}</td>
-                    </tr>
-                  ))}
+                  {filteredClients.map((c, idx) => {
+                    const pct = c.totalAmount > 0 ? Math.min(100, Math.round((c.collectedAmount / c.totalAmount) * 100)) : 0;
+                    return (
+                      <tr
+                        key={c.phone}
+                        className={`border-b border-border/40 hover:bg-primary/5 cursor-pointer transition-colors ${idx % 2 === 0 ? "bg-transparent" : "bg-muted/10"}`}
+                        onClick={() => selectPhone(c.phone)}
+                      >
+                        <td className="p-2.5">
+                          <div className="flex items-center gap-2">
+                            <ClientAvatar name={c.name} />
+                            <span className="font-bold hover:underline decoration-dotted underline-offset-2">{c.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-2.5 whitespace-nowrap">
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Phone className="w-3 h-3" /> {c.phone}
+                          </span>
+                        </td>
+                        <td className="p-2.5">
+                          {c.city ? (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-muted-foreground" /> {c.city}
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="p-2.5">
+                          <Badge variant="outline" className="font-bold">{c.shipmentsCount}</Badge>
+                        </td>
+                        <td className="p-2.5 font-bold whitespace-nowrap">{fmt(c.totalAmount)}</td>
+                        <td className="p-2.5 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span>{fmt(c.collectedAmount)}</span>
+                            <div className="w-12 h-1.5 rounded-full bg-muted/30 overflow-hidden hidden md:block">
+                              <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2.5 whitespace-nowrap">
+                          <span className={`font-bold px-2 py-0.5 rounded-md ${c.remainingAmount > 0 ? "text-amber-400 bg-amber-900/10" : "text-emerald-400 bg-emerald-900/10"}`}>
+                            {fmt(c.remainingAmount)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {filteredClients.length === 0 && (
                     <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">
                       {tableFilter ? "مفيش نتائج مطابقة" : "لا يوجد عملاء"}
