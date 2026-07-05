@@ -344,8 +344,22 @@ export default function ClientAccountSheetPage() {
 
   const handlePrint = () => window.print();
 
+  const printTotals = useMemo(() => {
+    const orders = data?.orders ?? [];
+    return orders.reduce(
+      (acc, o) => {
+        acc.totalValue += Number(o.totalPrice ?? 0);
+        acc.totalShipping += Number(o.shippingCost ?? 0);
+        acc.totalCollected += Number(o.collectedAmount ?? 0);
+        return acc;
+      },
+      { totalValue: 0, totalShipping: 0, totalCollected: 0 }
+    );
+  }, [data]);
+
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1400px] mx-auto">
+    <>
+    <div className="p-4 md:p-6 space-y-5 max-w-[1400px] mx-auto print:hidden">
       <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
         <div>
           <h1 className="text-xl font-black flex items-center gap-2">
@@ -697,5 +711,159 @@ export default function ClientAccountSheetPage() {
         </DialogContent>
       </Dialog>
     </div>
+
+    {/* ── فاتورة الطباعة الاحترافية — تظهر فقط عند الطباعة ── */}
+    {hasSearch && data?.client && (
+      <div className="hidden print:block print-invoice" dir="rtl">
+        <style>{`
+          @media print {
+            @page { size: A4; margin: 12mm; }
+            body { background: #fff !important; }
+          }
+          .print-invoice {
+            font-family: 'Cairo', 'Tahoma', sans-serif;
+            color: #111;
+            background: #fff;
+          }
+          .print-invoice * { color: #111 !important; box-shadow: none !important; }
+          .inv-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            border-bottom: 3px solid #111; padding-bottom: 14px; margin-bottom: 18px;
+          }
+          .inv-brand { font-size: 22px; font-weight: 900; letter-spacing: 0.5px; }
+          .inv-sub { font-size: 11px; color: #555 !important; margin-top: 2px; }
+          .inv-meta { text-align: left; font-size: 11px; line-height: 1.7; }
+          .inv-meta b { font-size: 13px; }
+          .inv-client {
+            display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+            border: 1px solid #ccc; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;
+            font-size: 12px;
+          }
+          .inv-client .label { color: #666 !important; font-size: 10px; display: block; }
+          .inv-client .value { font-weight: 700; }
+          table.inv-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+          table.inv-table thead th {
+            background: #111 !important; color: #fff !important;
+            padding: 7px 6px; text-align: right; font-weight: 700;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          }
+          table.inv-table tbody td {
+            padding: 6px; border-bottom: 1px solid #ddd; text-align: right;
+          }
+          table.inv-table tbody tr:nth-child(even) { background: #f7f7f7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .inv-totals {
+            margin-top: 14px; display: flex; justify-content: flex-end;
+          }
+          .inv-totals table { border-collapse: collapse; font-size: 11.5px; min-width: 260px; }
+          .inv-totals td { padding: 5px 10px; }
+          .inv-totals .label-cell { color: #555 !important; }
+          .inv-totals .value-cell { font-weight: 700; text-align: left; }
+          .inv-totals .grand { border-top: 2px solid #111; font-size: 13px; font-weight: 900; }
+          .inv-footer {
+            margin-top: 28px; padding-top: 10px; border-top: 1px solid #ccc;
+            font-size: 10px; color: #666 !important; display: flex; justify-content: space-between;
+          }
+        `}</style>
+
+        <div className="inv-header">
+          <div>
+            <div className="inv-brand">STARK</div>
+            <div className="inv-sub">كشف حساب عميل — Client Account Statement</div>
+          </div>
+          <div className="inv-meta">
+            <div><b>تاريخ الطباعة:</b> {new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })}</div>
+            <div><b>عدد الأوردرات:</b> {fmt(data.orders.length)}</div>
+          </div>
+        </div>
+
+        <div className="inv-client">
+          <div>
+            <span className="label">اسم العميل</span>
+            <span className="value">{data.client.name}</span>
+          </div>
+          {data.client.phone && (
+            <div>
+              <span className="label">رقم الهاتف</span>
+              <span className="value">{data.client.phone}</span>
+            </div>
+          )}
+          {data.client.city && (
+            <div>
+              <span className="label">المحافظة</span>
+              <span className="value">{data.client.city}</span>
+            </div>
+          )}
+          {data.client.address && (
+            <div>
+              <span className="label">العنوان</span>
+              <span className="value">{data.client.address}</span>
+            </div>
+          )}
+        </div>
+
+        <table className="inv-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>التاريخ</th>
+              <th>المنتج</th>
+              <th>الراسل</th>
+              <th>المندوب</th>
+              <th>قيمة الشحنة</th>
+              <th>قيمة الشحن</th>
+              <th>المحصَّل</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.orders.map((o, i) => (
+              <tr key={o.id}>
+                <td>{i + 1}</td>
+                <td>{new Date(o.createdAt).toLocaleDateString("ar-EG")}</td>
+                <td>{o.product || "—"}</td>
+                <td>{o.senderName || "—"}</td>
+                <td>{o.assignedUserName || "—"}</td>
+                <td>{fmt(o.totalPrice)}</td>
+                <td>{fmt(o.shippingCost)}</td>
+                <td>{o.collectedAmount != null ? fmt(o.collectedAmount) : "—"}</td>
+                <td>{STATUS_CFG[o.status]?.label ?? o.status}</td>
+              </tr>
+            ))}
+            {data.orders.length === 0 && (
+              <tr><td colSpan={9} style={{ textAlign: "center", padding: "16px" }}>لا يوجد أوردرات</td></tr>
+            )}
+          </tbody>
+        </table>
+
+        <div className="inv-totals">
+          <table>
+            <tbody>
+              <tr>
+                <td className="label-cell">إجمالي قيمة الشحنات</td>
+                <td className="value-cell">{fmt(printTotals.totalValue)}</td>
+              </tr>
+              <tr>
+                <td className="label-cell">إجمالي قيمة الشحن</td>
+                <td className="value-cell">{fmt(printTotals.totalShipping)}</td>
+              </tr>
+              <tr>
+                <td className="label-cell">إجمالي المحصَّل</td>
+                <td className="value-cell">{fmt(printTotals.totalCollected)}</td>
+              </tr>
+              <tr className="grand">
+                <td className="label-cell">الصافي</td>
+                <td className="value-cell">{fmt(printTotals.totalValue - printTotals.totalShipping)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="inv-footer">
+          <span>تم إصدار هذا الكشف إلكترونيًا عبر نظام STARK</span>
+          <span>صفحة 1</span>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
