@@ -245,7 +245,7 @@ router.get("/client-account-sheet/orders", async (req, res): Promise<void> => {
     const weeklyShipments = orders.filter((o: any) => new Date(o.createdAt) >= sevenDaysAgo).length;
 
     const stats = {
-      newOrders: orders.filter((o: any) => o.status === "waiting" || o.status === "confirmed").length,
+      newOrders: orders.filter((o: any) => o.status === "waiting").length,
       returnedNotReceived: orders.filter((o: any) => o.status === "returned" && o.returnReceived !== 1).length,
       delayedOrInDelivery: orders.filter((o: any) =>
         o.status === "delayed" || o.status === "in_transit" || o.status === "out_for_delivery" || o.status === "picked_up"
