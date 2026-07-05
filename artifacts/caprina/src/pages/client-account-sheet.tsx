@@ -15,7 +15,7 @@ import {
   Search, User, Phone, MapPin, Printer, Lock, Package,
   RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3, ListFilter, X,
   ArrowUp, ArrowDown, ArrowUpDown, LayoutGrid, List as ListIcon, Wallet,
-  Building2, Send, Warehouse, StickyNote, Hash, Calendar, DollarSign, Receipt,
+  Building2, Send, Warehouse, StickyNote, Hash, Calendar, DollarSign, Receipt, FileSpreadsheet,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -364,6 +364,230 @@ export default function ClientAccountSheetPage() {
 
   const handlePrint = () => window.print();
 
+  // ── تصدير Excel — بنفس شكل شيت STARK (تقفيل رحلة/حساب) ─────────────────
+  const exportExcel = async () => {
+    if (!data?.client || !data.orders?.length) {
+      toast({ title: "مفيش بيانات للتصدير", variant: "destructive" });
+      return;
+    }
+    const ExcelJS = await import("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "STARK";
+    workbook.created = new Date();
+
+    const C = {
+      bg: "FF0B0F19",
+      panel: "FF1E293B",
+      teal: "FF14B8A6",
+      tealBg: "FFCCFBF1",
+      white: "FFFFFFFF",
+      offWhite: "FFF8FAFC",
+      darkText: "FF0F172A",
+      green: "FF10B981",
+      red: "FFEF4444",
+      redBg: "FFFEE2E2",
+      amber: "FFF59E0B",
+      amberBg: "FFFEF3C7",
+      blue: "FF3B82F6",
+      gray: "FF64748B",
+      grayBg: "FFF1F5F9",
+    };
+    const makeFill = (argb: string) => ({ type: "pattern" as const, pattern: "solid" as const, fgColor: { argb } });
+    const makeBorder = (argb = "FFCBD5E1") => {
+      const side = { style: "thin" as const, color: { argb } };
+      return { top: side, bottom: side, left: side, right: side };
+    };
+    const setCell = (cell: any, value: unknown, options?: {
+      fill?: string; font?: Record<string, any>; align?: Record<string, any>; border?: string; numFmt?: string;
+    }) => {
+      cell.value = value as any;
+      if (options?.fill) cell.fill = makeFill(options.fill);
+      if (options?.font) cell.font = { name: "Tahoma", size: 10, ...options.font };
+      if (options?.align) cell.alignment = options.align;
+      if (options?.border) cell.border = makeBorder(options.border);
+      if (options?.numFmt) cell.numFmt = options.numFmt;
+    };
+
+    const ws = workbook.addWorksheet("حساب العميل", { views: [{ state: "frozen", ySplit: 5, rightToLeft: true }] });
+    ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+    ws.pageMargins = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.35, header: 0.15, footer: 0.15 };
+
+    const colCount = 13;
+    ws.columns = [
+      { key: "customer", width: 18 }, { key: "phone", width: 14 }, { key: "city", width: 12 },
+      { key: "address", width: 26 }, { key: "sender", width: 16 }, { key: "warehouse", width: 16 },
+      { key: "agent", width: 14 }, { key: "unit", width: 12 }, { key: "total", width: 12 },
+      { key: "shipping", width: 12 }, { key: "collected", width: 14 }, { key: "status", width: 14 },
+      { key: "notes", width: 22 },
+    ];
+
+    const colLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"];
+    const lastCol = colLetters[colCount - 1];
+
+    // ── هيدر الشركة ──────────────────────────────────────────────────────
+    ws.mergeCells(`A1:${lastCol}1`);
+    setCell(ws.getCell("A1"), "STARK", {
+      fill: C.bg, font: { bold: true, size: 20, color: { argb: C.white } },
+      align: { horizontal: "center", vertical: "middle" }, border: C.bg,
+    });
+    ws.getRow(1).height = 32;
+
+    const printDate = new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
+    ws.mergeCells(`A2:${lastCol}2`);
+    setCell(ws.getCell("A2"), `كشف حساب عميل   |   ${printDate}`, {
+      fill: C.bg, font: { bold: true, size: 12, color: { argb: C.teal } },
+      align: { horizontal: "center", vertical: "middle" }, border: C.bg,
+    });
+    ws.getRow(2).height = 24;
+
+    ws.mergeCells(`A3:${lastCol}3`);
+    setCell(
+      ws.getCell("A3"),
+      `العميل: ${data.client.name}   |   الفون: ${data.client.phone ?? "—"}   |   المحافظة: ${data.client.city ?? "—"}   |   عدد الأوردرات: ${data.orders.length}`,
+      { fill: C.panel, font: { size: 10, color: { argb: C.white } }, align: { horizontal: "center", vertical: "middle" }, border: "FF334155" },
+    );
+    ws.getRow(3).height = 22;
+
+    ws.mergeCells(`A4:${lastCol}4`);
+    setCell(ws.getCell("A4"), "", { fill: C.bg, border: C.bg });
+    ws.getRow(4).height = 8;
+
+    // ── رؤوس الأعمدة ─────────────────────────────────────────────────────
+    const headers = [
+      "اسم العميل", "الفون", "المحافظة", "العنوان", "اسم الراسل", "الفرع المستلم منه",
+      "المندوب", "سعر الشحنة", "قيمة الشحنة", "قيمة الشحن", "المحصَّل فعلياً", "حالة الأوردر", "ملاحظات",
+    ];
+    const headerRow = ws.getRow(5);
+    headerRow.values = headers;
+    headerRow.height = 26;
+    headerRow.eachCell((cell) => {
+      setCell(cell, cell.value, {
+        fill: C.panel, font: { bold: true, color: { argb: C.white }, size: 10 },
+        align: { horizontal: "center", vertical: "middle", wrapText: true }, border: "FF334155",
+      });
+    });
+
+    // ── صفوف الأوردرات ───────────────────────────────────────────────────
+    const statusFillMap: Record<string, string> = {
+      delivered: C.green, returned: C.red, delayed: C.amber, partial_received: C.teal,
+      in_transit: C.blue, out_for_delivery: C.blue, picked_up: C.blue,
+      waiting: C.gray, confirmed: C.gray, cancelled: C.gray,
+    };
+    const statusBgMap: Record<string, string> = {
+      delivered: "FFD1FAE5", returned: C.redBg, delayed: C.amberBg, partial_received: C.tealBg,
+      in_transit: "FFDDEBFF", out_for_delivery: "FFDDEBFF", picked_up: "FFDDEBFF",
+      waiting: C.grayBg, confirmed: C.grayBg, cancelled: C.grayBg,
+    };
+
+    data.orders.forEach((o, idx) => {
+      const baseFill = idx % 2 === 0 ? C.white : C.offWhite;
+      const row = ws.getRow(idx + 6);
+      row.height = 26;
+      const cfg = STATUS_CFG[o.status];
+      const statusColor = statusFillMap[o.status] ?? C.gray;
+      const statusBg = statusBgMap[o.status] ?? C.grayBg;
+
+      setCell(row.getCell(1), o.customerName, { fill: baseFill, font: { bold: true, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle" }, border: "FFD1D5DB" });
+      setCell(row.getCell(2), o.phone ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+      setCell(row.getCell(3), o.city ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+      setCell(row.getCell(4), o.address ?? "—", { fill: baseFill, font: { size: 9, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle", wrapText: true }, border: "FFD1D5DB" });
+      setCell(row.getCell(5), o.senderName ?? "—", { fill: baseFill, font: { bold: true, color: { argb: C.blue } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+      setCell(row.getCell(6), o.warehouseName ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+      setCell(row.getCell(7), o.assignedUserName ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+      setCell(row.getCell(8), Number(o.unitPrice ?? 0), { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: '#,##0 "ج.م"' });
+      setCell(row.getCell(9), Number(o.totalPrice ?? 0), { fill: baseFill, font: { bold: true, color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: '#,##0 "ج.م"' });
+      setCell(row.getCell(10), Number(o.shippingCost ?? 0), { fill: baseFill, font: { color: { argb: C.amber } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: '#,##0 "ج.م"' });
+      setCell(row.getCell(11), o.collectedAmount != null ? Number(o.collectedAmount) : "—", { fill: baseFill, font: { bold: true, color: { argb: C.green } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: o.collectedAmount != null ? '#,##0 "ج.م"' : undefined });
+      setCell(row.getCell(12), cfg?.label ?? o.status, { fill: statusBg, font: { bold: true, color: { argb: statusColor } }, align: { horizontal: "center", vertical: "middle" }, border: statusColor });
+      setCell(row.getCell(13), o.notes ?? "", { fill: baseFill, font: { size: 9, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle", wrapText: true }, border: "FFD1D5DB" });
+    });
+
+    // ── صف الإجمالي/الخصم ────────────────────────────────────────────────
+    const totalValue = data.orders.reduce((s, o) => s + Number(o.totalPrice ?? 0), 0);
+    const totalShipping = data.orders.reduce((s, o) => s + Number(o.shippingCost ?? 0), 0);
+    const netDue = totalValue - totalShipping;
+
+    const summaryRowIndex = data.orders.length + 7;
+    const summaryRows = [
+      { row: summaryRowIndex,     label: "خصم قيمة الشحن", value: -totalShipping },
+      { row: summaryRowIndex + 1, label: "إجمالي قيمة الشحنات", value: totalValue },
+    ];
+    for (const item of summaryRows) {
+      setCell(ws.getCell(`A${item.row}`), item.label, {
+        fill: C.grayBg, font: { bold: true, color: { argb: C.bg }, size: 11 },
+        align: { horizontal: "right", vertical: "middle" }, border: "FF334155",
+      });
+      const valueCol = colLetters[1];
+      setCell(ws.getCell(`${valueCol}${item.row}`), item.value, {
+        fill: item.value < 0 ? C.redBg : C.tealBg,
+        font: { bold: true, color: { argb: item.value < 0 ? C.red : C.teal }, size: 11 },
+        align: { horizontal: "center", vertical: "middle" }, border: item.value < 0 ? C.red : C.teal,
+        numFmt: '#,##0 "ج.م"',
+      });
+      for (let i = 2; i < colCount; i++) {
+        setCell(ws.getCell(`${colLetters[i]}${item.row}`), "", { fill: C.grayBg, border: "FF334155" });
+      }
+      ws.getRow(item.row).height = 22;
+    }
+
+    // ── المربعات الأربعة (الجاري / مرتجع لم يصل / الجديد / الإجمالي) ─────
+    const statsRowStart = summaryRowIndex + 3;
+    const statBoxes = [
+      { label: "الجاري", value: data.stats?.delayedOrInDelivery ?? 0, color: C.blue },
+      { label: "مرتجع لم يصل", value: data.stats?.returnedNotReceived ?? 0, color: C.red },
+      { label: "الجديد", value: data.stats?.newOrders ?? 0, color: C.amber },
+      { label: "الإجمالي", value: data.stats?.totalOrders ?? 0, color: C.teal },
+    ];
+    statBoxes.forEach((box, i) => {
+      const startColIdx = i * 3;
+      const startCol = colLetters[startColIdx];
+      const endCol = colLetters[Math.min(startColIdx + 1, colCount - 1)];
+      ws.mergeCells(`${startCol}${statsRowStart}:${endCol}${statsRowStart}`);
+      setCell(ws.getCell(`${startCol}${statsRowStart}`), box.label, {
+        fill: C.panel, font: { bold: true, color: { argb: C.white }, size: 10 },
+        align: { horizontal: "center", vertical: "middle" }, border: "FF334155",
+      });
+      ws.mergeCells(`${startCol}${statsRowStart + 1}:${endCol}${statsRowStart + 1}`);
+      setCell(ws.getCell(`${startCol}${statsRowStart + 1}`), box.value, {
+        fill: C.white, font: { bold: true, color: { argb: box.color }, size: 16 },
+        align: { horizontal: "center", vertical: "middle" }, border: box.color,
+      });
+    });
+    ws.getRow(statsRowStart).height = 22;
+    ws.getRow(statsRowStart + 1).height = 30;
+
+    // ── صندوق الرصيد النهائي (الصافي) ────────────────────────────────────
+    const balanceRow = statsRowStart + 3;
+    ws.mergeCells(`A${balanceRow}:${colLetters[colCount - 4]}${balanceRow}`);
+    setCell(ws.getCell(`A${balanceRow}`), "الرصيد (الصافي المستحق)", {
+      fill: C.offWhite, font: { bold: true, color: { argb: C.bg }, size: 13 },
+      align: { horizontal: "right", vertical: "middle" }, border: "FF334155",
+    });
+    ws.mergeCells(`${colLetters[colCount - 3]}${balanceRow}:${lastCol}${balanceRow}`);
+    setCell(ws.getCell(`${colLetters[colCount - 3]}${balanceRow}`), netDue, {
+      fill: C.teal, font: { bold: true, color: { argb: C.white }, size: 15 },
+      align: { horizontal: "center", vertical: "middle" }, border: C.teal,
+      numFmt: '#,##0 "ج.م"',
+    });
+    ws.getRow(balanceRow).height = 30;
+
+    ws.eachRow((row) => {
+      row.eachCell((cell) => {
+        if (!cell.alignment) cell.alignment = { horizontal: "right", vertical: "middle" };
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `حساب-${data.client.name}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "تم تصدير ملف الإكسيل" });
+  };
+
   const printTotals = useMemo(() => {
     const orders = data?.orders ?? [];
     return orders.reduce(
@@ -671,6 +895,9 @@ export default function ClientAccountSheetPage() {
                 </Button>
                 <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
                   <Printer className="w-4 h-4" /> طباعة
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportExcel} className="gap-2">
+                  <FileSpreadsheet className="w-4 h-4" /> تصدير Excel
                 </Button>
                 <Button size="sm" onClick={() => setCloseDialogOpen(true)} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
                   <Lock className="w-4 h-4" /> إقفال الحساب
