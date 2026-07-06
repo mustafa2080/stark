@@ -117,7 +117,7 @@ type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 interface ShipmentZone      { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: string | number; isActive?: boolean }
 interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number; isActive?: boolean }
-interface ShipmentClient    { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; warehouseId?: number | null; avatar?: string | null }
+interface ShipmentClient    { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; region?: string; warehouseId?: number | null; avatar?: string | null }
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cod:      "الدفع عند الاستلام",
@@ -240,7 +240,7 @@ function ShipmentFormDialog({
       senderName: c.name,
       senderPhone: c.phone || "",
       senderPhone2: c.phone2 || "",
-      senderCity: c.city || "",
+      senderCity: c.region || c.city || "",
       warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId,
     }));
     setClientSearch(c.name);
