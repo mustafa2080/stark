@@ -189,7 +189,7 @@ function nameToColor(name: string) {
 function ClientAvatar({ name, avatar }: { name: string; avatar?: string | null }) {
   const color = nameToColor(name || "?");
   const letter = (name || "?").trim().charAt(0);
-  if (avatar) {
+  if (avatar && avatar.startsWith("data:")) {
     return (
       <img
         src={avatar}
@@ -728,7 +728,7 @@ export default function ClientAccountSheetPage() {
                         onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
                         className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
                       >
-                        {c.avatar ? (
+                        {c.avatar && c.avatar.startsWith("data:") ? (
                           <img
                             src={c.avatar}
                             alt={c.name || "عميل"}
