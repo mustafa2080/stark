@@ -448,8 +448,9 @@ export default function ClientAccountDetailPage() {
                 <Send className="w-3.5 h-3.5" /> إرسال كشف حساب
               </Button>
               <Button size="sm" variant="outline" className="gap-1.5 text-[#c9a227] border-[#c9a227]/40"
+                title="إقفال محاسبي لفترة زمنية: يحسب الرصيد الافتتاحي والختامي (لا يقفل الأوردرات نفسها)"
                 onClick={() => { setCloseSummary(null); setClosePeriodDialogOpen(true); }}>
-                <Lock className="w-3.5 h-3.5" /> إقفال فترة
+                <Lock className="w-3.5 h-3.5" /> إقفال فترة حساب
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

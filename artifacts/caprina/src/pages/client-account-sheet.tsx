@@ -899,8 +899,8 @@ export default function ClientAccountSheetPage() {
                 <Button variant="outline" size="sm" onClick={exportExcel} className="gap-2">
                   <FileSpreadsheet className="w-4 h-4" /> تصدير Excel
                 </Button>
-                <Button size="sm" onClick={() => setCloseDialogOpen(true)} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
-                  <Lock className="w-4 h-4" /> إقفال الحساب
+                <Button size="sm" onClick={() => setCloseDialogOpen(true)} className="gap-2 bg-red-600 hover:bg-red-700 text-white" title="يقفل الأوردرات الحالية للعميل (لا يشمل حساب الأرصدة المالية)">
+                  <Lock className="w-4 h-4" /> إقفال الأوردرات
                 </Button>
               </div>
             </div>
@@ -1125,12 +1125,14 @@ export default function ClientAccountSheetPage() {
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Lock className="w-4 h-4 text-red-500" /> إقفال حساب العميل</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Lock className="w-4 h-4 text-red-500" /> إقفال أوردرات العميل</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               هيتم إقفال كل الأوردرات الحالية لهذا العميل ماعدا المؤجلة/تحت التسليم
               (لسه شغالة في مركز العمليات). العملية دي هتتسجل كسجل مغلق ومينفعش يترجع.
+              <br />
+              <span className="text-amber-500">ملحوظة: ده تشغيلي بس، ومش بيقفل فترة حسابية أو يحسب الأرصدة — لو محتاج تقفل فترة محاسبية بالأرصدة، استخدم "إقفال فترة" من صفحة تفاصيل الحساب.</span>
             </p>
             <Textarea
               placeholder="ملاحظات على الإقفال (اختياري)"
