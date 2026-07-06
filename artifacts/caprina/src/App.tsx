@@ -502,7 +502,8 @@ function Router() {
           <Route path="/track-client" component={TrackClientPage} />
           <Route path="/contract" component={ContractPage} />
           <Route path="/login" component={LoginPage} />
-          <Route path="/register" component={RegisterPage} />
+          <Route path="/register" component={ClientRegisterPage} />
+          <Route path="/register-company" component={RegisterPage} />
           <Route path="/client-register" component={ClientRegisterPage} />
         </Switch>
       </Suspense>
