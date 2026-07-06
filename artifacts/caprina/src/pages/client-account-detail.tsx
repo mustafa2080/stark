@@ -30,6 +30,8 @@ import {
 import { HealthScoreRing } from "@/components/client-account/HealthScoreRing";
 import { MiniSparkline } from "@/components/client-account/MiniSparkline";
 import { StatCard } from "@/components/client-account/StatCard";
+import { AdjustmentsTab } from "@/components/client-account/AdjustmentsTab";
+import { ClosuresTab } from "@/components/client-account/ClosuresTab";
 
 const fmt = (n: string | number | null | undefined) =>
   new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Number(n ?? 0));
@@ -101,7 +103,6 @@ export default function ClientAccountDetailPage() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"statement" | "payments" | "invoices" | "analytics" | "adjustments" | "closures">("statement");
-  const [closureSearch, setClosureSearch] = useState("");
   const [statementFrom, setStatementFrom] = useState("");
   const [statementTo, setStatementTo] = useState("");
 
@@ -116,11 +117,6 @@ export default function ClientAccountDetailPage() {
   const [paymentForm, setPaymentForm] = useState({
     amount: "", paymentMethod: "cash" as ClientPaymentMethod, receiptNumber: "", notes: "",
   });
-
-  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
-  const [adjustmentForm, setAdjustmentForm] = useState<{
-    type: AdjustmentType; direction: AdjustmentDirection; amount: string; reason: string;
-  }>({ type: "discount", direction: "credit", amount: "", reason: "" });
 
   const [closePeriodDialogOpen, setClosePeriodDialogOpen] = useState(false);
   const [closePeriodForm, setClosePeriodForm] = useState({ periodFrom: "", periodTo: "", notes: "" });
@@ -243,16 +239,15 @@ export default function ClientAccountDetailPage() {
   });
 
   const createAdjustmentMutation = useMutation({
-    mutationFn: () => clientAccountProApi.createAdjustment({
-      phone, type: adjustmentForm.type, direction: adjustmentForm.direction,
-      amount: Number(adjustmentForm.amount), reason: adjustmentForm.reason,
-    }),
+    mutationFn: (form: { type: AdjustmentType; direction: AdjustmentDirection; amount: string; reason: string }) =>
+      clientAccountProApi.createAdjustment({
+        phone, type: form.type, direction: form.direction,
+        amount: Number(form.amount), reason: form.reason,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-account-pro-adjustments", phone] });
       queryClient.invalidateQueries({ queryKey: ["client-account-pro-profile", phone] });
       toast({ title: "تم إضافة التسوية" });
-      setAdjustmentDialogOpen(false);
-      setAdjustmentForm({ type: "discount", direction: "credit", amount: "", reason: "" });
     },
     onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
   });
@@ -303,16 +298,6 @@ export default function ClientAccountDetailPage() {
   const returnedPct = data?.totals?.ordersCount
     ? Math.round((returnedCount / data.totals.ordersCount) * 100 * 10) / 10
     : 0;
-
-  const filteredClosures = useMemo(() => {
-    const list = data?.closures ?? [];
-    const q = closureSearch.trim();
-    if (!q) return list;
-    return list.filter(c =>
-      (c.closedByName ?? "").includes(q) || (c.notes ?? "").includes(q) ||
-      fmtDate(c.createdAt).includes(q) || String(c.ordersCount).includes(q)
-    );
-  }, [data?.closures, closureSearch]);
 
   const statementEntries = useMemo(() => {
     const entries = statementData?.entries ?? [];
@@ -474,7 +459,7 @@ export default function ClientAccountDetailPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem onClick={startEditProfile}>تعديل بيانات العميل</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setAdjustmentDialogOpen(true)}>إضافة تسوية/خصم</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab("adjustments")}>إضافة تسوية/خصم</DropdownMenuItem>
                   {isSuspended ? (
                     <DropdownMenuItem onClick={() => suspendMutation.mutate(false)} className="text-emerald-500">
                       تفعيل الحساب
@@ -774,153 +759,23 @@ export default function ClientAccountDetailPage() {
 
       {/* ══════════════ محتوى: التسويات/الخصومات ══════════════ */}
       {activeTab === "adjustments" && (
-        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <p className="text-sm font-bold">التسويات والخصومات ({(adjustmentsData?.adjustments ?? []).length})</p>
-            <Button size="sm" className="gap-1.5" onClick={() => setAdjustmentDialogOpen(true)}>
-              <Plus className="w-3.5 h-3.5" /> إضافة تسوية
-            </Button>
-          </div>
-          {adjustmentsLoading ? (
-            <div className="p-10 text-center text-muted-foreground"><Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري التحميل...</div>
-          ) : (
-            <div className="space-y-2">
-              {(adjustmentsData?.adjustments ?? []).map(adj => {
-                const isVoided = !!adj.voidedAt;
-                const isCredit = adj.direction === "credit";
-                return (
-                  <div key={adj.id} className={`flex items-center justify-between gap-3 rounded-xl p-3 ${isVoided ? "opacity-50" : ""}`}
-                    style={{ background: "hsl(var(--muted)/0.15)" }}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ background: isCredit ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)" }}>
-                        {isCredit ? <ArrowDownCircle className="w-4.5 h-4.5 text-emerald-400" /> : <ArrowUpCircle className="w-4.5 h-4.5 text-red-400" />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold flex items-center gap-1.5">
-                          {ADJUSTMENT_TYPE_LABELS[adj.type]}
-                          {isVoided && <Badge variant="outline" className="text-[9px] text-muted-foreground">ملغاة</Badge>}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground truncate max-w-[280px]">{adj.reason}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{fmtDateTime(adj.adjustedAt)} {adj.createdByName ? `— بواسطة ${adj.createdByName}` : ""}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <p className={`text-sm font-black ${isCredit ? "text-emerald-400" : "text-red-400"}`}>
-                        {isCredit ? "-" : "+"}{fmt(adj.amount)} ج.م
-                      </p>
-                      {!isVoided && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400"
-                          onClick={() => voidAdjustmentMutation.mutate(adj.id)}>
-                          <XCircle className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {(adjustmentsData?.adjustments ?? []).length === 0 && (
-                <div className="text-center py-8 text-muted-foreground text-xs">لا توجد تسويات مسجلة</div>
-              )}
-            </div>
-          )}
-        </div>
+        <AdjustmentsTab
+          adjustments={adjustmentsData?.adjustments ?? []}
+          isLoading={adjustmentsLoading}
+          onCreate={(form) => createAdjustmentMutation.mutate(form)}
+          isCreating={createAdjustmentMutation.isPending}
+          onVoid={(id) => voidAdjustmentMutation.mutate(id)}
+        />
       )}
 
       {/* ══════════════ محتوى: الإقفالات السابقة ══════════════ */}
       {activeTab === "closures" && (
-        <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <p className="text-sm font-bold">سجل إقفالات الحساب السابقة</p>
-            {data.closures.length > 0 && (
-              <Input
-                placeholder="بحث بالتاريخ أو الموظف أو الملاحظات..."
-                className="h-8 text-xs bg-background w-64"
-                value={closureSearch}
-                onChange={e => setClosureSearch(e.target.value)}
-              />
-            )}
-          </div>
-          {data.closures.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Ban className="w-6 h-6 mx-auto mb-1.5 opacity-30" />
-              <p className="text-xs">لا يوجد إقفالات سابقة لهذا العميل</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border text-[10px] font-bold text-muted-foreground">
-                    <th className="text-right py-2 px-2">التاريخ</th>
-                    <th className="text-right py-2 px-2">عدد الأوردرات</th>
-                    <th className="text-right py-2 px-2">قيمة الشحنات</th>
-                    <th className="text-right py-2 px-2">المحصَّل</th>
-                    <th className="text-right py-2 px-2">بواسطة</th>
-                    <th className="text-right py-2 px-2">ملاحظات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredClosures.map(c => (
-                    <tr key={c.id} className="border-b border-border/50 hover:bg-muted/10">
-                      <td className="py-2.5 px-2">{fmtDate(c.createdAt)}</td>
-                      <td className="py-2.5 px-2 font-bold">{c.ordersCount}</td>
-                      <td className="py-2.5 px-2 font-bold">{fmt(c.totalShippingValue)}</td>
-                      <td className="py-2.5 px-2 text-emerald-400 font-bold">{fmt(c.totalCollected)}</td>
-                      <td className="py-2.5 px-2 text-muted-foreground">{c.closedByName || "—"}</td>
-                      <td className="py-2.5 px-2 text-muted-foreground">{c.notes || "—"}</td>
-                    </tr>
-                  ))}
-                  {filteredClosures.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-xs">لا توجد نتائج مطابقة للبحث</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* ── فترات الإقفال الحقيقية (Period Lock) ── */}
-          <div className="mt-5 pt-4 border-t border-border">
-            <p className="text-sm font-bold mb-3 flex items-center gap-2"><Lock className="w-4 h-4 text-primary" /> فترات إقفال الحساب (رسمية)</p>
-            {periodsLoading ? (
-              <div className="p-6 text-center text-muted-foreground text-xs"><Loader2 className="w-5 h-5 mx-auto mb-1.5 animate-spin" /> جاري التحميل...</div>
-            ) : (periodsData?.periods ?? []).length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground text-xs">لا توجد فترات مقفولة رسميًا بعد</div>
-            ) : (
-              <div className="space-y-2">
-                {(periodsData?.periods ?? []).map(p => (
-                  <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl p-3 flex-wrap"
-                    style={{ background: "hsl(var(--muted)/0.15)" }}>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold flex items-center gap-1.5">
-                        {fmtDate(p.periodFrom)} → {fmtDate(p.periodTo)}
-                        <Badge variant="outline" className={`text-[9px] gap-1 ${p.status === "closed" ? "text-emerald-400 border-emerald-700" : "text-amber-400 border-amber-700"}`}>
-                          {p.status === "closed" ? <Lock className="w-2.5 h-2.5" /> : <LockOpen className="w-2.5 h-2.5" />}
-                          {p.status === "closed" ? "مقفولة" : "معاد فتحها"}
-                        </Badge>
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        {p.ordersCount} شحنة — بواسطة {p.closedByName || "—"} — {fmtDateTime(p.createdAt)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4 text-[10px] shrink-0">
-                      <div><p className="text-muted-foreground">افتتاحي</p><p className="font-bold">{fmt(p.openingBalance)}</p></div>
-                      <div><p className="text-muted-foreground">شحنات</p><p className="font-bold">{fmt(p.totalDebit)}</p></div>
-                      <div><p className="text-muted-foreground">تحصيل</p><p className="font-bold text-emerald-400">{fmt(p.totalCredit)}</p></div>
-                      <div><p className="text-muted-foreground">تسويات</p><p className="font-bold text-amber-400">{fmt(p.totalAdjustments)}</p></div>
-                      <div><p className="text-muted-foreground">ختامي</p><p className="font-black text-[#c9a227]">{fmt(p.closingBalance)}</p></div>
-                      {p.status === "closed" && (
-                        <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400"
-                          onClick={() => reopenPeriodMutation.mutate({ id: p.id, reason: "تصحيح يدوي" })}>
-                          <LockOpen className="w-3 h-3 ml-1" /> إعادة فتح
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <ClosuresTab
+          closures={data.closures}
+          periods={periodsData?.periods ?? []}
+          periodsLoading={periodsLoading}
+          onReopenPeriod={(id) => reopenPeriodMutation.mutate({ id, reason: "تصحيح يدوي" })}
+        />
       )}
 
       {/* ══════════════ 3 أعمدة سفلية: مدفوعات / تحليلات مصغرة / نشاط ══════════════ */}
@@ -1101,52 +956,6 @@ export default function ClientAccountDetailPage() {
             <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>إلغاء</Button>
             <Button disabled={!paymentForm.amount || createPaymentMutation.isPending} onClick={() => createPaymentMutation.mutate()}>
               تسجيل
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ══════════════ Dialog: إضافة تسوية/خصم ══════════════ */}
-      <Dialog open={adjustmentDialogOpen} onOpenChange={setAdjustmentDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>إضافة تسوية / خصم</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <label className="text-[11px] text-muted-foreground mb-1 block">نوع التسوية</label>
-              <Select value={adjustmentForm.type} onValueChange={v => setAdjustmentForm(f => ({ ...f, type: v as AdjustmentType }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ADJUSTMENT_TYPE_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-[11px] text-muted-foreground mb-1 block">الأثر على الحساب</label>
-              <Select value={adjustmentForm.direction} onValueChange={v => setAdjustmentForm(f => ({ ...f, direction: v as AdjustmentDirection }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="credit">لصالح العميل (يقلل المستحق)</SelectItem>
-                  <SelectItem value="debit">على العميل (يزود المستحق)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-[11px] text-muted-foreground mb-1 block">المبلغ</label>
-              <Input type="number" value={adjustmentForm.amount} onChange={e => setAdjustmentForm(f => ({ ...f, amount: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-[11px] text-muted-foreground mb-1 block">السبب / التفاصيل</label>
-              <Textarea placeholder="مثال: تلف في الشحنة رقم 1234 أثناء النقل..." value={adjustmentForm.reason}
-                onChange={e => setAdjustmentForm(f => ({ ...f, reason: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAdjustmentDialogOpen(false)}>إلغاء</Button>
-            <Button disabled={!adjustmentForm.amount || adjustmentForm.reason.trim().length < 3 || createAdjustmentMutation.isPending}
-              onClick={() => createAdjustmentMutation.mutate()}>
-              حفظ التسوية
             </Button>
           </DialogFooter>
         </DialogContent>
