@@ -8,6 +8,7 @@ import {
   warehousesTable,
   clientAccountClosuresTable,
   usersTable,
+  clientsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -88,59 +89,87 @@ router.get("/client-account-sheet/search", async (req, res): Promise<void> => {
   }
 });
 
-// ─── GET /client-account-sheet/all-clients ── كل العملاء مجمّعين بالفون (لعرض الجدول قبل البحث) ─
+// ─── GET /client-account-sheet/all-clients ── العملاء التجاريون المسجلون (جدول clients) فقط ─
+// بيرجع كل عميل من جدول العملاء التجاريين (clients)، مع إجمالي شحناته المرتبطة بيه عبر clientId
 router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const conditions: any[] = [isNull(shipmentsTable.deletedAt)];
-    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
 
-    const rows = await db
+    const clientConditions: any[] = [];
+    if (tenantId !== null) clientConditions.push(eq(clientsTable.tenantId, tenantId));
+
+    const clientRows = await db
       .select({
-        receiverName: shipmentsTable.receiverName,
-        receiverPhone: shipmentsTable.receiverPhone,
-        receiverCity: shipmentsTable.receiverCity,
+        id: clientsTable.id,
+        name: clientsTable.name,
+        phone: clientsTable.phone,
+        city: clientsTable.city,
+      })
+      .from(clientsTable)
+      .where(clientConditions.length ? and(...clientConditions) : undefined);
+
+    if (clientRows.length === 0) { res.json({ clients: [] }); return; }
+
+    const clientIds = clientRows.map((c: any) => c.id);
+
+    // ── إجمالي الشحنات لكل عميل تجاري عبر clientId ──────────────────────────
+    const shipmentConditions: any[] = [isNull(shipmentsTable.deletedAt), inArray(shipmentsTable.clientId, clientIds)];
+    if (tenantId !== null) shipmentConditions.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const shipmentRows = await db
+      .select({
+        clientId: shipmentsTable.clientId,
         totalAmount: shipmentsTable.totalAmount,
         collectedAmount: shipmentsTable.collectedAmount,
-        status: shipmentsTable.status,
         createdAt: shipmentsTable.createdAt,
       })
       .from(shipmentsTable)
-      .where(and(...conditions));
+      .where(and(...shipmentConditions));
 
-    const byPhone = new Map<string, {
-      name: string; phone: string; city: string | null;
-      shipmentsCount: number; totalAmount: number; collectedAmount: number;
-      lastOrderAt: string;
+    const statsByClientId = new Map<number, {
+      shipmentsCount: number; totalAmount: number; collectedAmount: number; lastOrderAt: string | null;
     }>();
 
-    for (const r of rows) {
-      if (!r.receiverPhone) continue;
-      const key = normalizePhone(r.receiverPhone) || r.receiverPhone;
-      const total = Number(r.totalAmount ?? 0);
-      const collected = Number(r.collectedAmount ?? 0);
-      const existing = byPhone.get(key);
+    for (const s of shipmentRows) {
+      if (s.clientId == null) continue;
+      const total = Number(s.totalAmount ?? 0);
+      const collected = Number(s.collectedAmount ?? 0);
+      const existing = statsByClientId.get(s.clientId);
       if (existing) {
         existing.shipmentsCount++;
         existing.totalAmount += total;
         existing.collectedAmount += collected;
-        if (new Date(r.createdAt) > new Date(existing.lastOrderAt)) existing.lastOrderAt = r.createdAt;
+        if (!existing.lastOrderAt || new Date(s.createdAt) > new Date(existing.lastOrderAt)) existing.lastOrderAt = s.createdAt;
       } else {
-        byPhone.set(key, {
-          name: r.receiverName,
-          phone: r.receiverPhone,
-          city: r.receiverCity,
+        statsByClientId.set(s.clientId, {
           shipmentsCount: 1,
           totalAmount: total,
           collectedAmount: collected,
-          lastOrderAt: r.createdAt,
+          lastOrderAt: s.createdAt,
         });
       }
     }
 
-    const clients = [...byPhone.values()]
-      .map((c) => ({ ...c, remainingAmount: c.totalAmount - c.collectedAmount }))
-      .sort((a, b) => new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime());
+    const clients = clientRows
+      .map((c: any) => {
+        const stats = statsByClientId.get(c.id) ?? { shipmentsCount: 0, totalAmount: 0, collectedAmount: 0, lastOrderAt: null };
+        return {
+          name: c.name,
+          phone: c.phone,
+          city: c.city,
+          shipmentsCount: stats.shipmentsCount,
+          totalAmount: stats.totalAmount,
+          collectedAmount: stats.collectedAmount,
+          remainingAmount: stats.totalAmount - stats.collectedAmount,
+          lastOrderAt: stats.lastOrderAt,
+        };
+      })
+      .sort((a: any, b: any) => {
+        if (!a.lastOrderAt && !b.lastOrderAt) return 0;
+        if (!a.lastOrderAt) return 1;
+        if (!b.lastOrderAt) return -1;
+        return new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime();
+      });
 
     res.json({ clients });
   } catch (err: any) {
