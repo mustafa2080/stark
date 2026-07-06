@@ -408,7 +408,7 @@ export default function ClientAccountSheetPage() {
       if (options?.numFmt) cell.numFmt = options.numFmt;
     };
 
-    const ws = workbook.addWorksheet("حساب العميل", { views: [{ state: "frozen", ySplit: 5, rightToLeft: true }] });
+    const ws = workbook.addWorksheet("حسابات العملاء", { views: [{ state: "frozen", ySplit: 5, rightToLeft: true }] });
     ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
     ws.pageMargins = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.35, header: 0.15, footer: 0.15 };
 
@@ -607,7 +607,7 @@ export default function ClientAccountSheetPage() {
       <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
         <div>
           <h1 className="text-xl font-black flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" /> حساب العميل
+            <User className="w-5 h-5 text-primary" /> حسابات العملاء
           </h1>
           <p className="text-xs text-muted-foreground mt-1">شيت حساب الزبون — أوردرات + إقفال حساب</p>
         </div>

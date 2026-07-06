@@ -62,9 +62,9 @@ const ALL_NAV = [
 ];
 
 const FINANCE_NAV = [
-  { href: "/finance",                   label: "لوحة الماليات",     icon: DollarSign,   iconColor: "text-emerald-400"  },
+  { href: "/finance/client-account-sheet", label: "حسابات العملاء", icon: UserCheck,    iconColor: "text-cyan-400"     },
   { href: "/finance/cash",              label: "الخزنة",             icon: Wallet,       iconColor: "text-yellow-400"   },
-  { href: "/finance/client-account-sheet", label: "حساب العميل",    icon: UserCheck,    iconColor: "text-cyan-400"     },
+  { href: "/finance",                   label: "لوحة الماليات",     icon: DollarSign,   iconColor: "text-emerald-400"  },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
