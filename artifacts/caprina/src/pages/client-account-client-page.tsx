@@ -82,29 +82,32 @@ function StatusBadge({ status }: { status: string }) {
 
 function OrderRow({ o }: { o: ClientOrder }) {
   return (
-    <div className="flex items-stretch gap-0 rounded-lg border border-border bg-card/50">
-      <div className={`w-1 rounded-r-lg shrink-0 ${o.status === "delivered" ? "bg-emerald-500" : o.status === "returned" || o.status === "cancelled" ? "bg-red-500" : "bg-blue-500"}`} />
-      <div className="flex-1 px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-black text-sm">{o.invoiceNumber ?? `#${o.id}`}</span>
+    <Link href={`/shipments/${o.id}`}>
+      <div className="group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border border-border bg-card/50">
+        <div className={`w-1 rounded-r-lg shrink-0 ${o.status === "delivered" ? "bg-emerald-500" : o.status === "returned" || o.status === "cancelled" ? "bg-red-500" : "bg-blue-500"}`} />
+        <div className="flex-1 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-black text-sm">{o.invoiceNumber ?? `#${o.id}`}</span>
+              </div>
+              <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                <span className="flex items-center gap-1"><User className="w-2.5 h-2.5" />{o.customerName}</span>
+                {o.city && <span className="flex items-center gap-1"><MapPin className="w-2.5 h-2.5" />{o.city}</span>}
+                <span className="flex items-center gap-1"><Calendar className="w-2.5 h-2.5" />{format(new Date(o.createdAt), "yyyy/MM/dd")}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
-              <span className="flex items-center gap-1"><User className="w-2.5 h-2.5" />{o.customerName}</span>
-              {o.city && <span className="flex items-center gap-1"><MapPin className="w-2.5 h-2.5" />{o.city}</span>}
-              <span className="flex items-center gap-1"><Calendar className="w-2.5 h-2.5" />{format(new Date(o.createdAt), "yyyy/MM/dd")}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <StatusBadge status={o.status} />
+              {o.collectedAmount != null && (
+                <span className="text-xs font-bold text-primary">{fmt(o.collectedAmount)}</span>
+              )}
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <StatusBadge status={o.status} />
-            {o.collectedAmount != null && (
-              <span className="text-xs font-bold text-primary">{fmt(o.collectedAmount)}</span>
-            )}
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 

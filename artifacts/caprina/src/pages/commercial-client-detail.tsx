@@ -10,6 +10,7 @@ import {
   ChevronRight, Calendar, Package, Phone, MapPin,
   Clock, CheckCircle2, Target, Edit2, Check, X,
   Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
+  Send, User,
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -72,6 +73,35 @@ const fmt = (n: string | number) =>
     maximumFractionDigits: 0,
   }).format(Number(n));
 
+// ── Avatar helpers — نفس اللي في finance-clients.tsx ──────────────────────
+const AVATAR_COLORS = [
+  ["#f59e0b","#78350f"],["#10b981","#064e3b"],["#3b82f6","#1e3a8a"],
+  ["#8b5cf6","#4c1d95"],["#ef4444","#7f1d1d"],["#ec4899","#831843"],
+  ["#06b6d4","#164e63"],["#f97316","#7c2d12"],
+];
+function getAvatarColor(name: string) {
+  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+function ClientAvatar({ avatar, name, size = "md" }: { avatar?: string | null; name: string; size?: "sm" | "md" | "lg" }) {
+  const sz = size === "sm" ? "w-7 h-7 text-xs" : size === "lg" ? "w-14 h-14 text-2xl" : "w-10 h-10 text-sm";
+  if (avatar && avatar.startsWith("data:")) {
+    return <img src={avatar} className={`${sz} rounded-full object-cover border border-border/50 shrink-0`} />;
+  }
+  const [bg, fg] = getAvatarColor(name || "?");
+  return (
+    <div className={`${sz} rounded-full flex items-center justify-center font-bold shrink-0 border border-border/20`}
+      style={{ background: bg, color: fg }}>
+      {name ? getInitials(name) : "؟"}
+    </div>
+  );
+}
+
 // ── شريط التقدم للفاتورة — زي DeliveryBar ──────────────────────────────────
 function InvoiceProgressBar({
   paid, total,
@@ -99,7 +129,7 @@ type Client = {
   id: number; name: string; phone: string | null; phone2: string | null;
   email: string | null; address: string | null; city: string | null; region: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
-  notes: string | null; isActive: boolean; createdAt: string;
+  notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
 };
 
 type ClientDetail = Client & { orders: SaleOrder[]; deliveryRate?: number };
@@ -212,6 +242,9 @@ export default function CommercialClientDetailPage() {
   const params   = useParams();
   const clientId = Number(params.id);
   const qc       = useQueryClient();
+
+  // ── تاب البيانات / الشحنات — زي ShippingCompanyDetailPage ────────────────
+  const [activeTab, setActiveTab] = useState<"data" | "shipments">("data");
 
   // ── تعديل الهدف inline ──────────────────────────────────────────────────
   const [editingTarget, setEditingTarget] = useState(false);
@@ -686,8 +719,8 @@ export default function CommercialClientDetailPage() {
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
-          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5 text-muted-foreground" />
+          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden border border-border">
+            <ClientAvatar avatar={client?.avatar} name={client?.name ?? "؟"} size="md" />
           </div>
           <div>
             <h1 className="text-xl font-bold">{client?.name ?? "…"}</h1>
@@ -1289,128 +1322,167 @@ export default function CommercialClientDetailPage() {
         );
       })()}
 
-      {/* ─── فواتير البيع — زي Manifests Timeline ─── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-sm flex items-center gap-2">
-            <ShoppingBag className="w-4 h-4 text-muted-foreground" />
-            فواتير البيع
-            {allOrders.length > 0 && (
-              <Badge variant="outline" className="text-[9px]">
-                {processingOrders.length + deliveredOrders.length}
-              </Badge>
-            )}
-          </h2>
-          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />قيد التجهيز: {processingOrders.length}
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />تم التسليم: {deliveredOrders.length}
-            </span>
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="py-12 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</div>
-        ) : (processingOrders.length + deliveredOrders.length) === 0 ? (
-          <div className="py-16 text-center">
-            <ShoppingBag className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
-            <p className="text-muted-foreground text-sm">لا توجد فواتير بيع بعد</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* قيد التجهيز */}
-            {processingOrders.length > 0 && (
-              <>
-                <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider px-1">
-                  قيد التجهيز — تحتاج متابعة
-                </p>
-                {processingOrders.map(o => (
-                  <InvoiceCard key={o.id} order={o} isLatest={o.id === latestProcessingId} />
-                ))}
-                {deliveredOrders.length > 0 && <div className="border-t border-border my-3" />}
-              </>
-            )}
-            {/* تم التسليم */}
-            {deliveredOrders.length > 0 && (
-              <>
-                {processingOrders.length > 0 && (
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
-                    تم التسليم — مكتمل
-                  </p>
-                )}
-                {deliveredOrders.map(o => (
-                  <InvoiceCard key={o.id} order={o} isLatest={false} />
-                ))}
-              </>
-            )}
-          </div>
-        )}
+      {/* ─── Tabs — زي ShippingCompanyDetailPage بالظبط ─── */}
+      <div className="flex items-center gap-1 border-b border-border pb-0">
+        <button
+          onClick={() => setActiveTab("data")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+            activeTab === "data"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          البيانات
+          {allOrders.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{allOrders.length}</Badge>}
+        </button>
+        <button
+          onClick={() => setActiveTab("shipments")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+            activeTab === "shipments"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Send className="w-3.5 h-3.5" />
+          الشحنات
+          {clientShipments.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{clientShipments.length}</Badge>}
+        </button>
       </div>
 
-      {/* ─── شحنات العميل ─── */}
-      {clientShipments.length > 0 && (
-        <div>
+      {/* ─── Tab: البيانات (فواتير البيع) ─── */}
+      {activeTab === "data" && (
+        <div className="pt-3">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-sm flex items-center gap-2">
-              <Truck className="w-4 h-4 text-muted-foreground" />
-              شحنات العميل
-              <Badge variant="outline" className="text-[9px]">{clientShipments.length}</Badge>
-            </h2>
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />قيد التجهيز: {processingOrders.length}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />تم التسليم: {deliveredOrders.length}
+              </span>
+            </div>
           </div>
-          <div className="space-y-2">
-            {clientShipments.map(s => {
-              const statusMap: Record<string, { label: string; color: string; bg: string }> = {
-                pending:          { label: "قيد الانتظار",        color: "text-amber-400",   bg: "bg-amber-900/20 border-amber-700/40"  },
-                warehouse_ready:  { label: "جاهز للشحن",          color: "text-teal-400",    bg: "bg-teal-900/20 border-teal-700/40"    },
-                in_shipping:      { label: "قيد الشحن",           color: "text-sky-400",     bg: "bg-sky-900/20 border-sky-700/40"      },
-                received:         { label: "تم الاستلام",          color: "text-emerald-400", bg: "bg-emerald-900/20 border-emerald-700/40" },
-                delivered:        { label: "تم التوصيل",          color: "text-emerald-400", bg: "bg-emerald-900/20 border-emerald-700/40" },
-                partial_received: { label: "استلام جزئي",         color: "text-cyan-400",    bg: "bg-cyan-900/20 border-cyan-700/40"    },
-                delayed:          { label: "مؤجل",                color: "text-violet-400",  bg: "bg-violet-900/20 border-violet-700/40"},
-                returned:         { label: "مرتجع",               color: "text-red-400",     bg: "bg-red-900/20 border-red-700/40"      },
-              };
-              const st = statusMap[s.status] ?? { label: s.status, color: "text-muted-foreground", bg: "bg-muted/10 border-border" };
-              return (
-                <div key={s.id}
-                  className="flex items-center gap-3 rounded-xl border p-3 bg-card/60 hover:bg-card transition-colors"
-                  style={{ boxShadow: "0 1px 6px rgba(0,0,0,.12)" }}
-                >
-                  {/* رقم الشحنة */}
-                  <div className="shrink-0 text-center">
-                    <p className="text-[10px] text-muted-foreground">رقم</p>
-                    <p className="text-xs font-black text-primary">{s.shipmentNumber}</p>
-                  </div>
 
-                  <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div className="truncate">
-                      <p className="text-[9px] text-muted-foreground">المستلم</p>
-                      <p className="font-semibold truncate">{s.receiverName}</p>
-                      {s.receiverCity && <p className="text-[9px] text-muted-foreground">{s.receiverCity}</p>}
-                    </div>
-                    <div>
-                      <p className="text-[9px] text-muted-foreground">COD</p>
-                      <p className="font-bold text-amber-400">{s.codAmount ? `${fmt(s.codAmount)} ج.م` : "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] text-muted-foreground">رسوم الشحن</p>
-                      <p className="font-bold">{s.shippingFee ? `${fmt(s.shippingFee)} ج.م` : "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] text-muted-foreground">التاريخ</p>
-                      <p className="font-semibold">{format(new Date(s.createdAt), "dd/MM/yyyy")}</p>
-                    </div>
-                  </div>
+          {isLoading ? (
+            <div className="py-12 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</div>
+          ) : (processingOrders.length + deliveredOrders.length) === 0 ? (
+            <div className="py-16 text-center">
+              <ShoppingBag className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+              <p className="text-muted-foreground text-sm">لا توجد فواتير بيع بعد</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* قيد التجهيز */}
+              {processingOrders.length > 0 && (
+                <>
+                  <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider px-1">
+                    قيد التجهيز — تحتاج متابعة
+                  </p>
+                  {processingOrders.map(o => (
+                    <InvoiceCard key={o.id} order={o} isLatest={o.id === latestProcessingId} />
+                  ))}
+                  {deliveredOrders.length > 0 && <div className="border-t border-border my-3" />}
+                </>
+              )}
+              {/* تم التسليم */}
+              {deliveredOrders.length > 0 && (
+                <>
+                  {processingOrders.length > 0 && (
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                      تم التسليم — مكتمل
+                    </p>
+                  )}
+                  {deliveredOrders.map(o => (
+                    <InvoiceCard key={o.id} order={o} isLatest={false} />
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-                  {/* الحالة */}
-                  <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border ${st.bg} ${st.color}`}>
-                    {st.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+      {/* ─── Tab: الشحنات — نفس تصميم كروت الشحنات في shipping-company-detail ─── */}
+      {activeTab === "shipments" && (
+        <div className="pt-3">
+          {clientShipments.length === 0 ? (
+            <div className="py-16 text-center">
+              <Send className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+              <p className="text-muted-foreground text-sm">لا توجد شحنات مرتبطة بهذا العميل</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {clientShipments.map((s) => {
+                const statusColors: Record<string, string> = {
+                  waiting:           "border-amber-700 bg-amber-900/20 text-amber-400",
+                  confirmed:         "border-blue-700 bg-blue-900/20 text-blue-400",
+                  picked_up:         "border-indigo-700 bg-indigo-900/20 text-indigo-400",
+                  warehouse_ready:   "border-purple-700 bg-purple-900/20 text-purple-400",
+                  in_transit:        "border-cyan-700 bg-cyan-900/20 text-cyan-400",
+                  in_shipping:       "border-cyan-700 bg-cyan-900/20 text-cyan-400",
+                  out_for_delivery:  "border-sky-700 bg-sky-900/20 text-sky-400",
+                  delivered:         "border-emerald-700 bg-emerald-900/20 text-emerald-400",
+                  received:          "border-emerald-700 bg-emerald-900/20 text-emerald-400",
+                  partial_received:  "border-teal-700 bg-teal-900/20 text-teal-400",
+                  delayed:           "border-violet-700 bg-violet-900/20 text-violet-400",
+                  returned:          "border-red-700 bg-red-900/20 text-red-400",
+                  cancelled:         "border-red-700 bg-red-900/20 text-red-400",
+                };
+                const statusLabels: Record<string, string> = {
+                  waiting: "انتظار", confirmed: "مؤكد", picked_up: "تم الاستلام",
+                  warehouse_ready: "جاهز", in_transit: "قيد الشحن", in_shipping: "في الشحن",
+                  out_for_delivery: "خرج للتسليم", delivered: "مسلَّم", received: "مستلم",
+                  partial_received: "استلام جزئي", delayed: "مؤجل",
+                  returned: "مرتجع", cancelled: "ملغي",
+                };
+                const colorClass = statusColors[s.status] ?? "border-border bg-card text-muted-foreground";
+                return (
+                  <Link key={s.id} href={`/shipments/${s.id}`}>
+                    <div className="group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border border-border bg-card/50">
+                      <div className={`w-1 rounded-r-lg shrink-0 ${
+                        s.status === "delivered" || s.status === "received" ? "bg-emerald-500"
+                        : s.status === "returned" || s.status === "cancelled" ? "bg-red-500"
+                        : "bg-blue-500"
+                      }`} />
+                      <div className="flex-1 px-4 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-sm">{s.shipmentNumber}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <User className="w-2.5 h-2.5" />{s.receiverName}
+                              </span>
+                              {s.receiverCity && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-2.5 h-2.5" />{s.receiverCity}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-2.5 h-2.5" />
+                                {format(new Date(s.createdAt), "yyyy/MM/dd")}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="outline" className={`text-[9px] font-bold border ${colorClass}`}>
+                              {statusLabels[s.status] ?? s.status}
+                            </Badge>
+                            {s.codAmount && Number(s.codAmount) > 0 && (
+                              <span className="text-xs font-bold text-primary">{fmt(s.codAmount)} ج.م</span>
+                            )}
+                            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
