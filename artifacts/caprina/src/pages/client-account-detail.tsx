@@ -27,6 +27,9 @@ import {
   ArrowDownCircle, ArrowUpCircle, Activity, TrendingUp, TrendingDown,
   CreditCard, Trash2, Send, Building2, Lock, LockOpen, AlertTriangle, XCircle,
 } from "lucide-react";
+import { HealthScoreRing } from "@/components/client-account/HealthScoreRing";
+import { MiniSparkline } from "@/components/client-account/MiniSparkline";
+import { StatCard } from "@/components/client-account/StatCard";
 
 const fmt = (n: string | number | null | undefined) =>
   new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Number(n ?? 0));
@@ -87,92 +90,8 @@ type DetailResponse = {
   }[];
 };
 
-// ─── دائرة Health Score — نفس المؤشر فى صورة التصميم ─────────────────────────
-function HealthScoreRing({ score, size = 64 }: { score: number; size?: number }) {
-  const r = 27, circ = 2 * Math.PI * r;
-  const dash = (Math.min(score, 100) / 100) * circ;
-  const color = score >= 75 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
-  return (
-    <div className="flex flex-col items-center gap-1 shrink-0">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-          <circle cx="32" cy="32" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
-          <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="6"
-            strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
-            style={{ transition: "stroke-dasharray 0.6s ease" }} />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-sm font-black" style={{ color }}>{score}</span>
-          <span className="text-[8px] text-muted-foreground">/100</span>
-        </div>
-      </div>
-      <span className="text-[10px] font-bold" style={{ color }}>
-        {score >= 75 ? "ممتاز" : score >= 50 ? "متوسط" : "ضعيف"}
-      </span>
-    </div>
-  );
-}
-
-// ─── ميني تشارت SVG بسيط — خط بيانات حقيقية بدون مكتبات خارجية ────────────────
-function MiniSparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) {
-    return <div className="h-10 flex items-center justify-center text-[10px] text-muted-foreground">لا توجد بيانات كافية</div>;
-  }
-  const w = 220, h = 44, pad = 4;
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const range = max - min || 1;
-  const step = (w - pad * 2) / (values.length - 1);
-  const points = values.map((v, i) => {
-    const x = pad + i * step;
-    const y = h - pad - ((v - min) / range) * (h - pad * 2);
-    return `${x},${y}`;
-  });
-  const linePath = `M${points.join(" L")}`;
-  const areaPath = `${linePath} L${pad + (values.length - 1) * step},${h - pad} L${pad},${h - pad} Z`;
-  const gradId = `spark-${color.replace("#", "")}`;
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-11" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
-      <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// ─── كارت إحصائية علوي (6 كروت) ─────────────────────────────────────────────
-function StatCard({ label, value, icon: Icon, color, sub, trend }: {
-  label: string; value: string; icon: any; color: string; sub?: string; trend?: "up" | "down";
-}) {
-  return (
-    <div className="rounded-2xl p-4 relative overflow-hidden shrink-0"
-      style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-      <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-        style={{ background: `${color}14`, filter: "blur(16px)" }} />
-      <div className="relative z-10 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[11px] text-muted-foreground mb-1.5 truncate">{label}</p>
-          <p className="text-lg font-black truncate" style={{ color }}>{value}</p>
-          {sub && (
-            <p className={`text-[10px] mt-1 flex items-center gap-1 ${trend === "down" ? "text-red-400" : "text-emerald-400"}`}>
-              {trend === "down" ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-              {sub}
-            </p>
-          )}
-        </div>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `${color}18` }}>
-          <Icon className="w-4.5 h-4.5" style={{ color }} />
-        </div>
-      </div>
-    </div>
-  );
-}
+// المكونات البصرية الخالصة (Health Score, Sparkline, StatCard) انتقلت إلى
+// src/components/client-account/ لإعادة الاستخدام وتقليل حجم هذا الملف.
 
 export default function ClientAccountDetailPage() {
   const params = useParams<{ phone: string }>();
