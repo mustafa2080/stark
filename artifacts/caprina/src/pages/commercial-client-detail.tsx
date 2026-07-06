@@ -1438,7 +1438,7 @@ export default function CommercialClientDetailPage() {
                 };
                 const colorClass = statusColors[s.status] ?? "border-border bg-card text-muted-foreground";
                 return (
-                  <Link key={s.id} href={`/shipments/${s.id}`}>
+                  <Link key={s.id} href={`/finance/client-shipment/${s.id}`}>
                     <div className="group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border border-border bg-card/50">
                       <div className={`w-1 rounded-r-lg shrink-0 ${
                         s.status === "delivered" || s.status === "received" ? "bg-emerald-500"

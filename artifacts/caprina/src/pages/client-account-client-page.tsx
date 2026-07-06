@@ -82,7 +82,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function OrderRow({ o }: { o: ClientOrder }) {
   return (
-    <Link href={`/shipments/${o.id}`}>
+    <Link href={`/finance/client-shipment/${o.id}`}>
       <div className="group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border border-border bg-card/50">
         <div className={`w-1 rounded-r-lg shrink-0 ${o.status === "delivered" ? "bg-emerald-500" : o.status === "returned" || o.status === "cancelled" ? "bg-red-500" : "bg-blue-500"}`} />
         <div className="flex-1 px-4 py-3">
