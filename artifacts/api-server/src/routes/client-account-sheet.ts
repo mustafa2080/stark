@@ -139,13 +139,13 @@ router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> 
         existing.shipmentsCount++;
         existing.totalAmount += total;
         existing.collectedAmount += collected;
-        if (!existing.lastOrderAt || new Date(s.createdAt) > new Date(existing.lastOrderAt)) existing.lastOrderAt = s.createdAt;
+        if (!existing.lastOrderAt || new Date(s.createdAt) > new Date(existing.lastOrderAt)) existing.lastOrderAt = String(s.createdAt);
       } else {
         statsByClientId.set(s.clientId, {
           shipmentsCount: 1,
           totalAmount: total,
           collectedAmount: collected,
-          lastOrderAt: s.createdAt,
+          lastOrderAt: String(s.createdAt),
         });
       }
     }
@@ -154,6 +154,7 @@ router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> 
       .map((c: any) => {
         const stats = statsByClientId.get(c.id) ?? { shipmentsCount: 0, totalAmount: 0, collectedAmount: 0, lastOrderAt: null };
         return {
+          id: c.id,
           name: c.name,
           phone: c.phone,
           city: c.city,
@@ -504,6 +505,194 @@ router.get("/client-account-sheet/closures", async (req, res): Promise<void> => 
   } catch (err: any) {
     console.error("get closures error:", err);
     res.status(500).json({ error: "حصل خطأ فى جلب سجل الإقفالات" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+// ─── حساب العميل التجاري (clientId) — كروت + دورة حالية + سجل إقفالات ────
+// ═════════════════════════════════════════════════════════════════════════
+
+// ─── GET /client-account-sheet/client/:clientId/summary ── ملخص شامل لعميل تجاري ─
+router.get("/client-account-sheet/client/:clientId/summary", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const clientId = parseInt(req.params.clientId);
+    if (isNaN(clientId)) { res.status(400).json({ error: "معرّف العميل غير صحيح" }); return; }
+
+    const clientConditions: any[] = [eq(clientsTable.id, clientId)];
+    if (tenantId !== null) clientConditions.push(eq(clientsTable.tenantId, tenantId));
+    const [client] = await db.select().from(clientsTable).where(and(...clientConditions));
+    if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
+
+    // ── آخر إقفال للعميل ده — أي شحنة اتعملت بعد تاريخه بتدخل فى الدورة الحالية ──
+    const closureConditions: any[] = [eq(clientAccountClosuresTable.clientId, clientId)];
+    if (tenantId !== null) closureConditions.push(eq(clientAccountClosuresTable.tenantId, tenantId));
+    const closures = await db
+      .select()
+      .from(clientAccountClosuresTable)
+      .where(and(...closureConditions))
+      .orderBy(desc(clientAccountClosuresTable.createdAt));
+
+    const lastClosedAt = closures[0]?.createdAt ?? null;
+
+    // ── كل شحنات العميل ────────────────────────────────────────────────────
+    const shipmentConditions: any[] = [isNull(shipmentsTable.deletedAt), eq(shipmentsTable.clientId, clientId)];
+    if (tenantId !== null) shipmentConditions.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const rows = await db
+      .select()
+      .from(shipmentsTable)
+      .where(and(...shipmentConditions))
+      .orderBy(desc(shipmentsTable.createdAt));
+
+    const delayedMap = await getOpenManifestDelayedMap();
+
+    const allOrders = rows.map((s: any) => {
+      let resolvedStatus: SheetStatus = s.status as SheetStatus;
+      if (delayedMap.has(s.id)) resolvedStatus = "delayed";
+      return {
+        id: s.id,
+        customerName: s.receiverName,
+        phone: s.receiverPhone,
+        city: s.receiverCity,
+        address: s.receiverAddress,
+        warehouseName: null as string | null,
+        totalPrice: Number(s.totalAmount ?? 0),
+        shippingCost: Number(s.shippingFee ?? 0),
+        collectedAmount: s.collectedAmount != null ? Number(s.collectedAmount) : null,
+        status: resolvedStatus,
+        product: s.description,
+        invoiceNumber: s.shipmentNumber,
+        createdAt: s.createdAt,
+        notes: s.notes,
+      };
+    });
+
+    // ── الدورة الحالية = الشحنات اللي اتعملت بعد آخر إقفال ────────────────
+    const currentCycleOrders = lastClosedAt
+      ? allOrders.filter((o: any) => new Date(o.createdAt) > new Date(lastClosedAt))
+      : allOrders;
+
+    const computeCardStats = (orders: typeof allOrders) => {
+      const delivered = orders.filter((o: any) => o.status === "delivered").length;
+      const returned  = orders.filter((o: any) => o.status === "returned").length;
+      const totalCollected = orders.reduce((s: number, o: any) => s + Number(o.collectedAmount ?? 0), 0);
+      const totalShipping  = orders.reduce((s: number, o: any) => s + Number(o.shippingCost ?? 0), 0);
+      const netProfit = totalCollected - totalShipping;
+      return {
+        total: orders.length,
+        delivered,
+        returned,
+        netProfit,
+        totalCollected,
+        totalShipping,
+      };
+    };
+
+    const cardStats = computeCardStats(currentCycleOrders);
+
+    res.json({
+      client: {
+        id: client.id,
+        name: client.name,
+        phone: client.phone,
+        city: client.city,
+        address: client.address,
+      },
+      cardStats,
+      currentCycleOrders,
+      lastClosedAt,
+      closures,
+    });
+  } catch (err: any) {
+    console.error("client-account-sheet/client/:clientId/summary error:", err);
+    res.status(500).json({ error: "حصل خطأ فى جلب ملخص حساب العميل" });
+  }
+});
+
+// ─── POST /client-account-sheet/client/:clientId/close ── إقفال الدورة الحالية للعميل ─
+const CloseClientAccountSchema = z.object({
+  notes: z.string().nullish(),
+});
+
+router.post("/client-account-sheet/client/:clientId/close", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const clientId = parseInt(req.params.clientId);
+    if (isNaN(clientId)) { res.status(400).json({ error: "معرّف العميل غير صحيح" }); return; }
+
+    const parsed = CloseClientAccountSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+    const { notes } = parsed.data;
+
+    const clientConditions: any[] = [eq(clientsTable.id, clientId)];
+    if (tenantId !== null) clientConditions.push(eq(clientsTable.tenantId, tenantId));
+    const [client] = await db.select().from(clientsTable).where(and(...clientConditions));
+    if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
+
+    // ── آخر إقفال — عشان نحدد بداية الدورة الحالية ────────────────────────
+    const closureConditions: any[] = [eq(clientAccountClosuresTable.clientId, clientId)];
+    if (tenantId !== null) closureConditions.push(eq(clientAccountClosuresTable.tenantId, tenantId));
+    const [lastClosure] = await db
+      .select()
+      .from(clientAccountClosuresTable)
+      .where(and(...closureConditions))
+      .orderBy(desc(clientAccountClosuresTable.createdAt));
+
+    const lastClosedAt = lastClosure?.createdAt ?? null;
+
+    const shipmentConditions: any[] = [isNull(shipmentsTable.deletedAt), eq(shipmentsTable.clientId, clientId)];
+    if (tenantId !== null) shipmentConditions.push(eq(shipmentsTable.tenantId, tenantId));
+    if (lastClosedAt) shipmentConditions.push(sql`${shipmentsTable.createdAt} > ${lastClosedAt}`);
+
+    const rows = await db.select().from(shipmentsTable).where(and(...shipmentConditions));
+    if (rows.length === 0) { res.status(400).json({ error: "لا توجد شحنات جديدة لإقفالها" }); return; }
+
+    const delayedMap = await getOpenManifestDelayedMap();
+    const closable = rows.filter((s: any) => !delayedMap.has(s.id) && s.status !== "delayed");
+
+    if (closable.length === 0) {
+      res.status(400).json({ error: "كل الشحنات مؤجلة/تحت التسليم — مفيش حاجة تتقفل دلوقتي" });
+      return;
+    }
+
+    const totalShippingValue = closable.reduce((s: number, o: any) => s + Number(o.totalAmount ?? 0), 0);
+    const totalCollected     = closable.reduce((s: number, o: any) => s + Number(o.collectedAmount ?? o.totalAmount ?? 0), 0);
+    const totalShippingFee   = closable.reduce((s: number, o: any) => s + Number(o.shippingFee ?? 0), 0);
+
+    const insertResult = await db.insert(clientAccountClosuresTable).values({
+      tenantId,
+      clientId,
+      clientName: client.name,
+      clientPhone: client.phone,
+      orderIds: closable.map((o: any) => o.id),
+      ordersCount: closable.length,
+      totalShippingValue: String(totalShippingValue),
+      totalCollected: String(totalCollected),
+      totalShippingFee: String(totalShippingFee),
+      notes: notes ?? null,
+      closedByUserId: (req as any).user?.id ?? null,
+      closedByName: (req as any).user?.displayName ?? null,
+      createdAt: new Date(),
+    });
+    const closureId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
+
+    await logAudit({
+      action: "create", entityType: "client_account_closure", entityId: closureId,
+      entityName: `إقفال حساب العميل التجاري ${client.name}`,
+      after: { ordersCount: closable.length, totalCollected },
+      userId: (req as any).user?.id, userName: (req as any).user?.displayName,
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      closureId,
+      closedOrderIds: closable.map((o: any) => o.id),
+      remainingDelayedCount: rows.length - closable.length,
+    });
+  } catch (err: any) {
+    console.error("close client-account (clientId) error:", err);
+    res.status(500).json({ error: "حصل خطأ فى إقفال حساب العميل" });
   }
 });
 

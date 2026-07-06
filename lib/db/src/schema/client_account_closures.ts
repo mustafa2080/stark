@@ -8,6 +8,9 @@ export const clientAccountClosuresTable = mysqlTable("client_account_closures", 
   id:            int("id").primaryKey().autoincrement(),
   tenantId:      int("tenant_id"),
 
+  // ── ربط اختياري بعميل تجاري مسجل (جدول clients) — لإقفالات حساب العميل التجاري ──
+  clientId:      int("client_id"),
+
   clientName:    varchar("client_name", { length: 255 }).notNull(),
   clientPhone:   varchar("client_phone", { length: 50 }),
 

@@ -353,6 +353,22 @@ async function ensureClientsDefaultAdSource() {
 }
 ensureClientsDefaultAdSource();
 
+// ─── Ensure client_account_closures.client_id column exists (ربط إقفال حساب العميل التجاري) ──
+async function ensureClientAccountClosuresClientId() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE client_account_closures ADD COLUMN IF NOT EXISTS client_id INT NULL
+    `);
+    logger.info("client_account_closures.client_id column ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure client_account_closures.client_id column");
+    }
+  }
+}
+ensureClientAccountClosuresClientId();
+
+
 // ─── Ensure employee_profiles.avatar column exists ────────────────────────────
 async function ensureEmployeeProfileAvatar() {
   try {

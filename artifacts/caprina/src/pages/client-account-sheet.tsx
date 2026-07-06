@@ -219,7 +219,7 @@ function DetailRow({ icon: Icon, label, value, highlight, color }: {
 type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 
 type ClientRow = {
-  name: string; phone: string; city: string | null;
+  id: number; name: string; phone: string; city: string | null;
   shipmentsCount: number; totalAmount: number; collectedAmount: number; remainingAmount: number;
   lastOrderAt: string;
 };
@@ -715,8 +715,8 @@ export default function ClientAccountSheetPage() {
                     const color = nameToColor(c.name || "?");
                     return (
                       <button
-                        key={c.phone}
-                        onClick={() => selectPhone(c.phone)}
+                        key={c.id}
+                        onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
                         className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
                       >
                         <div
@@ -802,9 +802,9 @@ export default function ClientAccountSheetPage() {
                     const pct = c.totalAmount > 0 ? Math.min(100, Math.round((c.collectedAmount / c.totalAmount) * 100)) : 0;
                     return (
                       <tr
-                        key={c.phone}
+                        key={c.id}
                         className={`border-b border-border/40 hover:bg-primary/5 cursor-pointer transition-colors ${idx % 2 === 0 ? "bg-transparent" : "bg-muted/10"}`}
-                        onClick={() => selectPhone(c.phone)}
+                        onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
                       >
                         <td className="p-2.5">
                           <div className="flex items-center gap-2">
