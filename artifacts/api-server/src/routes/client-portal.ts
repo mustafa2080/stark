@@ -69,7 +69,6 @@ const clientLoginLimiter = rateLimit({
 // POST /client/register — تسجيل حساب عميل جديد داخل tenant موجود (عن طريق كود الشركة)
 // ══════════════════════════════════════════════════════════════════════════
 const clientRegisterSchema = z.object({
-  companyCode: z.string().trim().min(1, "كود الشركة مطلوب"), // = tenant slug
   displayName: z.string().trim().min(2, "الاسم مطلوب"),
   username: z.string().trim().min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل"),
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
@@ -86,13 +85,15 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
       res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
       return;
     }
-    const { companyCode, displayName, username, password, phone, email, city, address } = parsed.data;
+    const { displayName, username, password, phone, email, city, address } = parsed.data;
 
-    // ── تحقق من الشركة (tenant) ─────────────────────────────────────────
+    // ── الشركة الوحيدة الحالية (STARK) — تُحدَّد تلقائياً بدون كود ────────
     const [tenant] = await db.select().from(tenantsTable)
-      .where(eq(tenantsTable.slug, companyCode.trim().toLowerCase())).limit(1);
-    if (!tenant || !tenant.isActive) {
-      res.status(404).json({ error: "كود الشركة غير صحيح، يرجى التأكد منه مع شركة الشحن" });
+      .where(eq(tenantsTable.isActive, true))
+      .orderBy(tenantsTable.id)
+      .limit(1);
+    if (!tenant) {
+      res.status(500).json({ error: "تعذر تحديد الشركة، يرجى التواصل مع الدعم الفني" });
       return;
     }
 

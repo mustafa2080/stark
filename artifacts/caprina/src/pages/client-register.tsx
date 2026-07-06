@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Building2, Lock, MapPin } from "lucide-react";
+import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Lock, MapPin } from "lucide-react";
 import { Navbar, Footer, SocialFloat } from "@/pages/home";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -15,7 +15,6 @@ export default function ClientRegisterPage() {
   const { login } = useAuth();
 
   const [form, setForm] = useState({
-    companyCode: "",
     displayName: "",
     username: "",
     phone: "",
@@ -31,7 +30,7 @@ export default function ClientRegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.companyCode || !form.displayName || !form.username || !form.password || !form.phone) {
+    if (!form.displayName || !form.username || !form.password || !form.phone) {
       toast({ title: "خطأ", description: "يرجى ملء الحقول المطلوبة", variant: "destructive" });
       return;
     }
@@ -49,7 +48,6 @@ export default function ClientRegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyCode: form.companyCode,
           displayName: form.displayName,
           username: form.username,
           password: form.password,
@@ -145,24 +143,10 @@ export default function ClientRegisterPage() {
 
               <h2 className="text-2xl font-black mb-1" style={{ color: dm ? "#fff" : "#111" }}>إنشاء حساب عميل</h2>
               <p className="text-sm mb-7" style={{ color: dm ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.42)" }}>
-                أدخل بياناتك وكود شركة الشحن الخاص بك
+                أدخل بياناتك لمتابعة شحناتك وتحصيلاتك
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-
-                {/* Company code */}
-                <div>
-                  <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>
-                    كود الشركة <span style={{ color: "#f87171" }}>*</span>
-                  </label>
-                  <div className="relative">
-                    <input type="text" value={form.companyCode} onChange={set("companyCode")}
-                      placeholder="كود شركة الشحن (يوفره لك التاجر)" autoFocus
-                      className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
-                      style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
-                    <Building2 size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
-                  </div>
-                </div>
 
                 {/* Row: Name + Username */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -172,7 +156,7 @@ export default function ClientRegisterPage() {
                     </label>
                     <div className="relative">
                       <input type="text" value={form.displayName} onChange={set("displayName")}
-                        placeholder="اسمك الكامل"
+                        placeholder="اسمك الكامل" autoFocus
                         className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
                         style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
                       <User size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
