@@ -174,7 +174,7 @@ const UpdateShipmentSchema = CreateShipmentSchema.partial().extend({
 });
 
 // ─── توليد رقم شحنة تلقائي ────────────────────────────────────────────────────
-async function generateShipmentNumber(tenantId: number | null): Promise<string> {
+export async function generateShipmentNumber(tenantId: number | null): Promise<string> {
   const now = new Date();
   const yy  = String(now.getFullYear()).slice(-2);
   const mm  = String(now.getMonth() + 1).padStart(2, "0");
