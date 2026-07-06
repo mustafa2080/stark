@@ -11,7 +11,7 @@ const JWT_EXPIRES = "30d";
 
 export function signToken(user: SafeUser): string {
   return jwt.sign(
-    { id: user.id, username: user.username, role: user.role, displayName: user.displayName, tenantId: user.tenantId ?? null, permissions: (user as any).permissions ?? [], shippingCompanyId: (user as any).shippingCompanyId ?? null },
+    { id: user.id, username: user.username, role: user.role, displayName: user.displayName, tenantId: user.tenantId ?? null, permissions: (user as any).permissions ?? [], shippingCompanyId: (user as any).shippingCompanyId ?? null, receiverClientId: (user as any).receiverClientId ?? null },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES },
   );

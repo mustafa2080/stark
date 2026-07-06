@@ -2,7 +2,7 @@ import { mysqlTable, text, int, boolean, datetime, json, varchar, mediumtext } f
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const USER_ROLES = ["super_admin", "admin", "employee", "warehouse", "custom", "representative"] as const;
+export const USER_ROLES = ["super_admin", "admin", "employee", "warehouse", "custom", "representative", "client"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
@@ -12,6 +12,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   warehouse: ["inventory", "movements", "dashboard"],
   custom: [],
   representative: ["representative.view"],
+  client: ["client.view"],
 };
 
 export const usersTable = mysqlTable("users", {
@@ -24,6 +25,9 @@ export const usersTable = mysqlTable("users", {
   permissions: json("permissions").$type<string[]>().default([]),
   isActive: boolean("is_active").notNull().default(true),
   shippingCompanyId: int("shipping_company_id"),  // للـ representative فقط
+  receiverClientId: int("receiver_client_id"),    // للـ client فقط — رابط حساب العميل في receiver_clients
+  phone: varchar("phone", { length: 50 }),        // رقم هاتف العميل (يُستخدم في التسجيل)
+  email: varchar("email", { length: 255 }),
   defaultAdSource: varchar("default_ad_source", { length: 50 }), // مصدر الإعلان الافتراضي للموظف (يتعبأ تلقائياً عند اختياره في شحنة جديدة)
   avatar: mediumtext("avatar"),  // base64 صورة المستخدم
   showProfileLink: boolean("show_profile_link").notNull().default(true),

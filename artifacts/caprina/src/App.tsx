@@ -220,6 +220,11 @@ const SuperAdminPage        = lazy(() => import("@/pages/super-admin"));
 const SubscriptionExpired   = lazy(() => import("@/pages/subscription-expired"));
 const ProfilePage           = lazy(() => import("@/pages/profile"));
 const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
+const ClientDashboardPage   = lazy(() => import("@/pages/client-dashboard"));
+const ClientShipmentPage    = lazy(() => import("@/pages/client-shipment"));
+const ClientPickupRequestsPage = lazy(() => import("@/pages/client-pickup-requests"));
+const ClientWalletPage      = lazy(() => import("@/pages/client-wallet"));
+const ClientRegisterPage    = lazy(() => import("@/pages/client-register"));
 const ContractPage          = lazy(() => import("@/pages/contract"));
 const ShipmentsSettingsPage = lazy(() => import("@/pages/shipments"));
 const ParcelTypesPage       = lazy(() => import("@/pages/parcel-types"));
@@ -480,12 +485,12 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/contract" || location === "/track-client" || location.startsWith("/track/")) {
+  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/client-register" || location === "/contract" || location === "/track-client" || location.startsWith("/track/")) {
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد (بس مش من /contract)
-    if (user && (location === "/" || location === "/login" || location === "/register")) {
+    if (user && (location === "/" || location === "/login" || location === "/register" || location === "/client-register")) {
       if (user.role === "admin" || user.role === "super_admin" || user.role === "super-admin") return <Redirect to="/dashboard" />;
-      if (user.role === "client") return <Redirect to="/client-profile" />;
+      if (user.role === "client") return <Redirect to="/client-dashboard" />;
       if (user.role === "representative") return <Redirect to="/representative" />;
       return <Redirect to="/my-dashboard" />;
     }
@@ -498,6 +503,7 @@ function Router() {
           <Route path="/contract" component={ContractPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
+          <Route path="/client-register" component={ClientRegisterPage} />
         </Switch>
       </Suspense>
     );
@@ -513,6 +519,10 @@ function Router() {
         <Switch>
           <Route path="/my-dashboard"             component={ProfilePage} />
           <Route path="/client-profile"           component={ClientProfilePage} />
+          <Route path="/client-dashboard"         component={ClientDashboardPage} />
+          <Route path="/client-shipment/:id"      component={ClientShipmentPage} />
+          <Route path="/client-wallet"            component={ClientWalletPage} />
+          <Route path="/client-pickup-requests"   component={ClientPickupRequestsPage} />
           <Route path="/representative"           component={RepresentativePage} />
           <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />

@@ -38,6 +38,9 @@ export * from "./parcel_type_pricing";
 export * from "./shipment_manifests";
 export * from "./shipment_ratings";
 
+// ─── Pickup Requests (طلبات الالتقاط) ────────────────────────────────────────
+export * from "./pickup_requests";
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 export * from "./notifications";
 

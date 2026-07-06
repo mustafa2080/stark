@@ -34,6 +34,7 @@ import representativeRouter from "./representative";
 import notificationsSseRouter, { notificationsProtectedRouter } from "./notifications";
 import clientAccountSheetRouter from "./client-account-sheet";
 import clientAccountProRouter from "./client-account-pro";
+import clientPortalRouter from "./client-portal";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { checkSubscription } from "../middlewares/checkSubscription.js";
 
@@ -49,6 +50,7 @@ router.use(publicAdminRouter); // GET /public/plan-prices — بدون auth
 router.use(publicShipmentsRouter); // GET /shipments/track/:number — public for tracking
 router.use("/representative", representativeRouter); // SSE route داخله بيعمل auth يدوياً
 router.use(notificationsSseRouter); // GET /notifications/sse — بيعمل auth يدوياً زي مندوب
+router.use(clientPortalRouter); // /client/register, /client/login (public) + /client-portal/* (auth داخلي)
 
 // All routes below require authentication
 router.use(requireAuth);

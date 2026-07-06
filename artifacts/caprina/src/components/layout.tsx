@@ -364,6 +364,105 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
+  // ── بوابة العميل: layout مبسط 100% بدون sidebar إداري ────────────────────
+  if (user?.role === "client") {
+    const CLIENT_NAV = [
+      { href: "/client-dashboard",       label: "الرئيسية",        icon: LayoutDashboard, exact: true },
+      { href: "/client-wallet",          label: "التسويات المالية", icon: Wallet },
+      { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
+    ];
+    const isClientActive = (href: string, exact?: boolean) =>
+      exact ? location === href : location === href || location.startsWith(href + "/");
+
+    return (
+      <div className="flex flex-col bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
+        {/* Header مبسط لبوابة العميل */}
+        <header className="shrink-0 border-b border-sidebar-border bg-sidebar">
+          <div className="flex items-center justify-between px-4 h-14 gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <BrandLogoMark size="sm" />
+              <div className="min-w-0 hidden sm:block">
+                <p className="text-xs font-bold text-sidebar-foreground truncate">{user?.displayName}</p>
+                <p className="text-[10px] text-sidebar-foreground/40">بوابة العميل</p>
+              </div>
+            </div>
+
+            {/* روابط سريعة — تظهر فقط على الشاشات المتوسطة فأكبر */}
+            <nav className="hidden md:flex items-center gap-1.5">
+              {CLIENT_NAV.map(item => {
+                const active = isClientActive(item.href, item.exact);
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href}
+                    className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+                      active ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5")}>
+                    <Icon className="w-3.5 h-3.5" /> {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button type="button" onClick={toggleTheme} title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                style={{
+                  background: theme === "dark" ? "linear-gradient(135deg,#1e293b,#0f172a)" : "linear-gradient(135deg,#fef3c7,#fde68a)",
+                  border: theme === "dark" ? "1px solid rgba(148,163,184,0.25)" : "1px solid rgba(251,191,36,0.6)",
+                }}>
+                {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
+              </button>
+              <button onClick={logout}
+                className="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors px-2.5 py-1.5 rounded-lg">
+                <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">خروج</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* محتوى الصفحة */}
+        <main id="main-scroll-area" className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">
+          {children}
+        </main>
+
+        {/* Bottom nav — موبايل فقط */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
+          style={{
+            background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            boxShadow: "0 -4px 24px rgba(0,0,0,0.6)",
+          }}>
+          {CLIENT_NAV.map(item => {
+            const active = isClientActive(item.href, item.exact);
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
+                    style={{
+                      background: active ? "linear-gradient(145deg, rgba(96,165,250,0.9) 0%, rgba(96,165,250,0.5) 100%)" : "linear-gradient(145deg, rgba(96,165,250,0.15) 0%, rgba(96,165,250,0.07) 100%)",
+                      border: active ? "1px solid rgba(96,165,250,0.6)" : "1px solid rgba(96,165,250,0.12)",
+                    }}>
+                    <Icon style={{ width: "20px", height: "20px", color: active ? "rgba(255,255,255,0.95)" : "rgba(96,165,250,0.65)" }} />
+                  </div>
+                  <span style={{ fontSize: "9px", fontWeight: active ? 700 : 500, color: active ? "rgba(96,165,250,0.9)" : "rgba(255,255,255,0.35)" }}>{item.label}</span>
+                </div>
+              </Link>
+            );
+          })}
+          <button type="button" onClick={logout}>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center"
+                style={{ background: "linear-gradient(145deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.07) 100%)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.75)" }} />
+              </div>
+              <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(239,68,68,0.6)" }}>خروج</span>
+            </div>
+          </button>
+        </nav>
+      </div>
+    );
+  }
+
   // ── بوابة المندوب: layout مبسط بدون sidebar ──────────────────────────────
   if (user?.role === "representative") {
     return (
