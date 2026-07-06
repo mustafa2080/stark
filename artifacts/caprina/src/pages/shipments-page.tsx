@@ -925,8 +925,16 @@ export default function Orders() {
     queryKey: ["clients-for-shipment"],
     queryFn: () => apiFetch<ShipmentClient[]>("/finance/clients/for-shipment"),
     staleTime: 5 * 60_000,
-    enabled: showNewShipment,
   });
+  // خريطة سريعة (clientId → محافظة العميل التجاري) لعرضها في عمود الراسل
+  const clientGovernorateById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const c of shipmentClients) {
+      const gov = c.region || c.city || "";
+      if (gov) map.set(c.id, gov);
+    }
+    return map;
+  }, [shipmentClients]);
   // ── Orders permission shortcuts ──────────────────────────────────────
   const canView        = isAdmin || can("orders.view");
   const canCreate      = isAdmin || can("orders.create");
@@ -1847,12 +1855,17 @@ export default function Orders() {
                         <TableCell className="text-xs text-muted-foreground">{format(new Date(order.createdAt), "yyyy/MM/dd")}</TableCell>
                         <TableCell className="text-sm font-semibold">
                           {o.senderName || o.customerName || "—"}
-                          {(o.receiverCity || o.zoneGovernorate || o.zoneLabel) && (
-                            <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <MapPin className="w-2.5 h-2.5 shrink-0" />
-                              {o.receiverCity || o.zoneGovernorate || o.zoneLabel}
-                            </div>
-                          )}
+                          {(() => {
+                            const senderGov = (o.clientId && clientGovernorateById.get(o.clientId))
+                              || o.senderCity || o.senderGovernorate;
+                            if (!senderGov) return null;
+                            return (
+                              <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-2.5 h-2.5 shrink-0" />
+                                {senderGov}
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
                           {o.receiverName || "—"}
