@@ -185,38 +185,35 @@ export default function ClientPickupRequestsPage() {
   const requests = data?.data ?? [];
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6" style={{ background: "#0a0a0a" }} dir="rtl">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
       <div className="max-w-[900px] mx-auto space-y-5">
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate("/client-dashboard")}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white/60"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-foreground/70 bg-muted/40 border border-border">
               <ArrowRight size={16} />
             </button>
             <div>
-              <h1 className="text-xl font-black text-white">طلبات الالتقاط</h1>
-              <p className="text-xs text-white/40">اطلب استلام شحنتك من عندك</p>
+              <h1 className="text-xl font-black text-foreground">طلبات الالتقاط</h1>
+              <p className="text-xs text-muted-foreground">اطلب استلام شحنتك من عندك</p>
             </div>
           </div>
           <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-black"
-            style={{ background: "#fff" }}>
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-foreground text-background">
             <Plus size={16} /> طلب جديد
           </button>
         </div>
 
         {/* ── List ── */}
         {isLoading ? (
-          <div className="h-40 flex items-center justify-center text-white/30">جارٍ التحميل...</div>
+          <div className="h-40 flex items-center justify-center text-muted-foreground">جارٍ التحميل...</div>
         ) : requests.length === 0 ? (
-          <div className="rounded-2xl p-12 flex flex-col items-center gap-3 text-white/30"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="rounded-2xl p-12 flex flex-col items-center gap-3 text-muted-foreground bg-muted/25 border border-border">
             <Package size={44} className="opacity-30" />
             <p className="text-sm">لا توجد طلبات التقاط بعد</p>
-            <button onClick={() => setShowModal(true)} className="text-xs font-bold underline text-white/50 mt-1">
+            <button onClick={() => setShowModal(true)} className="text-xs font-bold underline text-muted-foreground mt-1">
               أنشئ أول طلب الآن
             </button>
           </div>
@@ -226,44 +223,43 @@ export default function ClientPickupRequestsPage() {
               const meta = STATUS_META[r.status] ?? STATUS_META.pending;
               const Icon = meta.icon;
               return (
-                <div key={r.id} className="rounded-2xl p-4"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div key={r.id} className="rounded-2xl p-4 bg-muted/25 border border-border">
 
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-white/40">{r.requestNumber || `#${r.id}`}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{r.requestNumber || `#${r.id}`}</span>
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1"
                         style={{ background: `${meta.color}18`, color: meta.color }}>
                         <Icon size={11} /> {meta.label}
                       </span>
                     </div>
-                    <span className="text-[11px] text-white/35">
+                    <span className="text-[11px] text-muted-foreground/70">
                       {new Date(r.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short", year: "numeric" })}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    <div className="flex items-center gap-2 text-white/70"><User size={13} className="text-white/30" /> {r.pickupContactName}</div>
-                    <div className="flex items-center gap-2 text-white/70"><Phone size={13} className="text-white/30" /> {r.pickupPhone}</div>
-                    <div className="flex items-center gap-2 text-white/70 sm:col-span-2"><MapPin size={13} className="text-white/30" /> {r.pickupAddress}{r.pickupCity ? ` - ${r.pickupCity}` : ""}</div>
+                    <div className="flex items-center gap-2 text-foreground/70"><User size={13} className="text-muted-foreground/60" /> {r.pickupContactName}</div>
+                    <div className="flex items-center gap-2 text-foreground/70"><Phone size={13} className="text-muted-foreground/60" /> {r.pickupPhone}</div>
+                    <div className="flex items-center gap-2 text-foreground/70 sm:col-span-2"><MapPin size={13} className="text-muted-foreground/60" /> {r.pickupAddress}{r.pickupCity ? ` - ${r.pickupCity}` : ""}</div>
                     {r.preferredDate && (
-                      <div className="flex items-center gap-2 text-white/70">
-                        <Calendar size={13} className="text-white/30" />
+                      <div className="flex items-center gap-2 text-foreground/70">
+                        <Calendar size={13} className="text-muted-foreground/60" />
                         {new Date(r.preferredDate).toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}
                         {r.preferredTimeSlot && ` - ${TIME_SLOTS.find(t => t.value === r.preferredTimeSlot)?.label ?? ""}`}
                       </div>
                     )}
-                    <div className="flex items-center gap-2 text-white/70"><Package size={13} className="text-white/30" /> {r.piecesCount ?? 1} قطعة</div>
+                    <div className="flex items-center gap-2 text-foreground/70"><Package size={13} className="text-muted-foreground/60" /> {r.piecesCount ?? 1} قطعة</div>
                   </div>
 
                   {r.notes && (
-                    <div className="flex items-start gap-2 mt-2.5 text-xs text-white/50">
-                      <FileText size={13} className="text-white/25 mt-0.5" /> {r.notes}
+                    <div className="flex items-start gap-2 mt-2.5 text-xs text-muted-foreground">
+                      <FileText size={13} className="text-muted-foreground/60 mt-0.5" /> {r.notes}
                     </div>
                   )}
 
                   {r.status === "pending" && (
-                    <div className="mt-3 pt-3 flex justify-end" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="mt-3 pt-3 flex justify-end border-t border-border">
                       <button onClick={() => cancelMutation.mutate(r.id)} disabled={cancelMutation.isPending}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
                         style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>

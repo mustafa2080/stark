@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fc = (n: number | string) =>
@@ -60,13 +61,13 @@ interface WalletResponse {
 // ── Summary card ──────────────────────────────────────────────────────────
 function SummaryCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
   return (
-    <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+    <div className="rounded-2xl p-4 flex items-center gap-3 bg-muted/40 border border-border">
       <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22` }}>
         <Icon size={20} style={{ color }} />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] text-white/45 truncate">{label}</p>
-        <p className="text-base font-black text-white truncate">{value}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{label}</p>
+        <p className="text-base font-black text-foreground truncate">{value}</p>
       </div>
     </div>
   );
@@ -75,10 +76,10 @@ function SummaryCard({ icon: Icon, label, value, color }: { icon: any; label: st
 // ── Section shell ─────────────────────────────────────────────────────────
 function SectionCard({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-      <div className="flex items-center gap-2 p-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <Icon size={16} className="text-white/50" />
-        <p className="text-sm font-black text-white">{title}</p>
+    <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
+      <div className="flex items-center gap-2 p-4 border-b border-border">
+        <Icon size={16} className="text-muted-foreground" />
+        <p className="text-sm font-black text-foreground">{title}</p>
       </div>
       {children}
     </div>
@@ -108,18 +109,17 @@ export default function ClientWalletPage() {
   const outstanding = Math.max(0, totalInvoiced - totalPaidOnInvoices);
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6" style={{ background: "#0a0a0a" }} dir="rtl">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
       <div className="max-w-[1400px] mx-auto space-y-5">
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-black text-white">التسويات المالية</h1>
-            <p className="text-sm text-white/40 mt-1">سجل مدفوعاتك وفواتيرك ومستحقاتك بالتفصيل</p>
+            <h1 className="text-2xl font-black text-foreground">التسويات المالية</h1>
+            <p className="text-sm text-muted-foreground mt-1">سجل مدفوعاتك وفواتيرك ومستحقاتك بالتفصيل</p>
           </div>
           <button onClick={() => refetch()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white/70"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
             <RefreshCcw size={15} className={isRefetching ? "animate-spin" : ""} /> تحديث
           </button>
         </div>
@@ -135,17 +135,13 @@ export default function ClientWalletPage() {
         {/* ── Tabs ── */}
         <div className="flex items-center gap-2">
           <button onClick={() => setTab("payments")}
-            className="px-4 py-2 rounded-xl text-sm font-bold transition-colors"
-            style={tab === "payments"
-              ? { background: "#fff", color: "#000" }
-              : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)" }}>
+            className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors",
+              tab === "payments" ? "bg-foreground text-background" : "bg-muted/40 text-muted-foreground")}>
             <ArrowDownCircle size={14} className="inline-block ml-1.5 -mt-0.5" /> سجل التحصيلات ({payments.length})
           </button>
           <button onClick={() => setTab("invoices")}
-            className="px-4 py-2 rounded-xl text-sm font-bold transition-colors"
-            style={tab === "invoices"
-              ? { background: "#fff", color: "#000" }
-              : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)" }}>
+            className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors",
+              tab === "invoices" ? "bg-foreground text-background" : "bg-muted/40 text-muted-foreground")}>
             <FileText size={14} className="inline-block ml-1.5 -mt-0.5" /> الفواتير ({invoices.length})
           </button>
         </div>
@@ -156,30 +152,30 @@ export default function ClientWalletPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs" dir="rtl">
                 <thead>
-                  <tr style={{ background: "rgba(255,255,255,0.02)" }}>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">التاريخ</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">المبلغ</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">طريقة الدفع</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">رقم الإيصال</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">شحنة مرتبطة</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">ملاحظات</th>
+                  <tr className="bg-muted/40">
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">التاريخ</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">المبلغ</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">طريقة الدفع</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">رقم الإيصال</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">شحنة مرتبطة</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">ملاحظات</th>
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={6} className="text-center py-10 text-white/30">جارٍ التحميل...</td></tr>
+                    <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                   ) : payments.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-10 text-white/30">لا يوجد تحصيلات مسجلة بعد</td></tr>
+                    <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">لا يوجد تحصيلات مسجلة بعد</td></tr>
                   ) : payments.map(p => (
-                    <tr key={p.id} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                      <td className="px-4 py-3 text-white/60">
-                        <span className="inline-flex items-center gap-1.5"><Clock size={12} className="text-white/25" /> {fd(p.paidAt)}</span>
+                    <tr key={p.id} className="border-t border-border">
+                      <td className="px-4 py-3 text-foreground/60">
+                        <span className="inline-flex items-center gap-1.5"><Clock size={12} className="text-muted-foreground/50" /> {fd(p.paidAt)}</span>
                       </td>
                       <td className="px-4 py-3 font-bold" style={{ color: "#22c55e" }}>{fc(p.amount)}</td>
-                      <td className="px-4 py-3 text-white/70">{PAYMENT_METHOD_LABELS[p.paymentMethod] ?? p.paymentMethod}</td>
-                      <td className="px-4 py-3 font-mono text-white/50">{p.receiptNumber || "—"}</td>
-                      <td className="px-4 py-3 text-white/50">{p.linkedShipmentId ? `#${p.linkedShipmentId}` : "—"}</td>
-                      <td className="px-4 py-3 text-white/40 max-w-[200px] truncate">{p.notes || "—"}</td>
+                      <td className="px-4 py-3 text-foreground/70">{PAYMENT_METHOD_LABELS[p.paymentMethod] ?? p.paymentMethod}</td>
+                      <td className="px-4 py-3 font-mono text-muted-foreground">{p.receiptNumber || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.linkedShipmentId ? `#${p.linkedShipmentId}` : "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground/70 max-w-[200px] truncate">{p.notes || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -194,38 +190,38 @@ export default function ClientWalletPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs" dir="rtl">
                 <thead>
-                  <tr style={{ background: "rgba(255,255,255,0.02)" }}>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">رقم الفاتورة</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">الفترة</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">عدد الشحنات</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">الإجمالي</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">المدفوع</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">الحالة</th>
-                    <th className="text-right font-bold text-white/40 px-4 py-3">تاريخ الإصدار</th>
+                  <tr className="bg-muted/40">
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">رقم الفاتورة</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">الفترة</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">عدد الشحنات</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">الإجمالي</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">المدفوع</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">الحالة</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">تاريخ الإصدار</th>
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={7} className="text-center py-10 text-white/30">جارٍ التحميل...</td></tr>
+                    <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                   ) : invoices.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-10 text-white/30">لا يوجد فواتير مسجلة بعد</td></tr>
+                    <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">لا يوجد فواتير مسجلة بعد</td></tr>
                   ) : invoices.map(inv => {
                     const meta = INVOICE_STATUS_META[inv.status] ?? { label: inv.status, color: "#64748b", bg: "rgba(100,116,139,0.12)" };
                     return (
-                      <tr key={inv.id} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                        <td className="px-4 py-3 font-mono text-white/70">{inv.invoiceNumber}</td>
-                        <td className="px-4 py-3 text-white/50">
+                      <tr key={inv.id} className="border-t border-border">
+                        <td className="px-4 py-3 font-mono text-foreground/70">{inv.invoiceNumber}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
                           {inv.periodFrom && inv.periodTo ? `${fd(inv.periodFrom)} — ${fd(inv.periodTo)}` : "—"}
                         </td>
-                        <td className="px-4 py-3 text-white/60">{inv.shipmentIds?.length ?? 0}</td>
-                        <td className="px-4 py-3 font-bold text-white/90">{fc(inv.totalAmount)}</td>
+                        <td className="px-4 py-3 text-foreground/60">{inv.shipmentIds?.length ?? 0}</td>
+                        <td className="px-4 py-3 font-bold text-foreground/90">{fc(inv.totalAmount)}</td>
                         <td className="px-4 py-3" style={{ color: "#22c55e" }}>{fc(inv.paidAmount)}</td>
                         <td className="px-4 py-3">
                           <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
                             {meta.label}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-white/50">{fd(inv.createdAt)}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{fd(inv.createdAt)}</td>
                       </tr>
                     );
                   })}

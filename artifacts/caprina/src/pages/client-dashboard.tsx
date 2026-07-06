@@ -60,7 +60,7 @@ function DonutChart({ breakdown, total }: { breakdown: StatsResponse["breakdown"
   return (
     <div className="relative flex items-center justify-center">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--muted-foreground)/0.15)" strokeWidth={stroke} />
         {breakdown.map((b, i) => {
           const dash = (b.pct / 100) * circumference;
           const el = (
@@ -75,8 +75,8 @@ function DonutChart({ breakdown, total }: { breakdown: StatsResponse["breakdown"
         })}
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-3xl font-black text-white">{fn(total)}</span>
-        <span className="text-xs text-white/40 mt-1">الإجمالي</span>
+        <span className="text-3xl font-black text-foreground">{fn(total)}</span>
+        <span className="text-xs text-muted-foreground mt-1">الإجمالي</span>
       </div>
     </div>
   );
@@ -85,11 +85,9 @@ function DonutChart({ breakdown, total }: { breakdown: StatsResponse["breakdown"
 // ── Small stat pill (top-left cards like "الانتظار / الموافقة") ───────────
 function StatPill({ value, label }: { value: number | string; label: string }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 rounded-xl"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-      <span className="text-sm text-white/60">{label}</span>
-      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black"
-        style={{ background: "rgba(255,255,255,0.08)", color: "#fff" }}>
+    <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-muted/40 border border-border">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black bg-muted text-foreground">
         {value}
       </span>
     </div>
@@ -99,11 +97,11 @@ function StatPill({ value, label }: { value: number | string; label: string }) {
 // ── Legend item ───────────────────────────────────────────────────────────
 function LegendItem({ color, label, count, pct }: { color: string; label: string; count: number; pct: number }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/25">
       <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
-      <span className="text-xs text-white/70 flex-1">{label}</span>
-      <span className="text-xs font-bold text-white/90">{fn(count)}</span>
-      <span className="text-[10px] text-white/40">({pct}%)</span>
+      <span className="text-xs text-foreground/70 flex-1">{label}</span>
+      <span className="text-xs font-bold text-foreground/90">{fn(count)}</span>
+      <span className="text-[10px] text-muted-foreground">({pct}%)</span>
     </div>
   );
 }
@@ -111,13 +109,13 @@ function LegendItem({ color, label, count, pct }: { color: string; label: string
 // ── Wallet mini-card ──────────────────────────────────────────────────────
 function WalletCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
   return (
-    <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+    <div className="rounded-2xl p-4 flex items-center gap-3 bg-muted/40 border border-border">
       <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22` }}>
         <Icon size={20} style={{ color }} />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] text-white/45 truncate">{label}</p>
-        <p className="text-base font-black text-white truncate">{value}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{label}</p>
+        <p className="text-base font-black text-foreground truncate">{value}</p>
       </div>
     </div>
   );
@@ -168,29 +166,26 @@ export default function ClientDashboardPage() {
   const finance = stats?.finance;
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6" style={{ background: "#0a0a0a" }} dir="rtl">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
       <div className="max-w-[1400px] mx-auto space-y-5">
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-black text-white">أهلاً، {client?.name || user?.displayName || "عميلنا العزيز"} 👋</h1>
-            <p className="text-sm text-white/40 mt-1">لوحة متابعة شحناتك ومستحقاتك المالية</p>
+            <h1 className="text-2xl font-black text-foreground">أهلاً، {client?.name || user?.displayName || "عميلنا العزيز"} 👋</h1>
+            <p className="text-sm text-muted-foreground mt-1">لوحة متابعة شحناتك ومستحقاتك المالية</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => navigate("/client-wallet")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white/70"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
               <Wallet size={15} /> التسويات المالية
             </button>
             <button onClick={() => navigate("/client-pickup-requests")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-black"
-              style={{ background: "#fff" }}>
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-foreground text-background">
               <PackagePlus size={15} /> طلب التقاط
             </button>
             <button onClick={() => refetch()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white/70"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
               <RefreshCcw size={15} /> تحديث
             </button>
           </div>
@@ -201,22 +196,22 @@ export default function ClientDashboardPage() {
 
           {/* ── Left column (account + wallet mini) ── */}
           <div className="space-y-4">
-            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <p className="text-xs text-white/40 mb-3 font-bold">بيانات الحساب</p>
+            <div className="rounded-2xl p-4 bg-muted/25 border border-border">
+              <p className="text-xs text-muted-foreground mb-3 font-bold">بيانات الحساب</p>
               <div className="space-y-2.5">
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                  <User size={14} className="text-white/30" /> {client?.name || "—"}
+                <div className="flex items-center gap-2 text-sm text-foreground/70">
+                  <User size={14} className="text-muted-foreground/60" /> {client?.name || "—"}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                  <Phone size={14} className="text-white/30" /> {client?.phone || "—"}
+                <div className="flex items-center gap-2 text-sm text-foreground/70">
+                  <Phone size={14} className="text-muted-foreground/60" /> {client?.phone || "—"}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                  <MapPin size={14} className="text-white/30" /> {client?.city || "—"}
+                <div className="flex items-center gap-2 text-sm text-foreground/70">
+                  <MapPin size={14} className="text-muted-foreground/60" /> {client?.city || "—"}
                 </div>
               </div>
-              <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="mt-3 pt-3 flex items-center gap-2 border-t border-border">
                 <ShieldCheck size={14} style={{ color: stats?.accountStatus === "active" ? "#22c55e" : "#f59e0b" }} />
-                <span className="text-xs text-white/60">
+                <span className="text-xs text-foreground/60">
                   {stats?.accountStatus === "active" ? "الحساب نشط" : "الحساب موقوف مؤقتاً"}
                 </span>
               </div>
@@ -227,12 +222,12 @@ export default function ClientDashboardPage() {
           </div>
 
           {/* ── Right column: Donut + Legend ── */}
-          <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <p className="text-sm font-black text-white mb-4">إحصائيات الشحنات</p>
+          <div className="rounded-2xl p-5 bg-muted/25 border border-border">
+            <p className="text-sm font-black text-foreground mb-4">إحصائيات الشحنات</p>
             {statsLoading ? (
-              <div className="h-64 flex items-center justify-center text-white/30 text-sm">جارٍ التحميل...</div>
+              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">جارٍ التحميل...</div>
             ) : !stats || stats.total === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center gap-2 text-white/30">
+              <div className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground">
                 <Package size={40} className="opacity-30" />
                 <p className="text-sm">لا توجد شحنات مسجلة بعد</p>
               </div>
@@ -258,20 +253,18 @@ export default function ClientDashboardPage() {
         </div>
 
         {/* ── Shipments Table ── */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <div className="flex items-center justify-between flex-wrap gap-3 p-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="text-sm font-black text-white">شحناتي</p>
+        <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
+          <div className="flex items-center justify-between flex-wrap gap-3 p-4 border-b border-border">
+            <p className="text-sm font-black text-foreground">شحناتي</p>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                   placeholder="بحث بالكود أو الاسم..."
-                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-white outline-none w-52"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }} />
-                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30" />
+                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-52 bg-muted/50 border border-border" />
+                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
               </div>
               <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="py-2 px-3 rounded-lg text-xs text-white outline-none"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                className="py-2 px-3 rounded-lg text-xs text-foreground outline-none bg-muted/50 border border-border">
                 <option value="all">كل الحالات</option>
                 <option value="delivered">تم التسليم</option>
                 <option value="in_transit">قيد التوصيل</option>
@@ -287,40 +280,39 @@ export default function ClientDashboardPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs" dir="rtl">
               <thead>
-                <tr style={{ background: "rgba(255,255,255,0.02)" }}>
-                  <th className="text-right font-bold text-white/40 px-4 py-3">الكود</th>
-                  <th className="text-right font-bold text-white/40 px-4 py-3">المستلم</th>
-                  <th className="text-right font-bold text-white/40 px-4 py-3">الوجهة</th>
-                  <th className="text-right font-bold text-white/40 px-4 py-3">قيمة الطرد</th>
-                  <th className="text-right font-bold text-white/40 px-4 py-3">حالة الطلب</th>
-                  <th className="text-right font-bold text-white/40 px-4 py-3">التاريخ</th>
-                  <th className="text-right font-bold text-white/40 px-4 py-3"></th>
+                <tr className="bg-muted/40">
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الكود</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المستلم</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الوجهة</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">قيمة الطرد</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">حالة الطلب</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">التاريخ</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {shipmentsLoading ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-white/30">جارٍ التحميل...</td></tr>
+                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                 ) : shipments.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-white/30">لا توجد شحنات مطابقة</td></tr>
+                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">لا توجد شحنات مطابقة</td></tr>
                 ) : shipments.map(s => {
                   const meta = statusMeta(s.status);
                   return (
-                    <tr key={s.id} className="cursor-pointer hover:bg-white/[0.03] transition-colors"
-                      style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+                    <tr key={s.id} className="cursor-pointer hover:bg-muted/30 transition-colors border-t border-border"
                       onClick={() => navigate(`/client-shipment/${s.id}`)}>
-                      <td className="px-4 py-3 font-mono text-white/60">{s.trackingNumber || s.shipmentNumber || s.id}</td>
-                      <td className="px-4 py-3 text-white/80">{s.receiverName}</td>
-                      <td className="px-4 py-3 text-white/60">{s.receiverCity || "—"}</td>
-                      <td className="px-4 py-3 text-white/80 font-bold">{fn(Number(s.codAmount ?? 0))}</td>
+                      <td className="px-4 py-3 font-mono text-foreground/60">{s.trackingNumber || s.shipmentNumber || s.id}</td>
+                      <td className="px-4 py-3 text-foreground/80">{s.receiverName}</td>
+                      <td className="px-4 py-3 text-foreground/60">{s.receiverCity || "—"}</td>
+                      <td className="px-4 py-3 text-foreground/80 font-bold">{fn(Number(s.codAmount ?? 0))}</td>
                       <td className="px-4 py-3">
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
                           {meta.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-white/50">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}
                       </td>
-                      <td className="px-4 py-3"><ChevronRight size={14} className="text-white/20" /></td>
+                      <td className="px-4 py-3"><ChevronRight size={14} className="text-muted-foreground/50" /></td>
                     </tr>
                   );
                 })}
@@ -330,17 +322,15 @@ export default function ClientDashboardPage() {
 
           {/* ── Pagination ── */}
           {totalShipments > 10 && (
-            <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <span className="text-xs text-white/40">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
                 عرض {(page - 1) * 10 + 1}–{Math.min(page * 10, totalShipments)} من {fn(totalShipments)}
               </span>
               <div className="flex items-center gap-2">
                 <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-white/60 disabled:opacity-30"
-                  style={{ background: "rgba(255,255,255,0.05)" }}>السابق</button>
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-foreground/70 disabled:opacity-30 bg-muted/50">السابق</button>
                 <button disabled={page * 10 >= totalShipments} onClick={() => setPage(p => p + 1)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-white/60 disabled:opacity-30"
-                  style={{ background: "rgba(255,255,255,0.05)" }}>التالي</button>
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-foreground/70 disabled:opacity-30 bg-muted/50">التالي</button>
               </div>
             </div>
           )}

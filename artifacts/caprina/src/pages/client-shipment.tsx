@@ -8,6 +8,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
 
@@ -53,9 +54,9 @@ function StatusTimeline({ status }: { status: string }) {
   }
 
   return (
-    <div className="rounded-2xl p-6" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+    <div className="rounded-2xl p-6 bg-muted/25 border border-border">
       <div className="flex items-center justify-between relative">
-        <div className="absolute top-5 right-5 left-5 h-0.5" style={{ background: "rgba(255,255,255,0.08)" }} />
+        <div className="absolute top-5 right-5 left-5 h-0.5 bg-muted-foreground/15" />
         <div className="absolute top-5 right-5 h-0.5 transition-all duration-700"
           style={{
             background: "#22c55e",
@@ -67,14 +68,12 @@ function StatusTimeline({ status }: { status: string }) {
           const Icon = step.icon;
           return (
             <div key={step.key} className="relative flex flex-col items-center gap-2 z-10" style={{ flex: 1 }}>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-500"
-                style={{
-                  background: done ? "#22c55e" : "rgba(255,255,255,0.06)",
-                  border: done ? "none" : "1px solid rgba(255,255,255,0.1)",
-                }}>
-                <Icon size={16} color={done ? "#052e13" : "rgba(255,255,255,0.3)"} />
+              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-500",
+                done ? "" : "bg-muted border border-border")}
+                style={done ? { background: "#22c55e" } : undefined}>
+                <Icon size={16} color={done ? "#052e13" : "currentColor"} className={done ? "" : "text-muted-foreground/50"} />
               </div>
-              <span className="text-[11px] text-center font-bold" style={{ color: done ? "#fff" : "rgba(255,255,255,0.35)" }}>
+              <span className={cn("text-[11px] text-center font-bold", done ? "text-foreground" : "text-muted-foreground/60")}>
                 {step.label}
               </span>
             </div>
@@ -88,12 +87,12 @@ function StatusTimeline({ status }: { status: string }) {
 // ── Info Row ──────────────────────────────────────────────────────────────
 function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string | number }) {
   return (
-    <div className="flex items-center gap-3 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.05)" }}>
-        <Icon size={14} className="text-white/40" />
+    <div className="flex items-center gap-3 py-2.5 border-b border-border">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted/50">
+        <Icon size={14} className="text-muted-foreground" />
       </div>
-      <span className="text-xs text-white/40 flex-shrink-0 w-24">{label}</span>
-      <span className="text-sm text-white/85 font-bold truncate">{value || "—"}</span>
+      <span className="text-xs text-muted-foreground flex-shrink-0 w-24">{label}</span>
+      <span className="text-sm text-foreground/90 font-bold truncate">{value || "—"}</span>
     </div>
   );
 }
@@ -123,27 +122,25 @@ export default function ClientShipmentPage() {
   };
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6" style={{ background: "#0a0a0a" }} dir="rtl">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
       <div className="max-w-[900px] mx-auto space-y-5">
 
         {/* ── Header ── */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/client-dashboard")}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-white/60"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-foreground/70 bg-muted/40 border border-border">
             <ArrowRight size={16} />
           </button>
           <div>
-            <h1 className="text-xl font-black text-white">تفاصيل الشحنة</h1>
-            <p className="text-xs text-white/40">متابعة حالة شحنتك لحظة بلحظة</p>
+            <h1 className="text-xl font-black text-foreground">تفاصيل الشحنة</h1>
+            <p className="text-xs text-muted-foreground">متابعة حالة شحنتك لحظة بلحظة</p>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="h-64 flex items-center justify-center text-white/30">جارٍ التحميل...</div>
+          <div className="h-64 flex items-center justify-center text-muted-foreground">جارٍ التحميل...</div>
         ) : error || !shipment ? (
-          <div className="rounded-2xl p-10 flex flex-col items-center gap-3 text-white/30"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="rounded-2xl p-10 flex flex-col items-center gap-3 text-muted-foreground bg-muted/25 border border-border">
             <Package size={40} className="opacity-30" />
             <p className="text-sm">تعذر العثور على هذه الشحنة أو لا تملك صلاحية عرضها</p>
           </div>
@@ -151,15 +148,13 @@ export default function ClientShipmentPage() {
           <>
 
             {/* ── Tracking code header ── */}
-            <div className="flex items-center justify-between flex-wrap gap-3 rounded-2xl p-4"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center justify-between flex-wrap gap-3 rounded-2xl p-4 bg-muted/25 border border-border">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40">كود التتبع:</span>
-                <span className="font-mono text-white font-bold">{shipment.trackingNumber || shipment.shipmentNumber || shipment.id}</span>
+                <span className="text-xs text-muted-foreground">كود التتبع:</span>
+                <span className="font-mono text-foreground font-bold">{shipment.trackingNumber || shipment.shipmentNumber || shipment.id}</span>
               </div>
               <button onClick={copyTracking}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white/60"
-                style={{ background: "rgba(255,255,255,0.05)" }}>
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-foreground/70 bg-muted/50">
                 <Copy size={12} /> نسخ
               </button>
             </div>
@@ -169,16 +164,16 @@ export default function ClientShipmentPage() {
 
             {/* ── Details grid ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <p className="text-xs text-white/40 mb-2 font-bold">بيانات الاستلام</p>
+              <div className="rounded-2xl p-4 bg-muted/25 border border-border">
+                <p className="text-xs text-muted-foreground mb-2 font-bold">بيانات الاستلام</p>
                 <InfoRow icon={User} label="المستلم" value={shipment.receiverName} />
                 <InfoRow icon={Phone} label="الهاتف" value={shipment.receiverPhone} />
                 <InfoRow icon={MapPin} label="المدينة" value={shipment.receiverCity} />
                 <InfoRow icon={MapPin} label="العنوان" value={shipment.receiverAddress} />
               </div>
 
-              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <p className="text-xs text-white/40 mb-2 font-bold">بيانات الشحنة</p>
+              <div className="rounded-2xl p-4 bg-muted/25 border border-border">
+                <p className="text-xs text-muted-foreground mb-2 font-bold">بيانات الشحنة</p>
                 <InfoRow icon={Receipt} label="قيمة الطرد" value={`${fn(Number(shipment.codAmount ?? 0))} ج.م`} />
                 <InfoRow icon={Package} label="عدد القطع" value={items.length || shipment.piecesCount || 1} />
                 <InfoRow icon={Clock} label="تاريخ الإنشاء"
@@ -189,14 +184,13 @@ export default function ClientShipmentPage() {
 
             {/* ── Items list (لو موجودين) ── */}
             {items.length > 0 && (
-              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <p className="text-xs text-white/40 mb-3 font-bold">محتويات الشحنة</p>
+              <div className="rounded-2xl p-4 bg-muted/25 border border-border">
+                <p className="text-xs text-muted-foreground mb-3 font-bold">محتويات الشحنة</p>
                 <div className="space-y-2">
                   {items.map((it: any, i: number) => (
-                    <div key={it.id ?? i} className="flex items-center justify-between px-3 py-2 rounded-lg text-sm"
-                      style={{ background: "rgba(255,255,255,0.03)" }}>
-                      <span className="text-white/80">{it.productName || it.name || `الصنف ${i + 1}`}</span>
-                      <span className="text-white/50 text-xs">الكمية: {it.quantity ?? 1}</span>
+                    <div key={it.id ?? i} className="flex items-center justify-between px-3 py-2 rounded-lg text-sm bg-muted/30">
+                      <span className="text-foreground/80">{it.productName || it.name || `الصنف ${i + 1}`}</span>
+                      <span className="text-muted-foreground text-xs">الكمية: {it.quantity ?? 1}</span>
                     </div>
                   ))}
                 </div>
