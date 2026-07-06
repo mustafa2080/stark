@@ -375,54 +375,108 @@ export default function Layout({ children }: LayoutProps) {
       exact ? location === href : location === href || location.startsWith(href + "/");
 
     return (
-      <div className="flex flex-col bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
-        {/* Header مبسط لبوابة العميل */}
-        <header className="shrink-0 border-b border-sidebar-border bg-sidebar">
-          <div className="flex items-center justify-between px-4 h-14 gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <BrandLogoMark size="sm" />
-              <div className="min-w-0 hidden sm:block">
-                <p className="text-xs font-bold text-sidebar-foreground truncate">{user?.displayName}</p>
-                <p className="text-[10px] text-sidebar-foreground/40">بوابة العميل</p>
-              </div>
+      <div className="flex bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
+
+        {/* ── Sidebar جانبي قابل للطي (desktop) ── */}
+        <div className="hidden md:flex print:hidden shrink-0 relative"
+          style={{ width: sidebarCollapsed ? "68px" : "230px", transition: "width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
+
+          {/* زر Toggle */}
+          <button type="button" onClick={() => setSidebarCollapsed(v => !v)}
+            title={sidebarCollapsed ? "توسيع القائمة" : "تصغير القائمة"}
+            style={{
+              position: "absolute", top: "50%", left: "-13px", transform: "translateY(-50%)", zIndex: 50,
+              width: "26px", height: "26px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+              background: "hsl(var(--sidebar))", border: "2px solid hsl(var(--sidebar-border))",
+              boxShadow: "-2px 0 8px rgba(0,0,0,0.25)", cursor: "pointer", transition: "background 0.2s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "hsl(var(--primary))")}
+            onMouseLeave={e => (e.currentTarget.style.background = "hsl(var(--sidebar))")}>
+            <ChevronLeft style={{ width: "13px", height: "13px", color: "hsl(var(--sidebar-foreground))",
+              transform: sidebarCollapsed ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />
+          </button>
+
+          <aside className="border-l border-sidebar-border bg-sidebar flex flex-col h-full w-full overflow-hidden"
+            style={{ boxShadow: sidebarCollapsed ? "none" : "4px 0 24px rgba(0,0,0,0.18)", cursor: sidebarCollapsed ? "pointer" : "default" }}
+            onClick={() => { if (sidebarCollapsed) setSidebarCollapsed(false); }}>
+
+            {/* Header / Logo */}
+            <div className="shrink-0 border-b border-sidebar-border/60 flex flex-col items-center gap-2 py-4 px-1">
+              <BrandLogoMark size={sidebarCollapsed ? "sm" : "md"} />
+              {!sidebarCollapsed && (
+                <div className="text-center min-w-0 px-2">
+                  <p className="text-xs font-bold text-sidebar-foreground truncate max-w-[190px]">{user?.displayName}</p>
+                  <p className="text-[10px] text-sidebar-foreground/40 mt-0.5">بوابة العميل</p>
+                </div>
+              )}
             </div>
 
-            {/* روابط سريعة — تظهر فقط على الشاشات المتوسطة فأكبر */}
-            <nav className="hidden md:flex items-center gap-1.5">
+            {/* روابط التنقل */}
+            <nav className="flex-1 overflow-y-auto py-3 px-2 flex flex-col gap-1">
               {CLIENT_NAV.map(item => {
                 const active = isClientActive(item.href, item.exact);
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} href={item.href}
-                    className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
-                      active ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5")}>
-                    <Icon className="w-3.5 h-3.5" /> {item.label}
+                  <Link key={item.href} href={item.href} title={sidebarCollapsed ? item.label : undefined}
+                    onClick={(e) => { if (sidebarCollapsed) e.stopPropagation(); }}
+                    className={cn("flex items-center gap-3 rounded-xl text-sm font-bold transition-all",
+                      sidebarCollapsed ? "justify-center h-11 w-11 mx-auto" : "px-3 py-2.5",
+                      active ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5 border border-transparent")}>
+                    <Icon className="w-4.5 h-4.5 shrink-0" />
+                    {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
                   </Link>
                 );
               })}
             </nav>
 
-            <div className="flex items-center gap-2 shrink-0">
+            {/* أسفل الـ sidebar: الثيم + خروج */}
+            <div className={cn("shrink-0 border-t border-sidebar-border/60 p-2 flex gap-2", sidebarCollapsed ? "flex-col items-center" : "flex-row items-center justify-between")}>
+              <button type="button" onClick={(e) => { e.stopPropagation(); toggleTheme(); }}
+                title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0"
+                style={{
+                  background: theme === "dark" ? "linear-gradient(135deg,#1e293b,#0f172a)" : "linear-gradient(135deg,#fef3c7,#fde68a)",
+                  border: theme === "dark" ? "1px solid rgba(148,163,184,0.25)" : "1px solid rgba(251,191,36,0.6)",
+                }}>
+                {theme === "dark" ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-indigo-600" />}
+              </button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); logout(); }}
+                title="خروج"
+                className={cn("flex items-center gap-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors rounded-lg shrink-0",
+                  sidebarCollapsed ? "w-9 h-9 justify-center" : "px-3 py-2")}>
+                <LogOut className="w-4 h-4" /> {!sidebarCollapsed && "خروج"}
+              </button>
+            </div>
+          </aside>
+        </div>
+
+        {/* ── Header علوي بسيط (موبايل) ── */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <header className="md:hidden shrink-0 border-b border-sidebar-border bg-sidebar">
+            <div className="flex items-center justify-between px-4 h-14 gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <BrandLogoMark size="sm" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-sidebar-foreground truncate">{user?.displayName}</p>
+                  <p className="text-[10px] text-sidebar-foreground/40">بوابة العميل</p>
+                </div>
+              </div>
               <button type="button" onClick={toggleTheme} title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0"
                 style={{
                   background: theme === "dark" ? "linear-gradient(135deg,#1e293b,#0f172a)" : "linear-gradient(135deg,#fef3c7,#fde68a)",
                   border: theme === "dark" ? "1px solid rgba(148,163,184,0.25)" : "1px solid rgba(251,191,36,0.6)",
                 }}>
                 {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
               </button>
-              <button onClick={logout}
-                className="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors px-2.5 py-1.5 rounded-lg">
-                <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">خروج</span>
-              </button>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {/* محتوى الصفحة */}
-        <main id="main-scroll-area" className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">
-          {children}
-        </main>
+          {/* محتوى الصفحة */}
+          <main id="main-scroll-area" className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">
+            {children}
+          </main>
+        </div>
 
         {/* Bottom nav — موبايل فقط */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
