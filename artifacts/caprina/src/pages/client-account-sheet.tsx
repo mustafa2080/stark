@@ -186,9 +186,18 @@ function nameToColor(name: string) {
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }
-function ClientAvatar({ name }: { name: string }) {
+function ClientAvatar({ name, avatar }: { name: string; avatar?: string | null }) {
   const color = nameToColor(name || "?");
   const letter = (name || "?").trim().charAt(0);
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt={name || "عميل"}
+        className="w-7 h-7 rounded-full object-cover shrink-0 border border-border"
+      />
+    );
+  }
   return (
     <div
       className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
@@ -219,7 +228,7 @@ function DetailRow({ icon: Icon, label, value, highlight, color }: {
 type SearchMatch = { name: string; phone: string; shipmentsCount: number };
 
 type ClientRow = {
-  id: number; name: string; phone: string; city: string | null;
+  id: number; name: string; phone: string; city: string | null; avatar?: string | null;
   shipmentsCount: number; totalAmount: number; collectedAmount: number; remainingAmount: number;
   lastOrderAt: string;
 };
@@ -719,12 +728,20 @@ export default function ClientAccountSheetPage() {
                         onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
                         className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
                       >
-                        <div
-                          className="w-16 h-16 rounded-xl flex items-center justify-center text-xl font-black shrink-0 group-hover:scale-105 transition-transform"
-                          style={{ background: `${color}18`, color, border: `1px solid ${color}35` }}
-                        >
-                          {(c.name || "?").trim().charAt(0)}
-                        </div>
+                        {c.avatar ? (
+                          <img
+                            src={c.avatar}
+                            alt={c.name || "عميل"}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-border group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div
+                            className="w-16 h-16 rounded-xl flex items-center justify-center text-xl font-black shrink-0 group-hover:scale-105 transition-transform"
+                            style={{ background: `${color}18`, color, border: `1px solid ${color}35` }}
+                          >
+                            {(c.name || "?").trim().charAt(0)}
+                          </div>
+                        )}
                         <div className="w-full min-w-0">
                           <p className="text-xs font-bold truncate">{c.name}</p>
                           <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
@@ -808,7 +825,7 @@ export default function ClientAccountSheetPage() {
                       >
                         <td className="p-2.5">
                           <div className="flex items-center gap-2">
-                            <ClientAvatar name={c.name} />
+                            <ClientAvatar name={c.name} avatar={c.avatar} />
                             <span className="font-bold hover:underline decoration-dotted underline-offset-2">{c.name}</span>
                           </div>
                         </td>

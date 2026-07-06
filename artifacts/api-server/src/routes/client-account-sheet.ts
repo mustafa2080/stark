@@ -104,6 +104,7 @@ router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> 
         name: clientsTable.name,
         phone: clientsTable.phone,
         city: clientsTable.city,
+        avatar: clientsTable.avatar,
       })
       .from(clientsTable)
       .where(clientConditions.length ? and(...clientConditions) : undefined);
@@ -158,6 +159,7 @@ router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> 
           name: c.name,
           phone: c.phone,
           city: c.city,
+          avatar: c.avatar,
           shipmentsCount: stats.shipmentsCount,
           totalAmount: stats.totalAmount,
           collectedAmount: stats.collectedAmount,
