@@ -1,65 +1,18 @@
-﻿import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import ExcelJS from "exceljs";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  clientAccountManifestsApi,
+  shipmentManifestsApi,
   manifestsApi,
   shipmentsApi,
   apiFetch,
-  type ClientAccountManifestDetail as ShippingManifestDetail,
+  type ShipmentManifestDetail as ShippingManifestDetail,
+  type ManifestOrder,
   type DeliveryStatus,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-
-// محلي: شكل الطلب بعد الـ adapter (بيان حساب عميل، مش بيان شركة شحن قديم)
-interface ManifestOrder {
-  id: number;
-  shipmentId: number;
-  manifestOrderId: number;
-  invoiceNumber: string;
-  customerName: string;
-  customerPhone: string | null;
-  phone: string | null;
-  city: string | null;
-  address: string | null;
-  senderName: string | null;
-  product: string | null;
-  quantity: number;
-  total: number;
-  totalPrice: number;
-  unitPrice: number;
-  cost: number | null;
-  shippingCost: number | null;
-  status: string;
-  notes: string | null;
-  color: string | null;
-  size: string | null;
-  source: string | null;
-  createdAt: string;
-  updatedAt: string | null;
-  assignedUserId: number | null;
-  createdByUserId: number | null;
-  clientId: number | null;
-  deliveryStatus: DeliveryStatus;
-  deliveryNote: string | null;
-  deliveredAt: string | null;
-  returnReceived: 0 | 1 | null;
-  addedAt: string | null;
-  partialQuantity: number | null;
-  returnReason: string | null;
-}
-
-interface LocalManifestDetail extends ShippingManifestDetail {
-  clientName: string;
-  clientPhone: string | null;
-  clientCity: string | null;
-  invoiceNotes: string | null;
-  manualShippingCost: number | null;
-  orders: ManifestOrder[];
-  stats: ShippingManifestDetail["stats"];
-}
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -245,7 +198,7 @@ function OrderDeliveryRow({
         // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
         const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
         const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
-        return clientAccountManifestsApi.updateItem(manifestId, order.id, {
+        return shipmentManifestsApi.updateItem(manifestId, order.id, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
           partialQuantity:
@@ -792,7 +745,7 @@ function UrgentButton({
 
   const mutation = useMutation({
     mutationFn: (payload: { isUrgent: boolean; urgentNote?: string | null }) =>
-      apiFetch(`/client-account-manifests/${manifestId}/items/${shipmentId}/urgent`, {
+      apiFetch(`/shipment-manifests/${manifestId}/items/${shipmentId}/urgent`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -1022,7 +975,7 @@ function InvoiceGroupDeliveryRow({
     mutationFn: async () => {
       for (const order of group) {
         if (isShipmentManifest) {
-          await clientAccountManifestsApi.updateItem(manifestId, order.id, {
+          await shipmentManifestsApi.updateItem(manifestId, order.id, {
             deliveryStatus: "pending",
             deliveryNote: null,
             returnReceived: null,
@@ -1098,7 +1051,7 @@ function InvoiceGroupDeliveryRow({
         if (isShipmentManifest) {
           const allowedSt = ["pending","delivered","partial_delivered","returned","delayed"] as const;
           const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
-          await clientAccountManifestsApi.updateItem(manifestId, order.id, {
+          await shipmentManifestsApi.updateItem(manifestId, order.id, {
             deliveryStatus: safeSt,
             deliveryNote: bulkNote.trim() || null,
             partialQuantity: safeSt === "partial_delivered" ? finalPartialQty : null,
@@ -2016,7 +1969,7 @@ function InvoicePriceEditor({
   const mutation = useMutation({
     mutationFn: () =>
       isShipmentManifest
-        ? clientAccountManifestsApi.update(manifestId, {
+        ? shipmentManifestsApi.update(manifestId, {
             invoicePrice: price ? parseFloat(price) : null,
             notes: notes.trim() || null,
           })
@@ -2105,7 +2058,7 @@ function InvoicePriceEditor({
   );
 }
 
-function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { manifest: LocalManifestDetail; onSaved: () => void; isShipmentManifest?: boolean }) {
+function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { manifest: ShippingManifestDetail; onSaved: () => void; isShipmentManifest?: boolean }) {
   const { toast } = useToast();
   const s = manifest.stats;
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
@@ -2129,7 +2082,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
       const parsed = val.trim() === "" ? null : parseFloat(val);
       if (parsed !== null && isNaN(parsed)) throw new Error("قيمة غير صحيحة");
       return isShipmentManifest
-        ? clientAccountManifestsApi.update(manifest.id, { invoicePrice: parsed })
+        ? shipmentManifestsApi.update(manifest.id, { invoicePrice: parsed })
         : manifestsApi.update(manifest.id, { manualShippingCost: parsed });
     },
     onSuccess: () => {
@@ -2145,7 +2098,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
     <Card className="border-primary/30 bg-primary/5 p-5">
       <div className="flex items-center gap-2 mb-4">
         <Receipt className="w-4 h-4 text-primary" />
-        <h2 className="font-bold text-sm">بيان التسوية — الحساب مع العميل</h2>
+        <h2 className="font-bold text-sm">بيان التسوية — الحساب مع شركة الشحن</h2>
         {manifest.status === "closed" && (
           <Badge variant="outline" className="text-[9px] border-emerald-500 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 mr-auto">
             مُغلق
@@ -2208,7 +2161,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           )}
         </div>
         <div className="bg-card rounded-md p-3 border border-border">
-          <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق من العميل</p>
+          <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق من الشركة</p>
           <p className="text-base font-black text-primary">{formatCurrency(netBeforeInvoice)}</p>
           <p className="text-[10px] text-muted-foreground">إيرادات − شحن</p>
         </div>
@@ -2279,7 +2232,7 @@ function CloseConfirmDialog({
   onConfirm,
   loading,
 }: {
-  manifest: LocalManifestDetail;
+  manifest: ShippingManifestDetail;
   onClose: () => void;
   onConfirm: () => void;
   loading: boolean;
@@ -2396,10 +2349,10 @@ function CloseConfirmDialog({
             </div>
           </div>
 
-          {/* ─── صافي المستحق من العميل ─── */}
+          {/* ─── صافي المستحق من الشركة ─── */}
           <div className="space-y-2">
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
-              <p className="text-muted-foreground mb-1">صافي المستحق من العميل</p>
+              <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
                 const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
                 const due = (s?.deliveredGross ?? 0) - effectiveShipping;
@@ -2494,7 +2447,7 @@ function ExportDialog({
   manifest,
   onClose,
 }: {
-  manifest: LocalManifestDetail;
+  manifest: ShippingManifestDetail;
   onClose: () => void;
 }) {
   const s = manifest.stats;
@@ -2660,7 +2613,7 @@ function ExportDialog({
     ws1.getRow(1).height = 28;
 
     ws1.mergeCells("A2:L2");
-    setCell(ws1.getCell("A2"), `بيان الشحن — ${manifest.manifestNumber}   |   ${manifest.clientName}   |   ${manifestDate}`, {
+    setCell(ws1.getCell("A2"), `بيان الشحن — ${manifest.manifestNumber}   |   ${manifest.companyName}   |   ${manifestDate}`, {
       fill: C.bg,
       font: { bold: true, size: 12, color: { argb: C.gold } },
       align: { horizontal: "center", vertical: "middle" },
@@ -2861,7 +2814,7 @@ function ExportDialog({
 
     const summaryRows: Array<[string, string, string]> = [
       ["رقم البيان", manifest.manifestNumber, C.blue],
-      ["العميل", manifest.clientName, C.blue],
+      ["شركة الشحن", manifest.companyName, C.blue],
       ["تاريخ الإنشاء", manifestDate, C.gray],
       ["الحالة", manifest.status === "closed" ? "مغلق ✓" : "مفتوح", manifest.status === "closed" ? C.green : C.blue],
       ["إجمالي البيان", String(groupedTotal), C.blue],
@@ -2950,7 +2903,7 @@ function ExportDialog({
               <div>
                 <p className="font-black text-base">{manifest.manifestNumber}</p>
                 <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <Truck className="w-3 h-3" />{manifest.clientName}
+                  <Truck className="w-3 h-3" />{manifest.companyName}
                 </p>
               </div>
               <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
@@ -3041,14 +2994,14 @@ function ExportDialog({
 function AddOrdersToManifestDialog({
   manifestId,
   manifestNumber,
-  clientId,
+  companyId,
   existingOrderIds,
   onClose,
   onAdded,
 }: {
   manifestId: number;
   manifestNumber: string;
-  clientId: number;
+  companyId: number;
   existingOrderIds: Set<number>;
   onClose: () => void;
   onAdded: () => void;
@@ -3061,8 +3014,8 @@ function AddOrdersToManifestDialog({
   // "picked_up" قيمة قديمة فالداتابيز بنفس تسمية "قيد الشحن في المخزن" — لازم تتحسب كمان
   const AVAILABLE_STATUSES = ["warehouse_ready", "picked_up"];
 
-  // ملحوظة: متعمد عدم تحديد clientId — أي شحنة "قيد الشحن في المخزن" بتظهر هنا
-  // بغض النظر عن العميل المرتبطة بيه، عشان تقدر تنقلها لأي بيان.
+  // ملحوظة: متعمد عدم تحديد shippingCompanyId — أي شحنة "قيد الشحن في المخزن" بتظهر هنا
+  // بغض النظر عن شركة الشحن المرتبطة بيها، عشان تقدر تنقلها لأي بيان.
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["shipments-available-for-manifest"],
     queryFn: () => shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
@@ -3070,7 +3023,7 @@ function AddOrdersToManifestDialog({
   });
 
   const addMutation = useMutation({
-    mutationFn: () => clientAccountManifestsApi.addShipments(manifestId, Array.from(selectedIds)),
+    mutationFn: () => shipmentManifestsApi.addShipments(manifestId, Array.from(selectedIds)),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["shipment-manifest", manifestId] });
       queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest"] });
@@ -3383,7 +3336,7 @@ function ReturnReceivedButton({
 
   const mutation = useMutation({
     mutationFn: () =>
-      clientAccountManifestsApi.updateItem(manifestId, order.id, {
+      shipmentManifestsApi.updateItem(manifestId, order.id, {
         deliveryStatus: order.deliveryStatus,
         deliveryNote: order.deliveryNote ?? null,
         partialQuantity: order.partialQuantity ?? null,
@@ -3482,15 +3435,16 @@ export default function ShippingManifestPage() {
 
   const { data: rawManifest, isLoading, error } = useQuery({
     queryKey: ["shipping-manifest", id],
-    queryFn: () => clientAccountManifestsApi.get(id),
+    queryFn: () => shipmentManifestsApi.get(id),
     enabled: !isNaN(id),
   });
 
-  // Adapter: convert ClientAccountManifestDetail to ShippingManifestDetail-compatible shape
-  const manifest = useMemo<LocalManifestDetail | undefined>(() => {
+  // Adapter: convert ShipmentManifestDetail to ShippingManifestDetail-compatible shape
+  const manifest = useMemo(() => {
     if (!rawManifest) return undefined;
     const orders: ManifestOrder[] = (rawManifest.items ?? []).map((item) => {
       const sh = item.shipment;
+      console.log("[adapter debug] item keys:", Object.keys(item as any), "totalPrice:", (item as any).totalPrice, "sh:", sh ? {codAmount: sh.codAmount} : null);
       // نقرأ من الـ enriched fields اللي الـ backend بيبعتها مباشرة على الـ item
       const codAmt = (item as any).totalPrice != null
         ? Number((item as any).totalPrice)
@@ -3500,7 +3454,6 @@ export default function ShippingManifestPage() {
         : sh ? parseFloat(sh.shippingFee ?? '0') : 0;
       return {
         id: item.shipmentId,
-        shipmentId: item.shipmentId,
         manifestOrderId: item.id,
         invoiceNumber: sh?.shipmentNumber ?? `S-${item.shipmentId}`,
         customerName: sh?.receiverName ?? '—',
@@ -3513,7 +3466,6 @@ export default function ShippingManifestPage() {
         quantity: 1,
         total: codAmt,
         totalPrice: codAmt,
-        unitPrice: codAmt,
         cost: null,
         shippingCost: shippingFeeAmt,
         status: sh?.status ?? 'pending',
@@ -3525,7 +3477,7 @@ export default function ShippingManifestPage() {
         updatedAt: sh?.updatedAt ?? null,
         assignedUserId: sh?.assignedUserId ?? null,
         createdByUserId: null,
-        clientId: sh?.clientId ?? rawManifest.clientId ?? null,
+        shippingCompanyId: sh?.shippingCompanyId ?? rawManifest.shippingCompanyId,
         deliveryStatus: (() => {
           // لو البيان لسه pending بس الشحنة نفسها اتغيرت → sync الحالة
           if (item.deliveryStatus === "pending" && sh?.status) {
@@ -3551,14 +3503,14 @@ export default function ShippingManifestPage() {
 
     return {
       ...rawManifest,
-      clientName: rawManifest.client?.name ?? '—',
-      clientPhone: rawManifest.client?.phone ?? null,
-      clientCity: rawManifest.client?.city ?? null,
+      companyName: rawManifest.company?.name ?? '—',
+      companyPhone: null as string | null,
+      companyLogo: rawManifest.company?.logo ?? null,
       invoiceNotes: rawManifest.notes ?? null,
       manualShippingCost,
       orders,
       stats: rawManifest.stats,
-    } as LocalManifestDetail;
+    };
   }, [rawManifest]);
 
   // ─── Search filter — real-time, no popover ────────────────────────────────
@@ -3741,7 +3693,7 @@ export default function ShippingManifestPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: { status: "open" | "closed" }) =>
-      clientAccountManifestsApi.update(id, data),
+      shipmentManifestsApi.update(id, data),
     onSuccess: (result: any) => {
       refetch();
       setShowCloseDialog(false);
@@ -3766,7 +3718,7 @@ export default function ShippingManifestPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => clientAccountManifestsApi.delete(id),
+    mutationFn: () => shipmentManifestsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shipping-manifests"] });
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
@@ -3787,7 +3739,28 @@ export default function ShippingManifestPage() {
     const printEl = document.querySelector(".manifest-print") as HTMLElement | null;
     if (!printEl) return;
 
-    const html = printEl.innerHTML;
+    // تحويل لوجو شركة الشحن لـ base64 — فقط لو فيه لوجو فعلاً
+    let logoB64 = "";
+    if (manifest.companyLogo) {
+      try {
+        const r = await fetch(manifest.companyLogo);
+        if (r.ok) {
+          const blob = await r.blob();
+          logoB64 = await new Promise<string>(res => {
+            const reader = new FileReader();
+            reader.onload = () => res(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch { /* تجاهل لو فشل */ }
+    }
+
+    // استبدل الـ img tag في الـ innerHTML بالـ base64 version — فقط لو فيه لوجو
+    let html = printEl.innerHTML;
+    if (logoB64) {
+      html = html.replace(/<img[^>]*class="mp-logo"[^>]*>/g,
+        `<img src="${logoB64}" class="mp-logo" alt="${manifest.companyName}" />`);
+    }
 
     const win = window.open("", "_blank", "width=900,height=700");
     if (!win) { window.print(); return; }
@@ -3796,7 +3769,7 @@ export default function ShippingManifestPage() {
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8"/>
-  <title>بيان حساب العميل — ${manifest.manifestNumber}</title>
+  <title>بيان الشحن — ${manifest.manifestNumber}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
   <style>
@@ -3989,7 +3962,7 @@ export default function ShippingManifestPage() {
       {/* ─── Header ─── */}
       <div className="mp-header">
         <div className="mp-header-left">
-          <div className="mp-title">بيان حساب العميل — {manifest.manifestNumber}</div>
+          <div className="mp-title">بيان الشحن — {manifest.manifestNumber}</div>
           <div className="mp-meta">
             تاريخ الإنشاء: {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
             {manifest.closedAt && <>&emsp;أُغلق: {format(new Date(manifest.closedAt), "yyyy/MM/dd")}</>}
@@ -4000,9 +3973,13 @@ export default function ShippingManifestPage() {
           </span>
         </div>
         <div className="mp-header-right">
+          {manifest.companyLogo
+            ? <img src={manifest.companyLogo} className="mp-logo" alt={manifest.companyName} crossOrigin="anonymous" />
+            : null
+          }
           <div>
-            <div className="mp-company-name">{manifest.clientName}</div>
-            <div className="mp-company-sub">CLIENT ACCOUNT MANIFEST</div>
+            <div className="mp-company-name">{manifest.companyName}</div>
+            <div className="mp-company-sub">SHIPPING MANIFEST</div>
           </div>
         </div>
       </div>
@@ -4127,7 +4104,7 @@ export default function ShippingManifestPage() {
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Truck className="w-3 h-3" />
-                {manifest.clientName}
+                {manifest.companyName}
               </p>
               <p className="text-xs text-muted-foreground">
                 {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
@@ -4363,7 +4340,7 @@ export default function ShippingManifestPage() {
           </div>
           <div className="flex flex-col gap-1">
             <p className="text-[10px] text-muted-foreground">
-              المبلغ المتفق عليه مع العميل (ما سيُدفع لنا)
+              المبلغ المتفق عليه مع شركة الشحن (ما سيُدفع لنا)
             </p>
             <InvoicePriceEditor
               manifestId={id}
@@ -4586,7 +4563,7 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
-                    courierShippingCost={rawManifest?.manualShippingCost != null ? Number(rawManifest.manualShippingCost) : null}
+                    courierShippingCost={rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null}
                   />
                   ))}
                   </div>
@@ -4823,7 +4800,7 @@ export default function ShippingManifestPage() {
         <AddOrdersToManifestDialog
           manifestId={id}
           manifestNumber={manifest.manifestNumber}
-          clientId={rawManifest.clientId}
+          companyId={rawManifest.shippingCompanyId}
           existingOrderIds={new Set(manifest.orders.map(o => o.shipmentId ?? o.id))}
           onClose={() => setShowAddOrdersDialog(false)}
           onAdded={refetch}
