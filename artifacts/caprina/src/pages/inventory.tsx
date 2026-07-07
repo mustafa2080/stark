@@ -2166,7 +2166,7 @@ export default function Inventory() {
   const canWarehouses  = isAdmin || can("inventory.warehouses");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"shipments" | "insights" | "parcel-types">("parcel-types");
+  const [activeTab, setActiveTab] = useState<"shipments" | "insights" | "parcel-types">("shipments");
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
