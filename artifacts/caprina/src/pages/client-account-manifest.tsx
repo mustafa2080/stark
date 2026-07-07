@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
-  ChevronDown, Lock, Unlock,
+  ChevronDown, Lock, Unlock, Truck,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -164,7 +164,6 @@ function AvatarUploader({ value, onChange }: { value: string; onChange: (v: stri
 function ClientManifestsDropdown({ clientId }: { clientId: number }) {
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
-
   const { data: manifests, isLoading } = useQuery<ClientAccountManifestListItem[]>({
     queryKey: ["client-account-manifests", clientId],
     queryFn: () => clientAccountManifestsApi.list(clientId),
@@ -224,7 +223,18 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
               </button>
             ))
           ) : (
-            <div className="p-3 text-center text-xs text-muted-foreground">لا يوجد بيانات لهذا العميل</div>
+            <div className="p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-2">لا يوجد بيانات (كشوفات) لهذا العميل بعد</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px] gap-1.5 w-full"
+                onClick={() => navigate(`/finance/client-account-sheet/client/${clientId}`)}
+              >
+                <Truck className="w-3 h-3" />
+                عرض شحنات وحساب العميل
+              </Button>
+            </div>
           )}
         </div>
       )}
