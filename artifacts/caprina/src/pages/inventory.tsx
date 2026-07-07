@@ -1169,61 +1169,46 @@ function ShipmentWarehouseTab() {
     <div className="space-y-3 sm:space-y-4">
 
       {/* ── KPI Cards ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
 
-        {/* نشطة */}
-        <Card onClick={() => setActiveTab("pending")}
-          className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
+        {/* قيد الشحن في المخزن */}
+        <Card onClick={() => setActiveTab("warehouse_ready")}
+          className="border-cyan-200 dark:border-cyan-800/40 bg-cyan-50 dark:bg-cyan-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
-              <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <div className="w-8 h-8 rounded-lg bg-cyan-500/15 flex items-center justify-center shrink-0">
+              <PackageCheck className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
             </div>
-            <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-600/70 dark:text-blue-400/70 px-1.5 py-0.5 rounded-full">نشطة</span>
+            <span className="text-[9px] font-bold bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600/70 dark:text-cyan-400/70 px-1.5 py-0.5 rounded-full">بالمخزن</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400">{isLoading ? "—" : activeCount}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة نشطة</p>
-          <p className="text-[10px] font-bold text-blue-600/70 mt-1 truncate">{isLoading ? "" : fc2(activeCOD)}</p>
+          <p className="text-2xl sm:text-3xl font-black text-cyan-600 dark:text-cyan-400">{isLoading ? "—" : activeCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">قيد الشحن في المخزن</p>
+          <p className="text-[10px] font-bold text-cyan-600/70 mt-1 truncate">{isLoading ? "" : fc2(activeCOD)}</p>
         </Card>
 
-        {/* في الطريق */}
-        <Card onClick={() => setActiveTab("in_shipping")}
-          className="border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
+        {/* مرتجع */}
+        <Card onClick={() => setActiveTab("returned")}
+          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${returnedCount > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center shrink-0">
-              <Truck className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${returnedCount > 0 ? "bg-red-500/15" : "bg-muted/30"}`}>
+              <RotateCcw className={`w-4 h-4 ${returnedCount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
             </div>
-            <span className="text-[9px] font-bold bg-violet-100 dark:bg-violet-900/30 text-violet-600/70 dark:text-violet-400/70 px-1.5 py-0.5 rounded-full">تسليم</span>
+            {returnedCount > 0 && <span className="text-[9px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600/70 px-1.5 py-0.5 rounded-full">مرتجع</span>}
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400">{isLoading ? "—" : inTransitCount}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">قيد الشحن</p>
-          <p className="text-[10px] font-bold text-violet-600/70 mt-1 truncate">{isLoading ? "" : fc2(transitCOD)}</p>
+          <p className={`text-2xl sm:text-3xl font-black ${returnedCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "—" : returnedCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مرتجعة</p>
         </Card>
 
-        {/* استلم */}
-        <Card onClick={() => setActiveTab("received")}
-          className="border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
+        {/* مؤجل */}
+        <Card onClick={() => setActiveTab("delayed")}
+          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${(tabMap.delayed?.length ?? 0) > 0 ? "border-orange-200 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/10" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${(tabMap.delayed?.length ?? 0) > 0 ? "bg-orange-500/15" : "bg-muted/30"}`}>
+              <AlertCircle className={`w-4 h-4 ${(tabMap.delayed?.length ?? 0) > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"}`} />
             </div>
-            <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600/70 dark:text-emerald-400/70 px-1.5 py-0.5 rounded-full">محصّل</span>
+            {(tabMap.delayed?.length ?? 0) > 0 && <span className="text-[9px] font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-600/70 px-1.5 py-0.5 rounded-full">مؤجل</span>}
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{isLoading ? "—" : deliveredCount}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة استلمت</p>
-          <p className="text-[10px] font-bold text-emerald-600/70 mt-1 truncate">{isLoading ? "" : fc2(deliveredCOD)}</p>
-        </Card>
-
-        {/* استلام جزئي */}
-        <Card onClick={() => setActiveTab("partial_received")}
-          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${(tabMap.partial_received?.length ?? 0) > 0 ? "border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/10" : "border-border bg-card"}`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${(tabMap.partial_received?.length ?? 0) > 0 ? "bg-amber-500/15" : "bg-muted/30"}`}>
-              <AlertTriangle className={`w-4 h-4 ${(tabMap.partial_received?.length ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`} />
-            </div>
-            {(tabMap.partial_received?.length ?? 0) > 0 && <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600/70 px-1.5 py-0.5 rounded-full">جزئي</span>}
-          </div>
-          <p className={`text-2xl sm:text-3xl font-black ${(tabMap.partial_received?.length ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}>{isLoading ? "—" : (tabMap.partial_received?.length ?? 0)}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">استلام جزئي</p>
+          <p className={`text-2xl sm:text-3xl font-black ${(tabMap.delayed?.length ?? 0) > 0 ? "text-orange-600 dark:text-orange-400" : ""}`}>{isLoading ? "—" : (tabMap.delayed?.length ?? 0)}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مؤجلة</p>
         </Card>
 
         {/* تجاوزت SLA */}
