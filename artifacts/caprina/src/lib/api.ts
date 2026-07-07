@@ -2001,6 +2001,93 @@ export const shipmentManifestsApi = {
     ),
 };
 
+// ─── Client Account Manifests (بيان حساب العميل) ───────────────────────────
+export interface ClientAccountManifestListItem {
+  id: number;
+  manifestNumber: string;
+  clientId: number;
+  clientName: string;
+  clientAvatar: string | null;
+  status: "open" | "closed";
+  notes: string | null;
+  invoicePrice: string | null;
+  shipmentCount: number;
+  statusCounts: { pending: number; delayed: number; returned: number; delivered: number; partial: number };
+  createdAt: string;
+  closedAt: string | null;
+}
+
+export interface ClientAccountManifestDetail {
+  id: number;
+  manifestNumber: string;
+  clientId: number;
+  status: "open" | "closed";
+  notes: string | null;
+  invoicePrice: string | null;
+  invoiceNotes: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  client: { id: number; name: string; phone: string | null; city: string | null } | null;
+  items: Array<{
+    id: number;
+    manifestId: number;
+    shipmentId: number;
+    deliveryStatus: "pending" | "delivered" | "returned" | "delayed" | "partial_delivered";
+    deliveryNote: string | null;
+    returnReceived: 0 | 1 | null;
+    deliveredAt: string | null;
+    partialQuantity: number | null;
+    returnReason: string | null;
+    shipment: Shipment | null;
+    customerName: string;
+    phone: string;
+    city: string;
+    address: string;
+    senderName: string;
+    quantity: number;
+    totalPrice: number;
+    unitPrice: number;
+    shippingCost: number;
+    invoiceNumber: string;
+  }>;
+  stats: {
+    total: number; delivered: number; returned: number; pending: number; delayed: number; partial: number;
+    totalRevenue: number; totalCost: number; totalShippingCost: number;
+    returnLosses: number; netProfit: number; deliveredGross: number;
+    deliveredShippingFees: number; netDueFromClient: number;
+  };
+  manualShippingCost?: number | null;
+}
+
+export const clientAccountManifestsApi = {
+  list: (clientId?: number) =>
+    apiFetch<ClientAccountManifestListItem[]>(`/client-account-manifests${clientId ? `?clientId=${clientId}` : ""}`),
+  get: (id: number) =>
+    apiFetch<ClientAccountManifestDetail>(`/client-account-manifests/${id}`),
+  create: (data: { clientId: number; shipmentIds: number[]; notes?: string }) =>
+    apiFetch<{ id: number; manifestNumber: string; shipmentCount: number }>(
+      "/client-account-manifests", { method: "POST", body: JSON.stringify(data) }
+    ),
+  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; partialQuantity?: number | null; returnReceived?: boolean | null; returnReason?: string | null }) =>
+    apiFetch<{ success: boolean }>(`/client-account-manifests/${manifestId}/items/${shipmentId}`, {
+      method: "PATCH", body: JSON.stringify(data),
+    }),
+  addShipments: (manifestId: number, shipmentIds: number[]) =>
+    apiFetch<{ added: number; manifestNumber: string }>(
+      `/client-account-manifests/${manifestId}/add-shipments`,
+      { method: "POST", body: JSON.stringify({ shipmentIds }) }
+    ),
+  update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null }) =>
+    apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  delete: (id: number) =>
+    apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "DELETE" }),
+  clientStats: (clientId: number) =>
+    apiFetch<{ total: number; delivered: number; partial: number; returned: number; pending: number; deliveryRate: number; manifestCount: number }>(
+      `/clients/${clientId}/account-manifest-stats`
+    ),
+};
+
+
 
 // ─── Notifications API ─────────────────────────────────────────────────────
 export interface AppNotificationDTO {
