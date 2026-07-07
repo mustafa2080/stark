@@ -738,6 +738,16 @@ const WAREHOUSE_TABS = [
     dot:      "bg-amber-500",
   },
   {
+    id:       "returned",
+    label:    "مرتجع",
+    statuses: ["returned"],
+    icon:     RotateCcw,
+    color:    "text-red-600 dark:text-red-400",
+    bg:       "bg-red-50 dark:bg-red-900/20",
+    border:   "border-red-200 dark:border-red-700",
+    dot:      "bg-red-500",
+  },
+  {
     id:       "delayed",
     label:    "مؤجل",
     statuses: ["delayed"],
@@ -1148,13 +1158,32 @@ function ShipmentWarehouseTab() {
       .sort((a, b) => b.returnRate - a.returnRate);
   }, [tabMap.received, tabMap.delayed]);
 
+  // ── اسم المخزن لكل شحنة: بنطابق warehouseId مع قائمة المخازن ─────────────
+  // شحنة "مرتجع" لسه في شركة الشحن (مفيهاش warehouseId) بنعرض ليها المخزن الافتراضي
+  // (اللي المفروض تتسلم له) بدل ما تفضل الخانة فاضية
+  const defaultWarehouseName = useMemo(() => {
+    const def = warehouses.find((w: any) => w.isDefault);
+    return def?.name ?? warehouses[0]?.name ?? null;
+  }, [warehouses]);
+
+  const getWarehouseName = (sh: any): string => {
+    if (sh.warehouseId != null) {
+      const w = warehouses.find((w: any) => w.id === sh.warehouseId);
+      if (w) return w.name;
+    }
+    if (sh.status === "returned") {
+      return defaultWarehouseName ? `${defaultWarehouseName} (متوقع)` : "—";
+    }
+    return "—";
+  };
+
   // ── فلتر بحث client-side ─────────────────────────────────────────────────
   const activeShipments = useMemo(() => {
     let base = tabMap[activeTab] ?? [];
     const isActiveTab = ["pending", "warehouse_ready", "in_shipping"].includes(activeTab);
     base = base.map((sh: any) => {
       const ageHours = hoursSince(sh.updatedAt ?? sh.createdAt);
-      return { ...sh, _ageHours: ageHours, _ageLevel: getAgeLevel(sh.status, ageHours) };
+      return { ...sh, _ageHours: ageHours, _ageLevel: getAgeLevel(sh.status, ageHours), _warehouseName: getWarehouseName(sh) };
     });
     if (slaOnly) base = base.filter((sh: any) => sh._ageLevel === "critical" || sh._ageLevel === "warn");
     if (!search.trim()) return base;
@@ -1433,6 +1462,7 @@ function ShipmentWarehouseTab() {
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">COD</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">شركة الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">المخزن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
                   {["pending", "warehouse_ready", "in_shipping"].includes(activeTab) && (
                     <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">العمر</th>
@@ -1463,6 +1493,9 @@ function ShipmentWarehouseTab() {
                       </td>
                       <td className="px-3 py-2.5 hidden lg:table-cell whitespace-nowrap">
                         <span className="text-[10px] font-mono text-muted-foreground">{sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</span>
+                      </td>
+                      <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
+                        <span className="text-[11px] font-semibold">{sh._warehouseName ?? "—"}</span>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${meta.bg} ${meta.border} ${meta.color}`}>
@@ -2540,17 +2573,6 @@ export default function Inventory() {
       {/* Tab Switcher */}
       <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border w-fit">
         <button
-          onClick={() => setActiveTab("parcel-types")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
-            activeTab === "parcel-types"
-              ? "bg-background shadow-sm border border-border text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          أنواع الشحنات
-        </button>
-        <button
           onClick={() => setActiveTab("shipments")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
             activeTab === "shipments"
@@ -2560,6 +2582,17 @@ export default function Inventory() {
         >
           <Truck className="w-3.5 h-3.5" />
           مستودع الشحنات
+        </button>
+        <button
+          onClick={() => setActiveTab("parcel-types")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
+            activeTab === "parcel-types"
+              ? "bg-background shadow-sm border border-border text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          أنواع الشحنات
         </button>
         <button
           onClick={() => setActiveTab("insights")}
