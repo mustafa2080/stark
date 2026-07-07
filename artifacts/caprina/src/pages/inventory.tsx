@@ -696,17 +696,9 @@ const AGE_LEVEL_STYLE: Record<AgeLevel, string> = {
 };
 
 // ─── Tab definitions — كل تاب ممكن يجمع أكتر من status واحد ────────────────────
+// ملحوظة: التابات التالتة دي بس اللي ظاهرة في مستودع الشحنات (قيد الانتظار/قيد الشحن/استلام
+// جزئي/استلم اتشالوا من هنا بناءً على طلب المستخدم، بس الداتا لسه موجودة وبتظهر في تحليلات الشحن)
 const WAREHOUSE_TABS = [
-  {
-    id:       "pending",
-    label:    "قيد الانتظار",
-    statuses: ["waiting", "confirmed", "pending"],
-    icon:     Clock3,
-    color:    "text-slate-600 dark:text-slate-300",
-    bg:       "bg-slate-100 dark:bg-slate-800/40",
-    border:   "border-slate-300 dark:border-slate-600",
-    dot:      "bg-slate-500",
-  },
   {
     id:       "warehouse_ready",
     label:    "قيد الشحن في المخزن",
@@ -716,26 +708,6 @@ const WAREHOUSE_TABS = [
     bg:       "bg-cyan-50 dark:bg-cyan-900/20",
     border:   "border-cyan-200 dark:border-cyan-700",
     dot:      "bg-cyan-500",
-  },
-  {
-    id:       "in_shipping",
-    label:    "قيد الشحن",
-    statuses: ["in_transit", "in_shipping", "out_for_delivery"],
-    icon:     Truck,
-    color:    "text-violet-600 dark:text-violet-400",
-    bg:       "bg-violet-50 dark:bg-violet-900/20",
-    border:   "border-violet-200 dark:border-violet-700",
-    dot:      "bg-violet-500",
-  },
-  {
-    id:       "partial_received",
-    label:    "استلام جزئي",
-    statuses: ["partial_received"],
-    icon:     AlertTriangle,
-    color:    "text-amber-600 dark:text-amber-400",
-    bg:       "bg-amber-50 dark:bg-amber-900/20",
-    border:   "border-amber-200 dark:border-amber-700",
-    dot:      "bg-amber-500",
   },
   {
     id:       "returned",
@@ -757,22 +729,12 @@ const WAREHOUSE_TABS = [
     border:   "border-orange-200 dark:border-orange-700",
     dot:      "bg-orange-500",
   },
-  {
-    id:       "received",
-    label:    "استلم",
-    statuses: ["delivered", "received"],
-    icon:     CheckCircle2,
-    color:    "text-emerald-600 dark:text-emerald-400",
-    bg:       "bg-emerald-50 dark:bg-emerald-900/20",
-    border:   "border-emerald-200 dark:border-emerald-700",
-    dot:      "bg-emerald-500",
-  },
 ] as const;
 
 type TabId = typeof WAREHOUSE_TABS[number]["id"];
 
 function ShipmentWarehouseTab() {
-  const [activeTab, setActiveTab] = useState<TabId>("in_shipping");
+  const [activeTab, setActiveTab] = useState<TabId>("warehouse_ready");
   const [search,          setSearch]          = useState("");
   const [dateFrom,        setDateFrom]        = useState("");
   const [dateTo,          setDateTo]          = useState("");
@@ -841,22 +803,20 @@ function ShipmentWarehouseTab() {
   const activeTab_def = WAREHOUSE_TABS.find(t => t.id === activeTab)!;
 
   // ── KPI aggregations ──────────────────────────────────────────────────────
-  const activeCount    = (tabMap.pending?.length ?? 0) + (tabMap.warehouse_ready?.length ?? 0) + (tabMap.in_shipping?.length ?? 0);
-  const inTransitCount = tabMap.in_shipping?.length  ?? 0;
-  const returnedCount  = 0; // لا يوجد تاب مرتجع في هذا الـ view
-  const deliveredCount = tabMap.received?.length ?? 0;
+  const activeCount    = tabMap.warehouse_ready?.length ?? 0;
+  const inTransitCount = 0; // لا يوجد تاب "قيد الشحن" منفصل في هذا الـ view بعد التبسيط
+  const returnedCount  = tabMap.returned?.length ?? 0;
+  const deliveredCount = 0; // لا يوجد تاب "استلم" في هذا الـ view بعد التبسيط
   const totalAll       = WAREHOUSE_TABS.reduce((s, t) => s + (tabMap[t.id]?.length ?? 0), 0);
 
-  const activeCOD  = [...(tabMap.pending ?? []), ...(tabMap.warehouse_ready ?? []), ...(tabMap.in_shipping ?? [])]
+  const activeCOD  = (tabMap.warehouse_ready ?? [])
     .reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
-  const transitCOD = (tabMap.in_shipping ?? [])
-    .reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
-  const deliveredCOD = (tabMap.received ?? [])
-    .reduce((s: number, sh: any) => s + (Number(sh.collectedAmount) || 0), 0);
+  const transitCOD = 0;
+  const deliveredCOD = 0;
 
   // ── SLA: شحنات نشطة تجاوزت الحد الحرج (مرتبة من الأقدم) ──────────────────
   const slaBreaches = useMemo(() => {
-    const activeSh = [...(tabMap.pending ?? []), ...(tabMap.warehouse_ready ?? []), ...(tabMap.in_shipping ?? [])];
+    const activeSh = [...(tabMap.warehouse_ready ?? [])];
     return activeSh.map((sh: any) => ({
         ...sh,
         _ageHours: hoursSince(sh.updatedAt ?? sh.createdAt),
@@ -869,11 +829,13 @@ function ShipmentWarehouseTab() {
   const slaBreachCOD = slaBreaches.reduce((s: number, sh: any) => s + (Number(sh.codAmount) || 0), 0);
 
   // ── مطابقة الكاش: شحنات received لسه فلوسها متجمعتش بالكامل ─────────────
+  // ملحوظة: تاب "استلم" اتشال من مستودع الشحنات، فمافيش شحنات received نتابعها هنا
   const cashReconciliation = useMemo(() => {
-    const delivered = tabMap.received ?? [];
+    const delivered: any[] = [];
     let pendingCOD = 0;
     let shortfallCount = 0;
     const byCompany: Record<string, { name: string; outstanding: number; count: number }> = {};
+
 
     for (const sh of delivered) {
       const expected = Number(sh.codAmount) || 0;
@@ -891,7 +853,7 @@ function ShipmentWarehouseTab() {
 
     const companiesRanked = Object.values(byCompany).sort((a, b) => b.outstanding - a.outstanding);
     return { pendingCOD, shortfallCount, companiesRanked };
-  }, [tabMap.received]);
+  }, []);
 
   // ── handlePrint: طباعة احترافية للجدول الحالي ────────────────────────────
   const handlePrint = (status: string, shipments: any[], statusLabel: string) => {
