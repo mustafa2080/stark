@@ -1592,13 +1592,14 @@ function ParcelTypesTab() {
     staleTime: 5 * 60_000,
   });
 
-  // جلب الشحنات (active فقط) لكل المخازن مرة واحدة
+  // جلب الشحنات (كل الحالات) لكل المخازن مرة واحدة — محتاجينها كلها عشان نحسب
+  // إجمالي الإيرادات (المبلغ المُحصَّل فعلاً) وليس بس الشحنات النشطة
   const { data: allShipmentsData } = useQuery({
-    queryKey: ["parcel-tab-shipments", warehouses.map(w => w.id).join(",")],
+    queryKey: ["parcel-tab-shipments-all", warehouses.map(w => w.id).join(",")],
     queryFn: async () => {
       if (!warehouses.length) return [];
       const results = await Promise.all(
-        warehouses.map(w => warehousesApi.shipments(w.id, "active"))
+        warehouses.map(w => warehousesApi.shipments(w.id, "all"))
       );
       // ندمج مع معرف المخزن
       return results.flatMap((res, i) =>
@@ -1700,7 +1701,7 @@ function ParcelTypesTab() {
       {/* ── KPI Cards ────────────────────────────────────────────────────── */}
       {pricing.length > 0 && (() => {
         const totalShipmentsAll = allShipments.length;
-        const totalCODAll = allShipments.reduce((s, sh) => s + (Number((sh as any).codAmount) || 0), 0);
+        const totalRevenueAll = allShipments.reduce((s, sh) => s + (Number((sh as any).collectedAmount) || 0), 0);
         const maxPrice = Math.max(...pricing.map(p => Number(p.basePrice)));
         const minPrice = Math.min(...pricing.map(p => Number(p.basePrice)));
         return (
@@ -1720,7 +1721,7 @@ function ParcelTypesTab() {
                 <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
                   <Truck className="w-3.5 h-3.5 text-primary" />
                 </div>
-                <p className="text-[11px] text-muted-foreground font-medium">الشحنات النشطة</p>
+                <p className="text-[11px] text-muted-foreground font-medium">الشحنات (كل الحالات)</p>
               </div>
               <p className="text-2xl font-black text-primary">{totalShipmentsAll}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">عبر كل الأنواع</p>
@@ -1730,9 +1731,9 @@ function ParcelTypesTab() {
                 <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
                   <CircleDollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <p className="text-[11px] text-muted-foreground font-medium">إجمالي COD</p>
+                <p className="text-[11px] text-muted-foreground font-medium">إجمالي الإيرادات</p>
               </div>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{totalCODAll > 0 ? totalCODAll.toLocaleString() : "—"}</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{totalRevenueAll > 0 ? totalRevenueAll.toLocaleString() : "—"}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">جنيه</p>
             </Card>
             <Card className="border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10 p-3.5">
@@ -1777,17 +1778,38 @@ function ParcelTypesTab() {
               ),
             })).filter(g => g.shipments.length > 0);
             const totalShipCount = byWarehouse.reduce((n, g) => n + g.shipments.length, 0);
-            const totalCOD = byWarehouse.flatMap(g => g.shipments).reduce((s, sh) => s + (Number((sh as any).codAmount) || 0), 0);
+            const totalRevenue = byWarehouse.flatMap(g => g.shipments).reduce((s, sh) => s + (Number((sh as any).collectedAmount) || 0), 0);
 
             return (
               <Card key={p.id} className={`overflow-hidden border transition-all ${isOpen ? "border-violet-400 dark:border-violet-600 shadow-sm" : "border-border"}`}>
 
-                {/* ── Card Header (clickable) ─────────────────────────── */}
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors text-right"
-                  onClick={() => { setSelectedId(isOpen ? null : p.id); setExpandedWarehouse(null); }}
-                >
+                {/* ── Card Header (icons + clickable toggle) ────────────── */}
+                <div className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors">
+                  {/* أيقونات: حذف + تعديل (زي تصميم صفحة المنتجات) */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="sm"
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={(e) => { e.stopPropagation(); if (confirm("حذف هذا النوع؟")) { deleteMutation.mutate(p.id); setSelectedId(null); } }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedId(p.id);
+                        setExpandedWarehouse(null);
+                        setEditImgId(p.id);
+                        setEditImgPreview(null);
+                      }}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 flex items-center gap-3 text-right"
+                    onClick={() => { setSelectedId(isOpen ? null : p.id); setExpandedWarehouse(null); }}
+                  >
                   {/* أيقونة/صورة */}
                   <div className={`w-11 h-11 rounded-xl overflow-hidden border-2 shrink-0 flex items-center justify-center
                     ${isOpen ? "border-violet-400 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/20" : "border-border bg-muted/20"}`}>
@@ -1812,9 +1834,9 @@ function ParcelTypesTab() {
                         <Package className="w-3 h-3" />{totalShipCount} شحنة
                       </span>
                     )}
-                    {totalCOD > 0 && (
+                    {totalRevenue > 0 && (
                       <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full">
-                        {totalCOD.toLocaleString()} ج
+                        {totalRevenue.toLocaleString()} ج
                       </span>
                     )}
                   </div>
@@ -1831,6 +1853,7 @@ function ParcelTypesTab() {
                     ? <ChevronDown className="w-4 h-4 text-violet-500 shrink-0" />
                     : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
                 </button>
+                </div>
 
                 {/* ── Expanded Body ──────────────────────────────────────── */}
                 {isOpen && (
@@ -1843,13 +1866,13 @@ function ParcelTypesTab() {
                         <p className="text-xl font-black text-violet-600 dark:text-violet-400">{Number(p.basePrice)} <span className="text-xs font-bold">ج</span></p>
                       </div>
                       <div className="px-4 py-3 text-center">
-                        <p className="text-[10px] text-muted-foreground font-medium mb-1">الشحنات النشطة</p>
+                        <p className="text-[10px] text-muted-foreground font-medium mb-1">الشحنات (كل الحالات)</p>
                         <p className="text-xl font-black text-primary">{totalShipCount}</p>
                       </div>
                       <div className="px-4 py-3 text-center">
-                        <p className="text-[10px] text-muted-foreground font-medium mb-1">إجمالي COD</p>
-                        <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">{totalCOD > 0 ? `${totalCOD.toLocaleString()}` : "—"}</p>
-                        {totalCOD > 0 && <p className="text-[10px] text-muted-foreground">جنيه</p>}
+                        <p className="text-[10px] text-muted-foreground font-medium mb-1">إجمالي الإيرادات</p>
+                        <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">{totalRevenue > 0 ? `${totalRevenue.toLocaleString()}` : "—"}</p>
+                        {totalRevenue > 0 && <p className="text-[10px] text-muted-foreground">جنيه</p>}
                       </div>
                     </div>
 
@@ -1928,20 +1951,13 @@ function ParcelTypesTab() {
                           )}
                         </div>
                       </div>
-
-                      {/* حذف النوع */}
-                      <Button variant="ghost" size="sm"
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20 shrink-0 self-start"
-                        onClick={() => { if (confirm("حذف هذا النوع؟")) { deleteMutation.mutate(p.id); setSelectedId(null); } }}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
                     </div>
 
                     {/* ── الشحنات بالمخازن ─────────────────────────────── */}
                     <div className="border-t border-border/60">
                       <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/20">
                         <Truck className="w-3.5 h-3.5 text-primary" />
-                        <span className="text-xs font-bold">الشحنات النشطة بالمخازن</span>
+                        <span className="text-xs font-bold">الشحنات بالمخازن</span>
                         {totalShipCount > 0 && (
                           <span className="bg-primary text-primary-foreground text-[10px] font-black px-2 py-0.5 rounded-full">{totalShipCount}</span>
                         )}
@@ -1954,13 +1970,13 @@ function ParcelTypesTab() {
                       ) : byWarehouse.length === 0 ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground px-4 py-5">
                           <PackageX className="w-5 h-5 opacity-30" />
-                          <span>لا توجد شحنات نشطة من هذا النوع</span>
+                          <span>لا توجد شحنات من هذا النوع</span>
                         </div>
                       ) : (
                         <div className="divide-y divide-border/50">
                           {byWarehouse.map(({ wh, shipments: wShipments }) => {
                             const isWhOpen = expandedWarehouse === wh.id;
-                            const whCOD = wShipments.reduce((s, sh) => s + (Number((sh as any).codAmount) || 0), 0);
+                            const whRevenue = wShipments.reduce((s, sh) => s + (Number((sh as any).collectedAmount) || 0), 0);
                             return (
                               <div key={wh.id}>
                                 {/* رأس المخزن */}
@@ -1974,9 +1990,9 @@ function ParcelTypesTab() {
                                   </div>
                                   <span className="flex-1 text-sm font-bold">{wh.name}</span>
                                   <div className="flex items-center gap-2 shrink-0">
-                                    {whCOD > 0 && (
+                                    {whRevenue > 0 && (
                                       <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                                        {whCOD.toLocaleString()} ج
+                                        {whRevenue.toLocaleString()} ج
                                       </span>
                                     )}
                                     <span className="flex items-center gap-1 text-[11px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
@@ -1994,7 +2010,7 @@ function ParcelTypesTab() {
                                       <span>المستلم</span>
                                       <span>المدينة</span>
                                       <span>الحالة</span>
-                                      <span className="text-left min-w-[72px]">COD</span>
+                                      <span className="text-left min-w-[72px]">الإيراد</span>
                                     </div>
                                     <div className="divide-y divide-border/40">
                                       {wShipments.map((s, idx) => {
@@ -2018,7 +2034,7 @@ function ParcelTypesTab() {
                                               <p className="text-xs text-muted-foreground truncate">{(s as any).receiverCity ?? "—"}</p>
                                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full w-fit ${st.color}`}>{st.label}</span>
                                               <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 min-w-[72px] text-left">
-                                                {(s as any).codAmount ? `${Number((s as any).codAmount).toLocaleString()} ج` : "—"}
+                                                {(s as any).collectedAmount ? `${Number((s as any).collectedAmount).toLocaleString()} ج` : "—"}
                                               </p>
                                             </div>
                                             {/* Mobile */}
@@ -2035,9 +2051,9 @@ function ParcelTypesTab() {
                                                   → {(s as any).receiverName ?? "—"} · {(s as any).receiverCity ?? "—"}
                                                 </p>
                                               </div>
-                                              {(s as any).codAmount && (
+                                              {(s as any).collectedAmount && (
                                                 <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 shrink-0">
-                                                  {Number((s as any).codAmount).toLocaleString()} ج
+                                                  {Number((s as any).collectedAmount).toLocaleString()} ج
                                                 </span>
                                               )}
                                             </div>
