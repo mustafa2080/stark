@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ToastAction } from "@/components/ui/toast";
 import { shippingApi, ordersApi, productsApi, variantsApi, manifestsApi, warehousesApi, usersApi, cashRegistersApi, apiFetch } from "@/lib/api";
-import { type WhatsAppOrderData } from "@/lib/whatsapp";
+import { type WhatsAppOrderData, applySenderIssueTemplate, buildWhatsAppLink } from "@/lib/whatsapp";
 import { WhatsAppDialog, WhatsAppShipmentDialog } from "@/components/whatsapp-dialog";
 import { formatCurrency } from "@/lib/utils";
 import { ProductSearchCombobox } from "@/components/product-search-combobox";
@@ -3180,15 +3180,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   </Button>
                 )}
 
-                {/* إضافة منتج */}
-                {canCreate && (
-                  <Button variant="outline" size="sm"
-                    onClick={() => setInvoiceShowAddProduct(true)}
-                    className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 bg-card">
-                    <Plus className="w-3.5 h-3.5" />إضافة منتج
-                  </Button>
-                )}
-
                 {/* تعديل */}
                 {canEdit && (
                   <Button variant="outline" size="sm"
@@ -3355,12 +3346,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 title={isOrderLocked ? "الطلب مقفل — فقط المدير يمكنه التعديل" : undefined}
                 className="h-8 text-xs gap-1.5 border-border bg-card disabled:opacity-40">
                 {isOrderLocked ? <Lock className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}تعديل
-              </Button>
-            )}
-            {canCreate && (
-              <Button variant="outline" size="sm" onClick={() => setShowAddProduct(true)}
-                className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 bg-card">
-                <Plus className="w-3.5 h-3.5" />إضافة منتج
               </Button>
             )}
             {canDelete && (
@@ -3747,127 +3732,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         </Card>
       )}
 
-      {/* ── منتجات الشحنة — فوق الكل ── */}
-      {!isEditing && (
-        <Card className="border-border bg-card overflow-hidden mb-4">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center">
-                <Package className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">منتجات الشحنة</p>
-                <p className="text-[10px] text-muted-foreground">{shipmentItems.length} {shipmentItems.length === 1 ? "منتج" : "منتجات"}</p>
-              </div>
-              {shipmentItems.length > 0 && (
-                <span className="text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
-                  {shipmentItems.length}
-                </span>
-              )}
-            </div>
-          </div>
-          <CardContent className="p-3">
-            <div className="space-y-3">
-              {shipmentItems.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-xs border border-dashed border-border rounded-xl">لا توجد منتجات مضافة</div>
-              ) : (
-                (shipmentItems as any[]).map((item: any) => {
-                  const productImg = (products as any[] ?? []).find((p: any) => p.id === item.productId)?.image ?? null;
-                  const unitPrice  = Number(item.unitPrice ?? 0);
-                  const totalItem  = Number(item.totalPrice ?? unitPrice * (item.quantity ?? 1));
-                  return (
-                    <div key={item.id} className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-                      <div className="flex items-center gap-4 p-4">
-                        <div className="group relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-border/70 bg-gradient-to-br from-muted to-muted/60 shadow-md ring-1 ring-black/5 transition-all duration-300 hover:shadow-lg hover:border-primary/40 hover:scale-[1.03]">
-                          {productImg ? (
-                            <>
-                              <img src={productImg} alt={item.product} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent" />
-                            </>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-9 h-9 opacity-25 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-3">
-                          <div>
-                            <p className="text-[10px] text-muted-foreground mb-1">المنتج</p>
-                            <h2 className="text-base sm:text-lg font-black text-foreground leading-tight">{item.product || "—"}</h2>
-                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                              <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
-                                {statusLabels[order.status] || order.status}
-                              </Badge>
-                              {(order.status === "in_shipping" || order.status === "in_transit") && (order as any).assignedUserName && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
-                                  🚚 مع {(order as any).assignedUserName}
-                                </span>
-                              )}
-                              {(order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
-                                  🚚 مع {(order as any).shippingCompanyName}
-                                </span>
-                              )}
-                              {(order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
-                                  🚚 عند شركة الشحن
-                                </span>
-                              )}
-                              {item.color && <Badge variant="outline" className="text-xs border-border">{item.color}</Badge>}
-                              {item.size && <Badge variant="outline" className="text-xs border-border">{item.size}</Badge>}
-                              {Number(item.quantity) > 1 && <Badge variant="outline" className="text-xs border-border">جملة</Badge>}
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="bg-muted/50 rounded-xl p-3 text-center">
-                              <p className="text-[10px] text-muted-foreground mb-1">الكمية</p>
-                              <p className="text-lg sm:text-2xl font-black text-foreground">{item.quantity}</p>
-                            </div>
-                            <div className="bg-muted/50 rounded-xl p-2 sm:p-3 text-center">
-                              <p className="text-[10px] text-muted-foreground mb-1">سعر الوحدة</p>
-                              <p className="text-sm sm:text-lg font-black text-foreground">{formatCurrency(unitPrice)}</p>
-                            </div>
-                            <div className="bg-primary/10 border border-primary/30 rounded-xl p-2 sm:p-3 text-center">
-                              <p className="text-[10px] text-primary/70 mb-1">الإجمالي</p>
-                              <p className="text-base sm:text-xl font-black text-primary">{formatCurrency(totalItem)}</p>
-                            </div>
-                          </div>
-                          {item.notes && (
-                            <div className="bg-muted/40 rounded-lg px-3 py-2 border border-border/50">
-                              <p className="text-[10px] text-muted-foreground mb-0.5">ملاحظات</p>
-                              <p className="text-xs text-foreground">{item.notes}</p>
-                            </div>
-                          )}
-                        </div>
-                        {isAdmin && (
-                          <button type="button"
-                            onClick={async () => {
-                              await apiFetch(`/shipments/${order.id}/items/${item.id}`, { method: "DELETE" });
-                              queryClient.invalidateQueries({ queryKey: ["shipment-items", id] });
-                              toast({ title: "تم الحذف" });
-                            }}
-                            className="shrink-0 self-start p-1.5 rounded hover:bg-red-900/30 text-red-500 transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              {shipmentItems.length > 1 && (
-                <div className="flex justify-between items-center px-4 py-3 rounded-xl bg-primary/10 border border-primary/30">
-                  <span className="text-sm font-bold text-primary">إجمالي المنتجات</span>
-                  <span className="text-base font-black text-primary">
-                    {formatCurrency((shipmentItems as any[]).reduce((s, i) => s + Number(i.totalPrice ?? 0), 0))}
-                  </span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 space-y-4">
 
@@ -3947,16 +3811,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     <span className="text-sm font-semibold text-foreground text-left leading-snug max-w-[60%]">
                       {(order as any).receiverAddress || order.address || "—"}
                     </span>
-                  </div>
-                  {/* الراسل */}
-                  <div className="flex items-start justify-between gap-4">
-                    <span className="text-[11px] text-muted-foreground font-medium shrink-0 pt-0.5">الراسل</span>
-                    <div className="text-left">
-                      <span className="text-sm font-bold text-foreground block">{(order as any).senderName || "—"}</span>
-                      {(order as any).senderPhone && (
-                        <span className="text-[12px] font-semibold text-foreground/70 block" dir="ltr">{(order as any).senderPhone}</span>
-                      )}
-                    </div>
                   </div>
                 </div>
 
@@ -4052,6 +3906,82 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </div>
             );
           })()}
+
+          {/* ── بطاقة تفاصيل الراسل — منفصلة تحت بطاقة المستلم ── */}
+          {!isEditing && (order as any).senderName && (
+            <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+              <div className="px-5 pt-4 pb-3 border-b border-border/50">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-muted-foreground font-semibold mb-1">الراسل</p>
+                    <h2 className="text-lg font-black text-foreground leading-tight">
+                      {(order as any).senderName || "—"}
+                    </h2>
+                  </div>
+                  {(order as any).senderPhone && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-1.5 h-9 bg-green-600 hover:bg-green-700 text-white shrink-0"
+                      onClick={async () => {
+                        const DEFAULT_SENDER_ISSUE_BODY =
+                          `السلام عليكم يا {senderName} 👋\n\n` +
+                          `بنتواصل معاك بخصوص شحنة العميل *{receiverName}*.\n\n` +
+                          `*تفاصيل الشحنة:*\n` +
+                          `• رقم البوليصة: *{shipmentNumber}*\n` +
+                          `• رقم التتبع: *{trackingNumber}*\n` +
+                          `• حالة الشحنة: *{status}*\n` +
+                          `• هاتف المستلم: *{receiverPhone}*\n` +
+                          `• المنطقة: *{zone}*\n` +
+                          `• رسوم الشحن: *{shippingFee}*\n` +
+                          `• مبلغ COD: *{codAmount}*\n\n` +
+                          `فيه مشكلة بخصوص العميل ده، ياريت نتواصل بخصوصها 🙏\n\n` +
+                          `شكراً لتعاونك.`;
+                        let templateBody = DEFAULT_SENDER_ISSUE_BODY;
+                        try {
+                          const waSettings = await apiFetch<{ templates: { name: string; body: string }[] }>("/whatsapp/settings");
+                          const tpl = waSettings?.templates?.find(t => t.name === "مشكلة العميل");
+                          if (tpl) templateBody = tpl.body;
+                        } catch {
+                          // استخدم الرسالة الافتراضية لو فشل تحميل القالب
+                        }
+                        const body = applySenderIssueTemplate(templateBody, {
+                          id: order.id,
+                          shipmentNumber: (order as any).shipmentNumber ?? null,
+                          receiverName: (order as any).receiverName || order.customerName || "—",
+                          receiverPhone: (order as any).receiverPhone || order.phone || null,
+                          senderName: (order as any).senderName ?? null,
+                          trackingNumber: (order as any).trackingNumber ?? null,
+                          status: statusLabels[order.status] || order.status,
+                          shippingFee: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
+                          codAmount: (order as any).codAmount ?? 0,
+                          zoneLabel: (order as any).receiverCity || (order as any).city || (order as any).zoneLabel || null,
+                        });
+                        const link = buildWhatsAppLink((order as any).senderPhone, body);
+                        window.open(link, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      واتساب
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {(order as any).senderPhone && (
+                <div className="px-5 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 shrink-0 pt-0.5">
+                      <Phone className="w-3 h-3 text-primary/60" />هاتف الراسل
+                    </span>
+                    <span className="text-sm font-bold text-foreground text-left" dir="ltr">
+                      {(order as any).senderPhone}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {isEditing && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmitEdit)}>
