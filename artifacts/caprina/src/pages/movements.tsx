@@ -841,10 +841,6 @@ ${filtersRow}
               حذف المحدد ({selectedIds.size})
             </Button>
           )}
-          <Button variant="outline" className="gap-2 bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800 font-bold text-sm h-9 flex-1 sm:flex-none min-w-[160px]"
-            onClick={() => { setDialogMode("transfer"); setForm(f => ({ ...f, reason: "transfer", type: "OUT" })); setShowDialog(true); }}>
-            <ArrowRightLeft className="w-4 h-4" />تحويل بين مواقع
-          </Button>
           <Button variant="outline" className="gap-2 bg-teal-50 text-teal-700 border-teal-300 hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800 font-bold text-sm h-9 flex-1 sm:flex-none min-w-[170px]"
             onClick={() => setShowShipmentsTransfer(true)}>
             <PackageCheck className="w-4 h-4" />نقل شحنات لمخزن
