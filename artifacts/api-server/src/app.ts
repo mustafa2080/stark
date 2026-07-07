@@ -353,6 +353,21 @@ async function ensureClientsDefaultAdSource() {
 }
 ensureClientsDefaultAdSource();
 
+// ─── Ensure clients.whatsapp_group_link column exists (رابط جروب واتساب العميل التجاري) ──
+async function ensureClientsWhatsappGroupLink() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS whatsapp_group_link VARCHAR(500) NULL
+    `);
+    logger.info("clients.whatsapp_group_link column ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure clients.whatsapp_group_link column");
+    }
+  }
+}
+ensureClientsWhatsappGroupLink();
+
 // ─── Ensure client_account_closures.client_id column exists (ربط إقفال حساب العميل التجاري) ──
 async function ensureClientAccountClosuresClientId() {
   try {

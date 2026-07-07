@@ -24,6 +24,7 @@ const ClientSchema = z.object({
   clientType:    z.enum(["normal", "commercial", "vip"]).nullish(),
   warehouseId:   z.number().nullish(),
   defaultAdSource: z.string().nullish(),
+  whatsappGroupLink: z.string().nullish(),
 });
 
 // ── حساب نوع العميل تلقائياً بناءً على عدد الشحنات الشهرية ────────────
@@ -116,16 +117,18 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(clientsTable.createdAt));
 
-    // جلب warehouse_id و region بـ raw SQL عشان Drizzle compiled schema مش شايلهم
+    // جلب warehouse_id و region و whatsapp_group_link بـ raw SQL عشان Drizzle compiled schema مش شايلهم
     const ids = clients.map(c => c.id);
     let warehouseMap: Record<number, number | null> = {};
     let regionMap: Record<number, string | null> = {};
+    let whatsappGroupLinkMap: Record<number, string | null> = {};
     if (ids.length) {
-      const rows = await db.execute(sql`SELECT id, warehouse_id, region FROM clients WHERE id IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
+      const rows = await db.execute(sql`SELECT id, warehouse_id, region, whatsapp_group_link FROM clients WHERE id IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
       const rowsArr: any[] = Array.isArray((rows as any)[0]) ? (rows as any)[0] : Array.isArray(rows) ? rows as any[] : [];
       for (const r of rowsArr) {
         warehouseMap[r.id] = r.warehouse_id ?? null;
         regionMap[r.id] = r.region ?? null;
+        whatsappGroupLinkMap[r.id] = r.whatsapp_group_link ?? null;
       }
     }
 
@@ -159,6 +162,7 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         ...c,
         warehouseId: warehouseMap[c.id] ?? null,
         region:      regionMap[c.id] ?? (c as any).region ?? null,
+        whatsappGroupLink: whatsappGroupLinkMap[c.id] ?? (c as any).whatsappGroupLink ?? null,
         totalOrders: s.totalOrders,
         totalSales:  String(s.totalSales),
         totalPaid:   String(s.totalPaid),
@@ -303,9 +307,10 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
     const [client] = await db.select().from(clientsTable).where(and(...conds));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
-    // جلب warehouse_id بـ raw SQL
-    const [[whRow]] = await db.execute(sql`SELECT warehouse_id FROM clients WHERE id = ${id}`) as any;
+    // جلب warehouse_id و whatsapp_group_link بـ raw SQL
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, whatsapp_group_link FROM clients WHERE id = ${id}`) as any;
     const warehouseId = whRow?.warehouse_id ?? null;
+    const whatsappGroupLink = whRow?.whatsapp_group_link ?? null;
 
     // جلب أوامر البيع المرتبطة
     const orderConds: any[] = [eq(saleOrdersTable.clientName, client.name)];
@@ -334,6 +339,7 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
     res.json({
       ...client,
       warehouseId,
+      whatsappGroupLink,
       totalOrders,
       totalSales:   String(totalSales),
       totalPaid:    String(totalPaid),
@@ -392,8 +398,8 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
     const now = new Date();
-    // warehouseId و region و defaultAdSource يتفصلان لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفهم — نضيفهم بـ raw SQL بعد الإنشاء
-    const { warehouseId, region, defaultAdSource, ...restData } = parsed.data;
+    // warehouseId و region و defaultAdSource و whatsappGroupLink يتفصلان لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفهم — نضيفهم بـ raw SQL بعد الإنشاء
+    const { warehouseId, region, defaultAdSource, whatsappGroupLink, ...restData } = parsed.data;
     const [result] = await db.insert(clientsTable).values({
       ...restData,
       creditLimit:  String(parsed.data.creditLimit ?? 0),
@@ -414,10 +420,13 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     if (defaultAdSource !== undefined) {
       await db.execute(sql`UPDATE clients SET default_ad_source = ${defaultAdSource ?? null} WHERE id = ${id}`);
     }
+    if (whatsappGroupLink !== undefined) {
+      await db.execute(sql`UPDATE clients SET whatsapp_group_link = ${whatsappGroupLink ?? null} WHERE id = ${id}`);
+    }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
-    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source FROM clients WHERE id = ${id}`) as any;
-    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null });
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link FROM clients WHERE id = ${id}`) as any;
+    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -433,8 +442,8 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     const updates: any = { ...parsed.data, updatedAt: new Date() };
     if (parsed.data.creditLimit !== undefined) updates.creditLimit = String(parsed.data.creditLimit);
 
-    // warehouseId و region و defaultAdSource يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
-    const { warehouseId, region, defaultAdSource, ...rest } = updates;
+    // warehouseId و region و defaultAdSource و whatsappGroupLink يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
+    const { warehouseId, region, defaultAdSource, whatsappGroupLink, ...rest } = updates;
     await db.update(clientsTable).set(rest).where(eq(clientsTable.id, id));
     if (warehouseId !== undefined) {
       await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
@@ -445,13 +454,16 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     if (defaultAdSource !== undefined) {
       await db.execute(sql`UPDATE clients SET default_ad_source = ${defaultAdSource ?? null} WHERE id = ${id}`);
     }
+    if (whatsappGroupLink !== undefined) {
+      await db.execute(sql`UPDATE clients SET whatsapp_group_link = ${whatsappGroupLink ?? null} WHERE id = ${id}`);
+    }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
-    // جلب warehouse_id و default_ad_source بـ raw SQL عشان نضمن رجوعهم في الـ response مهما كانت حالة الـ compiled schema
-    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source FROM clients WHERE id = ${id}`) as any;
-    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null });
+    // جلب warehouse_id و default_ad_source و whatsapp_group_link بـ raw SQL عشان نضمن رجوعهم في الـ response مهما كانت حالة الـ compiled schema
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link FROM clients WHERE id = ${id}`) as any;
+    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap } from "lucide-react";
+import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useRef, useEffect, useMemo } from "react";
 import React from "react";
@@ -2086,7 +2086,7 @@ export default function OrderDetail() {
   const senderClientId = (order as any)?.clientId ?? null;
   const { data: senderCommercialClient } = useQuery({
     queryKey: ["finance-clients"],
-    queryFn: () => apiFetch<{ id: number; name: string; phone: string | null; phone2: string | null; city: string | null; address: string | null; region: string | null }[]>("/finance/clients"),
+    queryFn: () => apiFetch<{ id: number; name: string; phone: string | null; phone2: string | null; city: string | null; address: string | null; region: string | null; whatsappGroupLink: string | null }[]>("/finance/clients"),
     enabled: !!senderClientId,
     staleTime: 60_000,
     select: (list) => list.find(c => c.id === senderClientId) ?? null,
@@ -2099,6 +2099,7 @@ export default function OrderDetail() {
     city: (order as any)?.senderCity || senderCommercialClient?.city || senderCommercialClient?.region || null,
     address: senderCommercialClient?.address || null,
     isFromClient: !((order as any)?.senderName) && !!senderCommercialClient,
+    whatsappGroupLink: senderCommercialClient?.whatsappGroupLink || null,
   };
 
 
@@ -3946,6 +3947,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </h2>
                   </div>
                   {senderInfo.phone && (
+                    <div className="flex items-center gap-2 shrink-0">
                     <Button
                       type="button"
                       size="sm"
@@ -3987,10 +3989,25 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         const link = buildWhatsAppLink(senderInfo.phone!, body);
                         window.open(link, "_blank", "noopener,noreferrer");
                       }}
+                      title="إرسال رسالة لرقم الراسل مباشرة"
                     >
                       <MessageCircle className="w-4 h-4" />
-                      واتساب
+                      واتساب الراسل
                     </Button>
+                    {senderInfo.whatsappGroupLink && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 h-9 border-green-600/40 text-green-600 hover:bg-green-600/10 shrink-0"
+                        onClick={() => window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer")}
+                        title="فتح جروب واتساب الخاص بالعميل"
+                      >
+                        <Users className="w-4 h-4" />
+                        جروب العميل
+                      </Button>
+                    )}
+                    </div>
                   )}
                 </div>
               </div>

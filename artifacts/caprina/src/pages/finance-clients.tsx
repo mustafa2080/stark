@@ -38,6 +38,7 @@ type Client = {
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
   clientType: ClientType | null; warehouseId: number | null; defaultAdSource: string | null;
+  whatsappGroupLink: string | null;
 };
 
 // ── Tier config & badge ────────────────────────────────────────────────────
@@ -95,7 +96,7 @@ const emptyForm = {
   name: "", phone: "", phone2: "", email: "", address: "", city: "", region: "",
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
   creditLimit: "0", notes: "", isActive: true, avatar: "", clientType: "normal" as ClientType,
-  warehouseId: "" as string, defaultAdSource: "" as string,
+  warehouseId: "" as string, defaultAdSource: "" as string, whatsappGroupLink: "",
 };
 
 // ── Column Filter Dropdown ────────────────────────────────────────────────
@@ -231,6 +232,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     clientType: (editClient.clientType ?? "normal") as ClientType,
     warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
     defaultAdSource: editClient.defaultAdSource ?? "",
+    whatsappGroupLink: editClient.whatsappGroupLink ?? "",
   } : { ...emptyForm });
 
   // إعادة تعبئة الـ form لما editClient يتغير (مهم لو الـ Dialog مش بيتـunmount)
@@ -248,6 +250,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         clientType: (editClient.clientType ?? "normal") as ClientType,
         warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
         defaultAdSource: editClient.defaultAdSource ?? "",
+        whatsappGroupLink: editClient.whatsappGroupLink ?? "",
       });
     } else {
       setForm({ ...emptyForm });
@@ -267,6 +270,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         clientType: form.clientType || "normal",
         warehouseId: form.warehouseId ? parseInt(form.warehouseId) : null,
         defaultAdSource: form.defaultAdSource || null,
+        whatsappGroupLink: form.whatsappGroupLink || null,
       };
       if (isEdit) return apiFetch<any>(`/finance/clients/${editClient!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       return apiFetch<any>("/finance/clients", { method: "POST", body: JSON.stringify(body) });
@@ -325,6 +329,12 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
               <Input placeholder="01xxxxxxxxx" className="h-9 text-sm bg-background" value={form.phone} onChange={e => f("phone", e.target.value)} /></div>
             <div><Label className="text-xs mb-1.5 block">هاتف إضافي</Label>
               <Input placeholder="01xxxxxxxxx" className="h-9 text-sm bg-background" value={form.phone2} onChange={e => f("phone2", e.target.value)} /></div>
+          </div>
+          <div><Label className="text-xs mb-1.5 block flex items-center gap-1">
+              <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347z"/><path d="M12.004 2C6.478 2 2 6.478 2 12.004c0 1.849.499 3.647 1.446 5.224L2.06 22l4.888-1.353a9.99 9.99 0 0 0 5.056 1.353c5.526 0 10.004-4.478 10.004-10.004S17.53 2 12.004 2m0 18.169a8.15 8.15 0 0 1-4.152-1.14l-.298-.176-3.084.854.83-3.007-.194-.309a8.156 8.156 0 0 1-1.256-4.386c0-4.51 3.67-8.18 8.18-8.18s8.18 3.67 8.18 8.18-3.67 8.164-8.206 8.164"/></svg>
+              رابط جروب واتساب العميل (اختياري)</Label>
+            <Input dir="ltr" placeholder="https://chat.whatsapp.com/xxxxxxxx" className="h-9 text-sm bg-background" value={form.whatsappGroupLink} onChange={e => f("whatsappGroupLink", e.target.value)} />
+            <p className="text-[10px] text-muted-foreground px-1 mt-1">لو موجود، هيظهر اختيار "فتح جروب واتساب العميل" في صفحة تفاصيل الشحنة</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs mb-1.5 block">المحافظة</Label>

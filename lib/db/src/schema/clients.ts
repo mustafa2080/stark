@@ -38,6 +38,9 @@ export const clientsTable = mysqlTable("clients", {
   // ── مصدر الطلب الافتراضي للعميل (يُستخدم تلقائياً عند اختيار العميل كراسل في الشحنة) ──
   defaultAdSource: varchar("default_ad_source", { length: 50 }),
 
+  // ── رابط جروب واتساب خاص بالعميل (اختياري) ───────────────────────────
+  whatsappGroupLink: varchar("whatsapp_group_link", { length: 500 }),
+
   // ── ميتا ──────────────────────────────────────────────────────────────
   notes:          text("notes"),
   isActive:       boolean("is_active").default(true),
