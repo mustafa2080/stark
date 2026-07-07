@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, clientAccountManifestsApi, type ClientAccountManifestListItem } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
+  ChevronDown, Lock, Unlock,
 } from "lucide-react";
+
+const fmtDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch { return iso; }
+};
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
@@ -149,6 +156,78 @@ function AvatarUploader({ value, onChange }: { value: string; onChange: (v: stri
         </div>
       </div>
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    </div>
+  );
+}
+
+/** قائمة منسدلة تعرض بيانات (manifests) حساب العميل — بالضغط على أي بيان يودّي لتفاصيله */
+function ClientManifestsDropdown({ clientId }: { clientId: number }) {
+  const [, navigate] = useLocation();
+  const [open, setOpen] = useState(false);
+
+  const { data: manifests, isLoading } = useQuery<ClientAccountManifestListItem[]>({
+    queryKey: ["client-account-manifests", clientId],
+    queryFn: () => clientAccountManifestsApi.list(clientId),
+    enabled: open,
+  });
+
+  return (
+    <div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full h-8 mt-2 text-xs gap-1.5 font-bold justify-between"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+      >
+        <span className="flex items-center gap-1.5">
+          <FileSpreadsheet className="w-3.5 h-3.5" />
+          بيانات الحساب {manifests ? `(${manifests.length})` : ""}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </Button>
+
+      {open && (
+        <div
+          className="mt-1.5 rounded-lg border border-border bg-background/60 max-h-64 overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isLoading ? (
+            <div className="p-3 text-center text-xs text-muted-foreground">جاري التحميل...</div>
+          ) : manifests?.length ? (
+            manifests.map((m) => (
+              <button
+                key={m.id}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-right hover:bg-muted/30 border-b border-border/30 last:border-b-0 transition-colors"
+                onClick={() => navigate(`/finance/client-account-sheet/manifest/${m.id}`)}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {m.status === "closed" ? (
+                    <Lock className="w-3 h-3 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Unlock className="w-3 h-3 text-blue-400 shrink-0" />
+                  )}
+                  <div className="min-w-0 text-right">
+                    <p className="text-xs font-bold truncate">{m.manifestNumber}</p>
+                    <p className="text-[10px] text-muted-foreground">{fmtDate(m.createdAt)} · {m.shipmentCount} شحنة</p>
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-[9px] font-bold shrink-0 ${
+                    m.status === "closed"
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+                      : "border-blue-400/40 bg-blue-400/10 text-blue-400"
+                  }`}
+                >
+                  {m.status === "closed" ? "مغلق" : "مفتوح"}
+                </Badge>
+              </button>
+            ))
+          ) : (
+            <div className="p-3 text-center text-xs text-muted-foreground">لا يوجد بيانات لهذا العميل</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -411,6 +490,8 @@ export default function ClientAccountManifestsPage() {
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />بيان جديد
                 </Button>
+
+                <ClientManifestsDropdown clientId={client.id} />
               </div>
             );
           })}
