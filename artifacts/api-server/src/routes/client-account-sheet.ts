@@ -119,27 +119,42 @@ router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> 
 
     const shipmentRows = await db
       .select({
+        id: shipmentsTable.id,
         clientId: shipmentsTable.clientId,
         totalAmount: shipmentsTable.totalAmount,
         collectedAmount: shipmentsTable.collectedAmount,
+        status: shipmentsTable.status,
         createdAt: shipmentsTable.createdAt,
       })
       .from(shipmentsTable)
       .where(and(...shipmentConditions));
 
+    // ── شحنات "مؤجلة" حاليًا ضمن بيان شحن مفتوح — نفس منطق شركات الشحن ──────
+    const delayedMap = await getOpenManifestDelayedMap();
+
     const statsByClientId = new Map<number, {
       shipmentsCount: number; totalAmount: number; collectedAmount: number; lastOrderAt: string | null;
+      delivered: number; partial: number; returned: number;
     }>();
 
     for (const s of shipmentRows) {
       if (s.clientId == null) continue;
       const total = Number(s.totalAmount ?? 0);
       const collected = Number(s.collectedAmount ?? 0);
+      const resolvedStatus = delayedMap.has(s.id) ? "delayed" : s.status;
       const existing = statsByClientId.get(s.clientId);
+      const inc = {
+        delivered: resolvedStatus === "delivered" ? 1 : 0,
+        partial: resolvedStatus === "partial_received" ? 1 : 0,
+        returned: resolvedStatus === "returned" ? 1 : 0,
+      };
       if (existing) {
         existing.shipmentsCount++;
         existing.totalAmount += total;
         existing.collectedAmount += collected;
+        existing.delivered += inc.delivered;
+        existing.partial += inc.partial;
+        existing.returned += inc.returned;
         if (!existing.lastOrderAt || new Date(s.createdAt) > new Date(existing.lastOrderAt)) existing.lastOrderAt = String(s.createdAt);
       } else {
         statsByClientId.set(s.clientId, {
@@ -147,13 +162,22 @@ router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> 
           totalAmount: total,
           collectedAmount: collected,
           lastOrderAt: String(s.createdAt),
+          delivered: inc.delivered,
+          partial: inc.partial,
+          returned: inc.returned,
         });
       }
     }
 
     const clients = clientRows
       .map((c: any) => {
-        const stats = statsByClientId.get(c.id) ?? { shipmentsCount: 0, totalAmount: 0, collectedAmount: 0, lastOrderAt: null };
+        const stats = statsByClientId.get(c.id) ?? {
+          shipmentsCount: 0, totalAmount: 0, collectedAmount: 0, lastOrderAt: null,
+          delivered: 0, partial: 0, returned: 0,
+        };
+        const deliveryRate = stats.shipmentsCount > 0
+          ? Math.round(((stats.delivered + stats.partial) / stats.shipmentsCount) * 100)
+          : 0;
         return {
           id: c.id,
           name: c.name,
@@ -165,6 +189,10 @@ router.get("/client-account-sheet/all-clients", async (req, res): Promise<void> 
           collectedAmount: stats.collectedAmount,
           remainingAmount: stats.totalAmount - stats.collectedAmount,
           lastOrderAt: stats.lastOrderAt,
+          delivered: stats.delivered,
+          partial: stats.partial,
+          returned: stats.returned,
+          deliveryRate,
         };
       })
       .sort((a: any, b: any) => {

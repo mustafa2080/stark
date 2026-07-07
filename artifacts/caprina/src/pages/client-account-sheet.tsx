@@ -231,7 +231,25 @@ type ClientRow = {
   id: number; name: string; phone: string; city: string | null; avatar?: string | null;
   shipmentsCount: number; totalAmount: number; collectedAmount: number; remainingAmount: number;
   lastOrderAt: string;
+  delivered: number; partial: number; returned: number; deliveryRate: number;
 };
+
+// ── شريط نسبة التسليم — زي كارت شركات الشحن ────────────────────────────────
+function DeliveryBar({ rate }: { rate: number }) {
+  const color = rate >= 70 ? "bg-emerald-500" : rate >= 40 ? "bg-amber-500" : "bg-red-500";
+  const textColor = rate >= 70 ? "text-emerald-400" : rate >= 40 ? "text-amber-400" : "text-red-400";
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-muted-foreground">نسبة التسليم</span>
+        <span className={`text-xs font-black ${textColor}`}>{rate}%</span>
+      </div>
+      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${rate}%` }} />
+      </div>
+    </div>
+  );
+}
 
 export default function ClientAccountSheetPage() {
   const { toast } = useToast();
@@ -718,48 +736,86 @@ export default function ClientAccountSheetPage() {
                   {tableFilter ? "مفيش نتائج مطابقة" : "لا يوجد عملاء"}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {filteredClients.map((c) => {
-                    const pct = c.totalAmount > 0 ? Math.min(100, Math.round((c.collectedAmount / c.totalAmount) * 100)) : 0;
                     const color = nameToColor(c.name || "?");
                     return (
-                      <button
+                      <div
                         key={c.id}
-                        onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
-                        className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
+                        className="rounded-2xl border border-border bg-card/60 p-4 hover:border-primary/40 transition-colors"
                       >
-                        {c.avatar && c.avatar.startsWith("data:") ? (
-                          <img
-                            src={c.avatar}
-                            alt={c.name || "عميل"}
-                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-border group-hover:scale-105 transition-transform"
-                          />
-                        ) : (
-                          <div
-                            className="w-16 h-16 rounded-xl flex items-center justify-center text-xl font-black shrink-0 group-hover:scale-105 transition-transform"
-                            style={{ background: `${color}18`, color, border: `1px solid ${color}35` }}
-                          >
-                            {(c.name || "?").trim().charAt(0)}
+                        {/* رأس الكارت: أفاتار + اسم + فون */}
+                        <div className="flex items-center gap-3">
+                          {c.avatar && c.avatar.startsWith("data:") ? (
+                            <img
+                              src={c.avatar}
+                              alt={c.name || "عميل"}
+                              className="w-12 h-12 rounded-full object-cover shrink-0 border border-border"
+                            />
+                          ) : (
+                            <div
+                              className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black shrink-0"
+                              style={{ background: `${color}18`, color, border: `1px solid ${color}35` }}
+                            >
+                              {(c.name || "?").trim().charAt(0)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-black truncate">{c.name}</p>
+                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <Phone className="w-3 h-3" /> {c.phone}
+                              {c.city && <span className="mx-1">·</span>}
+                              {c.city && <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" />{c.city}</span>}
+                            </p>
                           </div>
-                        )}
-                        <div className="w-full min-w-0">
-                          <p className="text-xs font-bold truncate">{c.name}</p>
-                          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-                            <Phone className="w-2.5 h-2.5" /> {c.phone}
-                          </p>
                         </div>
-                        <div className="w-full flex items-center justify-between text-[10px] px-0.5">
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Package className="w-2.5 h-2.5" /> {c.shipmentsCount}
-                          </span>
-                          <span className={`font-bold ${c.remainingAmount > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                            {fmt(c.remainingAmount)}
-                          </span>
+
+                        {/* نسبة التسليم */}
+                        <div className="mt-4">
+                          <DeliveryBar rate={c.deliveryRate} />
                         </div>
-                        <div className="w-full h-1 rounded-full bg-muted/30 overflow-hidden">
-                          <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+
+                        {/* مُسلَّم / مُسلَّم جزئي / مُرتجَع */}
+                        <div className="grid grid-cols-3 gap-2 text-center mt-3">
+                          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 relative">
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]" />
+                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]" />
+                            <p className="text-[10px] text-emerald-300/70 mb-0.5">مُسلَّم</p>
+                            <p className="text-sm font-black text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.8)]">{c.delivered}</p>
+                          </div>
+                          <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg p-2 relative">
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_2px_rgba(45,212,191,0.6)]" />
+                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_2px_rgba(45,212,191,0.6)]" />
+                            <p className="text-[10px] text-teal-300/70 mb-0.5">مُسلَّم جزئي</p>
+                            <p className="text-sm font-black text-teal-400 drop-shadow-[0_0_6px_rgba(45,212,191,0.8)]">{c.partial}</p>
+                          </div>
+                          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 relative">
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_6px_2px_rgba(248,113,113,0.6)]" />
+                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_6px_2px_rgba(248,113,113,0.6)]" />
+                            <p className="text-[10px] text-red-300/70 mb-0.5">مُرتجَع</p>
+                            <p className="text-sm font-black text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]">{c.returned}</p>
+                          </div>
                         </div>
-                      </button>
+
+                        {/* البيان الحالي: عدد الشحنات + المتبقي */}
+                        <div className="bg-muted/20 border border-border/40 rounded-lg p-2 mt-3">
+                          <p className="text-[10px] text-muted-foreground text-center mb-1">إجمالي الشحنات</p>
+                          <p className="text-sm font-black text-center">{c.shipmentsCount}</p>
+                        </div>
+                        <div className="flex items-center justify-between text-xs mt-2">
+                          <span className="text-muted-foreground">المتبقي</span>
+                          <span className={`font-black ${c.remainingAmount > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fmt(c.remainingAmount)}</span>
+                        </div>
+
+                        {/* زرار بيان جديد — يفتح كل شحنات العميل */}
+                        <Button
+                          size="sm"
+                          className="w-full h-8 mt-3 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+                          onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />بيان جديد
+                        </Button>
+                      </div>
                     );
                   })}
                 </div>
