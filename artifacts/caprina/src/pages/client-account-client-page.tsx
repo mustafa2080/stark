@@ -45,7 +45,7 @@ function DeliveryBar({ delivered, returned, pending, total }: {
 
 function ManifestCard({ m, isLatest }: { m: ShippingManifestListItem & { delivered?: number; returned?: number; pending?: number }; isLatest: boolean }) {
   return (
-    <Link href={`/shipping/manifests/${m.id}`}>
+    <Link href={`/finance/client-account-sheet/manifest/${m.id}`}>
       <div className={`group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border ${m.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"}`}>
         <div className={`w-1 rounded-r-lg shrink-0 ${m.status === "closed" ? "bg-emerald-500" : "bg-blue-500"}`} />
         <div className="flex-1 px-4 py-3.5">
@@ -146,7 +146,7 @@ function ShipmentManifestCard({ m, isLatest }: { m: ShipmentManifestListItem; is
   const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
 
   return (
-    <a href={`/shipping/shipment-manifests/${m.id}`}>
+    <a href={`/finance/client-account-sheet/manifest/${m.id}`}>
       <div className={`group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border ${
         m.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"
       }`}>
@@ -637,7 +637,7 @@ export default function ShippingCompanyDetailPage() {
             qc.invalidateQueries({ queryKey: ["shipping-manifests", companyId] });
             qc.invalidateQueries({ queryKey: ["company-stats", companyId] });
             setShowNewManifest(false);
-            navigate(`/shipping/manifests/${m.id}`);
+            navigate(`/finance/client-account-sheet/manifest/${m.id}`);
           }}
         />
       )}
