@@ -2145,7 +2145,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
     <Card className="border-primary/30 bg-primary/5 p-5">
       <div className="flex items-center gap-2 mb-4">
         <Receipt className="w-4 h-4 text-primary" />
-        <h2 className="font-bold text-sm">بيان التسوية — الحساب مع شركة الشحن</h2>
+        <h2 className="font-bold text-sm">بيان التسوية — الحساب مع العميل</h2>
         {manifest.status === "closed" && (
           <Badge variant="outline" className="text-[9px] border-emerald-500 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 mr-auto">
             مُغلق
@@ -2208,7 +2208,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           )}
         </div>
         <div className="bg-card rounded-md p-3 border border-border">
-          <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق من الشركة</p>
+          <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق من العميل</p>
           <p className="text-base font-black text-primary">{formatCurrency(netBeforeInvoice)}</p>
           <p className="text-[10px] text-muted-foreground">إيرادات − شحن</p>
         </div>
@@ -2396,10 +2396,10 @@ function CloseConfirmDialog({
             </div>
           </div>
 
-          {/* ─── صافي المستحق من الشركة ─── */}
+          {/* ─── صافي المستحق من العميل ─── */}
           <div className="space-y-2">
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
-              <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
+              <p className="text-muted-foreground mb-1">صافي المستحق من العميل</p>
               {(() => {
                 const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
                 const due = (s?.deliveredGross ?? 0) - effectiveShipping;
@@ -4363,7 +4363,7 @@ export default function ShippingManifestPage() {
           </div>
           <div className="flex flex-col gap-1">
             <p className="text-[10px] text-muted-foreground">
-              المبلغ المتفق عليه مع شركة الشحن (ما سيُدفع لنا)
+              المبلغ المتفق عليه مع العميل (ما سيُدفع لنا)
             </p>
             <InvoicePriceEditor
               manifestId={id}
