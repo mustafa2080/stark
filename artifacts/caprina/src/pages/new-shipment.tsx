@@ -92,6 +92,8 @@ export default function NewShipmentPage() {
     shippingCompanyId: "",
   });
   const [govOpen, setGovOpen] = useState(false);
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientOpen2, setClientOpen2] = useState(false);
 
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -218,37 +220,72 @@ export default function NewShipmentPage() {
           </h3>
           <div>
             <Label className="text-xs font-bold mb-1.5 block">العميل التجاري (اختياري)</Label>
-            <Select value={form.clientId || "__none__"} onValueChange={v => {
-              if (v === "__none__") { setForm(f => ({ ...f, clientId: "", senderName: "", senderPhone: "", senderPhone2: "", senderCity: "" })); return; }
-              const c = clients.find(x => String(x.id) === v);
-              if (c) {
-                const gov = c.region || c.city || c.governorate || "";
-                setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
-              }
-            }}>
-              <SelectTrigger className="text-sm h-10"><div className="flex items-center gap-2"><User className="w-3.5 h-3.5 text-muted-foreground" /><SelectValue placeholder="اختر العميل..." /></div></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__"><span className="text-muted-foreground text-xs">— بدون عميل —</span></SelectItem>
-                {clients.filter(c => c.name).map(c => {
-                  const gov = c.region || c.city || c.governorate || "";
-                  return (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    <div className="flex items-center gap-2">
-                      <ClientAvatar avatar={c.avatar} name={c.name} className="w-6 h-6 text-[10px]" />
-                      <div className="flex flex-col">
+            <Popover open={clientOpen} onOpenChange={setClientOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  role="combobox"
+                  aria-expanded={clientOpen}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {(() => {
+                    const c = clients.find(x => String(x.id) === form.clientId);
+                    if (!c) return <span className="flex items-center gap-2 text-muted-foreground"><User className="w-3.5 h-3.5" />اختر العميل...</span>;
+                    return (
+                      <span className="flex items-center gap-2">
+                        <ClientAvatar avatar={c.avatar} name={c.name} className="w-5 h-5 text-[9px]" />
                         <span className="text-xs font-bold">{c.name}</span>
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          {c.phone && <span>{c.phone}</span>}
-                          {c.phone && gov && <span>·</span>}
-                          {gov && <span className="text-primary/70">{gov}</span>}
-                        </span>
-                      </div>
-                    </div>
-                  </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+                      </span>
+                    );
+                  })()}
+                  <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
+                <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
+                  <CommandInput placeholder="ابحث بالاسم أو المحافظة/المدينة..." className="text-sm" />
+                  <CommandList className="max-h-[260px]">
+                    <CommandEmpty className="text-xs text-muted-foreground py-4">لا يوجد عميل بهذا الاسم</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__none__ بدون عميل"
+                        onSelect={() => { setForm(f => ({ ...f, clientId: "", senderName: "", senderPhone: "", senderPhone2: "", senderCity: "" })); setClientOpen(false); }}
+                        className="text-sm"
+                      >
+                        <span className="text-muted-foreground text-xs">— بدون عميل —</span>
+                      </CommandItem>
+                      {clients.filter(c => c.name).map(c => {
+                        const gov = c.region || c.city || c.governorate || "";
+                        return (
+                          <CommandItem
+                            key={c.id}
+                            value={`${c.name} ${gov} ${c.phone || ""}`}
+                            onSelect={() => {
+                              setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
+                              setClientOpen(false);
+                            }}
+                            className="text-sm flex items-center justify-between gap-3"
+                          >
+                            <span className="flex items-center gap-2">
+                              <Check className={`w-3.5 h-3.5 shrink-0 ${form.clientId === String(c.id) ? "opacity-100 text-primary" : "opacity-0"}`} />
+                              <ClientAvatar avatar={c.avatar} name={c.name} className="w-6 h-6 text-[10px]" />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold">{c.name}</span>
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                  {c.phone && <span>{c.phone}</span>}
+                                  {c.phone && gov && <span>·</span>}
+                                  {gov && <span className="text-primary/70">{gov}</span>}
+                                </span>
+                              </div>
+                            </span>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {form.clientId && <p className="text-[10px] text-primary mt-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />تم تعبئة بيانات المرسل تلقائياً</p>}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -435,27 +472,63 @@ export default function NewShipmentPage() {
             </div>
             <div>
               <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1"><UserCheck className="w-3 h-3" /> الراسل</Label>
-              <Select value={form.clientId || "none"} onValueChange={v => {
-                if (v === "none") { setForm(f => ({ ...f, clientId: "" })); return; }
-                const c = clients.find(x => String(x.id) === v);
-                if (c) {
-                  const gov = c.region || c.city || c.governorate || "";
-                  setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
-                }
-              }}>
-                <SelectTrigger className="text-sm h-10 bg-card"><SelectValue placeholder="اختر العميل التجاري" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— غير محدد —</SelectItem>
-                  {clients.filter(c => c.name).map(c => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      <div className="flex items-center gap-2">
-                        <ClientAvatar avatar={c.avatar} name={c.name} className="w-6 h-6 text-[10px]" />
-                        <span className="text-xs font-bold">{c.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={clientOpen2} onOpenChange={setClientOpen2}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    role="combobox"
+                    aria-expanded={clientOpen2}
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {(() => {
+                      const c = clients.find(x => String(x.id) === form.clientId);
+                      if (!c) return <span className="text-muted-foreground">اختر العميل التجاري</span>;
+                      return (
+                        <span className="flex items-center gap-2">
+                          <ClientAvatar avatar={c.avatar} name={c.name} className="w-5 h-5 text-[9px]" />
+                          <span className="text-xs font-bold">{c.name}</span>
+                        </span>
+                      );
+                    })()}
+                    <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
+                  <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
+                    <CommandInput placeholder="ابحث بالاسم أو المحافظة/المدينة..." className="text-sm" />
+                    <CommandList className="max-h-[260px]">
+                      <CommandEmpty className="text-xs text-muted-foreground py-4">لا يوجد عميل بهذا الاسم</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="none __none__ غير محدد"
+                          onSelect={() => { setForm(f => ({ ...f, clientId: "" })); setClientOpen2(false); }}
+                          className="text-sm"
+                        >
+                          — غير محدد —
+                        </CommandItem>
+                        {clients.filter(c => c.name).map(c => {
+                          const gov = c.region || c.city || c.governorate || "";
+                          return (
+                            <CommandItem
+                              key={c.id}
+                              value={`${c.name} ${gov} ${c.phone || ""}`}
+                              onSelect={() => {
+                                setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
+                                setClientOpen2(false);
+                              }}
+                              className="text-sm flex items-center gap-2"
+                            >
+                              <Check className={`w-3.5 h-3.5 shrink-0 ${form.clientId === String(c.id) ? "opacity-100 text-primary" : "opacity-0"}`} />
+                              <ClientAvatar avatar={c.avatar} name={c.name} className="w-6 h-6 text-[10px]" />
+                              <span className="text-xs font-bold">{c.name}</span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </section>
