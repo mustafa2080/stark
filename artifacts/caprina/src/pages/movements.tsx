@@ -3,11 +3,12 @@ import { createPortal } from "react-dom";
 import {
   ArrowDownCircle, ArrowUpCircle, BarChart3, CalendarDays,
   Filter, Package, Plus, X, TrendingDown, TrendingUp, Activity, Printer, Pencil,
-  ArrowRightLeft, Trash2, CheckSquare, ChevronUp, ChevronDown,
+  ArrowRightLeft, Trash2, CheckSquare, ChevronUp, ChevronDown, Warehouse as WarehouseIcon,
+  Search, PackageCheck, Loader2,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { movementsApi, productsApi, warehousesApi, shippingApi, variantsApi, type MovementType, type MovementReason, type InventoryMovement } from "@/lib/api";
+import { movementsApi, productsApi, warehousesApi, shippingApi, shipmentsApi, variantsApi, type MovementType, type MovementReason, type InventoryMovement, type Shipment } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -205,6 +206,226 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
   );
 }
 
+// ─── Shipments Warehouse-Transfer Dialog ──────────────────────────────────────
+// نقل شحنة واحدة أو عدة شحنات بين المخازن، مع انعكاس فوري على حالة الشحنة
+// (تبقى "قيد الشحن في المخزن" ويظهر تحتها اسم المخزن الحالي في صفحة الشحنات).
+
+function ShipmentTransferRow({
+  shipment, checked, onToggle,
+}: {
+  shipment: Shipment;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const currentWarehouseName = (shipment as any).warehouseName as string | undefined;
+  return (
+    <label
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
+        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"
+      }`}
+    >
+      <Checkbox checked={checked} onCheckedChange={onToggle} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-sm truncate">
+            {shipment.shipmentNumber ?? `#${shipment.id}`}
+          </span>
+          <span className="text-xs text-muted-foreground truncate">{shipment.receiverName}</span>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-muted-foreground">{shipment.receiverCity ?? "—"}</span>
+          {currentWarehouseName && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
+              <WarehouseIcon className="w-2.5 h-2.5" />{currentWarehouseName}
+            </span>
+          )}
+        </div>
+      </div>
+    </label>
+  );
+}
+
+function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedShipmentIds, setSelectedShipmentIds] = useState<Set<number>>(new Set());
+  const [toWarehouseId, setToWarehouseId] = useState<string>("none");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: warehousesApi.list,
+  });
+
+  // افتراضياً نعرض الشحنات "قيد الشحن في المخزن" — وهي أكثر حالة محتاجة نقل بين مخازن.
+  // لو المستخدم بحث برقم شحنة/اسم، نوسّع البحث لكل الحالات النشطة.
+  const { data: shipmentsRes, isLoading } = useQuery({
+    queryKey: ["shipments-for-transfer", debouncedSearch],
+    queryFn: () => shipmentsApi.list(
+      debouncedSearch
+        ? { search: debouncedSearch, limit: 50 }
+        : { status: "warehouse_ready", limit: 50 }
+    ),
+  });
+
+  const shipments = shipmentsRes?.data ?? [];
+
+  const toggleShipment = (id: number) => {
+    setSelectedShipmentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllShipments = () => {
+    if (selectedShipmentIds.size === shipments.length && shipments.length > 0) {
+      setSelectedShipmentIds(new Set());
+    } else {
+      setSelectedShipmentIds(new Set(shipments.map(s => s.id)));
+    }
+  };
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["shipments-for-transfer"] });
+    qc.invalidateQueries({ queryKey: ["shipments-list"] });
+    qc.invalidateQueries({ queryKey: ["shipments-stats"] });
+    qc.invalidateQueries({ queryKey: ["warehouse-shipments"] });
+    qc.invalidateQueries({ queryKey: ["warehouse-stats"] });
+    qc.invalidateQueries({ queryKey: ["warehouses"] });
+  };
+
+  const handleConfirm = async () => {
+    if (selectedShipmentIds.size === 0) {
+      toast({ title: "اختر شحنة واحدة على الأقل", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await warehousesApi.transferShipmentsBulk({
+        shipmentIds: Array.from(selectedShipmentIds),
+        toWarehouseId: toWarehouseId === "none" ? null : Number(toWarehouseId),
+        notes: notes.trim() || undefined,
+      });
+      invalidateAll();
+      toast({
+        title: `✅ تم نقل ${res.transferred} شحنة`,
+        description: res.notFound.length > 0 ? `تعذّر العثور على ${res.notFound.length} شحنة` : undefined,
+      });
+      onClose();
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const allSelected = shipments.length > 0 && selectedShipmentIds.size === shipments.length;
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-lg" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <PackageCheck className="w-4 h-4 text-teal-600" />
+            نقل شحنات بين المخازن
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 py-1">
+          {/* بحث */}
+          <div className="relative">
+            <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="ابحث برقم الشحنة أو اسم المستلم... (فارغ = الشحنات في المخزن)"
+              className="h-9 text-sm pr-8"
+            />
+          </div>
+
+          {/* قائمة الشحنات القابلة للاختيار */}
+          <div className="border border-border rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border">
+              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                <Checkbox checked={allSelected} onCheckedChange={toggleSelectAllShipments} />
+                تحديد الكل ({shipments.length})
+              </label>
+              {selectedShipmentIds.size > 0 && (
+                <span className="text-[11px] font-bold text-primary">{selectedShipmentIds.size} محدد</span>
+              )}
+            </div>
+            <div className="max-h-64 overflow-y-auto p-1.5 space-y-1">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground gap-2 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />جاري التحميل...
+                </div>
+              ) : shipments.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8 text-sm">لا توجد شحنات مطابقة</p>
+              ) : (
+                shipments.map(s => (
+                  <ShipmentTransferRow
+                    key={s.id}
+                    shipment={s}
+                    checked={selectedShipmentIds.has(s.id)}
+                    onToggle={() => toggleShipment(s.id)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* المخزن الهدف */}
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1"><WarehouseIcon className="w-3 h-3" />نقل إلى المخزن</Label>
+            <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="اختر المخزن..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— بدون مخزن —</SelectItem>
+                {warehouses.map((w: any) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}{w.city ? ` — ${w.city}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">ملاحظة (اختياري)</Label>
+            <Textarea
+              value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="سبب النقل أو أي تفاصيل..."
+              className="min-h-[50px] text-sm resize-none"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="text-xs h-8">إلغاء</Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={saving || selectedShipmentIds.size === 0}
+            className="text-xs h-8 gap-1 bg-teal-600 hover:bg-teal-700 text-white"
+          >
+            <ArrowRightLeft className="w-3 h-3" />
+            {saving ? "جاري النقل..." : `نقل ${selectedShipmentIds.size || ""} شحنة`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Movements() {
@@ -214,6 +435,9 @@ export default function Movements() {
 
   // ─── Bulk selection state ─────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // ─── نقل شحنات بين المخازن ────────────────────────────────────────────────
+  const [showShipmentsTransfer, setShowShipmentsTransfer] = useState(false);
 
   const toggleSelect = (id: number) => {
     setSelectedIds(prev => {
@@ -620,6 +844,10 @@ ${filtersRow}
           <Button variant="outline" className="gap-2 bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800 font-bold text-sm h-9 flex-1 sm:flex-none min-w-[160px]"
             onClick={() => { setDialogMode("transfer"); setForm(f => ({ ...f, reason: "transfer", type: "OUT" })); setShowDialog(true); }}>
             <ArrowRightLeft className="w-4 h-4" />تحويل بين مواقع
+          </Button>
+          <Button variant="outline" className="gap-2 bg-teal-50 text-teal-700 border-teal-300 hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800 font-bold text-sm h-9 flex-1 sm:flex-none min-w-[170px]"
+            onClick={() => setShowShipmentsTransfer(true)}>
+            <PackageCheck className="w-4 h-4" />نقل شحنات لمخزن
           </Button>
           <Button className="gap-2 bg-primary text-primary-foreground font-bold text-sm h-9 flex-1 sm:flex-none min-w-[130px]"
             onClick={() => { setDialogMode("manual"); setForm(f => ({ ...f, reason: "manual_in", type: "IN" })); setShowDialog(true); }}>
@@ -1240,6 +1468,10 @@ ${filtersRow}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {showShipmentsTransfer && (
+        <ShipmentsTransferDialog onClose={() => setShowShipmentsTransfer(false)} />
+      )}
     </div>
   );
 }

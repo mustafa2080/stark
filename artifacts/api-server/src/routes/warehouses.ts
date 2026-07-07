@@ -713,6 +713,69 @@ router.post("/transfer", requireAuth, async (req, res): Promise<void> => {
   }
 });
 
+// POST /warehouses/transfer-bulk — تحويل عدة شحنات دفعة واحدة لمخزن آخر
+router.post("/transfer-bulk", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const user = (req as any).user;
+    const schema = z.object({
+      shipmentIds:       z.array(z.number()).min(1),
+      toWarehouseId:     z.number().nullable(),
+      notes:             z.string().optional(),
+      shippingCompanyId: z.number().nullable().optional(),
+      newStatus:         z.string().optional(),
+    });
+    const body = schema.parse(req.body);
+
+    // اجلب كل الشحنات المطلوبة دفعة واحدة
+    const shipments = await db
+      .select()
+      .from(shipmentsTable)
+      .where(inArray(shipmentsTable.id, body.shipmentIds));
+
+    if (shipments.length === 0) {
+      res.status(404).json({ error: "لم يتم العثور على أي من الشحنات المحددة" });
+      return;
+    }
+
+    const now = new Date();
+    const foundIds = new Set(shipments.map(s => s.id));
+    const notFoundIds = body.shipmentIds.filter(id => !foundIds.has(id));
+
+    // سجّل تحويل مستقل لكل شحنة (fromWarehouseId يختلف باختلاف الشحنة)
+    const transferRows = shipments.map(s => ({
+      tenantId:        tenantId ?? null,
+      shipmentId:      s.id,
+      fromWarehouseId: s.warehouseId ?? null,
+      toWarehouseId:   body.toWarehouseId,
+      notes:           body.notes ?? null,
+      createdByUserId: user?.id ?? null,
+      createdByName:   user?.name ?? null,
+      createdAt:       now,
+    }));
+    await db.insert(warehouseTransfersTable).values(transferRows);
+
+    // حدّث كل الشحنات دفعة واحدة
+    const updateData: any = {
+      warehouseId: body.toWarehouseId,
+      updatedAt: now,
+    };
+    if (body.newStatus !== undefined)         updateData.status            = body.newStatus;
+    if (body.shippingCompanyId !== undefined) updateData.shippingCompanyId = body.shippingCompanyId;
+
+    await db.update(shipmentsTable).set(updateData).where(inArray(shipmentsTable.id, Array.from(foundIds)));
+
+    res.json({
+      success: true,
+      transferred: shipments.length,
+      notFound: notFoundIds,
+    });
+  } catch (e) {
+    console.error("[POST /warehouses/transfer-bulk]", e);
+    res.status(500).json({ error: "خطأ في تحويل الشحنات" });
+  }
+});
+
 // GET /warehouses/transfers/:shipmentId — سجل تحويلات شحنة معينة
 router.get("/transfers/:shipmentId", requireAuth, async (req, res): Promise<void> => {
   try {

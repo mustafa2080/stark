@@ -1283,6 +1283,8 @@ export const warehousesApi = {
     apiFetch<WarehouseStats>(`/warehouses/${warehouseId}/stats`),
   transferShipment: (data: { shipmentId: number; toWarehouseId: number | null; notes?: string; shippingCompanyId?: number | null; newStatus?: string }) =>
     apiFetch<{ success: boolean }>("/warehouses/transfer", { method: "POST", body: JSON.stringify(data) }),
+  transferShipmentsBulk: (data: { shipmentIds: number[]; toWarehouseId: number | null; notes?: string; shippingCompanyId?: number | null; newStatus?: string }) =>
+    apiFetch<{ success: boolean; transferred: number; notFound: number[] }>("/warehouses/transfer-bulk", { method: "POST", body: JSON.stringify(data) }),
   transferHistory: (shipmentId: number) =>
     apiFetch<WarehouseTransfer[]>(`/warehouses/transfers/${shipmentId}`),
   assignCourier: (shipmentId: number, data: { shippingCompanyId: number; warehouseId?: number | null }) =>
