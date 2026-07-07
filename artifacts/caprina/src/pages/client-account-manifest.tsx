@@ -229,7 +229,7 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
                 variant="outline"
                 size="sm"
                 className="h-7 text-[11px] gap-1.5 w-full"
-                onClick={() => navigate(`/finance/client-account-sheet/client/${clientId}`)}
+                onClick={() => navigate(`/finance/clients/${clientId}`)}
               >
                 <Truck className="w-3 h-3" />
                 عرض شحنات وحساب العميل
@@ -412,7 +412,7 @@ export default function ClientAccountManifestsPage() {
                       <button
                         className="font-bold text-sm hover:underline cursor-pointer transition-colors text-right"
                         style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}
-                        onClick={() => navigate(`/finance/client-account-sheet/client/${client.id}`)}
+                        onClick={() => navigate(`/finance/clients/${client.id}`)}
                       >
                         {client.name}
                       </button>
@@ -496,9 +496,9 @@ export default function ClientAccountManifestsPage() {
                 <Button
                   size="sm"
                   className="w-full h-8 mt-3 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
-                  onClick={() => navigate(`/finance/client-account-sheet/client/${client.id}`)}
+                  onClick={() => navigate(`/finance/clients/${client.id}`)}
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />بيان جديد
+                  <FileSpreadsheet className="w-3.5 h-3.5" />عرض حساب العميل
                 </Button>
 
                 <ClientManifestsDropdown clientId={client.id} />

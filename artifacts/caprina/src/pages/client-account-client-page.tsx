@@ -227,7 +227,7 @@ function ShipmentManifestCard({ m, isLatest }: { m: ShipmentManifestListItem; is
 
 export default function ShippingCompanyDetailPage() {
   const params = useParams();
-  const companyId = Number(params.id);
+  const companyId = Number(params.clientId ?? params.id);
   const qc = useQueryClient();
   const [, navigate] = useLocation();
   const [showNewManifest, setShowNewManifest] = useState(false);
