@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiFetch, clientAccountManifestsApi, type ClientAccountManifestListItem } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
-  ChevronDown, Lock, Unlock, Truck,
+  ChevronDown, Lock, Unlock, Truck, Package,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -160,15 +160,53 @@ function AvatarUploader({ value, onChange }: { value: string; onChange: (v: stri
   );
 }
 
-/** قائمة منسدلة تعرض بيانات (manifests) حساب العميل — بالضغط على أي بيان يودّي لتفاصيله */
+type ClientShipmentItem = {
+  id: number;
+  shipmentNumber: string;
+  status: string;
+  receiverName: string;
+  receiverCity: string;
+  codAmount: string | number | null;
+  shippingFee: string | number | null;
+  createdAt: string;
+  pieces: number | null;
+};
+
+const SHIPMENT_STATUS_LABELS: Record<string, string> = {
+  waiting: "انتظار", confirmed: "مؤكد", picked_up: "تم الاستلام",
+  warehouse_ready: "جاهز للشحن", in_transit: "قيد الشحن", in_shipping: "في الشحن",
+  out_for_delivery: "خرج للتسليم", delivered: "مسلَّم", received: "مستلم",
+  partial_received: "استلام جزئي", delayed: "مؤجل",
+  returned: "مرتجع", cancelled: "ملغي",
+};
+const SHIPMENT_STATUS_COLORS: Record<string, string> = {
+  waiting: "border-amber-500/40 bg-amber-500/10 text-amber-500",
+  confirmed: "border-blue-500/40 bg-blue-500/10 text-blue-400",
+  picked_up: "border-indigo-500/40 bg-indigo-500/10 text-indigo-400",
+  warehouse_ready: "border-purple-500/40 bg-purple-500/10 text-purple-400",
+  in_transit: "border-cyan-500/40 bg-cyan-500/10 text-cyan-400",
+  in_shipping: "border-cyan-500/40 bg-cyan-500/10 text-cyan-400",
+  out_for_delivery: "border-sky-500/40 bg-sky-500/10 text-sky-400",
+  delivered: "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+  received: "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+  partial_received: "border-teal-500/40 bg-teal-500/10 text-teal-400",
+  delayed: "border-violet-500/40 bg-violet-500/10 text-violet-400",
+  returned: "border-red-500/40 bg-red-500/10 text-red-500",
+  cancelled: "border-red-500/40 bg-red-500/10 text-red-500",
+};
+
+/** قائمة منسدلة تعرض شحنات العميل الفعلية (من قسم الشحنات) — بالضغط على أي شحنة يودّي لتفاصيلها */
 function ClientManifestsDropdown({ clientId }: { clientId: number }) {
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
-  const { data: manifests, isLoading } = useQuery<ClientAccountManifestListItem[]>({
-    queryKey: ["client-account-manifests", clientId],
-    queryFn: () => clientAccountManifestsApi.list(clientId),
+
+  const { data, isLoading } = useQuery<{ shipments: ClientShipmentItem[]; total: number }>({
+    queryKey: ["client-shipments-dropdown", clientId],
+    queryFn: () => apiFetch(`/finance/clients/${clientId}/shipments`),
     enabled: open,
   });
+  const shipments = data?.shipments ?? [];
+  const shown = shipments.slice(0, 8);
 
   return (
     <div>
@@ -179,8 +217,8 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
       >
         <span className="flex items-center gap-1.5">
-          <FileSpreadsheet className="w-3.5 h-3.5" />
-          بيانات الحساب {manifests ? `(${manifests.length})` : ""}
+          <Truck className="w-3.5 h-3.5" />
+          شحنات العميل {data ? `(${data.total})` : ""}
         </span>
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </Button>
@@ -192,39 +230,43 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
         >
           {isLoading ? (
             <div className="p-3 text-center text-xs text-muted-foreground">جاري التحميل...</div>
-          ) : manifests?.length ? (
-            manifests.map((m) => (
-              <button
-                key={m.id}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-right hover:bg-muted/30 border-b border-border/30 last:border-b-0 transition-colors"
-                onClick={() => navigate(`/finance/client-account-sheet/manifest/${m.id}`)}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {m.status === "closed" ? (
-                    <Lock className="w-3 h-3 text-emerald-500 shrink-0" />
-                  ) : (
-                    <Unlock className="w-3 h-3 text-blue-400 shrink-0" />
-                  )}
-                  <div className="min-w-0 text-right">
-                    <p className="text-xs font-bold truncate">{m.manifestNumber}</p>
-                    <p className="text-[10px] text-muted-foreground">{fmtDate(m.createdAt)} · {m.shipmentCount} شحنة</p>
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={`text-[9px] font-bold shrink-0 ${
-                    m.status === "closed"
-                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
-                      : "border-blue-400/40 bg-blue-400/10 text-blue-400"
-                  }`}
+          ) : shown.length ? (
+            <>
+              {shown.map((s) => (
+                <button
+                  key={s.id}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-right hover:bg-muted/30 border-b border-border/30 last:border-b-0 transition-colors"
+                  onClick={() => navigate(`/finance/client-shipment/${s.id}`)}
                 >
-                  {m.status === "closed" ? "مغلق" : "مفتوح"}
-                </Badge>
-              </button>
-            ))
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Package className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <div className="min-w-0 text-right">
+                      <p className="text-xs font-bold truncate">{s.shipmentNumber}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {fmtDate(s.createdAt)} · {s.receiverName}{s.receiverCity ? ` — ${s.receiverCity}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={`text-[9px] font-bold shrink-0 ${SHIPMENT_STATUS_COLORS[s.status] ?? "border-border text-muted-foreground"}`}
+                  >
+                    {SHIPMENT_STATUS_LABELS[s.status] ?? s.status}
+                  </Badge>
+                </button>
+              ))}
+              {data && data.total > shown.length && (
+                <button
+                  className="w-full px-3 py-2 text-center text-[11px] font-bold text-primary hover:bg-muted/30 transition-colors"
+                  onClick={() => navigate(`/finance/clients/${clientId}`)}
+                >
+                  عرض كل الشحنات ({data.total}) ←
+                </button>
+              )}
+            </>
           ) : (
             <div className="p-3 text-center">
-              <p className="text-xs text-muted-foreground mb-2">لا يوجد بيانات (كشوفات) لهذا العميل بعد</p>
+              <p className="text-xs text-muted-foreground mb-2">لا يوجد شحنات لهذا العميل بعد</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -232,7 +274,7 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
                 onClick={() => navigate(`/finance/clients/${clientId}`)}
               >
                 <Truck className="w-3 h-3" />
-                عرض شحنات وحساب العميل
+                عرض حساب العميل
               </Button>
             </div>
           )}
