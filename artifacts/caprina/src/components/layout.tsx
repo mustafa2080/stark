@@ -33,7 +33,6 @@ interface LayoutProps {
 const ALL_NAV = [
   { href: "/my-dashboard",      label: "لوحتي",              icon: LayoutDashboard, exact: true, permission: null, section: null, employeeOnly: true,  iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/operations-center", label: "لوحة التحكم",       icon: Layers,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-emerald-400",    group: "dashboard"    },
-  { href: "/shipments",         label: "المناطق",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "inventory"    },
   { href: "/finance/clients",   label: "العملاء التجاريون",   icon: UserCheck,                   permission: "finance.view",            section: "section_dashboard",          iconColor: "text-cyan-400",       group: "clients_business" },
   { href: "/orders",            label: "الشحنات",             icon: Package,                     permission: "orders.view",             section: "section_orders",             iconColor: "text-orange-400",     group: "orders"       },
   { href: "/shipments/new",     label: "شحنة جديدة",            icon: Plus,                        permission: "orders.create",           section: "section_new_order",          iconColor: "text-emerald-400",    group: "orders"       },
@@ -41,6 +40,7 @@ const ALL_NAV = [
   { href: "/shipping-followup", label: "متابعة الشحنات",        icon: Clock,                       permission: "section_shipping_followup", section: "section_shipping_followup",  iconColor: "text-cyan-400",       group: "orders"       },
   { href: "/shipping",          label: "مناديب STARK",         icon: Truck,                       permission: "shipping.view",           section: "section_shipping",           iconColor: "text-sky-400",        group: "shipping"     },
   { href: "/inventory",         label: "المخزون",               icon: Boxes,        permission: "inventory.view",          section: "section_inventory",          iconColor: "text-violet-400",     group: "inventory"    },
+  { href: "/shipments",         label: "المناطق",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "inventory"    },
   { href: "/warehouses",        label: "المخازن",               icon: Warehouse,    permission: "inventory.view",          section: "section_warehouses",         iconColor: "text-indigo-400",     group: "inventory"    },
   { href: "/movements",         label: "حركات المخزون",       icon: Activity,                    permission: "inventory.movements",     section: "section_movements",          iconColor: "text-purple-400",     group: "inventory"    },
   { href: "/product-performance",label: "أداء الشحنات",      icon: BarChart3,                   permission: "analytics.products",      section: "section_product_performance", iconColor: "text-pink-400",      group: "analytics"    },
