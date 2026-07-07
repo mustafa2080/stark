@@ -1,431 +1,2580 @@
-﻿import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+﻿import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import ExcelJS from "exceljs";
+import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import {
+  shipmentManifestsApi,
+  manifestsApi,
+  shipmentsApi,
+  apiFetch,
+  type ShipmentManifestDetail as ShippingManifestDetail,
+  type ManifestOrder,
+  type DeliveryStatus,
+} from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
-  Search, User, Phone, MapPin, Printer, Lock, Package,
-  RotateCcw, ListOrdered, Truck, Loader2, CheckCircle2, UserCog, BarChart3, ListFilter, X,
-  ArrowUp, ArrowDown, ArrowUpDown, LayoutGrid, List as ListIcon, Wallet,
-  Building2, Send, Warehouse, StickyNote, Hash, Calendar, DollarSign, Receipt, FileSpreadsheet,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  ArrowRight,
+  Truck,
+  Package,
+  TrendingUp,
+  TrendingDown,
+  AlertCircle,
+  CheckCircle2,
+  RotateCcw,
+  Clock,
+  Printer,
+  Lock,
+  Unlock,
+  Trash2,
+  Save,
+  Receipt,
+  Banknote,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  X,
+  Check,
+  FileText,
+  Search,
+  PackagePlus,
+  FileSpreadsheet,
+  Download,
+  Eye,
+  Zap,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBrand } from "@/contexts/BrandContext";
+import { format } from "date-fns";
+import { RETURN_REASONS, returnReasonLabel } from "@/lib/order-constants";
 
-// ── helpers ───────────────────────────────────────────────────────────────
-const fmt = (n: string | number | null | undefined) =>
-  new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Number(n ?? 0));
+const formatCurrency = (n: number | string | null | undefined) =>
+  new Intl.NumberFormat("ar-EG", {
+    style: "currency",
+    currency: "EGP",
+    maximumFractionDigits: 0,
+  }).format(Number(n) || 0);
 
-type SheetOrder = {
-  id: number;
-  customerName: string;
-  phone: string | null;
-  city: string | null;
-  address: string | null;
-  senderName: string | null;
-  warehouseName: string | null;
-  assignedUserName: string | null;
-  unitPrice: number;
-  totalPrice: number;
-  shippingCost: number;
-  collectedAmount: number | null;
-  status: string;
-  returnReceived: number | null;
-  product: string;
-  invoiceNumber: string | null;
-  createdAt: string;
-  notes: string | null;
+const DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
+  { value: "pending",          label: "قيد الانتظار",   color: "text-muted-foreground",                                          bg: "border-border" },
+  { value: "delivered",        label: "مسلَّم ✓",        color: "text-emerald-700 dark:text-emerald-400",                         bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
+  { value: "postponed",        label: "مؤجل",            color: "text-orange-700  dark:text-orange-400",                          bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  { value: "partial_received", label: "استلم جزئي",     color: "text-teal-700    dark:text-teal-400",                            bg: "border-teal-300    dark:border-teal-700    bg-teal-50    dark:bg-teal-900/20" },
+  { value: "returned",         label: "مرتجع",           color: "text-red-700     dark:text-red-400",                             bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
+];
+
+// ─── خيارات حالة التسليم لبيانات الشحنات (shipment manifests) ────────────────
+// تشمل كل قيم DeliveryStatus السبعة لتجنب الرجوع للقيمة الافتراضية الخاطئة (fallback)
+const SHIPMENT_DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
+  { value: "pending",           label: "قيد الانتظار", color: "text-muted-foreground",                                 bg: "border-border" },
+  { value: "delivered",         label: "مسلَّم ✓",      color: "text-emerald-700 dark:text-emerald-400",                bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
+  { value: "partial_delivered", label: "مسلَّم جزئي",   color: "text-teal-700 dark:text-teal-400",                     bg: "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20" },
+  { value: "postponed",         label: "قيد الشحن",     color: "text-orange-700  dark:text-orange-400",                bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  { value: "delayed",           label: "مؤجل",          color: "text-orange-700  dark:text-orange-400",                bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  { value: "returned",          label: "مرتجع",         color: "text-red-700     dark:text-red-400",                   bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
+];
+
+const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false) => {
+  const list = isShipmentManifest ? SHIPMENT_DELIVERY_OPTIONS : DELIVERY_OPTIONS;
+  return list.find((o) => o.value === v) ?? list[0];
 };
 
-type SheetResponse = {
-  client: { name: string; phone: string | null; city: string | null; address: string | null } | null;
-  orders: SheetOrder[];
-  stats: {
-    newOrders: number;
-    returnedNotReceived: number;
-    delayedOrInDelivery: number;
-    totalOrders: number;
-    statusDistribution: { status: string; count: number; percentage: number }[];
-    weeklyShipments: number;
-  } | null;
-};
+function OrderDeliveryRow({
+  order,
+  manifestId,
+  locked,
+  onSaved,
+  hideAction = false,
+  isShipmentManifest = false,
+}: {
+  order: ManifestOrder;
+  manifestId: number;
+  locked: boolean;
+  onSaved: () => void;
+  hideAction?: boolean;
+  isShipmentManifest?: boolean;
+}) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [status, setStatus] = useState<DeliveryStatus>(order.deliveryStatus);
+  const [note, setNote] = useState(order.deliveryNote ?? "");
+  const [partialQty, setPartialQty] = useState(
+    order.partialQuantity?.toString() ?? ""
+  );
+  const [partialProduct, setPartialProduct] = useState(
+    order.deliveryNote?.startsWith("منتج:") ? order.deliveryNote.split("|")[0].replace("منتج:", "").trim() : ""
+  );
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [returnReceived, setReturnReceived] = useState<boolean | null>(
+    (order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null
+  );
+  const [returnReason, setReturnReason] = useState<string>(
+    (order as any).returnReason ?? ""
+  );
+  const [partialReturnReceived, setPartialReturnReceived] = useState<boolean | null>(
+    order.deliveryStatus === "partial_received"
+      ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
+      : null
+  );
 
-const STATUS_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  waiting:           { label: "انتظار",        color: "text-amber-400",   bg: "bg-amber-900/20",   border: "border-amber-700" },
-  confirmed:         { label: "مؤكدة",         color: "text-teal-400",    bg: "bg-teal-900/20",    border: "border-teal-700" },
-  picked_up:         { label: "تم الاستلام",    color: "text-sky-400",     bg: "bg-sky-900/20",     border: "border-sky-700" },
-  in_transit:        { label: "في الطريق",      color: "text-sky-400",     bg: "bg-sky-900/20",     border: "border-sky-700" },
-  out_for_delivery:  { label: "خرجت للتسليم",   color: "text-blue-400",    bg: "bg-blue-900/20",    border: "border-blue-700" },
-  delayed:           { label: "مؤجل",           color: "text-orange-400",  bg: "bg-orange-900/20",  border: "border-orange-700" },
-  delivered:         { label: "تم التسليم",     color: "text-emerald-400", bg: "bg-emerald-900/20", border: "border-emerald-700" },
-  partial_received:  { label: "استلام جزئي",    color: "text-cyan-400",    bg: "bg-cyan-900/20",    border: "border-cyan-700" },
-  returned:          { label: "مرتجع",          color: "text-red-400",    bg: "bg-red-900/20",     border: "border-red-700" },
-  cancelled:         { label: "ملغي",           color: "text-slate-400",   bg: "bg-slate-900/20",   border: "border-slate-700" },
-};
+  // مزامنة الـ state مع الـ prop بعد كل refetch
+  useEffect(() => {
+    if (!editing) {
+      setStatus(order.deliveryStatus);
+      setNote(order.deliveryNote ?? "");
+      setPartialQty(order.partialQuantity?.toString() ?? "");
+      setReturnReceived(
+        (order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null
+      );
+      setReturnReason((order as any).returnReason ?? "");
+      setPartialReturnReceived(
+        order.deliveryStatus === "partial_received"
+          ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
+          : null
+      );
+    }
+  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, editing]);
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] ?? { label: status, color: "text-muted-foreground", bg: "bg-muted/10", border: "border-border" };
+  const cancelMutation = useMutation({
+    mutationFn: () => manifestsApi.cancelOrder(manifestId, order.id),
+    onSuccess: () => {
+      toast({ title: "تم إلغاء الطلبية من البيان وإرجاعها للانتظار" });
+      setEditing(false);
+      onSaved();
+      setTimeout(() => window.location.reload(), 500);
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (status === "partial_received" || status === "partial_delivered") {
+        const qty = parseInt(partialQty);
+        if (partialQty === "" || partialQty === null || partialQty === undefined || isNaN(qty) || qty < 0) {
+          throw new Error("يجب إدخال الكمية المستلمة أولاً");
+        }
+        if (qty > order.quantity) {
+          throw new Error("الكمية لا يمكن أن تتجاوز " + order.quantity);
+        }
+      }
+      let finalNote = note.trim() || null;
+      if ((status === "partial_received" || status === "partial_delivered") && partialProduct.trim()) {
+        finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
+      }
+      if (isShipmentManifest) {
+        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
+        const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
+        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
+        return shipmentManifestsApi.updateItem(manifestId, order.id, {
+          deliveryStatus: safeStatus,
+          deliveryNote: finalNote,
+          partialQuantity:
+            safeStatus === "partial_delivered" && partialQty !== "" && partialQty !== null && partialQty !== undefined
+              ? parseInt(partialQty)
+              : null,
+          returnReceived: status === "returned" ? returnReceived : null,
+          returnReason: status === "returned" ? (returnReason || null) : null,
+        });
+      }
+      return manifestsApi.updateOrderDelivery(manifestId, order.id, {
+        deliveryStatus: status,
+        deliveryNote: finalNote,
+        partialQuantity:
+          status === "partial_received" && partialQty !== "" && partialQty !== null && partialQty !== undefined
+            ? parseInt(partialQty)
+            : null,
+        ...(status === "returned" ? { returnReceived } : {}),
+        ...(status === "returned" ? { returnReason: returnReason || null } : {}),
+        ...(status === "partial_received" ? { partialReturnReceived } : {}),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "تم حفظ حالة التسليم" });
+      setEditing(false);
+      onSaved();
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const opt = deliveryOpt(order.deliveryStatus, isShipmentManifest);
+  const needsNote = status === "postponed" || status === "returned" || status === "delayed";
+  const needsPartial = status === "partial_received" || status === "partial_delivered";
+
+  const hasChanges =
+    status !== order.deliveryStatus ||
+    note !== (order.deliveryNote ?? "") ||
+    ((status === "partial_received" || status === "partial_delivered") &&
+      partialQty !== (order.partialQuantity?.toString() ?? "")) ||
+    (status === "partial_received" &&
+      partialReturnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
+    (status === "returned" &&
+      returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null));
+
   return (
-    <Badge variant="outline" className={`text-[10px] ${cfg.border} ${cfg.bg} ${cfg.color}`}>
-      {cfg.label}
-    </Badge>
+    <div className={`border-b border-border/50 transition-colors ${editing ? "bg-primary/5" : "hover:bg-muted/10"}`}>
+      {/* Main row */}
+      <div className="hidden md:grid grid-cols-[minmax(140px,1fr)_minmax(120px,1fr)_minmax(140px,1fr)_60px_80px_80px] min-w-[860px] gap-0 items-start px-3 py-2.5 text-xs">
+        {/* Order ID only — no customer name (already shown in parent row) */}
+        <div className="min-w-0 pr-1 flex items-center gap-1.5">
+          <span className="font-mono text-[10px] text-muted-foreground bg-muted/40 rounded px-1.5 py-0.5 border border-border/40">
+            #{order.id.toString().padStart(4, "0")}
+          </span>
+          {order.phone && (
+            <span className="text-[10px] text-muted-foreground">{order.phone}</span>
+          )}
+        </div>
+        {/* Product */}
+        <div className="min-w-0 pr-2">
+          <p className="truncate font-medium">{order.product}</p>
+          {(order.color || order.size) && (
+            <p className="text-muted-foreground text-[10px]">
+              {[order.color, order.size].filter(Boolean).join(" / ")}
+            </p>
+          )}
+        </div>
+        {/* Qty */}
+        <div className="text-center font-bold">
+          {(order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered") && order.partialQuantity ? (
+            <span>
+              <span className="text-teal-400">{order.partialQuantity}</span>
+              <span className="text-muted-foreground">/{order.quantity}</span>
+            </span>
+          ) : (
+            order.quantity
+          )}
+        </div>
+        {/* Price */}
+        <div className="text-left font-bold">{formatCurrency(order.totalPrice)}</div>
+        {/* Delivery Status Badge -- always visible */}
+        <div>
+          <Badge
+            variant="outline"
+            className={`text-[9px] font-bold border ${opt.bg} ${opt.color}`}
+          >
+            {opt.label}
+          </Badge>
+          {/* سبب التأجيل تحت الـ badge مباشرة */}
+          {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && (
+            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+              ⏸ {order.deliveryNote || "لم يحدد السبب"}
+            </p>
+          )}
+          {/* sub-status للمرتجع */}
+          {order.deliveryStatus === "returned" && (order as any).returnReceived === 1 && (
+            <>
+              <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ تم الاستلام</p>
+              <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
+                ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
+              </p>
+            </>
+          )}
+          {order.deliveryStatus === "returned" && (order as any).returnReceived === 0 && (
+            <>
+              <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">⏳ عند شركة الشحن</p>
+              <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
+                ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
+              </p>
+            </>
+          )}
+          {/* لو returnReceived لسه null (لم يختر بعد) */}
+          {order.deliveryStatus === "returned" && (order as any).returnReceived == null && (
+            <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
+              ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
+            </p>
+          )}
+          {/* sub-status للاستلام الجزئي — الباقي */}
+          {order.deliveryStatus === "partial_received" && (order as any).returnReceived === 1 && (
+            <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ الباقي في المخزن</p>
+          )}
+          {order.deliveryStatus === "partial_received" && (order as any).returnReceived !== 1 && (
+            <>
+              {(order as any).returnReceived === 0 && (
+                <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">🚚 الباقي عند الشحن</p>
+              )}
+              <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+            </>
+          )}
+          {/* sub-status لمسلَّم جزئي (shipment) */}
+          {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
+            <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">
+              ✓ {order.partialQuantity}/{order.quantity} مُسلَّم
+            </p>
+          )}
+          {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (
+            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+          )}
+          {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived === 1 && (
+            <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ الباقي في المخزن</p>
+          )}
+          {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && !editing && (
+            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold truncate max-w-[110px]">
+              ⏸ {order.deliveryNote || "لم يحدد السبب"}
+            </p>
+          )}
+          {order.deliveryStatus !== "delayed" && order.deliveryStatus !== "postponed" && order.deliveryNote && !editing && (
+            <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[110px]">
+              {order.deliveryNote}
+            </p>
+          )}
+        </div>
+        {/* Action */}
+        <div className="flex justify-end">
+          {!locked && !hideAction && (
+            editing ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] px-1.5 text-muted-foreground"
+                onClick={() => {
+                  setEditing(false);
+                  setStatus(order.deliveryStatus);
+                  setNote(order.deliveryNote ?? "");
+                  setPartialProduct("");
+                  setPartialQty(order.partialQuantity?.toString() ?? "");
+                  setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null);
+                  setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null);
+                }}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
+                onClick={() => {
+                  setStatus(order.deliveryStatus);
+                  setNote(order.deliveryNote ?? "");
+                  setPartialQty(order.partialQuantity?.toString() ?? "");
+                  setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null);
+                  setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null);
+                  setEditing(true);
+                }}
+              >
+                <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
+              </Button>
+            )
+          )}
+          {locked && !hideAction && (
+            <Link href={`/orders/${order.id}`}>
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-primary hover:text-primary">
+                عرض
+              </Button>
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile card (md:hidden) */}
+      <div className="md:hidden px-3 py-2.5 text-xs flex flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="font-mono text-[10px] text-muted-foreground bg-muted/40 rounded px-1.5 py-0.5 border border-border/40 self-start">
+              #{order.id.toString().padStart(4, "0")}
+            </span>
+            {order.phone && <span className="text-[10px] text-muted-foreground">{order.phone}</span>}
+          </div>
+          <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${opt.bg} ${opt.color}`}>
+            {opt.label}
+          </Badge>
+        </div>
+        {/* سبب التأجيل تحت الـ badge في الموبايل */}
+        {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && (
+          <p className="text-[10px] text-orange-400 font-semibold">⏸ {order.deliveryNote || "لم يحدد السبب"}</p>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-medium truncate">{order.product}</p>
+            {(order.color || order.size) && (
+              <p className="text-muted-foreground text-[10px]">{[order.color, order.size].filter(Boolean).join(" / ")}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-bold">{order.quantity}</span>
+            <span className="font-bold text-primary">{formatCurrency(order.totalPrice)}</span>
+          </div>
+        </div>
+        {order.deliveryStatus === "returned" && (order as any).returnReceived === 1 && (
+          <>
+            <p className="text-[10px] text-emerald-600 font-semibold">↩ تم الاستلام</p>
+            <p className="text-[10px] text-red-400 font-semibold">
+              ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
+            </p>
+          </>
+        )}
+        {order.deliveryStatus === "returned" && (order as any).returnReceived === 0 && (
+          <>
+            <p className="text-[10px] text-orange-500 font-semibold">⏳ عند شركة الشحن</p>
+            <p className="text-[10px] text-red-400 font-semibold">
+              ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
+            </p>
+          </>
+        )}
+        {/* لو returnReceived لسه null */}
+        {order.deliveryStatus === "returned" && (order as any).returnReceived == null && (
+          <p className="text-[10px] text-red-400 font-semibold">
+            ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
+          </p>
+        )}
+        {/* سبب الإرجاع مباشرة تحت حالة الاستلام */}
+        {order.deliveryStatus === "partial_received" && (order as any).returnReceived === 1 && (
+          <p className="text-[10px] text-emerald-600 font-semibold">↩ الباقي في المخزن</p>
+        )}
+        {order.deliveryStatus === "partial_received" && (order as any).returnReceived !== 1 && (
+          <>
+            {(order as any).returnReceived === 0 && (
+              <p className="text-[10px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>
+            )}
+            <p className="text-[10px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+          </>
+        )}
+        {order.deliveryStatus === "delayed" && order.deliveryNote && !editing && (
+          <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+            ⏸ {order.deliveryNote}
+          </p>
+        )}
+        {order.deliveryStatus !== "delayed" && order.deliveryNote && !editing && (
+          <p className="text-[10px] text-muted-foreground">{order.deliveryNote}</p>
+        )}
+        {!locked && !hideAction && (
+          <div className="flex justify-end">
+            {editing ? (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground"
+                onClick={() => { setEditing(false); setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialProduct(""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); }}>
+                <X className="w-3 h-3" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
+                onClick={() => { setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setEditing(true); }}>
+                <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
+              </Button>
+            )}
+          </div>
+        )}
+        {locked && !hideAction && (
+          <div className="flex justify-end">
+            <Link href={`/orders/${order.id}`}>
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-primary hover:text-primary">عرض</Button>
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Editing panel -- Select + qty + note + save */}
+      {editing && (
+        <div className="px-4 pb-3 flex flex-col gap-2 bg-primary/5 border-t border-primary/10">
+          <div className="flex flex-wrap gap-2 items-end mt-2">
+            <div className="w-full sm:w-auto">
+              <Label className="text-[10px] mb-1 block text-muted-foreground">حالة التسليم</Label>
+              <Select
+                value={status}
+                onValueChange={(v) => setStatus(v as DeliveryStatus)}
+              >
+                <SelectTrigger className="h-8 text-xs w-full sm:w-40 bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(isShipmentManifest
+                    ? SHIPMENT_DELIVERY_OPTIONS.filter((o) => o.value !== "pending")
+                    : DELIVERY_OPTIONS.filter((o) => o.value !== "partial_received" || order.quantity > 1)
+                  ).map((o) => (
+                    <SelectItem key={o.value} value={o.value} className="text-xs">
+                      <span className={o.color}>{o.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {needsPartial && (
+              <>
+                <div>
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">
+                    الكمية المستلمة (من {order.quantity}) <span className="text-destructive font-bold">*</span>
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={order.quantity}
+                    value={partialQty}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "") { setPartialQty(""); return; }
+                      const n = parseInt(val);
+                      if (!isNaN(n) && n > order.quantity) { setPartialQty(String(order.quantity)); e.target.value = String(order.quantity); return; }
+                      if (!isNaN(n) && n < 0) { setPartialQty("0"); e.target.value = "0"; return; }
+                      setPartialQty(val);
+                    }}
+                    onBlur={(e) => {
+                      const n = parseInt(e.target.value);
+                      if (!isNaN(n) && n > order.quantity) setPartialQty(String(order.quantity));
+                      if (!isNaN(n) && n < 0) setPartialQty("0");
+                    }}
+                    className={`h-8 text-xs w-28 bg-background ${partialQty === "" || parseInt(partialQty) > order.quantity ? "border-destructive" : ""}`}
+                    placeholder="مطلوب"
+                    autoFocus
+                  />
+                  {(partialQty === "") && (
+                    <p className="text-[10px] text-destructive mt-0.5">⚠ أدخل الكمية المستلمة</p>
+                  )}
+                  {(partialQty !== "" && parseInt(partialQty) > order.quantity) && (
+                    <p className="text-[10px] text-destructive mt-0.5">⚠ الحد الأقصى {order.quantity}</p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">
+                    المنتج المستلم
+                  </Label>
+                  <Input
+                    value={partialProduct}
+                    onChange={(e) => setPartialProduct(e.target.value)}
+                    className="h-8 text-xs w-44 bg-background"
+                    placeholder={order.product}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          {/* هل الباقي من الاستلام الجزئي عند الشحن؟ */}
+          {status === "partial_received" && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل الباقي عند شركة الشحن؟ *</p>
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setPartialReturnReceived(false)}
+                  className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                    partialReturnReceived === false
+                      ? "border-amber-500 bg-amber-900/30 text-amber-300"
+                      : "border-border text-muted-foreground hover:bg-muted/20"
+                  }`}
+                >
+                  <span className="text-base">🚚</span>
+                  <span>مازال عند الشحن</span>
+                  <span className="text-[9px] font-normal opacity-70">سيُرحَّل للبيان الجديد</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPartialReturnReceived(true)}
+                  className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                    partialReturnReceived === true
+                      ? "border-emerald-500 bg-emerald-900/30 text-emerald-300"
+                      : "border-border text-muted-foreground hover:bg-muted/20"
+                  }`}
+                >
+                  <span className="text-base">✅</span>
+                  <span>تم استلامه في المخزن</span>
+                  <span className="text-[9px] font-normal opacity-70">يُعاد للمخزن تلقائياً</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-center font-medium" style={{ color: partialReturnReceived === true ? "#0F6E56" : partialReturnReceived === false ? "#854F0B" : "var(--color-text-secondary)" }}>
+                {partialReturnReceived === true && "✓ سيتم إرجاع الباقي للمخزن"}
+                {partialReturnReceived === false && "⏳ الباقي مازال في شركة الشحن — سيُرحَّل"}
+                {partialReturnReceived === null && "⚠ يجب اختيار حالة الباقي قبل الحفظ"}
+              </p>
+            </div>
+          )}
+          {/* حالة استلام المرتجع + سبب — زي الطلبات */}
+          {status === "returned" && (
+            <div className="flex flex-wrap gap-2 items-end">
+              {/* سبب الإرجاع */}
+              <div>
+                <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
+                <Select value={returnReason} onValueChange={setReturnReason}>
+                  <SelectTrigger className="h-8 text-xs w-44 bg-background border-red-800/60 focus:ring-red-700">
+                    <SelectValue placeholder="اختر السبب..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETURN_REASONS.map(r => (
+                      <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* هل تم استلام المرتجع */}
+              <div>
+                <Label className="text-[10px] mb-1 block text-muted-foreground">حالة الاستلام *</Label>
+                <Select
+                  value={returnReceived === true ? "received" : returnReceived === false ? "at_shipping" : ""}
+                  onValueChange={v => setReturnReceived(v === "received" ? true : v === "at_shipping" ? false : null)}
+                >
+                  <SelectTrigger className="h-8 text-xs w-44 bg-background border-red-800/60 focus:ring-red-700">
+                    <SelectValue placeholder="اختر الحالة... *" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="received" className="text-xs">
+                      <span className="text-emerald-600 dark:text-emerald-400">↩ تم استلام المرتجع — يُعاد للمخزن</span>
+                    </SelectItem>
+                    <SelectItem value="at_shipping" className="text-xs">
+                      <span className="text-orange-600 dark:text-orange-400">🚚 مازال في الشحن — سيُرحَّل</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {returnReceived === null && (
+                <p className="text-[10px] text-destructive w-full">⚠ يجب اختيار حالة الاستلام قبل الحفظ</p>
+              )}
+            </div>
+          )}
+          <div>
+            <Label className="text-[10px] mb-1 block text-muted-foreground">
+              {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
+            </Label>
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="h-8 text-xs bg-background"
+              placeholder={
+                status === "postponed"
+                  ? "مثال: العميل طلب التأجيل أسبوعاً..."
+                  : status === "delayed"
+                  ? "مثال: العميل مش راد، العنوان غلط..."
+                  : status === "returned"
+                  ? "مثال: العميل رفض الاستلام..."
+                  : "ملاحظة (اختياري)..."
+              }
+              autoFocus={!needsPartial}
+            />
+          </div>
+          <div className="flex gap-2 justify-between items-center">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+              onClick={() => setConfirmCancel(true)}
+              disabled={cancelMutation.isPending}
+            >
+              <Trash2 className="w-3 h-3" />
+              إلغاء من البيان
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
+              onClick={() => mutation.mutate()}
+              disabled={
+                mutation.isPending ||
+                (needsNote && !note.trim()) ||
+                (needsPartial && (partialQty === "")) ||
+                (needsPartial && parseInt(partialQty) > order.quantity) ||
+                (status === "returned" && returnReceived === null) ||
+                (status === "partial_received" && partialReturnReceived === null)
+              }
+            >
+              <Save className="w-3 h-3" />
+              {mutation.isPending ? "جاري الحفظ..." : "حفظ"}
+            </Button>
+          </div>
+          <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>إلغاء الطلبية من البيان</AlertDialogTitle>
+                <AlertDialogDescription>
+                  هل أنت متأكد من إلغاء طلبية <strong>{order.customerName}</strong> ({order.product}) من البيان؟
+                  <br />سيتم إرجاعها لحالة &quot;انتظار&quot; وإلغاء تأثيرها على المخزون.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => { setConfirmCancel(false); cancelMutation.mutate(); }}
+                >
+                  نعم، إلغاء الطلبية
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+    </div>
   );
 }
 
-// ── مربع إحصائي ──────────────────────────────────────────────────────────
-function StatBox({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color: string }) {
+// ─── Urgent Button ────────────────────────────────────────────────────────────
+function UrgentButton({
+  manifestId,
+  shipmentId,
+  isUrgent,
+  urgentNote,
+  onToggled,
+  disabled = false,
+}: {
+  manifestId: number;
+  shipmentId: number;
+  isUrgent: boolean;
+  urgentNote?: string | null;
+  onToggled: () => void;
+  disabled?: boolean;
+}) {
+  const { toast } = useToast();
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [note, setNote] = useState(urgentNote ?? "");
+
+  const mutation = useMutation({
+    mutationFn: (payload: { isUrgent: boolean; urgentNote?: string | null }) =>
+      apiFetch(`/shipment-manifests/${manifestId}/items/${shipmentId}/urgent`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (_: any, vars: any) => {
+      toast({
+        title: vars.isUrgent ? "🔴 تم وضع الاستعجال" : "تم إلغاء الاستعجال",
+        description: vars.isUrgent ? "سيظهر إشعار للمندوب فوراً" : undefined,
+      });
+      setShowNoteDialog(false);
+      onToggled();
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  // لو مستعجل → اضغط يلغي مباشرة
+  // لو مش مستعجل → اضغط يفتح dialog لكتابة سبب (اختياري) ثم يفعّل
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isUrgent) {
+      mutation.mutate({ isUrgent: false, urgentNote: null });
+    } else {
+      setNote("");
+      setShowNoteDialog(true);
+    }
+  };
+
   return (
-    <Card className="p-4 border-border relative overflow-hidden">
-      <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full opacity-10" style={{ background: color }} />
-      <div className="relative z-10 flex items-center justify-between">
-        <div>
-          <p className="text-2xl font-black">{fmt(value)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{label}</p>
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={disabled || mutation.isPending}
+        title={isUrgent ? `إلغاء الاستعجال${urgentNote ? ` — ${urgentNote}` : ""}` : "استعجال هذه الشحنة"}
+        className={`
+          flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-black border transition-all duration-200
+          ${isUrgent
+            ? "bg-red-500/20 border-red-500/60 text-red-400 hover:bg-red-500/30 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]"
+            : "bg-muted/30 border-border/50 text-muted-foreground hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400"
+          }
+          ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
+        `}
+      >
+        <Zap className={`w-3 h-3 shrink-0 ${isUrgent ? "fill-red-400" : ""}`} />
+        {isUrgent ? "مستعجل!" : "استعجال"}
+      </button>
+
+      {/* Dialog كتابة سبب الاستعجال */}
+      {showNoteDialog && (
+        <Dialog open onOpenChange={open => { if (!open) setShowNoteDialog(false); }}>
+          <DialogContent className="bg-card border-red-500/30 max-w-sm" dir="rtl"
+            onClick={e => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-400">
+                <Zap className="w-4 h-4 fill-red-400" />
+                استعجال الشحنة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 mt-1">
+              <p className="text-xs text-muted-foreground">
+                سيصل إشعار استعجال للمندوب فور الحفظ. أضف سبباً اختيارياً يظهر له.
+              </p>
+              <div>
+                <Label className="text-xs mb-1.5 block">سبب الاستعجال (اختياري)</Label>
+                <Input
+                  placeholder="مثال: العميل مستعجل جداً — اتصل قبل التوصيل"
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  className="h-8 text-sm bg-background border-red-500/30 focus:border-red-500"
+                  autoFocus
+                  onKeyDown={e => { if (e.key === "Enter") mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null }); }}
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  className="flex-1 h-8 text-xs font-black bg-red-500 hover:bg-red-600 text-white gap-1.5"
+                  onClick={() => mutation.mutate({ isUrgent: true, urgentNote: note.trim() || null })}
+                  disabled={mutation.isPending}
+                >
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  {mutation.isPending ? "جاري الإرسال..." : "استعجال الآن"}
+                </Button>
+                <Button variant="outline" className="h-8 text-xs border-border" onClick={() => setShowNoteDialog(false)}>
+                  إلغاء
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+// ─── Invoice Group Row — يعرض مجموعة طلبات بنفس invoiceNumber كصف واحد ─────
+function InvoiceGroupDeliveryRow({
+  group,
+  manifestId,
+  locked,
+  onSaved,
+  rowIndex = 0,
+  selected = false,
+  onToggleSelect,
+  isShipmentManifest = false,
+  courierShippingCost = null,
+}: {
+  group: ManifestOrder[];
+  manifestId: number;
+  locked: boolean;
+  onSaved: () => void;
+  rowIndex?: number;
+  selected?: boolean;
+  onToggleSelect?: (groupKey: string) => void;
+  isShipmentManifest?: boolean;
+  courierShippingCost?: number | null;
+}) {
+  const { toast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+
+  const rep = group[0];
+  const groupKey = getManifestGroupKey(rep);
+  const totalQty = group.reduce((s, o) => s + o.quantity, 0);
+  // السعر الفعلي: لو partial_received أو partial_delivered احسب الجزء المستلم فقط
+  const totalPrice = group.reduce((s, o) => {
+    if ((o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity != null) {
+      return s + Number(o.unitPrice) * Number(o.partialQuantity);
+    }
+    return s + Number(o.totalPrice);
+  }, 0);
+  // السعر الكامل للفاتورة (للعرض والمرجع)
+  const totalFullPrice = group.reduce((s, o) => s + Number(o.totalPrice), 0);
+  const invoiceNum = (rep as any).invoiceNumber?.trim() || null;
+  const isMulti = group.length > 1;
+
+  // حالة المجموعة: لو كل الطلبات بنفس الحالة → اعرضها
+  // لو مختلطة بين partial_received و pending/postponed → partial_received (بعض المنتجات استُلمت وبعضها لا)
+  // وإلا → "pending"
+  const statuses = [...new Set(group.map(o => o.deliveryStatus))];
+  const hasMixedPartial = statuses.includes("partial_received") && statuses.every(s => s === "partial_received" || s === "pending" || s === "postponed");
+  const groupStatus: DeliveryStatus = statuses.length === 1
+    ? statuses[0] as DeliveryStatus
+    : hasMixedPartial
+      ? "partial_received"
+      : "pending";
+  const groupOpt = deliveryOpt(groupStatus, isShipmentManifest);
+  const hasMultipleStatuses = statuses.length > 1;
+
+  // الحالة المعروضة: لو في وضع تعديل أو بعد حفظ (قبل refetch) → نعرض bulkStatus، غير كده نعرض groupStatus
+  // هيتحدث بعد ما groupPartialKey يتغير (refetch رجع) لأن pendingSaveRef.current سيُمسح
+
+  // تقفيل جماعي — state
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<DeliveryStatus>(groupStatus);
+  const [bulkNote, setBulkNote] = useState(rep.deliveryNote ?? "");
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [bulkReturnReceived, setBulkReturnReceived] = useState<boolean | null>(
+    (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null
+  );
+  const [bulkReturnReason, setBulkReturnReason] = useState<string>((rep as any).returnReason ?? "");
+
+  // لكل منتج في الفاتورة: حالة مستقلة — نستخدم o.id كـ key
+  const [perOrderStatus, setPerOrderStatus] = useState<Record<number, DeliveryStatus>>(
+    Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus]))
+  );
+  const [partialQtyMap, setPartialQtyMap] = useState<Record<number, string>>(
+    Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""]))
+  );
+  const [partialReturnReceived, setPartialReturnReceived] = useState<boolean | null>(
+    group[0]?.returnReceived === 1 ? true : group[0]?.returnReceived === 0 ? false : null
+  );
+  // نحفظ القيم المُرسَلة للـ API هنا عشان نستخدمها في onSuccess
+  const pendingSaveRef = useRef<{
+    partialQtyMap: Record<number, string>;
+    perOrderStatus: Record<number, DeliveryStatus>;
+    bulkStatus: DeliveryStatus;
+    partialReturnReceived: boolean | null;
+  } | null>(null);
+
+  // key مستقر للـ group — بيتغير لما partialQuantity أو returnReceived يتغيروا
+  const groupPartialKey = group.map(o => `${o.id}:${o.partialQuantity ?? ""}:${(o as any).returnReceived ?? ""}`).join(",");
+
+  // الكميات المعروضة: لو في وضع التعديل أو بعد حفظ فوري → من state، وإلا من server
+  // الحالة المعروضة في الـ UI (خارج وضع التعديل): لما pendingSaveRef موجود نعرض bulkStatus (الحالة المحفوظة) لحد ما يجي الـ refetch
+  const displayStatus: DeliveryStatus = (bulkEditing || pendingSaveRef.current !== null) ? bulkStatus : groupStatus;
+  const displayOpt = deliveryOpt(displayStatus, isShipmentManifest);
+
+  const displayPartialQtyMap: Record<number, number> = Object.fromEntries(
+    group.map(o => {
+      const stateVal = partialQtyMap[o.id];
+      const parsed = stateVal !== "" && stateVal !== undefined ? parseInt(stateVal) : NaN;
+      const useState = bulkEditing || pendingSaveRef.current !== null;
+      return [o.id, useState && !isNaN(parsed) ? parsed : (o.partialQuantity ?? 0)];
+    })
+  );
+  const displayTotalPartialQty = Object.values(displayPartialQtyMap).reduce((s, v) => s + v, 0);
+
+  // مزامنة الـ state مع الـ prop بعد كل refetch أو لما نخرج من وضع التعديل
+  // تتبع آخر groupPartialKey شفناه — عشان نعرف لو الـ server data فعلاً اتغيرت
+  const prevGroupPartialKeyRef = useRef(groupPartialKey);
+
+  useEffect(() => {
+    if (!bulkEditing) {
+      const keyChanged = prevGroupPartialKeyRef.current !== groupPartialKey;
+      prevGroupPartialKeyRef.current = groupPartialKey;
+
+      if (pendingSaveRef.current) {
+        if (keyChanged) {
+          // server data وصلت فعلاً وفيها التغيير → امسح الـ ref واعمل sync
+          pendingSaveRef.current = null;
+        } else {
+          // refetch لسه ما خلصش أو مفيش تغيير في الـ key → مش نعمل sync دلوقتي
+          return;
+        }
+      }
+      setBulkStatus(groupStatus);
+      setBulkNote(rep.deliveryNote ?? "");
+      setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
+      setBulkReturnReason((rep as any).returnReason ?? "");
+      setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+      setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
+      const serverPartialReturn = group[0]?.returnReceived === 1 ? true : group[0]?.returnReceived === 0 ? false : null;
+      setPartialReturnReceived(groupStatus === "partial_received" && serverPartialReturn === null ? false : serverPartialReturn);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupStatus, rep.deliveryNote, (rep as any).returnReceived, bulkEditing, groupPartialKey]);
+
+  const cancelGroupMutation = useMutation({
+    mutationFn: async () => {
+      for (const order of group) {
+        if (isShipmentManifest) {
+          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+            deliveryStatus: "pending",
+            deliveryNote: null,
+            returnReceived: null,
+            returnReason: null,
+          });
+        } else {
+          await manifestsApi.cancelOrder(manifestId, order.id);
+        }
+      }
+    },
+    onSuccess: () => {
+      toast({ title: "تم إلغاء الفاتورة كاملها من البيان وإرجاعها للانتظار" });
+      setBulkEditing(false);
+      onSaved();
+      setTimeout(() => window.location.reload(), 500);
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  // وضع per-item: لما فاتورة متعددة → دايماً كل منتج له حالته المستقلة
+  // لما فاتورة منتج واحد → bulkStatus على الكل
+  const isPerItemMode = isMulti;
+
+  const bulkMutation = useMutation({
+    mutationFn: async () => {
+      // نحفظ snapshot من القيم الحالية قبل الـ API calls
+      pendingSaveRef.current = {
+        partialQtyMap: { ...partialQtyMap },
+        perOrderStatus: { ...perOrderStatus },
+        bulkStatus,
+        partialReturnReceived,
+      };
+      for (const order of group) {
+        let finalStatus: DeliveryStatus = bulkStatus;
+        let finalPartialQty: number | null = null;
+
+        if (isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered")) {
+          // فاتورة متعددة + partial: كل منتج له كميته المستقلة من partialQtyMap
+          const key = order.id;
+          const val = partialQtyMap[key];
+          const parsed = (val !== "" && val !== undefined && val !== null) ? parseInt(val) : null;
+          if (parsed !== null && !isNaN(parsed) && parsed >= 0) {
+            finalStatus = bulkStatus;
+            finalPartialQty = parsed;
+          } else if (order.partialQuantity && order.partialQuantity > 0) {
+            // مفيش قيمة جديدة → نستخدم الكمية الموجودة في DB (مش نغير الحالة)
+            finalStatus = bulkStatus;
+            finalPartialQty = order.partialQuantity;
+          } else {
+            // مفيش قيمة خالص → نفضل على نفس الحالة القديمة (مش نبعت pending)
+            finalStatus = (order.deliveryStatus as DeliveryStatus) ?? bulkStatus;
+            finalPartialQty = null;
+          }
+        } else if (isPerItemMode && bulkStatus !== "partial_received" && bulkStatus !== "partial_delivered") {
+          // فاتورة متعددة + حالة أخرى: كل منتج له حالته المستقلة من perOrderStatus
+          const key = order.id;
+          finalStatus = perOrderStatus[key] ?? bulkStatus;
+          if (finalStatus === "partial_received" || finalStatus === "partial_delivered") {
+            const val = partialQtyMap[key];
+            finalPartialQty = (val !== "" && val !== undefined) ? parseInt(val) : null;
+          }
+        } else {
+          // فاتورة منتج واحد
+          finalStatus = bulkStatus;
+          if (finalStatus === "partial_received" || finalStatus === "partial_delivered") {
+            const key = order.id;
+            const val = partialQtyMap[key];
+            finalPartialQty = (val !== "" && val !== undefined) ? parseInt(val) : null;
+          }
+        }
+
+        if (isShipmentManifest) {
+          const allowedSt = ["pending","delivered","partial_delivered","returned","delayed"] as const;
+          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
+          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+            deliveryStatus: safeSt,
+            deliveryNote: bulkNote.trim() || null,
+            partialQuantity: safeSt === "partial_delivered" ? finalPartialQty : null,
+            returnReceived: safeSt === "returned" ? bulkReturnReceived : null,
+            returnReason: safeSt === "returned" ? (bulkReturnReason.trim() || null) : null,
+          });
+        } else {
+          await manifestsApi.updateOrderDelivery(manifestId, order.id, {
+            deliveryStatus: finalStatus,
+            deliveryNote: bulkNote.trim() || null,
+            partialQuantity: finalPartialQty,
+            ...(finalStatus === 'partial_received' ? { partialReturnReceived: partialReturnReceived ?? false } : {}),
+            ...(finalStatus === 'returned' ? { returnReceived: bulkReturnReceived, returnReason: bulkReturnReason || null } : {}),
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      toast({ title: "تم حفظ حالة التسليم للفاتورة كاملها" });
+      // نطبق القيم المُرسَلة في الـ state فوراً
+      if (pendingSaveRef.current) {
+        const { partialQtyMap: savedQty, perOrderStatus: savedStatus, bulkStatus: savedBulk, partialReturnReceived: savedPartialReturn } = pendingSaveRef.current;
+        setPartialQtyMap(savedQty);
+        setPerOrderStatus(savedStatus);
+        setBulkStatus(savedBulk);
+        setPartialReturnReceived(savedPartialReturn);
+        // لا نمسح pendingSaveRef هنا — يحمي useEffect من override بالقيم القديمة
+        // سيُمسح في useEffect لما groupPartialKey يتغير (= server data وصلت فعلاً)
+      }
+      setBulkEditing(false);
+      onSaved();
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+  const needsBulkNote = bulkStatus === "postponed" || bulkStatus === "returned" || bulkStatus === "delayed";
+
+  // products summary
+  const productsText = group.map(o => {
+    const variant = [o.color, o.size].filter(Boolean).join("/");
+    return variant ? `${o.product} (${variant}) ×${o.quantity}` : `${o.product} ×${o.quantity}`;
+  }).join("، ");
+
+  return (
+    <>
+      {/* ── Main group row ── */}
+      <div
+        className={`border-b border-border/50 transition-colors ${bulkEditing ? "bg-primary/5" : selected ? "bg-primary/10 border-primary/30" : "hover:bg-muted/10"}`}
+        style={{
+          animation: "rowFadeIn 0.35s ease both",
+          animationDelay: `${rowIndex * 45}ms`,
+        }}
+      >
+        {/* Desktop row */}
+        <div
+          dir="rtl"
+          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {/* Customer */}
+          <div className="min-w-0 px-3 flex items-start gap-2">
+            {onToggleSelect && (
+              <Checkbox
+                checked={selected}
+                onCheckedChange={() => onToggleSelect(groupKey)}
+                className="mt-0.5 shrink-0"
+                onClick={e => e.stopPropagation()}
+              />
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold truncate">{rep.customerName}</p>
+              <div className="flex items-center gap-1 flex-wrap">
+                {invoiceNum && (
+                  <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono">
+                    {invoiceNum}
+                  </span>
+                )}
+                {rep.phone && (
+                  <span className="text-muted-foreground text-[10px]">{rep.phone}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* المحافظة */}
+          <div className="min-w-0 px-3 flex items-center">
+            {rep.city ? (
+              <p className="font-semibold text-[10px] truncate">{rep.city}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
+          </div>
+          {/* العنوان التفصيلي */}
+          <div className="hidden lg:flex min-w-0 px-3 items-start">
+            {(rep as any).address ? (
+              <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{(rep as any).address}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
+          </div>
+          {/* الشركة الراسلة */}
+          <div className="hidden lg:flex min-w-0 px-3 items-center">
+            {(rep as any).senderName ? (
+              <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
+          </div>
+          {/* سعر الشحنة (COD) */}
+          <div className="text-left font-bold px-3 flex items-center">
+            <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
+          </div>
+          {/* سعر الشحن (fee) */}
+          <div className="text-center px-2 flex items-center justify-center">
+            {(rep as any).shippingCost != null ? (
+              <span className="text-orange-400 font-semibold">{formatCurrency((rep as any).shippingCost)}</span>
+            ) : (
+              <span className="text-muted-foreground/40">—</span>
+            )}
+          </div>
+          {/* تكلفة الشحنة (courier cost) */}
+          <div className="text-center px-2 flex items-center justify-center">
+            {courierShippingCost != null ? (
+              <span className="text-amber-500 font-semibold">{formatCurrency(courierShippingCost)}</span>
+            ) : (
+              <span className="text-muted-foreground/40">—</span>
+            )}
+          </div>
+          {/* الإجمالي (COD - fee - courier) */}
+          <div className="text-center px-2 flex items-center justify-center">
+            {(() => {
+              const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+              const courier = courierShippingCost != null ? Number(courierShippingCost) : 0;
+              return (
+                <span className="font-bold text-primary">{formatCurrency(totalPrice - fee - courier)}</span>
+              );
+            })()}
+          </div>
+          {/* الحالة + زرار التقفيل */}
+          <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
+            {hasMultipleStatuses && !hasMixedPartial ? (
+              <div className="flex flex-col gap-0.5">
+                <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground">
+                  حالات متعددة
+                </Badge>
+                {group.map(o => {
+                  const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
+                  const label = (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity
+                    ? `${o.product} ×${o.partialQuantity}/${o.quantity}`
+                    : `${o.product}`;
+                  return (
+                    <p key={o.id} className={`text-[9px] truncate max-w-[110px] font-medium ${opt.color}`}>
+                      {o.deliveryStatus === "delivered" ? "✓" :
+                       o.deliveryStatus === "returned" ? "✕" :
+                       (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") ? "◑" :
+                       (o.deliveryStatus === "postponed" || o.deliveryStatus === "delayed") ? "⏸" : "○"} {label}
+                    </p>
+                  );
+                })}
+              </div>
+            ) : (displayStatus === "partial_received" || displayStatus === "partial_delivered") ? (
+              <div className="flex flex-col gap-0.5">
+                <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
+                  {displayOpt.label} ({displayTotalPartialQty}/{totalQty})
+                </Badge>
+                {group.filter(o => (displayPartialQtyMap[o.id] ?? 0) > 0).map(o => (
+                  <p key={o.id} className="text-[9px] text-teal-600 dark:text-teal-400 truncate max-w-[110px]">
+                    ◑ {o.product} ×{displayPartialQtyMap[o.id]}
+                  </p>
+                ))}
+                {(rep as any).returnReceived === 0 && (
+                  <p className="text-[9px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>
+                )}
+                {(rep as any).returnReceived === 1 && (
+                  <p className="text-[9px] text-emerald-500 font-semibold">↩ الباقي في المخزن</p>
+                )}
+                {(rep as any).returnReceived !== 1 && (
+                  <p className="text-[9px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-0.5">
+                <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
+                  {displayOpt.label}
+                </Badge>
+                {/* سبب التأجيل تحت الـ badge مباشرة */}
+                {(displayStatus === "delayed" || displayStatus === "postponed") && (
+                  <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+                    ⏸ {rep.deliveryNote || "لم يحدد السبب"}
+                  </p>
+                )}
+                {/* sub-status للمرتجع في الـ group row */}
+                {displayStatus === "returned" && (rep as any).returnReceived === 1 && (
+                  <>
+                    <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ تم الاستلام</p>
+                    <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
+                      ↳ {(rep as any).returnReason ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason) : "لم يحدد السبب"}
+                    </p>
+                  </>
+                )}
+                {displayStatus === "returned" && (rep as any).returnReceived === 0 && (
+                  <>
+                    <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">⏳ عند شركة الشحن</p>
+                    <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
+                      ↳ {(rep as any).returnReason ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason) : "لم يحدد السبب"}
+                    </p>
+                  </>
+                )}
+                {displayStatus === "returned" && (rep as any).returnReceived == null && (
+                  <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
+                    ↳ {(rep as any).returnReason ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason) : "لم يحدد السبب"}
+                  </p>
+                )}
+                {displayStatus === "partial_received" && (rep as any).returnReceived === 1 && (
+                  <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ الباقي في المخزن</p>
+                )}
+                {displayStatus === "partial_received" && (rep as any).returnReceived !== 1 && (
+                  <>
+                    {(rep as any).returnReceived === 0 && (
+                      <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">🚚 الباقي عند الشحن</p>
+                    )}
+                    <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+                  </>
+                )}
+              </div>
+            )}
+            {/* زرار التقفيل + الاستعجال جنب بعض */}
+            {!locked && (
+              <div className="flex items-center gap-1 mt-1">
+                {bulkEditing ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-1.5 text-muted-foreground self-start"
+                    onClick={() => setBulkEditing(false)}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-1.5 text-primary hover:text-primary self-start"
+                    onClick={() => {
+                      setBulkEditing(true);
+                      setBulkStatus(groupStatus);
+                      setBulkNote(rep.deliveryNote ?? "");
+                      setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
+                      setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+                      setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
+                      const existingPartialReturn = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null;
+                      setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn);
+                    }}
+                  >
+                    <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
+                  </Button>
+                )}
+                {/* ── زرار الاستعجال جنب التقفيل ── */}
+                {false && isShipmentManifest && (
+                  <div onClick={e => e.stopPropagation()}>
+                    <UrgentButton
+                      manifestId={manifestId}
+                      shipmentId={(rep as any).shipmentId ?? rep.id}
+                      isUrgent={!!(rep as any).isUrgent}
+                      urgentNote={(rep as any).urgentNote}
+                      onToggled={onSaved}
+                      disabled={false}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {/* لو البيان مغلق وعايزين نعرض الاستعجال بس */}
+            {false && locked && isShipmentManifest && (
+              <div className="mt-1" onClick={e => e.stopPropagation()}>
+                <UrgentButton
+                  manifestId={manifestId}
+                  shipmentId={(rep as any).shipmentId ?? rep.id}
+                  isUrgent={!!(rep as any).isUrgent}
+                  urgentNote={(rep as any).urgentNote}
+                  onToggled={onSaved}
+                  disabled={false}
+                />
+              </div>
+            )}
+          </div>
         </div>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `${color}18`, border: `1px solid ${color}30` }}>
-          <Icon className="w-5 h-5" style={{ color }} />
+
+        {/* Mobile card (md:hidden) */}
+        <div className="md:hidden px-3 py-2.5 text-xs flex flex-col gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+          {/* Row 1: customer + status badge */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2 min-w-0">
+              {onToggleSelect && (
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={() => onToggleSelect(groupKey)}
+                  className="mt-0.5 shrink-0"
+                  onClick={e => e.stopPropagation()}
+                />
+              )}
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{rep.customerName}</p>
+                <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                  {invoiceNum && <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono">{invoiceNum}</span>}
+                  {rep.phone && <span className="text-muted-foreground text-[10px]">{rep.phone}</span>}
+                  {rep.city && <span className="text-muted-foreground text-[10px]">📍 {rep.city}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-start gap-1.5">
+              {hasMultipleStatuses && !hasMixedPartial ? (
+                <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground">حالات متعددة</Badge>
+              ) : (
+                <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
+                  {displayOpt.label}
+                </Badge>
+              )}
+            </div>
+          </div>
+          {/* Row 2: products + qty + price */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-primary text-[10px] font-bold flex items-center gap-1">
+                {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {isMulti ? `${group.length} منتجات` : rep.product}
+              </p>
+              {isMulti ? (
+                <p className="text-muted-foreground text-[10px] truncate">{expanded ? "إخفاء المنتجات" : productsText}</p>
+              ) : (
+                (rep.color || rep.size) && <p className="text-muted-foreground text-[10px] truncate">{[rep.color, rep.size].filter(Boolean).join(" / ")}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="font-bold">{totalQty}</span>
+              <span className="font-bold text-primary">{formatCurrency(totalPrice)}</span>
+            </div>
+          </div>
+          {/* Sub-statuses */}
+          {displayStatus === "returned" && (rep as any).returnReceived === 1 && (
+            <>
+              <p className="text-[10px] text-emerald-600 font-semibold">↩ تم الاستلام</p>
+              <p className="text-[10px] text-red-500 font-medium flex items-center gap-1">
+                ↳ {(rep as any).returnReason
+                  ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason)
+                  : "لم يحدد السبب"}
+              </p>
+            </>
+          )}
+          {displayStatus === "returned" && (rep as any).returnReceived === 0 && (
+            <>
+              <p className="text-[10px] text-orange-500 font-semibold">⏳ عند شركة الشحن</p>
+              <p className="text-[10px] text-red-500 font-medium flex items-center gap-1">
+                ↳ {(rep as any).returnReason
+                  ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason)
+                  : "لم يحدد السبب"}
+              </p>
+            </>
+          )}
+          {displayStatus === "returned" && (rep as any).returnReceived == null && (
+            <p className="text-[10px] text-red-500 font-medium flex items-center gap-1">
+              ↳ {(rep as any).returnReason
+                ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason)
+                : "لم يحدد السبب"}
+            </p>
+          )}
+          {displayStatus === "partial_received" && (rep as any).returnReceived === 1 && <p className="text-[10px] text-emerald-600 font-semibold">↩ الباقي في المخزن</p>}
+          {displayStatus === "partial_received" && (rep as any).returnReceived === 0 && <p className="text-[10px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>}
+          {/* Action button */}
+          {!locked && (
+            <div className="flex justify-end items-center gap-1" onClick={e => e.stopPropagation()}>
+              {bulkEditing ? (
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground" onClick={() => setBulkEditing(false)}>
+                  <X className="w-3 h-3" />
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
+                  onClick={() => { setBulkEditing(true); setBulkStatus(groupStatus); setBulkNote(rep.deliveryNote ?? ""); setBulkReturnReason((rep as any).returnReason ?? ""); setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""]))); setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus]))); setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null); const ep = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null; setPartialReturnReceived(groupStatus === "partial_received" && ep === null ? false : ep); }}>
+                  <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
+                </Button>
+              )}
+              {/* ── زرار الاستعجال mobile جنب التقفيل ── */}
+              {false && isShipmentManifest && (
+                <div onClick={e => e.stopPropagation()}>
+                  <UrgentButton
+                    manifestId={manifestId}
+                    shipmentId={(rep as any).shipmentId ?? rep.id}
+                    isUrgent={!!(rep as any).isUrgent}
+                    urgentNote={(rep as any).urgentNote}
+                    onToggled={onSaved}
+                    disabled={false}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Bulk editing panel */}
+        {bulkEditing && (
+          <div className="px-4 pb-3 flex flex-col gap-2 bg-primary/5 border-t border-primary/10">
+
+            {/* ── Dropdown الحالة: يظهر دايماً سواء منتج واحد أو متعددة ── */}
+            <div className="flex flex-wrap gap-2 items-end mt-2">
+              <div className="w-full sm:w-auto">
+                <Label className="text-[10px] mb-1 block text-muted-foreground">حالة التسليم</Label>
+                <Select
+                  value={bulkStatus}
+                  onValueChange={(v) => {
+                    setBulkStatus(v as DeliveryStatus);
+                    // sync perOrderStatus مع الاختيار الجديد دايماً
+                    setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, v as DeliveryStatus])));
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs w-full sm:w-40 bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(isShipmentManifest
+                      ? SHIPMENT_DELIVERY_OPTIONS.filter((o) => o.value !== "pending")
+                      : DELIVERY_OPTIONS.filter((o) => {
+                          if (o.value !== "partial_received") return true;
+                          // أظهر "استلام جزئي" فقط لو الكمية الكلية للمجموعة أكتر من 1
+                          const totalQty = group.reduce((s, o) => s + (o.quantity ?? 1), 0);
+                          return totalQty > 1;
+                        })
+                    ).map((o) => (
+                      <SelectItem key={o.value} value={o.value} className="text-xs">
+                        <span className={o.color}>{o.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* منتج واحد: خانة الكمية في نفس الصف */}
+              {!isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (() => {
+                const o = group[0];
+                const variant = [o.color, o.size].filter(Boolean).join(" / ");
+                const unitPrice = o.quantity > 0 ? o.totalPrice / o.quantity : 0;
+                const rawVal = partialQtyMap[o.id];
+                const hasQty = rawVal !== "" && rawVal !== undefined && rawVal !== null;
+                const partialVal = hasQty ? parseInt(rawVal) : 0;
+                return (
+                  <div className="flex flex-col gap-2 border border-teal-300 dark:border-teal-700 rounded-md p-2.5 bg-teal-50 dark:bg-teal-900/20">
+                    <Label className="text-[10px] font-bold text-teal-700 dark:text-teal-400">
+                      حدد الكمية المستلمة
+                    </Label>
+                    <div className="rounded-md border border-teal-200 dark:border-teal-800 bg-background p-2 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold">{o.product || o.invoiceNumber}</p>
+                          {variant && <p className="text-[10px] text-muted-foreground">{variant}</p>}
+                        </div>
+                        <span className="text-xs font-bold text-muted-foreground">الإجمالي: {o.quantity}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[10px] text-muted-foreground shrink-0">المستلم:</Label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={o.quantity}
+                          value={rawVal ?? ""}
+                          onChange={e => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              setPartialQtyMap(prev => ({ ...prev, [o.id]: "" }));
+                            } else {
+                              const n = parseInt(raw);
+                              if (!isNaN(n) && n >= 0 && n <= o.quantity) {
+                                setPartialQtyMap(prev => ({ ...prev, [o.id]: String(n) }));
+                              }
+                            }
+                          }}
+                          className={`h-7 w-20 rounded border bg-background px-2 text-xs text-center ${!hasQty ? "border-destructive" : "border-teal-400"}`}
+                          placeholder="مطلوب"
+                          autoFocus
+                        />
+                        <span className="text-[10px] text-muted-foreground">من {o.quantity}</span>
+                        {!hasQty && (
+                          <span className="text-[10px] text-destructive">⚠ مطلوب</span>
+                        )}
+                        {partialVal > 0 && (
+                          <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                            = {(unitPrice * partialVal).toFixed(0)} ج.م
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* ── فاتورة متعددة + partial_received/partial_delivered: اعرض كل منتج على حدة ── */}
+            {isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && (
+              <div className="flex flex-col gap-2 border border-teal-300 dark:border-teal-700 rounded-md p-2.5 bg-teal-50 dark:bg-teal-900/20">
+                <Label className="text-[10px] font-bold text-teal-700 dark:text-teal-400">
+                  حدد الكمية المستلمة لكل منتج
+                </Label>
+                {group.map((o) => {
+                  const variant = [o.color, o.size].filter(Boolean).join(" / ");
+                  const unitPrice = o.quantity > 0 ? o.totalPrice / o.quantity : 0;
+                  const mKey = o.id;
+                  const rawVal = partialQtyMap[mKey];
+                  const hasQty = rawVal !== "" && rawVal !== undefined && rawVal !== null;
+                  const partialVal = hasQty ? parseInt(rawVal) : 0;
+                  return (
+                    <div key={mKey} className="rounded-md border border-teal-200 dark:border-teal-800 bg-background p-2 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold">{o.product}</p>
+                          {variant && <p className="text-[10px] text-muted-foreground">{variant}</p>}
+                        </div>
+                        <span className="text-xs font-bold text-muted-foreground">الإجمالي: {o.quantity}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[10px] text-muted-foreground shrink-0">المستلم:</Label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={o.quantity}
+                          value={partialQtyMap[mKey] ?? ""}
+                          onChange={e => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              setPartialQtyMap(prev => ({ ...prev, [mKey]: "" }));
+                            } else {
+                              const n = parseInt(raw);
+                              if (!isNaN(n) && n >= 0 && n <= o.quantity) {
+                                setPartialQtyMap(prev => ({ ...prev, [mKey]: String(n) }));
+                              }
+                            }
+                          }}
+                          className={`h-7 w-20 rounded border bg-background px-2 text-xs text-center ${!hasQty ? "border-destructive" : "border-teal-400"}`}
+                          placeholder="مطلوب"
+                          autoFocus={o.id === group[0].id}
+                        />
+                        <span className="text-[10px] text-muted-foreground">من {o.quantity}</span>
+                        {!hasQty && (
+                          <span className="text-[10px] text-destructive">⚠ مطلوب</span>
+                        )}
+                        {partialVal > 0 && (
+                          <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                            = {(unitPrice * partialVal).toFixed(0)} ج.م
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── فاتورة متعددة + حالة أخرى (مش partial): لا تظهر تفاصيل — الحالة بتتطبق على الكل تلقائياً ── */}
+            {isMulti && bulkStatus !== "partial_received" && false && (
+              <div className="flex flex-col gap-2 border border-border/40 rounded-md p-2.5 bg-muted/10">
+                <Label className="text-[10px] font-bold text-muted-foreground">
+                  تفاصيل المنتجات — يمكن تعديل حالة كل منتج على حدة
+                </Label>
+                {group.map((o) => {
+                  const variant = [o.color, o.size].filter(Boolean).join(" / ");
+                  const oStatus = perOrderStatus[o.id] ?? bulkStatus;
+                  return (
+                    <div key={o.id} className="rounded-md border border-border/40 bg-background p-2 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold">{o.product}</p>
+                          {variant && <p className="text-[10px] text-muted-foreground">{variant}</p>}
+                        </div>
+                        <span className="text-xs font-bold text-muted-foreground">{o.quantity}x</span>
+                      </div>
+                      <div className="flex gap-1 flex-wrap">
+                        {([
+                          { v: "delivered",        label: "مسلَّم ✓", cls: "border-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" },
+                          { v: "partial_received", label: "جزئي",     cls: "border-teal-400 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400" },
+                          { v: "returned",         label: "مرتجع",   cls: "border-red-400 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400" },
+                          { v: "pending",          label: "انتظار",  cls: "border-border bg-muted/30 text-muted-foreground" },
+                        ] as { v: DeliveryStatus; label: string; cls: string }[]).map(btn => (
+                          <button
+                            key={btn.v}
+                            type="button"
+                            onClick={() => setPerOrderStatus(prev => ({ ...prev, [o.id]: btn.v }))}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-all ${
+                              oStatus === btn.v
+                                ? btn.cls + " ring-1 ring-offset-1 ring-current"
+                                : "border-border/40 text-muted-foreground hover:bg-muted/20"
+                            }`}
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                      {oStatus === "partial_received" && (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Label className="text-[10px] text-muted-foreground shrink-0">المستلم من {o.quantity}:</Label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={o.quantity}
+                            value={partialQtyMap[o.id] ?? ""}
+                            onChange={e => {
+                              const raw = e.target.value;
+                              if (raw === "") { setPartialQtyMap(prev => ({ ...prev, [o.id]: "" })); return; }
+                              const n = parseInt(raw);
+                              if (!isNaN(n) && n > o.quantity) { setPartialQtyMap(prev => ({ ...prev, [o.id]: String(o.quantity) })); return; }
+                              if (!isNaN(n) && n < 0) { setPartialQtyMap(prev => ({ ...prev, [o.id]: "0" })); return; }
+                              setPartialQtyMap(prev => ({ ...prev, [o.id]: raw }));
+                            }}
+                            className={`h-7 w-20 rounded border bg-background px-2 text-xs text-center ${
+                              partialQtyMap[o.id] === "" || partialQtyMap[o.id] === undefined
+                                ? "border-border text-muted-foreground"
+                                : parseInt(partialQtyMap[o.id]) > 0
+                                  ? "border-teal-400 text-teal-600"
+                                  : "border-amber-400 text-amber-600"
+                            }`}
+                            placeholder="0"
+                          />
+                          <span className="text-[10px] text-muted-foreground">
+                            {partialQtyMap[o.id] === "" || partialQtyMap[o.id] === undefined
+                              ? "اتركها 0 إذا لم يُستلم"
+                              : parseInt(partialQtyMap[o.id]) > 0
+                                ? "✓ سيُسجَّل كاستلام جزئي"
+                                : "لم يُستلم — سيبقى عند الشحن"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* حالة الباقي من الاستلام الجزئي — تظهر فقط لما يختار "استلام جزئي" */}
+            {bulkStatus === "partial_received" && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">الباقي عند شركة الشحن؟ <span className="text-destructive">*</span></p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPartialReturnReceived(false)}
+                    className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                      partialReturnReceived === false
+                        ? "border-amber-500 bg-amber-900/30 text-amber-300"
+                        : "border-border text-muted-foreground hover:bg-muted/20"
+                    }`}
+                  >
+                    <span className="text-base">🚚</span>
+                    <span>مازال عند الشحن</span>
+                    <span className="text-[9px] font-normal opacity-70">سيُرحَّل للبيان الجديد</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPartialReturnReceived(true)}
+                    className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                      partialReturnReceived === true
+                        ? "border-emerald-500 bg-emerald-900/30 text-emerald-300"
+                        : "border-border text-muted-foreground hover:bg-muted/20"
+                    }`}
+                  >
+                    <span className="text-base">✅</span>
+                    <span>تم استلامه في المخزن</span>
+                    <span className="text-[9px] font-normal opacity-70">يُعاد للمخزن تلقائياً</span>
+                  </button>
+                </div>
+                {partialReturnReceived === null && (
+                  <p className="text-[10px] text-destructive font-medium">⚠ يجب اختيار حالة الباقي قبل الحفظ</p>
+                )}
+              </div>
+            )}
+
+            {/* حالة استلام المرتجع — تظهر فقط لما المستخدم يختار "مرتجع" */}
+            {bulkStatus === "returned" && (
+              <div className="space-y-2">
+                {/* سبب الإرجاع */}
+                <div className="w-full sm:w-auto">
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
+                  <Select value={bulkReturnReason} onValueChange={setBulkReturnReason}>
+                    <SelectTrigger className="h-8 text-xs w-full sm:w-52 bg-background border-red-800/60 focus:ring-red-700">
+                      <SelectValue placeholder="اختر السبب..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RETURN_REASONS.map(r => (
+                        <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل تم استلام المرتجع؟</p>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setBulkReturnReceived(true)}
+                    className="flex-1 relative outline-none cursor-pointer p-0 border-0 bg-transparent select-none"
+                    style={{ borderRadius: 18 }}>
+                    <div className="absolute inset-0 rounded-[18px] transition-all duration-150" style={{
+                      background: bulkReturnReceived === true ? "linear-gradient(175deg,#043d2a 0%,#021f15 100%)" : "linear-gradient(175deg,#065c3e 0%,#033d28 100%)",
+                      boxShadow: bulkReturnReceived === true ? "0 1px 0 #010f09, 0 0 0 1.5px rgba(0,180,100,0.18)" : "0 5px 0 #032918, 0 0 0 1.5px rgba(0,180,100,0.22), 0 8px 20px rgba(0,180,100,0.12)",
+                    }} />
+                    <div className="relative z-10 flex flex-col items-center gap-1 px-3 pt-4 pb-3.5 rounded-[18px] overflow-hidden transition-all duration-150" style={{
+                      background: bulkReturnReceived === true ? "linear-gradient(155deg,#0d8f62 0%,#09714c 55%,#065539 100%)" : "linear-gradient(155deg,#12c482 0%,#0daa6e 55%,#098f5b 100%)",
+                      border: bulkReturnReceived === true ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.14)",
+                      boxShadow: bulkReturnReceived === true ? "inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)" : "inset 0 -4px 8px rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.28)",
+                      transform: bulkReturnReceived === true ? "translateY(4px)" : "translateY(0)",
+                    }}>
+                      <div className="absolute left-1/2 -translate-x-1/2 w-14 h-5 rounded-full" style={{ background: "radial-gradient(ellipse,rgba(180,255,220,0.38) 0%,transparent 75%)", top: 6 }} />
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center mb-0.5" style={{ background: bulkReturnReceived === true ? "radial-gradient(circle,rgba(0,0,0,0.25) 0%,rgba(0,0,0,0.35) 100%)" : "radial-gradient(circle,rgba(0,0,0,0.12) 0%,rgba(0,0,0,0.22) 100%)", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3), 0 0 12px rgba(20,220,140,0.3)" }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c6f6d5" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(134,239,172,0.85))" }}>
+                          <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                      </div>
+                      <span className="text-[12.5px] font-black leading-tight tracking-tight" style={{ color: bulkReturnReceived === true ? "#a7f3d0" : "#d1fae5", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>تم استلام المرتجع</span>
+                      <span className="text-[9.5px] font-medium leading-tight" style={{ color: bulkReturnReceived === true ? "rgba(167,243,208,0.65)" : "rgba(209,250,229,0.7)" }}>يُعاد للمخزن تلقائياً</span>
+                    </div>
+                  </button>
+                  <button type="button" onClick={() => setBulkReturnReceived(false)}
+                    className="flex-1 relative outline-none cursor-pointer p-0 border-0 bg-transparent select-none"
+                    style={{ borderRadius: 18 }}>
+                    <div className="absolute inset-0 rounded-[18px] transition-all duration-150" style={{
+                      background: bulkReturnReceived === false ? "linear-gradient(175deg,#4a2204 0%,#2e1502 100%)" : "linear-gradient(175deg,#7c3d08 0%,#4f2804 100%)",
+                      boxShadow: bulkReturnReceived === false ? "0 1px 0 #180900, 0 0 0 1.5px rgba(200,130,20,0.2)" : "0 5px 0 #3e1d03, 0 0 0 1.5px rgba(200,140,30,0.25), 0 8px 20px rgba(200,140,30,0.12)",
+                    }} />
+                    <div className="relative z-10 flex flex-col items-center gap-1 px-3 pt-4 pb-3.5 rounded-[18px] overflow-hidden transition-all duration-150" style={{
+                      background: bulkReturnReceived === false ? "linear-gradient(155deg,#b8860b 0%,#996b08 55%,#7a5406 100%)" : "linear-gradient(155deg,#e8a820 0%,#c98e14 55%,#a87010 100%)",
+                      border: bulkReturnReceived === false ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(255,255,255,0.15)",
+                      boxShadow: bulkReturnReceived === false ? "inset 0 -4px 8px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.1)" : "inset 0 -4px 8px rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.30)",
+                      transform: bulkReturnReceived === false ? "translateY(4px)" : "translateY(0)",
+                    }}>
+                      <div className="absolute left-1/2 -translate-x-1/2 w-14 h-5 rounded-full" style={{ background: "radial-gradient(ellipse,rgba(255,240,160,0.38) 0%,transparent 75%)", top: 6 }} />
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center mb-0.5" style={{ background: bulkReturnReceived === false ? "radial-gradient(circle,rgba(0,0,0,0.28) 0%,rgba(0,0,0,0.38) 100%)" : "radial-gradient(circle,rgba(0,0,0,0.12) 0%,rgba(0,0,0,0.22) 100%)", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.32), 0 0 12px rgba(220,170,20,0.3)" }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fef3c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(253,230,138,0.85))" }}>
+                          <rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/>
+                          <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                        </svg>
+                      </div>
+                      <span className="text-[12.5px] font-black leading-tight tracking-tight" style={{ color: bulkReturnReceived === false ? "#fde68a" : "#fff8e1", textShadow: "0 1px 3px rgba(0,0,0,0.55)" }}>مازال في الشحن</span>
+                      <span className="text-[9.5px] font-medium leading-tight" style={{ color: bulkReturnReceived === false ? "rgba(253,230,138,0.65)" : "rgba(255,248,225,0.72)" }}>لن يؤثر على المخزن</span>
+                    </div>
+                  </button>
+                </div>
+                <p className="text-[10px] text-center font-medium" style={{ color: bulkReturnReceived === true ? "#0F6E56" : bulkReturnReceived === false ? "#854F0B" : "var(--color-text-secondary)" }}>
+                  {bulkReturnReceived === true && "✓ سيتم إرجاع البضاعة للمخزن تلقائياً"}
+                  {bulkReturnReceived === false && "⏳ مرتجع مازال في شركة الشحن — لن يؤثر على المخزن"}
+                  {bulkReturnReceived === null && "⚠ يجب اختيار حالة استلام المرتجع قبل الحفظ"}
+                </p>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-[10px] mb-1 block text-muted-foreground">
+                {needsBulkNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
+              </Label>
+              <Input
+                value={bulkNote}
+                onChange={(e) => setBulkNote(e.target.value)}
+                className="h-8 text-xs bg-background"
+                placeholder={
+                  bulkStatus === "postponed" ? "مثال: العميل طلب التأجيل..."
+                  : bulkStatus === "returned" ? "مثال: العميل رفض الاستلام..."
+                  : "ملاحظة (اختياري)..."
+                }
+              />
+            </div>
+            <div className="flex gap-2 justify-between items-center">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+                onClick={() => setConfirmCancel(true)}
+                disabled={cancelGroupMutation.isPending}
+              >
+                <Trash2 className="w-3 h-3" />
+                إلغاء من البيان
+              </Button>
+              <Button
+                size="sm"
+                className="h-7 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
+                onClick={() => bulkMutation.mutate()}
+                disabled={
+                  bulkMutation.isPending ||
+                  (needsBulkNote && !bulkNote.trim()) ||
+                  (bulkStatus === "returned" && bulkReturnReceived === null) ||
+                  (bulkStatus === "partial_received" && partialReturnReceived === null) ||
+                  (!isPerItemMode && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
+                    partialQtyMap[group[0].id] === "" || partialQtyMap[group[0].id] === undefined
+                  )) ||
+                  (isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && !group.some(o => {
+                    const val = partialQtyMap[o.id];
+                    return val !== "" && val !== undefined && val !== null && parseInt(val) > 0;
+                  })) ||
+                  (isPerItemMode && bulkStatus !== "partial_received" && group.some(o =>
+                    perOrderStatus[o.id] === "partial_received" &&
+                    (partialQtyMap[o.id] === "" || partialQtyMap[o.id] === undefined)
+                  ))
+                }
+              >
+                <Save className="w-3 h-3" />
+                {bulkMutation.isPending ? "جاري الحفظ..." : "حفظ"}
+              </Button>
+            </div>
+            <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>إلغاء الفاتورة من البيان</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    هل أنت متأكد من إلغاء فاتورة <strong>{rep.customerName}</strong> ({group.length > 1 ? `${group.length} منتجات` : rep.product}) من البيان؟
+                    <br />سيتم إرجاع جميع طلبياتها لحالة &quot;انتظار&quot; وإلغاء تأثيرها على المخزون.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => { setConfirmCancel(false); cancelGroupMutation.mutate(); }}
+                  >
+                    نعم، إلغاء الفاتورة
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
+      </div>
+
+      {/* Expanded: product cards */}
+      {expanded && (
+        <div className="px-4 pb-3 pt-1 flex flex-col gap-2 bg-muted/5 border-t border-border/20">
+          {group.map((order) => {
+            const variant = [order.color, order.size].filter(Boolean).join(" / ");
+            const unitPrice = order.quantity > 0 ? order.totalPrice / order.quantity : 0;
+            const opt = deliveryOpt(order.deliveryStatus as DeliveryStatus, isShipmentManifest);
+            const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
+            return (
+              <div
+                key={order.id}
+                className="rounded-lg border border-border/50 bg-background/60 px-3 py-2.5 flex flex-col gap-1.5"
+              >
+                {/* رأس الكارت: اسم المنتج + حالة التسليم */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold truncate">{order.product || "—"}</p>
+                    {variant && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{variant}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${opt.bg} ${opt.color}`}>
+                    {opt.label}
+                  </Badge>
+                </div>
+
+                {/* صف الأرقام: الكمية / سعر الوحدة / الإجمالي */}
+                <div className="grid grid-cols-3 gap-2 text-center bg-muted/30 rounded-md py-1.5">
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">الكمية</p>
+                    <p className="text-xs font-bold">
+                      {isPartial && order.partialQuantity != null ? (
+                        <>
+                          <span className="text-teal-500">{order.partialQuantity}</span>
+                          <span className="text-muted-foreground">/{order.quantity}</span>
+                        </>
+                      ) : order.quantity}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">سعر الوحدة</p>
+                    <p className="text-xs font-bold">{formatCurrency(unitPrice)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">الإجمالي</p>
+                    <p className="text-xs font-bold text-primary">{formatCurrency(order.totalPrice)}</p>
+                  </div>
+                </div>
+
+                {/* بيانات إضافية: رقم الفاتورة + تاريخ الإضافة */}
+                {(order.invoiceNumber || (order as any).addedAt) && (
+                  <div className="flex items-center gap-2 flex-wrap text-[9px] text-muted-foreground">
+                    {order.invoiceNumber && (
+                      <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">{order.invoiceNumber}</span>
+                    )}
+                    {(order as any).addedAt && (
+                      <span>أُضيف {format(new Date((order as any).addedAt), "yyyy/MM/dd HH:mm")}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* ملاحظة التسليم الخاصة بهذا المنتج */}
+                {order.deliveryNote && (
+                  <p className="text-[10px] text-orange-400 font-medium">
+                    ⏸ {order.deliveryNote}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function InvoicePriceEditor({
+  manifestId,
+  current,
+  currentNotes,
+  isShipmentManifest = false,
+  onSaved,
+}: {
+  manifestId: number;
+  current: number | null;
+  currentNotes: string | null;
+  isShipmentManifest?: boolean;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [price, setPrice] = useState(current?.toString() ?? "");
+  const [notes, setNotes] = useState(currentNotes ?? "");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      isShipmentManifest
+        ? shipmentManifestsApi.update(manifestId, {
+            invoicePrice: price ? parseFloat(price) : null,
+            notes: notes.trim() || null,
+          })
+        : manifestsApi.update(manifestId, {
+            invoicePrice: price ? parseFloat(price) : null,
+            invoiceNotes: notes.trim() || null,
+          }),
+    onSuccess: () => {
+      toast({ title: "تم حفظ سعر الفاتورة" });
+      setEditing(false);
+      onSaved();
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <div>
+          {current != null ? (
+            <span className="text-lg font-black text-primary">
+              {formatCurrency(current)}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">لم يُحدَّد بعد</span>
+          )}
+          {currentNotes && (
+            <p className="text-[10px] text-muted-foreground">{currentNotes}</p>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setPrice(current?.toString() ?? "");
+            setNotes(currentNotes ?? "");
+            setEditing(true);
+          }}
+        >
+          <Edit2 className="w-3 h-3" />تعديل
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          step="0.01"
+          min={0}
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          className="h-8 text-sm w-36 bg-background"
+          placeholder="0.00"
+          autoFocus
+        />
+        <span className="text-xs text-muted-foreground">ج.م</span>
+        <Button
+          size="sm"
+          className="h-7 text-xs gap-1 bg-primary text-primary-foreground"
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+        >
+          <Check className="w-3 h-3" />حفظ
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setEditing(false)}
+        >
+          <X className="w-3 h-3" />
+        </Button>
+      </div>
+      <Input
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        className="h-8 text-xs bg-background"
+        placeholder="ملاحظات الفاتورة (اختياري)..."
+      />
+    </div>
+  );
+}
+
+function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { manifest: ShippingManifestDetail; onSaved: () => void; isShipmentManifest?: boolean }) {
+  const { toast } = useToast();
+  const s = manifest.stats;
+  const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
+
+  // تكلفة الشحن الفعلية = اليدوية لو موجودة، وإلا من الأوردرات
+  const effectiveShippingCost = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0);
+  const hasManualCost = manifest.manualShippingCost != null;
+
+  const deliveredTotal = s.deliveredGross;
+  // صافي الربح الحقيقي = إجمالي الإيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع
+  const netProfit = s.totalRevenue - s.totalCost - effectiveShippingCost - s.returnLosses;
+  const netBeforeInvoice = deliveredTotal - effectiveShippingCost;
+  const balance = invoicePrice > 0 ? invoicePrice - netBeforeInvoice : null;
+
+  // editor state
+  const [editingShipping, setEditingShipping] = useState(false);
+  const [shippingVal, setShippingVal] = useState(manifest.manualShippingCost?.toString() ?? "");
+
+  const shippingMutation = useMutation({
+    mutationFn: (val: string) => {
+      const parsed = val.trim() === "" ? null : parseFloat(val);
+      if (parsed !== null && isNaN(parsed)) throw new Error("قيمة غير صحيحة");
+      return isShipmentManifest
+        ? shipmentManifestsApi.update(manifest.id, { invoicePrice: parsed })
+        : manifestsApi.update(manifest.id, { manualShippingCost: parsed });
+    },
+    onSuccess: () => {
+      toast({ title: "تم حفظ تكلفة الشحن" });
+      setEditingShipping(false);
+      onSaved();
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Card className="border-primary/30 bg-primary/5 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Receipt className="w-4 h-4 text-primary" />
+        <h2 className="font-bold text-sm">بيان التسوية — الحساب مع شركة الشحن</h2>
+        {manifest.status === "closed" && (
+          <Badge variant="outline" className="text-[9px] border-emerald-500 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 mr-auto">
+            مُغلق
+          </Badge>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div className="bg-card rounded-md p-3 border border-border">
+          <p className="text-[10px] text-muted-foreground mb-1">إجمالي المسلَّم</p>
+          <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(deliveredTotal)}</p>
+          <p className="text-[10px] text-emerald-700 dark:text-emerald-600">{s.delivered} طلبية</p>
+        </div>
+        <div className={`bg-card rounded-md p-3 border ${hasManualCost ? "border-amber-500/40" : effectiveShippingCost === 0 ? "border-dashed border-amber-500/40" : "border-border"}`}>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] text-muted-foreground">رسوم الشحن</p>
+            {!editingShipping && (
+              <button
+                onClick={() => { setShippingVal(manifest.manualShippingCost?.toString() ?? ""); setEditingShipping(true); }}
+                className="text-[9px] text-primary hover:underline"
+              >
+                {hasManualCost ? "تعديل" : "إضافة يدوي"}
+              </button>
+            )}
+          </div>
+          {editingShipping ? (
+            <div className="flex items-center gap-1 mt-1">
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={shippingVal}
+                onChange={e => setShippingVal(e.target.value)}
+                className="h-7 text-xs w-28 bg-background"
+                placeholder="0.00"
+                autoFocus
+              />
+              <span className="text-[10px] text-muted-foreground">ج.م</span>
+              <button onClick={() => shippingMutation.mutate(shippingVal)} disabled={shippingMutation.isPending}
+                className="text-[10px] text-emerald-500 hover:text-emerald-400 font-bold px-1">
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => setEditingShipping(false)} className="text-[10px] text-muted-foreground hover:text-foreground px-1">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-base font-black text-amber-700 dark:text-amber-400">
+                −{formatCurrency(effectiveShippingCost)}
+              </p>
+              {hasManualCost ? (
+                <p className="text-[10px] text-amber-600">يدوي ✏️</p>
+              ) : effectiveShippingCost === 0 ? (
+                <p className="text-[10px] text-muted-foreground/60">لم تُحدَّد — اضغط إضافة</p>
+              ) : (
+                <p className="text-[10px] text-amber-600">مُخصومة</p>
+              )}
+            </>
+          )}
+        </div>
+        <div className="bg-card rounded-md p-3 border border-border">
+          <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق من الشركة</p>
+          <p className="text-base font-black text-primary">{formatCurrency(netBeforeInvoice)}</p>
+          <p className="text-[10px] text-muted-foreground">إيرادات − شحن</p>
+        </div>
+        <div className={`rounded-md p-3 border ${manifest.invoicePrice != null ? "bg-card border-border" : "bg-muted/20 border-dashed border-border"}`}>
+          <p className="text-[10px] text-muted-foreground mb-1">سعر الفاتورة المتفق</p>
+          {manifest.invoicePrice != null ? (
+            <>
+              <p className="text-base font-black">{formatCurrency(manifest.invoicePrice)}</p>
+              <p className="text-[10px] text-muted-foreground">المبلغ المتفق</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground/50">غير محدد</p>
+          )}
         </div>
       </div>
+
+      {/* صافي الربح الحقيقي = إيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع */}
+      <div className={`rounded-md p-4 border flex items-center justify-between ${netProfit >= 0 ? "border-emerald-700/40 bg-emerald-900/10" : "border-red-700/40 bg-red-900/10"}`}>
+        <div>
+          <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
+          <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {formatCurrency(netProfit)}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {formatCurrency(s.totalRevenue)} إيرادات
+            &nbsp;−&nbsp;{formatCurrency(s.totalCost)} تكلفة بضاعة
+            &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
+            {s.returnLosses > 0 && <>&nbsp;−&nbsp;{formatCurrency(s.returnLosses)} خسائر مرتجع</>}
+          </p>
+        </div>
+        {netProfit >= 0
+          ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
+          : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
+      </div>
+
+      {/* Balance */}
+      {balance !== null && (
+        <div className={`rounded-md p-3 border flex items-center justify-between ${balance >= 0 ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10" : "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/10"}`}>
+          <div>
+            <p className={`text-xs font-bold mb-0.5 ${balance >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+              {balance >= 0 ? "✓ فرق لصالحنا" : "⚠ فرق على حسابنا"}
+            </p>
+            <p className={`text-xl font-black ${balance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+              {formatCurrency(Math.abs(balance))}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              الفاتورة ({formatCurrency(invoicePrice)}) {balance >= 0 ? "أعلى" : "أقل"} من الصافي ({formatCurrency(netBeforeInvoice)})
+            </p>
+          </div>
+          {balance >= 0
+            ? <TrendingUp className="w-10 h-10 text-emerald-500 dark:text-emerald-400 opacity-20" />
+            : <AlertTriangle className="w-10 h-10 text-red-500 dark:text-red-400 opacity-20" />}
+        </div>
+      )}
+
+      {manifest.invoiceNotes && (
+        <p className="text-xs text-muted-foreground mt-3 border-t border-border pt-3">
+          ملاحظات الفاتورة: {manifest.invoiceNotes}
+        </p>
+      )}
     </Card>
   );
 }
 
-// ── رأس عمود قابل للفلترة والترتيب زي الإكسيل ────────────────────────────
-function ColumnHeader({
-  label, col, enabled, values, active, open, onToggleOpen, onToggleValue, onClear,
-  sortable, sortActive, sortDir, onSort,
+function CloseConfirmDialog({
+  manifest,
+  onClose,
+  onConfirm,
+  loading,
 }: {
-  label: string;
-  col: string;
-  enabled: boolean;
-  values: string[];
-  active?: Set<string>;
-  open: boolean;
-  onToggleOpen: () => void;
-  onToggleValue: (col: string, value: string) => void;
-  onClear: (col: string) => void;
-  sortable?: boolean;
-  sortActive?: boolean;
-  sortDir?: "asc" | "desc";
-  onSort?: () => void;
+  manifest: ShippingManifestDetail;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading: boolean;
 }) {
-  const hasActive = !!active && active.size > 0;
-  return (
-    <div className="relative flex items-center gap-1.5">
-      {sortable ? (
-        <button
-          onClick={onSort}
-          className="flex items-center gap-1 hover:text-primary transition-colors"
-        >
-          <span>{label}</span>
-          {sortActive ? (
-            sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-          ) : (
-            <ArrowUpDown className="w-3 h-3 opacity-30" />
-          )}
-        </button>
-      ) : (
-        <span>{label}</span>
-      )}
-      {enabled && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleOpen(); }}
-          className={`p-0.5 rounded hover:bg-muted/40 ${hasActive ? "text-primary" : "text-muted-foreground"}`}
-          title="فلترة"
-        >
-          <ListFilter className="w-3 h-3" />
-        </button>
-      )}
-      {enabled && open && (
-        <div
-          className="absolute top-full right-0 mt-1 z-20 w-52 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg p-2 text-[11px] font-normal"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="font-bold">فلترة {label}</span>
-            {hasActive && (
-              <button className="text-muted-foreground hover:text-foreground flex items-center gap-0.5" onClick={() => onClear(col)}>
-                <X className="w-3 h-3" /> مسح
-              </button>
-            )}
-          </div>
-          <div className="space-y-1">
-            {values.map((v) => (
-              <label key={v} className="flex items-center gap-2 cursor-pointer hover:bg-muted/20 rounded px-1 py-0.5">
-                <input
-                  type="checkbox"
-                  checked={active ? active.has(v) : false}
-                  onChange={() => onToggleValue(col, v)}
-                  className="accent-primary"
-                />
-                <span className="truncate">{v}</span>
-              </label>
-            ))}
-            {values.length === 0 && <p className="text-muted-foreground text-center py-2">لا يوجد قيم</p>}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+  const s = manifest.stats;
 
-// ── أفاتار حرف أول من اسم العميل ──────────────────────────────────────────
-const AVATAR_PALETTE = [
-  "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444",
-  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#3b82f6",
-];
-function nameToColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-}
-function ClientAvatar({ name, avatar }: { name: string; avatar?: string | null }) {
-  const color = nameToColor(name || "?");
-  const letter = (name || "?").trim().charAt(0);
-  if (avatar && avatar.startsWith("data:")) {
-    return (
-      <img
-        src={avatar}
-        alt={name || "عميل"}
-        className="w-7 h-7 rounded-full object-cover shrink-0 border border-border"
-      />
-    );
-  }
-  return (
-    <div
-      className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
-      style={{ background: `${color}22`, color, border: `1px solid ${color}44` }}
-    >
-      {letter}
-    </div>
-  );
-}
-
-// ── صف بيانات فى كارت تفاصيل الأوردر ──────────────────────────────────────
-function DetailRow({ icon: Icon, label, value, highlight, color }: {
-  icon: any; label: string; value: any; highlight?: boolean; color?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5 px-1 border-b border-border/40 last:border-b-0">
-      <span className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-        <Icon className="w-3.5 h-3.5" style={color ? { color } : undefined} />
-        {label}
-      </span>
-      <span className={`text-sm text-left truncate ${highlight ? "font-black" : "font-bold"}`} style={color ? { color } : undefined}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-type SearchMatch = { name: string; phone: string; shipmentsCount: number };
-
-type ClientRow = {
-  id: number; name: string; phone: string; city: string | null; avatar?: string | null;
-  shipmentsCount: number; totalAmount: number; collectedAmount: number; remainingAmount: number;
-  lastOrderAt: string;
-  delivered: number; partial: number; returned: number; deliveryRate: number;
-};
-
-// ── شريط نسبة التسليم — زي كارت شركات الشحن ────────────────────────────────
-function DeliveryBar({ rate }: { rate: number }) {
-  const color = rate >= 70 ? "bg-emerald-500" : rate >= 40 ? "bg-amber-500" : "bg-red-500";
-  const textColor = rate >= 70 ? "text-emerald-400" : rate >= 40 ? "text-amber-400" : "text-red-400";
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] text-muted-foreground">نسبة التسليم</span>
-        <span className={`text-xs font-black ${textColor}`}>{rate}%</span>
-      </div>
-      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${rate}%` }} />
-      </div>
-    </div>
-  );
-}
-
-export default function ClientAccountSheetPage() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [, navigate] = useLocation();
-
-  const [activePhone, setActivePhone] = useState("");
-  const [matches, setMatches] = useState<SearchMatch[] | null>(null);
-  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
-  const [closeNotes, setCloseNotes] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [collectedInput, setCollectedInput] = useState("");
-  const [tableFilter, setTableFilter] = useState("");
-  const [filtersEnabled, setFiltersEnabled] = useState(false);
-  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
-  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
-  const [sortCol, setSortCol] = useState<keyof ClientRow>("name");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
-  const [detailOrder, setDetailOrder] = useState<SheetOrder | null>(null);
-
-  const hasSearch = !!activePhone;
-
-  const { data, isLoading, isFetching } = useQuery<SheetResponse>({
-    queryKey: ["client-account-sheet", activePhone],
-    queryFn: () => apiFetch<SheetResponse>(`/client-account-sheet/orders?phone=${encodeURIComponent(activePhone)}`),
-    enabled: hasSearch,
-  });
-
-  // كل العملاء — بتتحمّل لما لسه مفيش بحث نشط، وبتتفلتر محليًا فورًا مع الكتابة
-  const { data: allClientsData, isLoading: isLoadingAllClients } = useQuery<{ clients: ClientRow[] }>({
-    queryKey: ["client-account-sheet-all-clients"],
-    queryFn: () => apiFetch<{ clients: ClientRow[] }>("/client-account-sheet/all-clients"),
-    enabled: !hasSearch,
-  });
-
-  const filteredClients = useMemo(() => {
-    let list = allClientsData?.clients ?? [];
-    const q = tableFilter.trim();
-    if (q) {
-      const qNorm = q.replace(/\D/g, "");
-      list = list.filter((c) =>
-        c.name?.toLowerCase().includes(q.toLowerCase()) ||
-        (qNorm && c.phone?.replace(/\D/g, "").includes(qNorm)) ||
-        (!qNorm && c.phone?.includes(q))
-      );
-    }
-    for (const [col, values] of Object.entries(columnFilters)) {
-      if (!values || values.size === 0) continue;
-      list = list.filter((c) => values.has(String((c as any)[col] ?? "—")));
-    }
-    const sorted = [...list].sort((a, b) => {
-      const va = a[sortCol];
-      const vb = b[sortCol];
-      let cmp: number;
-      if (typeof va === "number" && typeof vb === "number") cmp = va - vb;
-      else cmp = String(va ?? "").localeCompare(String(vb ?? ""), "ar");
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return sorted;
-  }, [allClientsData, tableFilter, columnFilters, sortCol, sortDir]);
-
-  const toggleSort = (col: keyof ClientRow) => {
-    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortCol(col); setSortDir("asc"); }
-  };
-
-  // القيم الفريدة لكل عمود، لبناء قائمة الفلتر زي الإكسيل
-  const columnValues = useMemo(() => {
-    const list = allClientsData?.clients ?? [];
-    const cols = ["name", "phone", "city"] as const;
-    const map: Record<string, string[]> = {};
-    for (const col of cols) {
-      const set = new Set<string>();
-      for (const c of list) set.add(String((c as any)[col] ?? "—"));
-      map[col] = Array.from(set).sort((a, b) => a.localeCompare(b, "ar"));
+  // احسب الإحصائيات على مستوى الفواتير (مش الطلبات الفردية)
+  const invoiceStatusMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const priority: Record<string, number> = {
+      returned: 5, postponed: 4, delayed: 4,
+      partial_received: 3, partial_delivered: 3,
+      pending: 2, delivered: 1,
+    };
+    for (const o of manifest.orders) {
+      const key = (o as any).invoiceNumber?.trim() || `solo-${o.id}`;
+      const existing = map.get(key);
+      const existingP = existing ? (priority[existing] ?? 0) : 0;
+      const newP = priority[o.deliveryStatus] ?? 0;
+      if (newP > existingP) map.set(key, o.deliveryStatus);
     }
     return map;
-  }, [allClientsData]);
+  }, [manifest.orders]);
 
-  const toggleColumnFilterValue = (col: string, value: string) => {
-    setColumnFilters((prev) => {
-      const next = { ...prev };
-      const current = new Set(next[col] ?? []);
-      if (current.has(value)) current.delete(value);
-      else current.add(value);
-      next[col] = current;
-      return next;
-    });
-  };
-
-  const clearColumnFilter = (col: string) => {
-    setColumnFilters((prev) => {
-      const next = { ...prev };
-      delete next[col];
-      return next;
-    });
-  };
-
-  // اختيار مباشر برقم تليفون (مفتاح دقيق)
-  const selectPhone = (phone: string) => {
-    setMatches(null);
-    setActivePhone(phone.trim());
-  };
-
-  const collectedMutation = useMutation({
-    mutationFn: ({ id, amount }: { id: number; amount: number | null }) =>
-      apiFetch(`/client-account-sheet/orders/${id}/collected`, {
-        method: "PATCH",
-        body: JSON.stringify({ collectedAmount: amount }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["client-account-sheet"] });
-      toast({ title: "تم تحديث المبلغ المحصَّل" });
-      setEditingId(null);
-    },
-    onError: (e: any) => toast({ title: "حصل خطأ", description: e.message, variant: "destructive" }),
-  });
-
-  const closeMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<{ success: boolean; remainingDelayedCount: number }>("/client-account-sheet/close", {
-        method: "POST",
-        body: JSON.stringify({ phone: activePhone, notes: closeNotes || null }),
-      }),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["client-account-sheet"] });
-      toast({
-        title: "تم إقفال الحساب",
-        description: res.remainingDelayedCount > 0
-          ? `فاضل ${res.remainingDelayedCount} أوردر مؤجل لسه شغال في مركز العمليات`
-          : "كل الأوردرات اتقفلت",
-      });
-      setCloseDialogOpen(false);
-      setCloseNotes("");
-    },
-    onError: (e: any) => toast({ title: "حصل خطأ فى الإقفال", description: e.message, variant: "destructive" }),
-  });
-
-  const handlePrint = () => window.print();
-
-  // ── تصدير Excel — بنفس شكل شيت STARK (تقفيل رحلة/حساب) ─────────────────
-  const exportExcel = async () => {
-    if (!data?.client || !data.orders?.length) {
-      toast({ title: "مفيش بيانات للتصدير", variant: "destructive" });
-      return;
+  const invoiceCounts = useMemo(() => {
+    let pending = 0, postponed = 0, returned = 0, partial = 0, delivered = 0;
+    for (const status of invoiceStatusMap.values()) {
+      if (status === "pending") pending++;
+      else if (status === "postponed" || status === "delayed") postponed++;
+      else if (status === "returned") returned++;
+      else if (status === "partial_received" || status === "partial_delivered") partial++;
+      else if (status === "delivered") delivered++;
     }
+    return { pending, postponed, returned, partial, delivered };
+  }, [invoiceStatusMap]);
+
+  const pendingCount = invoiceCounts.pending;
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="bg-card border-border max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-right flex items-center gap-2">
+            <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            إغلاق البيان {manifest.manifestNumber}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 mt-2">
+          {pendingCount > 0 && (
+            <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                يوجد <strong>{pendingCount}</strong> طلبية لم يُحدَّد وضعها بعد. هل تريد الإغلاق رغم ذلك؟
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-2 rounded-md bg-muted/20 border border-border">
+              <p className="text-muted-foreground">إجمالي الطلبيات</p>
+              <p className="font-bold text-base">{s.total}</p>
+            </div>
+            <div className="p-2 rounded-md bg-emerald-900/10 border border-emerald-700">
+              <p className="text-emerald-400">مسلَّم</p>
+              <p className="font-bold text-base text-emerald-400">{s.delivered}</p>
+            </div>
+            <div className="p-2 rounded-md bg-orange-900/10 border border-orange-700">
+              <p className="text-orange-400">مؤجل</p>
+              <p className="font-bold text-base text-orange-400">
+                {invoiceCounts.postponed}
+              </p>
+            </div>
+            <div className="p-2 rounded-md bg-red-900/10 border border-red-700">
+              <p className="text-red-400">مرتجع</p>
+              <p className="font-bold text-base text-red-400">{s.returned}</p>
+              {(() => {
+                const atShipping = manifest.orders.filter(o => o.deliveryStatus === "returned" && (o as any).returnReceived === 0).length;
+                const atWarehouse = manifest.orders.filter(o => o.deliveryStatus === "returned" && (o as any).returnReceived === 1).length;
+                return (
+                  <>
+                    {atShipping > 0 && <p className="text-[9px] text-orange-400">🚚 عند الشحن: {atShipping}</p>}
+                    {atWarehouse > 0 && <p className="text-[9px] text-emerald-400">↩ في المخزن: {atWarehouse}</p>}
+                  </>
+                );
+              })()}
+            </div>
+            <div className="p-2 rounded-md bg-teal-900/10 border border-teal-700">
+              <p className="text-teal-400">استلم جزئي</p>
+              <p className="font-bold text-base text-teal-400">
+                {invoiceCounts.partial}
+              </p>
+              {(() => {
+                const partialOrders = manifest.orders.filter(o =>
+                  o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
+                );
+                const totalPartialReturned = partialOrders.reduce((sum, o) => {
+                  const delivered = o.partialQuantity ?? 0;
+                  const remaining = o.quantity - delivered;
+                  return sum + (remaining > 0 ? remaining : 0);
+                }, 0);
+                const atShipping = partialOrders.filter(o => (o as any).returnReceived !== 1).length;
+                const atWarehouse = partialOrders.filter(o => (o as any).returnReceived === 1).length;
+                return (
+                  <>
+                    {totalPartialReturned > 0 && (
+                      <p className="text-[9px] text-red-400 mt-0.5 font-semibold">↩ مرتجع جزئي: {totalPartialReturned} قطعة</p>
+                    )}
+                    {atShipping > 0 && <p className="text-[9px] text-orange-400">🚚 باقي عند الشحن: {atShipping}</p>}
+                    {atWarehouse > 0 && <p className="text-[9px] text-emerald-400">↩ باقي في المخزن: {atWarehouse}</p>}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* ─── صافي المستحق من الشركة ─── */}
+          <div className="space-y-2">
+            <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
+              <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
+              {(() => {
+                const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
+                const due = (s?.deliveredGross ?? 0) - effectiveShipping;
+                return (
+                  <>
+                    <p className="font-black text-lg text-primary">
+                      {formatCurrency(due)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      إيرادات مستلمة ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
+                    </p>
+                  </>
+                );
+              })()}
+              {manifest.invoicePrice != null && (
+                <p className="text-muted-foreground mt-1">
+                  سعر الفاتورة المتفق: {formatCurrency(manifest.invoicePrice)}
+                </p>
+              )}
+            </div>
+            {(s as any).stillAtShippingCount > 0 && (
+              <div className="p-2 rounded-md bg-orange-900/10 border border-orange-700 text-xs flex items-start gap-2">
+                <span className="text-base">🚚</span>
+                <div className="space-y-0.5">
+                  <p className="text-orange-400 font-bold">لسه عند الشحن: {(s as any).stillAtShippingCount} طلبية</p>
+                  {(s as any).stillAtShippingAmount > 0 && (
+                    <p className="text-orange-300 text-[10px]">
+                      💰 مبلغ متوقع (مؤجل فقط): {formatCurrency((s as any).stillAtShippingAmount ?? 0)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="flex gap-2 mt-2">
+          <Button
+            className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white gap-1"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            <Lock className="w-3 h-3" />
+            {loading ? "جاري الإغلاق..." : "تأكيد الإغلاق"}
+          </Button>
+          <Button variant="outline" className="border-border" onClick={onClose}>
+            إلغاء
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Status sort priority — ترتيب أبجدي عربي ────────────────────────────────
+// أ→ي: استلم جزئي(0) ← مرتجع(1) ← مسلَّم(2) ← مؤجل(3) ← قيد الانتظار(4)
+const STATUS_SORT_PRIORITY: Record<string, number> = {
+  partial_received: 0, // استلم جزئي
+  returned:         1, // مرتجع
+  delivered:        2, // مسلَّم
+  postponed:        3, // مؤجل
+  pending:          4, // قيد الانتظار
+};
+
+// ─── Status label helper ──────────────────────────────────────────────────────
+const STATUS_LABEL_AR: Record<string, string> = {
+  delivered:          "مسلَّم",
+  returned:           "مرتجع",
+  postponed:          "مؤجل",
+  delayed:            "مؤجل",
+  partial_received:   "استلم جزئي",
+  partial_delivered:  "مسلَّم جزئي",
+  pending:            "قيد الانتظار",
+};
+
+function getManifestGroupKey(order: ManifestOrder) {
+  return (order as any).invoiceNumber?.trim() || `${order.customerName}__${order.phone ?? ""}__${order.address ?? ""}`;
+}
+
+function groupManifestOrders(orders: ManifestOrder[]) {
+  const groupMap = new Map<string, ManifestOrder[]>();
+  orders.forEach((order) => {
+    const key = getManifestGroupKey(order);
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(order);
+  });
+  return Array.from(groupMap.values());
+}
+
+// ─── Export Dialog (Excel + PDF) ──────────────────────────────────────────────
+function ExportDialog({
+  manifest,
+  onClose,
+}: {
+  manifest: ShippingManifestDetail;
+  onClose: () => void;
+}) {
+  const s = manifest.stats;
+  const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
+  const { brand } = useBrand();
+  const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
+  const manifestGroupPriority: Record<string, number> = {
+    returned: 5,
+    postponed: 4,
+    delayed: 4,
+    partial_received: 3,
+    partial_delivered: 3,
+    pending: 2,
+    delivered: 1,
+  };
+  const groupManifestStatus = (group: ManifestOrder[]) =>
+    group.reduce(
+      (worst, order) =>
+        (manifestGroupPriority[order.deliveryStatus] ?? 0) >
+        (manifestGroupPriority[worst] ?? 0)
+          ? order.deliveryStatus
+          : worst,
+      group[0]?.deliveryStatus ?? "pending"
+    );
+  const groupedPostponedCount = groupedManifestOrders.filter(
+    (group) => groupManifestStatus(group) === "postponed"
+  ).length;
+  const groupedPartialCount = groupedManifestOrders.filter(
+    (group) => ["partial_received", "partial_delivered"].includes(groupManifestStatus(group))
+  ).length;
+  const groupedPendingCount = groupedManifestOrders.filter(
+    (group) => groupManifestStatus(group) === "pending"
+  ).length;
+
+  const safeOrders = manifest.orders ?? [];
+
+  const deliveredGross = safeOrders
+    .filter(o => o.deliveryStatus === "delivered")
+    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+  const partialGross = safeOrders
+    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
+    .reduce((sum, o) => {
+      const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
+      if (returnReceived == null) return sum;
+      if (o.partialQuantity == null || o.quantity <= 0) return sum;
+      const unitPrice = (o as any).unitPrice != null
+        ? Number((o as any).unitPrice)
+        : Number(o.totalPrice) / Number(o.quantity);
+      return sum + Math.round(unitPrice * Number(o.partialQuantity));
+    }, 0);
+  const totalCollected = deliveredGross + partialGross;
+  const netDue = totalCollected - effectiveShipping;
+
+  // ── Excel Export — styled workbook with RTL layout ────────────────────────
+  const exportExcel = async () => {
     const ExcelJS = await import("exceljs");
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "STARK";
+    workbook.creator = "CAPRINA";
     workbook.created = new Date();
+    workbook.modified = new Date();
+
+    const brandName = brand.name || "CAPRINA";
+    const brandTagline = brand.tagline || "";
+    const manifestDate = format(new Date(manifest.createdAt), "yyyy/MM/dd");
+    const printDate = format(new Date(), "yyyy/MM/dd HH:mm");
+    const groupedOrders = groupManifestOrders(manifest.orders ?? []);
+    const fmtMoney = (n: number) => `${Number(n ?? 0).toLocaleString("ar-EG")} ج.م`;
 
     const C = {
-      bg: "FF0B0F19",
+      bg: "FF0F172A",
       panel: "FF1E293B",
-      teal: "FF14B8A6",
-      tealBg: "FFCCFBF1",
+      gold: "FFF59E0B",
       white: "FFFFFFFF",
       offWhite: "FFF8FAFC",
+      slate: "FF64748B",
       darkText: "FF0F172A",
-      green: "FF10B981",
-      red: "FFEF4444",
+      green: "FF15803D",
+      greenBg: "FFD1FAE5",
+      red: "FFDC2626",
       redBg: "FFFEE2E2",
-      amber: "FFF59E0B",
+      amber: "FFD97706",
       amberBg: "FFFEF3C7",
-      blue: "FF3B82F6",
+      teal: "FF0F766E",
+      tealBg: "FFCCFBF1",
       gray: "FF64748B",
       grayBg: "FFF1F5F9",
+      blue: "FF1D4ED8",
     };
-    const makeFill = (argb: string) => ({ type: "pattern" as const, pattern: "solid" as const, fgColor: { argb } });
+
+    const makeFill = (argb: string) => ({
+      type: "pattern" as const,
+      pattern: "solid" as const,
+      fgColor: { argb },
+    });
     const makeBorder = (argb = "FFCBD5E1") => {
       const side = { style: "thin" as const, color: { argb } };
       return { top: side, bottom: side, left: side, right: side };
     };
+    const groupPriority: Record<string, number> = {
+      returned: 5,
+      postponed: 4,
+      delayed: 4,
+      partial_received: 3,
+      partial_delivered: 3,
+      pending: 2,
+      delivered: 1,
+    };
+    const groupStatus = (group: ManifestOrder[]) =>
+      group.reduce((worst, order) =>
+        (groupPriority[order.deliveryStatus] ?? 0) > (groupPriority[worst] ?? 0)
+          ? order.deliveryStatus
+          : worst,
+      group[0]?.deliveryStatus ?? "pending");
+    const groupedTotal = groupedOrders.length;
+    const groupedDelivered = groupedOrders.filter((group) => groupStatus(group) === "delivered").length;
+    const groupedReturned = groupedOrders.filter((group) => groupStatus(group) === "returned").length;
+    const groupedPartial = groupedOrders.filter((group) => ["partial_received", "partial_delivered"].includes(groupStatus(group))).length;
+    const groupedPostponed = groupedOrders.filter((group) => groupStatus(group) === "postponed").length;
+    const groupedPending = groupedOrders.filter((group) => groupStatus(group) === "pending").length;
+    const groupedCompleted = groupedDelivered;
+    const groupedDeliveryRate = groupedTotal > 0 ? Math.round((groupedDelivered / groupedTotal) * 100) : 0;
     const setCell = (cell: any, value: unknown, options?: {
-      fill?: string; font?: Record<string, any>; align?: Record<string, any>; border?: string; numFmt?: string;
+      fill?: string;
+      font?: Record<string, any>;
+      align?: Record<string, any>;
+      border?: string;
+      numFmt?: string;
     }) => {
       cell.value = value as any;
       if (options?.fill) cell.fill = makeFill(options.fill);
@@ -435,170 +2584,278 @@ export default function ClientAccountSheetPage() {
       if (options?.numFmt) cell.numFmt = options.numFmt;
     };
 
-    const ws = workbook.addWorksheet("حسابات العملاء", { views: [{ state: "frozen", ySplit: 5, rightToLeft: true }] });
-    ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
-    ws.pageMargins = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.35, header: 0.15, footer: 0.15 };
-
-    const colCount = 13;
-    ws.columns = [
-      { key: "customer", width: 18 }, { key: "phone", width: 14 }, { key: "city", width: 12 },
-      { key: "address", width: 26 }, { key: "sender", width: 16 }, { key: "warehouse", width: 16 },
-      { key: "agent", width: 14 }, { key: "unit", width: 12 }, { key: "total", width: 12 },
-      { key: "shipping", width: 12 }, { key: "collected", width: 14 }, { key: "status", width: 14 },
-      { key: "notes", width: 22 },
+    // ── Sheet 1: Main manifest ───────────────────────────────────────────────
+    const ws1 = workbook.addWorksheet("الطلبيات", { views: [{ state: "frozen", ySplit: 5, rightToLeft: true }] });
+    ws1.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+    ws1.pageMargins = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.35, header: 0.15, footer: 0.15 };
+    ws1.columns = [
+      { key: "idx",        width: 6  },
+      { key: "customer",   width: 20 },
+      { key: "phone",      width: 14 },
+      { key: "gov",        width: 14 },
+      { key: "address",    width: 30 },
+      { key: "sender",     width: 18 },
+      { key: "cod",        width: 14 },
+      { key: "fee",        width: 12 },
+      { key: "net",        width: 14 },
+      { key: "status",     width: 14 },
+      { key: "note",       width: 24 },
+      { key: "invoice",    width: 16 },
     ];
 
-    const colLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"];
-    const lastCol = colLetters[colCount - 1];
-
-    // ── هيدر الشركة ──────────────────────────────────────────────────────
-    ws.mergeCells(`A1:${lastCol}1`);
-    setCell(ws.getCell("A1"), "STARK", {
-      fill: C.bg, font: { bold: true, size: 20, color: { argb: C.white } },
-      align: { horizontal: "center", vertical: "middle" }, border: C.bg,
+    ws1.mergeCells("A1:L1");
+    setCell(ws1.getCell("A1"), `${brandName}${brandTagline ? `  ·  ${brandTagline}` : ""}`, {
+      fill: C.bg,
+      font: { bold: true, size: 16, color: { argb: C.gold } },
+      align: { horizontal: "center", vertical: "middle" },
+      border: C.bg,
     });
-    ws.getRow(1).height = 32;
+    ws1.getRow(1).height = 28;
 
-    const printDate = new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
-    ws.mergeCells(`A2:${lastCol}2`);
-    setCell(ws.getCell("A2"), `كشف حساب عميل   |   ${printDate}`, {
-      fill: C.bg, font: { bold: true, size: 12, color: { argb: C.teal } },
-      align: { horizontal: "center", vertical: "middle" }, border: C.bg,
+    ws1.mergeCells("A2:L2");
+    setCell(ws1.getCell("A2"), `بيان الشحن — ${manifest.manifestNumber}   |   ${manifest.companyName}   |   ${manifestDate}`, {
+      fill: C.bg,
+      font: { bold: true, size: 12, color: { argb: C.gold } },
+      align: { horizontal: "center", vertical: "middle" },
+      border: C.bg,
     });
-    ws.getRow(2).height = 24;
+    ws1.getRow(2).height = 24;
 
-    ws.mergeCells(`A3:${lastCol}3`);
-    setCell(
-      ws.getCell("A3"),
-      `العميل: ${data.client.name}   |   الفون: ${data.client.phone ?? "—"}   |   المحافظة: ${data.client.city ?? "—"}   |   عدد الأوردرات: ${data.orders.length}`,
-      { fill: C.panel, font: { size: 10, color: { argb: C.white } }, align: { horizontal: "center", vertical: "middle" }, border: "FF334155" },
-    );
-    ws.getRow(3).height = 22;
+    ws1.mergeCells("A3:L3");
+    setCell(ws1.getCell("A3"), `طُبع: ${printDate}   |   إجمالي المسلَّم: ${groupedCompleted} من ${groupedTotal}   |   نسبة التسليم: ${groupedDeliveryRate}%`, {
+      fill: C.panel,
+      font: { size: 10, color: { argb: "FF6B7280" } },
+      align: { horizontal: "center", vertical: "middle" },
+      border: "FF334155",
+    });
+    ws1.getRow(3).height = 22;
 
-    ws.mergeCells(`A4:${lastCol}4`);
-    setCell(ws.getCell("A4"), "", { fill: C.bg, border: C.bg });
-    ws.getRow(4).height = 8;
+    ws1.mergeCells("A4:L4");
+    setCell(ws1.getCell("A4"), "", { fill: C.bg, border: C.bg });
+    ws1.getRow(4).height = 8;
 
-    // ── رؤوس الأعمدة ─────────────────────────────────────────────────────
-    const headers = [
-      "اسم العميل", "الفون", "المحافظة", "العنوان", "اسم الراسل", "الفرع المستلم منه",
-      "المندوب", "سعر الشحنة", "قيمة الشحنة", "قيمة الشحن", "المحصَّل فعلياً", "حالة الأوردر", "ملاحظات",
-    ];
-    const headerRow = ws.getRow(5);
+    const headers = ["#", "اسم العميل", "الهاتف", "المحافظة", "العنوان", "الشركة الراسلة", "سعر الشحنة", "سعر الشحن", "الإجمالي", "حالة التسليم", "ملاحظة", "رقم الشحنة"];
+    const headerRow = ws1.getRow(5);
     headerRow.values = headers;
-    headerRow.height = 26;
+    headerRow.height = 24;
     headerRow.eachCell((cell) => {
       setCell(cell, cell.value, {
-        fill: C.panel, font: { bold: true, color: { argb: C.white }, size: 10 },
-        align: { horizontal: "center", vertical: "middle", wrapText: true }, border: "FF334155",
+        fill: C.panel,
+        font: { bold: true, color: { argb: C.white }, size: 10 },
+        align: { horizontal: "center", vertical: "middle", wrapText: true },
+        border: "FF334155",
       });
     });
 
-    // ── صفوف الأوردرات ───────────────────────────────────────────────────
-    const statusFillMap: Record<string, string> = {
-      delivered: C.green, returned: C.red, delayed: C.amber, partial_received: C.teal,
-      in_transit: C.blue, out_for_delivery: C.blue, picked_up: C.blue,
-      waiting: C.gray, confirmed: C.gray, cancelled: C.gray,
-    };
-    const statusBgMap: Record<string, string> = {
-      delivered: "FFD1FAE5", returned: C.redBg, delayed: C.amberBg, partial_received: C.tealBg,
-      in_transit: "FFDDEBFF", out_for_delivery: "FFDDEBFF", picked_up: "FFDDEBFF",
-      waiting: C.grayBg, confirmed: C.grayBg, cancelled: C.grayBg,
-    };
-
-    data.orders.forEach((o, idx) => {
+    groupedOrders.forEach((group, idx) => {
+      const rep = group[0];
+      const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
+      const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
+      const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+      const net = cod - fee;
+      const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
+      const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
+      const deliveryLabel = statuses.length === 1
+        ? (STATUS_LABEL_AR[statuses[0]] ?? statuses[0])
+        : "حالات متعددة";
+      const notes = [...new Set(group.map((order) => order.deliveryNote).filter(Boolean))].join(" | ");
       const baseFill = idx % 2 === 0 ? C.white : C.offWhite;
-      const row = ws.getRow(idx + 6);
-      row.height = 26;
-      const cfg = STATUS_CFG[o.status];
-      const statusColor = statusFillMap[o.status] ?? C.gray;
-      const statusBg = statusBgMap[o.status] ?? C.grayBg;
+      const baseFont = { color: { argb: C.darkText } };
 
-      setCell(row.getCell(1), o.customerName, { fill: baseFill, font: { bold: true, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle" }, border: "FFD1D5DB" });
-      setCell(row.getCell(2), o.phone ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
-      setCell(row.getCell(3), o.city ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
-      setCell(row.getCell(4), o.address ?? "—", { fill: baseFill, font: { size: 9, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle", wrapText: true }, border: "FFD1D5DB" });
-      setCell(row.getCell(5), o.senderName ?? "—", { fill: baseFill, font: { bold: true, color: { argb: C.blue } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
-      setCell(row.getCell(6), o.warehouseName ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
-      setCell(row.getCell(7), o.assignedUserName ?? "—", { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
-      setCell(row.getCell(8), Number(o.unitPrice ?? 0), { fill: baseFill, font: { color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: '#,##0 "ج.م"' });
-      setCell(row.getCell(9), Number(o.totalPrice ?? 0), { fill: baseFill, font: { bold: true, color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: '#,##0 "ج.م"' });
-      setCell(row.getCell(10), Number(o.shippingCost ?? 0), { fill: baseFill, font: { color: { argb: C.amber } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: '#,##0 "ج.م"' });
-      setCell(row.getCell(11), o.collectedAmount != null ? Number(o.collectedAmount) : "—", { fill: baseFill, font: { bold: true, color: { argb: C.green } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: o.collectedAmount != null ? '#,##0 "ج.م"' : undefined });
-      setCell(row.getCell(12), cfg?.label ?? o.status, { fill: statusBg, font: { bold: true, color: { argb: statusColor } }, align: { horizontal: "center", vertical: "middle" }, border: statusColor });
-      setCell(row.getCell(13), o.notes ?? "", { fill: baseFill, font: { size: 9, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle", wrapText: true }, border: "FFD1D5DB" });
-    });
-
-    // ── صف الإجمالي/الخصم ────────────────────────────────────────────────
-    const totalValue = data.orders.reduce((s, o) => s + Number(o.totalPrice ?? 0), 0);
-    const totalShipping = data.orders.reduce((s, o) => s + Number(o.shippingCost ?? 0), 0);
-    const netDue = totalValue - totalShipping;
-
-    const summaryRowIndex = data.orders.length + 7;
-    const summaryRows = [
-      { row: summaryRowIndex,     label: "خصم قيمة الشحن", value: -totalShipping },
-      { row: summaryRowIndex + 1, label: "إجمالي قيمة الشحنات", value: totalValue },
-    ];
-    for (const item of summaryRows) {
-      setCell(ws.getCell(`A${item.row}`), item.label, {
-        fill: C.grayBg, font: { bold: true, color: { argb: C.bg }, size: 11 },
-        align: { horizontal: "right", vertical: "middle" }, border: "FF334155",
+      const row = ws1.getRow(idx + 6);
+      row.height = 32;
+      // 1: #
+      setCell(row.getCell(1), idx + 1, {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.darkText } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
       });
-      const valueCol = colLetters[1];
-      setCell(ws.getCell(`${valueCol}${item.row}`), item.value, {
-        fill: item.value < 0 ? C.redBg : C.tealBg,
-        font: { bold: true, color: { argb: item.value < 0 ? C.red : C.teal }, size: 11 },
-        align: { horizontal: "center", vertical: "middle" }, border: item.value < 0 ? C.red : C.teal,
+      // 2: اسم العميل
+      setCell(row.getCell(2), rep.customerName, {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.darkText } },
+        align: { horizontal: "right", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 3: الهاتف
+      setCell(row.getCell(3), rep.phone ?? "—", {
+        fill: baseFill,
+        font: baseFont,
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 4: المحافظة
+      setCell(row.getCell(4), rep.city ?? "—", {
+        fill: baseFill,
+        font: baseFont,
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 5: العنوان
+      setCell(row.getCell(5), (rep as any).address ?? "—", {
+        fill: baseFill,
+        font: { size: 9, color: { argb: C.darkText } },
+        align: { horizontal: "right", vertical: "middle", wrapText: true },
+        border: "FFD1D5DB",
+      });
+      // 6: الشركة الراسلة
+      setCell(row.getCell(6), (rep as any).senderName ?? "—", {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.blue } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 7: سعر الشحنة (COD)
+      setCell(row.getCell(7), cod, {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.green } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
         numFmt: '#,##0 "ج.م"',
       });
-      for (let i = 2; i < colCount; i++) {
-        setCell(ws.getCell(`${colLetters[i]}${item.row}`), "", { fill: C.grayBg, border: "FF334155" });
+      // 8: سعر الشحن (fee)
+      setCell(row.getCell(8), fee > 0 ? fee : "—", {
+        fill: baseFill,
+        font: { color: { argb: C.amber } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+        numFmt: fee > 0 ? '#,##0 "ج.م"' : undefined,
+      });
+      // 9: الإجمالي (net)
+      setCell(row.getCell(9), net, {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.blue } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+        numFmt: '#,##0 "ج.م"',
+      });
+      // 10: الحالة
+      setCell(row.getCell(10), deliveryLabel, {
+        fill: deliveryStatus === "delivered" ? C.greenBg : deliveryStatus === "returned" ? C.redBg : deliveryStatus === "partial_received" ? C.tealBg : deliveryStatus === "postponed" ? C.amberBg : C.grayBg,
+        font: { bold: true, color: { argb: deliveryStatus === "delivered" ? C.green : deliveryStatus === "returned" ? C.red : deliveryStatus === "partial_received" ? C.teal : deliveryStatus === "postponed" ? C.amber : C.gray } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: deliveryStatus === "delivered" ? C.green : deliveryStatus === "returned" ? C.red : deliveryStatus === "partial_received" ? C.teal : deliveryStatus === "postponed" ? C.amber : "FFCBD5E1",
+      });
+      // 11: ملاحظة
+      setCell(row.getCell(11), notes || "", {
+        fill: baseFill,
+        font: baseFont,
+        align: { horizontal: "right", vertical: "middle", wrapText: true },
+        border: "FFD1D5DB",
+      });
+      // 12: رقم الشحنة
+      setCell(row.getCell(12), invoiceNum, {
+        fill: baseFill,
+        font: { color: { argb: C.gray } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+    });
+
+    const totalRowIndex = groupedOrders.length + 6;
+    const totalSummaryRows = [
+      { row: totalRowIndex, label: "الإجمالي", value: totalCollected, note: `${groupedDeliveryRate}% نسبة تسليم`, fill: C.green },
+      { row: totalRowIndex + 1, label: "خصم الشحن", value: effectiveShipping, note: "", fill: C.green },
+      { row: totalRowIndex + 2, label: "الصافي المستحق", value: netDue, note: "", fill: C.green },
+    ];
+    for (const item of totalSummaryRows) {
+      setCell(ws1.getCell(`A${item.row}`), item.label, {
+        fill: C.grayBg,
+        font: { bold: true, color: { argb: C.gold }, size: 11 },
+        align: { horizontal: "right", vertical: "middle", wrapText: false, shrinkToFit: true },
+        border: "FFF59E0B",
+      });
+      setCell(ws1.getCell(`B${item.row}`), item.value, {
+        fill: item.fill,
+        font: { bold: true, color: { argb: C.white }, size: 11 },
+        align: { horizontal: "center", vertical: "middle", wrapText: false, shrinkToFit: true },
+        border: C.green,
+        numFmt: '#,##0 "ج.م"',
+      });
+      setCell(ws1.getCell(`C${item.row}`), item.note, {
+        fill: C.grayBg,
+        font: { bold: true, color: { argb: C.gold }, size: 11 },
+        align: { horizontal: "center", vertical: "middle", wrapText: false, shrinkToFit: true },
+        border: "FFF59E0B",
+      });
+      for (const col of ["D", "E", "F", "G", "H", "I", "J", "K", "L"]) {
+        setCell(ws1.getCell(`${col}${item.row}`), "", {
+          fill: C.grayBg,
+          border: "FFF59E0B",
+        });
       }
-      ws.getRow(item.row).height = 22;
+      ws1.getRow(item.row).height = 24;
     }
 
-    // ── المربعات الأربعة (الجاري / مرتجع لم يصل / الجديد / الإجمالي) ─────
-    const statsRowStart = summaryRowIndex + 3;
-    const statBoxes = [
-      { label: "الجاري", value: data.stats?.delayedOrInDelivery ?? 0, color: C.blue },
-      { label: "مرتجع لم يصل", value: data.stats?.returnedNotReceived ?? 0, color: C.red },
-      { label: "الجديد", value: data.stats?.newOrders ?? 0, color: C.amber },
-      { label: "الإجمالي", value: data.stats?.totalOrders ?? 0, color: C.teal },
+    // ── Sheet 2: summary ────────────────────────────────────────────────────
+    const ws2 = workbook.addWorksheet("ملخص البيان", { views: [{ state: "frozen", ySplit: 4, rightToLeft: true }] });
+    ws2.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+    ws2.columns = [{ width: 28 }, { width: 20 }];
+    ws2.mergeCells("A1:B1");
+    setCell(ws2.getCell("A1"), `${brandName}${brandTagline ? `  ·  ${brandTagline}` : ""}`, {
+      fill: C.bg,
+      font: { bold: true, size: 16, color: { argb: C.gold } },
+      align: { horizontal: "center", vertical: "middle" },
+      border: C.bg,
+    });
+    ws2.getRow(1).height = 28;
+    ws2.mergeCells("A2:B2");
+    setCell(ws2.getCell("A2"), `ملخص بيان الشحن — ${manifest.manifestNumber}`, {
+      fill: C.bg,
+      font: { bold: true, size: 12, color: { argb: C.gold } },
+      align: { horizontal: "center", vertical: "middle" },
+      border: C.bg,
+    });
+    ws2.getRow(2).height = 24;
+    ws2.mergeCells("A3:B3");
+    setCell(ws2.getCell("A3"), "", { fill: C.panel, border: "FF334155" });
+    ws2.getRow(3).height = 8;
+
+    const summaryRows: Array<[string, string, string]> = [
+      ["رقم البيان", manifest.manifestNumber, C.blue],
+      ["شركة الشحن", manifest.companyName, C.blue],
+      ["تاريخ الإنشاء", manifestDate, C.gray],
+      ["الحالة", manifest.status === "closed" ? "مغلق ✓" : "مفتوح", manifest.status === "closed" ? C.green : C.blue],
+      ["إجمالي البيان", String(groupedTotal), C.blue],
+      ["إجمالي المسلَّم", String(groupedCompleted), C.green],
+      ["مسلَّم", String(groupedDelivered), C.green],
+      ["مرتجع", String(groupedReturned), C.red],
+      ["مؤجل", String(groupedPostponed), C.amber],
+      ["استلم جزئي", String(groupedPartial), C.teal],
+      ["قيد الانتظار", String(groupedPending), C.gray],
+      ["نسبة التسليم", `${groupedDeliveryRate}%`, groupedDeliveryRate >= 70 ? C.green : groupedDeliveryRate >= 40 ? C.amber : C.red],
+      ["إجمالي المحصَّل", fmtMoney(totalCollected), C.green],
+      ["رسوم الشحن", fmtMoney(effectiveShipping), C.amber],
+      ["صافي المستحق", fmtMoney(netDue), C.green],
     ];
-    statBoxes.forEach((box, i) => {
-      const startColIdx = i * 3;
-      const startCol = colLetters[startColIdx];
-      const endCol = colLetters[Math.min(startColIdx + 1, colCount - 1)];
-      ws.mergeCells(`${startCol}${statsRowStart}:${endCol}${statsRowStart}`);
-      setCell(ws.getCell(`${startCol}${statsRowStart}`), box.label, {
-        fill: C.panel, font: { bold: true, color: { argb: C.white }, size: 10 },
-        align: { horizontal: "center", vertical: "middle" }, border: "FF334155",
-      });
-      ws.mergeCells(`${startCol}${statsRowStart + 1}:${endCol}${statsRowStart + 1}`);
-      setCell(ws.getCell(`${startCol}${statsRowStart + 1}`), box.value, {
-        fill: C.white, font: { bold: true, color: { argb: box.color }, size: 16 },
-        align: { horizontal: "center", vertical: "middle" }, border: box.color,
-      });
-    });
-    ws.getRow(statsRowStart).height = 22;
-    ws.getRow(statsRowStart + 1).height = 30;
 
-    // ── صندوق الرصيد النهائي (الصافي) ────────────────────────────────────
-    const balanceRow = statsRowStart + 3;
-    ws.mergeCells(`A${balanceRow}:${colLetters[colCount - 4]}${balanceRow}`);
-    setCell(ws.getCell(`A${balanceRow}`), "الرصيد (الصافي المستحق)", {
-      fill: C.offWhite, font: { bold: true, color: { argb: C.bg }, size: 13 },
-      align: { horizontal: "right", vertical: "middle" }, border: "FF334155",
-    });
-    ws.mergeCells(`${colLetters[colCount - 3]}${balanceRow}:${lastCol}${balanceRow}`);
-    setCell(ws.getCell(`${colLetters[colCount - 3]}${balanceRow}`), netDue, {
-      fill: C.teal, font: { bold: true, color: { argb: C.white }, size: 15 },
-      align: { horizontal: "center", vertical: "middle" }, border: C.teal,
-      numFmt: '#,##0 "ج.م"',
-    });
-    ws.getRow(balanceRow).height = 30;
+    let sRow = 4;
+    for (const [label, value, color] of summaryRows) {
+      const row = ws2.getRow(sRow++);
+      row.height = 24;
+      setCell(row.getCell(1), label, {
+        fill: C.offWhite,
+        font: { color: { argb: C.slate } },
+        align: { horizontal: "right", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      setCell(row.getCell(2), value, {
+        fill: C.offWhite,
+        font: { bold: true, color: { argb: color } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+    }
+    ws2.views = [{ state: "frozen", ySplit: 3, rightToLeft: true }];
 
-    ws.eachRow((row) => {
+    // ── sheet styling ───────────────────────────────────────────────────────
+    ws1.eachRow((row) => {
+      row.eachCell((cell) => {
+        if (!cell.alignment) cell.alignment = { horizontal: "right", vertical: "middle" };
+      });
+    });
+    ws2.eachRow((row) => {
       row.eachCell((cell) => {
         if (!cell.alignment) cell.alignment = { horizontal: "right", vertical: "middle" };
       });
@@ -609,778 +2866,2068 @@ export default function ClientAccountSheetPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `حساب-${data.client.name}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.download = `بيان-${manifest.manifestNumber}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: "تم تصدير ملف الإكسيل" });
   };
 
-  const printTotals = useMemo(() => {
-    const orders = data?.orders ?? [];
-    return orders.reduce(
-      (acc, o) => {
-        acc.totalValue += Number(o.totalPrice ?? 0);
-        acc.totalShipping += Number(o.shippingCost ?? 0);
-        acc.totalCollected += Number(o.collectedAmount ?? 0);
-        return acc;
-      },
-      { totalValue: 0, totalShipping: 0, totalCollected: 0 }
+  // ── PDF Export (via print) ──────────────────────────────────────────────────
+  const exportPDF = () => {
+    onClose();
+    setTimeout(() => window.print(), 150);
+  };
+
+  // stats for preview
+  const statusGroups = [
+    { label: "مسلَّم", count: s.delivered, color: "#15803d", bg: "#dcfce7" },
+    { label: "مرتجع", count: s.returned, color: "#dc2626", bg: "#fee2e2" },
+    { label: "مؤجل", count: groupedPostponedCount, color: "#d97706", bg: "#fef3c7" },
+    { label: "جزئي", count: groupedPartialCount, color: "#0f766e", bg: "#ccfbf1" },
+    { label: "انتظار", count: groupedPendingCount, color: "#64748b", bg: "#f1f5f9" },
+  ];
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="bg-card border-border max-w-lg" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-right flex items-center gap-2">
+            <Download className="w-4 h-4 text-primary" />
+            تصدير البيان — {manifest.manifestNumber}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-1">
+          {/* Preview card */}
+          <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-black text-base">{manifest.manifestNumber}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <Truck className="w-3 h-3" />{manifest.companyName}
+                </p>
+              </div>
+              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                manifest.status === "closed"
+                  ? "bg-emerald-900/30 text-emerald-400 border border-emerald-700"
+                  : "bg-blue-900/30 text-blue-400 border border-blue-700"
+              }`}>
+                {manifest.status === "closed" ? "✓ مغلق" : "● مفتوح"}
+              </span>
+            </div>
+
+            {/* Status pills */}
+            <div className="flex flex-wrap gap-1.5">
+              {statusGroups.filter(g => g.count > 0).map(g => (
+                <span key={g.label} className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                  style={{ color: g.color, backgroundColor: g.bg + "33", borderColor: g.color + "44" }}>
+                  {g.label}: {g.count}
+                </span>
+              ))}
+            </div>
+
+            {/* Financials */}
+            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border">
+              <div className="text-center">
+                <p className="text-[9px] text-muted-foreground mb-0.5">محصَّل</p>
+                <p className="text-xs font-black text-emerald-400">{Number(totalCollected || 0).toLocaleString("ar-EG")} ج</p>
+              </div>
+              <div className="text-center border-x border-border">
+                <p className="text-[9px] text-muted-foreground mb-0.5">شحن</p>
+                <p className="text-xs font-black text-amber-400">−{Number(effectiveShipping || 0).toLocaleString("ar-EG")} ج</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] text-muted-foreground mb-0.5">صافي</p>
+                <p className="text-xs font-black text-primary">{Number(netDue || 0).toLocaleString("ar-EG")} ج</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Export options */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Excel */}
+            <button
+              onClick={exportExcel}
+              className="group flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-border hover:border-emerald-600 bg-card hover:bg-emerald-900/10 transition-all"
+            >
+              <div className="w-12 h-12 rounded-xl bg-emerald-900/20 border border-emerald-700/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div className="text-center">
+                <p className="font-black text-sm text-foreground">تصدير Excel</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">3 شيتات: الطلبيات · الملخص · حسب الحالة</p>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-800 px-2.5 py-0.5 rounded-full">
+                .xlsx
+              </span>
+            </button>
+
+            {/* PDF */}
+            <button
+              onClick={exportPDF}
+              className="group flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-border hover:border-red-600 bg-card hover:bg-red-900/10 transition-all"
+            >
+              <div className="w-12 h-12 rounded-xl bg-red-900/20 border border-red-700/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <FileText className="w-6 h-6 text-red-400" />
+              </div>
+              <div className="text-center">
+                <p className="font-black text-sm text-foreground">تصدير PDF</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">بيان رسمي مع الإحصائيات والأرقام</p>
+              </div>
+              <span className="text-[10px] font-bold text-red-400 bg-red-900/20 border border-red-800 px-2.5 py-0.5 rounded-full">
+                .pdf
+              </span>
+            </button>
+          </div>
+
+          {/* Info note */}
+          <p className="text-[10px] text-muted-foreground text-center border-t border-border pt-3">
+            Excel: {manifest.stats.total} طلبية في {[...new Set(manifest.orders.map(o => o.deliveryStatus))].length} حالات مختلفة &nbsp;·&nbsp;
+            PDF: طباعة البيان الرسمي بصيغة A4
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Add Shipments Dialog ─────────────────────────────────────────────────────
+function AddOrdersToManifestDialog({
+  manifestId,
+  manifestNumber,
+  companyId,
+  existingOrderIds,
+  onClose,
+  onAdded,
+}: {
+  manifestId: number;
+  manifestNumber: string;
+  companyId: number;
+  existingOrderIds: Set<number>;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // "picked_up" قيمة قديمة فالداتابيز بنفس تسمية "قيد الشحن في المخزن" — لازم تتحسب كمان
+  const AVAILABLE_STATUSES = ["warehouse_ready", "picked_up"];
+
+  // ملحوظة: متعمد عدم تحديد shippingCompanyId — أي شحنة "قيد الشحن في المخزن" بتظهر هنا
+  // بغض النظر عن شركة الشحن المرتبطة بيها، عشان تقدر تنقلها لأي بيان.
+  const { data: shipmentsData, isLoading } = useQuery({
+    queryKey: ["shipments-available-for-manifest"],
+    queryFn: () => shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
+    staleTime: 10000,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () => shipmentManifestsApi.addShipments(manifestId, Array.from(selectedIds)),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["shipment-manifest", manifestId] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest"] });
+      toast({ title: `✅ تمت الإضافة`, description: `تم إضافة ${res.added} شحنة للبيان ${res.manifestNumber}` });
+      onAdded();
+      onClose();
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const available = useMemo(() => {
+    return (shipmentsData?.data ?? []).filter(s =>
+      AVAILABLE_STATUSES.includes(s.status) && !existingOrderIds.has(s.id)
     );
-  }, [data]);
+  }, [shipmentsData, existingOrderIds]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return available;
+    const q = search.toLowerCase();
+    return available.filter(s =>
+      s.receiverName?.toLowerCase().includes(q) ||
+      s.shipmentNumber?.toLowerCase().includes(q) ||
+      (s.receiverPhone && s.receiverPhone.includes(q)) ||
+      (s.receiverCity && s.receiverCity.toLowerCase().includes(q)) ||
+      (s.trackingNumber && s.trackingNumber.toLowerCase().includes(q))
+    );
+  }, [available, search]);
+
+  const toggleAll = () => {
+    if (selectedIds.size === filtered.length && filtered.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(s => s.id)));
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="bg-card border-border w-[94vw] sm:w-full max-w-3xl max-h-[90vh] flex flex-col p-4 sm:p-6" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-right flex items-center gap-2 pr-8 text-base sm:text-lg">
+            <PackagePlus className="w-4 h-4 text-primary shrink-0" />
+            إضافة شحنات إلى البيان — {manifestNumber}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col gap-3 mt-2">
+          {/* Search + counter */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="بحث بالاسم / رقم الشحنة / الهاتف / المدينة..."
+                className="h-9 text-sm bg-background pr-8"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            {!isLoading && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {available.length} شحنة متاحة
+              </span>
+            )}
+          </div>
+
+          {/* Select-all */}
+          {!isLoading && filtered.length > 0 && (
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedIds.size === filtered.length && filtered.length > 0}
+                  onCheckedChange={toggleAll}
+                />
+                <span className="text-xs text-muted-foreground">تحديد الكل ({filtered.length})</span>
+              </div>
+              <span className="text-xs font-bold text-primary">{selectedIds.size} محدد</span>
+            </div>
+          )}
+
+          {/* Shipments list */}
+          <div className="overflow-y-auto flex-1 border border-border rounded-md">
+            {isLoading ? (
+              <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">جاري تحميل الشحنات...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-10 text-center">
+                <PackagePlus className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
+                <p className="text-sm text-muted-foreground">
+                  {available.length === 0 ? "لا توجد شحنات بحالة (قيد الشحن في المخزن) جاهزة للبيان" : "لا توجد نتائج تطابق البحث"}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Header */}
+                <div className="hidden sm:grid grid-cols-[auto_1fr_1fr_80px] gap-0 border-b border-border bg-muted/20 px-3 py-2 text-[10px] font-semibold text-muted-foreground sticky top-0">
+                  <div className="w-5" />
+                  <div>المستلم</div>
+                  <div>رقم الشحنة / المدينة</div>
+                  <div className="text-left">المبلغ</div>
+                </div>
+                {/* Rows */}
+                {filtered.map(s => {
+                  const isSelected = selectedIds.has(s.id);
+                  return (
+                    <div
+                      key={s.id}
+                      className={`flex flex-col gap-2 sm:grid sm:grid-cols-[auto_1fr_1fr_80px] sm:gap-0 sm:items-center px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                      onClick={() => {
+                        const next = new Set(selectedIds);
+                        if (isSelected) next.delete(s.id); else next.add(s.id);
+                        setSelectedIds(next);
+                      }}
+                    >
+                      <div className="hidden sm:flex w-5 items-center">
+                        <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                      </div>
+                      <div className="flex items-start gap-2 sm:contents">
+                        <div className="sm:hidden shrink-0 pt-0.5">
+                          <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                        </div>
+                        <div className="min-w-0 pr-2 flex-1">
+                          <p className="font-semibold text-xs truncate">{s.receiverName}</p>
+                          <p className="text-muted-foreground text-[10px]">
+                            {s.receiverPhone ?? ""}
+                          </p>
+                        </div>
+                        <div className="sm:hidden shrink-0 text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
+                      </div>
+                      <div className="min-w-0 pr-2">
+                        <p className="text-xs truncate">{s.shipmentNumber}</p>
+                        {s.receiverCity && (
+                          <p className="text-muted-foreground text-[10px]">{s.receiverCity}</p>
+                        )}
+                      </div>
+                      <div className="hidden sm:block text-left text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="flex gap-2 mt-2">
+          <Button
+            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
+            onClick={() => addMutation.mutate()}
+            disabled={addMutation.isPending || selectedIds.size === 0}
+          >
+            <PackagePlus className="w-3.5 h-3.5" />
+            {addMutation.isPending ? "جاري الإضافة..." : `إضافة ${selectedIds.size > 0 ? selectedIds.size + " شحنات" : ""}`}
+          </Button>
+          <Button variant="outline" className="border-border" onClick={onClose}>إلغاء</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type ColFilters = {
+  customer: Set<string>;
+  governorate: Set<string>;
+  product: Set<string>;
+  qty: Set<string>;
+  total: Set<string>;
+  date: Set<string>;
+  status: Set<string>;
+};
+
+/* ── أيقونة فلتر Excel لكل عمود ── */
+function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
+  col: keyof ColFilters;
+  colFilters: ColFilters;
+  getColOptions: (col: keyof ColFilters) => string[];
+  toggleColFilter: (col: keyof ColFilters, val: string) => void;
+  clearColFilter: (col: keyof ColFilters) => void;
+  sortCol: keyof ColFilters | null;
+  sortDir: "asc" | "desc";
+  onSort: (col: keyof ColFilters, dir: "asc" | "desc") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const sort = sortCol === col ? sortDir : "asc";
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const active = colFilters[col].size > 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      // استخدم fixed بدل absolute — بيعمل صح بغض النظر عن الـ scroll أو الـ overflow
+      const panelW = 208; // w-52
+      const left = Math.max(4, Math.min(r.left, window.innerWidth - panelW - 4));
+      setPos({ top: r.bottom + 4, left });
+    }
+    setOpen(o => !o);
+    setSearch("");
+  };
+
+  let opts = getColOptions(col);
+  if (search) opts = opts.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+  if (sort === "desc") opts = [...opts].reverse();
 
   return (
     <>
-    <div className="p-4 md:p-6 space-y-5 max-w-[1400px] mx-auto print:hidden">
-      <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
-        <div>
-          <h1 className="text-xl font-black flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" /> حسابات العملاء
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">شيت حساب الزبون — أوردرات + إقفال حساب</p>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleOpen}
+        title="فلتر"
+        className={`flex items-center justify-center w-5 h-5 rounded transition-all shrink-0 ${active ? "text-primary" : "text-muted-foreground/40 hover:text-muted-foreground"}`}
+      >
+        {active ? (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        )}
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-background border border-border rounded-lg shadow-2xl text-[11px] w-52"
+          dir="rtl"
+        >
+          <div className="flex gap-1 p-2 border-b border-border/50">
+            <button type="button" onClick={() => { onSort(col, "asc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "asc" && sortCol === col ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronUp className="w-2.5 h-2.5" />أ→ي
+            </button>
+            <button type="button" onClick={() => { onSort(col, "desc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "desc" && sortCol === col ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronDown className="w-2.5 h-2.5" />ي→أ
+            </button>
+          </div>
+          <div className="px-2 pt-2">
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="بحث في القيم..."
+              className="w-full h-7 text-[10px] px-2 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div className="max-h-48 overflow-y-auto px-1 py-1.5 flex flex-col gap-0.5">
+            {opts.length === 0
+              ? <p className="text-muted-foreground text-center py-3 text-[10px]">لا توجد قيم</p>
+              : opts.map(val => (
+                <label key={val} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer">
+                  <input type="checkbox" checked={colFilters[col].has(val)}
+                    onChange={() => toggleColFilter(col, val)}
+                    className="accent-primary w-3 h-3 shrink-0" />
+                  <span className="truncate">{val}</span>
+                </label>
+              ))
+            }
+          </div>
+          {active && (
+            <div className="border-t border-border/50 px-2 py-1.5">
+              <button type="button" onClick={() => { clearColFilter(col); setOpen(false); }}
+                className="text-destructive text-[10px] hover:underline w-full text-right">
+                مسح الفلتر
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// ─── ReturnReceivedButton — زرار "تم الاستلام" / "لم يتم الاستلام" ──────────
+function ReturnReceivedButton({
+  manifestId,
+  order,
+  received,
+  onSaved,
+  locked,
+  currentlyAtShipping = false,
+}: {
+  manifestId: number;
+  order: ManifestOrder;
+  received: boolean;
+  onSaved: () => void;
+  locked: boolean;
+  currentlyAtShipping?: boolean;
+}) {
+  const { toast } = useToast();
+  const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
+  const currentRR = (order as any).returnReceived; // 0 | 1 | null
+
+  // هل الزر ده هو الحالة الحالية (مظلَّل)؟
+  const isActive = received
+    ? currentRR === 1
+    : currentRR === 0;
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      shipmentManifestsApi.updateItem(manifestId, order.id, {
+        deliveryStatus: order.deliveryStatus,
+        deliveryNote: order.deliveryNote ?? null,
+        partialQuantity: order.partialQuantity ?? null,
+        returnReceived: received,
+      }),
+    onSuccess: () => {
+      toast({
+        title: received ? "تم الاستلام ✅" : "لم يتم الاستلام بعد",
+        description: received
+          ? "تمت إضافة البضاعة للمخزن"
+          : "سيُرحَّل هذا الطلب للبيان التالي عند الإغلاق",
+      });
+      onSaved();
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  if (received) {
+    return (
+      <button
+        type="button"
+        onClick={() => !locked && !isActive && mutation.mutate()}
+        disabled={locked || mutation.isPending}
+        className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+          isActive
+            ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
+            : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+      >
+        <span className="text-sm">✅</span>
+        <span>تم الاستلام</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => !locked && !isActive && mutation.mutate()}
+      disabled={locked || mutation.isPending}
+      className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+        isActive
+          ? "border-orange-500 bg-orange-900/40 text-orange-300"
+          : "border-border text-muted-foreground hover:border-orange-700 hover:text-orange-400 hover:bg-orange-900/10"
+      } disabled:opacity-50 disabled:cursor-not-allowed`}
+    >
+      <span className="text-sm">🚚</span>
+      <span>لم يتم بعد</span>
+    </button>
+  );
+}
+
+export default function ShippingManifestPage() {
+  const params = useParams();
+  const id = Number(params.id);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { canViewFinancials, isAdmin } = useAuth();
+  const { brand } = useBrand();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [showReopenDialog, setShowReopenDialog] = useState(false);
+  const [showAddOrdersDialog, setShowAddOrdersDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showOrders, setShowOrders] = useState(true);
+  const [showRolloverDialog, setShowRolloverDialog] = useState<null | { id: number; manifestNumber: string; orderCount: number; breakdown: string }>(null);
+  // ─── البحث المباشر — بدون popover ──────────────────────────────────────────
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+  // ─── ترتيب حسب الحالة ───────────────────────────────────────────────────────
+  const [statusSort, setStatusSort] = useState<"none" | "asc" | "desc">("none");
+  // ─── ترتيب حسب تاريخ الإضافة ────────────────────────────────────────────────
+  const [dateSort, setDateSort] = useState<"none" | "asc" | "desc">("none");
+  // ─── Excel-style Column Filters ─────────────────────────────────────────────
+  const [colFilterOpen, setColFilterOpen] = useState(false);
+  const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
+  const [colFilters, setColFilters] = useState<ColFilters>({
+    customer: new Set(), governorate: new Set(), product: new Set(),
+    qty: new Set(), total: new Set(), date: new Set(), status: new Set(),
+  });
+  const [showColFilters, setShowColFilters] = useState(false);
+  const [manifestCustomerSearch, setManifestCustomerSearch] = useState("");
+  const [manifestProductSearch, setManifestProductSearch] = useState("");
+  const [manifestTotalSearch, setManifestTotalSearch] = useState("");
+  const [sortCol, setSortCol] = useState<keyof ColFilters | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const handleSort = useCallback((col: keyof ColFilters, dir: "asc" | "desc") => {
+    setSortCol(col); setSortDir(dir);
+  }, []);
+  const [colFilterSearch, setColFilterSearch] = useState("");
+  const [colFilterSort, setColFilterSort] = useState<"none" | "asc" | "desc">("none");
+  // ─── نظام التحديد (Bulk Selection) ─────────────────────────────────────────
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+
+  const { data: rawManifest, isLoading, error } = useQuery({
+    queryKey: ["shipping-manifest", id],
+    queryFn: () => shipmentManifestsApi.get(id),
+    enabled: !isNaN(id),
+  });
+
+  // Adapter: convert ShipmentManifestDetail to ShippingManifestDetail-compatible shape
+  const manifest = useMemo(() => {
+    if (!rawManifest) return undefined;
+    const orders: ManifestOrder[] = (rawManifest.items ?? []).map((item) => {
+      const sh = item.shipment;
+      console.log("[adapter debug] item keys:", Object.keys(item as any), "totalPrice:", (item as any).totalPrice, "sh:", sh ? {codAmount: sh.codAmount} : null);
+      // نقرأ من الـ enriched fields اللي الـ backend بيبعتها مباشرة على الـ item
+      const codAmt = (item as any).totalPrice != null
+        ? Number((item as any).totalPrice)
+        : sh ? parseFloat(sh.codAmount ?? '0') : 0;
+      const shippingFeeAmt = (item as any).shippingCost != null
+        ? Number((item as any).shippingCost)
+        : sh ? parseFloat(sh.shippingFee ?? '0') : 0;
+      return {
+        id: item.shipmentId,
+        manifestOrderId: item.id,
+        invoiceNumber: sh?.shipmentNumber ?? `S-${item.shipmentId}`,
+        customerName: sh?.receiverName ?? '—',
+        customerPhone: sh?.receiverPhone ?? null,
+        phone: sh?.receiverPhone ?? null,
+        city: sh?.receiverCity ?? sh?.zoneGovernorate ?? null,
+        address: sh?.receiverAddress ?? null,
+        senderName: sh?.senderName ?? null,
+        product: sh ? `${sh.shipmentNumber}${sh.trackingNumber ? ` (${sh.trackingNumber})` : ''}` : '—',
+        quantity: 1,
+        total: codAmt,
+        totalPrice: codAmt,
+        cost: null,
+        shippingCost: shippingFeeAmt,
+        status: sh?.status ?? 'pending',
+        notes: sh?.notes ?? null,
+        color: null,
+        size: null,
+        source: null,
+        createdAt: sh?.createdAt ?? rawManifest.createdAt,
+        updatedAt: sh?.updatedAt ?? null,
+        assignedUserId: sh?.assignedUserId ?? null,
+        createdByUserId: null,
+        shippingCompanyId: sh?.shippingCompanyId ?? rawManifest.shippingCompanyId,
+        deliveryStatus: (() => {
+          // لو البيان لسه pending بس الشحنة نفسها اتغيرت → sync الحالة
+          if (item.deliveryStatus === "pending" && sh?.status) {
+            const statusMap: Record<string, string> = {
+              returned:         "returned",
+              partial_received: "partial_delivered",
+              delivered:        "delivered",
+              received:         "delivered",
+            };
+            return (statusMap[sh.status] ?? item.deliveryStatus) as DeliveryStatus;
+          }
+          return item.deliveryStatus as DeliveryStatus;
+        })(),
+        deliveryNote: item.deliveryNote,
+        deliveredAt: item.deliveredAt,
+        returnReceived: item.returnReceived,
+        addedAt: rawManifest.createdAt,
+        partialQuantity: item.partialQuantity ?? null,
+        returnReason: item.returnReason ?? null,
+      } as any;
+    });
+    const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
+
+    return {
+      ...rawManifest,
+      companyName: rawManifest.company?.name ?? '—',
+      companyPhone: null as string | null,
+      companyLogo: rawManifest.company?.logo ?? null,
+      invoiceNotes: rawManifest.notes ?? null,
+      manualShippingCost,
+      orders,
+      stats: rawManifest.stats,
+    };
+  }, [rawManifest]);
+
+  // ─── Search filter — real-time, no popover ────────────────────────────────
+  const filteredManifestOrders = useMemo(() => {
+    const orders = manifest?.orders ?? [];
+    // ─── استبعاد المرتجع/الجزئي اللي لسه عند شركة الشحن من جدول الطلبيات ───────
+    // دول بيظهروا فقط في حاوية "بضاعة لسه عند شركة الشحن" تحت، مش في الجدول
+    // الشحنات المسلَّمة (delivered) تظل ظاهرة في الجدول بحالة "مسلَّم"
+    const ordersWithoutPendingReturns = orders.filter(o => {
+      const rr = (o as any).returnReceived;
+      const isConfirmed = rr === 1 || rr === true;
+      const dStatus = o.deliveryStatus;
+      const shipmentStatus = (o as any).status;
+      const isReturnedOrPartial =
+        dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered" ||
+        shipmentStatus === "returned" || shipmentStatus === "partial_received";
+      // اللي تم استلامه → يختفي من الجدول
+      const isConfirmedReturn = isReturnedOrPartial && isConfirmed;
+      // لا نخفي الأوردرات المسلَّمة — تظهر في الجدول بحالة "مسلَّم"
+      return !isConfirmedReturn;
+    });
+    const groups = groupManifestOrders(ordersWithoutPendingReturns);
+    if (!manifestCustomerSearch && !manifestProductSearch && !manifestTotalSearch) return groups;
+    const cLow = manifestCustomerSearch.toLowerCase();
+    const pLow = manifestProductSearch.toLowerCase();
+    return groups.filter(group => {
+      const rep = group[0];
+      if (cLow && !(rep.customerName ?? "").toLowerCase().includes(cLow)) return false;
+      if (pLow && !group.some(o => (o.product ?? "").toLowerCase().includes(pLow) || (o.phone ?? "").toLowerCase().includes(pLow))) return false;
+      if (manifestTotalSearch) {
+        const total = group.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        if (!String(Math.round(total)).includes(manifestTotalSearch)) return false;
+      }
+      return true;
+    });
+  }, [manifest?.orders, manifestCustomerSearch, manifestProductSearch, manifestTotalSearch]);
+
+  // ─── Sort — حسب الحالة فوق الـ filter ──────────────────────────────────────
+  const sortedManifestOrders = useMemo(() => {
+    if (statusSort === "none" && dateSort === "none") return filteredManifestOrders;
+    const getGroupPriority = (group: ManifestOrder[]) => {
+      const statuses = [...new Set(group.map(o => o.deliveryStatus))];
+      const maxP = Math.max(...statuses.map(s => STATUS_SORT_PRIORITY[s] ?? 0));
+      return maxP;
+    };
+    const getGroupDate = (group: ManifestOrder[]) => {
+      const ts = (group[0] as any).addedAt;
+      return ts ? new Date(ts).getTime() : 0;
+    };
+    return [...filteredManifestOrders].sort((a, b) => {
+      // الترتيب حسب التاريخ له الأولوية لو كان مفعّل
+      if (dateSort !== "none") {
+        const diff = getGroupDate(a) - getGroupDate(b);
+        if (diff !== 0) return dateSort === "asc" ? diff : -diff;
+      }
+      // ثم الترتيب حسب الحالة
+      if (statusSort !== "none") {
+        const diff = getGroupPriority(a) - getGroupPriority(b);
+        if (diff !== 0) return statusSort === "asc" ? diff : -diff;
+      }
+      return 0;
+    });
+  }, [filteredManifestOrders, statusSort, dateSort]);
+
+  // ─── Excel Column Filter helpers ─────────────────────────────────────────────
+  const getGroupVal = (col: keyof ColFilters, group: ManifestOrder[]): string => {
+    const rep = group[0];
+    switch (col) {
+      case "customer":    return rep.customerName ?? "";
+      case "governorate": return rep.city ?? "";
+      case "product":     return group.map(o => o.product).filter(Boolean).join(", ");
+      case "qty":         return String(group.reduce((s, o) => s + o.quantity, 0));
+      case "total":       return String(group.reduce((s, o) => s + o.totalPrice, 0));
+      case "date":        return (rep as any).addedAt ? new Date((rep as any).addedAt).toLocaleDateString("ar-EG") : "—";
+      case "status": {
+        const statuses = [...new Set(group.map(o => o.deliveryStatus))];
+        const labels: Record<string, string> = {
+          delivered:"مسلَّم", returned:"مرتجع", pending:"قيد الانتظار",
+          postponed:"مؤجَّل", partial_received:"استلام جزئي",
+        };
+        return statuses.map(s => labels[s] ?? s).join(" / ");
+      }
+      default: return "";
+    }
+  };
+
+  const colFilteredGroups = useMemo(() => {
+    const hasAny = Object.values(colFilters).some(s => s.size > 0);
+    if (!hasAny) return sortedManifestOrders;
+    return sortedManifestOrders.filter(group =>
+      (Object.keys(colFilters) as (keyof ColFilters)[]).every(col => {
+        const set = colFilters[col];
+        if (set.size === 0) return true;
+        return set.has(getGroupVal(col, group));
+      })
+    );
+  }, [sortedManifestOrders, colFilters]);
+
+  const colFilterHasActive = Object.values(colFilters).some(s => s.size > 0);
+
+  const displayGroups = useMemo(() => {
+    if (!sortCol) return colFilteredGroups;
+    return [...colFilteredGroups].sort((a, b) => {
+      const va = getGroupVal(sortCol, a);
+      const vb = getGroupVal(sortCol, b);
+      const cmp = va.localeCompare(vb, "ar", { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [colFilteredGroups, sortCol, sortDir]);
+
+  // القيم المتاحة لكل عمود بناءً على البيانات الحالية بعد باقي الفلاتر
+  const getColOptions = (col: keyof ColFilters): string[] => {
+    const base = sortedManifestOrders; // نعرض كل القيم الموجودة
+    const vals = [...new Set(base.map(g => getGroupVal(col, g)))].filter(v => v && v !== "—");
+    return vals.sort((a, b) => a.localeCompare(b, "ar"));
+  };
+
+  const toggleColFilter = (col: keyof ColFilters, val: string) => {
+    setColFilters(prev => {
+      const next = new Set(prev[col]);
+      next.has(val) ? next.delete(val) : next.add(val);
+      return { ...prev, [col]: next };
+    });
+  };
+
+  const clearColFilter = (col: keyof ColFilters) => {
+    setColFilters(prev => ({ ...prev, [col]: new Set() }));
+  };
+
+  const clearAllColFilters = () => {
+    setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set() });
+  };
+
+  // ─── Selection helpers ───────────────────────────────────────────────────────
+  const allGroupKeys = useMemo(
+    () => colFilteredGroups.map(g => getManifestGroupKey(g[0])),
+    [colFilteredGroups]
+  );
+  const allSelected = allGroupKeys.length > 0 && allGroupKeys.every(k => selectedGroups.has(k));
+  const someSelected = !allSelected && allGroupKeys.some(k => selectedGroups.has(k));
+
+  const toggleGroup = useCallback((key: string) => {
+    setSelectedGroups(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedGroups(new Set());
+    } else {
+      setSelectedGroups(new Set(allGroupKeys));
+    }
+  }, [allSelected, allGroupKeys]);
+
+  const clearSelection = useCallback(() => setSelectedGroups(new Set()), []);
+
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["shipping-manifest", id] });
+    queryClient.invalidateQueries({ queryKey: ["shipping-manifests"] });
+    queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+    queryClient.invalidateQueries({ queryKey: ["variants"] });
+    queryClient.invalidateQueries({ queryKey: ["variants-all"] });
+    queryClient.invalidateQueries({ queryKey: ["orders-in-manifest-ids"] });
+    // تحديث حركات المخزون والمنتجات تلقائياً بعد كل تغيير حالة
+    queryClient.invalidateQueries({ queryKey: ["movements"] });
+    queryClient.invalidateQueries({ queryKey: ["movements-totals"] });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    queryClient.invalidateQueries({ queryKey: ["stock-intelligence"] });
+    queryClient.invalidateQueries({ queryKey: ["smart-insights"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics-alerts"] });
+    queryClient.invalidateQueries({ queryKey: ["variant-wh-stock"] });
+    // مزامنة حالة الشحنات: أي تغيير في البيان ينعكس فوراً على قسم الشحنات
+    queryClient.invalidateQueries({ queryKey: ["shipments"] });
+    queryClient.invalidateQueries({ queryKey: ["shipment-manifest"] });
+    queryClient.invalidateQueries({ queryKey: ["warehouse-shipments"] });
+  }, [queryClient, id]);
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { status: "open" | "closed" }) =>
+      shipmentManifestsApi.update(id, data),
+    onSuccess: (result: any) => {
+      refetch();
+      setShowCloseDialog(false);
+      if (result?.rolledOverManifest) {
+        const rolled = result.rolledOverManifest;
+        const parts: string[] = [];
+        if (rolled.postponedCount > 0) parts.push(`${rolled.postponedCount} مؤجل`);
+        if (rolled.pendingCount > 0) parts.push(`${rolled.pendingCount} قيد الانتظار`);
+        if (rolled.returnedInShippingCount > 0) parts.push(`${rolled.returnedInShippingCount} مرتجع في الشحن`);
+        if (rolled.partialInShippingCount > 0) parts.push(`${rolled.partialInShippingCount} جزئي في الشحن`);
+        const breakdown = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
+        toast({
+          title: "🔒 تم إغلاق البيان بنجاح",
+          description: `📦 تم إنشاء بيان جديد "${rolled.manifestNumber}" — ${rolled.orderCount} طلبية${breakdown}`,
+          duration: 15000,
+        });
+        setShowRolloverDialog({ id: rolled.id, manifestNumber: rolled.manifestNumber, orderCount: rolled.orderCount, breakdown });
+      } else {
+        toast({ title: "🔒 تم إغلاق البيان بنجاح" });
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => shipmentManifestsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shipping-manifests"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["variants"] });
+      queryClient.invalidateQueries({ queryKey: ["variants-all"] });
+      toast({ title: "تم الحذف" });
+      window.history.back();
+    },
+    onError: () =>
+      toast({
+        title: "خطأ",
+        description: "فشل حذف البيان",
+        variant: "destructive",
+      }),
+  });
+
+  const handlePrint = async () => {
+    const printEl = document.querySelector(".manifest-print") as HTMLElement | null;
+    if (!printEl) return;
+
+    // تحويل لوجو شركة الشحن لـ base64 — فقط لو فيه لوجو فعلاً
+    let logoB64 = "";
+    if (manifest.companyLogo) {
+      try {
+        const r = await fetch(manifest.companyLogo);
+        if (r.ok) {
+          const blob = await r.blob();
+          logoB64 = await new Promise<string>(res => {
+            const reader = new FileReader();
+            reader.onload = () => res(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch { /* تجاهل لو فشل */ }
+    }
+
+    // استبدل الـ img tag في الـ innerHTML بالـ base64 version — فقط لو فيه لوجو
+    let html = printEl.innerHTML;
+    if (logoB64) {
+      html = html.replace(/<img[^>]*class="mp-logo"[^>]*>/g,
+        `<img src="${logoB64}" class="mp-logo" alt="${manifest.companyName}" />`);
+    }
+
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) { window.print(); return; }
+
+    win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <title>بيان الشحن — ${manifest.manifestNumber}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
+    body {
+      font-family: 'Cairo', 'Segoe UI', Arial, sans-serif;
+      font-size: 10pt;
+      color: #111;
+      background: #fff;
+      direction: rtl;
+      padding: 0 2mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    /* ── Header ── */
+    .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:3mm; }
+    .mp-header-left { flex:1; }
+    .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
+    .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
+    .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
+    .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
+    .mp-badge-open   { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
+    .mp-badge-closed { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
+    .mp-company-name { font-size:16pt; font-weight:900; color:#1e3a5f; letter-spacing:1px; text-align:left; }
+    .mp-company-sub  { font-size:7pt; color:#94a3b8; letter-spacing:2px; margin-top:0.5mm; text-align:left; }
+    .mp-logo { width:16mm; height:16mm; border-radius:50%; object-fit:cover; border:2px solid #e2e8f0; }
+    /* ── Stats ── */
+    .mp-stats { display:grid; grid-template-columns:repeat(6,1fr); border:2.5px solid #1e3a5f; border-radius:2mm; overflow:hidden; margin-bottom:3mm; }
+    .mp-stat { padding:2mm; text-align:center; border-left:2px solid #94a3b8; background:#f8fafc; }
+    .mp-stat:last-child { border-left:none; }
+    .mp-stat-delivered { background:#f0fdf4; } .mp-stat-returned { background:#fff1f2; }
+    .mp-stat-postponed { background:#fffbeb; } .mp-stat-partial   { background:#f0fdfa; }
+    .mp-stat-lbl { font-size:8pt; color:#64748b; margin-bottom:0.5mm; font-weight:700; }
+    .mp-stat-val { font-size:14pt; font-weight:900; color:#111; }
+    .mp-stat-delivered .mp-stat-val { color:#15803d; } .mp-stat-returned .mp-stat-val { color:#dc2626; }
+    .mp-stat-postponed .mp-stat-val { color:#b45309; } .mp-stat-partial .mp-stat-val  { color:#0f766e; }
+    /* ── Table ── */
+    .mp-table { width:100%; border-collapse:collapse; margin-bottom:3mm; font-size:9.5pt; border:2.5px solid #1e3a5f; }
+    .mp-table thead tr { background:#1e3a5f; }
+    .mp-table th { color:#fff; font-size:9pt; font-weight:700; padding:2.5mm 3mm; text-align:right; border:2px solid rgba(255,255,255,0.5); }
+    .mp-table td { padding:2.5mm 3mm; border:2px solid #94a3b8; vertical-align:middle; line-height:1.5; }
+    .mp-row-alt td { background:#f0f4f8; }
+    .mp-td-center { text-align:center; } .mp-td-bold { font-weight:700; }
+    .mp-td-ltr { direction:ltr; text-align:right; }
+    .mp-num { color:#94a3b8; font-size:8pt; } .mp-sub { font-size:7.5pt; color:#94a3b8; font-weight:400; margin-top:0.5mm; }
+    .mp-note { font-size:8pt; color:#6b7280; }
+    /* ── Status badges ── */
+    .st-d { color:#15803d; font-weight:800; background:#dcfce7; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-r { color:#dc2626; font-weight:800; background:#fee2e2; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-p { color:#b45309; font-weight:800; background:#fef3c7; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-x { color:#0f766e; font-weight:800; background:#ccfbf1; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-n { color:#64748b; background:#f1f5f9; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    /* ── Totals ── */
+    .mp-totals { display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; margin-bottom:4mm; }
+    .mp-total-card { border:2.5px solid #94a3b8; border-radius:2mm; padding:3mm 4mm; text-align:center; background:#f8fafc; }
+    .mp-total-highlight { background:#f0fdf4; border-color:#15803d; }
+    .mp-total-lbl { font-size:8pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
+    .mp-total-val { font-size:13pt; font-weight:900; color:#111; }
+    .mp-total-orange { color:#d97706; } .mp-total-green { color:#15803d; } .mp-total-blue { color:#1d4ed8; }
+    /* ── Footer ── */
+    .mp-footer { border-top:1.5px solid #e2e8f0; padding-top:4mm; margin-top:5mm; display:flex; justify-content:space-between; align-items:flex-end; }
+    .mp-watermark { font-size:7.5pt; color:#cbd5e1; text-align:center; }
+    .mp-sig { min-width:50mm; text-align:center; }
+    .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
+    .mp-sig-line  { border-top:1.5px solid #333; width:80%; margin:0 auto; }
+    .mp-sig-name  { font-size:8pt; color:#555; margin-top:2mm; }
+  </style>
+</head>
+<body>
+  ${html}
+</body>
+</html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 800);
+  };
+
+  if (isLoading)
+    return (
+      <div className="p-12 text-center text-muted-foreground animate-pulse">
+        جاري التحميل...
+      </div>
+    );
+  if (error || !manifest)
+    return (
+      <div className="p-12 text-center">
+        <AlertCircle className="w-12 h-12 mx-auto mb-3 text-destructive opacity-50" />
+        <h2 className="text-lg font-bold mb-2">البيان غير موجود</h2>
+        <Link href="/shipping">
+          <Button variant="outline" className="mt-3">
+            العودة لشركات الشحن
+          </Button>
+        </Link>
+      </div>
+    );
+
+  const s = manifest.stats;
+  const isLocked = manifest.status === "closed";
+  const pendingOrders = manifest.orders.filter(
+    (o) => o.deliveryStatus === "pending"
+  ).length;
+  // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
+  // (مرتجع أو جزئي مرحَّل ولم يُستلم بعد)
+  const isStillAtShipping = (o: typeof manifest.orders[number]) => {
+    const rr = (o as any).returnReceived;
+    const isConfirmed = rr === 1 || rr === true || rr === "1";
+    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+      !isConfirmed;
+  };
+
+  // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها (returnReceived=1) — خالص مش في البيان
+  const isReturnConfirmed = (o: typeof manifest.orders[number]) => {
+    const rr = (o as any).returnReceived;
+    return rr === 1 || rr === true || rr === "1";
+  };
+  const ordersExcludingPendingShipping = (manifest.orders ?? []).filter(
+    (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
+  );
+
+  // ─── كل العدادات (مرتجع / جزئي / مؤجل / الإجمالي) بتتحسب من نفس القائمة المستبعد منها المُستلم ───
+  const allGroupedOrders = groupManifestOrders(ordersExcludingPendingShipping);
+  const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
+  const manifestGroupPriority: Record<string, number> = {
+    returned: 5,
+    postponed: 4,
+    partial_received: 3,
+    partial_delivered: 3,
+    pending: 2,
+    delivered: 1,
+  };
+  const groupManifestStatus = (group: ManifestOrder[]) =>
+    group.reduce((worst, order) =>
+      (manifestGroupPriority[order.deliveryStatus] ?? 0) > (manifestGroupPriority[worst] ?? 0)
+        ? order.deliveryStatus
+        : worst,
+    group[0]?.deliveryStatus ?? "pending");
+  const isPartialStatus = (st: string) => st === "partial_received" || st === "partial_delivered";
+  const isPostponedStatus = (st: string) => st === "postponed" || st === "delayed";
+
+  // عدادات الحالات: من كل الطلبيات (شاملة البضاعة عند الشحن)
+  const groupedPostponedCount = allGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
+  const groupedPartialCount   = allGroupedOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  const groupedReturnedCount  = allGroupedOrders.filter((group) => groupManifestStatus(group) === "returned").length;
+
+  // عدادات الإجمالي والتسليم والمعلق: من الطلبيات المفلترة (بدون البضاعة عند الشحن)
+  const groupedPendingCount   = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
+  const groupedDeliveredCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
+  const groupedTotalCount     = groupedManifestOrders.length;
+  const groupedCompletedCount = groupedDeliveredCount + groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  const groupedDeliveryRate   = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
+  const screenDeliveryRate    = groupedTotalCount > 0 ? Math.round((groupedDeliveredCount / groupedTotalCount) * 100) : 0;
+  const groupedPendingOrders  = groupedPendingCount;
+
+  const statusLabel = (st: DeliveryStatus) => {
+    switch (st) {
+      case "delivered":        return { label: "مسلَّم",         cls: "st-d" };
+      case "returned":         return { label: "مرتجع",           cls: "st-r" };
+      case "postponed":        return { label: "مؤجل",            cls: "st-p" };
+      case "delayed":          return { label: "مؤجل",            cls: "st-p" };
+      case "partial_received": return { label: "جزئي",            cls: "st-x" };
+      case "partial_delivered":return { label: "جزئي",            cls: "st-x" };
+      default:                 return { label: "قيد الانتظار",   cls: "st-n" };
+    }
+  };
+
+  const deliveredGross = ordersExcludingPendingShipping
+    .filter(o => o.deliveryStatus === "delivered")
+    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+
+  const partialGross = ordersExcludingPendingShipping
+    .filter(o => o.deliveryStatus === "partial_received")
+    .reduce((sum, o) => {
+      const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
+      if (returnReceived == null) return sum;
+      if (o.partialQuantity == null || o.quantity <= 0) return sum;
+      const unitPrice = (o as any).unitPrice != null
+        ? Number((o as any).unitPrice)
+        : Number(o.totalPrice) / Number(o.quantity);
+      return sum + Math.round(unitPrice * Number(o.partialQuantity));
+    }, 0);
+
+  const totalCollected = deliveredGross + partialGross;
+
+  return (
+    <>
+    {/* ══════════════ PRINT-ONLY ══════════════ */}
+    <div className="manifest-print print:block hidden" dir="rtl">
+
+      {/* ─── Header ─── */}
+      <div className="mp-header">
+        <div className="mp-header-left">
+          <div className="mp-title">بيان الشحن — {manifest.manifestNumber}</div>
+          <div className="mp-meta">
+            تاريخ الإنشاء: {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
+            {manifest.closedAt && <>&emsp;أُغلق: {format(new Date(manifest.closedAt), "yyyy/MM/dd")}</>}
+            <br />طُبع: {format(new Date(), "yyyy/MM/dd — HH:mm")}
+          </div>
+          <span className={`mp-badge ${manifest.status === "closed" ? "mp-badge-closed" : "mp-badge-open"}`}>
+            {manifest.status === "closed" ? "✓ مغلق" : "● مفتوح"}
+          </span>
+        </div>
+        <div className="mp-header-right">
+          {manifest.companyLogo
+            ? <img src={manifest.companyLogo} className="mp-logo" alt={manifest.companyName} crossOrigin="anonymous" />
+            : null
+          }
+          <div>
+            <div className="mp-company-name">{manifest.companyName}</div>
+            <div className="mp-company-sub">SHIPPING MANIFEST</div>
+          </div>
         </div>
       </div>
 
-      {/* ملخص سريع */}
-      {!hasSearch && (
-        <Card className="p-4 border-border print:hidden">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              <div>
-                <p className="text-sm font-bold">{fmt(filteredClients.length)} عميل</p>
-                <p className="text-[11px] text-muted-foreground">
-                  اضغط على أي صف فى الجدول تحت لعرض حساب العميل بالتفصيل
+      {/* ─── Stats strip ─── */}
+      <div className="mp-stats">
+        <div className="mp-stat"><div className="mp-stat-lbl">إجمالي الطلبيات</div><div className="mp-stat-val">{s.total}</div></div>
+        <div className="mp-stat mp-stat-delivered"><div className="mp-stat-lbl">مسلَّم</div><div className="mp-stat-val">{s.delivered}</div></div>
+        <div className="mp-stat mp-stat-returned"><div className="mp-stat-lbl">مرتجع</div><div className="mp-stat-val">{s.returned}</div></div>
+        <div className="mp-stat mp-stat-postponed"><div className="mp-stat-lbl">مؤجل</div><div className="mp-stat-val">{groupedPostponedCount}</div></div>
+        <div className="mp-stat mp-stat-partial"><div className="mp-stat-lbl">جزئي</div><div className="mp-stat-val">{groupedPartialCount}</div></div>
+        <div className="mp-stat"><div className="mp-stat-lbl">نسبة التسليم</div><div className="mp-stat-val">{screenDeliveryRate}%</div></div>
+      </div>
+
+      {/* ─── Orders table ─── */}
+      <table className="mp-table">
+        <thead>
+          <tr>
+            <th style={{ width: "4%" }}>#</th>
+            <th style={{ width: "14%" }}>العميل</th>
+            <th style={{ width: "8%" }}>المحافظة</th>
+            <th style={{ width: "20%" }}>العنوان</th>
+            <th style={{ width: "12%" }}>الراسل</th>
+            <th style={{ width: "10%" }}>سعر الشحنة</th>
+            <th style={{ width: "9%" }}>سعر الشحن</th>
+            <th style={{ width: "9%" }}>الإجمالي</th>
+            <th style={{ width: "8%" }}>الحالة</th>
+            <th style={{ width: "6%" }}>ملاحظة</th>
+          </tr>
+        </thead>
+        <tbody>
+          {displayGroups.map((group, idx) => {
+            const rep = group[0];
+            const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
+            const isSingleStatus = statuses.length === 1;
+            const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
+            const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
+            const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+            const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+            const net = cod - fee;
+            const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
+            return (
+              <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
+                <td className="mp-td-center mp-num">{idx + 1}</td>
+                <td className="mp-td-bold">
+                  {rep.customerName}
+                  <div className="mp-sub">{rep.phone ?? ""}</div>
+                </td>
+                <td>{rep.city ?? "—"}</td>
+                <td style={{ fontSize: "8.5pt" }}>{(rep as any).address ?? "—"}</td>
+                <td style={{ fontSize: "8.5pt" }}>{(rep as any).senderName ?? "—"}</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center" style={{ color: "#d97706" }}>{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: "#1d4ed8" }}>{net.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
+                <td className="mp-note">{notes}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* ─── Totals ─── */}
+      <div className="mp-totals">
+        <div className="mp-total-card">
+          <div className="mp-total-lbl">إجمالي المحصَّل</div>
+          <div className="mp-total-val">{Number(totalCollected || 0).toLocaleString("ar-EG")} ج.م</div>
+        </div>
+        <div className="mp-total-card">
+          <div className="mp-total-lbl">رسوم الشحن</div>
+          <div className="mp-total-val mp-total-orange">{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")} ج.م</div>
+        </div>
+        <div className="mp-total-card mp-total-highlight">
+          <div className="mp-total-lbl">الصافي المستحق</div>
+          <div className="mp-total-val mp-total-green">{Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")} ج.م</div>
+        </div>
+        {manifest.invoicePrice != null && (
+          <div className="mp-total-card">
+            <div className="mp-total-lbl">سعر الفاتورة المتفق</div>
+            <div className="mp-total-val mp-total-blue">{Number(manifest.invoicePrice).toLocaleString("ar-EG")} ج.م</div>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Footer ─── */}
+      <div className="mp-footer">
+        <div className="mp-sig"><div className="mp-sig-title">توقيع المندوب</div><div className="mp-sig-line"/><div className="mp-sig-name">الاسم: ___________</div></div>
+        <div className="mp-watermark">{brand.name} · {manifest.manifestNumber} · {format(new Date(), "yyyy")}</div>
+        <div className="mp-sig"><div className="mp-sig-title">توقيع المسؤول</div><div className="mp-sig-line"/><div className="mp-sig-name">الاسم: ___________</div></div>
+      </div>
+
+    </div>
+
+    {/* ══════════════ SCREEN-ONLY ══════════════ */}
+    <div className="manifest-screen print:hidden max-w-5xl mx-auto space-y-5 animate-in fade-in duration-500" dir="rtl">
+      {/* ─── Header ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/shipping">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-border shrink-0"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-xl font-bold">{manifest.manifestNumber}</h1>
+              <Badge
+                variant="outline"
+                className={`text-[10px] font-bold border ${
+                  isLocked
+                    ? "border-emerald-700 bg-emerald-900/20 text-emerald-400"
+                    : "border-blue-700 bg-blue-900/20 text-blue-400"
+                }`}
+              >
+                {isLocked ? "مغلق" : "مفتوح"}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Truck className="w-3 h-3" />
+                {manifest.companyName}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
+              </p>
+              {manifest.closedAt && (
+                <p className="text-xs text-emerald-600">
+                  أُغلق: {format(new Date(manifest.closedAt), "yyyy/MM/dd")}
                 </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-lg border border-border overflow-hidden">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 transition-colors ${viewMode === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted/30 text-muted-foreground"}`}
-                  title="عرض كروت"
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode("table")}
-                  className={`p-2 transition-colors border-r border-border ${viewMode === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted/30 text-muted-foreground"}`}
-                  title="عرض جدول"
-                >
-                  <ListIcon className="w-4 h-4" />
-                </button>
-              </div>
-              <Button
-                variant={filtersEnabled ? "default" : "outline"}
-                size="sm"
-                className="gap-2"
-                onClick={() => setFiltersEnabled((v) => !v)}
-              >
-                <ListFilter className="w-4 h-4" />
-                {filtersEnabled ? "إخفاء الفلاتر" : "إنشاء فلتر"}
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* قائمة المرشحين لما البحث بالاسم يرجع أكتر من رقم */}
-      {matches && matches.length > 0 && (
-        <Card className="p-4 border-border print:hidden">
-          <p className="text-sm font-bold mb-3">فيه أكتر من عميل بنفس الاسم — اختار الرقم الصح:</p>
-          <div className="space-y-2">
-            {matches.map((m) => (
-              <button
-                key={m.phone}
-                onClick={() => selectPhone(m.phone)}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/20 transition-colors text-right"
-              >
-                <div className="flex items-center gap-3">
-                  <User className="w-4 h-4 text-primary" />
-                  <div>
-                    <p className="font-bold text-sm">{m.name}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" /> {m.phone}</p>
-                  </div>
-                </div>
-                <Badge variant="outline">{m.shipmentsCount} شحنة</Badge>
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {!hasSearch && !matches && (
-        <Card className="border-border overflow-hidden">
-          <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-3">
-            <Input
-              placeholder="فلترة سريعة بالاسم أو رقم التليفون..."
-              value={tableFilter}
-              onChange={(e) => setTableFilter(e.target.value)}
-              className="max-w-sm"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              عرض <span className="font-bold text-foreground">{fmt(filteredClients.length)}</span> من <span className="font-bold text-foreground">{fmt(allClientsData?.clients?.length ?? 0)}</span> عميل
-            </p>
-          </div>
-
-          {isLoadingAllClients && (
-            <div className="p-10 text-center text-muted-foreground">
-              <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري تحميل قائمة العملاء...
-            </div>
-          )}
-
-          {!isLoadingAllClients && viewMode === "grid" && (
-            <div className="p-4">
-              {filteredClients.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  {tableFilter ? "مفيش نتائج مطابقة" : "لا يوجد عملاء"}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filteredClients.map((c) => {
-                    const color = nameToColor(c.name || "?");
-                    return (
-                      <div
-                        key={c.id}
-                        className="rounded-2xl border border-border bg-card/60 p-4 hover:border-primary/40 transition-colors"
-                      >
-                        {/* رأس الكارت: أفاتار + اسم + فون */}
-                        <div className="flex items-center gap-3">
-                          {c.avatar && c.avatar.startsWith("data:") ? (
-                            <img
-                              src={c.avatar}
-                              alt={c.name || "عميل"}
-                              className="w-12 h-12 rounded-full object-cover shrink-0 border border-border"
-                            />
-                          ) : (
-                            <div
-                              className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black shrink-0"
-                              style={{ background: `${color}18`, color, border: `1px solid ${color}35` }}
-                            >
-                              {(c.name || "?").trim().charAt(0)}
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-black truncate">{c.name}</p>
-                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <Phone className="w-3 h-3" /> {c.phone}
-                              {c.city && <span className="mx-1">·</span>}
-                              {c.city && <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" />{c.city}</span>}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* نسبة التسليم */}
-                        <div className="mt-4">
-                          <DeliveryBar rate={c.deliveryRate} />
-                        </div>
-
-                        {/* مُسلَّم / مُسلَّم جزئي / مُرتجَع */}
-                        <div className="grid grid-cols-3 gap-2 text-center mt-3">
-                          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 relative">
-                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]" />
-                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]" />
-                            <p className="text-[10px] text-emerald-300/70 mb-0.5">مُسلَّم</p>
-                            <p className="text-sm font-black text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.8)]">{c.delivered}</p>
-                          </div>
-                          <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg p-2 relative">
-                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_2px_rgba(45,212,191,0.6)]" />
-                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_2px_rgba(45,212,191,0.6)]" />
-                            <p className="text-[10px] text-teal-300/70 mb-0.5">مُسلَّم جزئي</p>
-                            <p className="text-sm font-black text-teal-400 drop-shadow-[0_0_6px_rgba(45,212,191,0.8)]">{c.partial}</p>
-                          </div>
-                          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 relative">
-                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_6px_2px_rgba(248,113,113,0.6)]" />
-                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_6px_2px_rgba(248,113,113,0.6)]" />
-                            <p className="text-[10px] text-red-300/70 mb-0.5">مُرتجَع</p>
-                            <p className="text-sm font-black text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]">{c.returned}</p>
-                          </div>
-                        </div>
-
-                        {/* البيان الحالي: عدد الشحنات + المتبقي */}
-                        <div className="bg-muted/20 border border-border/40 rounded-lg p-2 mt-3">
-                          <p className="text-[10px] text-muted-foreground text-center mb-1">إجمالي الشحنات</p>
-                          <p className="text-sm font-black text-center">{c.shipmentsCount}</p>
-                        </div>
-                        <div className="flex items-center justify-between text-xs mt-2">
-                          <span className="text-muted-foreground">المتبقي</span>
-                          <span className={`font-black ${c.remainingAmount > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fmt(c.remainingAmount)}</span>
-                        </div>
-
-                        {/* زرار بيان جديد — يفتح كل شحنات العميل */}
-                        <Button
-                          size="sm"
-                          className="w-full h-8 mt-3 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
-                          onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5" />بيان جديد
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
               )}
             </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap print:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 border-border"
+            onClick={() => setShowPreview(true)}
+          >
+            <Eye className="w-3 h-3" />معاينة
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 border-border"
+            onClick={handlePrint}
+          >
+            <Printer className="w-3 h-3" />طباعة
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 border-primary/50 text-primary hover:bg-primary/10"
+            onClick={() => setShowExportDialog(true)}
+          >
+            <Download className="w-3 h-3" />تصدير
+          </Button>
+          {/* إضافة شحنات — أدمن فقط + البيان مفتوح */}
+          {isAdmin && !isLocked && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 border-primary/50 text-primary hover:bg-primary/10"
+              onClick={() => setShowAddOrdersDialog(true)}
+            >
+              <PackagePlus className="w-3 h-3" />إضافة شحنات
+            </Button>
           )}
+          {/* إغلاق / فتح البيان — أدمن فقط */}
+          {isAdmin && (
+            isLocked ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1 border-amber-800 text-amber-400 hover:bg-amber-900/20"
+                onClick={() => setShowReopenDialog(true)}
+              >
+                <Unlock className="w-3 h-3" />فتح
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1 border-emerald-800 text-emerald-400 hover:bg-emerald-900/20"
+                onClick={() => setShowCloseDialog(true)}
+              >
+                <Lock className="w-3 h-3" />إغلاق البيان
+              </Button>
+            )
+          )}
+          {/* حذف البيان — أدمن فقط */}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 border-red-800 text-red-400 hover:bg-red-900/20 hover:text-red-400"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="w-3 h-3" />حذف
+            </Button>
+          )}
+        </div>
+      </div>
 
-          {!isLoadingAllClients && viewMode === "table" && (
-            <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-border bg-card shadow-sm">
-                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
-                      <ColumnHeader label="اسم العميل" col="name" enabled={filtersEnabled}
-                        values={columnValues.name} active={columnFilters.name}
-                        open={openFilterCol === "name"} onToggleOpen={() => setOpenFilterCol((v) => v === "name" ? null : "name")}
-                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter}
-                        sortable sortActive={sortCol === "name"} sortDir={sortDir} onSort={() => toggleSort("name")} />
-                    </th>
-                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
-                      <ColumnHeader label="الفون" col="phone" enabled={filtersEnabled}
-                        values={columnValues.phone} active={columnFilters.phone}
-                        open={openFilterCol === "phone"} onToggleOpen={() => setOpenFilterCol((v) => v === "phone" ? null : "phone")}
-                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter} />
-                    </th>
-                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
-                      <ColumnHeader label="المحافظة" col="city" enabled={filtersEnabled}
-                        values={columnValues.city} active={columnFilters.city}
-                        open={openFilterCol === "city"} onToggleOpen={() => setOpenFilterCol((v) => v === "city" ? null : "city")}
-                        onToggleValue={toggleColumnFilterValue} onClear={clearColumnFilter}
-                        sortable sortActive={sortCol === "city"} sortDir={sortDir} onSort={() => toggleSort("city")} />
-                    </th>
-                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
-                      <ColumnHeader label="عدد الشحنات" col="shipmentsCount" enabled={false}
-                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
-                        sortable sortActive={sortCol === "shipmentsCount"} sortDir={sortDir} onSort={() => toggleSort("shipmentsCount")} />
-                    </th>
-                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
-                      <ColumnHeader label="إجمالي القيمة" col="totalAmount" enabled={false}
-                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
-                        sortable sortActive={sortCol === "totalAmount"} sortDir={sortDir} onSort={() => toggleSort("totalAmount")} />
-                    </th>
-                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
-                      <ColumnHeader label="المحصَّل" col="collectedAmount" enabled={false}
-                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
-                        sortable sortActive={sortCol === "collectedAmount"} sortDir={sortDir} onSort={() => toggleSort("collectedAmount")} />
-                    </th>
-                    <th className="p-2.5 text-right font-bold whitespace-nowrap">
-                      <ColumnHeader label="المتبقي" col="remainingAmount" enabled={false}
-                        values={[]} open={false} onToggleOpen={() => {}} onToggleValue={() => {}} onClear={() => {}}
-                        sortable sortActive={sortCol === "remainingAmount"} sortDir={sortDir} onSort={() => toggleSort("remainingAmount")} />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredClients.map((c, idx) => {
-                    const pct = c.totalAmount > 0 ? Math.min(100, Math.round((c.collectedAmount / c.totalAmount) * 100)) : 0;
-                    return (
-                      <tr
-                        key={c.id}
-                        className={`border-b border-border/40 hover:bg-primary/5 cursor-pointer transition-colors ${idx % 2 === 0 ? "bg-transparent" : "bg-muted/10"}`}
-                        onClick={() => navigate(`/finance/client-account-sheet/client/${c.id}`)}
-                      >
-                        <td className="p-2.5">
-                          <div className="flex items-center gap-2">
-                            <ClientAvatar name={c.name} avatar={c.avatar} />
-                            <span className="font-bold hover:underline decoration-dotted underline-offset-2">{c.name}</span>
-                          </div>
-                        </td>
-                        <td className="p-2.5 whitespace-nowrap">
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Phone className="w-3 h-3" /> {c.phone}
-                          </span>
-                        </td>
-                        <td className="p-2.5">
-                          {c.city ? (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-muted-foreground" /> {c.city}
-                            </span>
-                          ) : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="p-2.5">
-                          <Badge variant="outline" className="font-bold">{c.shipmentsCount}</Badge>
-                        </td>
-                        <td className="p-2.5 font-bold whitespace-nowrap">{fmt(c.totalAmount)}</td>
-                        <td className="p-2.5 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span>{fmt(c.collectedAmount)}</span>
-                            <div className="w-12 h-1.5 rounded-full bg-muted/30 overflow-hidden hidden md:block">
-                              <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-2.5 whitespace-nowrap">
-                          <span className={`font-bold px-2 py-0.5 rounded-md ${c.remainingAmount > 0 ? "text-amber-400 bg-amber-900/10" : "text-emerald-400 bg-emerald-900/10"}`}>
-                            {fmt(c.remainingAmount)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filteredClients.length === 0 && (
-                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">
-                      {tableFilter ? "مفيش نتائج مطابقة" : "لا يوجد عملاء"}
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {/* ─── بانر البيان المغلق — للموظف فقط ─── */}
+      {isLocked && !isAdmin && (
+        <div className="flex items-center gap-3 rounded-xl border border-red-800/50 bg-red-900/10 px-4 py-3">
+          <Lock className="w-5 h-5 text-red-400 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-red-400">هذا البيان مغلق</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              لا يمكن إجراء أي تعديلات على بيان مغلق. تواصل مع الأدمن لإعادة فتحه.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ─── بانر البيان المغلق — للأدمن ─── */}
+      {isLocked && isAdmin && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-800/50 bg-amber-900/10 px-4 py-3">
+          <Lock className="w-5 h-5 text-amber-400 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-400">البيان مغلق</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              أُغلق بتاريخ {manifest.closedAt ? format(new Date(manifest.closedAt), "yyyy/MM/dd") : "—"} · لإعادة الفتح اضغط زر "فتح" في الأعلى
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1 border-amber-800 text-amber-400 hover:bg-amber-900/20 shrink-0"
+            onClick={() => setShowReopenDialog(true)}
+          >
+            <Unlock className="w-3 h-3" />فتح البيان
+          </Button>
+        </div>
+      )}
+
+      {/* ─── KPI Cards ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className="border-border bg-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">إجمالي الطلبيات</p>
+          <p className="text-2xl font-black">{groupedTotalCount}</p>
+          {groupedPendingOrders > 0 && !isLocked && (
+            <p className="text-[10px] text-amber-500 mt-0.5">
+              {groupedPendingOrders} بانتظار التقفيل
+            </p>
           )}
         </Card>
-      )}
-
-      {hasSearch && isLoading && (
-        <Card className="p-10 border-border text-center text-muted-foreground">
-          <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" /> جاري التحميل...
+        <Card className="border-emerald-900/50 bg-emerald-900/10 p-4">
+          <p className="text-xs text-emerald-400 mb-1 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />مُسلَّم
+          </p>
+          <p className="text-2xl font-black text-emerald-400">{groupedDeliveredCount}</p>
+          <p className="text-xs text-emerald-600 mt-0.5 font-bold">
+            {screenDeliveryRate}% نسبة التسليم
+          </p>
         </Card>
-      )}
-
-      {hasSearch && !isLoading && data && !data.client && (
-        <Card className="p-10 border-border text-center text-muted-foreground">
-          مفيش أوردرات لهذا العميل
+        <Card className="border-red-900/50 bg-red-900/10 p-4">
+          <p className="text-xs text-red-400 mb-1 flex items-center gap-1">
+            <RotateCcw className="w-3 h-3" />مُرتجَع
+          </p>
+          <p className="text-2xl font-black text-red-400">{groupedReturnedCount}</p>
+          <p className="text-xs text-red-600 mt-0.5 font-bold">
+            {groupedTotalCount > 0 ? Math.round((groupedReturnedCount / groupedTotalCount) * 100) : 0}% نسبة الإرجاع
+          </p>
         </Card>
-      )}
-
-      {hasSearch && !isLoading && data?.client && (
-        <>
-          {/* بيانات العميل + أزرار */}
-          <Card className="p-4 border-border">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="space-y-1">
-                <button
-                  className="font-bold text-lg flex items-center gap-2 hover:underline decoration-dotted underline-offset-4"
-                  onClick={() => navigate(`/finance/client-account-sheet/detail/${encodeURIComponent(activePhone)}`)}
-                >
-                  <User className="w-4 h-4 text-primary" /> {data.client.name}
-                </button>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                  {data.client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {data.client.phone}</span>}
-                  {data.client.city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {data.client.city}</span>}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 print:hidden">
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => navigate(`/finance/client-account-sheet/detail/${encodeURIComponent(activePhone)}`)}
-                  className="gap-2"
-                >
-                  <BarChart3 className="w-4 h-4" /> تفاصيل الحساب
-                </Button>
-                <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
-                  <Printer className="w-4 h-4" /> طباعة
-                </Button>
-                <Button variant="outline" size="sm" onClick={exportExcel} className="gap-2">
-                  <FileSpreadsheet className="w-4 h-4" /> تصدير Excel
-                </Button>
-                <Button size="sm" onClick={() => setCloseDialogOpen(true)} className="gap-2 bg-red-600 hover:bg-red-700 text-white" title="يقفل الأوردرات الحالية للعميل (لا يشمل حساب الأرصدة المالية)">
-                  <Lock className="w-4 h-4" /> إقفال الأوردرات
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          {/* المربعات الأربعة */}
-          {data.stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:hidden">
-              <StatBox label="الجاري" value={data.stats.delayedOrInDelivery} icon={Truck} color="#3b82f6" />
-              <StatBox label="مرتجع لم يصل" value={data.stats.returnedNotReceived} icon={RotateCcw} color="#ef4444" />
-              <StatBox label="الجديد" value={data.stats.newOrders} icon={Package} color="#f59e0b" />
-              <StatBox label="الإجمالي" value={data.stats.totalOrders} icon={ListOrdered} color="#10b981" />
-            </div>
-          )}
-
-          {/* الجدول */}
-          <Card className="border-border overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border bg-muted/20">
-                  <th className="p-2.5 text-right font-bold">اسم العميل</th>
-                  <th className="p-2.5 text-right font-bold">الفون</th>
-                  <th className="p-2.5 text-right font-bold">المحافظة</th>
-                  <th className="p-2.5 text-right font-bold">العنوان</th>
-                  <th className="p-2.5 text-right font-bold">اسم الراسل</th>
-                  <th className="p-2.5 text-right font-bold">الفرع المستلم منه</th>
-                  <th className="p-2.5 text-right font-bold">المندوب</th>
-                  <th className="p-2.5 text-right font-bold">سعر الشحنة</th>
-                  <th className="p-2.5 text-right font-bold">قيمة الشحنة</th>
-                  <th className="p-2.5 text-right font-bold">قيمة الشحن</th>
-                  <th className="p-2.5 text-right font-bold">المحصَّل فعلياً</th>
-                  <th className="p-2.5 text-right font-bold">حالة الأوردر</th>
-                  <th className="p-2.5 text-right font-bold">ملاحظات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.orders.map((o) => (
-                  <tr
-                    key={o.id}
-                    className="border-b border-border/50 hover:bg-primary/5 cursor-pointer transition-colors"
-                    onClick={() => setDetailOrder(o)}
-                  >
-                    <td className="p-2.5 font-bold hover:underline decoration-dotted underline-offset-2">{o.customerName}</td>
-                    <td className="p-2.5">{o.phone || "—"}</td>
-                    <td className="p-2.5">{o.city || "—"}</td>
-                    <td className="p-2.5 max-w-[160px] truncate" title={o.address ?? ""}>{o.address || "—"}</td>
-                    <td className="p-2.5">{o.senderName || "—"}</td>
-                    <td className="p-2.5">{o.warehouseName || "—"}</td>
-                    <td className="p-2.5">
-                      {o.assignedUserName
-                        ? <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 bg-primary/10 text-primary"><UserCog className="w-3 h-3" /> {o.assignedUserName}</Badge>
-                        : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="p-2.5">{fmt(o.unitPrice)}</td>
-                    <td className="p-2.5 font-bold">{fmt(o.totalPrice)}</td>
-                    <td className="p-2.5">{fmt(o.shippingCost)}</td>
-                    <td className="p-2.5 print:hidden" onClick={(e) => e.stopPropagation()}>
-                      {editingId === o.id ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            value={collectedInput}
-                            onChange={(e) => setCollectedInput(e.target.value)}
-                            className="h-7 w-20 text-xs"
-                            autoFocus
-                          />
-                          <Button size="icon" className="h-7 w-7" onClick={() =>
-                            collectedMutation.mutate({ id: o.id, amount: collectedInput === "" ? null : Number(collectedInput) })
-                          }>
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <button
-                          className="hover:underline decoration-dotted underline-offset-2"
-                          onClick={() => { setEditingId(o.id); setCollectedInput(o.collectedAmount != null ? String(o.collectedAmount) : ""); }}
-                        >
-                          {o.collectedAmount != null ? fmt(o.collectedAmount) : <span className="text-muted-foreground">تحديد</span>}
-                        </button>
-                      )}
-                    </td>
-                    <td className="p-2.5 hidden print:table-cell">{o.collectedAmount != null ? fmt(o.collectedAmount) : "—"}</td>
-                    <td className="p-2.5"><StatusBadge status={o.status} /></td>
-                    <td className="p-2.5 max-w-[180px] truncate" title={o.notes ?? ""}>{o.notes || "—"}</td>
-                  </tr>
-                ))}
-                {data.orders.length === 0 && (
-                  <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">لا يوجد أوردرات</td></tr>
-                )}
-              </tbody>
-            </table>
-          </Card>
-        </>
-      )}
-
-      {/* Dialog تفاصيل الأوردر — تصميم فاتورة احترافية بهوية STARK */}
-      <Dialog open={!!detailOrder} onOpenChange={(open) => !open && setDetailOrder(null)}>
-        <DialogContent className="sm:max-w-xl p-0 overflow-hidden gap-0 border-border">
-          {detailOrder && (() => {
-            const o = detailOrder;
-            const net = Number(o.totalPrice ?? 0) - Number(o.shippingCost ?? 0);
-            const cfg = STATUS_CFG[o.status] ?? { label: o.status, color: "text-muted-foreground", bg: "bg-muted/10", border: "border-border" };
-            const collectPct = Number(o.totalPrice) > 0 && o.collectedAmount != null
-              ? Math.min(100, Math.round((Number(o.collectedAmount) / Number(o.totalPrice)) * 100))
-              : null;
+        <Card className="border-teal-900/50 bg-teal-900/10 p-4">
+          <p className="text-xs text-teal-400 mb-1 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />استلم جزئي
+          </p>
+          <p className="text-2xl font-black text-teal-400">{groupedPartialCount}</p>
+          {(() => {
+            const partialOrders = manifest.orders.filter(o => o.deliveryStatus === "partial_received");
+            const partialReturnedQty = partialOrders.reduce((sum, o) => {
+              const delivered = o.partialQuantity ?? 0;
+              const remaining = o.quantity - delivered;
+              return sum + (remaining > 0 ? remaining : 0);
+            }, 0);
+            const stillAtShipping = partialOrders.filter(o => (o as any).returnReceived !== 1).length;
             return (
               <>
-                {/* هيدر داكن بهوية الشركة */}
-                <div className="relative bg-[#0b0f19] px-6 pt-6 pb-5 overflow-hidden">
-                  <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full bg-primary/10 blur-2xl" />
-                  <div className="absolute -bottom-14 -right-10 w-48 h-48 rounded-full bg-primary/5 blur-2xl" />
-                  <div className="relative flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 text-white">
-                        <span className="text-lg font-black tracking-wide">STARK</span>
-                        <span className="text-[10px] text-white/40 font-medium">كشف تفاصيل شحنة</span>
-                      </div>
-                      <p className="text-[11px] text-white/50 mt-2 flex items-center gap-1.5">
-                        <Hash className="w-3 h-3" /> أوردر #{o.id}
-                        {o.invoiceNumber && <span className="text-white/25">•</span>}
-                        {o.invoiceNumber && <span>فاتورة {o.invoiceNumber}</span>}
-                      </p>
-                      <p className="text-[11px] text-white/40 mt-1 flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(o.createdAt).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className={`text-[11px] shrink-0 ${cfg.border} ${cfg.bg} ${cfg.color} px-2.5 py-1`}>
-                      {cfg.label}
-                    </Badge>
-                  </div>
-
-                  {/* بطاقة العميل داخل الهيدر */}
-                  <div className="relative mt-4 flex items-center gap-3 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-3">
-                    <ClientAvatar name={o.customerName} />
-                    <div className="min-w-0 flex-1">
-                      <DialogTitle className="text-sm font-black text-white truncate">{o.customerName}</DialogTitle>
-                      <p className="text-[11px] text-white/50 flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3" /> {o.phone || "—"}
-                        {o.city && <span className="text-white/25 mx-1">•</span>}
-                        {o.city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {o.city}</span>}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="px-6 py-4 max-h-[56vh] overflow-y-auto">
-                  {/* قسم: بيانات الشحن */}
-                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                    <Truck className="w-3 h-3" /> بيانات الشحن
+                {partialReturnedQty > 0 && (
+                  <p className="text-[10px] text-red-400 mt-0.5 font-semibold">
+                    ↩ مرتجع جزئي: {partialReturnedQty} قطعة
                   </p>
-                  <div className="rounded-xl border border-border overflow-hidden mb-4">
-                    <DetailRow icon={Building2} label="العنوان" value={o.address || "—"} />
-                    <DetailRow icon={Send} label="اسم الراسل" value={o.senderName || "—"} />
-                    <DetailRow icon={Warehouse} label="الفرع المستلم منه" value={o.warehouseName || "—"} />
-                    <DetailRow
-                      icon={UserCog}
-                      label="المندوب"
-                      value={o.assignedUserName
-                        ? <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 bg-primary/10 text-primary"><UserCog className="w-3 h-3" /> {o.assignedUserName}</Badge>
-                        : "—"}
-                    />
-                    <DetailRow icon={Package} label="المنتج" value={o.product || "—"} />
-                  </div>
-
-                  {/* قسم: الحساب المالي */}
-                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                    <Receipt className="w-3 h-3" /> الحساب المالي
+                )}
+                {stillAtShipping > 0 && (
+                  <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+                    🚚 المرتجع ما زال في شركة الشحن
                   </p>
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    <div className="p-3.5 space-y-0.5">
-                      <DetailRow icon={DollarSign} label="سعر الشحنة" value={fmt(o.unitPrice)} />
-                      <DetailRow icon={Package} label="قيمة الشحنة" value={fmt(o.totalPrice)} highlight />
-                      <DetailRow icon={Truck} label="قيمة الشحن" value={fmt(o.shippingCost)} />
-                      <DetailRow
-                        icon={Wallet}
-                        label="المحصَّل فعلياً"
-                        value={o.collectedAmount != null ? fmt(o.collectedAmount) : "لم يُحدَّد"}
-                        color={o.collectedAmount != null ? "#10b981" : undefined}
-                      />
-                    </div>
-
-                    {collectPct != null && (
-                      <div className="px-3.5 pb-3">
-                        <div className="w-full h-1.5 rounded-full bg-muted/30 overflow-hidden">
-                          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${collectPct}%` }} />
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-1 text-left">{collectPct}% من قيمة الشحنة</p>
-                      </div>
-                    )}
-
-                    {/* الصافي — بارز زي إجمالي فاتورة */}
-                    <div className="flex items-center justify-between px-3.5 py-3.5 bg-primary/5 border-t border-border">
-                      <span className="flex items-center gap-2 text-sm font-black">
-                        <Receipt className="w-4 h-4 text-primary" /> صافي المستحق
-                      </span>
-                      <span className="text-xl font-black text-primary">{fmt(net)}</span>
-                    </div>
-                  </div>
-
-                  {o.notes && (
-                    <div className="mt-4 rounded-xl border border-amber-700/30 bg-amber-900/10 p-3.5">
-                      <p className="text-[11px] text-amber-400 flex items-center gap-1.5 font-black mb-1">
-                        <StickyNote className="w-3.5 h-3.5" /> ملاحظات
-                      </p>
-                      <p className="text-xs text-foreground/90 leading-relaxed">{o.notes}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-border bg-muted/5">
-                  <p className="text-[10px] text-muted-foreground">صادر إلكترونيًا عبر نظام STARK</p>
-                  <Button variant="outline" size="sm" onClick={() => setDetailOrder(null)}>إغلاق</Button>
-                </div>
+                )}
               </>
             );
           })()}
-        </DialogContent>
-      </Dialog>
+        </Card>
+        <Card className="border-amber-900/50 bg-amber-900/10 p-4">
+          <p className="text-xs text-amber-400 mb-1 flex items-center gap-1">
+            <Clock className="w-3 h-3" />مؤجل / معلَّق
+          </p>
+          <p className="text-2xl font-black text-amber-400">{groupedPostponedCount}</p>
+          <p className="text-xs text-amber-600 mt-0.5 font-bold">
+            {groupedTotalCount > 0 ? Math.round((groupedPostponedCount / groupedTotalCount) * 100) : 0}% من الإجمالي
+          </p>
+        </Card>
+      </div>
 
-      {/* Dialog إقفال الحساب */}
-      <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Lock className="w-4 h-4 text-red-500" /> إقفال أوردرات العميل</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              هيتم إقفال كل الأوردرات الحالية لهذا العميل ماعدا المؤجلة/تحت التسليم
-              (لسه شغالة في مركز العمليات). العملية دي هتتسجل كسجل مغلق ومينفعش يترجع.
-              <br />
-              <span className="text-amber-500">ملحوظة: ده تشغيلي بس، ومش بيقفل فترة حسابية أو يحسب الأرصدة — لو محتاج تقفل فترة محاسبية بالأرصدة، استخدم "إقفال فترة" من صفحة تفاصيل الحساب.</span>
+      {/* ─── Delivery Rate Bar ─── */}
+      <Card className="border-border bg-card p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-bold">نسبة التسليم</p>
+          <p
+            className={`text-xl font-black ${
+              screenDeliveryRate >= 70
+                ? "text-emerald-400"
+                : screenDeliveryRate >= 40
+                ? "text-amber-400"
+                : "text-red-400"
+            }`}
+          >
+            {screenDeliveryRate}%
+          </p>
+        </div>
+        <div className="w-full bg-muted rounded-full h-3 overflow-hidden flex">
+          <div
+            className="h-3 bg-emerald-500 transition-all"
+            style={{ width: `${groupedTotalCount > 0 ? (groupedDeliveredCount / groupedTotalCount) * 100 : 0}%` }}
+          />
+          <div
+            className="h-3 bg-orange-500 transition-all"
+            style={{
+              width: `${groupedTotalCount > 0 ? (groupedPendingCount / groupedTotalCount) * 100 : 0}%`,
+            }}
+          />
+          <div
+            className="h-3 bg-red-500 transition-all"
+            style={{ width: `${groupedTotalCount > 0 ? (groupedReturnedCount / groupedTotalCount) * 100 : 0}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground">
+          <span className="text-emerald-600">مُسلَّم: {groupedDeliveredCount}</span>
+          <span className="text-orange-600">مؤجل: {groupedPostponedCount}</span>
+          <span className="text-red-600">مُرتجَع: {groupedReturnedCount}</span>
+        </div>
+      </Card>
+
+      {/* ─── Invoice Section ─── */}
+      {canViewFinancials && (
+        <Card className="border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Banknote className="w-4 h-4 text-muted-foreground" />
+            <h2 className="font-bold text-sm">فاتورة البيان</h2>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-[10px] text-muted-foreground">
+              المبلغ المتفق عليه مع شركة الشحن (ما سيُدفع لنا)
             </p>
-            <Textarea
-              placeholder="ملاحظات على الإقفال (اختياري)"
-              value={closeNotes}
-              onChange={(e) => setCloseNotes(e.target.value)}
-              rows={3}
+            <InvoicePriceEditor
+              manifestId={id}
+              current={manifest.invoicePrice}
+              currentNotes={(manifest as any).invoiceNotes ?? null}
+              isShipmentManifest={true}
+              onSaved={refetch}
             />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>إلغاء</Button>
-            <Button
-              onClick={() => closeMutation.mutate()}
-              disabled={closeMutation.isPending}
-              className="bg-red-600 hover:bg-red-700 text-white gap-2"
+        </Card>
+      )}
+
+      {/* ─── Settlement Card ─── */}
+      {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} isShipmentManifest={true} />}
+
+      {/* ─── Orders Table ─── */}
+      <Card className="border-border bg-card overflow-visible print:break-inside-avoid">
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-border cursor-pointer hover:bg-muted/10 transition-colors"
+          onClick={() => setShowOrders(!showOrders)}
+        >
+          <h2 className="font-bold text-sm flex items-center gap-2 flex-wrap min-w-0">
+              <Package className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="shrink-0">الطلبيات في البيان</span>
+              <Badge variant="outline" className="text-[9px] shrink-0">
+                {groupedManifestOrders.length}
+              </Badge>
+            {!isLocked && pendingOrders > 0 && (
+              <Badge
+                variant="outline"
+                className="text-[9px] border-amber-700 bg-amber-900/20 text-amber-400 shrink-0"
+              >
+                {pendingOrders} بانتظار التقفيل
+              </Badge>
+            )}
+          </h2>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (showColFilters) {
+                  setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set() });
+                  setSortCol(null);
+                }
+                setShowColFilters(v => !v);
+              }}
+              className={`hidden md:flex h-7 items-center gap-1.5 px-2.5 rounded-lg border text-xs font-medium transition-all shrink-0 ${showColFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
             >
-              {closeMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              تأكيد الإقفال
-            </Button>
+              <svg viewBox="0 0 24 24" className="w-3 h-3" fill={showColFilters ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              {showColFilters ? "إلغاء الفلتر" : "إنشاء فلتر"}
+            </button>
+            {showOrders ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+
+        {showOrders && (
+          <>
+            {manifest.orders.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground text-sm">
+                  لا توجد طلبيات
+                </div>
+              ) : (
+                <>
+                {/* ══ Selection Action Bar ══ */}
+                {selectedGroups.size > 0 && (
+                  <div dir="rtl" className="flex items-center gap-3 px-4 py-2.5 bg-primary/10 border-b border-primary/30 text-xs">
+                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} className={someSelected ? "opacity-60" : ""} />
+                    <span className="font-bold text-primary">
+                      {selectedGroups.size} محدد من {allGroupKeys.length}
+                    </span>
+                    <div className="flex items-center gap-2 mr-auto">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-[11px] px-2.5 text-muted-foreground hover:text-foreground border border-border/50"
+                        onClick={clearSelection}
+                      >
+                        <X className="w-3 h-3 ml-1" />
+                        إلغاء التحديد
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {/* ══ Search Bar ══ */}
+                <div className="p-3 border-b border-border bg-muted/10 flex flex-col gap-2">
+                  <div className="relative">
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input
+                      value={manifestCustomerSearch}
+                      onChange={e => setManifestCustomerSearch(e.target.value)}
+                      placeholder="ابحث باسم العميل..."
+                      className="w-full pr-9 pl-8 bg-card text-sm h-9 border border-primary/30 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/60 font-medium"
+                      dir="rtl"
+                    />
+                    {manifestCustomerSearch && (
+                      <>
+                        <button className="absolute left-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setManifestCustomerSearch("")}>
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                          {displayGroups.length}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input
+                      value={manifestProductSearch}
+                      onChange={e => setManifestProductSearch(e.target.value)}
+                      placeholder="ابحث بالمنتج أو الهاتف..."
+                      className="w-full pr-9 bg-card text-sm h-9 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/60"
+                      dir="rtl"
+                    />
+                    {manifestProductSearch && (
+                      <button className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setManifestProductSearch("")}>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* ══ رأس الجدول المحسَّن ══ */}
+                <div className="overflow-x-auto">
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                  [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
+                  {/* ─── عمود العميل ─── */}
+                  <div className="relative flex items-center">
+                    <div className="flex items-center px-3 shrink-0">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleAll}
+                        className={someSelected ? "opacity-60" : ""}
+                        aria-label="تحديد الكل"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between w-full h-9 px-3">
+                      <span className="font-bold">العميل</span>
+                      {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                    </div>
+                  </div>
+                  {/* ─── المحافظة ─── */}
+                  <div className="flex items-center justify-between gap-1 px-3 h-9">
+                    <div className="flex items-center gap-1.5">
+                      <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+                      المحافظة
+                    </div>
+                    {showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                  </div>
+                  {/* ─── العنوان التفصيلي ─── */}
+                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
+                    <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
+                    العنوان
+                  </div>
+                  {/* ─── الشركة الراسلة ─── */}
+                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
+                    <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                    الراسل
+                  </div>
+                  {/* ─── سعر الشحنة (COD) ─── */}
+                  <div className="flex items-center justify-between gap-1 px-3 h-9">
+                    {!showColFilters
+                      ? <input
+                          value={manifestTotalSearch}
+                          onChange={e => setManifestTotalSearch(e.target.value)}
+                          placeholder="COD..."
+                          className="w-full h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
+                          dir="rtl"
+                        />
+                      : <span className="font-bold">سعر الشحنة</span>
+                    }
+                    {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                  </div>
+                  {/* ─── سعر الشحن (fee) ─── */}
+                  <div className="flex items-center justify-center gap-1 px-2 h-9">
+                    سعر الشحن
+                  </div>
+                  {/* ─── تكلفة الشحنة (courier cost) ─── */}
+                  <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">
+                    تكلفة الشحنة
+                  </div>
+                  {/* ─── الإجمالي (COD - fee - courier) ─── */}
+                  <div className="flex items-center justify-center gap-1 px-2 h-9">
+                    الإجمالي
+                  </div>
+                  {/* ─── الحالة ─── */}
+                  <div className="flex items-center gap-1 px-2 h-9">
+                    <span className="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-2.5 h-2.5 opacity-50" />
+                    </span>
+                    <span className="shrink-0">الحالة</span>
+                    {showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                  </div>
+                </div>
+                {displayGroups.length === 0 && colFilterHasActive ? (
+                  <div className="p-6 text-center text-muted-foreground text-sm">
+                    <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p>لا توجد نتائج للبحث</p>
+                    <button
+                      onClick={() => { setCustomerSearch(""); clearAllColFilters(); }}
+                      className="text-xs text-primary hover:underline mt-1"
+                    >
+                      مسح كل الفلاتر
+                    </button>
+                  </div>
+                ) : (
+                  <div key={customerSearch}>
+                  {displayGroups.map((group, index) => (
+                  <InvoiceGroupDeliveryRow
+                    key={group.map((order) => `${order.id}-${order.deliveryStatus}-${order.partialQuantity ?? 0}-${order.deliveryNote ?? ""}`).join("|")}
+                    group={group}
+                    manifestId={id}
+                    locked={isLocked && !isAdmin}
+                    onSaved={refetch}
+                    rowIndex={index}
+                    selected={selectedGroups.has(getManifestGroupKey(group[0]))}
+                    onToggleSelect={toggleGroup}
+                    isShipmentManifest={true}
+                    courierShippingCost={rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null}
+                  />
+                  ))}
+                  </div>
+                )}
+                </div>{/* end overflow-x-auto */}
+              </>
+            )}
+          </>
+        )}
+      </Card>
+
+      {/* ─── حاوية المرتجعات والجزئي لسه عند شركة الشحن ─── */}
+      {(() => {
+        const pendingReturnOrders = (manifest.orders ?? []).filter(o =>
+          (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+          (o as any).returnReceived !== 1
+        );
+        if (pendingReturnOrders.length === 0) return null;
+        return (
+          <div
+            className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4 print:hidden"
+            style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-base">🚚</span>
+              <h2 className="font-bold text-sm text-red-400">
+                بضاعة لسه عند شركة الشحن ({pendingReturnOrders.length})
+              </h2>
+              <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {pendingReturnOrders.map(order => {
+                const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
+                const deliveredQty = order.partialQuantity ?? 0;
+                const remainingQty = isPartial ? (order.quantity - deliveredQty) : order.quantity;
+                const rr = (order as any).returnReceived;
+                const isAtShipping = rr === 0 || rr === null;
+                return (
+                  <div
+                    key={order.id}
+                    className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs truncate text-foreground">{order.customerName}</span>
+                        {order.phone && (
+                          <span className="text-[10px] text-muted-foreground">{order.phone}</span>
+                        )}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
+                          {isPartial ? "جزئي" : "مرتجع"}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                        {order.product}
+                        {(order.color || order.size) && ` — ${[order.color, order.size].filter(Boolean).join(" / ")}`}
+                      </p>
+                      <p className="text-[10px] font-semibold text-red-400 mt-0.5">
+                        {isPartial
+                          ? `كمية باقية عند الشحن: ${remainingQty} من ${order.quantity}`
+                          : `كمية مرتجعة: ${order.quantity}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
+                      <ReturnReceivedButton
+                        manifestId={id}
+                        order={order}
+                        received={true}
+                        onSaved={refetch}
+                        locked={isLocked}
+                      />
+                      <ReturnReceivedButton
+                        manifestId={id}
+                        order={order}
+                        received={false}
+                        onSaved={refetch}
+                        locked={isLocked}
+                        currentlyAtShipping={isAtShipping}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── P&L Summary for shipment manifests ─── */}
+      {canViewFinancials && (() => {
+        // نستخدم نفس helper isStillAtShipping المعرّف فوق
+        const ordersForPnl = ordersExcludingPendingShipping;
+        const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
+        const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
+        const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        const shippingCost    = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0));
+        const netAmount       = deliveredCOD - shippingCost;
+        const isProfit        = netAmount >= 0;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
+            <Card className="border-border bg-card p-4">
+              <p className="text-xs text-muted-foreground mb-1">إجمالي COD</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalCOD)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
+            </Card>
+            <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
+              <p className="text-xs text-emerald-400 mb-1">COD المُسلَّم</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(deliveredCOD)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
+            </Card>
+            <Card className="border-red-900/40 bg-red-900/10 p-4">
+              <p className="text-xs text-red-400 mb-1">COD المرتجع</p>
+              <p className="text-lg font-black text-red-400">{formatCurrency(returnedCOD)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{returnedOrders.length} شحنة</p>
+            </Card>
+            <Card className="border-amber-900/40 bg-amber-900/10 p-4">
+              <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
+              <p className="text-lg font-black text-amber-400">−{formatCurrency(shippingCost)}</p>
+              {manifest.manualShippingCost != null && (
+                <p className="text-[10px] text-amber-600">يدوي ✏️</p>
+              )}
+            </Card>
+            <Card className={`col-span-2 p-4 border ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-xs mb-1 font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                    {isProfit ? "صافي المستحق" : "صافي الخسارة"}
+                  </p>
+                  <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                    {formatCurrency(Math.abs(netAmount))}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {formatCurrency(deliveredCOD)} مُسلَّم − {formatCurrency(shippingCost)} شحن
+                  </p>
+                </div>
+                {isProfit
+                  ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
+                  : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
+
+      {/* ─── Close Confirm Dialog ─── */}
+      {showCloseDialog && (
+        <CloseConfirmDialog
+          manifest={manifest}
+          onClose={() => setShowCloseDialog(false)}
+          onConfirm={() => updateMutation.mutate({ status: "closed" })}
+          loading={updateMutation.isPending}
+        />
+      )}
+
+      {/* ─── Rollover Dialog — بيان جديد اتنشأ ─── */}
+      {showRolloverDialog && (
+        <AlertDialog open onOpenChange={() => setShowRolloverDialog(null)}>
+          <AlertDialogContent dir="rtl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-emerald-500">
+                <CheckCircle2 className="w-5 h-5" />
+                تم إغلاق البيان وإنشاء بيان جديد
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-right space-y-3">
+                <span className="block text-foreground font-medium text-sm">
+                  تم إنشاء البيان <strong className="text-emerald-400">{showRolloverDialog.manifestNumber}</strong> تلقائياً
+                </span>
+                <span className="block text-muted-foreground text-xs">
+                  يحتوي على <strong>{showRolloverDialog.orderCount}</strong> طلبية مرحَّلة{showRolloverDialog.breakdown && <span className="text-amber-400"> {showRolloverDialog.breakdown}</span>}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  هل تريد الانتقال للبيان الجديد الآن؟
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowRolloverDialog(null)}>لاحقاً</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-emerald-700 hover:bg-emerald-600 text-white gap-1"
+                onClick={() => { window.location.href = `/shipping/shipment-manifests/${showRolloverDialog.id}`; }}
+              >
+                <ArrowRight className="w-3.5 h-3.5" />
+                انتقل للبيان الجديد
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* ─── Reopen Confirm Dialog — أدمن فقط ─── */}
+      <AlertDialog open={showReopenDialog} onOpenChange={setShowReopenDialog}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-500">
+              <Unlock className="w-5 h-5" />
+              تأكيد إعادة فتح البيان
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right space-y-2">
+              <span className="block">
+                هل تريد إعادة فتح البيان <strong className="text-foreground">{manifest.manifestNumber}</strong>؟
+              </span>
+              <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                ⚠ هذا الإجراء متاح للأدمن فقط. بعد الفتح يمكن تعديل حالات التسليم مجدداً.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-500 text-white gap-1"
+              onClick={() => {
+                setShowReopenDialog(false);
+                updateMutation.mutate({ status: "open" });
+              }}
+              disabled={updateMutation.isPending}
+            >
+              <Unlock className="w-3.5 h-3.5" />
+              نعم، افتح البيان
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ─── Add Orders Dialog ─── */}
+      {showExportDialog && manifest && (
+        <ExportDialog
+          manifest={manifest}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
+
+      {showAddOrdersDialog && manifest && rawManifest && (
+        <AddOrdersToManifestDialog
+          manifestId={id}
+          manifestNumber={manifest.manifestNumber}
+          companyId={rawManifest.shippingCompanyId}
+          existingOrderIds={new Set(manifest.orders.map(o => o.shipmentId ?? o.id))}
+          onClose={() => setShowAddOrdersDialog(false)}
+          onAdded={refetch}
+        />
+      )}
+
+      {/* ─── Delete Dialog ─── */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف البيان</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف بيان الشحن {manifest.manifestNumber}؟ لن يتم
+              حذف الطلبيات المرتبطة به.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleteMutation.isPending ? "جاري الحذف..." : "نعم، احذف"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
 
-    {/* ── فاتورة الطباعة الاحترافية — تظهر فقط عند الطباعة ── */}
-    {hasSearch && data?.client && (
-      <div className="hidden print:block print-invoice" dir="rtl">
-        <style>{`
-          @media print {
-            @page { size: A4; margin: 12mm; }
-            body { background: #fff !important; }
-          }
-          .print-invoice {
-            font-family: 'Cairo', 'Tahoma', sans-serif;
-            color: #111;
-            background: #fff;
-          }
-          .print-invoice * { color: #111 !important; box-shadow: none !important; }
-          .inv-header {
-            display: flex; justify-content: space-between; align-items: flex-start;
-            border-bottom: 3px solid #111; padding-bottom: 14px; margin-bottom: 18px;
-          }
-          .inv-brand { font-size: 22px; font-weight: 900; letter-spacing: 0.5px; }
-          .inv-sub { font-size: 11px; color: #555 !important; margin-top: 2px; }
-          .inv-meta { text-align: left; font-size: 11px; line-height: 1.7; }
-          .inv-meta b { font-size: 13px; }
-          .inv-client {
-            display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-            border: 1px solid #ccc; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;
-            font-size: 12px;
-          }
-          .inv-client .label { color: #666 !important; font-size: 10px; display: block; }
-          .inv-client .value { font-weight: 700; }
-          table.inv-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-          table.inv-table thead th {
-            background: #111 !important; color: #fff !important;
-            padding: 7px 6px; text-align: right; font-weight: 700;
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
-          }
-          table.inv-table tbody td {
-            padding: 6px; border-bottom: 1px solid #ddd; text-align: right;
-          }
-          table.inv-table tbody tr:nth-child(even) { background: #f7f7f7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .inv-totals {
-            margin-top: 14px; display: flex; justify-content: flex-end;
-          }
-          .inv-totals table { border-collapse: collapse; font-size: 11.5px; min-width: 260px; }
-          .inv-totals td { padding: 5px 10px; }
-          .inv-totals .label-cell { color: #555 !important; }
-          .inv-totals .value-cell { font-weight: 700; text-align: left; }
-          .inv-totals .grand { border-top: 2px solid #111; font-size: 13px; font-weight: 900; }
-          .inv-footer {
-            margin-top: 28px; padding-top: 10px; border-top: 1px solid #ccc;
-            font-size: 10px; color: #666 !important; display: flex; justify-content: space-between;
-          }
-        `}</style>
-
-        <div className="inv-header">
-          <div>
-            <div className="inv-brand">STARK</div>
-            <div className="inv-sub">كشف حساب عميل — Client Account Statement</div>
-          </div>
-          <div className="inv-meta">
-            <div><b>تاريخ الطباعة:</b> {new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })}</div>
-            <div><b>عدد الأوردرات:</b> {fmt(data.orders.length)}</div>
-          </div>
-        </div>
-
-        <div className="inv-client">
-          <div>
-            <span className="label">اسم العميل</span>
-            <span className="value">{data.client.name}</span>
-          </div>
-          {data.client.phone && (
-            <div>
-              <span className="label">رقم الهاتف</span>
-              <span className="value">{data.client.phone}</span>
+    {/* ══════════════ PREVIEW MODAL ══════════════ */}
+    {showPreview && createPortal(
+      <div
+        className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/70 overflow-y-auto py-6"
+        onClick={(e) => { if (e.target === e.currentTarget) setShowPreview(false); }}
+      >
+        <div className="bg-white rounded-xl shadow-2xl w-[210mm] max-w-[96vw] relative">
+          {/* شريط التحكم */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-slate-800 rounded-t-xl sticky top-0 z-10">
+            <span className="text-white text-sm font-bold">معاينة قبل الطباعة — {manifest.manifestNumber}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setShowPreview(false); handlePrint(); }}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-white text-xs font-bold hover:bg-primary/90"
+              >
+                <Printer className="w-3.5 h-3.5" />طباعة
+              </button>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="flex items-center justify-center w-7 h-7 rounded-md bg-slate-700 text-slate-300 hover:bg-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          )}
-          {data.client.city && (
-            <div>
-              <span className="label">المحافظة</span>
-              <span className="value">{data.client.city}</span>
-            </div>
-          )}
-          {data.client.address && (
-            <div>
-              <span className="label">العنوان</span>
-              <span className="value">{data.client.address}</span>
-            </div>
-          )}
+          </div>
+          {/* المحتوى — iframe بيعرض نفس HTML الطباعة */}
+          <iframe
+            className="w-full rounded-b-xl border-0"
+            style={{ height: "80vh" }}
+            srcDoc={(() => {
+              const el = document.querySelector(".manifest-print") as HTMLElement | null;
+              const html = el?.innerHTML ?? "";
+              return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Cairo', Arial, sans-serif; font-size: 10pt; color: #111; background: #fff; direction: rtl; padding: 8mm 10mm; }
+    .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:3mm; }
+    .mp-header-left { flex:1; }
+    .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
+    .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
+    .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
+    .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
+    .mp-badge-open { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
+    .mp-badge-closed { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
+    .mp-company-name { font-size:16pt; font-weight:900; color:#1e3a5f; letter-spacing:1px; }
+    .mp-company-sub { font-size:7pt; color:#94a3b8; letter-spacing:2px; margin-top:0.5mm; }
+    .mp-logo { width:16mm; height:16mm; border-radius:50%; object-fit:cover; border:2px solid #e2e8f0; }
+    .mp-stats { display:grid; grid-template-columns:repeat(6,1fr); border:2.5px solid #1e3a5f; border-radius:2mm; overflow:hidden; margin-bottom:4mm; }
+    .mp-stat { padding:2.5mm 2mm; text-align:center; border-left:2px solid #94a3b8; background:#f8fafc; }
+    .mp-stat:last-child { border-left:none; }
+    .mp-stat-delivered { background:#f0fdf4; } .mp-stat-returned { background:#fff1f2; }
+    .mp-stat-postponed { background:#fffbeb; } .mp-stat-partial { background:#f0fdfa; }
+    .mp-stat-lbl { font-size:8pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
+    .mp-stat-val { font-size:14pt; font-weight:900; color:#111; }
+    .mp-stat-delivered .mp-stat-val { color:#15803d; } .mp-stat-returned .mp-stat-val { color:#dc2626; }
+    .mp-stat-postponed .mp-stat-val { color:#b45309; } .mp-stat-partial .mp-stat-val { color:#0f766e; }
+    .mp-table { width:100%; border-collapse:collapse; margin-bottom:3mm; font-size:9.5pt; border:2.5px solid #1e3a5f; }
+    .mp-table thead tr { background:#1e3a5f; }
+    .mp-table th { color:#fff; font-size:9pt; font-weight:700; padding:2.5mm 3mm; text-align:right; border:2px solid rgba(255,255,255,0.5); }
+    .mp-table td { padding:2.5mm 3mm; border:2px solid #94a3b8; vertical-align:middle; line-height:1.5; }
+    .mp-row-alt td { background:#f0f4f8; }
+    .mp-td-center { text-align:center; } .mp-td-bold { font-weight:700; } .mp-td-ltr { direction:ltr; text-align:right; }
+    .mp-num { color:#94a3b8; font-size:8pt; } .mp-sub { font-size:7.5pt; color:#94a3b8; margin-top:0.5mm; }
+    .mp-note { font-size:8pt; color:#6b7280; }
+    .st-d { color:#15803d; font-weight:800; background:#dcfce7; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-r { color:#dc2626; font-weight:800; background:#fee2e2; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-p { color:#b45309; font-weight:800; background:#fef3c7; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-x { color:#0f766e; font-weight:800; background:#ccfbf1; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .st-n { color:#64748b; background:#f1f5f9; padding:0.5mm 2.5mm; border-radius:1mm; font-size:8.5pt; white-space:nowrap; }
+    .mp-totals { display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; margin-bottom:4mm; }
+    .mp-total-card { border:2.5px solid #94a3b8; border-radius:2mm; padding:3mm 4mm; text-align:center; background:#f8fafc; }
+    .mp-total-highlight { background:#f0fdf4; border-color:#15803d; }
+    .mp-total-lbl { font-size:8pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
+    .mp-total-val { font-size:13pt; font-weight:900; color:#111; }
+    .mp-total-orange { color:#d97706; } .mp-total-green { color:#15803d; } .mp-total-blue { color:#1d4ed8; }
+    .mp-footer { border-top:1.5px solid #e2e8f0; padding-top:4mm; margin-top:5mm; display:flex; justify-content:space-between; align-items:flex-end; }
+    .mp-watermark { font-size:7.5pt; color:#cbd5e1; text-align:center; }
+    .mp-sig { min-width:50mm; text-align:center; }
+    .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
+    .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
+    .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+  </style>
+</head>
+<body>${html}</body>
+</html>`;
+            })()}
+            title="معاينة"
+          />
         </div>
-
-        <table className="inv-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>التاريخ</th>
-              <th>المنتج</th>
-              <th>الراسل</th>
-              <th>المندوب</th>
-              <th>قيمة الشحنة</th>
-              <th>قيمة الشحن</th>
-              <th>المحصَّل</th>
-              <th>الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.orders.map((o, i) => (
-              <tr key={o.id}>
-                <td>{i + 1}</td>
-                <td>{new Date(o.createdAt).toLocaleDateString("ar-EG")}</td>
-                <td>{o.product || "—"}</td>
-                <td>{o.senderName || "—"}</td>
-                <td>{o.assignedUserName || "—"}</td>
-                <td>{fmt(o.totalPrice)}</td>
-                <td>{fmt(o.shippingCost)}</td>
-                <td>{o.collectedAmount != null ? fmt(o.collectedAmount) : "—"}</td>
-                <td>{STATUS_CFG[o.status]?.label ?? o.status}</td>
-              </tr>
-            ))}
-            {data.orders.length === 0 && (
-              <tr><td colSpan={9} style={{ textAlign: "center", padding: "16px" }}>لا يوجد أوردرات</td></tr>
-            )}
-          </tbody>
-        </table>
-
-        <div className="inv-totals">
-          <table>
-            <tbody>
-              <tr>
-                <td className="label-cell">إجمالي قيمة الشحنات</td>
-                <td className="value-cell">{fmt(printTotals.totalValue)}</td>
-              </tr>
-              <tr>
-                <td className="label-cell">إجمالي قيمة الشحن</td>
-                <td className="value-cell">{fmt(printTotals.totalShipping)}</td>
-              </tr>
-              <tr>
-                <td className="label-cell">إجمالي المحصَّل</td>
-                <td className="value-cell">{fmt(printTotals.totalCollected)}</td>
-              </tr>
-              <tr className="grand">
-                <td className="label-cell">الصافي</td>
-                <td className="value-cell">{fmt(printTotals.totalValue - printTotals.totalShipping)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="inv-footer">
-          <span>تم إصدار هذا الكشف إلكترونيًا عبر نظام STARK</span>
-          <span>صفحة 1</span>
-        </div>
-      </div>
+      </div>,
+      document.body
     )}
+
     </>
   );
 }
