@@ -2082,6 +2082,26 @@ export default function OrderDetail() {
     staleTime: 0,
   });
 
+  // ── العميل التجاري المرتبط بالشحنة (الراسل) — يُستخدم لو senderName/senderPhone فاضيين ──
+  const senderClientId = (order as any)?.clientId ?? null;
+  const { data: senderCommercialClient } = useQuery({
+    queryKey: ["finance-clients"],
+    queryFn: () => apiFetch<{ id: number; name: string; phone: string | null; phone2: string | null; city: string | null; address: string | null; region: string | null }[]>("/finance/clients"),
+    enabled: !!senderClientId,
+    staleTime: 60_000,
+    select: (list) => list.find(c => c.id === senderClientId) ?? null,
+  });
+
+  // بيانات الراسل النهائية — من حقول الشحنة المباشرة، وإلا من العميل التجاري المرتبط
+  const senderInfo = {
+    name: (order as any)?.senderName || senderCommercialClient?.name || null,
+    phone: (order as any)?.senderPhone || senderCommercialClient?.phone || senderCommercialClient?.phone2 || null,
+    city: (order as any)?.senderCity || senderCommercialClient?.city || senderCommercialClient?.region || null,
+    address: senderCommercialClient?.address || null,
+    isFromClient: !((order as any)?.senderName) && !!senderCommercialClient,
+  };
+
+
   // الشحنات مش بيها invoiceNumber — نعطل الـ query ده
   const invoiceNumber = null;
   const { data: invoiceOrders = [], refetch: refetchInvoiceOrders, isLoading: isInvoiceLoading, isFetching: isInvoiceFetching, isError: isInvoiceError } = useQuery({
@@ -3908,17 +3928,24 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           })()}
 
           {/* ── بطاقة تفاصيل الراسل — منفصلة تحت بطاقة المستلم ── */}
-          {!isEditing && (order as any).senderName && (
+          {!isEditing && senderInfo.name && (
             <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
               <div className="px-5 pt-4 pb-3 border-b border-border/50">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[10px] text-muted-foreground font-semibold mb-1">الراسل</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-[10px] text-muted-foreground font-semibold">الراسل</p>
+                      {senderInfo.isFromClient && (
+                        <Badge variant="outline" className="text-[9px] font-bold border-primary/40 text-primary px-1.5 py-0 h-4">
+                          من ملف العميل التجاري
+                        </Badge>
+                      )}
+                    </div>
                     <h2 className="text-lg font-black text-foreground leading-tight">
-                      {(order as any).senderName || "—"}
+                      {senderInfo.name}
                     </h2>
                   </div>
-                  {(order as any).senderPhone && (
+                  {senderInfo.phone && (
                     <Button
                       type="button"
                       size="sm"
@@ -3950,14 +3977,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                           shipmentNumber: (order as any).shipmentNumber ?? null,
                           receiverName: (order as any).receiverName || order.customerName || "—",
                           receiverPhone: (order as any).receiverPhone || order.phone || null,
-                          senderName: (order as any).senderName ?? null,
+                          senderName: senderInfo.name,
                           trackingNumber: (order as any).trackingNumber ?? null,
                           status: statusLabels[order.status] || order.status,
                           shippingFee: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
                           codAmount: (order as any).codAmount ?? 0,
                           zoneLabel: (order as any).receiverCity || (order as any).city || (order as any).zoneLabel || null,
                         });
-                        const link = buildWhatsAppLink((order as any).senderPhone, body);
+                        const link = buildWhatsAppLink(senderInfo.phone!, body);
                         window.open(link, "_blank", "noopener,noreferrer");
                       }}
                     >
@@ -3967,20 +3994,44 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   )}
                 </div>
               </div>
-              {(order as any).senderPhone && (
-                <div className="px-5 py-3">
+              <div className="px-5 py-3 space-y-2.5">
+                {senderInfo.phone && (
                   <div className="flex items-start justify-between gap-4">
                     <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 shrink-0 pt-0.5">
                       <Phone className="w-3 h-3 text-primary/60" />هاتف الراسل
                     </span>
                     <span className="text-sm font-bold text-foreground text-left" dir="ltr">
-                      {(order as any).senderPhone}
+                      {senderInfo.phone}
                     </span>
                   </div>
-                </div>
-              )}
+                )}
+                {senderInfo.city && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 shrink-0 pt-0.5">
+                      <MapPin className="w-3 h-3 text-primary/60" />المحافظة
+                    </span>
+                    <span className="text-sm font-semibold text-foreground text-left">
+                      {senderInfo.city}
+                    </span>
+                  </div>
+                )}
+                {senderInfo.address && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 shrink-0 pt-0.5">
+                      <MapPin className="w-3 h-3 text-primary/60" />العنوان
+                    </span>
+                    <span className="text-sm font-semibold text-foreground text-left leading-snug max-w-[60%]">
+                      {senderInfo.address}
+                    </span>
+                  </div>
+                )}
+                {!senderInfo.phone && !senderInfo.city && !senderInfo.address && (
+                  <p className="text-xs text-muted-foreground text-center py-2">لا توجد بيانات تواصل إضافية للراسل</p>
+                )}
+              </div>
             </div>
           )}
+
 
           {isEditing && (
             <Form {...form}>
