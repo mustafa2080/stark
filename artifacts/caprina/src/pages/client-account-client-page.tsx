@@ -855,36 +855,70 @@ function ShipmentManifestRow({ manifest, companyId, qc }: {
       </div>
 
       {expanded && (
-        <div className="border-t border-border/40">
+        <div className="border-t border-border/40 overflow-x-auto">
           {!detail ? (
             <p className="text-xs text-muted-foreground text-center py-3">جاري التحميل...</p>
           ) : detail.items.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-3">لا توجد شحنات في هذا البيان</p>
           ) : (
-            detail.items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/30 text-xs">
-                <div className="min-w-0">
-                  <p className="font-semibold truncate">{item.shipment?.receiverName ?? "—"}</p>
-                  <p className="text-[10px] text-muted-foreground font-mono">{item.shipment?.shipmentNumber}</p>
-                </div>
-                {locked || !canManifests ? (
-                  <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${SHIPMENT_MANIFEST_STATUS_COLORS[item.deliveryStatus] ?? "border-border text-muted-foreground"}`}>
-                    {SHIPMENT_MANIFEST_STATUS_LABELS[item.deliveryStatus] ?? item.deliveryStatus}
-                  </Badge>
-                ) : (
-                  <select
-                    className="h-7 text-[10px] bg-background border border-border rounded-md px-1.5 shrink-0"
-                    value={item.deliveryStatus}
-                    onChange={(e) => updateItemMutation.mutate({ shipmentId: item.shipmentId, deliveryStatus: e.target.value as any })}
-                    disabled={updateItemMutation.isPending}
-                  >
-                    {Object.entries(SHIPMENT_MANIFEST_STATUS_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            ))
+            <table className="w-full text-xs min-w-[720px]">
+              <thead>
+                <tr className="bg-muted/30 text-[10px] text-muted-foreground">
+                  <th className="px-2 py-1.5 text-right font-semibold">#</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">العميل</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">المحافظة</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">العنوان</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">الراسل</th>
+                  <th className="px-2 py-1.5 text-center font-semibold">سعر الشحنة</th>
+                  <th className="px-2 py-1.5 text-center font-semibold">سعر الشحن</th>
+                  <th className="px-2 py-1.5 text-center font-semibold">الإجمالي</th>
+                  <th className="px-2 py-1.5 text-center font-semibold">الحالة</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">ملاحظة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.items.map((item, idx) => {
+                  const sh = item.shipment;
+                  const cod = sh ? parseFloat(sh.codAmount ?? "0") : 0;
+                  const fee = sh ? parseFloat((sh as any).shippingFee ?? "0") : 0;
+                  const net = cod - fee;
+                  return (
+                    <tr key={item.id} className={`border-b border-border/30 ${idx % 2 === 1 ? "bg-muted/10" : ""}`}>
+                      <td className="px-2 py-2 text-center text-muted-foreground">{idx + 1}</td>
+                      <td className="px-2 py-2">
+                        <p className="font-semibold truncate max-w-[140px]">{sh?.receiverName ?? "—"}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{sh?.shipmentNumber}</p>
+                      </td>
+                      <td className="px-2 py-2">{sh?.zoneGovernorate ?? sh?.receiverCity ?? "—"}</td>
+                      <td className="px-2 py-2 text-[11px] max-w-[160px] truncate">{sh?.receiverAddress ?? "—"}</td>
+                      <td className="px-2 py-2 text-[11px]">{sh?.senderName ?? "—"}</td>
+                      <td className="px-2 py-2 text-center font-semibold text-emerald-500">{cod.toLocaleString("ar-EG")} ج</td>
+                      <td className="px-2 py-2 text-center text-amber-500">{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
+                      <td className="px-2 py-2 text-center font-semibold text-blue-500">{net.toLocaleString("ar-EG")} ج</td>
+                      <td className="px-2 py-2 text-center">
+                        {locked || !canManifests ? (
+                          <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${SHIPMENT_MANIFEST_STATUS_COLORS[item.deliveryStatus] ?? "border-border text-muted-foreground"}`}>
+                            {SHIPMENT_MANIFEST_STATUS_LABELS[item.deliveryStatus] ?? item.deliveryStatus}
+                          </Badge>
+                        ) : (
+                          <select
+                            className="h-7 text-[10px] bg-background border border-border rounded-md px-1.5 shrink-0"
+                            value={item.deliveryStatus}
+                            onChange={(e) => updateItemMutation.mutate({ shipmentId: item.shipmentId, deliveryStatus: e.target.value as any })}
+                            disabled={updateItemMutation.isPending}
+                          >
+                            {Object.entries(SHIPMENT_MANIFEST_STATUS_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-[10px] text-muted-foreground max-w-[100px] truncate">{item.deliveryNote ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       )}
