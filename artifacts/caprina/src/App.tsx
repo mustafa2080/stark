@@ -214,7 +214,7 @@ const CommercialClientDetail      = lazy(() => import("@/pages/commercial-client
 const CommercialShipmentDetail    = lazy(() => import("@/pages/commercial-shipment-detail"));
 const SalesReportPage              = lazy(() => import("@/pages/finance-sales-report"));
 const AllClientsPage              = lazy(() => import("@/pages/finance-all-clients"));
-const ClientAccountSheetPage      = lazy(() => import("@/pages/client-account-sheet"));
+const ClientAccountSheetPage      = lazy(() => import("@/pages/client-account-manifest"));
 const ClientAccountDetailPage     = lazy(() => import("@/pages/client-account-detail"));
 const ClientAccountClientPage     = lazy(() => import("@/pages/client-account-client-page"));
 
