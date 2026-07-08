@@ -122,20 +122,44 @@ function KpiCard({ label, value, sub, icon: Icon, theme, isMoney }: {
   );
 }
 
-// ─── Active Pie Sector (smooth grow + glow on hover) ──────────────────────────
-function renderActiveShape(props: any) {
+// ─── Active Pie Sector (smooth, animated grow on hover — real radius tween) ───
+function AnimatedActiveShape(props: any) {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  const GROW = 8;
+  const [extra, setExtra] = useState(0);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const start = extra;
+    const target = GROW;
+    const dur = 260; // مدة النمو بالمللي ثانية — ناعمة ومش سريعة
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const t = Math.min((now - t0) / dur, 1);
+      const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      setExtra(start + (target - start) * ease);
+      if (t < 1) rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <Sector
       cx={cx} cy={cy}
       innerRadius={innerRadius}
-      outerRadius={outerRadius + 6}
+      outerRadius={outerRadius + extra}
       startAngle={startAngle}
       endAngle={endAngle}
       fill={fill}
       stroke="none"
+      style={{ filter: `drop-shadow(0 0 8px ${fill}66)` }}
     />
   );
+}
+function renderActiveShape(props: any) {
+  return <AnimatedActiveShape {...props} />;
 }
 
 // ─── Client Rank Row (Top / Least) ───────────────────────────────────────────
