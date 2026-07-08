@@ -8,7 +8,7 @@ import {
   ArrowRight, Phone, MapPin, Sparkles,
 } from "lucide-react";
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector,
+  PieChart, Pie, Cell, ResponsiveContainer, Sector,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 
@@ -270,12 +270,6 @@ export default function ClientAccountDashboardPage() {
                             />
                           ))}
                         </Pie>
-                        <Tooltip
-                          cursor={false}
-                          wrapperStyle={{ outline: "none" }}
-                          contentStyle={{ background: "rgba(20,20,20,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 11 }}
-                          formatter={(v: any, n: any) => [`${v} شحنة`, n]}
-                        />
                       </PieChart>
                     </ResponsiveContainer>
                     {/* Center total (aligned with donut hole) */}
