@@ -118,16 +118,16 @@ router.get("/sale-order-manifests/available/:clientId", async (req, res): Promis
       .from(saleOrderManifestItemsTable);
     const usedIds = usedItems.map(i => i.saleOrderId);
 
-    // فقط الفواتير "قيد التجهيز" (processing) = لسه فى المخزن ومحصلتش شحن بعد
+    // الفواتير "قيد الشحن في المخزن" = لسه ماتسلمتش (draft/confirmed/processing)
     const where = usedIds.length
       ? and(
           eq(saleOrdersTable.clientName, client.name),
-          eq(saleOrdersTable.status, "processing"),
+          inArray(saleOrdersTable.status, ["draft", "confirmed", "processing"]),
           notInArray(saleOrdersTable.id, usedIds),
         )
       : and(
           eq(saleOrdersTable.clientName, client.name),
-          eq(saleOrdersTable.status, "processing"),
+          inArray(saleOrdersTable.status, ["draft", "confirmed", "processing"]),
         );
 
     const orders = await db
