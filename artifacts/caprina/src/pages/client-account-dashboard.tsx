@@ -171,7 +171,7 @@ function ColumnFilterDropdown({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const isActive = selected !== null && selected.size < values.length;
+  const isActive = selected !== null && selected.size > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -180,20 +180,20 @@ function ColumnFilterDropdown({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const current = selected ?? new Set(values);
+  const current = selected ?? new Set<string>();
   const filteredValues = values.filter(v => v.toLowerCase().includes(q.trim().toLowerCase()));
   const allChecked = filteredValues.length > 0 && filteredValues.every(v => current.has(v));
 
   const toggleValue = (v: string) => {
     const next = new Set(current);
     if (next.has(v)) next.delete(v); else next.add(v);
-    onChange(next.size === values.length ? null : next);
+    onChange(next.size === 0 ? null : next);
   };
   const toggleAll = () => {
     const next = new Set(current);
     if (allChecked) filteredValues.forEach(v => next.delete(v));
     else filteredValues.forEach(v => next.add(v));
-    onChange(next.size === values.length ? null : next);
+    onChange(next.size === 0 ? null : next);
   };
 
   return (
