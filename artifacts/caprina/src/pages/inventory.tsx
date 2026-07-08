@@ -18,7 +18,7 @@ import {
   Filter, X, SortAsc, SortDesc, ChevronDown as ChevronDownIcon, Warehouse as WarehouseIcon, MapPin, Printer, ImagePlus, Trash,
   Truck, Clock3, RotateCcw, CheckCircle2, ArrowRight, PackageX, RefreshCw, TrendingDown, Eye,
   AlertCircle, Zap, Target, Activity, PieChart, ShieldAlert, CircleDollarSign, PackageCheck, Wallet,
-  Globe, Image as LucideImage
+  Globe, Image as LucideImage, Pencil
 } from "lucide-react";
 
 // ─── Product Image Upload ──────────────────────────────────────────────────────
