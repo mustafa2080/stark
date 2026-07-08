@@ -717,11 +717,11 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
     const leastClients = [...withShipments].sort((a, b) => a.totalAmount - b.totalAmount).slice(0, 5);
 
     const statusBreakdown = [
-      { status: "delivered",    label: "تم التسليم",        count: totals.delivered,    color: "#34D399" },
-      { status: "waiting",      label: "قيد الانتظار",       count: totals.waiting,      color: "#60A5FA" },
-      { status: "inWarehouse",  label: "قيد الشحن بالمخزن",  count: totals.inWarehouse,  color: "#A78BFA" },
-      { status: "delayed",      label: "مؤجل",               count: totals.delayed,      color: "#FBBF24" },
-      { status: "returned",     label: "مرتجع",              count: totals.returned,     color: "#F87171" },
+      { status: "delivered",    label: "تم التسليم",        count: totals.delivered,    color: "#22C55E" },
+      { status: "waiting",      label: "قيد الانتظار",       count: totals.waiting,      color: "#EAB308" },
+      { status: "inWarehouse",  label: "قيد الشحن بالمخزن",  count: totals.inWarehouse,  color: "#F97316" },
+      { status: "delayed",      label: "مؤجل",               count: totals.delayed,      color: "#3B82F6" },
+      { status: "returned",     label: "مرتجع",              count: totals.returned,     color: "#EF4444" },
     ].map(s => ({ ...s, percentage: totals.shipments ? Math.round((s.count / totals.shipments) * 100) : 0 }));
 
     res.json({

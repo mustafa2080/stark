@@ -121,21 +121,19 @@ function KpiCard({ label, value, sub, icon: Icon, theme, isMoney }: {
   );
 }
 
-// ─── Active Pie Sector (hover fade-in / fade-out grow) ───────────────────────
+// ─── Active Pie Sector (smooth grow + glow on hover) ──────────────────────────
 function renderActiveShape(props: any) {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
   return (
-    <g style={{ transition: "all 0.25s ease-out" }}>
-      <Sector
-        cx={cx} cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={outerRadius + 8}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-        style={{ filter: `drop-shadow(0 0 10px ${fill}aa)`, transition: "all 0.25s ease-out" }}
-      />
-    </g>
+    <Sector
+      cx={cx} cy={cy}
+      innerRadius={innerRadius}
+      outerRadius={outerRadius + 6}
+      startAngle={startAngle}
+      endAngle={endAngle}
+      fill={fill}
+      stroke="none"
+    />
   );
 }
 
@@ -250,8 +248,12 @@ export default function ClientAccountDashboardPage() {
                           outerRadius={92}
                           paddingAngle={3}
                           cornerRadius={4}
+                          stroke="none"
                           activeIndex={activeIndex}
                           activeShape={renderActiveShape}
+                          isAnimationActive={true}
+                          animationDuration={350}
+                          animationEasing="ease-out"
                           onMouseEnter={(_, i) => setActiveIndex(i)}
                           onMouseLeave={() => setActiveIndex(undefined)}
                         >
@@ -259,15 +261,18 @@ export default function ClientAccountDashboardPage() {
                             <Cell
                               key={i}
                               fill={s.color}
+                              stroke="none"
                               style={{
                                 cursor: "pointer",
                                 opacity: activeIndex === undefined || activeIndex === i ? 1 : 0.35,
-                                transition: "opacity 0.25s ease-out",
+                                transition: "opacity 0.35s ease-out",
                               }}
                             />
                           ))}
                         </Pie>
                         <Tooltip
+                          cursor={false}
+                          wrapperStyle={{ outline: "none" }}
                           contentStyle={{ background: "rgba(20,20,20,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 11 }}
                           formatter={(v: any, n: any) => [`${v} شحنة`, n]}
                         />
