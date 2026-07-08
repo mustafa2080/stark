@@ -387,17 +387,22 @@ function ShipmentInsightsTab() {
   }, [shipments]);
 
   // ── شحنات تحتاج action ────────────────────────────────────────────────────
-  const noCompany = shipments.filter(s =>
+  const noCompanyList = useMemo(() => shipments.filter(s =>
     !s.shippingCompanyId && (s.status === "waiting" || s.status === "confirmed")
-  ).length;
+  ), [shipments]);
+  const noCompany = noCompanyList.length;
 
-  const longPending = useMemo(() => {
+  const longPendingList = useMemo(() => {
     const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
     return shipments.filter(s =>
       (s.status === "waiting" || s.status === "confirmed") &&
       new Date(s.createdAt).getTime() < threeDaysAgo
-    ).length;
+    );
   }, [shipments]);
+  const longPending = longPendingList.length;
+
+  const [noCompanyOpen, setNoCompanyOpen] = useState(false);
+  const [longPendingOpen, setLongPendingOpen] = useState(false);
 
   if (isLoading) return (
     <div className="space-y-3">
@@ -475,22 +480,77 @@ function ShipmentInsightsTab() {
       {(noCompany > 0 || longPending > 0) && (
         <div className="space-y-2">
           {noCompany > 0 && (
-            <div className="flex items-center gap-3 rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/15 px-4 py-3">
-              <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-bold text-amber-700 dark:text-amber-300">{noCompany} شحنة بدون شركة شحن</p>
-                <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70">شحنات مؤكدة لم تُسند لشركة شحن بعد</p>
-              </div>
-              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/15 overflow-hidden">
+              <button type="button"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-100/50 dark:hover:bg-amber-900/25 transition-colors"
+                onClick={() => setNoCompanyOpen(o => !o)}>
+                <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="flex-1 min-w-0 text-right">
+                  <p className="text-[12px] font-bold text-amber-700 dark:text-amber-300">{noCompany} شحنة بدون شركة شحن</p>
+                  <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70">شحنات مؤكدة لم تُسند لشركة شحن بعد — اضغط للعرض</p>
+                </div>
+                {noCompanyOpen ? <ChevronDown className="w-4 h-4 text-amber-500 shrink-0" /> : <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />}
+              </button>
+              {noCompanyOpen && (
+                <div className="border-t border-amber-200 dark:border-amber-800/40 divide-y divide-amber-200/60 dark:divide-amber-800/30 max-h-80 overflow-y-auto">
+                  {noCompanyList.map(s => (
+                    <div key={s.id} className="flex items-center gap-3 px-4 py-2.5 bg-card/50">
+                      <Package className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] font-bold truncate">{(s as any).receiverName ?? "بدون اسم"}</span>
+                          {(s as any).shipmentNumber && (
+                            <span className="text-[10px] text-muted-foreground shrink-0">#{(s as any).shipmentNumber}</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {(s as any).receiverPhone ?? "—"} · {(s as any).warehouseName ?? "بدون فرع"}
+                        </p>
+                      </div>
+                      <span className="text-[9px] text-muted-foreground shrink-0">
+                        {new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {longPending > 0 && (
-            <div className="flex items-center gap-3 rounded-xl border border-red-300 dark:border-red-700/50 bg-red-50 dark:bg-red-900/15 px-4 py-3">
-              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-bold text-red-700 dark:text-red-300">{longPending} شحنة معلقة أكثر من 3 أيام</p>
-                <p className="text-[10px] text-red-600/70 dark:text-red-400/70">تحتاج مراجعة فورية أو إلغاء</p>
-              </div>
+            <div className="rounded-xl border border-red-300 dark:border-red-700/50 bg-red-50 dark:bg-red-900/15 overflow-hidden">
+              <button type="button"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-100/50 dark:hover:bg-red-900/25 transition-colors"
+                onClick={() => setLongPendingOpen(o => !o)}>
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                <div className="flex-1 min-w-0 text-right">
+                  <p className="text-[12px] font-bold text-red-700 dark:text-red-300">{longPending} شحنة معلقة أكثر من 3 أيام</p>
+                  <p className="text-[10px] text-red-600/70 dark:text-red-400/70">تحتاج مراجعة فورية أو إلغاء — اضغط للعرض</p>
+                </div>
+                {longPendingOpen ? <ChevronDown className="w-4 h-4 text-red-500 shrink-0" /> : <ChevronRight className="w-4 h-4 text-red-500 shrink-0" />}
+              </button>
+              {longPendingOpen && (
+                <div className="border-t border-red-200 dark:border-red-800/40 divide-y divide-red-200/60 dark:divide-red-800/30 max-h-80 overflow-y-auto">
+                  {longPendingList.map(s => (
+                    <div key={s.id} className="flex items-center gap-3 px-4 py-2.5 bg-card/50">
+                      <Package className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] font-bold truncate">{(s as any).receiverName ?? "بدون اسم"}</span>
+                          {(s as any).shipmentNumber && (
+                            <span className="text-[10px] text-muted-foreground shrink-0">#{(s as any).shipmentNumber}</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {(s as any).receiverPhone ?? "—"} · {(s as any).warehouseName ?? "بدون فرع"}
+                        </p>
+                      </div>
+                      <span className="text-[9px] text-red-600/70 dark:text-red-400/70 font-bold shrink-0">
+                        {new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
