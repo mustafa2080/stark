@@ -34,6 +34,7 @@ import representativeRouter from "./representative";
 import notificationsSseRouter, { notificationsProtectedRouter } from "./notifications";
 import clientAccountSheetRouter from "./client-account-sheet";
 import clientAccountManifestsRouter from "./client-account-manifests";
+import saleOrderManifestsRouter from "./sale-order-manifests";
 import clientAccountProRouter from "./client-account-pro";
 import clientPortalRouter from "./client-portal";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -83,6 +84,7 @@ router.use(shipmentsRouter);
 router.use(shipmentManifestsRouter);
 router.use(clientAccountSheetRouter);
 router.use(clientAccountManifestsRouter);
+router.use(saleOrderManifestsRouter);
 router.use(clientAccountProRouter);
 router.use(adminTenantsRouter); // /admin/* — بعد requireAuth عشان req.user يكون موجود
 router.use(notificationsProtectedRouter);

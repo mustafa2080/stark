@@ -24,6 +24,7 @@ export * from "./attendance";
 
 // ─── Sales Module ─────────────────────────────────────────────────────────────
 export * from "./sale_orders";
+export * from "./sale_order_manifests";
 
 // ─── Clients Module ───────────────────────────────────────────────────────────
 export * from "./clients";

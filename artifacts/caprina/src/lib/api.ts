@@ -2089,7 +2089,69 @@ export const clientAccountManifestsApi = {
     ),
 };
 
+// ─── Sale Order Manifests API (بيان فواتير البيع للعميل) ──────────────────
+export interface SaleOrderManifestListItem {
+  id: number;
+  tenantId: number | null;
+  manifestNumber: string;
+  clientId: number;
+  status: "open" | "closed";
+  notes: string | null;
+  invoicePrice: number | null;
+  invoiceNotes: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  orderCount: number;
+  statusCounts: { draft: number; confirmed: number; processing: number; delivered: number; closed: number };
+  clientName: string;
+  clientAvatar: string | null;
+}
 
+export interface SaleOrderManifestDetail extends SaleOrderManifestListItem {
+  client: { id: number; name: string; phone: string | null; city: string | null } | null;
+  items: Array<{
+    id: number;
+    manifestId: number;
+    saleOrderId: number;
+    addedAt: string;
+    order: {
+      id: number; soNumber: string; status: string; paymentStatus: string;
+      totalAmount: string; paidAmount: string; createdAt: string; closedAt?: string | null;
+      clientName?: string; clientPhone?: string | null;
+    } | null;
+  }>;
+  stats: {
+    total: number; delivered: number; processing: number;
+    totalAmount: number; totalPaid: number; totalUnpaid: number;
+  };
+}
+
+export const saleOrderManifestsApi = {
+  list: (clientId?: number) =>
+    apiFetch<SaleOrderManifestListItem[]>(`/sale-order-manifests${clientId ? `?clientId=${clientId}` : ""}`),
+  get: (id: number) =>
+    apiFetch<SaleOrderManifestDetail>(`/sale-order-manifests/${id}`),
+  available: (clientId: number) =>
+    apiFetch<Array<{
+      id: number; soNumber: string; status: string; paymentStatus: string;
+      totalAmount: string; paidAmount: string; createdAt: string; closedAt?: string | null;
+    }>>(`/sale-order-manifests/available/${clientId}`),
+  create: (data: { clientId: number; saleOrderIds: number[]; notes?: string }) =>
+    apiFetch<{ id: number; manifestNumber: string; orderCount: number }>(
+      "/sale-order-manifests", { method: "POST", body: JSON.stringify(data) }
+    ),
+  addOrders: (manifestId: number, saleOrderIds: number[]) =>
+    apiFetch<{ added: number; manifestNumber: string }>(
+      `/sale-order-manifests/${manifestId}/add-orders`,
+      { method: "POST", body: JSON.stringify({ saleOrderIds }) }
+    ),
+  update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null; rollover?: boolean }) =>
+    apiFetch<{ success: boolean; rolled?: { id: number; manifestNumber: string; orderCount: number } }>(
+      `/sale-order-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }
+    ),
+  delete: (id: number) =>
+    apiFetch<{ success: boolean }>(`/sale-order-manifests/${id}`, { method: "DELETE" }),
+};
 
 // ─── Notifications API ─────────────────────────────────────────────────────
 export interface AppNotificationDTO {

@@ -5,16 +5,21 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight, Users, ShoppingBag, TrendingUp, TrendingDown,
   ChevronRight, Calendar, Package, Phone, MapPin,
   Clock, CheckCircle2, Target, Edit2, Check, X,
   Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
-  Send, User,
+  Send, User, PackagePlus, Lock, Search, LayoutDashboard,
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, saleOrderManifestsApi, type SaleOrderManifestListItem } from "@/lib/api";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine, CartesianGrid, PieChart, Pie, Cell,
@@ -243,8 +248,10 @@ export default function CommercialClientDetailPage() {
   const clientId = Number(params.id);
   const qc       = useQueryClient();
 
-  // ── تاب البيانات / الشحنات — زي ShippingCompanyDetailPage ────────────────
-  const [activeTab, setActiveTab] = useState<"data" | "shipments">("data");
+  // ── تابات: البيانات / الشحنات / الداشبورد ────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"data" | "shipments" | "dashboard">("dashboard");
+  const [showNewManifest, setShowNewManifest] = useState(false);
+  const { toast } = useToast();
 
   // ── تعديل الهدف inline ──────────────────────────────────────────────────
   const [editingTarget, setEditingTarget] = useState(false);
@@ -287,6 +294,14 @@ export default function CommercialClientDetailPage() {
     enabled: !isNaN(clientId),
   });
   const clientShipments = shipmentsData?.shipments ?? [];
+
+  // ── بيانات فواتير البيع للعميل (Sale Order Manifests) ─────────────────────
+  const { data: manifests, isLoading: manifestsLoading } = useQuery<SaleOrderManifestListItem[]>({
+    queryKey: ["sale-order-manifests", clientId],
+    queryFn: () => saleOrderManifestsApi.list(clientId),
+    enabled: !isNaN(clientId),
+  });
+  const openManifest = manifests?.find(m => m.status === "open") ?? null;
 
   // ── تصدير Excel ──────────────────────────────────────────────────────────
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -744,10 +759,17 @@ export default function CommercialClientDetailPage() {
             </div>
           </div>
         </div>
-        {/* بدون زر "بيان جديد" — مش محتاجينه هنا */}
-        {/* ─── أزرار التصدير ─── */}
+        {/* ─── أزرار التصدير + بيان جديد ─── */}
         {client && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Button
+              size="sm"
+              onClick={() => setShowNewManifest(true)}
+              className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+            >
+              <PackagePlus className="w-3.5 h-3.5" />
+              بيان جديد
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -775,6 +797,49 @@ export default function CommercialClientDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ─── Tabs — البيانات / الشحنات / الداشبورد ─── */}
+      <div className="flex items-center gap-1 border-b border-border pb-0 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px shrink-0 ${
+            activeTab === "dashboard"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <LayoutDashboard className="w-3.5 h-3.5" />
+          الداشبورد
+        </button>
+        <button
+          onClick={() => setActiveTab("data")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px shrink-0 ${
+            activeTab === "data"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          البيانات
+          {allOrders.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{allOrders.length}</Badge>}
+        </button>
+        <button
+          onClick={() => setActiveTab("shipments")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px shrink-0 ${
+            activeTab === "shipments"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Send className="w-3.5 h-3.5" />
+          الشحنات
+          {clientShipments.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{clientShipments.length}</Badge>}
+        </button>
+      </div>
+
+      {/* ══════════════════════════ Tab: الداشبورد ══════════════════════════ */}
+      {activeTab === "dashboard" && (
+      <div className="space-y-5 pt-1">
 
       {/* ─── Stats Cards — زي شركات الشحن بس بأرقام العميل ─── */}
       {!isLoading && client && (
@@ -1322,38 +1387,55 @@ export default function CommercialClientDetailPage() {
         );
       })()}
 
-      {/* ─── Tabs — زي ShippingCompanyDetailPage بالظبط ─── */}
-      <div className="flex items-center gap-1 border-b border-border pb-0">
-        <button
-          onClick={() => setActiveTab("data")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
-            activeTab === "data"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" />
-          البيانات
-          {allOrders.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{allOrders.length}</Badge>}
-        </button>
-        <button
-          onClick={() => setActiveTab("shipments")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
-            activeTab === "shipments"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Send className="w-3.5 h-3.5" />
-          الشحنات
-          {clientShipments.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{clientShipments.length}</Badge>}
-        </button>
       </div>
+      )}
+      {/* ══════════════════════════ نهاية تاب الداشبورد ══════════════════════════ */}
 
-      {/* ─── Tab: البيانات (فواتير البيع) ─── */}
+      {/* ─── Tab: البيانات (فواتير البيع + بيانات الحساب) ─── */}
       {activeTab === "data" && (
-        <div className="pt-3">
-          <div className="flex items-center justify-between mb-3">
+        <div className="pt-3 space-y-4">
+
+          {/* ── بيان حساب العميل المفتوح/المغلق ── */}
+          <Card className="border-border bg-card p-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline" size="sm"
+                className="flex-1 h-8 text-xs gap-1 border-border text-muted-foreground justify-start"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                بيانات حساب العميل
+                {manifests && <Badge variant="outline" className="text-[9px] mr-1">{manifests.length}</Badge>}
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold shrink-0"
+                onClick={() => setShowNewManifest(true)}
+              >
+                <PackagePlus className="w-3.5 h-3.5" />بيان جديد
+              </Button>
+            </div>
+
+            {openManifest && (
+              <p className="text-[10px] text-amber-400 mt-2 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                يوجد بيان مفتوح حالياً: {openManifest.manifestNumber} — {openManifest.orderCount} فاتورة.
+              </p>
+            )}
+
+            {manifestsLoading ? (
+              <p className="text-xs text-muted-foreground text-center py-3">جاري التحميل...</p>
+            ) : manifests && manifests.length > 0 ? (
+              <div className="mt-3 space-y-1.5 pt-3 border-t border-border">
+                {manifests.map((m) => (
+                  <ClientManifestRow key={m.id} manifest={m} clientId={clientId} qc={qc} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-3">لا توجد بيانات حساب بعد</p>
+            )}
+          </Card>
+
+          <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />قيد التجهيز: {processingOrders.length}
@@ -1485,6 +1567,351 @@ export default function CommercialClientDetailPage() {
           )}
         </div>
       )}
+
+      {/* ─── Dialog: إنشاء بيان جديد ─── */}
+      {showNewManifest && client && (
+        <CreateSaleOrderManifestDialog
+          clientId={clientId}
+          clientName={client.name}
+          onClose={() => setShowNewManifest(false)}
+          onCreated={() => {
+            qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
+            setShowNewManifest(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ─── ClientManifestRow — صف بيان حساب واحد (فتح/قفل/ترحيل/حذف) ─────────────
+// ════════════════════════════════════════════════════════════════════════════
+function ClientManifestRow({ manifest, clientId, qc }: {
+  manifest: SaleOrderManifestListItem;
+  clientId: number;
+  qc: ReturnType<typeof useQueryClient>;
+}) {
+  const { toast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  const toggleLockMutation = useMutation({
+    mutationFn: (status: "open" | "closed") =>
+      saleOrderManifestsApi.update(manifest.id, { status, rollover: status === "closed" }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
+      if (res.rolled) {
+        toast({
+          title: "🔒 تم إغلاق البيان بنجاح",
+          description: `تم ترحيل ${res.rolled.orderCount} فاتورة غير مكتملة إلى بيان جديد: ${res.rolled.manifestNumber}`,
+          duration: 8000,
+        });
+      } else {
+        toast({ title: "تم التحديث" });
+      }
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => saleOrderManifestsApi.delete(manifest.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
+      toast({ title: "تم حذف البيان" });
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const sc = manifest.statusCounts;
+  const total = manifest.orderCount;
+  const completed = (sc.delivered ?? 0) + (sc.closed ?? 0);
+  const pending = total - completed;
+
+  return (
+    <div className={`rounded-lg border ${manifest.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"}`}>
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+        <button className="flex-1 min-w-0 text-right" onClick={() => setExpanded(v => !v)}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-black text-sm">{manifest.manifestNumber}</span>
+            <Badge variant="outline" className={`text-[9px] font-bold border ${
+              manifest.status === "closed"
+                ? "border-emerald-700 bg-emerald-900/20 text-emerald-400"
+                : "border-blue-700 bg-blue-900/20 text-blue-400"
+            }`}>
+              {manifest.status === "closed"
+                ? <><Lock className="w-2.5 h-2.5 inline ml-0.5" />مغلق</>
+                : <><Clock className="w-2.5 h-2.5 inline ml-0.5" />مفتوح</>}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
+            <span className="flex items-center gap-1"><Calendar className="w-2.5 h-2.5" />{format(new Date(manifest.createdAt), "yyyy/MM/dd")}</span>
+            <span className="flex items-center gap-1"><Package className="w-2.5 h-2.5" />{total} فاتورة</span>
+            <span className="text-emerald-400">{completed} مكتملة</span>
+            {pending > 0 && <span className="text-amber-400">{pending} جارية</span>}
+          </div>
+        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {manifest.status === "open" ? (
+            <Button
+              size="sm" variant="outline"
+              className="h-7 text-[10px] gap-1 border-emerald-700 text-emerald-400 hover:bg-emerald-900/20"
+              onClick={() => setShowCloseConfirm(true)}
+              disabled={toggleLockMutation.isPending}
+            >
+              <Lock className="w-3 h-3" />إغلاق
+            </Button>
+          ) : (
+            <Button
+              size="sm" variant="outline"
+              className="h-7 text-[10px] gap-1 border-blue-700 text-blue-400 hover:bg-blue-900/20"
+              onClick={() => toggleLockMutation.mutate("open")}
+              disabled={toggleLockMutation.isPending}
+            >
+              فتح
+            </Button>
+          )}
+          {total === 0 && (
+            <Button
+              size="sm" variant="ghost"
+              className="h-7 text-[10px] text-red-400 hover:bg-red-900/20"
+              onClick={() => { if (confirm("حذف هذا البيان؟")) deleteMutation.mutate(); }}
+            >
+              حذف
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* تأكيد الإغلاق + الترحيل */}
+      {showCloseConfirm && (
+        <div className="px-3 pb-3 pt-1 border-t border-border/50">
+          <p className="text-[11px] text-amber-400 mb-2">
+            سيتم إغلاق البيان، وأي فواتير لسه قيد التجهيز (غير مسلَّمة) هيتم ترحيلها تلقائياً لبيان جديد مفتوح.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm" className="h-7 text-[10px] flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => { toggleLockMutation.mutate("closed"); setShowCloseConfirm(false); }}
+              disabled={toggleLockMutation.isPending}
+            >
+              {toggleLockMutation.isPending ? "جاري الإغلاق..." : "تأكيد الإغلاق والترحيل"}
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setShowCloseConfirm(false)}>إلغاء</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ─── CreateSaleOrderManifestDialog — إنشاء بيان جديد (اختيار فواتير) ───────
+// ════════════════════════════════════════════════════════════════════════════
+function CreateSaleOrderManifestDialog({
+  clientId, clientName, onClose, onCreated,
+}: {
+  clientId: number;
+  clientName: string;
+  onClose: () => void;
+  onCreated?: (manifest: { id: number; manifestNumber: string; orderCount: number }) => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [notes, setNotes] = useState("");
+
+  // فواتير البيع المتاحة (غير المرتبطة بأي بيان بعد)
+  const { data: availableOrders, isLoading } = useQuery({
+    queryKey: ["sale-orders-available-for-manifest", clientId],
+    queryFn: () => saleOrderManifestsApi.available(clientId),
+  });
+
+  const orders = availableOrders ?? [];
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return orders;
+    const q = search.toLowerCase();
+    return orders.filter(o => o.soNumber?.toLowerCase().includes(q));
+  }, [orders, search]);
+
+  const toggleAll = () => {
+    if (filtered.length > 0 && filtered.every(o => selectedIds.has(o.id))) {
+      const next = new Set(selectedIds);
+      filtered.forEach(o => next.delete(o.id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      filtered.forEach(o => next.add(o.id));
+      setSelectedIds(next);
+    }
+  };
+
+  const toggleOne = (id: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        return await saleOrderManifestsApi.create({
+          clientId,
+          saleOrderIds: Array.from(selectedIds),
+          notes: notes.trim() || undefined,
+        });
+      } catch (err: any) {
+        // 409 = يوجد بيان مفتوح → أضف الفواتير له تلقائياً
+        if (err?.status === 409 || err?.message?.includes("409") || err?.message?.includes("مفتوح")) {
+          const manifests = await saleOrderManifestsApi.list(clientId);
+          const openManifest = manifests.find(m => m.status === "open");
+          if (!openManifest) throw err;
+          const result = await saleOrderManifestsApi.addOrders(openManifest.id, Array.from(selectedIds));
+          return {
+            id: openManifest.id,
+            manifestNumber: openManifest.manifestNumber,
+            orderCount: result.added,
+            _addedToExisting: true,
+          } as any;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (manifest: any) => {
+      qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
+      qc.invalidateQueries({ queryKey: ["sale-orders-available-for-manifest", clientId] });
+      if (manifest._addedToExisting) {
+        toast({ title: "تمت الإضافة للبيان المفتوح", description: `${manifest.manifestNumber} — أُضيف ${manifest.orderCount} فاتورة للبيان الموجود` });
+      } else {
+        toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.orderCount} فاتورة` });
+      }
+      if (onCreated) onCreated(manifest);
+      else onClose();
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const stMap: Record<string, string> = { draft: "مسودة", confirmed: "مؤكد", processing: "قيد التجهيز", delivered: "تم التسليم", closed: "مغلق" };
+  const pyMap: Record<string, string> = { paid: "مسدد", partial: "جزئي", unpaid: "غير مسدد" };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="bg-card border-border w-[94vw] sm:w-full max-w-3xl max-h-[90vh] flex flex-col p-4 sm:p-6" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-right flex items-center gap-2 pr-8 text-base sm:text-lg">
+            <FileText className="w-4 h-4 text-primary shrink-0" />
+            إنشاء بيان جديد
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground text-right truncate pr-8">{clientName}</p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col gap-3 mt-2">
+          {/* Search + counter */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="بحث برقم الفاتورة..."
+                className="h-9 text-sm bg-background pr-8"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {!isLoading && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {orders.length} فاتورة متاحة
+              </span>
+            )}
+          </div>
+
+          {/* Select-all row */}
+          {!isLoading && filtered.length > 0 && (
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={filtered.length > 0 && filtered.every(o => selectedIds.has(o.id))}
+                  onCheckedChange={toggleAll}
+                />
+                <span className="text-xs text-muted-foreground">تحديد الكل ({filtered.length} فاتورة)</span>
+              </div>
+              <span className="text-xs font-bold text-primary">{selectedIds.size} فاتورة محددة</span>
+            </div>
+          )}
+
+          {/* Orders list */}
+          <div className="overflow-y-auto flex-1 border border-border rounded-md">
+            {isLoading ? (
+              <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">جاري تحميل الفواتير...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-10 text-center">
+                <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
+                <p className="text-sm text-muted-foreground">
+                  {orders.length === 0
+                    ? "لا توجد فواتير متاحة حالياً — كل الفواتير مرتبطة ببيانات بالفعل"
+                    : "لا توجد نتائج تطابق البحث"}
+                </p>
+              </div>
+            ) : (
+              filtered.map(o => {
+                const isSelected = selectedIds.has(o.id);
+                const total = parseFloat(o.totalAmount ?? "0");
+                const paid = o.paymentStatus === "paid" ? total : parseFloat(o.paidAmount ?? "0");
+                const unpaid = Math.max(0, total - paid);
+                return (
+                  <div
+                    key={o.id}
+                    onClick={() => toggleOne(o.id)}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-border/50 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : ""}`}
+                  >
+                    <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold">{o.soNumber}</span>
+                        <Badge variant="outline" className="text-[9px] font-bold border">
+                          {stMap[o.status] ?? o.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-1 text-[10px] text-muted-foreground">
+                        <span>{format(new Date(o.createdAt), "yyyy/MM/dd")} · {pyMap[o.paymentStatus] ?? o.paymentStatus}</span>
+                        <span className="font-bold text-foreground">
+                          {fmt(total)} {unpaid > 0 && <span className="text-red-400">(متبقي {fmt(unpaid)})</span>}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <Label className="text-xs mb-1.5 block">ملاحظات (اختياري)</Label>
+            <Textarea
+              placeholder="ملاحظات على البيان..."
+              className="min-h-[50px] text-sm resize-none bg-background"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              className="w-full sm:flex-1 h-10 sm:h-9 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => createMutation.mutate()}
+              disabled={selectedIds.size === 0 || createMutation.isPending}
+            >
+              {createMutation.isPending ? "جاري الإنشاء..." : `إنشاء البيان (${selectedIds.size} فاتورة)`}
+            </Button>
+            <Button variant="outline" className="w-full sm:w-auto h-10 sm:h-9 text-sm border-border" onClick={onClose}>
+              إلغاء
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
