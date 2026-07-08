@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
-  ChevronDown, Lock, Unlock, Truck, Package,
+  ChevronDown, Lock, Unlock, Truck, Package, Search, SlidersHorizontal, X,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -294,11 +294,36 @@ export default function ClientAccountManifestsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [deleteClient, setDeleteClient] = useState<Client | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [sortBy, setSortBy] = useState<"recent" | "sales" | "name">("recent");
 
   const { data: clients, isLoading } = useQuery<Client[]>({
     queryKey: ["finance-clients"],
     queryFn: () => apiFetch<Client[]>("/finance/clients"),
   });
+
+  const filteredClients = (clients ?? [])
+    .filter((c) => {
+      const q = searchTerm.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        c.name?.toLowerCase().includes(q) ||
+        c.phone?.toLowerCase().includes(q) ||
+        c.phone2?.toLowerCase().includes(q) ||
+        c.city?.toLowerCase().includes(q)
+      );
+    })
+    .filter((c) => {
+      if (statusFilter === "active") return c.isActive;
+      if (statusFilter === "inactive") return !c.isActive;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name, "ar");
+      if (sortBy === "sales") return parseFloat(b.totalSales ?? "0") - parseFloat(a.totalSales ?? "0");
+      return b.id - a.id;
+    });
 
   const createMutation = useMutation({
     mutationFn: (data: typeof emptyForm) =>
@@ -412,11 +437,40 @@ export default function ClientAccountManifestsPage() {
         </div>
       </div>
 
+      {/* Search + Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="ابحث بالاسم أو الهاتف أو المدينة..."
+            className="w-full rounded-xl bg-white/5 border border-white/10 pr-9 pl-3 py-2 text-sm outline-none focus:border-primary/50 transition-colors"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+          <SelectTrigger className="w-full sm:w-[130px] text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل العملاء</SelectItem>
+            <SelectItem value="active">نشط</SelectItem>
+            <SelectItem value="inactive">موقف</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+          <SelectTrigger className="w-full sm:w-[130px] text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">الأحدث</SelectItem>
+            <SelectItem value="sales">الأكثر مبيعات</SelectItem>
+            <SelectItem value="name">الاسم</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
-      ) : clients?.length ? (
+      ) : filteredClients.length ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {clients.map((client, idx) => {
+          {filteredClients.map((client, idx) => {
             const palettes = [
               { rgb: "251,146,60",  rgb2: "251,191,36"  },
               { rgb: "56,189,248",  rgb2: "96,165,250"  },
@@ -551,9 +605,18 @@ export default function ClientAccountManifestsPage() {
       ) : (
         <Card className="border-border p-12 text-center">
           <Users className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
-          <p className="font-bold">لا يوجد عملاء</p>
-          <p className="text-sm text-muted-foreground mt-1">أضف العملاء التجاريين الذين تتعامل معهم.</p>
-          {canEdit && <Button onClick={openAdd} className="mt-4 gap-2 text-sm"><Plus className="w-4 h-4" />إضافة عميل</Button>}
+          {searchTerm || statusFilter !== "all" ? (
+            <>
+              <p className="font-bold">لا توجد نتائج مطابقة</p>
+              <p className="text-sm text-muted-foreground mt-1">جرّب تعديل كلمة البحث أو الفلتر.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-bold">لا يوجد عملاء</p>
+              <p className="text-sm text-muted-foreground mt-1">أضف العملاء التجاريين الذين تتعامل معهم.</p>
+              {canEdit && <Button onClick={openAdd} className="mt-4 gap-2 text-sm"><Plus className="w-4 h-4" />إضافة عميل</Button>}
+            </>
+          )}
         </Card>
       )}
 
