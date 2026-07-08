@@ -534,8 +534,8 @@ export default function ClientAccountDashboardPage() {
                           activeIndex={activeIndex}
                           activeShape={renderActiveShape}
                           isAnimationActive={true}
-                          animationDuration={350}
-                          animationEasing="ease-out"
+                          animationDuration={1100}
+                          animationEasing="ease-in-out"
                           onMouseEnter={(_, i) => setActiveIndex(i)}
                           onMouseLeave={() => setActiveIndex(undefined)}
                         >
@@ -547,7 +547,7 @@ export default function ClientAccountDashboardPage() {
                               style={{
                                 cursor: "pointer",
                                 opacity: activeIndex === undefined || activeIndex === i ? 1 : 0.35,
-                                transition: "opacity 0.35s ease-out",
+                                transition: "opacity 0.6s ease-in-out",
                               }}
                             />
                           ))}
