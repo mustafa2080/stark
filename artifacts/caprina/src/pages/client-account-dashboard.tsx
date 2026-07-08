@@ -8,7 +8,7 @@ import {
   ArrowRight, Phone, MapPin, Sparkles,
 } from "lucide-react";
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 
@@ -121,6 +121,24 @@ function KpiCard({ label, value, sub, icon: Icon, theme, isMoney }: {
   );
 }
 
+// ─── Active Pie Sector (hover fade-in / fade-out grow) ───────────────────────
+function renderActiveShape(props: any) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  return (
+    <g style={{ transition: "all 0.25s ease-out" }}>
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius + 8}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        style={{ filter: `drop-shadow(0 0 10px ${fill}aa)`, transition: "all 0.25s ease-out" }}
+      />
+    </g>
+  );
+}
+
 // ─── Client Rank Row (Top / Least) ───────────────────────────────────────────
 function ClientRankRow({ client, rank, positive }: { client: any; rank: number; positive: boolean }) {
   const [, navigate] = useLocation();
@@ -150,6 +168,7 @@ function ClientRankRow({ client, rank, positive }: { client: any; rank: number; 
 export default function ClientAccountDashboardPage() {
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
+  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["finance-clients-dashboard"],
@@ -220,11 +239,33 @@ export default function ClientAccountDashboardPage() {
                 <p className="text-xs text-muted-foreground text-center py-8">لا توجد بيانات كافية</p>
               ) : (
                 <>
-                  <div className="h-[180px]">
+                  <div className="h-[220px] relative">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={statusBreakdown} dataKey="count" nameKey="label" innerRadius={45} outerRadius={70} paddingAngle={3}>
-                          {statusBreakdown.map((s, i) => <Cell key={i} fill={s.color} />)}
+                        <Pie
+                          data={statusBreakdown}
+                          dataKey="count"
+                          nameKey="label"
+                          innerRadius={62}
+                          outerRadius={92}
+                          paddingAngle={3}
+                          cornerRadius={4}
+                          activeIndex={activeIndex}
+                          activeShape={renderActiveShape}
+                          onMouseEnter={(_, i) => setActiveIndex(i)}
+                          onMouseLeave={() => setActiveIndex(undefined)}
+                        >
+                          {statusBreakdown.map((s, i) => (
+                            <Cell
+                              key={i}
+                              fill={s.color}
+                              style={{
+                                cursor: "pointer",
+                                opacity: activeIndex === undefined || activeIndex === i ? 1 : 0.35,
+                                transition: "opacity 0.25s ease-out",
+                              }}
+                            />
+                          ))}
                         </Pie>
                         <Tooltip
                           contentStyle={{ background: "rgba(20,20,20,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 11 }}
@@ -232,15 +273,47 @@ export default function ClientAccountDashboardPage() {
                         />
                       </PieChart>
                     </ResponsiveContainer>
+                    {/* Center total (aligned with donut hole) */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-2xl sm:text-3xl font-black leading-none">
+                        <AnimNum value={totals.shipments} />
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-muted-foreground mt-1">إجمالي الشحنات</span>
+                    </div>
                   </div>
-                  <div className="space-y-1.5 mt-2">
-                    {statusBreakdown.map((s) => (
-                      <div key={s.status} className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full" style={{ background: s.color }} />
-                          {s.label}
+                  <div className="space-y-1 mt-2">
+                    {statusBreakdown.map((s, i) => (
+                      <div
+                        key={s.status}
+                        onMouseEnter={() => setActiveIndex(i)}
+                        onMouseLeave={() => setActiveIndex(undefined)}
+                        className="flex items-center justify-between text-xs rounded-lg px-2 py-1.5 transition-all duration-200 cursor-pointer"
+                        style={{
+                          background: activeIndex === i ? `${s.color}1a` : "transparent",
+                          opacity: activeIndex === undefined || activeIndex === i ? 1 : 0.5,
+                        }}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="px-1.5 py-0.5 rounded-md font-bold text-[10px]"
+                            style={{ background: `${s.color}22`, color: s.color }}
+                          >
+                            {s.percentage}%
+                          </span>
+                          <span
+                            className="px-1.5 py-0.5 rounded-md font-bold text-[10px]"
+                            style={{ background: `${s.color}33`, color: s.color }}
+                          >
+                            {s.count}
+                          </span>
                         </span>
-                        <span className="font-bold">{s.count} <span className="text-muted-foreground">({s.percentage}%)</span></span>
+                        <span className="flex items-center gap-1.5 font-semibold">
+                          {s.label}
+                          <span
+                            className="w-2.5 h-2.5 rounded-full transition-transform duration-200"
+                            style={{ background: s.color, transform: activeIndex === i ? "scale(1.3)" : "scale(1)" }}
+                          />
+                        </span>
                       </div>
                     ))}
                   </div>
