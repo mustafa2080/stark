@@ -5,7 +5,7 @@ import { useLocation } from "wouter";
 import {
   Users, Package, CheckCircle2, Clock, Warehouse, AlertTriangle,
   RotateCcw, TrendingUp, Crown, ThumbsDown, Search,
-  ArrowRight, Phone, MapPin, Sparkles,
+  ArrowRight, Phone, MapPin, Sparkles, ListFilter, Filter, ChevronDown, X, Check,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Sector,
@@ -162,11 +162,115 @@ function ClientRankRow({ client, rank, positive }: { client: any; rank: number; 
   );
 }
 
+// ─── Excel-style Column Filter Dropdown ──────────────────────────────────────
+function ColumnFilterDropdown({
+  values, selected, onChange, align = "right",
+}: {
+  values: string[]; selected: Set<string> | null; onChange: (next: Set<string> | null) => void; align?: "right" | "left";
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const isActive = selected !== null && selected.size < values.length;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const current = selected ?? new Set(values);
+  const filteredValues = values.filter(v => v.toLowerCase().includes(q.trim().toLowerCase()));
+  const allChecked = filteredValues.length > 0 && filteredValues.every(v => current.has(v));
+
+  const toggleValue = (v: string) => {
+    const next = new Set(current);
+    if (next.has(v)) next.delete(v); else next.add(v);
+    onChange(next.size === values.length ? null : next);
+  };
+  const toggleAll = () => {
+    const next = new Set(current);
+    if (allChecked) filteredValues.forEach(v => next.delete(v));
+    else filteredValues.forEach(v => next.add(v));
+    onChange(next.size === values.length ? null : next);
+  };
+
+  return (
+    <span className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        className="inline-flex items-center justify-center w-4 h-4 rounded transition-colors hover:bg-white/10 shrink-0"
+        style={{ color: isActive ? "var(--primary, #60a5fa)" : "currentColor" }}
+      >
+        <Filter className="w-2.5 h-2.5" fill={isActive ? "currentColor" : "none"} />
+      </button>
+      {open && (
+        <div
+          className={`absolute z-30 top-6 ${align === "right" ? "right-0" : "left-0"} w-52 rounded-xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-150`}
+          style={{ background: "rgba(24,24,27,0.98)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(12px)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative mb-2">
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="بحث..."
+              className="w-full rounded-md bg-white/5 border border-white/10 pr-7 pl-2 py-1 text-[11px] outline-none focus:border-primary/50"
+            />
+          </div>
+          <button
+            onClick={toggleAll}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold hover:bg-white/5 transition-colors text-right"
+          >
+            <span className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0" style={{ border: "1px solid rgba(255,255,255,0.3)", background: allChecked ? "#60a5fa" : "transparent" }}>
+              {allChecked && <Check className="w-2.5 h-2.5 text-white" />}
+            </span>
+            تحديد الكل
+          </button>
+          <div className="max-h-48 overflow-y-auto space-y-0.5 mt-1">
+            {filteredValues.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground text-center py-3">لا توجد نتائج</p>
+            ) : filteredValues.map(v => (
+              <button
+                key={v}
+                onClick={() => toggleValue(v)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] hover:bg-white/5 transition-colors text-right truncate"
+              >
+                <span className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0" style={{ border: "1px solid rgba(255,255,255,0.3)", background: current.has(v) ? "#60a5fa" : "transparent" }}>
+                  {current.has(v) && <Check className="w-2.5 h-2.5 text-white" />}
+                </span>
+                <span className="truncate">{v}</span>
+              </button>
+            ))}
+          </div>
+          {isActive && (
+            <button
+              onClick={() => { onChange(null); setQ(""); }}
+              className="w-full mt-1.5 pt-1.5 flex items-center justify-center gap-1 text-[10px] text-rose-400 hover:text-rose-300 transition-colors"
+              style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <X className="w-2.5 h-2.5" />مسح الفلتر
+            </button>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ClientAccountDashboardPage() {
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [colFilters, setColFilters] = useState<Record<string, Set<string> | null>>({
+    city: null, delivered: null, inWarehouse: null, delayed: null, returned: null, deliveryRate: null,
+  });
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["finance-clients-dashboard"],
@@ -182,10 +286,28 @@ export default function ClientAccountDashboardPage() {
   const statusBreakdown: any[] = data?.statusBreakdown ?? [];
   const allClients: any[] = data?.clients ?? [];
 
+  // ── قيم كل عمود (فريدة) لعرضها في الفلتر ──────────────────────────────────
+  const colValues = {
+    city: Array.from(new Set(allClients.map((c) => c.city || "بدون مدينة"))).sort(),
+    delivered: Array.from(new Set(allClients.map((c) => String(c.delivered ?? 0)))).sort((a, b) => Number(a) - Number(b)),
+    inWarehouse: Array.from(new Set(allClients.map((c) => String(c.inWarehouse ?? 0)))).sort((a, b) => Number(a) - Number(b)),
+    delayed: Array.from(new Set(allClients.map((c) => String(c.delayed ?? 0)))).sort((a, b) => Number(a) - Number(b)),
+    returned: Array.from(new Set(allClients.map((c) => String(c.returned ?? 0)))).sort((a, b) => Number(a) - Number(b)),
+    deliveryRate: Array.from(new Set(allClients.map((c) => `${c.deliveryRate ?? 0}%`))).sort((a, b) => Number(a.replace("%", "")) - Number(b.replace("%", ""))),
+  };
+
+  const activeFilterCount = Object.values(colFilters).filter((s) => s !== null).length;
+
   const filteredClients = allClients.filter((c) => {
     const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return c.name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q);
+    if (q && !(c.name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q))) return false;
+    if (colFilters.city && !colFilters.city.has(c.city || "بدون مدينة")) return false;
+    if (colFilters.delivered && !colFilters.delivered.has(String(c.delivered ?? 0))) return false;
+    if (colFilters.inWarehouse && !colFilters.inWarehouse.has(String(c.inWarehouse ?? 0))) return false;
+    if (colFilters.delayed && !colFilters.delayed.has(String(c.delayed ?? 0))) return false;
+    if (colFilters.returned && !colFilters.returned.has(String(c.returned ?? 0))) return false;
+    if (colFilters.deliveryRate && !colFilters.deliveryRate.has(`${c.deliveryRate ?? 0}%`)) return false;
+    return true;
   });
 
   return (
@@ -357,14 +479,51 @@ export default function ClientAccountDashboardPage() {
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <Users className="w-4 h-4 text-primary" />كل العملاء ({filteredClients.length})
               </h3>
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="بحث بالاسم أو الهاتف أو المدينة..."
-                  className="w-full rounded-lg bg-white/5 border border-white/10 pr-8 pl-3 py-1.5 text-xs outline-none focus:border-primary/50 transition-colors"
-                />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {/* Filters toggle button */}
+                <button
+                  onClick={() => setFiltersOpen((o) => !o)}
+                  className="relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors shrink-0"
+                  style={{
+                    background: filtersOpen ? "rgba(96,165,250,0.15)" : "rgba(255,255,255,0.05)",
+                    border: `1px solid ${filtersOpen ? "rgba(96,165,250,0.4)" : "rgba(255,255,255,0.1)"}`,
+                    color: filtersOpen ? "#60a5fa" : "inherit",
+                  }}
+                >
+                  <ListFilter className="w-3.5 h-3.5" />
+                  فلاتر
+                  {activeFilterCount > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => setColFilters({ city: null, delivered: null, inWarehouse: null, delayed: null, returned: null, deliveryRate: null })}
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0"
+                  >
+                    <X className="w-3 h-3" />مسح الكل
+                  </button>
+                )}
+                {/* Search box — now on the right, refined */}
+                <div className="relative flex-1 sm:flex-none sm:w-72 order-first sm:order-none">
+                  <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="بحث بالاسم أو الهاتف أو المدينة..."
+                    className="w-full rounded-xl bg-white/[0.04] border border-white/10 pr-10 pl-8 py-2 text-xs outline-none focus:border-primary/50 focus:bg-white/[0.06] transition-all placeholder:text-muted-foreground/60"
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch("")}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+                    >
+                      <X className="w-2.5 h-2.5 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -375,13 +534,81 @@ export default function ClientAccountDashboardPage() {
                 <table className="w-full text-xs min-w-[640px]">
                   <thead>
                     <tr className="text-muted-foreground border-b border-white/10">
-                      <th className="text-right py-2 font-semibold">العميل</th>
+                      <th className="text-right py-2 font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          العميل
+                          {filtersOpen && (
+                            <ColumnFilterDropdown
+                              values={colValues.city}
+                              selected={colFilters.city}
+                              onChange={(v) => setColFilters((f) => ({ ...f, city: v }))}
+                              align="right"
+                            />
+                          )}
+                        </span>
+                      </th>
                       <th className="text-center py-2 font-semibold">الشحنات</th>
-                      <th className="text-center py-2 font-semibold">مسلّم</th>
-                      <th className="text-center py-2 font-semibold">مخزن</th>
-                      <th className="text-center py-2 font-semibold">مؤجل</th>
-                      <th className="text-center py-2 font-semibold">مرتجع</th>
-                      <th className="text-center py-2 font-semibold">نسبة التسليم</th>
+                      <th className="text-center py-2 font-semibold">
+                        <span className="flex items-center justify-center gap-1.5">
+                          مسلّم
+                          {filtersOpen && (
+                            <ColumnFilterDropdown
+                              values={colValues.delivered}
+                              selected={colFilters.delivered}
+                              onChange={(v) => setColFilters((f) => ({ ...f, delivered: v }))}
+                            />
+                          )}
+                        </span>
+                      </th>
+                      <th className="text-center py-2 font-semibold">
+                        <span className="flex items-center justify-center gap-1.5">
+                          مخزن
+                          {filtersOpen && (
+                            <ColumnFilterDropdown
+                              values={colValues.inWarehouse}
+                              selected={colFilters.inWarehouse}
+                              onChange={(v) => setColFilters((f) => ({ ...f, inWarehouse: v }))}
+                            />
+                          )}
+                        </span>
+                      </th>
+                      <th className="text-center py-2 font-semibold">
+                        <span className="flex items-center justify-center gap-1.5">
+                          مؤجل
+                          {filtersOpen && (
+                            <ColumnFilterDropdown
+                              values={colValues.delayed}
+                              selected={colFilters.delayed}
+                              onChange={(v) => setColFilters((f) => ({ ...f, delayed: v }))}
+                            />
+                          )}
+                        </span>
+                      </th>
+                      <th className="text-center py-2 font-semibold">
+                        <span className="flex items-center justify-center gap-1.5">
+                          مرتجع
+                          {filtersOpen && (
+                            <ColumnFilterDropdown
+                              values={colValues.returned}
+                              selected={colFilters.returned}
+                              onChange={(v) => setColFilters((f) => ({ ...f, returned: v }))}
+                            />
+                          )}
+                        </span>
+                      </th>
+                      <th className="text-center py-2 font-semibold">
+                        <span className="flex items-center justify-center gap-1.5">
+                          نسبة التسليم
+                          {filtersOpen && (
+                            <ColumnFilterDropdown
+                              values={colValues.deliveryRate}
+                              selected={colFilters.deliveryRate}
+                              onChange={(v) => setColFilters((f) => ({ ...f, deliveryRate: v }))}
+                              align="left"
+                            />
+                          )}
+                        </span>
+                      </th>
                       <th className="text-left py-2 font-semibold">الإجمالي</th>
                     </tr>
                   </thead>
