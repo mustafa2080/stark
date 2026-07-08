@@ -310,14 +310,17 @@ function ShipmentInsightsTab() {
 
   // ── أكثر مناطق الإرجاع ────────────────────────────────────────────────────
   const returnsByZone = useMemo(() => {
-    const m: Record<string, number> = {};
+    const m: Record<string, { count: number; shipments: typeof shipments }> = {};
     for (const s of shipments) {
       if (s.status !== "returned") continue;
       const zone = s.zoneLabel || s.receiverCity || "غير محدد";
-      m[zone] = (m[zone] ?? 0) + 1;
+      if (!m[zone]) m[zone] = { count: 0, shipments: [] };
+      m[zone].count++;
+      m[zone].shipments.push(s);
     }
-    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return Object.entries(m).sort((a, b) => b[1].count - a[1].count).slice(0, 5);
   }, [shipments]);
+  const [openZone, setOpenZone] = useState<string | null>(null);
 
   // ── الشحنات حسب الفرع/المخزن ──────────────────────────────────────────────
   const byBranch = useMemo(() => {
@@ -572,25 +575,54 @@ function ShipmentInsightsTab() {
               <p className="text-xs text-muted-foreground">لا مرتجعات 🎉</p>
             </div>
           ) : (
-            <div className="p-3 space-y-2">
-              {returnsByZone.map(([zone, count], i) => {
-                const maxCount = returnsByZone[0][1];
-                const barW = pct(count, maxCount);
+            <div className="p-3 space-y-1.5">
+              {returnsByZone.map(([zone, data], i) => {
+                const maxCount = returnsByZone[0][1].count;
+                const barW = pct(data.count, maxCount);
+                const isOpen = openZone === zone;
                 return (
-                  <div key={zone} className="flex items-center gap-3">
-                    <span className={`text-[10px] font-black w-4 text-center shrink-0 ${i === 0 ? "text-red-500" : "text-muted-foreground"}`}>{i+1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-bold truncate">{zone}</span>
-                        <span className={`text-[11px] font-black shrink-0 ml-2 ${i === 0 ? "text-red-500" : "text-muted-foreground"}`}>{count}</span>
+                  <div key={zone} className="rounded-lg overflow-hidden">
+                    <button type="button"
+                      className="w-full flex items-center gap-3 py-1.5 hover:bg-muted/30 rounded-lg transition-colors px-1 -mx-1"
+                      onClick={() => setOpenZone(isOpen ? null : zone)}>
+                      <span className={`text-[10px] font-black w-4 text-center shrink-0 ${i === 0 ? "text-red-500" : "text-muted-foreground"}`}>{i+1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-bold truncate">{zone}</span>
+                          <span className={`text-[11px] font-black shrink-0 ml-2 ${i === 0 ? "text-red-500" : "text-muted-foreground"}`}>{data.count}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${i === 0 ? "bg-red-500" : i === 1 ? "bg-orange-400" : "bg-muted-foreground/40"}`}
+                            style={{ width: `${barW}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${i === 0 ? "bg-red-500" : i === 1 ? "bg-orange-400" : "bg-muted-foreground/40"}`}
-                          style={{ width: `${barW}%` }}
-                        />
+                      {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-red-400 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />}
+                    </button>
+                    {isOpen && (
+                      <div className="mt-1 mb-1 rounded-lg border border-red-200/60 dark:border-red-800/30 bg-red-50/30 dark:bg-red-900/10 divide-y divide-red-200/50 dark:divide-red-800/20 max-h-64 overflow-y-auto">
+                        {data.shipments.map(s => (
+                          <div key={s.id} className="flex items-center gap-3 px-3 py-2">
+                            <Package className="w-3 h-3 text-red-400 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-bold truncate">{(s as any).receiverName ?? "بدون اسم"}</span>
+                                {(s as any).shipmentNumber && (
+                                  <span className="text-[9px] text-muted-foreground shrink-0">#{(s as any).shipmentNumber}</span>
+                                )}
+                              </div>
+                              <p className="text-[9px] text-muted-foreground truncate">
+                                {(s as any).receiverPhone ?? "—"} · {(s as any).warehouseName ?? "بدون فرع"}
+                              </p>
+                            </div>
+                            <span className="text-[9px] text-muted-foreground shrink-0">
+                              {new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
