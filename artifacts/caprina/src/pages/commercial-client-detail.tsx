@@ -247,6 +247,7 @@ export default function CommercialClientDetailPage() {
   const params   = useParams();
   const clientId = Number(params.id);
   const qc       = useQueryClient();
+  const [, navigate] = useLocation();
 
   // ── تابات: البيانات / الشحنات / الداشبورد ────────────────────────────────
   const [activeTab, setActiveTab] = useState<"data" | "shipments" | "dashboard">("dashboard");
@@ -1574,9 +1575,10 @@ export default function CommercialClientDetailPage() {
           clientId={clientId}
           clientName={client.name}
           onClose={() => setShowNewManifest(false)}
-          onCreated={() => {
-            qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
+          onCreated={(manifest) => {
+            qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
             setShowNewManifest(false);
+            navigate(`/finance/client-account-sheet/manifest/${manifest.id}`);
           }}
         />
       )}
@@ -1719,7 +1721,7 @@ function CreateSaleOrderManifestDialog({
   clientId: number;
   clientName: string;
   onClose: () => void;
-  onCreated?: (manifest: { id: number; manifestNumber: string; orderCount: number }) => void;
+  onCreated?: (manifest: { id: number; manifestNumber: string; shipmentCount: number }) => void;
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
