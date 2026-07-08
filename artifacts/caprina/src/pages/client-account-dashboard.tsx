@@ -6,6 +6,7 @@ import {
   Users, Package, CheckCircle2, Clock, Warehouse, AlertTriangle,
   RotateCcw, TrendingUp, Crown, ThumbsDown, Search,
   ArrowRight, Phone, MapPin, Sparkles, ListFilter, Filter, ChevronDown, X, Check,
+  TrendingDown, AlertOctagon, Lightbulb, MapPinned, UserX,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Sector,
@@ -162,6 +163,38 @@ function ClientRankRow({ client, rank, positive }: { client: any; rank: number; 
   );
 }
 
+// ─── Smart Insight Card ───────────────────────────────────────────────────────
+type Insight = {
+  id: string; icon: any; tone: "danger" | "warning" | "success" | "info";
+  title: string; desc: string; onClick?: () => void;
+};
+const INSIGHT_TONES: Record<Insight["tone"], { bg: string; border: string; text: string; iconBg: string }> = {
+  danger:  { bg: "rgba(244,63,94,0.06)",  border: "rgba(244,63,94,0.2)",  text: "#f43f5e", iconBg: "rgba(244,63,94,0.15)" },
+  warning: { bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.2)", text: "#f59e0b", iconBg: "rgba(245,158,11,0.15)" },
+  success: { bg: "rgba(16,185,129,0.06)", border: "rgba(16,185,129,0.2)", text: "#10b981", iconBg: "rgba(16,185,129,0.15)" },
+  info:    { bg: "rgba(59,130,246,0.06)", border: "rgba(59,130,246,0.2)", text: "#3b82f6", iconBg: "rgba(59,130,246,0.15)" },
+};
+function InsightCard({ insight }: { insight: Insight }) {
+  const t = INSIGHT_TONES[insight.tone];
+  const Icon = insight.icon;
+  return (
+    <button
+      onClick={insight.onClick}
+      disabled={!insight.onClick}
+      className={`text-right rounded-2xl p-3.5 flex items-start gap-3 transition-all duration-200 w-full ${insight.onClick ? "hover:-translate-y-0.5 cursor-pointer" : "cursor-default"}`}
+      style={{ background: t.bg, border: `1px solid ${t.border}` }}
+    >
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: t.iconBg }}>
+        <Icon className="w-4 h-4" style={{ color: t.text }} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold" style={{ color: t.text }}>{insight.title}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{insight.desc}</p>
+      </div>
+    </button>
+  );
+}
+
 // ─── Excel-style Column Filter Dropdown ──────────────────────────────────────
 function ColumnFilterDropdown({
   values, selected, onChange, align = "right",
@@ -310,6 +343,119 @@ export default function ClientAccountDashboardPage() {
     return true;
   });
 
+  // ── رؤى ذكية مبنية على بيانات العملاء الفعلية ───────────────────────────────
+  const insights: Insight[] = (() => {
+    if (!data || allClients.length === 0) return [];
+    const list: Insight[] = [];
+    const withShip = allClients.filter((c) => c.shipmentsCount > 0);
+
+    // 1) تركّز الإيرادات في عميل واحد (خطر لو سابك)
+    if (withShip.length > 0 && totals.revenue > 0) {
+      const top = [...withShip].sort((a, b) => b.totalAmount - a.totalAmount)[0];
+      const sharePct = Math.round((top.totalAmount / totals.revenue) * 100);
+      if (sharePct >= 30) {
+        list.push({
+          id: "concentration", icon: AlertOctagon, tone: sharePct >= 45 ? "danger" : "warning",
+          title: `تركّز خطر في الإيرادات — ${sharePct}%`,
+          desc: `عميل "${top.name}" وحده مسؤول عن ${sharePct}% من إجمالي مبيعات العملاء. لو توقف، الأثر هيكون كبير على الإيرادات. الأفضل تنويع قاعدة العملاء.`,
+          onClick: () => navigate(`/finance/clients/${top.id}`),
+        });
+      }
+    }
+
+    // 2) عملاء نسبة تسليمهم منخفضة جدًا (مشكلة تشغيلية محتملة)
+    const lowDelivery = withShip.filter((c) => c.shipmentsCount >= 5 && c.deliveryRate < 50);
+    if (lowDelivery.length > 0) {
+      const worst = [...lowDelivery].sort((a, b) => a.deliveryRate - b.deliveryRate)[0];
+      list.push({
+        id: "low-delivery", icon: TrendingDown, tone: "danger",
+        title: `${lowDelivery.length} عميل بنسبة تسليم أقل من 50%`,
+        desc: `الأسوأ: "${worst.name}" بنسبة ${worst.deliveryRate}% فقط من ${worst.shipmentsCount} شحنة. يستحق مراجعة سريعة لمعرفة سبب التعثر (مندوب، منطقة، أو مشكلة تواصل).`,
+        onClick: () => navigate(`/finance/clients/${worst.id}`),
+      });
+    }
+
+    // 3) عملاء بمعدل مرتجعات مرتفع
+    const highReturn = withShip.filter((c) => c.shipmentsCount >= 5 && (c.returned / c.shipmentsCount) >= 0.2);
+    if (highReturn.length > 0) {
+      const worst = [...highReturn].sort((a, b) => (b.returned / b.shipmentsCount) - (a.returned / a.shipmentsCount))[0];
+      const pct = Math.round((worst.returned / worst.shipmentsCount) * 100);
+      list.push({
+        id: "high-return", icon: RotateCcw, tone: "warning",
+        title: `معدل مرتجعات مرتفع عند "${worst.name}"`,
+        desc: `${pct}% من شحناته (${worst.returned} من ${worst.shipmentsCount}) بترجع. ممكن يكون فيه مشكلة في دقة العنوان أو نوع المنتج أو طريقة التحصيل.`,
+        onClick: () => navigate(`/finance/clients/${worst.id}`),
+      });
+    }
+
+    // 4) عملاء خاملين (كان عندهم نشاط، ومفيش شحنات حديثة)
+    const now = Date.now();
+    const dormant = withShip.filter((c) => {
+      if (!c.lastOrderAt) return false;
+      const days = (now - new Date(c.lastOrderAt).getTime()) / 86400000;
+      return days >= 30 && c.shipmentsCount >= 10;
+    });
+    if (dormant.length > 0) {
+      list.push({
+        id: "dormant", icon: UserX, tone: "warning",
+        title: `${dormant.length} عميل نشط سابقًا توقف عن الطلب`,
+        desc: `عملاء كان لهم 10 شحنات فأكثر ومفيش نشاط منهم من أكتر من 30 يوم. تواصل معاهم قبل ما يتحولوا لمنافس.`,
+      });
+    }
+
+    // 5) أفضل مدينة من ناحية الإيرادات
+    const cityRevenue = new Map<string, number>();
+    for (const c of withShip) {
+      const city = c.city || "غير محدد";
+      cityRevenue.set(city, (cityRevenue.get(city) ?? 0) + c.totalAmount);
+    }
+    if (cityRevenue.size > 1) {
+      const [topCity, topCityRevenue] = [...cityRevenue.entries()].sort((a, b) => b[1] - a[1])[0];
+      const pct = totals.revenue > 0 ? Math.round((topCityRevenue / totals.revenue) * 100) : 0;
+      if (topCity !== "غير محدد" && pct >= 20) {
+        list.push({
+          id: "top-city", icon: MapPinned, tone: "info",
+          title: `${topCity} هي أقوى منطقة مبيعات`,
+          desc: `تمثل ${pct}% من إجمالي الإيرادات (${fmtF(topCityRevenue)}). ممكن تفكر في تعزيز التغطية أو المخزون في المنطقة دي.`,
+        });
+      }
+    }
+
+    // 6) نسبة الشحنات المتأخرة على مستوى الشركة كلها
+    if (totals.shipments > 0) {
+      const delayedPct = Math.round((totals.delayed / totals.shipments) * 100);
+      if (delayedPct >= 10) {
+        list.push({
+          id: "delayed-overall", icon: AlertTriangle, tone: delayedPct >= 20 ? "danger" : "warning",
+          title: `${delayedPct}% من كل الشحنات مؤجلة حاليًا`,
+          desc: `${fmt(totals.delayed)} شحنة من إجمالي ${fmt(totals.shipments)} في حالة تأجيل. نسبة عالية ممكن تأثر على رضا العملاء لو استمرت.`,
+        });
+      }
+    }
+
+    // 7) إشارة إيجابية: نسبة تحصيل ممتازة
+    if (totals.revenue > 0) {
+      const collectPct = Math.round((totals.collected / totals.revenue) * 100);
+      if (collectPct >= 90) {
+        list.push({
+          id: "great-collection", icon: CheckCircle2, tone: "success",
+          title: `أداء تحصيل ممتاز — ${collectPct}%`,
+          desc: `تم تحصيل ${fmtF(totals.collected)} من إجمالي ${fmtF(totals.revenue)}. مؤشر صحي على انضباط العملاء في السداد.`,
+        });
+      } else if (collectPct < 60 && totals.revenue > 0) {
+        list.push({
+          id: "poor-collection", icon: TrendingDown, tone: "danger",
+          title: `نسبة تحصيل منخفضة — ${collectPct}%`,
+          desc: `فقط ${fmtF(totals.collected)} من ${fmtF(totals.revenue)} تم تحصيله. متبقي ${fmtF(totals.revenue - totals.collected)} غير محصّل، يستحق متابعة عاجلة.`,
+        });
+      }
+    }
+
+    // ترتيب: الخطر أولاً، ثم التحذير، ثم المعلومة، ثم الإيجابي — وأقصى 4 كروت
+    const order: Record<Insight["tone"], number> = { danger: 0, warning: 1, info: 2, success: 3 };
+    return list.sort((a, b) => order[a.tone] - order[b.tone]).slice(0, 4);
+  })();
+
   return (
     <div className="space-y-5 animate-in fade-in duration-500 pb-8">
       {/* Header */}
@@ -335,6 +481,20 @@ export default function ClientAccountDashboardPage() {
         <div className="p-16 text-center text-muted-foreground text-sm">جاري تحميل الداشبورد...</div>
       ) : (
         <>
+          {/* Smart Insights */}
+          {insights.length > 0 && (
+            <div className="rounded-2xl p-4 sm:p-5 relative overflow-hidden"
+              style={{ background: "linear-gradient(135deg, rgba(167,139,250,0.06) 0%, rgba(96,165,250,0.03) 100%)", border: "1px solid rgba(167,139,250,0.18)" }}>
+              <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4" style={{ color: "#a78bfa" }} />
+                رؤى ذكية لدعم القرار
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {insights.map((insight) => <InsightCard key={insight.id} insight={insight} />)}
+              </div>
+            </div>
+          )}
+
           {/* KPI Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             <KpiCard label="إجمالي العملاء" value={totals.clients} sub={`${totals.active} نشط`} icon={Users} theme="blue" />
