@@ -1814,7 +1814,7 @@ function ParcelTypesTab() {
       {/* ── KPI Cards ────────────────────────────────────────────────────── */}
       {pricing.length > 0 && (() => {
         const totalShipmentsAll = allShipments.length;
-        const totalRevenueAll = allShipments.reduce((s, sh) => s + (Number((sh as any).collectedAmount) || 0), 0);
+        const totalRevenueAll = allShipments.reduce((s, sh) => s + (Number((sh as any).shippingFee) || 0), 0);
         const maxPrice = Math.max(...pricing.map(p => Number(p.basePrice)));
         const minPrice = Math.min(...pricing.map(p => Number(p.basePrice)));
         return (
