@@ -1796,8 +1796,6 @@ function ParcelTypesTab() {
                       className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedId(p.id);
-                        setExpandedWarehouse(null);
                         setEditImgId(p.id);
                         setEditImgPreview(null);
                       }}>
@@ -1873,83 +1871,6 @@ function ParcelTypesTab() {
                         <p className="text-[10px] text-muted-foreground font-medium mb-1">إجمالي الإيرادات</p>
                         <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">{totalRevenue > 0 ? `${totalRevenue.toLocaleString()}` : "—"}</p>
                         {totalRevenue > 0 && <p className="text-[10px] text-muted-foreground">جنيه</p>}
-                      </div>
-                    </div>
-
-                    {/* ── Image + Price Edit Row ────────────────────────── */}
-                    <div className="flex flex-wrap items-start gap-4 px-4 py-4 border-t border-border/60 bg-card">
-                      {/* صورة */}
-                      <div className="relative shrink-0">
-                        <input id={`pimg-${p.id}`} type="file" accept="image/*" className="hidden"
-                          onChange={e => {
-                            const f = e.target.files?.[0]; if (!f) return;
-                            setEditImgId(p.id);
-                            compressParcelImage(f, (b64) => setEditImgPreview(b64));
-                            e.target.value = "";
-                          }} />
-                        <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-border shadow-sm">
-                          {editImgId === p.id && editImgPreview
-                            ? <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
-                            : p.imageUrl
-                              ? <img src={p.imageUrl} className="w-full h-full object-cover" alt={label} />
-                              : <span className="w-full h-full flex items-center justify-center text-3xl bg-muted/20">{icon}</span>
-                          }
-                        </div>
-                        <button type="button"
-                          className="absolute -bottom-1.5 -left-1.5 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-primary/80 transition-colors"
-                          onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
-                          <LucideImage className="w-3 h-3" />
-                        </button>
-                      </div>
-
-                      {/* image actions + price edit */}
-                      <div className="flex-1 min-w-[220px] space-y-3">
-                        {/* image actions */}
-                        {editImgId === p.id && editImgPreview ? (
-                          <div className="flex gap-2">
-                            <Button size="sm" className="h-7 text-[11px] px-3 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                              onClick={() => handleSaveImage(p.id)} disabled={savingImg}>
-                              {savingImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : "✓ حفظ الصورة"}
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-[11px] px-2"
-                              onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إلغاء</Button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2 flex-wrap">
-                            <Button size="sm" variant="outline" className="h-7 text-[11px] px-3 gap-1"
-                              onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
-                              <LucideImage className="w-3 h-3" /> {p.imageUrl ? "تغيير الصورة" : "رفع صورة"}
-                            </Button>
-                            {p.imageUrl && (
-                              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-3 gap-1 text-red-500 hover:text-red-600"
-                                onClick={() => handleRemoveImage(p.id)} disabled={savingImg}>
-                                <Trash2 className="w-3 h-3" /> حذف الصورة
-                              </Button>
-                            )}
-                          </div>
-                        )}
-
-                        {/* price edit */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-[11px] text-muted-foreground font-bold flex items-center gap-1">
-                            <DollarSign className="w-3 h-3 text-amber-500" /> السعر الإضافي:
-                          </p>
-                          <Input
-                            type="number"
-                            className="text-sm h-8 font-bold w-24"
-                            value={editPrices[p.id] ?? String(p.basePrice)}
-                            onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
-                          />
-                          <span className="text-xs text-muted-foreground">ج</span>
-                          <Button size="sm" className="h-8 text-xs px-3 gap-1"
-                            onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}
-                            disabled={updateMutation.isPending}>
-                            {updateMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : "حفظ"}
-                          </Button>
-                          {currentPrice !== Number(p.basePrice) && (
-                            <span className="text-[10px] text-amber-600 dark:text-amber-400">كان: {Number(p.basePrice)} ج</span>
-                          )}
-                        </div>
                       </div>
                     </div>
 
@@ -2152,6 +2073,106 @@ function ParcelTypesTab() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Edit Dialog (صورة + سعر إضافي) ─────────────────────────────────── */}
+      {editImgId !== null && (() => {
+        const p = pricing.find(x => x.id === editImgId);
+        if (!p) return null;
+        const label = p.label || PARCEL_LABELS_MAP[p.parcelType as ParcelTypeKey] || p.parcelType;
+        const icon  = PARCEL_ICONS[p.parcelType] ?? "📦";
+        return (
+          <Dialog open onOpenChange={() => { setEditImgId(null); setEditImgPreview(null); }}>
+            <DialogContent className="max-w-sm" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-black flex items-center gap-2">
+                  <Pencil className="w-4 h-4 text-violet-500" /> تعديل {label}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                {/* صورة */}
+                <div>
+                  <Label className="text-xs font-bold mb-1.5 block">الصورة</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                      <input id={`pimg-${p.id}`} type="file" accept="image/*" className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0]; if (!f) return;
+                          compressParcelImage(f, (b64) => setEditImgPreview(b64));
+                          e.target.value = "";
+                        }} />
+                      <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-border shadow-sm">
+                        {editImgPreview
+                          ? <img src={editImgPreview} className="w-full h-full object-cover" alt="preview" />
+                          : p.imageUrl
+                            ? <img src={p.imageUrl} className="w-full h-full object-cover" alt={label} />
+                            : <span className="w-full h-full flex items-center justify-center text-3xl bg-muted/20">{icon}</span>
+                        }
+                      </div>
+                      <button type="button"
+                        className="absolute -bottom-1.5 -left-1.5 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-primary/80 transition-colors"
+                        onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
+                        <LucideImage className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      {editImgPreview ? (
+                        <div className="flex gap-2">
+                          <Button size="sm" className="h-7 text-[11px] px-3 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={() => handleSaveImage(p.id)} disabled={savingImg}>
+                            {savingImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : "✓ حفظ الصورة"}
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-7 text-[11px] px-2"
+                            onClick={() => setEditImgPreview(null)}>إلغاء</Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 flex-wrap">
+                          <Button size="sm" variant="outline" className="h-7 text-[11px] px-3 gap-1"
+                            onClick={() => document.getElementById(`pimg-${p.id}`)?.click()}>
+                            <LucideImage className="w-3 h-3" /> {p.imageUrl ? "تغيير الصورة" : "رفع صورة"}
+                          </Button>
+                          {p.imageUrl && (
+                            <Button size="sm" variant="ghost" className="h-7 text-[11px] px-3 gap-1 text-red-500 hover:text-red-600"
+                              onClick={() => handleRemoveImage(p.id)} disabled={savingImg}>
+                              <Trash2 className="w-3 h-3" /> حذف الصورة
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* السعر الإضافي */}
+                <div>
+                  <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي (جنيه)</Label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      type="number"
+                      className="text-sm h-9 font-bold flex-1"
+                      value={editPrices[p.id] ?? String(p.basePrice)}
+                      onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                    <span className="text-xs text-muted-foreground">ج</span>
+                  </div>
+                  {Number(editPrices[p.id] ?? p.basePrice) !== Number(p.basePrice) && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">كان: {Number(p.basePrice)} ج</p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-1 border-t border-border">
+                  <Button variant="outline" className="flex-1 text-xs"
+                    onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إغلاق</Button>
+                  <Button className="flex-1 text-xs gap-1.5"
+                    disabled={updateMutation.isPending}
+                    onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}>
+                    {updateMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "✓ حفظ السعر"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
