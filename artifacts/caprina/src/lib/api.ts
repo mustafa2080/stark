@@ -2116,13 +2116,15 @@ export interface SaleOrderManifestDetail extends SaleOrderManifestListItem {
     addedAt: string;
     order: {
       id: number; soNumber: string; status: string; paymentStatus: string;
-      totalAmount: string; paidAmount: string; createdAt: string; closedAt?: string | null;
+      totalAmount: string; paidAmount: string; shippingCost: string | null;
+      createdAt: string; closedAt?: string | null;
       clientName?: string; clientPhone?: string | null;
     } | null;
   }>;
   stats: {
     total: number; delivered: number; processing: number;
     totalAmount: number; totalPaid: number; totalUnpaid: number;
+    totalShippingCost: number; netDue: number;
   };
 }
 
@@ -2134,7 +2136,8 @@ export const saleOrderManifestsApi = {
   available: (clientId: number) =>
     apiFetch<Array<{
       id: number; soNumber: string; status: string; paymentStatus: string;
-      totalAmount: string; paidAmount: string; createdAt: string; closedAt?: string | null;
+      totalAmount: string; paidAmount: string; shippingCost: string | null;
+      createdAt: string; closedAt?: string | null;
     }>>(`/sale-order-manifests/available/${clientId}`),
   create: (data: { clientId: number; saleOrderIds: number[]; notes?: string }) =>
     apiFetch<{ id: number; manifestNumber: string; orderCount: number }>(

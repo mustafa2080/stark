@@ -138,6 +138,7 @@ router.get("/sale-order-manifests/available/:clientId", async (req, res): Promis
         paymentStatus: saleOrdersTable.paymentStatus,
         totalAmount: saleOrdersTable.totalAmount,
         paidAmount: saleOrdersTable.paidAmount,
+        shippingCost: saleOrdersTable.shippingCost,
         createdAt: saleOrdersTable.createdAt,
       })
       .from(saleOrdersTable)
@@ -177,20 +178,22 @@ router.get("/sale-order-manifests/:id", async (req, res): Promise<void> => {
         ...item,
         order: o ? {
           id: o.id, soNumber: o.soNumber, status: o.status, paymentStatus: o.paymentStatus,
-          totalAmount: o.totalAmount, paidAmount: o.paidAmount, createdAt: o.createdAt,
-          clientName: o.clientName, clientPhone: o.clientPhone,
+          totalAmount: o.totalAmount, paidAmount: o.paidAmount, shippingCost: o.shippingCost,
+          createdAt: o.createdAt, clientName: o.clientName, clientPhone: o.clientPhone,
         } : null,
       };
     });
 
     const delivered  = orders.filter(o => o.status === "delivered").length;
     const processing = orders.filter(o => o.status === "processing" || o.status === "confirmed").length;
-    let totalAmount = 0, totalPaid = 0;
+    let totalAmount = 0, totalPaid = 0, totalShippingCost = 0;
     orders.forEach(o => {
       totalAmount += Number(o.totalAmount ?? 0);
       totalPaid   += Number(o.paidAmount ?? 0);
+      totalShippingCost += Number(o.shippingCost ?? 0);
     });
     const totalUnpaid = totalAmount - totalPaid;
+    const netDue = totalAmount - totalShippingCost;
 
     const [client] = await db.select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, city: clientsTable.city })
       .from(clientsTable).where(eq(clientsTable.id, manifest.clientId));
@@ -202,6 +205,7 @@ router.get("/sale-order-manifests/:id", async (req, res): Promise<void> => {
       stats: {
         total: items.length, delivered, processing,
         totalAmount, totalPaid, totalUnpaid,
+        totalShippingCost, netDue,
       },
     });
   } catch (e) {

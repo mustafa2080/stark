@@ -15,7 +15,7 @@ import {
   ChevronRight, Calendar, Package, Phone, MapPin,
   Clock, CheckCircle2, Target, Edit2, Check, X,
   Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
-  Send, User, PackagePlus, Lock, Search, LayoutDashboard,
+  Send, User, PackagePlus, Lock, Search, LayoutDashboard, Eye,
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -1652,6 +1652,11 @@ function ClientManifestRow({ manifest, clientId, qc }: {
           </div>
         </button>
         <div className="flex items-center gap-1.5 shrink-0">
+          <Link href={`/finance/sale-order-manifests/${manifest.id}`}>
+            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1">
+              <Eye className="w-3 h-3" />تفاصيل
+            </Button>
+          </Link>
           {manifest.status === "open" ? (
             <Button
               size="sm" variant="outline"
