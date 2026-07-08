@@ -406,11 +406,16 @@ export default function ClientAccountManifestsPage() {
           <h1 className="text-2xl font-bold">حسابات العملاء</h1>
           <p className="text-muted-foreground text-sm mt-0.5">إدارة العملاء التجاريين وبيانات حساباتهم</p>
         </div>
-        {canEdit && (
-          <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
-            <Plus className="w-4 h-4" />إضافة عميل
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate("/finance/client-account-dashboard")} className="gap-2 font-bold text-sm">
+            <TrendingUp className="w-4 h-4" />الداشبورد
           </Button>
-        )}
+          {canEdit && (
+            <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
+              <Plus className="w-4 h-4" />إضافة عميل
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable } from "@workspace/db";
-import { eq, desc, and, sql, or, like } from "drizzle-orm";
+import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
 
@@ -595,6 +595,144 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
 
     res.json({ shipments, total: shipments.length });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /finance/clients-dashboard ── داشبورد شاملة لكل العملاء التجاريين ──
+router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+
+    const clientConds: any[] = [];
+    if (tenantId !== null) clientConds.push(eq(clientsTable.tenantId, tenantId));
+
+    const clients = await db.select({
+      id:     clientsTable.id,
+      name:   clientsTable.name,
+      phone:  clientsTable.phone,
+      city:   clientsTable.city,
+      avatar: clientsTable.avatar,
+      isActive: clientsTable.isActive,
+      createdAt: clientsTable.createdAt,
+    }).from(clientsTable).where(clientConds.length ? and(...clientConds) : undefined);
+
+    if (clients.length === 0) {
+      res.json({
+        totals: { clients: 0, active: 0, shipments: 0, delivered: 0, waiting: 0, inWarehouse: 0, delayed: 0, returned: 0, revenue: 0, collected: 0 },
+        topClients: [], leastClients: [], statusBreakdown: [], clients: [],
+      });
+      return;
+    }
+
+    const clientIds = clients.map((c: any) => c.id);
+    const clientNames = clients.map((c: any) => c.name);
+
+    const shipConds: any[] = [
+      isNull(shipmentsTable.deletedAt),
+      or(inArray(shipmentsTable.clientId, clientIds), inArray(shipmentsTable.senderName, clientNames))!,
+    ];
+    if (tenantId !== null) shipConds.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const shipments = await db.select({
+      id:         shipmentsTable.id,
+      clientId:   shipmentsTable.clientId,
+      senderName: shipmentsTable.senderName,
+      status:     shipmentsTable.status,
+      totalAmount: shipmentsTable.totalAmount,
+      collectedAmount: shipmentsTable.collectedAmount,
+      warehouseId: shipmentsTable.warehouseId,
+      inventoryDeducted: shipmentsTable.inventoryDeducted,
+      inventoryReturned: shipmentsTable.inventoryReturned,
+      createdAt:  shipmentsTable.createdAt,
+    }).from(shipmentsTable).where(and(...shipConds));
+
+    // ربط كل شحنة بالعميل: clientId أولاً، وإلا بالاسم (senderName)
+    const nameToClientId = new Map<string, number>();
+    for (const c of clients) nameToClientId.set(c.name, c.id);
+
+    type Stat = {
+      shipmentsCount: number; delivered: number; waiting: number; inWarehouse: number;
+      delayed: number; returned: number; cancelled: number;
+      totalAmount: number; collectedAmount: number; lastOrderAt: string | null;
+    };
+    const statsByClientId = new Map<number, Stat>();
+    const emptyStat = (): Stat => ({
+      shipmentsCount: 0, delivered: 0, waiting: 0, inWarehouse: 0,
+      delayed: 0, returned: 0, cancelled: 0, totalAmount: 0, collectedAmount: 0, lastOrderAt: null,
+    });
+
+    // إحصائيات إجمالية
+    const totals = {
+      clients: clients.length, active: clients.filter((c: any) => c.isActive).length,
+      shipments: 0, delivered: 0, waiting: 0, inWarehouse: 0, delayed: 0, returned: 0,
+      revenue: 0, collected: 0,
+    };
+
+    for (const s of shipments) {
+      const cid = s.clientId ?? nameToClientId.get(s.senderName);
+      if (cid == null) continue;
+
+      const stat = statsByClientId.get(cid) ?? emptyStat();
+      stat.shipmentsCount++;
+      const total = Number(s.totalAmount ?? 0);
+      const collected = Number(s.collectedAmount ?? 0);
+      stat.totalAmount += total;
+      stat.collectedAmount += collected;
+      if (!stat.lastOrderAt || new Date(s.createdAt) > new Date(stat.lastOrderAt)) stat.lastOrderAt = String(s.createdAt);
+
+      // "قيد الشحن في المخزن" = لسه واقفة قبل ما تتحرك (انتظار/مؤكدة) وفيها مخزن مرتبط
+      const isInWarehouse = (s.status === "waiting" || s.status === "confirmed") && s.warehouseId != null;
+
+      if (s.status === "delivered")            { stat.delivered++; totals.delivered++; }
+      else if (s.status === "delayed")         { stat.delayed++;  totals.delayed++; }
+      else if (s.status === "returned")        { stat.returned++; totals.returned++; }
+      else if (s.status === "cancelled")       { stat.cancelled++; }
+      else if (isInWarehouse)                  { stat.inWarehouse++; totals.inWarehouse++; }
+      else if (s.status === "waiting")         { stat.waiting++; totals.waiting++; }
+
+      totals.shipments++;
+      totals.revenue += total;
+      totals.collected += collected;
+
+      statsByClientId.set(cid, stat);
+    }
+
+    const enrichedClients = clients.map((c: any) => {
+      const stat = statsByClientId.get(c.id) ?? emptyStat();
+      const deliveryRate = stat.shipmentsCount > 0 ? Math.round((stat.delivered / stat.shipmentsCount) * 100) : 0;
+      return {
+        id: c.id, name: c.name, phone: c.phone, city: c.city, avatar: c.avatar, isActive: c.isActive,
+        shipmentsCount: stat.shipmentsCount,
+        delivered: stat.delivered, waiting: stat.waiting, inWarehouse: stat.inWarehouse,
+        delayed: stat.delayed, returned: stat.returned, cancelled: stat.cancelled,
+        totalAmount: stat.totalAmount, collectedAmount: stat.collectedAmount,
+        deliveryRate, lastOrderAt: stat.lastOrderAt,
+      };
+    });
+
+    // أفضل/أقل العملاء بناءً على إجمالي المبيعات (من عندهم شحنات فعلاً)
+    const withShipments = enrichedClients.filter((c: any) => c.shipmentsCount > 0);
+    const topClients = [...withShipments].sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 5);
+    const leastClients = [...withShipments].sort((a, b) => a.totalAmount - b.totalAmount).slice(0, 5);
+
+    const statusBreakdown = [
+      { status: "delivered",    label: "تم التسليم",        count: totals.delivered,    color: "#34D399" },
+      { status: "waiting",      label: "قيد الانتظار",       count: totals.waiting,      color: "#60A5FA" },
+      { status: "inWarehouse",  label: "قيد الشحن بالمخزن",  count: totals.inWarehouse,  color: "#A78BFA" },
+      { status: "delayed",      label: "مؤجل",               count: totals.delayed,      color: "#FBBF24" },
+      { status: "returned",     label: "مرتجع",              count: totals.returned,     color: "#F87171" },
+    ].map(s => ({ ...s, percentage: totals.shipments ? Math.round((s.count / totals.shipments) * 100) : 0 }));
+
+    res.json({
+      totals,
+      topClients,
+      leastClients,
+      statusBreakdown,
+      clients: enrichedClients.sort((a: any, b: any) => b.totalAmount - a.totalAmount),
+    });
+  } catch (err: any) {
+    console.error("finance/clients-dashboard error:", err);
     res.status(500).json({ error: err.message });
   }
 });
