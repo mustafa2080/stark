@@ -319,6 +319,35 @@ function ShipmentInsightsTab() {
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [shipments]);
 
+  // ── الشحنات حسب الفرع/المخزن ──────────────────────────────────────────────
+  const byBranch = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of shipments) {
+      const name = (s as any).warehouseName || "بدون فرع";
+      m[name] = (m[name] ?? 0) + 1;
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [shipments]);
+
+  // ── الشحنات حسب نوع الطرد (ملابس / مستندات / إلكترونيات ..) ──────────────
+  const PARCEL_LABELS: Record<string, string> = {
+    document: "مستندات", normal: "طرد عادي", fragile: "قابل للكسر",
+    heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس",
+    food: "طعام", other: "أخرى",
+  };
+  const PARCEL_ICONS_MAP: Record<string, string> = {
+    document: "📄", normal: "📦", fragile: "🔮", heavy: "⚖️",
+    electronics: "💻", clothing: "👕", food: "🍱", other: "📫",
+  };
+  const byParcelType = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of shipments) {
+      const key = (s as any).parcelType || "normal";
+      m[key] = (m[key] ?? 0) + 1;
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [shipments]);
+
   // ── أداء شركات الشحن: scorecard مركّب (معدل تسليم + سرعة + معدل إرجاع) ────
   const companyPerf = useMemo(() => {
     const m: Record<string, { total: number; delivered: number; returned: number; name: string; deliveryHoursSum: number; deliveryHoursCount: number }> = {};
@@ -551,6 +580,90 @@ function ShipmentInsightsTab() {
                             متوسط {formatAge(c.avgHours)}
                           </span>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ── Row 2.5: الشحنات حسب الفرع + حسب نوع الطرد ────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        {/* الشحنات حسب الفرع */}
+        <Card className="border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-blue-50/50 dark:bg-blue-900/5">
+            <WarehouseIcon className="w-4 h-4 text-blue-500 shrink-0" />
+            <span className="text-sm font-bold text-blue-600 dark:text-blue-400">الشحنات حسب الفرع</span>
+            <span className="text-[10px] text-muted-foreground mr-auto">من آخر 200 شحنة</span>
+          </div>
+          {byBranch.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <WarehouseIcon className="w-8 h-8 text-muted-foreground/30" />
+              <p className="text-xs text-muted-foreground">لا توجد بيانات</p>
+            </div>
+          ) : (
+            <div className="p-3 space-y-2">
+              {byBranch.map(([name, count], i) => {
+                const maxCount = byBranch[0][1];
+                const barW = pct(count, maxCount);
+                return (
+                  <div key={name} className="flex items-center gap-3">
+                    <span className={`text-[10px] font-black w-4 text-center shrink-0 ${i === 0 ? "text-blue-500" : "text-muted-foreground"}`}>{i+1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-bold truncate">{name}</span>
+                        <span className={`text-[11px] font-black shrink-0 ml-2 ${i === 0 ? "text-blue-500" : "text-muted-foreground"}`}>{count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${i === 0 ? "bg-blue-500" : i === 1 ? "bg-blue-400" : "bg-muted-foreground/40"}`}
+                          style={{ width: `${barW}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* الشحنات حسب نوع الطرد */}
+        <Card className="border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-violet-50/50 dark:bg-violet-900/5">
+            <Boxes className="w-4 h-4 text-violet-500 shrink-0" />
+            <span className="text-sm font-bold text-violet-600 dark:text-violet-400">الشحنات حسب نوع الطرد</span>
+            <span className="text-[10px] text-muted-foreground mr-auto">من آخر 200 شحنة</span>
+          </div>
+          {byParcelType.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <Boxes className="w-8 h-8 text-muted-foreground/30" />
+              <p className="text-xs text-muted-foreground">لا توجد بيانات</p>
+            </div>
+          ) : (
+            <div className="p-3 space-y-2">
+              {byParcelType.map(([type, count], i) => {
+                const maxCount = byParcelType[0][1];
+                const barW = pct(count, maxCount);
+                const label = PARCEL_LABELS[type] || type;
+                const icon  = PARCEL_ICONS_MAP[type] || "📦";
+                return (
+                  <div key={type} className="flex items-center gap-3">
+                    <span className="text-sm w-5 text-center shrink-0">{icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-bold truncate">{label}</span>
+                        <span className={`text-[11px] font-black shrink-0 ml-2 ${i === 0 ? "text-violet-500" : "text-muted-foreground"}`}>{count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${i === 0 ? "bg-violet-500" : i === 1 ? "bg-violet-400" : "bg-muted-foreground/40"}`}
+                          style={{ width: `${barW}%` }}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1778,7 +1891,7 @@ function ParcelTypesTab() {
               ),
             })).filter(g => g.shipments.length > 0);
             const totalShipCount = byWarehouse.reduce((n, g) => n + g.shipments.length, 0);
-            const totalRevenue = byWarehouse.flatMap(g => g.shipments).reduce((s, sh) => s + (Number((sh as any).collectedAmount) || 0), 0);
+            const totalRevenue = byWarehouse.flatMap(g => g.shipments).reduce((s, sh) => s + (Number((sh as any).shippingFee) || 0), 0);
 
             return (
               <Card key={p.id} className={`overflow-hidden border transition-all ${isOpen ? "border-violet-400 dark:border-violet-600 shadow-sm" : "border-border"}`}>
