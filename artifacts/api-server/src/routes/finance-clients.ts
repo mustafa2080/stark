@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
@@ -628,6 +628,11 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
     const clientIds = clients.map((c: any) => c.id);
     const clientNames = clients.map((c: any) => c.name);
 
+    // جلب أسماء كل المخازن (لعرضها بدل الأرقام)
+    const allWarehouses = await db.select({ id: warehousesTable.id, name: warehousesTable.name }).from(warehousesTable);
+    const warehouseNameById = new Map<number, string>();
+    for (const w of allWarehouses) warehouseNameById.set(w.id, w.name);
+
     const shipConds: any[] = [
       isNull(shipmentsTable.deletedAt),
       or(inArray(shipmentsTable.clientId, clientIds), inArray(shipmentsTable.senderName, clientNames))!,
@@ -655,11 +660,13 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
       shipmentsCount: number; delivered: number; waiting: number; inWarehouse: number;
       delayed: number; returned: number; cancelled: number;
       totalAmount: number; collectedAmount: number; lastOrderAt: string | null;
+      warehouseNames: Set<string>;
     };
     const statsByClientId = new Map<number, Stat>();
     const emptyStat = (): Stat => ({
       shipmentsCount: 0, delivered: 0, waiting: 0, inWarehouse: 0,
       delayed: 0, returned: 0, cancelled: 0, totalAmount: 0, collectedAmount: 0, lastOrderAt: null,
+      warehouseNames: new Set<string>(),
     });
 
     // إحصائيات إجمالية
@@ -684,6 +691,11 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
       // "قيد الشحن في المخزن" = لسه واقفة قبل ما تتحرك (انتظار/مؤكدة) وفيها مخزن مرتبط
       const isInWarehouse = (s.status === "waiting" || s.status === "confirmed") && s.warehouseId != null;
 
+      if (s.warehouseId != null) {
+        const whName = warehouseNameById.get(s.warehouseId);
+        if (whName) stat.warehouseNames.add(whName);
+      }
+
       if (s.status === "delivered")            { stat.delivered++; totals.delivered++; }
       else if (s.status === "delayed")         { stat.delayed++;  totals.delayed++; }
       else if (s.status === "returned")        { stat.returned++; totals.returned++; }
@@ -701,6 +713,7 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
     const enrichedClients = clients.map((c: any) => {
       const stat = statsByClientId.get(c.id) ?? emptyStat();
       const deliveryRate = stat.shipmentsCount > 0 ? Math.round((stat.delivered / stat.shipmentsCount) * 100) : 0;
+      const warehouseNamesArr = Array.from(stat.warehouseNames);
       return {
         id: c.id, name: c.name, phone: c.phone, city: c.city, avatar: c.avatar, isActive: c.isActive,
         shipmentsCount: stat.shipmentsCount,
@@ -708,6 +721,7 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
         delayed: stat.delayed, returned: stat.returned, cancelled: stat.cancelled,
         totalAmount: stat.totalAmount, collectedAmount: stat.collectedAmount,
         deliveryRate, lastOrderAt: stat.lastOrderAt,
+        warehouseName: warehouseNamesArr.length > 0 ? warehouseNamesArr.join("، ") : "بدون مخزن",
       };
     });
 

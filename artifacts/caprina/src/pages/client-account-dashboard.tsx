@@ -269,7 +269,7 @@ export default function ClientAccountDashboardPage() {
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colFilters, setColFilters] = useState<Record<string, Set<string> | null>>({
-    city: null, delivered: null, inWarehouse: null, delayed: null, returned: null, deliveryRate: null,
+    clientName: null, warehouseName: null, delivered: null, delayed: null, returned: null, deliveryRate: null,
   });
 
   const { data, isLoading } = useQuery<any>({
@@ -288,9 +288,9 @@ export default function ClientAccountDashboardPage() {
 
   // ── قيم كل عمود (فريدة) لعرضها في الفلتر ──────────────────────────────────
   const colValues = {
-    city: Array.from(new Set(allClients.map((c) => c.city || "بدون مدينة"))).sort(),
+    clientName: Array.from(new Set(allClients.map((c) => c.name))).sort(),
+    warehouseName: Array.from(new Set(allClients.map((c) => c.warehouseName || "بدون مخزن"))).sort(),
     delivered: Array.from(new Set(allClients.map((c) => String(c.delivered ?? 0)))).sort((a, b) => Number(a) - Number(b)),
-    inWarehouse: Array.from(new Set(allClients.map((c) => String(c.inWarehouse ?? 0)))).sort((a, b) => Number(a) - Number(b)),
     delayed: Array.from(new Set(allClients.map((c) => String(c.delayed ?? 0)))).sort((a, b) => Number(a) - Number(b)),
     returned: Array.from(new Set(allClients.map((c) => String(c.returned ?? 0)))).sort((a, b) => Number(a) - Number(b)),
     deliveryRate: Array.from(new Set(allClients.map((c) => `${c.deliveryRate ?? 0}%`))).sort((a, b) => Number(a.replace("%", "")) - Number(b.replace("%", ""))),
@@ -301,9 +301,9 @@ export default function ClientAccountDashboardPage() {
   const filteredClients = allClients.filter((c) => {
     const q = search.trim().toLowerCase();
     if (q && !(c.name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q))) return false;
-    if (colFilters.city && !colFilters.city.has(c.city || "بدون مدينة")) return false;
+    if (colFilters.clientName && !colFilters.clientName.has(c.name)) return false;
+    if (colFilters.warehouseName && !colFilters.warehouseName.has(c.warehouseName || "بدون مخزن")) return false;
     if (colFilters.delivered && !colFilters.delivered.has(String(c.delivered ?? 0))) return false;
-    if (colFilters.inWarehouse && !colFilters.inWarehouse.has(String(c.inWarehouse ?? 0))) return false;
     if (colFilters.delayed && !colFilters.delayed.has(String(c.delayed ?? 0))) return false;
     if (colFilters.returned && !colFilters.returned.has(String(c.returned ?? 0))) return false;
     if (colFilters.deliveryRate && !colFilters.deliveryRate.has(`${c.deliveryRate ?? 0}%`)) return false;
@@ -500,7 +500,7 @@ export default function ClientAccountDashboardPage() {
                 </button>
                 {activeFilterCount > 0 && (
                   <button
-                    onClick={() => setColFilters({ city: null, delivered: null, inWarehouse: null, delayed: null, returned: null, deliveryRate: null })}
+                    onClick={() => setColFilters({ clientName: null, warehouseName: null, delivered: null, delayed: null, returned: null, deliveryRate: null })}
                     className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0"
                   >
                     <X className="w-3 h-3" />مسح الكل
@@ -539,9 +539,9 @@ export default function ClientAccountDashboardPage() {
                           العميل
                           {filtersOpen && (
                             <ColumnFilterDropdown
-                              values={colValues.city}
-                              selected={colFilters.city}
-                              onChange={(v) => setColFilters((f) => ({ ...f, city: v }))}
+                              values={colValues.clientName}
+                              selected={colFilters.clientName}
+                              onChange={(v) => setColFilters((f) => ({ ...f, clientName: v }))}
                               align="right"
                             />
                           )}
@@ -565,9 +565,9 @@ export default function ClientAccountDashboardPage() {
                           مخزن
                           {filtersOpen && (
                             <ColumnFilterDropdown
-                              values={colValues.inWarehouse}
-                              selected={colFilters.inWarehouse}
-                              onChange={(v) => setColFilters((f) => ({ ...f, inWarehouse: v }))}
+                              values={colValues.warehouseName}
+                              selected={colFilters.warehouseName}
+                              onChange={(v) => setColFilters((f) => ({ ...f, warehouseName: v }))}
                             />
                           )}
                         </span>
@@ -613,11 +613,12 @@ export default function ClientAccountDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredClients.map((c) => (
+                    {filteredClients.map((c, idx) => (
                       <tr
                         key={c.id}
                         onClick={() => navigate(`/finance/clients/${c.id}`)}
-                        className="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors"
+                        className="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors animate-in fade-in slide-in-from-bottom-1"
+                        style={{ animationDuration: "300ms", animationFillMode: "backwards", animationDelay: `${Math.min(idx * 15, 300)}ms` }}
                       >
                         <td className="py-2.5">
                           <div className="flex items-center gap-2">
@@ -632,7 +633,11 @@ export default function ClientAccountDashboardPage() {
                         </td>
                         <td className="text-center font-bold">{fmt(c.shipmentsCount)}</td>
                         <td className="text-center"><Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-500">{c.delivered}</Badge></td>
-                        <td className="text-center"><Badge variant="outline" className="text-[10px] border-violet-500/30 text-violet-400">{c.inWarehouse}</Badge></td>
+                        <td className="text-center">
+                          <Badge variant="outline" className="text-[10px] border-violet-500/30 text-violet-400 max-w-[110px] truncate inline-block align-middle">
+                            {c.warehouseName || "بدون مخزن"}
+                          </Badge>
+                        </td>
                         <td className="text-center"><Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-500">{c.delayed}</Badge></td>
                         <td className="text-center"><Badge variant="outline" className="text-[10px] border-rose-500/30 text-rose-500">{c.returned}</Badge></td>
                         <td className="text-center font-bold">{c.deliveryRate}%</td>
