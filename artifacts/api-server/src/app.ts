@@ -383,6 +383,52 @@ async function ensureClientAccountClosuresClientId() {
 }
 ensureClientAccountClosuresClientId();
 
+// ─── Ensure client_account_manifests / client_account_manifest_items tables exist ──
+async function ensureClientAccountManifestsTables() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS client_account_manifests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NULL,
+        manifest_number VARCHAR(100) NOT NULL,
+        client_id INT NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'open',
+        notes TEXT NULL,
+        invoice_price DECIMAL(10,2) NULL,
+        invoice_notes TEXT NULL,
+        manual_shipping_cost DECIMAL(10,2) NULL,
+        created_at DATETIME NOT NULL,
+        closed_at DATETIME NULL,
+        INDEX idx_cam_client (client_id),
+        INDEX idx_cam_tenant (tenant_id)
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS client_account_manifest_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        manifest_id INT NOT NULL,
+        shipment_id INT NOT NULL,
+        delivery_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        delivery_note TEXT NULL,
+        partial_quantity INT NULL,
+        delivered_at DATETIME NULL,
+        return_received INT NULL,
+        return_reason VARCHAR(100) NULL,
+        added_at DATETIME NOT NULL,
+        is_urgent INT DEFAULT 0,
+        urgent_note VARCHAR(255) NULL,
+        urgent_at DATETIME NULL,
+        INDEX idx_cami_manifest (manifest_id),
+        INDEX idx_cami_shipment (shipment_id)
+      )
+    `);
+    logger.info("client_account_manifests tables ensured");
+  } catch (err: any) {
+    logger.error({ err }, "Failed to ensure client_account_manifests tables");
+  }
+}
+ensureClientAccountManifestsTables();
+
 
 // ─── Ensure employee_profiles.avatar column exists ────────────────────────────
 async function ensureEmployeeProfileAvatar() {
