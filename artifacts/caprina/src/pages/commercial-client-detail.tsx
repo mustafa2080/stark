@@ -1805,6 +1805,9 @@ function CreateSaleOrderManifestDialog({
             إنشاء بيان جديد
           </DialogTitle>
           <p className="text-xs text-muted-foreground text-right truncate pr-8">{clientName}</p>
+          <p className="text-[10px] text-amber-400/80 text-right pr-8 mt-0.5">
+            الفواتير المعروضة هنا هي فقط اللي حالتها "قيد الشحن فى المخزن"
+          </p>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col gap-3 mt-2">
