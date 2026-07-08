@@ -1886,6 +1886,7 @@ export const shipmentsApi = {
     limit?: number;
     offset?: number;
     shippingCompanyId?: number;
+    clientId?: number;
   }) => {
     const q = new URLSearchParams();
     if (params?.status)           q.set("status",           params.status);
@@ -1893,6 +1894,7 @@ export const shipmentsApi = {
     if (params?.limit != null)    q.set("limit",            String(params.limit));
     if (params?.offset != null)   q.set("offset",           String(params.offset));
     if (params?.shippingCompanyId != null) q.set("shippingCompanyId", String(params.shippingCompanyId));
+    if (params?.clientId != null) q.set("clientId",         String(params.clientId));
     const qs = q.toString();
     return apiFetch<ShipmentsListResponse>(`/shipments${qs ? `?${qs}` : ""}`);
   },

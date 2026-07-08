@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
-import { apiFetch, saleOrderManifestsApi, type SaleOrderManifestListItem } from "@/lib/api";
+import { apiFetch, clientAccountManifestsApi, shipmentsApi, type ClientAccountManifestListItem } from "@/lib/api";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine, CartesianGrid, PieChart, Pie, Cell,
@@ -295,10 +295,10 @@ export default function CommercialClientDetailPage() {
   });
   const clientShipments = shipmentsData?.shipments ?? [];
 
-  // ── بيانات فواتير البيع للعميل (Sale Order Manifests) ─────────────────────
-  const { data: manifests, isLoading: manifestsLoading } = useQuery<SaleOrderManifestListItem[]>({
-    queryKey: ["sale-order-manifests", clientId],
-    queryFn: () => saleOrderManifestsApi.list(clientId),
+  // ── بيانات حساب العميل (Client Account Manifests — شحنات) ──────────────────
+  const { data: manifests, isLoading: manifestsLoading } = useQuery<ClientAccountManifestListItem[]>({
+    queryKey: ["client-account-manifests", clientId],
+    queryFn: () => clientAccountManifestsApi.list(clientId),
     enabled: !isNaN(clientId),
   });
   const openManifest = manifests?.find(m => m.status === "open") ?? null;
@@ -1418,7 +1418,7 @@ export default function CommercialClientDetailPage() {
             {openManifest && (
               <p className="text-[10px] text-amber-400 mt-2 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                يوجد بيان مفتوح حالياً: {openManifest.manifestNumber} — {openManifest.orderCount} فاتورة.
+                يوجد بيان مفتوح حالياً: {openManifest.manifestNumber} — {openManifest.shipmentCount} شحنة.
               </p>
             )}
 
@@ -1588,7 +1588,7 @@ export default function CommercialClientDetailPage() {
 // ─── ClientManifestRow — صف بيان حساب واحد (فتح/قفل/ترحيل/حذف) ─────────────
 // ════════════════════════════════════════════════════════════════════════════
 function ClientManifestRow({ manifest, clientId, qc }: {
-  manifest: SaleOrderManifestListItem;
+  manifest: ClientAccountManifestListItem;
   clientId: number;
   qc: ReturnType<typeof useQueryClient>;
 }) {
@@ -1598,10 +1598,10 @@ function ClientManifestRow({ manifest, clientId, qc }: {
 
   const toggleLockMutation = useMutation({
     mutationFn: (status: "open" | "closed") =>
-      saleOrderManifestsApi.update(manifest.id, { status, rollover: status === "closed" }),
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
-      if (res.rolled) {
+      clientAccountManifestsApi.update(manifest.id, { status }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
+      if (res?.rolled) {
         toast({
           title: "🔒 تم إغلاق البيان بنجاح",
           description: `تم ترحيل ${res.rolled.orderCount} فاتورة غير مكتملة إلى بيان جديد: ${res.rolled.manifestNumber}`,
@@ -1615,17 +1615,17 @@ function ClientManifestRow({ manifest, clientId, qc }: {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => saleOrderManifestsApi.delete(manifest.id),
+    mutationFn: () => clientAccountManifestsApi.delete(manifest.id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
+      qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
       toast({ title: "تم حذف البيان" });
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const sc = manifest.statusCounts;
-  const total = manifest.orderCount;
-  const completed = (sc.delivered ?? 0) + (sc.closed ?? 0);
+  const total = manifest.shipmentCount;
+  const completed = (sc.delivered ?? 0) + (sc.partial ?? 0);
   const pending = total - completed;
 
   return (
@@ -1646,13 +1646,13 @@ function ClientManifestRow({ manifest, clientId, qc }: {
           </div>
           <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1"><Calendar className="w-2.5 h-2.5" />{format(new Date(manifest.createdAt), "yyyy/MM/dd")}</span>
-            <span className="flex items-center gap-1"><Package className="w-2.5 h-2.5" />{total} فاتورة</span>
+            <span className="flex items-center gap-1"><Package className="w-2.5 h-2.5" />{total} شحنة</span>
             <span className="text-emerald-400">{completed} مكتملة</span>
             {pending > 0 && <span className="text-amber-400">{pending} جارية</span>}
           </div>
         </button>
         <div className="flex items-center gap-1.5 shrink-0">
-          <Link href={`/finance/sale-order-manifests/${manifest.id}`}>
+          <Link href={`/finance/client-account-sheet/manifest/${manifest.id}`}>
             <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1">
               <Eye className="w-3 h-3" />تفاصيل
             </Button>
@@ -1727,18 +1727,23 @@ function CreateSaleOrderManifestDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
 
-  // فواتير البيع المتاحة (غير المرتبطة بأي بيان بعد)
-  const { data: availableOrders, isLoading } = useQuery({
-    queryKey: ["sale-orders-available-for-manifest", clientId],
-    queryFn: () => saleOrderManifestsApi.available(clientId),
+  // الشحنات المتاحة (قيد الشحن في المخزن، لهذا العميل تحديدًا)
+  const { data, isLoading } = useQuery({
+    queryKey: ["shipments-available-for-manifest", clientId],
+    queryFn: () => shipmentsApi.list({ clientId, status: "warehouse_ready", limit: 500 }),
   });
 
-  const orders = availableOrders ?? [];
+  const orders = ((data?.data ?? []) as any[]).filter((s) => s.status === "warehouse_ready");
 
   const filtered = useMemo(() => {
     if (!search.trim()) return orders;
     const q = search.toLowerCase();
-    return orders.filter(o => o.soNumber?.toLowerCase().includes(q));
+    return orders.filter((o: any) =>
+      o.shipmentNumber?.toLowerCase().includes(q) ||
+      o.receiverName?.toLowerCase().includes(q) ||
+      (o.receiverPhone && o.receiverPhone.includes(q)) ||
+      (o.trackingNumber && o.trackingNumber.toLowerCase().includes(q))
+    );
   }, [orders, search]);
 
   const toggleAll = () => {
@@ -1762,22 +1767,22 @@ function CreateSaleOrderManifestDialog({
   const createMutation = useMutation({
     mutationFn: async () => {
       try {
-        return await saleOrderManifestsApi.create({
+        return await clientAccountManifestsApi.create({
           clientId,
-          saleOrderIds: Array.from(selectedIds),
+          shipmentIds: Array.from(selectedIds),
           notes: notes.trim() || undefined,
         });
       } catch (err: any) {
-        // 409 = يوجد بيان مفتوح → أضف الفواتير له تلقائياً
+        // 409 = يوجد بيان مفتوح → أضف الشحنات له تلقائياً
         if (err?.status === 409 || err?.message?.includes("409") || err?.message?.includes("مفتوح")) {
-          const manifests = await saleOrderManifestsApi.list(clientId);
+          const manifests = await clientAccountManifestsApi.list(clientId);
           const openManifest = manifests.find(m => m.status === "open");
           if (!openManifest) throw err;
-          const result = await saleOrderManifestsApi.addOrders(openManifest.id, Array.from(selectedIds));
+          const result = await clientAccountManifestsApi.addShipments(openManifest.id, Array.from(selectedIds));
           return {
             id: openManifest.id,
             manifestNumber: openManifest.manifestNumber,
-            orderCount: result.added,
+            shipmentCount: result.added,
             _addedToExisting: true,
           } as any;
         }
@@ -1785,12 +1790,12 @@ function CreateSaleOrderManifestDialog({
       }
     },
     onSuccess: (manifest: any) => {
-      qc.invalidateQueries({ queryKey: ["sale-order-manifests", clientId] });
-      qc.invalidateQueries({ queryKey: ["sale-orders-available-for-manifest", clientId] });
+      qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
+      qc.invalidateQueries({ queryKey: ["shipments-available-for-manifest", clientId] });
       if (manifest._addedToExisting) {
-        toast({ title: "تمت الإضافة للبيان المفتوح", description: `${manifest.manifestNumber} — أُضيف ${manifest.orderCount} فاتورة للبيان الموجود` });
+        toast({ title: "تمت الإضافة للبيان المفتوح", description: `${manifest.manifestNumber} — أُضيف ${manifest.shipmentCount} شحنة للبيان الموجود` });
       } else {
-        toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.orderCount} فاتورة` });
+        toast({ title: "تم إنشاء البيان", description: `${manifest.manifestNumber} — ${manifest.shipmentCount} شحنة` });
       }
       if (onCreated) onCreated(manifest);
       else onClose();
@@ -1811,7 +1816,7 @@ function CreateSaleOrderManifestDialog({
           </DialogTitle>
           <p className="text-xs text-muted-foreground text-right truncate pr-8">{clientName}</p>
           <p className="text-[10px] text-amber-400/80 text-right pr-8 mt-0.5">
-            الفواتير المعروضة هنا هي فقط اللي حالتها "قيد الشحن فى المخزن"
+            الشحنات المعروضة هنا هي فقط اللي حالتها "قيد الشحن فى المخزن"
           </p>
         </DialogHeader>
 
@@ -1821,7 +1826,7 @@ function CreateSaleOrderManifestDialog({
             <div className="relative flex-1">
               <Search className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
               <Input
-                placeholder="بحث برقم الفاتورة..."
+                placeholder="بحث برقم الشحنة / اسم المستلم..."
                 className="h-9 text-sm bg-background pr-8"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -1829,7 +1834,7 @@ function CreateSaleOrderManifestDialog({
             </div>
             {!isLoading && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {orders.length} فاتورة متاحة
+                {orders.length} شحنة متاحة
               </span>
             )}
           </div>
@@ -1842,31 +1847,29 @@ function CreateSaleOrderManifestDialog({
                   checked={filtered.length > 0 && filtered.every(o => selectedIds.has(o.id))}
                   onCheckedChange={toggleAll}
                 />
-                <span className="text-xs text-muted-foreground">تحديد الكل ({filtered.length} فاتورة)</span>
+                <span className="text-xs text-muted-foreground">تحديد الكل ({filtered.length} شحنة)</span>
               </div>
-              <span className="text-xs font-bold text-primary">{selectedIds.size} فاتورة محددة</span>
+              <span className="text-xs font-bold text-primary">{selectedIds.size} شحنة محددة</span>
             </div>
           )}
 
-          {/* Orders list */}
+          {/* Shipments list */}
           <div className="overflow-y-auto flex-1 border border-border rounded-md">
             {isLoading ? (
-              <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">جاري تحميل الفواتير...</div>
+              <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">جاري تحميل الشحنات...</div>
             ) : filtered.length === 0 ? (
               <div className="p-10 text-center">
                 <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                 <p className="text-sm text-muted-foreground">
                   {orders.length === 0
-                    ? "لا توجد فواتير متاحة حالياً — كل الفواتير مرتبطة ببيانات بالفعل"
+                    ? "لا توجد شحنات قيد الشحن في المخزن حالياً لهذا العميل"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
             ) : (
-              filtered.map(o => {
+              filtered.map((o: any) => {
                 const isSelected = selectedIds.has(o.id);
-                const total = parseFloat(o.totalAmount ?? "0");
-                const paid = o.paymentStatus === "paid" ? total : parseFloat(o.paidAmount ?? "0");
-                const unpaid = Math.max(0, total - paid);
+                const cod = Number(o.codAmount ?? o.totalAmount ?? 0);
                 return (
                   <div
                     key={o.id}
@@ -1876,15 +1879,15 @@ function CreateSaleOrderManifestDialog({
                     <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold">{o.soNumber}</span>
-                        <Badge variant="outline" className="text-[9px] font-bold border">
-                          {stMap[o.status] ?? o.status}
+                        <span className="text-xs font-bold">{o.shipmentNumber}</span>
+                        <Badge variant="outline" className="text-[9px] font-bold border border-purple-700 bg-purple-900/20 text-purple-400">
+                          قيد الشحن بالمخزن
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-1 text-[10px] text-muted-foreground">
-                        <span>{format(new Date(o.createdAt), "yyyy/MM/dd")} · {pyMap[o.paymentStatus] ?? o.paymentStatus}</span>
+                        <span>{o.receiverName} {o.receiverCity ? `· ${o.receiverCity}` : ""}</span>
                         <span className="font-bold text-foreground">
-                          {fmt(total)} {unpaid > 0 && <span className="text-red-400">(متبقي {fmt(unpaid)})</span>}
+                          {fmt(cod)}
                         </span>
                       </div>
                     </div>

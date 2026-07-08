@@ -339,7 +339,7 @@ router.post("/shipments/track/:number/rating", async (req, res): Promise<void> =
 router.get("/shipments", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { status, search, limit = "50", offset = "0", shippingCompanyId } = req.query as Record<string, string>;
+    const { status, search, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
 
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
@@ -372,6 +372,9 @@ router.get("/shipments", async (req, res): Promise<void> => {
     }
     if (shippingCompanyId) {
       conditions.push(eq(shipmentsTable.shippingCompanyId, parseInt(shippingCompanyId)));
+    }
+    if (clientId) {
+      conditions.push(eq(shipmentsTable.clientId, parseInt(clientId)));
     }
     if (search) {
       conditions.push(
