@@ -304,7 +304,7 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
 router.patch("/client-account-manifests/:id", async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
-    const body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null };
+    const body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null; manualShippingCost?: number | null };
     const now = new Date();
 
     await db.update(clientAccountManifestsTable)
@@ -312,6 +312,7 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
         ...(body.status ? { status: body.status } : {}),
         ...(body.notes !== undefined ? { notes: body.notes } : {}),
         ...(body.invoicePrice !== undefined ? { invoicePrice: body.invoicePrice == null ? null : String(body.invoicePrice) } : {}),
+        ...(body.manualShippingCost !== undefined ? { manualShippingCost: body.manualShippingCost == null ? null : String(body.manualShippingCost) } : {}),
         ...(body.status === "closed" ? { closedAt: now } : {}),
         ...(body.status === "open"   ? { closedAt: null } : {}),
       })

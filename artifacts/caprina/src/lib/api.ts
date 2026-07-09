@@ -1095,6 +1095,17 @@ export interface ManifestOrder extends Order {
   manifestOrderId: number;
   returnReceived: 0 | 1 | null;
   addedAt: string | null;
+  // ── حقول إضافية تُستخدم عند تعبئة الـ ManifestOrder من بيان حساب عميل (client-account-manifest) ──
+  shipmentId?: number;
+  phone?: string | null;
+  address?: string | null;
+  senderName?: string | null;
+  totalPrice?: number;
+  unitPrice?: number;
+  partialQuantity?: number | null;
+  returnReason?: string | null;
+  color?: string | null;
+  size?: string | null;
 }
 
 export interface ShippingManifestDetail extends ShippingManifestListItem {
@@ -1102,6 +1113,7 @@ export interface ShippingManifestDetail extends ShippingManifestListItem {
   companyLogo: string | null;
   orders: ManifestOrder[];
   stats: ManifestStats;
+  invoiceNotes?: string | null;
   manualShippingCost: number | null;
 }
 
@@ -2081,7 +2093,7 @@ export const clientAccountManifestsApi = {
       `/client-account-manifests/${manifestId}/add-shipments`,
       { method: "POST", body: JSON.stringify({ shipmentIds }) }
     ),
-  update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null }) =>
+  update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null; manualShippingCost?: number | null }) =>
     apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (id: number) =>
     apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "DELETE" }),

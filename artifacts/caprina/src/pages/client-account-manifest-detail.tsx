@@ -5,10 +5,11 @@ import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   shipmentManifestsApi,
+  clientAccountManifestsApi,
   manifestsApi,
   shipmentsApi,
   apiFetch,
-  type ShipmentManifestDetail as ShippingManifestDetail,
+  type ClientAccountManifestDetail,
   type ManifestOrder,
   type DeliveryStatus,
 } from "@/lib/api";
@@ -79,6 +80,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBrand } from "@/contexts/BrandContext";
 import { format } from "date-fns";
 import { RETURN_REASONS, returnReasonLabel } from "@/lib/order-constants";
+
+// Adapter type: شكل الـ manifest بعد تحويله محليًا في هذه الصفحة (orders/companyName/... مُشتقة من ClientAccountManifestDetail)
+type ShippingManifestDetail = Omit<ClientAccountManifestDetail, "items"> & {
+  orders: ManifestOrder[];
+  companyName: string;
+  companyPhone: string | null;
+  companyLogo: string | null;
+  invoiceNotes: string | null;
+  manualShippingCost: number | null;
+};
 
 const formatCurrency = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("ar-EG", {
@@ -198,7 +209,7 @@ function OrderDeliveryRow({
         // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
         const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
         const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
-        return shipmentManifestsApi.updateItem(manifestId, order.id, {
+        return clientAccountManifestsApi.updateItem(manifestId, order.id, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
           partialQuantity:
@@ -975,7 +986,7 @@ function InvoiceGroupDeliveryRow({
     mutationFn: async () => {
       for (const order of group) {
         if (isShipmentManifest) {
-          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+          await clientAccountManifestsApi.updateItem(manifestId, order.id, {
             deliveryStatus: "pending",
             deliveryNote: null,
             returnReceived: null,
@@ -1051,7 +1062,7 @@ function InvoiceGroupDeliveryRow({
         if (isShipmentManifest) {
           const allowedSt = ["pending","delivered","partial_delivered","returned","delayed"] as const;
           const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
-          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+          await clientAccountManifestsApi.updateItem(manifestId, order.id, {
             deliveryStatus: safeSt,
             deliveryNote: bulkNote.trim() || null,
             partialQuantity: safeSt === "partial_delivered" ? finalPartialQty : null,
@@ -1969,7 +1980,7 @@ function InvoicePriceEditor({
   const mutation = useMutation({
     mutationFn: () =>
       isShipmentManifest
-        ? shipmentManifestsApi.update(manifestId, {
+        ? clientAccountManifestsApi.update(manifestId, {
             invoicePrice: price ? parseFloat(price) : null,
             notes: notes.trim() || null,
           })
@@ -2082,7 +2093,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
       const parsed = val.trim() === "" ? null : parseFloat(val);
       if (parsed !== null && isNaN(parsed)) throw new Error("قيمة غير صحيحة");
       return isShipmentManifest
-        ? shipmentManifestsApi.update(manifest.id, { invoicePrice: parsed })
+        ? clientAccountManifestsApi.update(manifest.id, { manualShippingCost: parsed })
         : manifestsApi.update(manifest.id, { manualShippingCost: parsed });
     },
     onSuccess: () => {
@@ -2994,14 +3005,14 @@ function ExportDialog({
 function AddOrdersToManifestDialog({
   manifestId,
   manifestNumber,
-  companyId,
+  clientId,
   existingOrderIds,
   onClose,
   onAdded,
 }: {
   manifestId: number;
   manifestNumber: string;
-  companyId: number;
+  clientId: number;
   existingOrderIds: Set<number>;
   onClose: () => void;
   onAdded: () => void;
@@ -3014,19 +3025,18 @@ function AddOrdersToManifestDialog({
   // "picked_up" قيمة قديمة فالداتابيز بنفس تسمية "قيد الشحن في المخزن" — لازم تتحسب كمان
   const AVAILABLE_STATUSES = ["warehouse_ready", "picked_up"];
 
-  // ملحوظة: متعمد عدم تحديد shippingCompanyId — أي شحنة "قيد الشحن في المخزن" بتظهر هنا
-  // بغض النظر عن شركة الشحن المرتبطة بيها، عشان تقدر تنقلها لأي بيان.
+  // شحنات هذا العميل تحديدًا فقط (قيد الشحن في المخزن)
   const { data: shipmentsData, isLoading } = useQuery({
-    queryKey: ["shipments-available-for-manifest"],
-    queryFn: () => shipmentsApi.list({ status: "warehouse_ready", limit: 500 }),
+    queryKey: ["shipments-available-for-manifest", clientId],
+    queryFn: () => shipmentsApi.list({ status: "warehouse_ready", clientId, limit: 500 }),
     staleTime: 10000,
   });
 
   const addMutation = useMutation({
-    mutationFn: () => shipmentManifestsApi.addShipments(manifestId, Array.from(selectedIds)),
+    mutationFn: () => clientAccountManifestsApi.addShipments(manifestId, Array.from(selectedIds)),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["shipment-manifest", manifestId] });
-      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest"] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-manifest", manifestId] });
+      queryClient.invalidateQueries({ queryKey: ["shipments-available-for-manifest", clientId] });
       toast({ title: `✅ تمت الإضافة`, description: `تم إضافة ${res.added} شحنة للبيان ${res.manifestNumber}` });
       onAdded();
       onClose();
@@ -3336,7 +3346,7 @@ function ReturnReceivedButton({
 
   const mutation = useMutation({
     mutationFn: () =>
-      shipmentManifestsApi.updateItem(manifestId, order.id, {
+      clientAccountManifestsApi.updateItem(manifestId, order.id, {
         deliveryStatus: order.deliveryStatus,
         deliveryNote: order.deliveryNote ?? null,
         partialQuantity: order.partialQuantity ?? null,
@@ -3434,8 +3444,8 @@ export default function ShippingManifestPage() {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
 
   const { data: rawManifest, isLoading, error } = useQuery({
-    queryKey: ["shipping-manifest", id],
-    queryFn: () => shipmentManifestsApi.get(id),
+    queryKey: ["client-account-manifest", id],
+    queryFn: () => clientAccountManifestsApi.get(id),
     enabled: !isNaN(id),
   });
 
@@ -3477,7 +3487,7 @@ export default function ShippingManifestPage() {
         updatedAt: sh?.updatedAt ?? null,
         assignedUserId: sh?.assignedUserId ?? null,
         createdByUserId: null,
-        shippingCompanyId: sh?.shippingCompanyId ?? rawManifest.shippingCompanyId,
+        shippingCompanyId: sh?.shippingCompanyId ?? null,
         deliveryStatus: (() => {
           // لو البيان لسه pending بس الشحنة نفسها اتغيرت → sync الحالة
           if (item.deliveryStatus === "pending" && sh?.status) {
@@ -3503,9 +3513,9 @@ export default function ShippingManifestPage() {
 
     return {
       ...rawManifest,
-      companyName: rawManifest.company?.name ?? '—',
-      companyPhone: null as string | null,
-      companyLogo: rawManifest.company?.logo ?? null,
+      companyName: rawManifest.client?.name ?? '—',
+      companyPhone: rawManifest.client?.phone ?? null,
+      companyLogo: null as string | null,
       invoiceNotes: rawManifest.notes ?? null,
       manualShippingCost,
       orders,
@@ -3688,12 +3698,13 @@ export default function ShippingManifestPage() {
     // مزامنة حالة الشحنات: أي تغيير في البيان ينعكس فوراً على قسم الشحنات
     queryClient.invalidateQueries({ queryKey: ["shipments"] });
     queryClient.invalidateQueries({ queryKey: ["shipment-manifest"] });
+    queryClient.invalidateQueries({ queryKey: ["client-account-manifest"] });
     queryClient.invalidateQueries({ queryKey: ["warehouse-shipments"] });
   }, [queryClient, id]);
 
   const updateMutation = useMutation({
     mutationFn: (data: { status: "open" | "closed" }) =>
-      shipmentManifestsApi.update(id, data),
+      clientAccountManifestsApi.update(id, data),
     onSuccess: (result: any) => {
       refetch();
       setShowCloseDialog(false);
@@ -3718,9 +3729,9 @@ export default function ShippingManifestPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => shipmentManifestsApi.delete(id),
+    mutationFn: () => clientAccountManifestsApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shipping-manifests"] });
+      queryClient.invalidateQueries({ queryKey: ["client-account-manifests"] });
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
       queryClient.invalidateQueries({ queryKey: ["variants"] });
       queryClient.invalidateQueries({ queryKey: ["variants-all"] });
@@ -4800,7 +4811,7 @@ export default function ShippingManifestPage() {
         <AddOrdersToManifestDialog
           manifestId={id}
           manifestNumber={manifest.manifestNumber}
-          companyId={rawManifest.shippingCompanyId}
+          companyId={rawManifest.clientId}
           existingOrderIds={new Set(manifest.orders.map(o => o.shipmentId ?? o.id))}
           onClose={() => setShowAddOrdersDialog(false)}
           onAdded={refetch}
