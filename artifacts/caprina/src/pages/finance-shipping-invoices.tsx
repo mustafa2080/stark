@@ -362,23 +362,21 @@ ${invoiceCards}
 
     // صفوف الشحنات
     const rowsHtml = shipments.map((s: any, idx: number) => {
-      const shipNum  = s.shipmentNumber ?? s.shipment_number ?? `#${String(s.id).padStart(4,"0")}`;
-      const tracking = s.trackingNumber ?? s.tracking_number ?? "—";
-      const statusAr = STATUS_AR[s.status] ?? s.status ?? "—";
       const receiverName = s.receiverName || s.customerName || "—";
       const city = s.receiverCity || s.city || "—";
       const shippingFee = Number(s.shippingFee || 0);
       const codAmount   = Number(s.codAmount   || 0);
       const totalAmount = Number(s.totalAmount || 0) || shippingFee + codAmount;
       const isRet = s.status === "returned";
+      const canOpenVal = (s.canOpen !== null && s.canOpen !== undefined) ? (s.canOpen === 0 || s.canOpen === "0" ? "غير مسموح" : "مسموح") : "—";
+      const isDivisibleVal = (s.isDivisible !== null && s.isDivisible !== undefined) ? (s.isDivisible === 1 || s.isDivisible === "1" ? "قابلة" : "غير قابلة") : "—";
       return `
         <tr class="${isRet ? "row-returned" : ""}">
           <td>${idx + 1}</td>
           <td class="name">${receiverName}</td>
           <td>${city}</td>
-          <td>${tracking}</td>
-          <td><span class="status-badge">${statusAr}</span></td>
-          <td>${fmtEN(shippingFee)}</td>
+          <td><span class="status-badge">${canOpenVal}</span></td>
+          <td><span class="status-badge">${isDivisibleVal}</span></td>
           <td class="total-cell">${fmtEN(totalAmount)}</td>
         </tr>`;
     }).join("");
@@ -411,12 +409,12 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;font
 .header-right .logo{width:140px;height:140px;border-radius:12px;object-fit:contain;border:none;background:transparent;margin-top:16px}
 
 /* ── INFO BAR ── */
-.info-bar{background:#111;color:#fff;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:16px;flex-wrap:wrap}
+.info-bar{background:#fafafa;border:1px solid #ddd;color:#111;border-radius:8px;padding:12px 20px;display:flex;justify-content:center;align-items:center;margin-bottom:18px;gap:16px;flex-wrap:wrap}
 .info-item{text-align:center}
-.info-item .i-label{font-size:11px;color:#aaa;font-weight:600;margin-bottom:3px}
-.info-item .i-value{font-size:16px;font-weight:900;color:#fff}
-.info-item .i-value.highlight{color:#f0c040}
-.info-item .i-value.green{color:#4ade80}
+.info-item .i-label{font-size:11px;color:#666;font-weight:600;margin-bottom:3px}
+.info-item .i-value{font-size:16px;font-weight:900;color:#111}
+.info-item .i-value.highlight{color:#111}
+.info-item .i-value.green{color:#111}
 
 /* ── TABLE ── */
 table{width:100%;border-collapse:collapse;margin-bottom:18px}
@@ -435,10 +433,10 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 .summary-wrap{display:flex;justify-content:flex-start;margin-bottom:18px}
 .summary-table{width:400px;border:1px solid #ccc;border-radius:6px;overflow:hidden}
 .s-row{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:15px;border-bottom:1px solid #e4e4e4}
-.s-row:last-child{border:none;background:#2a2a2a;color:#fff;font-size:17px;font-weight:900;padding:13px 16px}
-.s-row:last-child .s-val{color:#f0c040}
+.s-row:last-child{border:none;background:#fff;border-top:2px solid #111;color:#111;font-size:17px;font-weight:900;padding:13px 16px}
+.s-row:last-child .s-val{color:#111}
 .s-lbl{font-weight:600;color:#444}
-.s-row:last-child .s-lbl{color:#ddd;font-weight:700}
+.s-row:last-child .s-lbl{color:#111;font-weight:700}
 .s-val{font-weight:800;color:#111}
 .s-val.green{color:#1a7a4a}
 .s-val.red{color:#c0392b}
@@ -474,24 +472,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
   <!-- INFO BAR -->
   <div class="info-bar">
     <div class="info-item">
-      <div class="i-label">شركة الشحن</div>
-      <div class="i-value">${inv.shippingCompanyName || "—"}</div>
-    </div>
-    <div class="info-item">
       <div class="i-label">عدد الشحنات</div>
       <div class="i-value highlight">${shipments.length}</div>
-    </div>
-    <div class="info-item">
-      <div class="i-label">إجمالي رسوم الشحن</div>
-      <div class="i-value">${fmtEN(totalShippingFees)}</div>
-    </div>
-    <div class="info-item">
-      <div class="i-label">إجمالي COD</div>
-      <div class="i-value">${fmtEN(totalCodAmount)}</div>
-    </div>
-    <div class="info-item">
-      <div class="i-label">الحالة</div>
-      <div class="i-value green">${inv.status === "paid" ? "مدفوعة" : inv.status === "verified" ? "تم التحقق" : inv.status === "disputed" ? "متنازع" : "انتظار"}</div>
     </div>
   </div>
 
@@ -502,9 +484,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         <th style="width:36px">#</th>
         <th style="text-align:right">المستلم</th>
         <th>المحافظة</th>
-        <th>رقم التتبع</th>
-        <th>الحالة</th>
-        <th>رسوم الشحن</th>
+        <th>حالة الشحنة</th>
+        <th>تجزئة الشحنة</th>
         <th>الإجمالي</th>
       </tr>
     </thead>
