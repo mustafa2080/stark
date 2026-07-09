@@ -494,7 +494,7 @@ function Router() {
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد (بس مش من /contract)
     if (user && (location === "/" || location === "/login" || location === "/register" || location === "/client-register")) {
-      if (user.role === "admin" || user.role === "super_admin" || user.role === "super-admin") return <Redirect to="/dashboard" />;
+      if (user.role === "admin" || user.role === "super_admin" || user.role === "super-admin") return <Redirect to="/operations-center" />;
       if (user.role === "client") return <Redirect to="/client-dashboard" />;
       if (user.role === "representative") return <Redirect to="/representative" />;
       return <Redirect to="/my-dashboard" />;
@@ -531,7 +531,7 @@ function Router() {
           <Route path="/client-pickup-requests"   component={ClientPickupRequestsPage} />
           <Route path="/representative"           component={RepresentativePage} />
           <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
-          <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
+          <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
           <Route path="/operations-center"        component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
           <Route path="/orders"                   component={() => <ProtectedRoute permission="orders.view" component={ShipmentsPage} />} />
           <Route path="/shipments/new"            component={() => <ProtectedRoute permission="orders.create" component={NewShipmentPage} />} />
