@@ -374,6 +374,10 @@ export default function Invoices() {
 
     const fmtCurr = (n: any) =>
       new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n || 0));
+    const PARCEL_LABELS_AR: Record<string, string> = {
+      document: "مستندات", normal: "عادي", regular: "عادي", fragile: "قابل للكسر",
+      heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس", food: "طعام", other: "أخرى",
+    };
 
     const buildPage = (sh: any) => {
       const shipNum  = sh.shipmentNumber ?? `SHP#${String(sh.id).padStart(4,"0")}`;
@@ -416,7 +420,7 @@ export default function Invoices() {
     </div>
   </div>
   <div class="details-row" style="grid-template-columns:1fr 1fr">
-    <div class="detail-box"><div class="d-label">نوع الشحنة</div><div class="d-value">${sh.parcelType || "—"}</div></div>
+    <div class="detail-box"><div class="d-label">نوع الشحنة</div><div class="d-value">${PARCEL_LABELS_AR[sh.parcelType] || sh.parcelType || "—"}</div></div>
     <div class="detail-box highlight"><div class="d-label">الإجمالي</div><div class="d-value">${fmtCurr(totalAmount)}</div></div>
   </div>
   ${(sh.canOpen !== null && sh.canOpen !== undefined) || (sh.isDivisible !== null && sh.isDivisible !== undefined) ? `
