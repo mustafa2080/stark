@@ -4536,23 +4536,23 @@ export default function ShippingManifestPage() {
 
         {/* الجزء السفلي: عدادات الحالة + صندوق الرصيد */}
         <div className="flex flex-col sm:flex-row items-stretch border-t-2 border-slate-700">
-          <div className="flex flex-row sm:flex-col flex-wrap sm:border-l-2 border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+          <div className="flex flex-row flex-wrap sm:flex-nowrap sm:shrink-0 sm:border-l-2 border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+            <div className="flex items-center gap-2 px-4 py-2 border-b sm:border-b-0 sm:border-l border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold whitespace-nowrap">
               <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">{groupedPendingOrders}</span>الجاري
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+            <div className="flex items-center gap-2 px-4 py-2 border-b sm:border-b-0 sm:border-l border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold whitespace-nowrap">
               <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">0</span>مرتجع لم يصل
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+            <div className="flex items-center gap-2 px-4 py-2 border-b sm:border-b-0 sm:border-l border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold whitespace-nowrap">
               <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">{newOrdersCount}</span>الجديد
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+            <div className="flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold whitespace-nowrap">
               <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">{groupedTotalCount}</span>الاجمالي
             </div>
           </div>
-          <div className="flex-1 flex items-center justify-between px-5 py-3 bg-slate-100 dark:bg-slate-800/50">
+          <div className="flex-1 min-w-0 flex items-center justify-between px-5 py-3 bg-slate-100 dark:bg-slate-800/50">
             <span className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-200">الرصيد</span>
-            <span className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white bg-white dark:bg-slate-900 border-2 border-slate-700 rounded-md px-5 py-1">
+            <span className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white bg-white dark:bg-slate-900 border-2 border-slate-700 rounded-md px-5 py-1 whitespace-nowrap">
               {Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")}
             </span>
           </div>
