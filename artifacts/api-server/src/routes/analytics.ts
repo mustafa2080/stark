@@ -2699,15 +2699,15 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
       db.select({
           city: shipmentsTable.receiverCity,
           status: shipmentsTable.status,
-          assignedUserId: shipmentsTable.assignedUserId,
+          shippingCompanyId: shipmentsTable.shippingCompanyId,
         })
         .from(shipmentsTable)
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
-        ? db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
-        : db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+        ? db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name })
+            .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+        : db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name })
+            .from(shippingCompaniesTable),
     ]);
     const repNameById = new Map(users.map((u: typeof users[number]) => [u.id, u.displayName]));
 
@@ -2736,7 +2736,7 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
       else if (status === "received") bucket.delivered++;
       else if (status === "delayed") bucket.delayed++;
       else if (status === "returned") bucket.problem++;
-      if (r.assignedUserId) bucket.repIds.add(r.assignedUserId);
+      if (r.shippingCompanyId) bucket.repIds.add(r.shippingCompanyId);
     }
 
     const liveCities = Array.from(byCityLive.values())
@@ -2818,14 +2818,15 @@ router.get("/analytics/ops-alerts", requireAuth, async (req, res): Promise<void>
           senderName: shipmentsTable.senderName,
           clientId: shipmentsTable.clientId,
           assignedUserId: shipmentsTable.assignedUserId,
+          shippingCompanyId: shipmentsTable.shippingCompanyId,
         })
         .from(shipmentsTable)
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
-        ? db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
-        : db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+        ? db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name, isActive: shippingCompaniesTable.isActive })
+            .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+        : db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name, isActive: shippingCompaniesTable.isActive })
+            .from(shippingCompaniesTable),
     ]);
 
     // ─── أرقام السايدبار ────────────────────────────────────────────────────
@@ -2837,20 +2838,10 @@ router.get("/analytics/ops-alerts", requireAuth, async (req, res): Promise<void>
       return (st === "in_shipping" || st === "warehouse_ready") && new Date(r.createdAt) >= todayStart;
     });
 
-    // مندوبين متصلين الآن: جلسة مفتوحة (logoutAt IS NULL) بدأت خلال آخر 12 ساعة
-    // (استبعاد جلسات قديمة اتنسيت من غير logout صريح)
-    const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-    const repIds = users.map((u: typeof users[number]) => u.id);
-    const openSessions = repIds.length > 0
-      ? await db.select({ userId: sessionLogsTable.userId })
-          .from(sessionLogsTable)
-          .where(and(
-            isNull(sessionLogsTable.logoutAt),
-            gte(sessionLogsTable.loginAt, twelveHoursAgo),
-            inArray(sessionLogsTable.userId, repIds),
-          ))
-      : [];
-    const onlineRepIds = new Set(openSessions.map((s: typeof openSessions[number]) => s.userId));
+    // شركات شحن نشطة الآن: "المندوب" هنا = شركة الشحن (شاشة "مناديب Stark")
+    const onlineRepIds = new Set(
+      users.filter((u: typeof users[number]) => u.isActive).map((u: typeof users[number]) => u.id),
+    );
 
     // عملاء يحتاجون متابعة: عميل (بالاسم) عنده شحنتين+ مرتجعة/متأخرة خلال آخر 30 يوم
     const clientIssueCount = new Map<string, number>();
@@ -2991,15 +2982,16 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
           senderName: shipmentsTable.senderName,
           clientId: shipmentsTable.clientId,
           assignedUserId: shipmentsTable.assignedUserId,
+          shippingCompanyId: shipmentsTable.shippingCompanyId,
           totalAmount: shipmentsTable.totalAmount,
         })
         .from(shipmentsTable)
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
-        ? db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
-        : db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+        ? db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name, isActive: shippingCompaniesTable.isActive })
+            .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+        : db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name, isActive: shippingCompaniesTable.isActive })
+            .from(shippingCompaniesTable),
     ]);
 
     type OpsRow = typeof rows[number];
@@ -3054,30 +3046,19 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
         totalAmount: r.totalAmount,
       }));
 
-    // ─── المندوبين (تفصيلي: متصل الآن + إحصائياته آخر 30 يوم) ────────────────
-    const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-    const repIds = users.map((u: typeof users[number]) => u.id);
-    const openSessions = repIds.length > 0
-      ? await db.select({ userId: sessionLogsTable.userId, loginAt: sessionLogsTable.loginAt })
-          .from(sessionLogsTable)
-          .where(and(
-            isNull(sessionLogsTable.logoutAt),
-            gte(sessionLogsTable.loginAt, twelveHoursAgo),
-            inArray(sessionLogsTable.userId, repIds),
-          ))
-      : [];
-    const onlineRepMap = new Map(openSessions.map((s: typeof openSessions[number]) => [s.userId, s.loginAt]));
-
+    // ─── المندوبين (شركات الشحن: نشطة الآن + إحصائياتها آخر 30 يوم) ──────────
+    // ملاحظة: "المندوب" هنا = شركة الشحن (من شاشة "مناديب Stark")، وليس حساب
+    // مستخدم users — الشحنات ترتبط بشركة الشحن عبر shipments.shipping_company_id.
     const representatives = users.map((u: typeof users[number]) => {
-      const repShipments = rows.filter((r: OpsRow) => r.assignedUserId === u.id);
+      const repShipments = rows.filter((r: OpsRow) => r.shippingCompanyId === u.id);
       const delivered = repShipments.filter((r: OpsRow) => normalize(r.status) === "received").length;
       const active = repShipments.filter((r: OpsRow) => ["in_shipping", "warehouse_ready", "pending"].includes(normalize(r.status))).length;
-      const isOnline = onlineRepMap.has(u.id);
+      const isOnline = Boolean(u.isActive);
       return {
         id: u.id,
         displayName: u.displayName,
         isOnline,
-        onlineSince: isOnline ? onlineRepMap.get(u.id) : null,
+        onlineSince: null as string | null,
         totalShipments: repShipments.length,
         deliveredShipments: delivered,
         activeShipments: active,
@@ -3268,16 +3249,17 @@ router.get("/analytics/financial-dashboard", requirePermission("orders.financial
           insuranceFee: shipmentsTable.insuranceFee,
           receiverCity: shipmentsTable.receiverCity,
           assignedUserId: shipmentsTable.assignedUserId,
+          shippingCompanyId: shipmentsTable.shippingCompanyId,
           senderName: shipmentsTable.senderName,
           clientId: shipmentsTable.clientId,
         })
         .from(shipmentsTable)
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
-        ? db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
-        : db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+        ? db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name })
+            .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+        : db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name })
+            .from(shippingCompaniesTable),
     ]);
     const repNameById = new Map(reps.map((u: typeof reps[number]) => [u.id, u.displayName]));
 
