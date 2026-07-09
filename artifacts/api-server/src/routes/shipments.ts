@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
 import { pushNotification } from "../lib/notifications.js";
+import { autoAddShipmentToClientAccountManifest } from "./client-account-manifests.js";
 
 const router: IRouter = Router();
 
@@ -863,6 +864,16 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
       : eq(shipmentsTable.id, id);
 
     await db.update(shipmentsTable).set(updateData).where(cond);
+
+    // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"
+    if (updateData.status === "warehouse_ready" && existingShipment.status !== "warehouse_ready") {
+      await autoAddShipmentToClientAccountManifest(
+        id,
+        existingShipment.clientId,
+        tenantId,
+      );
+    }
+
     const updated = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
     res.json(updated[0]);
   } catch (e) {
@@ -896,7 +907,25 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
       ? and(inArray(shipmentsTable.id, numericIds), eq(shipmentsTable.tenantId, tenantId))
       : inArray(shipmentsTable.id, numericIds);
 
+    // نجيب بيانات الشحنات قبل التحديث عشان نعرف مين فعلاً هيدخل حالة "قيد الشحن في المخزن" لأول مرة
+    let toAutoAdd: { id: number; clientId: number | null }[] = [];
+    if (status === "warehouse_ready") {
+      const beforeRows = await db
+        .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, status: shipmentsTable.status })
+        .from(shipmentsTable)
+        .where(cond);
+      toAutoAdd = beforeRows
+        .filter(r => r.status !== "warehouse_ready")
+        .map(r => ({ id: r.id, clientId: r.clientId }));
+    }
+
     await db.update(shipmentsTable).set(updateData).where(cond);
+
+    if (toAutoAdd.length > 0) {
+      for (const r of toAutoAdd) {
+        await autoAddShipmentToClientAccountManifest(r.id, r.clientId, tenantId);
+      }
+    }
 
     res.json({ updated: numericIds.length });
   } catch (e: any) {
@@ -973,6 +1002,16 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);
     await db.update(shipmentsTable).set(updateData).where(cond);
+
+    // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"
+    if (updateData.status === "warehouse_ready" && existingShipment.status !== "warehouse_ready") {
+      await autoAddShipmentToClientAccountManifest(
+        id,
+        existingShipment.clientId,
+        tenantId,
+      );
+    }
+
     const updated = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
     res.json(updated[0]);
 

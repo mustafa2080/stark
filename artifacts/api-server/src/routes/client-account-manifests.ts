@@ -24,6 +24,77 @@ async function generateManifestNumber(clientId: number): Promise<string> {
   return `CAM-${clientId}-${seq}`;
 }
 
+// ─── إضافة تلقائية للبيان عند دخول الشحنة "قيد الشحن في المخزن" ──────────────
+// لو فيه بيان مفتوح لنفس العميل: تتضاف له الشحنة (لو مش مضافة بالفعل).
+// لو مفيش بيان مفتوح: يتفتح بيان جديد تلقائيًا وتتضاف له الشحنة.
+// آمنة للاستدعاء المتكرر (idempotent) — بتتجاهل لو الشحنة مضافة بالفعل لأي بيان مفتوح.
+export async function autoAddShipmentToClientAccountManifest(
+  shipmentId: number,
+  clientId: number | null | undefined,
+  tenantId: number | null,
+): Promise<void> {
+  if (!clientId) return;
+
+  try {
+    // لو الشحنة دي مضافة بالفعل لأي بيان (مفتوح أو مقفول) — متضافش تاني
+    const [existingItem] = await db
+      .select({ id: clientAccountManifestItemsTable.id })
+      .from(clientAccountManifestItemsTable)
+      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
+      .limit(1);
+    if (existingItem) return;
+
+    const tenantCondition = tenantId !== null
+      ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
+      : undefined;
+
+    // دور على بيان مفتوح لنفس العميل
+    const [openManifest] = await db
+      .select({ id: clientAccountManifestsTable.id })
+      .from(clientAccountManifestsTable)
+      .where(and(
+        eq(clientAccountManifestsTable.clientId, clientId),
+        eq(clientAccountManifestsTable.status, "open"),
+        tenantCondition,
+      ))
+      .limit(1);
+
+    const now = new Date();
+
+    if (openManifest) {
+      await db.insert(clientAccountManifestItemsTable).values({
+        manifestId:     openManifest.id,
+        shipmentId,
+        deliveryStatus: "pending",
+        addedAt:        now,
+      });
+      return;
+    }
+
+    // مفيش بيان مفتوح → افتح بيان جديد تلقائيًا
+    const manifestNumber = await generateManifestNumber(clientId);
+    const [result] = await db.insert(clientAccountManifestsTable).values({
+      tenantId: tenantId ?? null,
+      manifestNumber,
+      clientId,
+      status:   "open",
+      notes:    null,
+      createdAt: now,
+    });
+    const manifestId = (result as any).insertId as number;
+
+    await db.insert(clientAccountManifestItemsTable).values({
+      manifestId,
+      shipmentId,
+      deliveryStatus: "pending",
+      addedAt:        now,
+    });
+  } catch (e) {
+    // ما نكسرش تحديث حالة الشحنة لو فشلت الإضافة التلقائية للبيان — بس نسجل الخطأ
+    console.error("[autoAddShipmentToClientAccountManifest]", e);
+  }
+}
+
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
 router.get("/client-account-manifests", async (req, res): Promise<void> => {
   try {
