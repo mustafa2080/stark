@@ -145,9 +145,11 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       .where(orderConds.length ? and(...orderConds) : undefined);
 
     // تجميع الأرقام لكل عميل — يراعي paymentStatus
+    // ملاحظة: نطابق بالاسم بعد trim + توحيد المسافات عشان اختلافات بسيطة (مسافات زايدة) متبوظش المطابقة
+    const normalizeName = (n: string | null | undefined) => (n ?? "").trim().replace(/\s+/g, " ");
     const statsMap: Record<string, { totalOrders: number; totalSales: number; totalPaid: number }> = {};
     for (const o of allOrders) {
-      const name = o.clientName ?? "";
+      const name = normalizeName(o.clientName);
       if (!statsMap[name]) statsMap[name] = { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       const t = parseFloat(o.totalAmount ?? "0");
       const p = o.paymentStatus === "paid" ? t : parseFloat(o.paidAmount ?? "0");
@@ -157,7 +159,7 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     }
 
     const enriched = clients.map(c => {
-      const s = statsMap[c.name] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
+      const s = statsMap[normalizeName(c.name)] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       return {
         ...c,
         warehouseId: warehouseMap[c.id] ?? null,
