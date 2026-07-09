@@ -2544,12 +2544,9 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 
 /* SHIPMENT FLAGS (فتح/تجزئة) */
 .flags-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
-.flag-badge{border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:900;font-size:15px;border:2px solid}
-.flag-badge .flag-icon{font-size:18px}
-.flag-allow{background:#ecfdf5;border-color:#059669;color:#065f46}
-.flag-deny{background:#fef2f2;border-color:#dc2626;color:#991b1b}
-.flag-divisible{background:#eff6ff;border-color:#2563eb;color:#1e3a8a}
-.flag-indivisible{background:#fffbeb;border-color:#d97706;color:#92400e}
+.flag-badge{border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center;background:#fafafa;display:flex;flex-direction:column;align-items:center;gap:4px}
+.flag-badge .flag-label{font-size:11px;font-weight:700;color:#666}
+.flag-badge .flag-value{font-size:16px;font-weight:900;color:#111}
 
 /* FOOTER */
 .footer{border-top:2px solid #ddd;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:#555}
@@ -2580,7 +2577,9 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   .barcode-area{padding:8px 14px;margin-bottom:10px}
   .barcode-num{font-size:22px;letter-spacing:3px}
   .flags-row{gap:6px;margin-bottom:10px}
-  .flag-badge{padding:8px 10px;font-size:12px}
+  .flag-badge{padding:8px}
+  .flag-badge .flag-label{font-size:9px}
+  .flag-badge .flag-value{font-size:13px}
   .footer{padding-top:8px;font-size:11px}
   .header,.tracking-bar,.parties,.details-row,.notes-box,.barcode-area,.flags-row{page-break-inside:avoid}
 }
@@ -2647,14 +2646,14 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   ${(o.canOpen !== null && o.canOpen !== undefined) || (o.isDivisible !== null && o.isDivisible !== undefined) ? `
   <div class="flags-row">
     ${(o.canOpen !== null && o.canOpen !== undefined) ? `
-    <div class="flag-badge ${o.canOpen === 0 || o.canOpen === "0" ? "flag-deny" : "flag-allow"}">
-      <span class="flag-icon">${o.canOpen === 0 || o.canOpen === "0" ? "🚫" : "✅"}</span>
-      <span>${o.canOpen === 0 || o.canOpen === "0" ? "غير مسموح بفتح الشحنة" : "مسموح بفتح الشحنة"}</span>
+    <div class="flag-badge">
+      <div class="flag-label">حالة الشحنة</div>
+      <div class="flag-value">${o.canOpen === 0 || o.canOpen === "0" ? "غير مسموح بفتح الشحنة" : "مسموح بفتح الشحنة"}</div>
     </div>` : ""}
     ${(o.isDivisible !== null && o.isDivisible !== undefined) ? `
-    <div class="flag-badge ${o.isDivisible === 1 || o.isDivisible === "1" ? "flag-divisible" : "flag-indivisible"}">
-      <span class="flag-icon">${o.isDivisible === 1 || o.isDivisible === "1" ? "🔀" : "📦"}</span>
-      <span>${o.isDivisible === 1 || o.isDivisible === "1" ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة"}</span>
+    <div class="flag-badge">
+      <div class="flag-label">تجزئة الشحنة</div>
+      <div class="flag-value">${o.isDivisible === 1 || o.isDivisible === "1" ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة"}</div>
     </div>` : ""}
   </div>` : ""}
 
