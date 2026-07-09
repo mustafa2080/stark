@@ -369,15 +369,23 @@ ${invoiceCards}
       const codAmount   = Number(s.codAmount   || 0);
       const totalAmount = Number(s.totalAmount || 0) || shippingFee + codAmount;
       const isRet = s.status === "returned";
-      const canOpenVal = (s.canOpen !== null && s.canOpen !== undefined) ? (s.canOpen === 0 || s.canOpen === "0" ? "غير مسموح" : "مسموح") : "—";
-      const isDivisibleVal = (s.isDivisible !== null && s.isDivisible !== undefined) ? (s.isDivisible === 1 || s.isDivisible === "1" ? "قابلة" : "غير قابلة") : "—";
+      const hasCanOpen = s.canOpen !== null && s.canOpen !== undefined;
+      const canOpenAllowed = s.canOpen === 1 || s.canOpen === "1";
+      const hasDivisible = s.isDivisible !== null && s.isDivisible !== undefined;
+      const isDivisibleYes = s.isDivisible === 1 || s.isDivisible === "1";
+      const canOpenVal = hasCanOpen
+        ? `<span class="flag-badge ${canOpenAllowed ? "flag-green" : "flag-red"}">${canOpenAllowed ? "مسموح بالفتح" : "غير مسموح"}</span>`
+        : `<span class="flag-badge flag-neutral">—</span>`;
+      const isDivisibleVal = hasDivisible
+        ? `<span class="flag-badge ${isDivisibleYes ? "flag-green" : "flag-red"}">${isDivisibleYes ? "قابلة للتجزئة" : "غير قابلة"}</span>`
+        : `<span class="flag-badge flag-neutral">—</span>`;
       return `
         <tr class="${isRet ? "row-returned" : ""}">
           <td>${idx + 1}</td>
           <td class="name">${receiverName}</td>
           <td>${city}</td>
-          <td><span class="status-badge">${canOpenVal}</span></td>
-          <td><span class="status-badge">${isDivisibleVal}</span></td>
+          <td>${canOpenVal}</td>
+          <td>${isDivisibleVal}</td>
           <td class="total-cell">${fmtEN(totalAmount)}</td>
         </tr>`;
     }).join("");
@@ -429,6 +437,10 @@ td.name{font-weight:800;text-align:right}
 td.total-cell{font-weight:900;color:#111}
 tr.row-returned td{color:#aaa;text-decoration:line-through}
 .status-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700;background:#f3f4f6;color:#374151}
+.flag-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11.5px;font-weight:800;border:1.3px solid}
+.flag-green{background:#f0fdf4;border-color:#22c55e;color:#15803d}
+.flag-red{background:#fef2f2;border-color:#ef4444;color:#b91c1c}
+.flag-neutral{background:#f3f4f6;border-color:#d1d5db;color:#6b7280}
 
 /* ── SUMMARY ── */
 .summary-wrap{display:flex;justify-content:flex-start;margin-bottom:18px}
