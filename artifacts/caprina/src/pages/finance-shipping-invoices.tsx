@@ -179,18 +179,19 @@ export default function FinanceShippingInvoices() {
       const paidAmount = Number(inv.paidAmount || 0);
       const remaining  = netDue - paidAmount;
       const rowsHtml = shipments.slice(0, 12).map((s: any, idx: number) => {
-        const statusAr = STATUS_AR[s.status] ?? s.status ?? "—";
         const receiverName = s.receiverName || s.customerName || "—";
         const city = s.receiverCity || s.city || "—";
         const shippingFee = Number(s.shippingFee || 0);
         const totalAmount = Number(s.totalAmount || 0) || shippingFee + Number(s.codAmount || 0);
         const isRet = s.status === "returned";
+        const canOpenVal = (s.canOpen !== null && s.canOpen !== undefined) ? (s.canOpen === 0 || s.canOpen === "0" ? "غير مسموح" : "مسموح") : "—";
+        const isDivisibleVal = (s.isDivisible !== null && s.isDivisible !== undefined) ? (s.isDivisible === 1 || s.isDivisible === "1" ? "قابلة" : "غير قابلة") : "—";
         return `<tr class="${isRet ? "ret" : ""}">
           <td>${idx + 1}</td>
           <td class="name">${receiverName}</td>
           <td>${city}</td>
-          <td><span class="badge">${statusAr}</span></td>
-          <td>${fmtEN(shippingFee)}</td>
+          <td><span class="badge">${canOpenVal}</span></td>
+          <td><span class="badge">${isDivisibleVal}</span></td>
           <td class="tot">${fmtEN(totalAmount)}</td>
         </tr>`;
       }).join("");
@@ -209,7 +210,7 @@ export default function FinanceShippingInvoices() {
           </div>
           <table>
             <thead><tr>
-              <th>#</th><th class="name">المستلم</th><th>المحافظة</th><th>الحالة</th><th>رسوم الشحن</th><th>الإجمالي</th>
+              <th>#</th><th class="name">المستلم</th><th>المحافظة</th><th>حالة الفتح</th><th>التجزئة</th><th>الإجمالي</th>
             </tr></thead>
             <tbody>${rowsHtml}${shipments.length > 12 ? `<tr><td colspan="6" style="text-align:center;color:#888;font-style:italic">... و${shipments.length - 12} شحنة أخرى</td></tr>` : ""}</tbody>
           </table>
