@@ -745,11 +745,17 @@ export default function CommercialClientDetailPage() {
       {/* ─── Header — زي ShippingCompanyDetailPage ─── */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/finance/clients">
-            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border">
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 rounded-full border-border"
+            onClick={() => {
+              if (window.history.length > 1) window.history.back();
+              else navigate("/finance/clients");
+            }}
+          >
+            <ArrowRight className="h-4 w-4" />
+          </Button>
           <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden border border-border">
             <ClientAvatar avatar={client?.avatar} name={client?.name ?? "؟"} size="md" />
           </div>
