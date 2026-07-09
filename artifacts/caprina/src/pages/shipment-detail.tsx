@@ -2484,6 +2484,10 @@ export default function OrderDetail() {
     const tracking  = o.trackingNumber  ?? "—";
     const fmtCurr   = (n: number) =>
       new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+    const PARCEL_LABELS_AR: Record<string, string> = {
+      document: "مستندات", normal: "عادي", regular: "عادي", fragile: "قابل للكسر",
+      heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس", food: "طعام", other: "أخرى",
+    };
 
     const shippingFee  = Number(o.shippingFee  || 0);
     const codAmount    = Number(o.codAmount    || 0);
@@ -2636,7 +2640,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   <div class="details-row" style="grid-template-columns:repeat(3,1fr)">
     <div class="detail-box">
       <div class="d-label">نوع الشحنة</div>
-      <div class="d-value">${o.parcelType || "—"}</div>
+      <div class="d-value">${PARCEL_LABELS_AR[o.parcelType] || o.parcelType || "—"}</div>
     </div>
     <div class="detail-box">
       <div class="d-label">${o.weight ? "الوزن" : "عدد القطع"}</div>
