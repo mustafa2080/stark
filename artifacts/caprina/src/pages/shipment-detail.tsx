@@ -78,6 +78,8 @@ const editSchema = z.object({
   assignedUserId:    z.coerce.number().optional().nullable(),
   adSource:          z.string().optional().nullable(),
   adCampaign:        z.string().optional().nullable(),
+  canOpen:           z.coerce.number().optional().nullable(),
+  isDivisible:       z.coerce.number().optional().nullable(),
   notes:             z.string().optional().nullable(),
   product:           z.string().optional().nullable(),
   quantity:          z.coerce.number().int().min(1),
@@ -2193,6 +2195,8 @@ export default function OrderDetail() {
         assignedUserId:    (order as any).assignedUserId ?? null,
         adSource:          (order as any).adSource ?? null,
         adCampaign:        (order as any).adCampaign ?? null,
+        canOpen:           (order as any).canOpen ?? null,
+        isDivisible:       (order as any).isDivisible ?? null,
         notes:             (order as any).notes ?? order.notes ?? "",
         product:           (order as any).description ?? order.product ?? "",
         quantity:          (order as any).pieces ?? order.quantity ?? 1,
@@ -2387,6 +2391,8 @@ export default function OrderDetail() {
       shippingCompanyId: values.shippingCompanyId || null,
       trackingNumber:    values.trackingNumber || null,
       assignedUserId:    values.assignedUserId || null,
+      canOpen:           values.canOpen ?? null,
+      isDivisible:       values.isDivisible ?? null,
       notes:             values.notes ?? null,
     } as any }, {
       onSuccess: () => {
@@ -4170,6 +4176,32 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                                 {shippingCompanies?.filter((c: any) => c.isActive).map((c: any) => (
                                   <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                                 ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="canOpen" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">حالة الشحنة (الفتح)</FormLabel>
+                            <Select value={field.value === null || field.value === undefined ? "none" : String(field.value)} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">بدون تحديد</SelectItem>
+                                <SelectItem value="1">مسموح بفتح الشحنة</SelectItem>
+                                <SelectItem value="0">غير مسموح بفتح الشحنة</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="isDivisible" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">تجزئة الشحنة</FormLabel>
+                            <Select value={field.value === null || field.value === undefined ? "none" : String(field.value)} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">بدون تحديد</SelectItem>
+                                <SelectItem value="1">الشحنة قابلة للتجزئة</SelectItem>
+                                <SelectItem value="0">الشحنة غير قابلة للتجزئة</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormItem>
