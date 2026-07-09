@@ -537,24 +537,29 @@ router.post("/client-account-manifests/sync-warehouse-ready", async (req, res): 
       : eq(shipmentsTable.status, "warehouse_ready");
 
     const candidates = await db
-      .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId })
+      .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, shipmentNumber: shipmentsTable.shipmentNumber })
       .from(shipmentsTable)
       .where(cond);
 
     let added = 0;
+    const skipped: { id: number; shipmentNumber: string; reason: string }[] = [];
     for (const s of candidates) {
-      if (!s.clientId) continue;
+      if (!s.clientId) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "no_client_id" }); continue; }
       const [existingItem] = await db
         .select({ id: clientAccountManifestItemsTable.id })
         .from(clientAccountManifestItemsTable)
         .where(eq(clientAccountManifestItemsTable.shipmentId, s.id))
         .limit(1);
-      if (existingItem) continue;
-      await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId);
-      added++;
+      if (existingItem) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "already_in_manifest" }); continue; }
+      try {
+        await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId);
+        added++;
+      } catch (err: any) {
+        skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: `error: ${err?.message ?? err}` });
+      }
     }
 
-    res.json({ success: true, scanned: candidates.length, added });
+    res.json({ success: true, scanned: candidates.length, added, skipped });
   } catch (e: any) {
     console.error("[POST /client-account-manifests/sync-warehouse-ready]", e);
     res.status(500).json({ error: "خطأ في مزامنة الشحنات مع بيانات العملاء" });
