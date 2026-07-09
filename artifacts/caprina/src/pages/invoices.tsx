@@ -415,10 +415,8 @@ export default function Invoices() {
       ${sh.senderCity ? `<div class="party-row"><span class="icon">📍</span><span class="val">${sh.senderCity}</span></div>` : ""}
     </div>
   </div>
-  <div class="details-row">
+  <div class="details-row" style="grid-template-columns:1fr 1fr">
     <div class="detail-box"><div class="d-label">نوع الشحنة</div><div class="d-value">${sh.parcelType || "—"}</div></div>
-    <div class="detail-box"><div class="d-label">${sh.weight ? "الوزن" : "عدد القطع"}</div><div class="d-value">${sh.weight ? `${sh.weight} كجم` : (sh.pieces || "—")}</div></div>
-    <div class="detail-box"><div class="d-label">رسوم الشحن</div><div class="d-value">${fmtCurr(shippingFee)}</div></div>
     <div class="detail-box highlight"><div class="d-label">الإجمالي</div><div class="d-value">${fmtCurr(totalAmount)}</div></div>
   </div>
   ${(sh.canOpen !== null && sh.canOpen !== undefined) || (sh.isDivisible !== null && sh.isDivisible !== undefined) ? `
