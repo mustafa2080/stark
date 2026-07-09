@@ -3964,6 +3964,8 @@ export default function ShippingManifestPage() {
     }, 0);
 
   const totalCollected = deliveredGross + partialGross;
+  // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
+  const newOrdersCount = groupedPendingCount;
 
   return (
     <>
@@ -4010,13 +4012,13 @@ export default function ShippingManifestPage() {
         <thead>
           <tr>
             <th style={{ width: "4%" }}>#</th>
-            <th style={{ width: "14%" }}>العميل</th>
+            <th style={{ width: "13%" }}>العميل</th>
             <th style={{ width: "8%" }}>المحافظة</th>
-            <th style={{ width: "20%" }}>العنوان</th>
-            <th style={{ width: "12%" }}>الراسل</th>
-            <th style={{ width: "10%" }}>سعر الشحنة</th>
-            <th style={{ width: "9%" }}>سعر الشحن</th>
-            <th style={{ width: "9%" }}>الإجمالي</th>
+            <th style={{ width: "17%" }}>العنوان</th>
+            <th style={{ width: "11%" }}>الراسل</th>
+            <th style={{ width: "9%" }}>سعر الشحنة</th>
+            <th style={{ width: "8%" }}>سعر الشحن</th>
+            <th style={{ width: "10%" }}>القيمة المستلمة</th>
             <th style={{ width: "8%" }}>الحالة</th>
             <th style={{ width: "6%" }}>ملاحظة</th>
           </tr>
@@ -4026,11 +4028,26 @@ export default function ShippingManifestPage() {
             const rep = group[0];
             const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
             const isSingleStatus = statuses.length === 1;
-            const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
-            const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
+            const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
+            const { label, cls } = statusLabel(singleStatus);
+            const totalQty = group.reduce((sum, o) => sum + (o.quantity ?? 0), 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
             const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
             const net = cod - fee;
+            // القيمة المستلمة فعليًا (0 لو لسه قيد الانتظار/مؤجل/مرتجع بالكامل ولم يُستلم)
+            const isDeliveredLike = singleStatus === "delivered";
+            const isPartialLike = singleStatus === "partial_received" || singleStatus === "partial_delivered";
+            const receivedValue = isDeliveredLike
+              ? net
+              : isPartialLike
+                ? group.reduce((sum, o) => {
+                    const rr = (o as any).returnReceived;
+                    if (rr == null || (rr !== 1 && rr !== true)) return sum;
+                    if (o.partialQuantity == null || (o.quantity ?? 0) <= 0) return sum;
+                    const unitPrice = Number(o.totalPrice ?? 0) / Number(o.quantity ?? 1);
+                    return sum + Math.round(unitPrice * Number(o.partialQuantity));
+                  }, 0) - fee
+                : 0;
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
@@ -4044,7 +4061,9 @@ export default function ShippingManifestPage() {
                 <td style={{ fontSize: "8.5pt" }}>{(rep as any).senderName ?? "—"}</td>
                 <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
                 <td className="mp-td-center" style={{ color: "#d97706" }}>{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
-                <td className="mp-td-center mp-td-bold" style={{ color: "#1d4ed8" }}>{net.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: receivedValue > 0 ? "#1d4ed8" : "#94a3b8" }}>
+                  {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") + " ج" : "—"}
+                </td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
               </tr>
@@ -4073,6 +4092,109 @@ export default function ShippingManifestPage() {
             <div className="mp-total-val mp-total-blue">{Number(manifest.invoicePrice).toLocaleString("ar-EG")} ج.م</div>
           </div>
         )}
+      </div>
+
+      {/* ─── تقفيل الرحلة ─── */}
+      <div className="tr-wrap">
+        {/* عدد الطلبيات الجديدة المضافة للبيان */}
+        <div className="tr-newcount-row">
+          <span className="tr-newcount-lbl">عدد الطلبيات الجديدة</span>
+          <span className="tr-newcount-badge">{newOrdersCount}</span>
+        </div>
+
+        {/* هيدر تقفيل الرحلة */}
+        <div className="tr-header">
+          <div className="tr-header-title">{brand.name?.toUpperCase() || "STARK"}</div>
+          <div className="tr-header-sub">تقفيل رحلة</div>
+          <div className="tr-header-date">{format(new Date(), "d/M/yyyy")}</div>
+        </div>
+
+        {/* جدول تقفيل الرحلة */}
+        <table className="tr-table">
+          <thead>
+            <tr>
+              <th style={{ width: "16%" }}>الاسم</th>
+              <th style={{ width: "11%" }}>الموبيل</th>
+              <th style={{ width: "9%" }}>المحافظة</th>
+              <th style={{ width: "8%" }}>العنوان</th>
+              <th style={{ width: "11%" }}>الشركة الراسله</th>
+              <th style={{ width: "10%" }}>سعر الشحنه</th>
+              <th style={{ width: "10%" }}>القيمة المستلمه</th>
+              <th style={{ width: "9%" }}>قيمة الشحن</th>
+              <th style={{ width: "8%" }}>الحاله</th>
+              <th style={{ width: "8%" }}>ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayGroups.map((group, idx) => {
+              const rep = group[0];
+              const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
+              const isSingleStatus = statuses.length === 1;
+              const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
+              const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+              const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+              const net = cod - fee;
+              const isDeliveredLike = singleStatus === "delivered";
+              const isPartialLike = singleStatus === "partial_received" || singleStatus === "partial_delivered";
+              const receivedValue = isDeliveredLike
+                ? net
+                : isPartialLike
+                  ? group.reduce((sum, o) => {
+                      const rr = (o as any).returnReceived;
+                      if (rr == null || (rr !== 1 && rr !== true)) return sum;
+                      if (o.partialQuantity == null || (o.quantity ?? 0) <= 0) return sum;
+                      const unitPrice = Number(o.totalPrice ?? 0) / Number(o.quantity ?? 1);
+                      return sum + Math.round(unitPrice * Number(o.partialQuantity));
+                    }, 0) - fee
+                  : 0;
+              const statusText =
+                singleStatus === "delivered" ? "استلم" :
+                singleStatus === "returned" ? "مرتجع" :
+                (singleStatus === "partial_received" || singleStatus === "partial_delivered") ? "استلام جزئي" :
+                (singleStatus === "postponed" || singleStatus === "delayed") ? "مؤجل" : "قيد الانتظار";
+              const statusCls =
+                singleStatus === "delivered" ? "tr-status-received" :
+                singleStatus === "returned" ? "tr-status-returned" : "tr-status-postponed";
+              const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
+              return (
+                <tr key={`tr-${group.map((o) => o.id).join("-")}`}>
+                  <td className="tr-td-name">{rep.customerName}</td>
+                  <td style={{ direction: "ltr" }}>{rep.phone ?? "—"}</td>
+                  <td>{rep.city ?? "—"}</td>
+                  <td style={{ fontSize: "8pt" }}>{(rep as any).address ?? "—"}</td>
+                  <td>{(rep as any).senderName ?? "—"}</td>
+                  <td>{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
+                  <td className="tr-td-received">{receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}</td>
+                  <td className="tr-td-shipping">{cod.toLocaleString("ar-EG")}</td>
+                  <td className={statusCls}>{statusText}</td>
+                  <td className="tr-note">{notes || "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* شريط الإجمالي (سالب رسوم الشحن + إجمالي القيم المستلمة) */}
+        <div className="tr-summary-row">
+          <div className="tr-summary-neg">-{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")}</div>
+          <div className="tr-summary-gross">{Number(totalCollected || 0).toLocaleString("ar-EG")}</div>
+        </div>
+
+        {/* الجزء السفلي: عدادات الحالة + صندوق الرصيد */}
+        <div className="tr-bottom">
+          <div className="tr-counters">
+            <div className="tr-counter-cell"><span className="tr-counter-num">{groupedPendingOrders}</span>الجاري</div>
+            <div className="tr-counter-cell"><span className="tr-counter-num">0</span>مرتجع لم يصل</div>
+            <div className="tr-counter-cell"><span className="tr-counter-num">{newOrdersCount}</span>الجديد</div>
+            <div className="tr-counter-cell"><span className="tr-counter-num">{groupedTotalCount}</span>الاجمالي</div>
+          </div>
+          <div className="tr-balance-box">
+            <span className="tr-balance-lbl">الرصيد</span>
+            <span className="tr-balance-val">
+              {Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ─── Footer ─── */}
@@ -4927,6 +5049,39 @@ export default function ShippingManifestPage() {
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+
+    /* ─── تقفيل الرحلة (STARK-style closure section) ─── */
+    .tr-wrap { margin-top:6mm; border:2.5px solid #1e293b; border-radius:2mm; overflow:hidden; page-break-inside:avoid; }
+    .tr-newcount-row { display:flex; align-items:center; gap:4mm; background:#f8fafc; padding:3mm 4mm; border-bottom:2px solid #1e293b; }
+    .tr-newcount-lbl { font-size:10pt; font-weight:800; color:#1e293b; }
+    .tr-newcount-badge { font-size:14pt; font-weight:900; color:#1e293b; background:#fff; border:2px solid #1e293b; border-radius:1.5mm; padding:0.5mm 5mm; }
+    .tr-header { display:flex; align-items:center; justify-content:space-between; background:#1e293b; color:#fff; padding:3mm 5mm; }
+    .tr-header-title { font-size:15pt; font-weight:900; letter-spacing:1px; }
+    .tr-header-date { font-size:10pt; font-weight:700; color:#cbd5e1; }
+    .tr-header-sub { font-size:9pt; font-weight:700; color:#e2e8f0; }
+    .tr-table { width:100%; border-collapse:collapse; font-size:9pt; }
+    .tr-table thead tr { background:#334155; }
+    .tr-table th { color:#e2e8f0; font-weight:700; padding:2.5mm 3mm; text-align:center; border:1px solid #475569; white-space:nowrap; }
+    .tr-table td { padding:2.5mm 3mm; border:1px solid #cbd5e1; text-align:center; background:#f8fafc; vertical-align:middle; }
+    .tr-table tr:nth-child(even) td { background:#eef2f6; }
+    .tr-td-name { font-weight:700; text-align:right; }
+    .tr-td-received { font-weight:900; color:#15803d; }
+    .tr-td-shipping { color:#0f766e; font-weight:700; }
+    .tr-status-received { color:#15803d; font-weight:800; }
+    .tr-status-postponed { color:#b45309; font-weight:800; }
+    .tr-status-returned { color:#dc2626; font-weight:800; }
+    .tr-note { font-size:8pt; color:#6b7280; }
+    .tr-summary-row { display:flex; align-items:stretch; background:#1e293b; color:#fff; }
+    .tr-summary-neg { flex:0 0 auto; padding:3mm 6mm; font-size:13pt; font-weight:900; color:#fca5a5; display:flex; align-items:center; }
+    .tr-summary-gross { flex:0 0 auto; padding:3mm 6mm; font-size:13pt; font-weight:900; border-right:1px solid #475569; display:flex; align-items:center; }
+    .tr-bottom { display:flex; align-items:stretch; border-top:2px solid #1e293b; }
+    .tr-counters { display:flex; flex-direction:column; border-left:2px solid #1e293b; }
+    .tr-counter-cell { display:flex; align-items:center; gap:2mm; padding:1.8mm 4mm; border-bottom:1px solid #cbd5e1; font-size:9pt; font-weight:700; }
+    .tr-counter-cell:last-child { border-bottom:none; }
+    .tr-counter-num { color:#dc2626; font-weight:900; min-width:5mm; text-align:center; }
+    .tr-balance-box { flex:1; display:flex; align-items:center; justify-content:space-between; padding:3mm 6mm; background:#f1f5f9; }
+    .tr-balance-lbl { font-size:11pt; font-weight:800; color:#1e293b; }
+    .tr-balance-val { font-size:18pt; font-weight:900; color:#1e293b; background:#fff; border:2px solid #1e293b; border-radius:1.5mm; padding:1mm 6mm; }
   </style>
 </head>
 <body>${html}</body>
