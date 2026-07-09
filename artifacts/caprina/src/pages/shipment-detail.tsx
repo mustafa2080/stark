@@ -4004,8 +4004,47 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         size="sm"
                         variant="outline"
                         className="gap-1.5 h-9 border-green-600/40 text-green-600 hover:bg-green-600/10 shrink-0"
-                        onClick={() => window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer")}
-                        title="فتح جروب واتساب الخاص بالعميل"
+                        onClick={async () => {
+                          const DEFAULT_SENDER_ISSUE_BODY =
+                            `مرحباً {senderName} 👋\n\n` +
+                            `بخصوص الشحنة رقم *{shipmentNumber}*:\n` +
+                            `• اسم المستلم: *{receiverName}*\n` +
+                            `• حالة الشحنة: *{status}*\n` +
+                            `• هاتف المستلم: *{receiverPhone}*\n` +
+                            `• المنطقة: *{zone}*\n` +
+                            `• رسوم الشحن: *{shippingFee}*\n` +
+                            `• مبلغ COD: *{codAmount}*\n\n` +
+                            `فيه مشكلة بخصوص العميل ده، ياريت نتواصل بخصوصها 🙏\n\n` +
+                            `شكراً لتعاونك.`;
+                          let templateBody = DEFAULT_SENDER_ISSUE_BODY;
+                          try {
+                            const waSettings = await apiFetch<{ templates: { name: string; body: string }[] }>("/whatsapp/settings");
+                            const tpl = waSettings?.templates?.find(t => t.name === "مشكلة العميل");
+                            if (tpl) templateBody = tpl.body;
+                          } catch {
+                            // استخدم الرسالة الافتراضية لو فشل تحميل القالب
+                          }
+                          const body = applySenderIssueTemplate(templateBody, {
+                            id: order.id,
+                            shipmentNumber: (order as any).shipmentNumber ?? null,
+                            receiverName: (order as any).receiverName || order.customerName || "—",
+                            receiverPhone: (order as any).receiverPhone || order.phone || null,
+                            senderName: senderInfo.name,
+                            trackingNumber: (order as any).trackingNumber ?? null,
+                            status: statusLabels[order.status] || order.status,
+                            shippingFee: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
+                            codAmount: (order as any).codAmount ?? 0,
+                            zoneLabel: (order as any).receiverCity || (order as any).city || (order as any).zoneLabel || null,
+                          });
+                          try {
+                            await navigator.clipboard.writeText(body);
+                            toast({ title: "📋 تم نسخ الرسالة", description: "الصقها (Ctrl+V) داخل مربع إرسال الجروب." });
+                          } catch {
+                            toast({ title: "⚠️ تعذر نسخ الرسالة تلقائياً", variant: "destructive" });
+                          }
+                          window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer");
+                        }}
+                        title="نسخ رسالة مشكلة العميل وفتح جروب واتساب الخاص بالعميل"
                       >
                         <Users className="w-4 h-4" />
                         جروب العميل
