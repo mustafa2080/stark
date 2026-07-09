@@ -778,6 +778,15 @@ router.post("/shipments", async (req, res): Promise<void> => {
 
     res.status(201).json(newShipment[0]);
 
+    // إضافة تلقائية لبيان حساب العميل لو الشحنة اتعملت من الأول بحالة "قيد الشحن في المخزن"
+    if (newShipment[0] && newShipment[0].status === "warehouse_ready") {
+      autoAddShipmentToClientAccountManifest(
+        insertId,
+        newShipment[0].clientId,
+        tenantId,
+      ).catch((e) => console.error("[POST /shipments] auto-add manifest error", e));
+    }
+
     // إشعار فوري بشحنة جديدة (بعد الرد — ما يأخرش الاستجابة)
     if (newShipment[0]) {
       pushNotification({
