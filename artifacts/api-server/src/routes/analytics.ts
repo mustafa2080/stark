@@ -2705,9 +2705,9 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
         ? db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId)))
         : db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+            .from(usersTable).where(and(eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId))),
     ]);
     const repNameById = new Map(users.map((u: typeof users[number]) => [u.id, u.displayName]));
 
@@ -2823,9 +2823,9 @@ router.get("/analytics/ops-alerts", requireAuth, async (req, res): Promise<void>
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
         ? db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId)))
         : db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+            .from(usersTable).where(and(eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId))),
     ]);
 
     // ─── أرقام السايدبار ────────────────────────────────────────────────────
@@ -2997,9 +2997,9 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
         ? db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId)))
         : db.select({ id: usersTable.id, displayName: usersTable.displayName, role: usersTable.role })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+            .from(usersTable).where(and(eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId))),
     ]);
 
     type OpsRow = typeof rows[number];
@@ -3275,9 +3275,9 @@ router.get("/analytics/financial-dashboard", requirePermission("orders.financial
         .where(and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo))),
       tenantId !== null
         ? db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative")))
+            .from(usersTable).where(and(eq(usersTable.tenantId, tenantId), eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId)))
         : db.select({ id: usersTable.id, displayName: usersTable.displayName })
-            .from(usersTable).where(eq(usersTable.role, "representative")),
+            .from(usersTable).where(and(eq(usersTable.role, "representative"), isNull(usersTable.shippingCompanyId))),
     ]);
     const repNameById = new Map(reps.map((u: typeof reps[number]) => [u.id, u.displayName]));
 
