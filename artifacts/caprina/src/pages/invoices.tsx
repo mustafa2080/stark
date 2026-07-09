@@ -484,9 +484,9 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .detail-box{border:1px solid #ddd;border-radius:2px;padding:4px;text-align:center;background:#fafafa}
 .detail-box .d-label{font-size:7px;font-weight:800;color:#666;margin-bottom:1px}
 .detail-box .d-value{font-size:12px;font-weight:900;color:#111}
-.detail-box.highlight{background:#111;border-color:#111}
-.detail-box.highlight .d-label{color:#aaa}
-.detail-box.highlight .d-value{color:#f0c040;font-size:12.5px}
+.detail-box.highlight{background:#fff;border-color:#111;border-width:1.5px}
+.detail-box.highlight .d-label{color:#666}
+.detail-box.highlight .d-value{color:#111;font-size:12.5px}
 .notes-box{border:1px dashed #ccc;border-radius:3px;padding:3px 6px;margin-bottom:3px;font-size:9px;font-weight:800;color:#333;line-height:1.3}
 .notes-box .n-title{font-size:7px;font-weight:800;color:#888;margin-bottom:1px}
 .notes-box .n-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;word-break:break-word}
