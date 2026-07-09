@@ -36,13 +36,20 @@ export async function autoAddShipmentToClientAccountManifest(
   if (!clientId) return;
 
   try {
-    // لو الشحنة دي مضافة بالفعل لأي بيان (مفتوح أو مقفول) — متضافش تاني
+    // لو الشحنة دي مضافة بالفعل لبيان لسه موجود فعليًا (مش يتيم/بيان محذوف) — متضافش تاني
     const [existingItem] = await db
       .select({ id: clientAccountManifestItemsTable.id })
       .from(clientAccountManifestItemsTable)
+      .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
       .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
       .limit(1);
     if (existingItem) return;
+
+    // لو فيه صف item يتيم (البيان بتاعه اتمسح) لنفس الشحنة — امسحه الأول عشان
+    // نقدر نضيف صف جديد نظيف (منع duplicate key على shipmentId لو فيه unique constraint)
+    await db
+      .delete(clientAccountManifestItemsTable)
+      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
 
     const tenantCondition = tenantId !== null
       ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
@@ -94,28 +101,6 @@ export async function autoAddShipmentToClientAccountManifest(
     console.error("[autoAddShipmentToClientAccountManifest]", e);
   }
 }
-
-// ─── GET /client-account-manifests/debug-shipment/:shipmentId ────────────────
-// أداة تشخيص مؤقتة: بترجع الـ manifest item والـ manifest المرتبطين بشحنة معينة
-router.get("/client-account-manifests/debug-shipment/:shipmentId", async (req, res): Promise<void> => {
-  try {
-    const shipmentId = Number(req.params.shipmentId);
-    const [item] = await db
-      .select()
-      .from(clientAccountManifestItemsTable)
-      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
-      .limit(1);
-    if (!item) { res.json({ item: null, manifest: null }); return; }
-    const [manifest] = await db
-      .select()
-      .from(clientAccountManifestsTable)
-      .where(eq(clientAccountManifestsTable.id, item.manifestId))
-      .limit(1);
-    res.json({ item, manifest });
-  } catch (e: any) {
-    res.status(500).json({ error: e?.message ?? String(e) });
-  }
-});
 
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
 router.get("/client-account-manifests", async (req, res): Promise<void> => {
@@ -564,15 +549,19 @@ router.post("/client-account-manifests/sync-warehouse-ready", async (req, res): 
       .where(cond);
 
     let added = 0;
-    const skipped: { id: number; shipmentNumber: string; reason: string }[] = [];
+    const skipped: { id: number; shipmentNumber: string | null; reason: string }[] = [];
     for (const s of candidates) {
       if (!s.clientId) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "no_client_id" }); continue; }
-      const [existingItem] = await db
+      // ملحوظة: مبنتحققش هنا من وجود item قديم، لأن autoAddShipmentToClientAccountManifest
+      // نفسها بتتأكد إن الـ item مرتبط بـ manifest موجود فعليًا (مش يتيم/بيان محذوف)
+      // وبتنضف أي item يتيم قبل ما تضيف صح — فهي كافية ومش محتاجة تكرار الشرط هنا.
+      const beforeCount = await db
         .select({ id: clientAccountManifestItemsTable.id })
         .from(clientAccountManifestItemsTable)
+        .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
         .where(eq(clientAccountManifestItemsTable.shipmentId, s.id))
         .limit(1);
-      if (existingItem) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "already_in_manifest" }); continue; }
+      if (beforeCount.length) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "already_in_manifest" }); continue; }
       try {
         await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId);
         added++;
