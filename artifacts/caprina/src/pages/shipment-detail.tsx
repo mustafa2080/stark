@@ -2542,6 +2542,15 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .barcode-area .b-label{font-size:12px;font-weight:700;color:#666;margin-bottom:6px}
 .barcode-num{font-size:30px;font-weight:900;letter-spacing:4px;color:#111;font-family:monospace}
 
+/* SHIPMENT FLAGS (فتح/تجزئة) */
+.flags-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.flag-badge{border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:900;font-size:15px;border:2px solid}
+.flag-badge .flag-icon{font-size:18px}
+.flag-allow{background:#ecfdf5;border-color:#059669;color:#065f46}
+.flag-deny{background:#fef2f2;border-color:#dc2626;color:#991b1b}
+.flag-divisible{background:#eff6ff;border-color:#2563eb;color:#1e3a8a}
+.flag-indivisible{background:#fffbeb;border-color:#d97706;color:#92400e}
+
 /* FOOTER */
 .footer{border-top:2px solid #ddd;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:#555}
 .footer .date{font-size:12px}
@@ -2570,8 +2579,10 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   .notes-box{padding:8px 12px;margin-bottom:10px;font-size:12px}
   .barcode-area{padding:8px 14px;margin-bottom:10px}
   .barcode-num{font-size:22px;letter-spacing:3px}
+  .flags-row{gap:6px;margin-bottom:10px}
+  .flag-badge{padding:8px 10px;font-size:12px}
   .footer{padding-top:8px;font-size:11px}
-  .header,.tracking-bar,.parties,.details-row,.notes-box,.barcode-area{page-break-inside:avoid}
+  .header,.tracking-bar,.parties,.details-row,.notes-box,.barcode-area,.flags-row{page-break-inside:avoid}
 }
 </style>
 </head>
@@ -2590,20 +2601,8 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   <!-- TRACKING BAR -->
   <div class="tracking-bar">
     <div class="tracking-item">
-      <div class="t-label">رقم التتبع</div>
-      <div class="t-value highlight">${tracking}</div>
-    </div>
-    <div class="tracking-item">
-      <div class="t-label">شركة الشحن</div>
-      <div class="t-value">${o.shippingCompanyName || "—"}</div>
-    </div>
-    <div class="tracking-item">
       <div class="t-label">طريقة الدفع</div>
       <div class="t-value">${o.paymentMethod === "cod" ? "عند الاستلام" : o.paymentMethod === "prepaid" ? "مدفوع مسبقاً" : "لاحقاً"}</div>
-    </div>
-    <div class="tracking-item">
-      <div class="t-label">الحالة</div>
-      <div class="t-value green">${(statusLabels as any)[order.status] || order.status}</div>
     </div>
   </div>
 
@@ -2629,7 +2628,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
   </div>
 
   <!-- DETAILS -->
-  <div class="details-row">
+  <div class="details-row" style="grid-template-columns:repeat(3,1fr)">
     <div class="detail-box">
       <div class="d-label">نوع الشحنة</div>
       <div class="d-value">${o.parcelType || "—"}</div>
@@ -2638,35 +2637,28 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
       <div class="d-label">${o.weight ? "الوزن" : "عدد القطع"}</div>
       <div class="d-value">${o.weight ? `${o.weight} كجم` : (o.pieces || "—")}</div>
     </div>
-    <div class="detail-box">
-      <div class="d-label">رسوم الشحن</div>
-      <div class="d-value">${fmtCurr(shippingFee)}</div>
-    </div>
     <div class="detail-box highlight">
       <div class="d-label">الإجمالي</div>
       <div class="d-value">${fmtCurr(totalAmount)}</div>
     </div>
   </div>
 
-  ${codAmount > 0 ? `
-  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
-    <div class="detail-box" style="background:#fffbeb;border-color:#f59e0b">
-      <div class="d-label" style="color:#92400e">مبلغ COD</div>
-      <div class="d-value" style="color:#b45309">${fmtCurr(codAmount)}</div>
+  <!-- SHIPMENT FLAGS: حالة الفتح + التجزئة -->
+  <div class="flags-row">
+    <div class="flag-badge ${o.canOpen === 0 || o.canOpen === "0" ? "flag-deny" : "flag-allow"}">
+      <span class="flag-icon">${o.canOpen === 0 || o.canOpen === "0" ? "🚫" : "✅"}</span>
+      <span>${o.canOpen === 0 || o.canOpen === "0" ? "غير مسموح بفتح الشحنة" : "مسموح بفتح الشحنة"}</span>
     </div>
-    ${insuranceFee > 0 ? `<div class="detail-box"><div class="d-label">رسوم التأمين</div><div class="d-value">${fmtCurr(insuranceFee)}</div></div>` : `<div></div>`}
-  </div>` : ""}
+    <div class="flag-badge ${o.isDivisible === 1 || o.isDivisible === "1" ? "flag-divisible" : "flag-indivisible"}">
+      <span class="flag-icon">${o.isDivisible === 1 || o.isDivisible === "1" ? "🔀" : "📦"}</span>
+      <span>${o.isDivisible === 1 || o.isDivisible === "1" ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة"}</span>
+    </div>
+  </div>
 
   ${o.notes ? `
   <div class="notes-box">
     <div class="n-title">ملاحظات</div>
     ${o.notes}
-  </div>` : ""}
-
-  ${tracking !== "—" ? `
-  <div class="barcode-area">
-    <div class="b-label">رقم التتبع</div>
-    <div class="barcode-num">${tracking}</div>
   </div>` : ""}
 
   <!-- FOOTER -->

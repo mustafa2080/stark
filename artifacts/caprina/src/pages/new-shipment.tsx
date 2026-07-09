@@ -90,6 +90,7 @@ export default function NewShipmentPage() {
     codAmount: "", notes: "",
     adSource: "", adCampaign: "", warehouseId: "", assignedUserId: "",
     shippingCompanyId: "",
+    canOpen: "1", isDivisible: "0",
   });
   const [govOpen, setGovOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
@@ -191,6 +192,8 @@ export default function NewShipmentPage() {
       warehouseId:     form.warehouseId ? Number(form.warehouseId) : undefined,
       assignedUserId:  form.assignedUserId ? Number(form.assignedUserId) : undefined,
       shippingCompanyId: form.shippingCompanyId ? Number(form.shippingCompanyId) : undefined,
+      canOpen:         Number(form.canOpen),
+      isDivisible:     Number(form.isDivisible),
       status:          "waiting",
     });
   }
@@ -376,6 +379,52 @@ export default function NewShipmentPage() {
               {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {fc(selectedPricing.basePrice)}</p>}
             </div>
             <div><Label className="text-xs font-bold mb-1.5 block">الوزن (كجم)</Label><Input type="number" className="text-sm" placeholder="0.00" value={form.weight} onChange={e => set("weight", e.target.value)} /></div>
+
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block">حالة الشحنة (الفتح)</Label>
+              <Select value={form.canOpen} onValueChange={v => set("canOpen", v)}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="اختر..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                      مسموح بفتح الشحنة
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="0">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                      غير مسموح بفتح الشحنة
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block">تجزئة الشحنة</Label>
+              <Select value={form.isDivisible} onValueChange={v => set("isDivisible", v)}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="اختر..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                      الشحنة قابلة للتجزئة
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="0">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                      الشحنة غير قابلة للتجزئة
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
           </div>
         </section>
