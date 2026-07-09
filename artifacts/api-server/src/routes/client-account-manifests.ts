@@ -95,6 +95,28 @@ export async function autoAddShipmentToClientAccountManifest(
   }
 }
 
+// ─── GET /client-account-manifests/debug-shipment/:shipmentId ────────────────
+// أداة تشخيص مؤقتة: بترجع الـ manifest item والـ manifest المرتبطين بشحنة معينة
+router.get("/client-account-manifests/debug-shipment/:shipmentId", async (req, res): Promise<void> => {
+  try {
+    const shipmentId = Number(req.params.shipmentId);
+    const [item] = await db
+      .select()
+      .from(clientAccountManifestItemsTable)
+      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
+      .limit(1);
+    if (!item) { res.json({ item: null, manifest: null }); return; }
+    const [manifest] = await db
+      .select()
+      .from(clientAccountManifestsTable)
+      .where(eq(clientAccountManifestsTable.id, item.manifestId))
+      .limit(1);
+    res.json({ item, manifest });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? String(e) });
+  }
+});
+
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
 router.get("/client-account-manifests", async (req, res): Promise<void> => {
   try {
