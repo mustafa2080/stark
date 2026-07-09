@@ -4114,7 +4114,7 @@ export default function ShippingManifestPage() {
           <thead>
             <tr>
               <th style={{ width: "16%" }}>الاسم</th>
-              <th style={{ width: "11%" }}>الموبيل</th>
+              <th style={{ width: "11%" }}>الموبايل</th>
               <th style={{ width: "9%" }}>المحافظة</th>
               <th style={{ width: "8%" }}>العنوان</th>
               <th style={{ width: "11%" }}>الشركة الراسله</th>
@@ -4450,7 +4450,7 @@ export default function ShippingManifestPage() {
             <thead>
               <tr className="bg-slate-700 dark:bg-slate-800 text-white">
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">الاسم</th>
-                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">الموبيل</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">الموبايل</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">المحافظة</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500 hidden md:table-cell">العنوان</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500 hidden sm:table-cell">الشركة الراسله</th>
