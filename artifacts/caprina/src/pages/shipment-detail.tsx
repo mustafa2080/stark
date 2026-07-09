@@ -2797,10 +2797,10 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 .summary-wrap{display:flex;justify-content:flex-start}
 .summary-table{width:360px;border:1px solid #ccc;border-radius:6px;overflow:hidden}
 .s-row{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:15px;border-bottom:1px solid #e4e4e4}
-.s-row:last-child{border:none;background:#2a2a2a;color:#fff;font-size:17px;font-weight:900;padding:13px 16px}
-.s-row:last-child .s-val{color:#f0c040}
+.s-row:last-child{border:none;background:#fff;border-top:2px solid #111;color:#111;font-size:17px;font-weight:900;padding:13px 16px}
+.s-row:last-child .s-val{color:#111}
 .s-lbl{font-weight:600;color:#444}
-.s-row:last-child .s-lbl{color:#ddd;font-weight:700}
+.s-row:last-child .s-lbl{color:#111;font-weight:700}
 .s-val{font-weight:800;color:#111}
 
 /* ── PROFIT ── */
