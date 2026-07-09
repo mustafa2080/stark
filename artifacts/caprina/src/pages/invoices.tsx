@@ -421,6 +421,11 @@ export default function Invoices() {
     <div class="detail-box"><div class="d-label">رسوم الشحن</div><div class="d-value">${fmtCurr(shippingFee)}</div></div>
     <div class="detail-box highlight"><div class="d-label">الإجمالي</div><div class="d-value">${fmtCurr(totalAmount)}</div></div>
   </div>
+  ${(sh.canOpen !== null && sh.canOpen !== undefined) || (sh.isDivisible !== null && sh.isDivisible !== undefined) ? `
+  <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:4px">
+    ${(sh.canOpen !== null && sh.canOpen !== undefined) ? `<div class="detail-box" style="${(sh.canOpen === 0 || sh.canOpen === "0") ? "background:#fef2f2;border-color:#ef4444" : "background:#f0fdf4;border-color:#22c55e"}"><div class="d-label" style="${(sh.canOpen === 0 || sh.canOpen === "0") ? "color:#991b1b" : "color:#166534"}">حالة الشحنة</div><div class="d-value" style="${(sh.canOpen === 0 || sh.canOpen === "0") ? "color:#dc2626" : "color:#16a34a"}">${(sh.canOpen === 0 || sh.canOpen === "0") ? "غير مسموح بفتح الشحنة" : "مسموح بفتح الشحنة"}</div></div>` : `<div></div>`}
+    ${(sh.isDivisible !== null && sh.isDivisible !== undefined) ? `<div class="detail-box" style="${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "background:#f0fdf4;border-color:#22c55e" : "background:#fef2f2;border-color:#ef4444"}"><div class="d-label" style="${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "color:#166534" : "color:#991b1b"}">تجزئة الشحنة</div><div class="d-value" style="${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "color:#16a34a" : "color:#dc2626"}">${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة"}</div></div>` : `<div></div>`}
+  </div>` : ""}
   ${codAmount > 0 ? `
   <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:4px">
     <div class="detail-box" style="background:#fffbeb;border-color:#f59e0b"><div class="d-label" style="color:#92400e">مبلغ COD</div><div class="d-value" style="color:#b45309">${fmtCurr(codAmount)}</div></div>
