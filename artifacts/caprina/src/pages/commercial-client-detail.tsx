@@ -1631,7 +1631,6 @@ function ClientManifestRow({ manifest, clientId, qc }: {
   qc: ReturnType<typeof useQueryClient>;
 }) {
   const { toast } = useToast();
-  const [expanded, setExpanded] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   const toggleLockMutation = useMutation({
@@ -1669,7 +1668,7 @@ function ClientManifestRow({ manifest, clientId, qc }: {
   return (
     <div className={`rounded-lg border ${manifest.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"}`}>
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-        <button className="flex-1 min-w-0 text-right" onClick={() => setExpanded(v => !v)}>
+        <Link href={`/finance/client-account-sheet/manifest/${manifest.id}`} className="flex-1 min-w-0 text-right cursor-pointer">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black text-sm">{manifest.manifestNumber}</span>
             <Badge variant="outline" className={`text-[9px] font-bold border ${
@@ -1688,18 +1687,13 @@ function ClientManifestRow({ manifest, clientId, qc }: {
             <span className="text-emerald-400">{completed} مكتملة</span>
             {pending > 0 && <span className="text-amber-400">{pending} جارية</span>}
           </div>
-        </button>
+        </Link>
         <div className="flex items-center gap-1.5 shrink-0">
-          <Link href={`/finance/client-account-sheet/manifest/${manifest.id}`}>
-            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1">
-              <Eye className="w-3 h-3" />تفاصيل
-            </Button>
-          </Link>
           {manifest.status === "open" ? (
             <Button
               size="sm" variant="outline"
               className="h-7 text-[10px] gap-1 border-emerald-700 text-emerald-400 hover:bg-emerald-900/20"
-              onClick={() => setShowCloseConfirm(true)}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowCloseConfirm(true); }}
               disabled={toggleLockMutation.isPending}
             >
               <Lock className="w-3 h-3" />إغلاق
@@ -1708,7 +1702,7 @@ function ClientManifestRow({ manifest, clientId, qc }: {
             <Button
               size="sm" variant="outline"
               className="h-7 text-[10px] gap-1 border-blue-700 text-blue-400 hover:bg-blue-900/20"
-              onClick={() => toggleLockMutation.mutate("open")}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleLockMutation.mutate("open"); }}
               disabled={toggleLockMutation.isPending}
             >
               فتح
@@ -1718,7 +1712,7 @@ function ClientManifestRow({ manifest, clientId, qc }: {
             <Button
               size="sm" variant="ghost"
               className="h-7 text-[10px] text-red-400 hover:bg-red-900/20"
-              onClick={() => { if (confirm("حذف هذا البيان؟")) deleteMutation.mutate(); }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (confirm("حذف هذا البيان؟")) deleteMutation.mutate(); }}
             >
               حذف
             </Button>
