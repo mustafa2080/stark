@@ -870,7 +870,10 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     await db.update(shipmentsTable).set(updateData).where(cond);
 
     // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"
-    if (updateData.status === "warehouse_ready" && existingShipment.status !== "warehouse_ready") {
+    // ملحوظة: بتتنفذ طالما الحالة النهائية warehouse_ready، سواء كانت متغيرة دلوقتي
+    // أو كانت أصلاً كذلك (مثلاً لو اتمسح البيان بتاعها قبل كده) — الدالة idempotent
+    // وبتتجاهل لو فيه بيان مضاف بالفعل، فمفيش خطر تكرار.
+    if (updateData.status === "warehouse_ready") {
       await autoAddShipmentToClientAccountManifest(
         id,
         existingShipment.clientId,
@@ -911,16 +914,17 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
       ? and(inArray(shipmentsTable.id, numericIds), eq(shipmentsTable.tenantId, tenantId))
       : inArray(shipmentsTable.id, numericIds);
 
-    // نجيب بيانات الشحنات قبل التحديث عشان نعرف مين فعلاً هيدخل حالة "قيد الشحن في المخزن" لأول مرة
+    // نجيب بيانات الشحنات قبل التحديث عشان نتأكد من إضافتهم تلقائيًا لبيان العميل
+    // ملحوظة: بناخد كل الشحنات المستهدفة (مش بس اللي بتتغير حالتها فعليًا) لأن
+    // الدالة idempotent وبتتجاهل لو فيه بيان مضاف بالفعل — ده بيمنع فوات الحالات
+    // اللي كانت أصلاً warehouse_ready (زي لو اتمسح البيان بتاعها قبل كده).
     let toAutoAdd: { id: number; clientId: number | null }[] = [];
     if (status === "warehouse_ready") {
       const beforeRows = await db
         .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, status: shipmentsTable.status })
         .from(shipmentsTable)
         .where(cond);
-      toAutoAdd = beforeRows
-        .filter(r => r.status !== "warehouse_ready")
-        .map(r => ({ id: r.id, clientId: r.clientId }));
+      toAutoAdd = beforeRows.map(r => ({ id: r.id, clientId: r.clientId }));
     }
 
     await db.update(shipmentsTable).set(updateData).where(cond);
@@ -1008,7 +1012,9 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     await db.update(shipmentsTable).set(updateData).where(cond);
 
     // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"
-    if (updateData.status === "warehouse_ready" && existingShipment.status !== "warehouse_ready") {
+    // ملحوظة: بتتنفذ طالما الحالة النهائية warehouse_ready، سواء كانت متغيرة دلوقتي
+    // أو كانت أصلاً كذلك — الدالة idempotent ومتحميش من التكرار.
+    if (updateData.status === "warehouse_ready") {
       await autoAddShipmentToClientAccountManifest(
         id,
         existingShipment.clientId,
