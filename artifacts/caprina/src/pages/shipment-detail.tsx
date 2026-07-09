@@ -2529,9 +2529,9 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .detail-box{border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center;background:#fafafa}
 .detail-box .d-label{font-size:11px;font-weight:700;color:#666;margin-bottom:6px}
 .detail-box .d-value{font-size:18px;font-weight:900;color:#111}
-.detail-box.highlight{background:#111;border-color:#111}
-.detail-box.highlight .d-label{color:#aaa}
-.detail-box.highlight .d-value{color:#f0c040;font-size:22px}
+.detail-box.highlight{background:#fff;border:2px solid #111}
+.detail-box.highlight .d-label{color:#555}
+.detail-box.highlight .d-value{color:#111;font-size:22px}
 
 /* NOTES */
 .notes-box{border:2px dashed #ccc;border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:14px;font-weight:700;color:#333;line-height:1.8}
