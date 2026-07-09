@@ -132,34 +132,32 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       }
     }
 
-    // حساب الإحصائيات live من أوامر البيع لكل عميل
-    const orderConds: any[] = [];
-    if (tenantId !== null) orderConds.push(eq(saleOrdersTable.tenantId, tenantId));
+    // حساب الإحصائيات live من شحنات العميل (shipments.clientId) — المصدر الفعلي للبيانات
+    const shipConds: any[] = [isNull(shipmentsTable.deletedAt)];
+    if (tenantId !== null) shipConds.push(eq(shipmentsTable.tenantId, tenantId));
 
-    const allOrders = await db.select({
-      clientName:    saleOrdersTable.clientName,
-      totalAmount:   saleOrdersTable.totalAmount,
-      paidAmount:    saleOrdersTable.paidAmount,
-      paymentStatus: saleOrdersTable.paymentStatus,
-    }).from(saleOrdersTable)
-      .where(orderConds.length ? and(...orderConds) : undefined);
+    const allShipments = await db.select({
+      clientId:        shipmentsTable.clientId,
+      totalAmount:     shipmentsTable.totalAmount,
+      collectedAmount: shipmentsTable.collectedAmount,
+      status:          shipmentsTable.status,
+    }).from(shipmentsTable)
+      .where(and(...shipConds));
 
-    // تجميع الأرقام لكل عميل — يراعي paymentStatus
-    // ملاحظة: نطابق بالاسم بعد trim + توحيد المسافات عشان اختلافات بسيطة (مسافات زايدة) متبوظش المطابقة
-    const normalizeName = (n: string | null | undefined) => (n ?? "").trim().replace(/\s+/g, " ");
-    const statsMap: Record<string, { totalOrders: number; totalSales: number; totalPaid: number }> = {};
-    for (const o of allOrders) {
-      const name = normalizeName(o.clientName);
-      if (!statsMap[name]) statsMap[name] = { totalOrders: 0, totalSales: 0, totalPaid: 0 };
-      const t = parseFloat(o.totalAmount ?? "0");
-      const p = o.paymentStatus === "paid" ? t : parseFloat(o.paidAmount ?? "0");
-      statsMap[name].totalOrders++;
-      statsMap[name].totalSales += t;
-      statsMap[name].totalPaid  += p;
+    // تجميع الأرقام لكل عميل حسب clientId — لا حاجة لمطابقة أسماء نصية
+    const statsMap: Record<number, { totalOrders: number; totalSales: number; totalPaid: number }> = {};
+    for (const s of allShipments) {
+      if (s.clientId == null) continue;
+      if (!statsMap[s.clientId]) statsMap[s.clientId] = { totalOrders: 0, totalSales: 0, totalPaid: 0 };
+      const t = parseFloat(s.totalAmount ?? "0");
+      const p = parseFloat(s.collectedAmount ?? "0");
+      statsMap[s.clientId].totalOrders++;
+      statsMap[s.clientId].totalSales += t;
+      statsMap[s.clientId].totalPaid  += p;
     }
 
     const enriched = clients.map(c => {
-      const s = statsMap[normalizeName(c.name)] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
+      const s = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       return {
         ...c,
         warehouseId: warehouseMap[c.id] ?? null,
