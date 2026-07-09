@@ -79,8 +79,8 @@ export const shipmentsTable = mysqlTable("shipments", {
   variantId:       int("variant_id"),                             // المتغير (لون/مقاس) المرتبط (اختياري)
   warehouseId:     int("warehouse_id"),                           // المخزن المخصوم منه (اختياري)
   declaredValue:   decimal("declared_value", { precision: 12, scale: 2 }).default("0"), // القيمة المعلنة
-  canOpen:         int("can_open").default(1),                     // 1 = مسموح بفتح الشحنة، 0 = غير مسموح بفتح الشحنة
-  isDivisible:     int("is_divisible").default(0),                 // 1 = الشحنة قابلة للتجزئة، 0 = غير قابلة للتجزئة
+  canOpen:         int("can_open"),                                // 1 = مسموح بفتح الشحنة، 0 = غير مسموح، null = لم يُحدد بعد
+  isDivisible:     int("is_divisible"),                             // 1 = الشحنة قابلة للتجزئة، 0 = غير قابلة، null = لم يُحدد بعد
 
   // ── البيانات المالية ────────────────────────────────────────────────────
   paymentMethod:   varchar("payment_method", { length: 30 }).notNull().default("cod"),

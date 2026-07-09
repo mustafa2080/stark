@@ -90,7 +90,7 @@ export default function NewShipmentPage() {
     codAmount: "", notes: "",
     adSource: "", adCampaign: "", warehouseId: "", assignedUserId: "",
     shippingCompanyId: "",
-    canOpen: "1", isDivisible: "0",
+    canOpen: "", isDivisible: "",
   });
   const [govOpen, setGovOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
@@ -192,8 +192,8 @@ export default function NewShipmentPage() {
       warehouseId:     form.warehouseId ? Number(form.warehouseId) : undefined,
       assignedUserId:  form.assignedUserId ? Number(form.assignedUserId) : undefined,
       shippingCompanyId: form.shippingCompanyId ? Number(form.shippingCompanyId) : undefined,
-      canOpen:         Number(form.canOpen),
-      isDivisible:     Number(form.isDivisible),
+      canOpen:         form.canOpen     !== "" ? Number(form.canOpen)     : undefined,
+      isDivisible:     form.isDivisible !== "" ? Number(form.isDivisible) : undefined,
       status:          "waiting",
     });
   }

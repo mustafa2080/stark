@@ -2643,17 +2643,20 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
     </div>
   </div>
 
-  <!-- SHIPMENT FLAGS: حالة الفتح + التجزئة -->
+  <!-- SHIPMENT FLAGS: حالة الفتح + التجزئة (تظهر فقط لو تم تحديدها فعلياً) -->
+  ${(o.canOpen !== null && o.canOpen !== undefined) || (o.isDivisible !== null && o.isDivisible !== undefined) ? `
   <div class="flags-row">
+    ${(o.canOpen !== null && o.canOpen !== undefined) ? `
     <div class="flag-badge ${o.canOpen === 0 || o.canOpen === "0" ? "flag-deny" : "flag-allow"}">
       <span class="flag-icon">${o.canOpen === 0 || o.canOpen === "0" ? "🚫" : "✅"}</span>
       <span>${o.canOpen === 0 || o.canOpen === "0" ? "غير مسموح بفتح الشحنة" : "مسموح بفتح الشحنة"}</span>
-    </div>
+    </div>` : ""}
+    ${(o.isDivisible !== null && o.isDivisible !== undefined) ? `
     <div class="flag-badge ${o.isDivisible === 1 || o.isDivisible === "1" ? "flag-divisible" : "flag-indivisible"}">
       <span class="flag-icon">${o.isDivisible === 1 || o.isDivisible === "1" ? "🔀" : "📦"}</span>
       <span>${o.isDivisible === 1 || o.isDivisible === "1" ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة"}</span>
-    </div>
-  </div>
+    </div>` : ""}
+  </div>` : ""}
 
   ${o.notes ? `
   <div class="notes-box">
