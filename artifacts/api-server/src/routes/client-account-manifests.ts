@@ -524,4 +524,41 @@ router.patch("/client-account-manifests/:id/items/:shipmentId/urgent", async (re
   }
 });
 
+// ─── POST /client-account-manifests/sync-warehouse-ready ─────────────────────
+// حل شامل: يمر على كل الشحنات بحالة "قيد الشحن في المخزن" اللي معندهاش بيان
+// (مثلاً بسبب حذف بيان قديم، أو استيراد بيانات) ويضيفهم تلقائيًا بنفس منطق
+// autoAddShipmentToClientAccountManifest. آمن للتشغيل المتكرر.
+router.post("/client-account-manifests/sync-warehouse-ready", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.status, "warehouse_ready"), eq(shipmentsTable.tenantId, tenantId))
+      : eq(shipmentsTable.status, "warehouse_ready");
+
+    const candidates = await db
+      .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId })
+      .from(shipmentsTable)
+      .where(cond);
+
+    let added = 0;
+    for (const s of candidates) {
+      if (!s.clientId) continue;
+      const [existingItem] = await db
+        .select({ id: clientAccountManifestItemsTable.id })
+        .from(clientAccountManifestItemsTable)
+        .where(eq(clientAccountManifestItemsTable.shipmentId, s.id))
+        .limit(1);
+      if (existingItem) continue;
+      await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId);
+      added++;
+    }
+
+    res.json({ success: true, scanned: candidates.length, added });
+  } catch (e: any) {
+    console.error("[POST /client-account-manifests/sync-warehouse-ready]", e);
+    res.status(500).json({ error: "خطأ في مزامنة الشحنات مع بيانات العملاء" });
+  }
+});
+
 export default router;
