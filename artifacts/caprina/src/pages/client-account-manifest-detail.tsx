@@ -4425,6 +4425,140 @@ export default function ShippingManifestPage() {
         </Card>
       </div>
 
+      {/* ─── تقفيل الرحلة (STARK-style) ─── */}
+      <div className="rounded-xl border-2 border-slate-700 overflow-hidden shadow-lg">
+        {/* عدد الطلبيات الجديدة */}
+        <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800/60 px-4 py-2.5 border-b-2 border-slate-700">
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-200">عدد الطلبيات الجديدة</span>
+          <span className="text-lg font-black text-slate-900 dark:text-white bg-white dark:bg-slate-900 border-2 border-slate-700 rounded-md px-4 py-0.5">
+            {newOrdersCount}
+          </span>
+        </div>
+
+        {/* هيدر تقفيل الرحلة */}
+        <div className="flex items-center justify-between bg-slate-800 dark:bg-slate-900 px-4 sm:px-5 py-3">
+          <span className="text-lg sm:text-xl font-black text-white tracking-wide">
+            {brand.name?.toUpperCase() || "STARK"}
+          </span>
+          <span className="text-xs sm:text-sm font-bold text-slate-200">تقفيل رحلة</span>
+          <span className="text-xs sm:text-sm font-bold text-slate-300">{format(new Date(), "d/M/yyyy")}</span>
+        </div>
+
+        {/* جدول تقفيل الرحلة */}
+        <div className="overflow-x-auto bg-slate-50 dark:bg-slate-900/40">
+          <table className="w-full text-xs sm:text-sm border-collapse">
+            <thead>
+              <tr className="bg-slate-700 dark:bg-slate-800 text-white">
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">الاسم</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">الموبيل</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">المحافظة</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500 hidden md:table-cell">العنوان</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500 hidden sm:table-cell">الشركة الراسله</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">سعر الشحنه</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">القيمة المستلمه</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">قيمة الشحن</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">الحاله</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500 hidden lg:table-cell">ملاحظات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayGroups.map((group, idx) => {
+                const rep = group[0];
+                const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
+                const isSingleStatus = statuses.length === 1;
+                const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
+                const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+                const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
+                const net = cod - fee;
+                const isDeliveredLike = singleStatus === "delivered";
+                const isPartialLike = singleStatus === "partial_received" || singleStatus === "partial_delivered";
+                const receivedValue = isDeliveredLike
+                  ? net
+                  : isPartialLike
+                    ? group.reduce((sum, o) => {
+                        const rr = (o as any).returnReceived;
+                        if (rr == null || (rr !== 1 && rr !== true)) return sum;
+                        if (o.partialQuantity == null || (o.quantity ?? 0) <= 0) return sum;
+                        const unitPrice = Number(o.totalPrice ?? 0) / Number(o.quantity ?? 1);
+                        return sum + Math.round(unitPrice * Number(o.partialQuantity));
+                      }, 0) - fee
+                    : 0;
+                const statusText =
+                  singleStatus === "delivered" ? "استلم" :
+                  singleStatus === "returned" ? "مرتجع" :
+                  (singleStatus === "partial_received" || singleStatus === "partial_delivered") ? "استلام جزئي" :
+                  (singleStatus === "postponed" || singleStatus === "delayed") ? "مؤجل" : "قيد الانتظار";
+                const statusCls =
+                  singleStatus === "delivered" ? "text-emerald-600 dark:text-emerald-400 font-extrabold" :
+                  singleStatus === "returned" ? "text-red-600 dark:text-red-400 font-extrabold" :
+                  "text-amber-600 dark:text-amber-400 font-extrabold";
+                const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
+                return (
+                  <tr
+                    key={`tr-screen-${group.map((o) => o.id).join("-")}`}
+                    className={idx % 2 === 1 ? "bg-slate-100 dark:bg-slate-800/30" : "bg-white dark:bg-slate-900/20"}
+                  >
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 font-bold text-right whitespace-nowrap">{rep.customerName}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center" dir="ltr">{rep.phone ?? "—"}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{rep.city ?? "—"}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center hidden md:table-cell">{(rep as any).address ?? "—"}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center hidden sm:table-cell">{(rep as any).senderName ?? "—"}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center">{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-extrabold text-emerald-700 dark:text-emerald-400">
+                      {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}
+                    </td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-bold text-teal-700 dark:text-teal-400">{cod.toLocaleString("ar-EG")}</td>
+                    <td className={`px-2 py-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap ${statusCls}`}>{statusText}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center text-[11px] text-muted-foreground hidden lg:table-cell">{notes || "—"}</td>
+                  </tr>
+                );
+              })}
+              {displayGroups.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="px-2 py-6 text-center text-muted-foreground border border-slate-300 dark:border-slate-700">
+                    لا توجد طلبيات في هذا البيان
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* شريط الإجمالي */}
+        <div className="flex items-stretch bg-slate-800 dark:bg-slate-900 text-white">
+          <div className="flex items-center px-5 py-2.5 text-base sm:text-lg font-black text-red-300">
+            -{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")}
+          </div>
+          <div className="flex items-center px-5 py-2.5 text-base sm:text-lg font-black border-r border-slate-600">
+            {Number(totalCollected || 0).toLocaleString("ar-EG")}
+          </div>
+        </div>
+
+        {/* الجزء السفلي: عدادات الحالة + صندوق الرصيد */}
+        <div className="flex flex-col sm:flex-row items-stretch border-t-2 border-slate-700">
+          <div className="flex flex-row sm:flex-col flex-wrap sm:border-l-2 border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+              <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">{groupedPendingOrders}</span>الجاري
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+              <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">0</span>مرتجع لم يصل
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+              <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">{newOrdersCount}</span>الجديد
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold flex-1 sm:flex-none">
+              <span className="text-red-600 dark:text-red-400 font-black min-w-[16px] text-center">{groupedTotalCount}</span>الاجمالي
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-between px-5 py-3 bg-slate-100 dark:bg-slate-800/50">
+            <span className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-200">الرصيد</span>
+            <span className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white bg-white dark:bg-slate-900 border-2 border-slate-700 rounded-md px-5 py-1">
+              {Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* ─── Delivery Rate Bar ─── */}
       <Card className="border-border bg-card p-4">
         <div className="flex items-center justify-between mb-2">
