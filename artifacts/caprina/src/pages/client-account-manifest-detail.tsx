@@ -3870,9 +3870,9 @@ export default function ShippingManifestPage() {
       <div className="p-12 text-center">
         <AlertCircle className="w-12 h-12 mx-auto mb-3 text-destructive opacity-50" />
         <h2 className="text-lg font-bold mb-2">البيان غير موجود</h2>
-        <Link href="/shipping">
+        <Link href={rawManifest?.clientId ? `/finance/clients/${rawManifest.clientId}` : "/finance/clients"}>
           <Button variant="outline" className="mt-3">
-            العودة لشركات الشحن
+            العودة لتفاصيل العميل
           </Button>
         </Link>
       </div>
@@ -4089,7 +4089,7 @@ export default function ShippingManifestPage() {
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/shipping">
+          <Link href={`/finance/clients/${manifest.clientId}`}>
             <Button
               variant="outline"
               size="icon"
@@ -4574,7 +4574,7 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
-                    courierShippingCost={rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null}
+                    courierShippingCost={manifest.manualShippingCost}
                   />
                   ))}
                   </div>
@@ -4811,7 +4811,7 @@ export default function ShippingManifestPage() {
         <AddOrdersToManifestDialog
           manifestId={id}
           manifestNumber={manifest.manifestNumber}
-          companyId={rawManifest.clientId}
+          clientId={rawManifest.clientId}
           existingOrderIds={new Set(manifest.orders.map(o => o.shipmentId ?? o.id))}
           onClose={() => setShowAddOrdersDialog(false)}
           onAdded={refetch}

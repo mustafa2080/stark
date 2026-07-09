@@ -9,6 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight, Users, ShoppingBag, TrendingUp, TrendingDown,
@@ -252,6 +261,7 @@ export default function CommercialClientDetailPage() {
   // ── تابات: البيانات / الشحنات / الداشبورد ────────────────────────────────
   const [activeTab, setActiveTab] = useState<"data" | "shipments" | "dashboard">("dashboard");
   const [showNewManifest, setShowNewManifest] = useState(false);
+  const [showOpenManifestWarning, setShowOpenManifestWarning] = useState(false);
   const { toast } = useToast();
 
   // ── تعديل الهدف inline ──────────────────────────────────────────────────
@@ -303,6 +313,11 @@ export default function CommercialClientDetailPage() {
     enabled: !isNaN(clientId),
   });
   const openManifest = manifests?.find(m => m.status === "open") ?? null;
+
+  const handleNewManifestClick = () => {
+    if (openManifest) setShowOpenManifestWarning(true);
+    else setShowNewManifest(true);
+  };
 
   // ── تصدير Excel ──────────────────────────────────────────────────────────
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -765,7 +780,7 @@ export default function CommercialClientDetailPage() {
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <Button
               size="sm"
-              onClick={() => setShowNewManifest(true)}
+              onClick={handleNewManifestClick}
               className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
             >
               <PackagePlus className="w-3.5 h-3.5" />
@@ -1410,7 +1425,7 @@ export default function CommercialClientDetailPage() {
               <Button
                 size="sm"
                 className="h-8 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold shrink-0"
-                onClick={() => setShowNewManifest(true)}
+                onClick={handleNewManifestClick}
               >
                 <PackagePlus className="w-3.5 h-3.5" />بيان جديد
               </Button>
@@ -1419,7 +1434,7 @@ export default function CommercialClientDetailPage() {
             {openManifest && (
               <p className="text-[10px] text-amber-400 mt-2 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                يوجد بيان مفتوح حالياً: {openManifest.manifestNumber} — {openManifest.shipmentCount} شحنة.
+                يوجد بيان مفتوح حالياً: {openManifest.manifestNumber} — {openManifest.shipmentCount} شحنة. يجب تقفيله أولاً قبل إنشاء بيان جديد.
               </p>
             )}
 
@@ -1582,6 +1597,21 @@ export default function CommercialClientDetailPage() {
           }}
         />
       )}
+
+      {/* ─── AlertDialog: تحذير وجود بيان مفتوح ─── */}
+      <AlertDialog open={showOpenManifestWarning} onOpenChange={setShowOpenManifestWarning}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-right">يوجد بيان مفتوح بالفعل</AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              يوجد بيان حساب مفتوح حالياً{openManifest ? ` (${openManifest.manifestNumber})` : ""}. يجب إغلاقه أولاً قبل إنشاء بيان جديد.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowOpenManifestWarning(false)}>حسناً</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
