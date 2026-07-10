@@ -143,7 +143,9 @@ export default function NewShipmentPage() {
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
   const cod             = Number(form.codAmount) || 0;
-  const total           = (form.paymentMethod === "cod" ? cod : 0) + shippingFee;
+  // سعر الشحنة (COD) اللي بيكتبه المستخدم يبقى مبلغ شامل (يتضمن مصاريف الشحن بالفعل)
+  // الإجمالي = سعر الشحنة الشامل ناقص منه مصاريف الشحن
+  const total           = form.paymentMethod === "cod" ? (cod - shippingFee) : -shippingFee;
 
   const mutation = useMutation({
     mutationFn: (data: any) => apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
@@ -623,11 +625,12 @@ export default function NewShipmentPage() {
                 {[
                   { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
                   { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
-                  form.paymentMethod === "cod" ? { label: "سعر الشحنة", value: fc(cod), highlight: true } : null,
+                  form.paymentMethod === "cod" ? { label: "سعر الشحنة (شامل مصاريف الشحن)", value: fc(cod), highlight: true } : null,
+                  form.paymentMethod === "cod" ? { label: "مصاريف الشحن (تُخصم)", value: `- ${fc(shippingFee)}`, negative: true } : null,
                 ].filter(Boolean).map((row: any, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{row.label}</span>
-                    <span className={`font-bold ${row.highlight ? "text-amber-500 dark:text-amber-400" : "text-foreground"}`}>{row.value}</span>
+                    <span className={`font-bold ${row.negative ? "text-red-500 dark:text-red-400" : row.highlight ? "text-amber-500 dark:text-amber-400" : "text-foreground"}`}>{row.value}</span>
                   </div>
                 ))}
                 <div className="flex items-center justify-between border-t border-primary/20 pt-3 mt-1">
