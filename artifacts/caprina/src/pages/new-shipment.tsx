@@ -142,9 +142,9 @@ export default function NewShipmentPage() {
   const zonePrice       = Number(selectedZone?.price) || 0;
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
-  const cod             = Number(form.codAmount) || 0;
-  // الإجمالي = مبلغ COD ناقص رسوم الشحن
-  const total           = form.paymentMethod === "cod" ? (cod - shippingFee) : 0;
+  // المستخدم بيدخل "سعر الشحنة" (الإجمالي)، ومبلغ COD الفعلي = الإجمالي ناقص رسوم الشحن
+  const total           = Number(form.codAmount) || 0;
+  const cod             = form.paymentMethod === "cod" ? (total - shippingFee) : total;
 
   const mutation = useMutation({
     mutationFn: (data: any) => apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
