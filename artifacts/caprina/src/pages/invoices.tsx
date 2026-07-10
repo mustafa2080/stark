@@ -395,6 +395,7 @@ export default function Invoices() {
   <div class="header">
     <div class="header-title">
       بوليصة شحن
+      ${sh.isReplacementRequested ? `<span class="repl-badge-print">🔄 طلب استبدال</span>` : ""}
       <span>رقم الشحنة: ${shipNum} &nbsp;|&nbsp; ${dateLabel}</span>
     </div>
     <img class="logo" src="${logoUrl}" alt="Logo" onerror="this.style.display='none'"/>
@@ -464,6 +465,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .header{display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;border-bottom:2.5px solid #111;margin-bottom:5px}
 .header-title{font-size:16px;font-weight:900;letter-spacing:-0.5px}
 .header-title span{font-size:8px;font-weight:700;color:#555;display:block;margin-top:2px}
+.repl-badge-print{display:inline-block;font-size:9px;font-weight:800;color:#7c3aed;background:#f3e8ff;border:1px solid #c4b5fd;border-radius:4px;padding:1px 6px;margin-inline-start:6px;vertical-align:middle}
 .logo{width:48px;height:48px;object-fit:contain;border-radius:5px}
 .tracking-bar{background:#111;color:#fff;border-radius:5px;padding:4px 7px;display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:6px;flex-wrap:wrap}
 .tracking-item{text-align:center}
@@ -637,6 +639,14 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                         {shipmentStatusLabels[sh.status] ?? sh.status}
                       </Badge>
                     </div>
+
+                    {sh.isReplacementRequested ? (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-400 bg-purple-900/20 border border-purple-600 rounded-full px-2 py-0.5">
+                          🔄 طلب استبدال
+                        </span>
+                      </div>
+                    ) : null}
 
                     <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
                       <div className="flex justify-between items-center">
