@@ -188,7 +188,7 @@ export default function FinanceShippingInvoices() {
         const isDivisibleVal = (s.isDivisible !== null && s.isDivisible !== undefined) ? (s.isDivisible === 1 || s.isDivisible === "1" ? "قابلة" : "غير قابلة") : "—";
         return `<tr class="${isRet ? "ret" : ""}">
           <td>${idx + 1}</td>
-          <td class="name">${receiverName}</td>
+          <td class="name">${receiverName}${s.isReplacementRequested ? ` <span class="repl-badge">🔄 استبدال</span>` : ""}</td>
           <td>${city}</td>
           <td><span class="badge">${canOpenVal}</span></td>
           <td><span class="badge">${isDivisibleVal}</span></td>
@@ -279,6 +279,7 @@ td.tot{font-weight:900;color:#111}
 tr:nth-child(even) td{background:#fafafa}
 tr.ret td{color:#bbb;text-decoration:line-through}
 .badge{font-size:6.5px;padding:1px 4px;border-radius:8px;background:#f3f4f6;color:#374151;font-weight:700;white-space:nowrap}
+.repl-badge{font-size:6.5px;padding:1px 5px;border-radius:8px;background:#7c3aed;color:#fff;font-weight:800;white-space:nowrap;display:inline-block}
 
 /* ملخص */
 .summary{border-top:1.5px solid #222;padding-top:4px;margin-top:auto}

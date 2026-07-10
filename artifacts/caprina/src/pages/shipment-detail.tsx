@@ -2513,6 +2513,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
 .header{display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:3px solid #111;margin-bottom:20px}
 .header-title{font-size:28px;font-weight:900;letter-spacing:-0.5px}
 .header-title span{font-size:16px;font-weight:600;color:#555;display:block;margin-top:4px}
+.replacement-badge{display:inline-flex;align-items:center;gap:6px;background:#7c3aed;color:#fff;font-size:13px;font-weight:900;padding:5px 14px;border-radius:999px;margin-top:8px}
 .logo{width:90px;height:90px;object-fit:contain;border-radius:8px}
 
 /* TRACKING BAR */
@@ -2603,6 +2604,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
     <div class="header-title">
       بوليصة شحن
       <span>رقم الشحنة: ${shipNum} &nbsp;|&nbsp; ${dateLabel}</span>
+      ${o.isReplacementRequested ? `<div class="replacement-badge">🔄 طلب استبدال</div>` : ""}
     </div>
     <img class="logo" src="${logoUrl}" alt="Logo" onerror="this.style.display='none'"/>
   </div>
@@ -3329,6 +3331,25 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   <Badge variant="outline" className="shrink-0 text-[9px] font-bold border-amber-700 bg-amber-900/10 text-amber-400 gap-1 flex items-center">
                     <Lock className="w-2.5 h-2.5" /> مقفل
                   </Badge>
+                )}
+                {!isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => updateOrder.mutate({ id: order.id, data: { isReplacementRequested: (order as any).isReplacementRequested ? 0 : 1 } })}
+                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold border transition-colors cursor-pointer
+                      ${(order as any).isReplacementRequested
+                        ? "border-purple-600 bg-purple-900/20 text-purple-400"
+                        : "border-border text-muted-foreground hover:border-purple-600/40 hover:text-purple-400"}`}
+                    title="تحديد الشحنة كطلب استبدال — يظهر في الفاتورة"
+                  >
+                    <span className={`w-3 h-3 rounded-[4px] border flex items-center justify-center shrink-0
+                      ${(order as any).isReplacementRequested ? "bg-purple-500 border-purple-500" : "border-muted-foreground/50"}`}>
+                      {(order as any).isReplacementRequested && (
+                        <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 text-white" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      )}
+                    </span>
+                    🔄 طلب استبدال
+                  </button>
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</p>

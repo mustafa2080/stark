@@ -404,6 +404,8 @@ components:
           type: ["string", "null"]
         returnNote:
           type: ["string", "null"]
+        isReplacementRequested:
+          type: ["integer", "null"]
         createdAt:
           type: string
           format: date-time
@@ -491,6 +493,8 @@ components:
           type: ["string", "null"]
         returnNote:
           type: ["string", "null"]
+        isReplacementRequested:
+          type: ["integer", "null"]
     OrdersSummary:
       type: object
       properties:

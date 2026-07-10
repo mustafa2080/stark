@@ -5,9 +5,9 @@
  * CAPRINA Sales Operations System API
  * OpenAPI spec version: 0.2.0
  */
-import type { ListOrdersStatus } from "./listOrdersStatus";
+import type { ListOrdersStatus } from './listOrdersStatus';
 
 export type ListOrdersParams = {
-  status?: ListOrdersStatus;
-  search?: string;
+status?: ListOrdersStatus;
+search?: string;
 };

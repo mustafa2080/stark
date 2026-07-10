@@ -105,6 +105,7 @@ export const shipmentsTable = mysqlTable("shipments", {
   returnReceived:  int("return_received"),                      // 1=تم الاستلام في المخزن، 0/null=ما زال عند شركة الشحن (للـ returned و partial_received)
   returnNote:      text("return_note"),                         // ملاحظة الإرجاع (لو other)
   partialQuantity: int("partial_quantity"),                     // الكمية المستلمة جزئياً
+  isReplacementRequested: int("is_replacement_requested").default(0), // 1 = العميل طلب استبدال الشحنة
   inventoryDeducted: int("inventory_deducted").default(0),       // 1 = تم خصم المخزون لهذه الشحنة
   inventoryReturned: int("inventory_returned").default(0),       // 1 = تم إرجاع المخزون (مرتجع/جزئي)
   estimatedDelivery: datetime("estimated_delivery"), // تاريخ التسليم المتوقع

@@ -5,7 +5,7 @@
  * CAPRINA Sales Operations System API
  * OpenAPI spec version: 0.2.0
  */
-import type { UpdateOrderBodyStatus } from "./updateOrderBodyStatus";
+import type { UpdateOrderBodyStatus } from './updateOrderBodyStatus';
 
 export interface UpdateOrderBody {
   customerName?: string;
@@ -22,29 +22,15 @@ export interface UpdateOrderBody {
   /** @nullable */
   partialQuantity?: number | null;
   /** @nullable */
-  trackingNumber?: string | null;
-  /** @nullable */
   shippingCompanyId?: number | null;
   /** @nullable */
   productId?: number | null;
-  /** @nullable */
-  variantId?: number | null;
-  /** @nullable */
-  warehouseId?: number | null;
-  /** @nullable */
-  assignedUserId?: number | null;
-  /** @nullable */
-  adSource?: string | null;
-  /** @nullable */
-  adCampaign?: string | null;
-  /** @nullable */
-  costPrice?: number | null;
-  /** @nullable */
-  shippingCost?: number | null;
   /** @nullable */
   notes?: string | null;
   /** @nullable */
   returnReason?: string | null;
   /** @nullable */
   returnNote?: string | null;
+  /** @nullable */
+  isReplacementRequested?: number | null;
 }

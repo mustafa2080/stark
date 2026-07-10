@@ -174,6 +174,7 @@ const UpdateShipmentSchema = CreateShipmentSchema.partial().extend({
   collectedAmount: z.coerce.number().nullish(),
   assignedUserId: z.number().int().positive().nullish(),
   itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
+  isReplacementRequested: z.union([z.boolean(), z.number()]).nullish(),
 });
 
 // ─── توليد رقم شحنة تلقائي ────────────────────────────────────────────────────
@@ -997,6 +998,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.partialQuantity   !== undefined) updateData.partialQuantity   = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
     if (d.assignedUserId    !== undefined) updateData.assignedUserId    = d.assignedUserId;
+    if (d.isReplacementRequested !== undefined) updateData.isReplacementRequested = d.isReplacementRequested ? 1 : 0;
 
     // لو الحالة الجديدة مش returned ولا partial_received ولم يُرسَل returnReceived صريحًا
     // → نصفّره عشان ميفضلش متعلق بقيمة قديمة من حالة سابقة

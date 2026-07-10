@@ -6,14 +6,14 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
+export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
+
 
 export const OrderStatus = {
-  pending: "pending",
-  warehouse_ready: "warehouse_ready",
-  in_shipping: "in_shipping",
-  received: "received",
-  delayed: "delayed",
-  returned: "returned",
-  partial_received: "partial_received",
+  pending: 'pending',
+  in_shipping: 'in_shipping',
+  received: 'received',
+  delayed: 'delayed',
+  returned: 'returned',
+  partial_received: 'partial_received',
 } as const;

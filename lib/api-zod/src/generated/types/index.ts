@@ -6,19 +6,19 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export * from "./createOrderBody";
-export * from "./createProductBody";
-export * from "./createShippingCompanyBody";
-export * from "./errorResponse";
-export * from "./healthStatus";
-export * from "./listOrdersParams";
-export * from "./listOrdersStatus";
-export * from "./order";
-export * from "./ordersSummary";
-export * from "./orderStatus";
-export * from "./product";
-export * from "./shippingCompany";
-export * from "./updateOrderBody";
-export * from "./updateOrderBodyStatus";
-export * from "./updateProductBody";
-export * from "./updateShippingCompanyBody";
+export * from './createOrderBody';
+export * from './createProductBody';
+export * from './createShippingCompanyBody';
+export * from './errorResponse';
+export * from './healthStatus';
+export * from './listOrdersParams';
+export * from './listOrdersStatus';
+export * from './order';
+export * from './ordersSummary';
+export * from './orderStatus';
+export * from './product';
+export * from './shippingCompany';
+export * from './updateOrderBody';
+export * from './updateOrderBodyStatus';
+export * from './updateProductBody';
+export * from './updateShippingCompanyBody';

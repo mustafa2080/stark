@@ -5,73 +5,48 @@
  * CAPRINA Sales Operations System API
  * OpenAPI spec version: 0.2.0
  */
-import * as zod from "zod";
+import * as zod from 'zod';
+
 
 /**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  status: zod.string(),
-});
+  "status": zod.string()
+})
+
 
 /**
  * @summary List all orders
  */
 export const ListOrdersQueryParams = zod.object({
-  status: zod
-    .enum([
-      "pending",
-      "warehouse_ready",
-      "in_shipping",
-      "received",
-      "delayed",
-      "returned",
-      "partial_received",
-    ])
-    .optional(),
-  search: zod.coerce.string().optional(),
-});
+  "status": zod.enum(['pending', 'warehouse_ready', 'in_shipping', 'received', 'delayed', 'returned', 'partial_received']).optional(),
+  "search": zod.coerce.string().optional()
+})
 
 export const ListOrdersResponseItem = zod.object({
-  id: zod.number(),
-  customerName: zod.string(),
-  phone: zod.string().nullable(),
-  city: zod.string().nullable(),
-  address: zod.string().nullable(),
-  product: zod.string(),
-  color: zod.string().nullable(),
-  size: zod.string().nullable(),
-  quantity: zod.number(),
-  unitPrice: zod.number(),
-  totalPrice: zod.number(),
-  costPrice: zod.number().nullable(),
-  shippingCost: zod.number().nullable(),
-  status: zod.enum([
-    "pending",
-    "warehouse_ready",
-    "in_shipping",
-    "received",
-    "delayed",
-    "returned",
-    "partial_received",
-  ]),
-  partialQuantity: zod.number().nullable(),
-  shippingCompanyId: zod.number().nullable(),
-  productId: zod.number().nullable(),
-  variantId: zod.number().nullable(),
-  invoiceNumber: zod.string().nullable(),
-  notes: zod.string().nullable(),
-  returnReason: zod.string().nullable(),
-  returnNote: zod.string().nullable(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-  // Extra fields injected by the backend grouping logic
-  _invoiceOrders: zod.array(zod.any()).optional(),
-  _groupIds: zod.array(zod.number()).optional(),
-  _groupCount: zod.number().optional(),
-  _groupStatuses: zod.array(zod.string()).optional(),
-});
-export const ListOrdersResponse = zod.array(ListOrdersResponseItem);
+  "id": zod.number(),
+  "customerName": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "product": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'in_shipping', 'received', 'delayed', 'returned', 'partial_received']),
+  "partialQuantity": zod.number().nullable(),
+  "shippingCompanyId": zod.number().nullable(),
+  "productId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "returnReason": zod.string().nullable(),
+  "returnNote": zod.string().nullable(),
+  "isReplacementRequested": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
+
 
 /**
  * @summary Create a new order
@@ -79,234 +54,162 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem);
 
 export const createOrderBodyUnitPriceMin = 0;
 
+
+
 export const CreateOrderBody = zod.object({
-  customerName: zod.string(),
-  phone: zod.string().nullish(),
-  city: zod.string().nullish(),
-  address: zod.string().nullish(),
-  product: zod.string(),
-  color: zod.string().nullish(),
-  size: zod.string().nullish(),
-  quantity: zod.number().min(1),
-  unitPrice: zod.number().min(createOrderBodyUnitPriceMin),
-  costPrice: zod.number().nullish(),
-  shippingCost: zod.number().nullish(),
-  shippingCompanyId: zod.number().nullish(),
-  productId: zod.number().nullish(),
-  variantId: zod.number().nullish(),
-  warehouseId: zod.number().nullish(),
-  assignedUserId: zod.number().nullish(),
-  adSource: zod.string().nullish(),
-  adCampaign: zod.string().nullish(),
-  invoiceNumber: zod.string().nullish(),
-  notes: zod.string().nullish(),
-});
+  "customerName": zod.string(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "product": zod.string(),
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(createOrderBodyUnitPriceMin),
+  "shippingCompanyId": zod.number().nullish(),
+  "productId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
 
 /**
  * @summary Get orders summary statistics
  */
 export const GetOrdersSummaryResponse = zod.object({
-  totalOrders: zod.number(),
-  pendingOrders: zod.number(),
-  warehouseReadyOrders: zod.number().optional(),
-  shippingOrders: zod.number(),
-  receivedOrders: zod.number(),
-  delayedOrders: zod.number(),
-  returnedOrders: zod.number(),
-  partialOrders: zod.number(),
-  totalRevenue: zod.number(),
-});
+  "totalOrders": zod.number(),
+  "pendingOrders": zod.number(),
+  "shippingOrders": zod.number(),
+  "receivedOrders": zod.number(),
+  "delayedOrders": zod.number(),
+  "returnedOrders": zod.number(),
+  "partialOrders": zod.number(),
+  "totalRevenue": zod.number()
+})
+
 
 /**
  * @summary Get 5 most recent orders
  */
 export const GetRecentOrdersResponseItem = zod.object({
-  id: zod.number(),
-  customerName: zod.string(),
-  phone: zod.string().nullable(),
-  city: zod.string().nullable(),
-  address: zod.string().nullable(),
-  product: zod.string(),
-  color: zod.string().nullable(),
-  size: zod.string().nullable(),
-  quantity: zod.number(),
-  unitPrice: zod.number(),
-  totalPrice: zod.number(),
-  costPrice: zod.number().nullable(),
-  shippingCost: zod.number().nullable(),
-  status: zod.enum([
-    "pending",
-    "warehouse_ready",
-    "in_shipping",
-    "received",
-    "delayed",
-    "returned",
-    "partial_received",
-  ]),
-  partialQuantity: zod.number().nullable(),
-  shippingCompanyId: zod.number().nullable(),
-  productId: zod.number().nullable(),
-  variantId: zod.number().nullable(),
-  invoiceNumber: zod.string().nullable(),
-  notes: zod.string().nullable(),
-  returnReason: zod.string().nullable(),
-  returnNote: zod.string().nullable(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-export const GetRecentOrdersResponse = zod.array(GetRecentOrdersResponseItem);
+  "id": zod.number(),
+  "customerName": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "product": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'in_shipping', 'received', 'delayed', 'returned', 'partial_received']),
+  "partialQuantity": zod.number().nullable(),
+  "shippingCompanyId": zod.number().nullable(),
+  "productId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "returnReason": zod.string().nullable(),
+  "returnNote": zod.string().nullable(),
+  "isReplacementRequested": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const GetRecentOrdersResponse = zod.array(GetRecentOrdersResponseItem)
+
 
 /**
  * @summary Get a single order
  */
 export const GetOrderParams = zod.object({
-  id: zod.coerce.number(),
-});
+  "id": zod.coerce.number()
+})
 
 export const GetOrderResponse = zod.object({
-  id: zod.number(),
-  customerName: zod.string(),
-  phone: zod.string().nullable(),
-  city: zod.string().nullable(),
-  address: zod.string().nullable(),
-  product: zod.string(),
-  color: zod.string().nullable(),
-  size: zod.string().nullable(),
-  quantity: zod.number(),
-  unitPrice: zod.number(),
-  totalPrice: zod.number(),
-  costPrice: zod.number().nullable(),
-  shippingCost: zod.number().nullable(),
-  status: zod.enum([
-    "pending",
-    "warehouse_ready",
-    "in_shipping",
-    "received",
-    "delayed",
-    "returned",
-    "partial_received",
-  ]),
-  partialQuantity: zod.number().nullable(),
-  shippingCompanyId: zod.number().nullable(),
-  productId: zod.number().nullable(),
-  variantId: zod.number().nullable(),
-  invoiceNumber: zod.string().nullable(),
-  notes: zod.string().nullable(),
-  returnReason: zod.string().nullable(),
-  returnNote: zod.string().nullable(),
-  returnReceived: zod.number().nullable(),
-  adSource: zod.string().nullable(),
-  adCampaign: zod.string().nullable(),
-  warehouseId: zod.number().nullable(),
-  assignedUserId: zod.number().nullable(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
+  "id": zod.number(),
+  "customerName": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "product": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'in_shipping', 'received', 'delayed', 'returned', 'partial_received']),
+  "partialQuantity": zod.number().nullable(),
+  "shippingCompanyId": zod.number().nullable(),
+  "productId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "returnReason": zod.string().nullable(),
+  "returnNote": zod.string().nullable(),
+  "isReplacementRequested": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
 
 /**
  * @summary Update an order
  */
 export const UpdateOrderParams = zod.object({
-  id: zod.coerce.number(),
-});
+  "id": zod.coerce.number()
+})
+
 
 export const updateOrderBodyUnitPriceMin = 0;
 
+
+
 export const UpdateOrderBody = zod.object({
-  customerName: zod.string().optional(),
-  phone: zod.string().nullish(),
-  city: zod.string().nullish(),
-  address: zod.string().nullish(),
-  product: zod.string().optional(),
-  color: zod.string().nullish(),
-  size: zod.string().nullish(),
-  quantity: zod.number().min(1).optional(),
-  unitPrice: zod.number().min(updateOrderBodyUnitPriceMin).optional(),
-  costPrice: zod.number().nullish(),
-  shippingCost: zod.number().nullish(),
-  collectedAmount: zod.number().nullish(),
-  status: zod
-    .enum([
-      "pending",
-      "warehouse_ready",
-      "in_shipping",
-      "received",
-      "delayed",
-      "returned",
-      "partial_received",
-    ])
-    .optional(),
-  partialQuantity: zod.number().nullish(),
-  trackingNumber: zod.string().nullish(),
-  shippingCompanyId: zod.number().nullish(),
-  productId: zod.number().nullish(),
-  variantId: zod.number().nullish(),
-  notes: zod.string().nullish(),
-  returnReason: zod.string().nullish(),
-  returnNote: zod.string().nullish(),
-  returnReceived: zod.union([zod.boolean(), zod.number()]).nullish(),
-  isDamaged: zod.boolean().nullish(),
-  adSource: zod.string().nullish(),
-  adCampaign: zod.string().nullish(),
-  warehouseId: zod.number().nullish(),
-  assignedUserId: zod.number().nullish(),
-});
+  "customerName": zod.string().optional(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "product": zod.string().optional(),
+  "quantity": zod.number().min(1).optional(),
+  "unitPrice": zod.number().min(updateOrderBodyUnitPriceMin).optional(),
+  "status": zod.enum(['pending', 'warehouse_ready', 'in_shipping', 'received', 'delayed', 'returned', 'partial_received']).optional(),
+  "partialQuantity": zod.number().nullish(),
+  "shippingCompanyId": zod.number().nullish(),
+  "productId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "returnReason": zod.string().nullish(),
+  "returnNote": zod.string().nullish(),
+  "isReplacementRequested": zod.number().nullish()
+})
 
 export const UpdateOrderResponse = zod.object({
-  id: zod.number(),
-  customerName: zod.string(),
-  phone: zod.string().nullable(),
-  city: zod.string().nullable(),
-  address: zod.string().nullable(),
-  product: zod.string(),
-  color: zod.string().nullable(),
-  size: zod.string().nullable(),
-  quantity: zod.number(),
-  unitPrice: zod.number(),
-  totalPrice: zod.number(),
-  costPrice: zod.number().nullable(),
-  shippingCost: zod.number().nullable(),
-  status: zod.enum([
-    "pending",
-    "warehouse_ready",
-    "in_shipping",
-    "received",
-    "delayed",
-    "returned",
-    "partial_received",
-  ]),
-  partialQuantity: zod.number().nullable(),
-  shippingCompanyId: zod.number().nullable(),
-  productId: zod.number().nullable(),
-  variantId: zod.number().nullable(),
-  notes: zod.string().nullable(),
-  returnReason: zod.string().nullable(),
-  returnNote: zod.string().nullable(),
-  returnReceived: zod.number().nullable(),
-  adSource: zod.string().nullable(),
-  adCampaign: zod.string().nullable(),
-  warehouseId: zod.number().nullable(),
-  assignedUserId: zod.number().nullable(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
+  "id": zod.number(),
+  "customerName": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "product": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'in_shipping', 'received', 'delayed', 'returned', 'partial_received']),
+  "partialQuantity": zod.number().nullable(),
+  "shippingCompanyId": zod.number().nullable(),
+  "productId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "returnReason": zod.string().nullable(),
+  "returnNote": zod.string().nullable(),
+  "isReplacementRequested": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
 
 /**
  * @summary List all products in inventory
  */
 export const ListProductsResponseItem = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  sku: zod.string().nullable(),
-  totalQuantity: zod.number(),
-  reservedQuantity: zod.number(),
-  soldQuantity: zod.number(),
-  lowStockThreshold: zod.number(),
-  unitPrice: zod.number(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-export const ListProductsResponse = zod.array(ListProductsResponseItem);
+  "id": zod.number(),
+  "name": zod.string(),
+  "sku": zod.string().nullable(),
+  "totalQuantity": zod.number(),
+  "reservedQuantity": zod.number(),
+  "soldQuantity": zod.number(),
+  "lowStockThreshold": zod.number(),
+  "unitPrice": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListProductsResponse = zod.array(ListProductsResponseItem)
+
 
 /**
  * @summary Create a new product
@@ -317,43 +220,44 @@ export const createProductBodyLowStockThresholdMin = 0;
 
 export const createProductBodyUnitPriceMin = 0;
 
+
+
 export const CreateProductBody = zod.object({
-  name: zod.string(),
-  sku: zod.string().nullish(),
-  totalQuantity: zod.number().min(createProductBodyTotalQuantityMin),
-  lowStockThreshold: zod
-    .number()
-    .min(createProductBodyLowStockThresholdMin)
-    .optional(),
-  unitPrice: zod.number().min(createProductBodyUnitPriceMin),
-});
+  "name": zod.string(),
+  "sku": zod.string().nullish(),
+  "totalQuantity": zod.number().min(createProductBodyTotalQuantityMin),
+  "lowStockThreshold": zod.number().min(createProductBodyLowStockThresholdMin).optional(),
+  "unitPrice": zod.number().min(createProductBodyUnitPriceMin)
+})
+
 
 /**
  * @summary Get a single product
  */
 export const GetProductParams = zod.object({
-  id: zod.coerce.number(),
-});
+  "id": zod.coerce.number()
+})
 
 export const GetProductResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  sku: zod.string().nullable(),
-  totalQuantity: zod.number(),
-  reservedQuantity: zod.number(),
-  soldQuantity: zod.number(),
-  lowStockThreshold: zod.number(),
-  unitPrice: zod.number(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
+  "id": zod.number(),
+  "name": zod.string(),
+  "sku": zod.string().nullable(),
+  "totalQuantity": zod.number(),
+  "reservedQuantity": zod.number(),
+  "soldQuantity": zod.number(),
+  "lowStockThreshold": zod.number(),
+  "unitPrice": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
 
 /**
  * @summary Update a product
  */
 export const UpdateProductParams = zod.object({
-  id: zod.coerce.number(),
-});
+  "id": zod.coerce.number()
+})
 
 export const updateProductBodyTotalQuantityMin = 0;
 
@@ -361,92 +265,96 @@ export const updateProductBodyLowStockThresholdMin = 0;
 
 export const updateProductBodyUnitPriceMin = 0;
 
+
+
 export const UpdateProductBody = zod.object({
-  name: zod.string().optional(),
-  sku: zod.string().nullish(),
-  totalQuantity: zod.number().min(updateProductBodyTotalQuantityMin).optional(),
-  lowStockThreshold: zod
-    .number()
-    .min(updateProductBodyLowStockThresholdMin)
-    .optional(),
-  unitPrice: zod.number().min(updateProductBodyUnitPriceMin).optional(),
-});
+  "name": zod.string().optional(),
+  "sku": zod.string().nullish(),
+  "totalQuantity": zod.number().min(updateProductBodyTotalQuantityMin).optional(),
+  "lowStockThreshold": zod.number().min(updateProductBodyLowStockThresholdMin).optional(),
+  "unitPrice": zod.number().min(updateProductBodyUnitPriceMin).optional()
+})
 
 export const UpdateProductResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  sku: zod.string().nullable(),
-  totalQuantity: zod.number(),
-  reservedQuantity: zod.number(),
-  soldQuantity: zod.number(),
-  lowStockThreshold: zod.number(),
-  unitPrice: zod.number(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
+  "id": zod.number(),
+  "name": zod.string(),
+  "sku": zod.string().nullable(),
+  "totalQuantity": zod.number(),
+  "reservedQuantity": zod.number(),
+  "soldQuantity": zod.number(),
+  "lowStockThreshold": zod.number(),
+  "unitPrice": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
 
 /**
  * @summary Delete a product
  */
 export const DeleteProductParams = zod.object({
-  id: zod.coerce.number(),
-});
+  "id": zod.coerce.number()
+})
+
 
 /**
  * @summary List all shipping companies
  */
 export const ListShippingCompaniesResponseItem = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  phone: zod.string().nullable(),
-  website: zod.string().nullable(),
-  notes: zod.string().nullable(),
-  isActive: zod.boolean(),
-  createdAt: zod.coerce.date(),
-});
-export const ListShippingCompaniesResponse = zod.array(
-  ListShippingCompaniesResponseItem,
-);
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string().nullable(),
+  "website": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListShippingCompaniesResponse = zod.array(ListShippingCompaniesResponseItem)
+
 
 /**
  * @summary Create a shipping company
  */
 export const CreateShippingCompanyBody = zod.object({
-  name: zod.string(),
-  phone: zod.string().nullish(),
-  website: zod.string().nullish(),
-  notes: zod.string().nullish(),
-  isActive: zod.boolean().optional(),
-});
+  "name": zod.string(),
+  "phone": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
 
 /**
  * @summary Update a shipping company
  */
 export const UpdateShippingCompanyParams = zod.object({
-  id: zod.coerce.number(),
-});
+  "id": zod.coerce.number()
+})
 
 export const UpdateShippingCompanyBody = zod.object({
-  name: zod.string().optional(),
-  phone: zod.string().nullish(),
-  website: zod.string().nullish(),
-  notes: zod.string().nullish(),
-  isActive: zod.boolean().optional(),
-});
+  "name": zod.string().optional(),
+  "phone": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
 
 export const UpdateShippingCompanyResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  phone: zod.string().nullable(),
-  website: zod.string().nullable(),
-  notes: zod.string().nullable(),
-  isActive: zod.boolean(),
-  createdAt: zod.coerce.date(),
-});
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string().nullable(),
+  "website": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
 
 /**
  * @summary Delete a shipping company
  */
 export const DeleteShippingCompanyParams = zod.object({
-  id: zod.coerce.number(),
-});
+  "id": zod.coerce.number()
+})
+
+

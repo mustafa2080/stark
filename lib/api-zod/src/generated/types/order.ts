@@ -5,7 +5,7 @@
  * CAPRINA Sales Operations System API
  * OpenAPI spec version: 0.2.0
  */
-import type { OrderStatus } from "./orderStatus";
+import type { OrderStatus } from './orderStatus';
 
 export interface Order {
   id: number;
@@ -13,19 +13,13 @@ export interface Order {
   /** @nullable */
   phone: string | null;
   /** @nullable */
-  city: string | null;
-  /** @nullable */
   address: string | null;
+  /** @nullable */
+  city: string | null;
   product: string;
-  /** @nullable */
-  color: string | null;
-  /** @nullable */
-  size: string | null;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  /** @nullable */
-  shippingCost: number | null;
   status: OrderStatus;
   /** @nullable */
   partialQuantity: number | null;
@@ -40,7 +34,7 @@ export interface Order {
   /** @nullable */
   returnNote: string | null;
   /** @nullable */
-  trackingNumber: string | null;
+  isReplacementRequested?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

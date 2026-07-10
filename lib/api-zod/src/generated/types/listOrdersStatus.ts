@@ -6,15 +6,15 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export type ListOrdersStatus =
-  (typeof ListOrdersStatus)[keyof typeof ListOrdersStatus];
+export type ListOrdersStatus = typeof ListOrdersStatus[keyof typeof ListOrdersStatus];
+
 
 export const ListOrdersStatus = {
-  pending: "pending",
-  warehouse_ready: "warehouse_ready",
-  in_shipping: "in_shipping",
-  received: "received",
-  delayed: "delayed",
-  returned: "returned",
-  partial_received: "partial_received",
+  pending: 'pending',
+  warehouse_ready: 'warehouse_ready',
+  in_shipping: 'in_shipping',
+  received: 'received',
+  delayed: 'delayed',
+  returned: 'returned',
+  partial_received: 'partial_received',
 } as const;

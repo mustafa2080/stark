@@ -9,16 +9,16 @@ export interface HealthStatus {
   status: string;
 }
 
-export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
+export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
+
 
 export const OrderStatus = {
-  pending: "pending",
-  warehouse_ready: "warehouse_ready",
-  in_shipping: "in_shipping",
-  received: "received",
-  delayed: "delayed",
-  returned: "returned",
-  partial_received: "partial_received",
+  pending: 'pending',
+  in_shipping: 'in_shipping',
+  received: 'received',
+  delayed: 'delayed',
+  returned: 'returned',
+  partial_received: 'partial_received',
 } as const;
 
 export interface Order {
@@ -27,19 +27,13 @@ export interface Order {
   /** @nullable */
   phone: string | null;
   /** @nullable */
-  city: string | null;
-  /** @nullable */
   address: string | null;
+  /** @nullable */
+  city: string | null;
   product: string;
-  /** @nullable */
-  color: string | null;
-  /** @nullable */
-  size: string | null;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  /** @nullable */
-  shippingCost: number | null;
   status: OrderStatus;
   /** @nullable */
   partialQuantity: number | null;
@@ -54,21 +48,7 @@ export interface Order {
   /** @nullable */
   returnNote: string | null;
   /** @nullable */
-  trackingNumber: string | null;
-  /** @nullable */
-  invoiceNumber: string | null;
-  /** @nullable */
-  variantId: number | null;
-  /** @nullable */
-  costPrice: number | null;
-  /** @nullable */
-  warehouseId: number | null;
-  /** @nullable */
-  assignedUserId: number | null;
-  /** @nullable */
-  adSource: string | null;
-  /** @nullable */
-  adCampaign: string | null;
+  isReplacementRequested?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -92,17 +72,17 @@ export interface CreateOrderBody {
   notes?: string | null;
 }
 
-export type UpdateOrderBodyStatus =
-  (typeof UpdateOrderBodyStatus)[keyof typeof UpdateOrderBodyStatus];
+export type UpdateOrderBodyStatus = typeof UpdateOrderBodyStatus[keyof typeof UpdateOrderBodyStatus];
+
 
 export const UpdateOrderBodyStatus = {
-  pending: "pending",
-  warehouse_ready: "warehouse_ready",
-  in_shipping: "in_shipping",
-  received: "received",
-  delayed: "delayed",
-  returned: "returned",
-  partial_received: "partial_received",
+  pending: 'pending',
+  warehouse_ready: 'warehouse_ready',
+  in_shipping: 'in_shipping',
+  received: 'received',
+  delayed: 'delayed',
+  returned: 'returned',
+  partial_received: 'partial_received',
 } as const;
 
 export interface UpdateOrderBody {
@@ -112,10 +92,6 @@ export interface UpdateOrderBody {
   /** @nullable */
   address?: string | null;
   product?: string;
-  /** @nullable */
-  color?: string | null;
-  /** @nullable */
-  size?: string | null;
   /** @minimum 1 */
   quantity?: number;
   /** @minimum 0 */
@@ -133,13 +109,14 @@ export interface UpdateOrderBody {
   returnReason?: string | null;
   /** @nullable */
   returnNote?: string | null;
+  /** @nullable */
+  isReplacementRequested?: number | null;
 }
 
 export interface OrdersSummary {
   totalOrders: number;
   pendingOrders: number;
   shippingOrders: number;
-  warehouseReadyOrders?: number;
   receivedOrders: number;
   delayedOrders: number;
   returnedOrders: number;
@@ -225,19 +202,20 @@ export interface ErrorResponse {
 }
 
 export type ListOrdersParams = {
-  status?: ListOrdersStatus;
-  search?: string;
+status?: ListOrdersStatus;
+search?: string;
 };
 
-export type ListOrdersStatus =
-  (typeof ListOrdersStatus)[keyof typeof ListOrdersStatus];
+export type ListOrdersStatus = typeof ListOrdersStatus[keyof typeof ListOrdersStatus];
+
 
 export const ListOrdersStatus = {
-  pending: "pending",
-  warehouse_ready: "warehouse_ready",
-  in_shipping: "in_shipping",
-  received: "received",
-  delayed: "delayed",
-  returned: "returned",
-  partial_received: "partial_received",
+  pending: 'pending',
+  warehouse_ready: 'warehouse_ready',
+  in_shipping: 'in_shipping',
+  received: 'received',
+  delayed: 'delayed',
+  returned: 'returned',
+  partial_received: 'partial_received',
 } as const;
+
