@@ -4421,8 +4421,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 const insurance   = Math.abs(Number((order as any).insuranceFee ?? 0));
                 const collected   = Number((order as any).collectedAmount ?? 0);
                 const payMethod   = (order as any).paymentMethod as string | null;
-                // الإجمالي = مبلغ COD ناقص رسوم الشحن فقط (التأمين لا يُطرح)
-                const total       = payMethod === "cod" ? (cod - shippingFee) : shippingFee + insurance;
+                const storedTotal = Number((order as any).totalAmount ?? 0);
+                // الإجمالي = القيمة المخزّنة فعليًا (سعر الشحنة الذي أدخله المستخدم)، وإلا يُحسب من COD + رسوم الشحن كحل احتياطي
+                const total       = storedTotal > 0 ? storedTotal : (payMethod === "cod" ? (cod + shippingFee) : shippingFee + insurance);
                 const payLabel    = payMethod === "cod" ? "عند الاستلام" : payMethod === "prepaid" ? "مدفوع مسبقاً" : payMethod === "deferred" ? "لاحقاً" : "—";
 
                 return (
