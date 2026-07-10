@@ -878,25 +878,23 @@ export default function FinanceClients() {
         </Card>
       </div>
 
-      {/* ── إجراءات سريعة ── */}
-      <Card className="border-border bg-card p-4">
-        <h2 className="font-bold text-sm mb-3">إجراءات سريعة</h2>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-          {[
-            { label: "إضافة عميل",    icon: <Users className="w-5 h-5" />,       action: openAdd },
-            { label: "أمر بيع جديد",  icon: <ShoppingCart className="w-5 h-5" />, action: () => { sessionStorage.setItem("finance_sales_open_new", "1"); navigate("/finance/sales"); } },
-            { label: "فاتورة بيع",    icon: <Receipt className="w-5 h-5" />,      action: () => navigate("/finance/sales") },
-            { label: "عرض العملاء",   icon: <Eye className="w-5 h-5" />,          action: () => navigate("/finance/all-clients") },
-            { label: "تقرير المبيعات",icon: <BarChart2 className="w-5 h-5" />,   action: () => navigate("/finance/sales-report") },
-          ].map((btn, i) => (
-            <button key={i} onClick={btn.action}
-              className="flex flex-col items-center gap-2 p-3 rounded-xl border border-border bg-muted/10 hover:bg-primary/10 hover:border-primary/30 transition-all cursor-pointer group">
-              <div className="w-10 h-10 rounded-full bg-muted/30 group-hover:bg-primary/20 flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">
-                {btn.icon}
-              </div>
-              <span className="text-[11px] font-medium text-center text-muted-foreground group-hover:text-primary">{btn.label}</span>
-            </button>
-          ))}
+      {/* ── تقرير المبيعات ── */}
+      <Card
+        onClick={() => navigate("/finance/sales-report")}
+        className="relative overflow-hidden border-border bg-card p-5 cursor-pointer group hover:border-primary/40 transition-all"
+      >
+        <div className="absolute inset-0 bg-gradient-to-l from-primary/10 via-transparent to-transparent opacity-70 group-hover:opacity-100 transition-opacity" />
+        <div className="relative flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
+              <BarChart2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="font-bold text-sm">تقرير المبيعات</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">عرض تحليلات وتفاصيل المبيعات الكاملة</p>
+            </div>
+          </div>
+          <ChevronLeft className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-1 transition-all" />
         </div>
       </Card>
 
