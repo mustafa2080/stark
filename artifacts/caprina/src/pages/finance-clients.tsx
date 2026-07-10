@@ -16,7 +16,7 @@ import {
   Plus, Edit2, Trash2, Phone, ToggleLeft, ToggleRight,
   Users, MapPin, Target, ShoppingBag, FileText, TrendingUp,
   Eye, BarChart2, Search, Filter, ChevronLeft, ChevronRight, ChevronDown,
-  ShoppingCart, Receipt, ListFilter, X, Camera,
+  ShoppingCart, Receipt, ListFilter, X, Camera, Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
@@ -650,6 +650,151 @@ export default function FinanceClients() {
   const openAdd  = () => { setEditClient(null); setFormOpen(true); };
   const openEdit = (c: Client) => { setEditClient(c); setFormOpen(true); };
 
+  // ── طباعة جدول العملاء التجاريين (بعد الفلاتر/البحث) ────────────────────
+  const handlePrintClients = () => {
+    const rows = filteredClients.map((c, i) => `
+      <tr>
+        <td class="idx">${i + 1}</td>
+        <td class="name">${c.name}${c.phone ? `<div class="phone">${c.phone}</div>` : ""}</td>
+        <td>${c.isActive ? "نشط" : "موقف"}</td>
+        <td>${c.region ?? "—"}</td>
+        <td>${c.paymentTerms ?? "—"}</td>
+      </tr>`).join("");
+
+    const win = window.open("", "_blank", "width=1000,height=1200");
+    if (!win) return;
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8" />
+        <title>تقرير العملاء التجاريين</title>
+        <style>
+          @page { size: A4; margin: 14mm; }
+          * { box-sizing: border-box; }
+          body {
+            font-family: "Segoe UI", "Cairo", Tahoma, Arial, sans-serif;
+            direction: rtl;
+            color: #111;
+            padding: 0;
+            margin: 0;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid #111;
+            padding-bottom: 14px;
+            margin-bottom: 18px;
+          }
+          .header h1 {
+            font-size: 26px;
+            font-weight: 900;
+            margin: 0;
+          }
+          .header p {
+            font-size: 14px;
+            font-weight: 700;
+            color: #444;
+            margin: 4px 0 0;
+          }
+          .meta {
+            text-align: left;
+            font-size: 13px;
+            font-weight: 700;
+            color: #444;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+          }
+          thead th {
+            background: #111;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 800;
+            padding: 12px 10px;
+            text-align: right;
+            border: 1px solid #111;
+          }
+          tbody td {
+            font-size: 15px;
+            font-weight: 700;
+            padding: 12px 10px;
+            border: 1px solid #999;
+            vertical-align: middle;
+          }
+          tbody tr:nth-child(even) { background: #f2f2f2; }
+          td.idx { text-align: center; width: 40px; color: #555; }
+          td.name { font-weight: 900; font-size: 16px; }
+          td .phone { font-size: 12px; font-weight: 600; color: #555; margin-top: 2px; }
+          .footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 700;
+            color: #555;
+            border-top: 2px solid #ccc;
+            padding-top: 8px;
+          }
+          @media print {
+            .no-print { display: none; }
+          }
+          .print-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            padding: 10px 20px;
+            background: #111;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-btn no-print" onclick="window.print()">طباعة</button>
+        <div class="header">
+          <div>
+            <h1>تقرير العملاء التجاريين</h1>
+            <p>قائمة العملاء التجاريين المسجلين</p>
+          </div>
+          <div class="meta">
+            <div>عدد العملاء: ${filteredClients.length}</div>
+            <div>تاريخ الطباعة: ${format(new Date(), "yyyy-MM-dd")}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>اسم العميل</th>
+              <th>الحالة</th>
+              <th>المحافظة</th>
+              <th>شروط الدفع</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>Stark — نظام إدارة الشحن</span>
+          <span>صفحة 1</span>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+  };
+
   return (
     <div className="space-y-5 animate-in fade-in duration-500" dir="rtl">
 
@@ -920,6 +1065,9 @@ export default function FinanceClients() {
                   {activeFiltersCount}
                 </span>
               )}
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1 border-border" onClick={handlePrintClients}>
+              <Printer className="w-3 h-3" />طباعة
             </Button>
           </div>
         </div>
