@@ -431,10 +431,10 @@ export default function Invoices() {
     ${(sh.isDivisible !== null && sh.isDivisible !== undefined) ? `<div class="detail-box" style="background:#fff;${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "border-color:#22c55e" : "border-color:#ef4444"}"><div class="d-label" style="${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "color:#166534" : "color:#991b1b"}">تجزئة الشحنة</div><div class="d-value" style="${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "color:#16a34a" : "color:#dc2626"}">${(sh.isDivisible === 1 || sh.isDivisible === "1") ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة"}</div></div>` : `<div></div>`}
     ${sh.rejectionPolicy ? `<div class="detail-box" style="background:#fff;${sh.rejectionPolicy === "free" ? "border-color:#22c55e" : "border-color:#f59e0b"}"><div class="d-label" style="${sh.rejectionPolicy === "free" ? "color:#166534" : "color:#92400e"}">حالة الرفض</div><div class="d-value" style="${sh.rejectionPolicy === "free" ? "color:#16a34a" : "color:#b45309"}">${sh.rejectionPolicy === "free" ? "الشحن مجانا" : "يتم دفع مبلغ الشحن كاملا"}</div></div>` : `<div></div>`}
   </div>` : ""}
-  ${codAmount > 0 ? `
+  ${insuranceFee > 0 ? `
   <div class="details-row" style="grid-template-columns:1fr 1fr;margin-bottom:4px">
-    <div class="detail-box" style="background:#fffbeb;border-color:#f59e0b"><div class="d-label" style="color:#92400e">مبلغ COD</div><div class="d-value" style="color:#b45309">${fmtCurr(codAmount)}</div></div>
-    ${insuranceFee > 0 ? `<div class="detail-box"><div class="d-label">رسوم التأمين</div><div class="d-value">${fmtCurr(insuranceFee)}</div></div>` : `<div></div>`}
+    <div class="detail-box"><div class="d-label">رسوم التأمين</div><div class="d-value">${fmtCurr(insuranceFee)}</div></div>
+    <div></div>
   </div>` : ""}
   ${sh.notes ? `<div class="notes-box"><div class="n-title">ملاحظات</div><div class="n-text">${sh.notes}</div></div>` : ""}
   <div class="footer">
