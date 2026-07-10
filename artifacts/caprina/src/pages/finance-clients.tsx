@@ -547,6 +547,23 @@ export default function FinanceClients() {
   const totalClients = clients.length;
   const totalInvoices = clients.reduce((s, c) => s + (c.totalOrders ?? 0), 0);
 
+  // إجمالي المحصّل هذا الشهر (بناءً على تاريخ الشحنات المحصّلة خلال الشهر الحالي)
+  const monthlyCollected = useMemo(() => {
+    const now = new Date();
+    return recentShipments.reduce((sum: number, s: any) => {
+      if (!s.createdAt) return sum;
+      const d = new Date(s.createdAt);
+      if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) return sum;
+      return sum + Number(s.collectedAmount ?? 0);
+    }, 0);
+  }, [recentShipments]);
+
+  // إجمالي المستحق على كل العملاء (مجموع totalSales - totalPaid)
+  const totalOutstanding = useMemo(() =>
+    clients.reduce((sum, c) => sum + Math.max(Number(c.totalSales ?? 0) - Number(c.totalPaid ?? 0), 0), 0),
+    [clients]
+  );
+
   // ── أفضل العملاء (حسب عدد الشحنات هذا الشهر) ───────────────────────────
   const monthlyShipmentsByClient = useMemo(() => {
     const now = new Date();
@@ -567,8 +584,31 @@ export default function FinanceClients() {
     [clients, monthlyShipmentsByClient]
   );
 
-  // ── رسم بياني — عدد الشحنات آخر 7 أيام ─────────────────────────────────
+  // ── رسم بياني — عدد الشحنات، بفلتر فترة (من - إلى) اختياري ──────────────
+  const [chartFrom, setChartFrom] = useState("");
+  const [chartTo,   setChartTo]   = useState("");
+
   const chartData = useMemo(() => {
+    // لو فيه فترة محددة، نبني الأيام من chartFrom لـ chartTo
+    if (chartFrom && chartTo) {
+      const from = new Date(chartFrom);
+      const to   = new Date(chartTo);
+      const days: Record<string, number> = {};
+      const cursor = new Date(from);
+      while (cursor <= to) {
+        days[format(cursor, "MM/dd")] = 0;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      recentShipments.forEach((s: any) => {
+        if (!s.createdAt) return;
+        const d = new Date(s.createdAt);
+        if (d < from || d > to) return;
+        const key = format(d, "MM/dd");
+        if (key in days) days[key] += 1;
+      });
+      return Object.entries(days).map(([date, value]) => ({ date, value }));
+    }
+    // الافتراضي: آخر 7 أيام
     const days: Record<string, number> = {};
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i);
@@ -580,7 +620,7 @@ export default function FinanceClients() {
       if (key in days) days[key] += 1;
     });
     return Object.entries(days).map(([date, value]) => ({ date, value }));
-  }, [recentShipments]);
+  }, [recentShipments, chartFrom, chartTo]);
 
   // ── خيارات الفلتر — تُستخرج من البيانات الفعلية ────────────────────────
   const cityOptions         = useMemo(() => [...new Set(clients.map(c => c.city).filter(Boolean))] .map(v => ({ value: v!, label: v! })), [clients]);
@@ -631,8 +671,8 @@ export default function FinanceClients() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "إجمالي العملاء",    value: totalClients, sub: `+${clients.filter(c => { const d = new Date(c.createdAt); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length} هذا الشهر`, icon: <Users className="w-6 h-6" />, color: "text-foreground" },
-          { label: "إجمالي أوامر البيع", value: totalOrders,  sub: `+${allOrders.filter(o => { const d = new Date(o.createdAt); const now = new Date(); return d.getMonth() === now.getMonth(); }).length} هذا الشهر`, icon: <ShoppingCart className="w-6 h-6" />, color: "text-foreground" },
-          { label: "إجمالي الفواتير",   value: totalInvoices, sub: `+${Math.round(totalInvoices * 0.15)} هذا الشهر`, icon: <Receipt className="w-6 h-6" />, color: "text-foreground" },
+          { label: "المحصّل هذا الشهر", value: `${fmt(monthlyCollected)} ج.م`, sub: "من الشحنات المحصّلة", icon: <Receipt className="w-6 h-6" />, color: "text-emerald-400" },
+          { label: "المستحق الإجمالي",  value: `${fmt(totalOutstanding)} ج.م`, sub: "على كل العملاء", icon: <ShoppingCart className="w-6 h-6" />, color: "text-amber-400" },
           { label: "إجمالي الشحنات",    value: totalShipmentsCount, sub: `عدد شحنات جميع الحالات`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
         ].map((kpi, i) => (
           <Card key={i} className="border-border bg-card p-4">
@@ -654,27 +694,45 @@ export default function FinanceClients() {
         {/* أفضل العملاء */}
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-sm">أفضل العملاء</h2>
-            <span className="text-[10px] text-muted-foreground">هذا الشهر</span>
+            <h2 className="font-bold text-sm flex items-center gap-1.5">
+              <span className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="w-3.5 h-3.5 text-primary" />
+              </span>
+              أفضل العملاء
+            </h2>
+            <span className="text-[10px] text-muted-foreground bg-muted/20 px-2 py-1 rounded-full">هذا الشهر</span>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-1">
             {topClients.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">لا يوجد بيانات بعد</p>
-            ) : topClients.map((c, i) => (
-              <div key={c.id} className="flex items-center gap-3">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                  i === 0 ? "bg-primary text-primary-foreground" :
-                  i === 1 ? "bg-muted-foreground/20 text-muted-foreground" :
-                  i === 2 ? "bg-amber-900/30 text-amber-400" :
-                  "bg-muted/20 text-muted-foreground"
-                }`}>{i + 1}</div>
-                <ClientAvatar avatar={c.avatar} name={c.name} size="md" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold truncate">{c.name}</p>
-                </div>
-                <p className="text-xs font-black text-primary shrink-0">{monthlyShipmentsByClient[c.name] ?? 0} شحنة</p>
-              </div>
-            ))}
+            ) : (() => {
+              const maxCount = Math.max(...topClients.map(c => monthlyShipmentsByClient[c.name] ?? 0), 1);
+              return topClients.map((c, i) => {
+                const count = monthlyShipmentsByClient[c.name] ?? 0;
+                const pct = Math.max((count / maxCount) * 100, 4);
+                return (
+                  <div key={c.id} className="flex items-center gap-3 py-2 px-2 -mx-2 rounded-lg hover:bg-muted/10 transition-colors">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                      i === 0 ? "bg-primary text-primary-foreground" :
+                      i === 1 ? "bg-muted-foreground/20 text-muted-foreground" :
+                      i === 2 ? "bg-amber-900/30 text-amber-400" :
+                      "bg-muted/20 text-muted-foreground"
+                    }`}>{i + 1}</div>
+                    <ClientAvatar avatar={c.avatar} name={c.name} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold truncate mb-1">{c.name}</p>
+                      <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${i === 0 ? "bg-primary" : "bg-primary/50"}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs font-black text-primary shrink-0">{count}</p>
+                  </div>
+                );
+              });
+            })()}
           </div>
           <Button variant="outline" className="w-full mt-4 h-8 text-xs border-primary/30 text-primary hover:bg-primary/10" onClick={() => navigate("/finance/all-clients")}>
             عرض جميع العملاء
@@ -748,7 +806,41 @@ export default function FinanceClients() {
             </div>
           </div>
           <p className="text-2xl font-black text-primary mb-0.5">{chartData.reduce((s, d) => s + d.value, 0)} شحنة</p>
-          <p className="text-[11px] text-primary mb-3">آخر 7 أيام</p>
+          <p className="text-[11px] text-primary mb-3">{chartFrom && chartTo ? "الفترة المحددة" : "آخر 7 أيام"}</p>
+
+          {/* فلتر الفترة (من - إلى) */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex-1">
+              <Label className="text-[10px] text-muted-foreground mb-1 block">من</Label>
+              <Input
+                type="date"
+                value={chartFrom}
+                max={chartTo || undefined}
+                onChange={e => setChartFrom(e.target.value)}
+                className="h-8 text-[11px]"
+              />
+            </div>
+            <div className="flex-1">
+              <Label className="text-[10px] text-muted-foreground mb-1 block">إلى</Label>
+              <Input
+                type="date"
+                value={chartTo}
+                min={chartFrom || undefined}
+                onChange={e => setChartTo(e.target.value)}
+                className="h-8 text-[11px]"
+              />
+            </div>
+            {(chartFrom || chartTo) && (
+              <Button
+                variant="outline"
+                className="h-8 text-[11px] px-2.5 self-end shrink-0"
+                onClick={() => { setChartFrom(""); setChartTo(""); }}
+              >
+                إعادة تعيين
+              </Button>
+            )}
+          </div>
+
           <ResponsiveContainer width="100%" height={160}>
             {chartView === "area" ? (
               <AreaChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
