@@ -80,6 +80,8 @@ const editSchema = z.object({
   adCampaign:        z.string().optional().nullable(),
   canOpen:           z.coerce.number().optional().nullable(),
   isDivisible:       z.coerce.number().optional().nullable(),
+  status:            z.string().optional().nullable(),
+  rejectionPolicy:   z.string().optional().nullable(),
   notes:             z.string().optional().nullable(),
   product:           z.string().optional().nullable(),
   quantity:          z.coerce.number().int().min(1),
@@ -2174,6 +2176,7 @@ export default function OrderDetail() {
       shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
       warehouseId: null, assignedUserId: null,
       adSource: null, adCampaign: null, notes: "",
+      status: null, rejectionPolicy: null,
       product: "", quantity: 1, unitPrice: 0, costPrice: null,
     },
   });
@@ -2197,6 +2200,8 @@ export default function OrderDetail() {
         adCampaign:        (order as any).adCampaign ?? null,
         canOpen:           (order as any).canOpen ?? null,
         isDivisible:       (order as any).isDivisible ?? null,
+        status:            (order as any).status ?? null,
+        rejectionPolicy:   (order as any).rejectionPolicy ?? null,
         notes:             (order as any).notes ?? order.notes ?? "",
         product:           (order as any).description ?? order.product ?? "",
         quantity:          (order as any).pieces ?? order.quantity ?? 1,
@@ -2393,6 +2398,8 @@ export default function OrderDetail() {
       assignedUserId:    values.assignedUserId || null,
       canOpen:           values.canOpen ?? null,
       isDivisible:       values.isDivisible ?? null,
+      status:            values.status ?? null,
+      rejectionPolicy:   values.rejectionPolicy ?? null,
       notes:             values.notes ?? null,
     } as any }, {
       onSuccess: () => {
@@ -3860,21 +3867,23 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   </div>
                 </div>
 
-                {/* ── الملخص المالي — 3 خانات ── */}
-                <div className="grid grid-cols-3 border-b border-border/50">
+                {/* ── الملخص المالي — 4 خانات ── */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border/50">
                   <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
-                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">
-                      {(order as any).weight ? "الوزن" : "القطع"}
-                    </p>
-                    <p className="text-xl font-black text-foreground">
-                      {(order as any).weight
-                        ? <>{(order as any).weight}<span className="text-xs font-semibold text-muted-foreground mr-1">كجم</span></>
-                        : ((order as any).pieces || "—")}
+                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">حالة الشحنة</p>
+                    <p className="text-sm font-black text-foreground">{statusLabels[(order as any).status] ?? (order as any).status ?? "—"}</p>
+                  </div>
+                  <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
+                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">تجزئة الشحنة</p>
+                    <p className="text-sm font-black text-foreground">
+                      {(order as any).isDivisible === 1 || (order as any).isDivisible === "1" ? "قابلة للتجزئة" : (order as any).isDivisible === 0 || (order as any).isDivisible === "0" ? "غير قابلة" : "—"}
                     </p>
                   </div>
                   <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
-                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">رسوم الشحن</p>
-                    <p className="text-lg font-black text-foreground">{formatCurrency(shippingFee)}</p>
+                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">حالة الرفض</p>
+                    <p className="text-sm font-black text-foreground">
+                      {(order as any).rejectionPolicy === "full_fee" ? "دفع الشحن كاملا" : (order as any).rejectionPolicy === "free" ? "الشحن مجانا" : "—"}
+                    </p>
                   </div>
                   <div className="px-4 py-3.5 text-center bg-primary/5">
                     <p className="text-[10px] text-primary/70 mb-1 font-medium">الإجمالي</p>
@@ -4214,12 +4223,22 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <Truck className="w-3 h-3" />بيانات الشحن
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <FormField control={form.control} name="shippingCost" render={({ field }) => (
+                        <FormField control={form.control} name="status" render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" />رسوم الشحن</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.01" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? 0} />
-                            </FormControl>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" />حالة الشحنة</FormLabel>
+                            <Select value={field.value ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : v)}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">بدون تحديد</SelectItem>
+                                <SelectItem value="pending">قيد الانتظار</SelectItem>
+                                <SelectItem value="warehouse_ready">قيد الشحن في المخزن</SelectItem>
+                                <SelectItem value="in_shipping">قيد الشحن</SelectItem>
+                                <SelectItem value="received">استلم</SelectItem>
+                                <SelectItem value="partial_received">استلام جزئي</SelectItem>
+                                <SelectItem value="delayed">مؤجل</SelectItem>
+                                <SelectItem value="returned">مرتجع</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </FormItem>
                         )} />
                         <FormField control={form.control} name="codAmount" render={({ field }) => (
@@ -4266,6 +4285,19 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                                 <SelectItem value="none">بدون تحديد</SelectItem>
                                 <SelectItem value="1">الشحنة قابلة للتجزئة</SelectItem>
                                 <SelectItem value="0">الشحنة غير قابلة للتجزئة</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="rejectionPolicy" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground">حالة الرفض</FormLabel>
+                            <Select value={field.value ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : v)}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">بدون تحديد</SelectItem>
+                                <SelectItem value="full_fee">يتم دفع مبلغ الشحن كاملا</SelectItem>
+                                <SelectItem value="free">الشحن مجانا</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormItem>

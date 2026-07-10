@@ -176,6 +176,9 @@ const UpdateShipmentSchema = CreateShipmentSchema.partial().extend({
   assignedUserId: z.number().int().positive().nullish(),
   itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
   isReplacementRequested: z.union([z.boolean(), z.number()]).nullish(),
+  canOpen: z.union([z.boolean(), z.literal(0), z.literal(1)]).nullish(),
+  isDivisible: z.union([z.boolean(), z.literal(0), z.literal(1)]).nullish(),
+  rejectionPolicy: z.enum(["full_fee", "free"]).nullish(),
 });
 
 // ─── توليد رقم شحنة تلقائي ────────────────────────────────────────────────────
@@ -864,6 +867,9 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.partialQuantity  !== undefined) updateData.partialQuantity  = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
     if (d.assignedUserId   !== undefined) updateData.assignedUserId   = d.assignedUserId;
+    if (d.canOpen           !== undefined) updateData.canOpen          = d.canOpen === null ? null : Number(d.canOpen);
+    if (d.isDivisible       !== undefined) updateData.isDivisible      = d.isDivisible === null ? null : Number(d.isDivisible);
+    if (d.rejectionPolicy   !== undefined) updateData.rejectionPolicy  = d.rejectionPolicy;
 
     // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
     await syncShipmentInventory(existingShipment, updateData);
@@ -1001,6 +1007,9 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
     if (d.assignedUserId    !== undefined) updateData.assignedUserId    = d.assignedUserId;
     if (d.isReplacementRequested !== undefined) updateData.isReplacementRequested = d.isReplacementRequested ? 1 : 0;
+    if (d.canOpen            !== undefined) updateData.canOpen           = d.canOpen === null ? null : Number(d.canOpen);
+    if (d.isDivisible        !== undefined) updateData.isDivisible       = d.isDivisible === null ? null : Number(d.isDivisible);
+    if (d.rejectionPolicy    !== undefined) updateData.rejectionPolicy   = d.rejectionPolicy;
 
     // لو الحالة الجديدة مش returned ولا partial_received ولم يُرسَل returnReceived صريحًا
     // → نصفّره عشان ميفضلش متعلق بقيمة قديمة من حالة سابقة
