@@ -90,7 +90,7 @@ export default function NewShipmentPage() {
     codAmount: "", notes: "",
     adSource: "", adCampaign: "", warehouseId: "", assignedUserId: "",
     shippingCompanyId: "",
-    canOpen: "", isDivisible: "",
+    canOpen: "", isDivisible: "", rejectionPolicy: "",
   });
   const [govOpen, setGovOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
@@ -194,6 +194,7 @@ export default function NewShipmentPage() {
       shippingCompanyId: form.shippingCompanyId ? Number(form.shippingCompanyId) : undefined,
       canOpen:         form.canOpen     !== "" ? Number(form.canOpen)     : undefined,
       isDivisible:     form.isDivisible !== "" ? Number(form.isDivisible) : undefined,
+      rejectionPolicy: form.rejectionPolicy || undefined,
       status:          "waiting",
     });
   }
@@ -420,6 +421,29 @@ export default function NewShipmentPage() {
                     <span className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
                       الشحنة غير قابلة للتجزئة
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block">حالة الرفض</Label>
+              <Select value={form.rejectionPolicy} onValueChange={v => set("rejectionPolicy", v)}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="اختر..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full_fee">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                      يتم دفع مبلغ الشحن كاملا
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="free">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                      الشحن مجانا
                     </span>
                   </SelectItem>
                 </SelectContent>

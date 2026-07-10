@@ -81,6 +81,7 @@ export const shipmentsTable = mysqlTable("shipments", {
   declaredValue:   decimal("declared_value", { precision: 12, scale: 2 }).default("0"), // القيمة المعلنة
   canOpen:         int("can_open"),                                // 1 = مسموح بفتح الشحنة، 0 = غير مسموح، null = لم يُحدد بعد
   isDivisible:     int("is_divisible"),                             // 1 = الشحنة قابلة للتجزئة، 0 = غير قابلة، null = لم يُحدد بعد
+  rejectionPolicy: varchar("rejection_policy", { length: 20 }),      // "full_fee" = دفع مبلغ الشحن كاملا عند الرفض، "free" = الشحن مجانا، null = لم يُحدد
 
   // ── البيانات المالية ────────────────────────────────────────────────────
   paymentMethod:   varchar("payment_method", { length: 30 }).notNull().default("cod"),
