@@ -623,7 +623,7 @@ export default function FinanceClients() {
   }, [recentShipments, chartFrom, chartTo]);
 
   // ── خيارات الفلتر — تُستخرج من البيانات الفعلية ────────────────────────
-  const cityOptions         = useMemo(() => [...new Set(clients.map(c => c.city).filter(Boolean))] .map(v => ({ value: v!, label: v! })), [clients]);
+  const regionOptions       = useMemo(() => [...new Set(clients.map(c => c.region).filter(Boolean))].map(v => ({ value: v!, label: v! })), [clients]);
   const statusOptions       = [{ value: "true", label: "نشط" }, { value: "false", label: "موقف" }];
   const paymentTermsOptions = useMemo(() => [...new Set(clients.map(c => c.paymentTerms).filter(Boolean))].map(v => ({ value: v!, label: v! })), [clients]);
   const nameOptions         = useMemo(() => clients.map(c => ({ value: c.name, label: c.name })), [clients]);
@@ -634,7 +634,7 @@ export default function FinanceClients() {
     return clients.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !(c.phone ?? "").toLowerCase().includes(q)) return false;
       if (filterName.length         && !filterName.includes(c.name))                             return false;
-      if (filterCity.length         && !filterCity.includes(c.city ?? ""))                     return false;
+      if (filterCity.length         && !filterCity.includes(c.region ?? ""))                   return false;
       if (filterStatus.length       && !filterStatus.includes(String(c.isActive)))             return false;
       if (filterPaymentTerms.length && !filterPaymentTerms.includes(c.paymentTerms ?? ""))     return false;
       return true;
@@ -940,11 +940,11 @@ export default function FinanceClients() {
                   <ColumnFilter label="الحالة" options={statusOptions} selected={filterStatus} onChange={v => { setFilterStatus(v); setPage(1); }} />
                 ) : <span className="text-[10px] font-bold text-muted-foreground">الحالة</span>}
               </div>
-              {/* المدينة */}
+              {/* المحافظة */}
               <div className="flex items-center gap-1">
                 {showColFilters ? (
-                  <ColumnFilter label="المدينة" options={cityOptions} selected={filterCity} onChange={v => { setFilterCity(v); setPage(1); }} />
-                ) : <span className="text-[10px] font-bold text-muted-foreground">المدينة</span>}
+                  <ColumnFilter label="المحافظة" options={regionOptions} selected={filterCity} onChange={v => { setFilterCity(v); setPage(1); }} />
+                ) : <span className="text-[10px] font-bold text-muted-foreground">المحافظة</span>}
               </div>
               {/* تحقيق الهدف */}
               <div className="flex items-center gap-1">
@@ -988,8 +988,8 @@ export default function FinanceClients() {
                         {c.isActive ? "نشط" : "موقف"}
                       </Badge>
                     </div>
-                    {/* المدينة */}
-                    <span className="text-xs text-muted-foreground">{c.city ?? "—"}</span>
+                    {/* المحافظة */}
+                    <span className="text-xs text-muted-foreground">{c.region ?? "—"}</span>
                     {/* نسبة تحقيق الهدف */}
                     <div>
                       {(() => {
