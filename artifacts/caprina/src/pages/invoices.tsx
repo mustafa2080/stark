@@ -630,7 +630,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                           ? <CheckSquare className="w-4 h-4 text-primary shrink-0" />
                           : <Square className="w-4 h-4 text-muted-foreground shrink-0" />}
                         <div>
-                          <p className="font-bold text-sm leading-tight">{sh.senderName}</p>
+                          <p className="font-bold text-sm leading-tight">{sh.receiverName || "—"}</p>
                           <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
                             #{sh.shipmentNumber ?? String(sh.id).padStart(4, "0")}
                           </p>
@@ -650,6 +650,14 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                     ) : null}
 
                     <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        {sh.receiverPhone && <span className="font-mono text-[11px] text-foreground">📞 {sh.receiverPhone}</span>}
+                        {sh.receiverCity && <span className="font-semibold text-foreground">📍 {sh.receiverCity}</span>}
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-border/40">
+                        <span className="text-foreground font-medium">الإجمالي</span>
+                        <span className="font-bold text-primary">{formatCurrency(parseFloat(sh.totalAmount) || (parseFloat(sh.shippingFee) || 0) + (parseFloat(sh.codAmount) || 0) + (parseFloat(sh.insuranceFee) || 0))}</span>
+                      </div>
                       <div className="flex justify-between items-center">
                         <span className="text-foreground font-medium">COD</span>
                         <span className="font-bold text-primary">{formatCurrency(parseFloat(sh.codAmount) || 0)}</span>
@@ -665,8 +673,6 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                       )}
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-0.5">
                         {company && <span className="flex items-center gap-0.5">🚚 {company.name}</span>}
-                        {sh.receiverPhone && <span className="font-mono text-[11px]">📞 {sh.receiverPhone}</span>}
-                        {sh.receiverCity && <span>📍 {sh.receiverCity}</span>}
                       </div>
                       {sh.trackingNumber && (
                         <p className="font-mono text-[10px] opacity-70 dir-ltr text-left">🔎 {sh.trackingNumber}</p>
