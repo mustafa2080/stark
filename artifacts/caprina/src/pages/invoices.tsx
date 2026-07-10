@@ -658,16 +658,6 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                         <span className="text-foreground font-medium">الإجمالي</span>
                         <span className="font-bold text-primary">{formatCurrency(parseFloat(sh.totalAmount) || (parseFloat(sh.shippingFee) || 0) + (parseFloat(sh.codAmount) || 0) + (parseFloat(sh.insuranceFee) || 0))}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-foreground font-medium">COD</span>
-                        <span className="font-bold text-primary">{formatCurrency(parseFloat(sh.codAmount) || 0)}</span>
-                      </div>
-                      {(parseFloat(sh.shippingFee) || 0) > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span>رسوم الشحن</span>
-                          <span className="font-semibold">{formatCurrency(parseFloat(sh.shippingFee) || 0)}</span>
-                        </div>
-                      )}
                       {sh.description && (
                         <p className="text-foreground font-medium truncate">📦 {sh.description}</p>
                       )}
