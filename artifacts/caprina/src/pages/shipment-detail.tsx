@@ -4421,8 +4421,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 const insurance   = Math.abs(Number((order as any).insuranceFee ?? 0));
                 const collected   = Number((order as any).collectedAmount ?? 0);
                 const payMethod   = (order as any).paymentMethod as string | null;
-                // الإجمالي = نفس مبلغ COD بالظبط (من غير طرح أو جمع رسوم الشحن/التأمين)
-                const total       = payMethod === "cod" ? cod : shippingFee + insurance;
+                // الإجمالي = مبلغ COD ناقص رسوم الشحن فقط (التأمين لا يُطرح)
+                const total       = payMethod === "cod" ? (cod - shippingFee) : shippingFee + insurance;
                 const payLabel    = payMethod === "cod" ? "عند الاستلام" : payMethod === "prepaid" ? "مدفوع مسبقاً" : payMethod === "deferred" ? "لاحقاً" : "—";
 
                 return (
@@ -4441,11 +4441,11 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       </div>
                     )}
 
-                    {/* رسوم الشحن */}
+                    {/* رسوم الشحن (تُخصم من COD) */}
                     {shippingFee > 0 && (
                       <div className="flex justify-between items-center text-xs py-1 border-t border-border/50">
-                        <span className="text-muted-foreground">رسوم الشحن</span>
-                        <span className="font-semibold text-orange-400">{formatCurrency(shippingFee)}</span>
+                        <span className="text-muted-foreground">رسوم الشحن {payMethod === "cod" ? "(تُخصم)" : ""}</span>
+                        <span className="font-semibold text-red-400">{payMethod === "cod" ? `- ${formatCurrency(shippingFee)}` : formatCurrency(shippingFee)}</span>
                       </div>
                     )}
 

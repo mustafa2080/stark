@@ -143,8 +143,8 @@ export default function NewShipmentPage() {
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
   const cod             = Number(form.codAmount) || 0;
-  // الإجمالي = نفس مبلغ COD بالظبط (من غير طرح رسوم الشحن)
-  const total           = form.paymentMethod === "cod" ? cod : 0;
+  // الإجمالي = مبلغ COD ناقص رسوم الشحن
+  const total           = form.paymentMethod === "cod" ? (cod - shippingFee) : 0;
 
   const mutation = useMutation({
     mutationFn: (data: any) => apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
@@ -625,7 +625,7 @@ export default function NewShipmentPage() {
                   { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
                   { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
                   form.paymentMethod === "cod" ? { label: "مبلغ COD", value: fc(cod), highlight: true } : null,
-                  form.paymentMethod === "cod" ? { label: "رسوم الشحن", value: fc(shippingFee) } : null,
+                  form.paymentMethod === "cod" ? { label: "رسوم الشحن (تُخصم)", value: `- ${fc(shippingFee)}`, negative: true } : null,
                 ].filter(Boolean).map((row: any, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{row.label}</span>
