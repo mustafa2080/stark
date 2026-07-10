@@ -428,6 +428,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
           canOpen:          shipmentsTable.canOpen,
           isDivisible:      shipmentsTable.isDivisible,
           rejectionPolicy:  shipmentsTable.rejectionPolicy,
+          isReplacementRequested: shipmentsTable.isReplacementRequested,
           paymentMethod:    shipmentsTable.paymentMethod,
           codAmount:        shipmentsTable.codAmount,
           costPrice:        shipmentsTable.costPrice,
