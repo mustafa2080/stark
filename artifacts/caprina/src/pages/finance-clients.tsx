@@ -950,9 +950,11 @@ export default function FinanceClients() {
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-bold text-muted-foreground">تحقيق الهدف</span>
               </div>
-              {/* إجراءات */}
+              {/* شروط الدفع */}
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-muted-foreground">الرصيد / إجراءات</span>
+                {showColFilters ? (
+                  <ColumnFilter label="شروط الدفع" options={paymentTermsOptions} selected={filterPaymentTerms} onChange={v => { setFilterPaymentTerms(v); setPage(1); }} />
+                ) : <span className="text-[10px] font-bold text-muted-foreground">شروط الدفع</span>}
                 {showColFilters && activeFiltersCount > 0 && (
                   <button onClick={() => { setFilterCity([]); setFilterStatus([]); setFilterPaymentTerms([]); setFilterName([]); }}
                     className="text-[9px] text-destructive hover:underline flex items-center gap-0.5">
@@ -968,9 +970,6 @@ export default function FinanceClients() {
               ) : (pageData as Client[]).length === 0 ? (
                 <div className="py-10 text-center text-muted-foreground text-sm">لا يوجد عملاء</div>
               ) : (pageData as Client[]).map(c => {
-                const sales  = parseFloat(c.totalSales ?? "0");
-                const paid   = parseFloat(c.totalPaid  ?? "0");
-                const unpaid = Math.max(0, sales - paid);
                 return (
                   <div key={c.id} className="grid grid-cols-6 gap-2 px-4 py-3 border-b border-border/50 hover:bg-muted/10 transition-colors items-center cursor-pointer" onClick={() => navigate(`/finance/clients/${c.id}`)}>
                     {/* اسم العميل */}
@@ -1009,19 +1008,13 @@ export default function FinanceClients() {
                         );
                       })()}
                     </div>
-                    {/* الرصيد + إجراءات */}
-                    <div className="flex items-center justify-between gap-1">
-                      <span className={`text-xs font-bold ${unpaid > 0 ? "text-red-400" : "text-emerald-400"}`}>
-                        {unpaid > 0 ? fmt(unpaid) : "✓ مسدد"}
-                      </span>
-                      <div className="flex items-center gap-0.5">
-                        <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-primary" onClick={e => { e.stopPropagation(); openEdit(c); }}>
-                          <Edit2 className="w-3 h-3" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive" onClick={e => { e.stopPropagation(); setDeleteClient(c); }}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
+                    {/* شروط الدفع */}
+                    <div>
+                      {c.paymentTerms ? (
+                        <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{c.paymentTerms}</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </div>
                   </div>
                 );
