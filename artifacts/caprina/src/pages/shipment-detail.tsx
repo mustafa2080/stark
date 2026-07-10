@@ -4420,9 +4420,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 const shippingFee = Math.abs(Number((order as any).shippingFee  ?? (order as any).shippingCost ?? 0));
                 const insurance   = Math.abs(Number((order as any).insuranceFee ?? 0));
                 const collected   = Number((order as any).collectedAmount ?? 0);
-                const storedTotal = Number((order as any).totalAmount  ?? 0);
-                const total       = storedTotal > 0 ? storedTotal : cod + shippingFee + insurance;
                 const payMethod   = (order as any).paymentMethod as string | null;
+                // الإجمالي = نفس مبلغ COD بالظبط (من غير طرح أو جمع رسوم الشحن/التأمين)
+                const total       = payMethod === "cod" ? cod : shippingFee + insurance;
                 const payLabel    = payMethod === "cod" ? "عند الاستلام" : payMethod === "prepaid" ? "مدفوع مسبقاً" : payMethod === "deferred" ? "لاحقاً" : "—";
 
                 return (
