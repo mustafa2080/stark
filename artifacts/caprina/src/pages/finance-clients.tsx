@@ -1075,7 +1075,7 @@ export default function FinanceClients() {
         {/* Table Headers */}
         {activeTab === "clients" && (
           <>
-            <div className="grid grid-cols-6 gap-2 px-4 py-2 border-b border-border bg-muted/5">
+            <div className="grid grid-cols-7 gap-2 px-4 py-2 border-b border-border bg-muted/5">
               {/* اسم العميل */}
               <div className="col-span-2 flex items-center gap-1">
                 {showColFilters ? (
@@ -1099,10 +1099,14 @@ export default function FinanceClients() {
                 <span className="text-[10px] font-bold text-muted-foreground">تحقيق الهدف</span>
               </div>
               {/* شروط الدفع */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
                 {showColFilters ? (
                   <ColumnFilter label="شروط الدفع" options={paymentTermsOptions} selected={filterPaymentTerms} onChange={v => { setFilterPaymentTerms(v); setPage(1); }} />
                 ) : <span className="text-[10px] font-bold text-muted-foreground">شروط الدفع</span>}
+              </div>
+              {/* إجراءات */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-muted-foreground">إجراءات</span>
                 {showColFilters && activeFiltersCount > 0 && (
                   <button onClick={() => { setFilterCity([]); setFilterStatus([]); setFilterPaymentTerms([]); setFilterName([]); }}
                     className="text-[9px] text-destructive hover:underline flex items-center gap-0.5">
@@ -1119,7 +1123,7 @@ export default function FinanceClients() {
                 <div className="py-10 text-center text-muted-foreground text-sm">لا يوجد عملاء</div>
               ) : (pageData as Client[]).map(c => {
                 return (
-                  <div key={c.id} className="grid grid-cols-6 gap-2 px-4 py-3 border-b border-border/50 hover:bg-muted/10 transition-colors items-center cursor-pointer" onClick={() => navigate(`/finance/clients/${c.id}`)}>
+                  <div key={c.id} className="grid grid-cols-7 gap-2 px-4 py-3 border-b border-border/50 hover:bg-muted/10 transition-colors items-center cursor-pointer" onClick={() => navigate(`/finance/clients/${c.id}`)}>
                     {/* اسم العميل */}
                     <div className="col-span-2 flex items-center gap-2">
                       <ClientAvatar avatar={c.avatar} name={c.name} size="sm" />
@@ -1163,6 +1167,25 @@ export default function FinanceClients() {
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
+                    </div>
+                    {/* إجراءات */}
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline" size="icon"
+                        className="h-7 w-7 rounded-full border-border hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors"
+                        onClick={e => { e.stopPropagation(); openEdit(c); }}
+                        title="تعديل"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="outline" size="icon"
+                        className="h-7 w-7 rounded-full border-border hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                        onClick={e => { e.stopPropagation(); setDeleteClient(c); }}
+                        title="حذف"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
                   </div>
                 );
