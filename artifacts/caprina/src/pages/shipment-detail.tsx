@@ -80,7 +80,6 @@ const editSchema = z.object({
   adCampaign:        z.string().optional().nullable(),
   canOpen:           z.coerce.number().optional().nullable(),
   isDivisible:       z.coerce.number().optional().nullable(),
-  status:            z.string().optional().nullable(),
   rejectionPolicy:   z.string().optional().nullable(),
   notes:             z.string().optional().nullable(),
   product:           z.string().optional().nullable(),
@@ -2176,7 +2175,7 @@ export default function OrderDetail() {
       shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
       warehouseId: null, assignedUserId: null,
       adSource: null, adCampaign: null, notes: "",
-      status: null, rejectionPolicy: null,
+      rejectionPolicy: null,
       product: "", quantity: 1, unitPrice: 0, costPrice: null,
     },
   });
@@ -2200,7 +2199,6 @@ export default function OrderDetail() {
         adCampaign:        (order as any).adCampaign ?? null,
         canOpen:           (order as any).canOpen ?? null,
         isDivisible:       (order as any).isDivisible ?? null,
-        status:            (order as any).status ?? null,
         rejectionPolicy:   (order as any).rejectionPolicy ?? null,
         notes:             (order as any).notes ?? order.notes ?? "",
         product:           (order as any).description ?? order.product ?? "",
@@ -2398,7 +2396,6 @@ export default function OrderDetail() {
       assignedUserId:    values.assignedUserId || null,
       canOpen:           values.canOpen ?? null,
       isDivisible:       values.isDivisible ?? null,
-      status:            values.status ?? null,
       rejectionPolicy:   values.rejectionPolicy ?? null,
       notes:             values.notes ?? null,
     } as any }, {
@@ -3870,8 +3867,10 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 {/* ── الملخص المالي — 4 خانات ── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border/50">
                   <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
-                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">حالة الشحنة</p>
-                    <p className="text-sm font-black text-foreground">{statusLabels[(order as any).status] ?? (order as any).status ?? "—"}</p>
+                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">حالة الشحنة (الفتح)</p>
+                    <p className="text-sm font-black text-foreground">
+                      {(order as any).canOpen === 1 || (order as any).canOpen === "1" ? "مسموح بفتح الشحنة" : (order as any).canOpen === 0 || (order as any).canOpen === "0" ? "غير مسموح بفتح الشحنة" : "—"}
+                    </p>
                   </div>
                   <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
                     <p className="text-[10px] text-muted-foreground mb-1 font-medium">تجزئة الشحنة</p>
@@ -4223,24 +4222,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <Truck className="w-3 h-3" />بيانات الشحن
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <FormField control={form.control} name="status" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" />حالة الشحنة</FormLabel>
-                            <Select value={field.value ?? "none"} onValueChange={v => field.onChange(v === "none" ? null : v)}>
-                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر..." /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">بدون تحديد</SelectItem>
-                                <SelectItem value="pending">قيد الانتظار</SelectItem>
-                                <SelectItem value="warehouse_ready">قيد الشحن في المخزن</SelectItem>
-                                <SelectItem value="in_shipping">قيد الشحن</SelectItem>
-                                <SelectItem value="received">استلم</SelectItem>
-                                <SelectItem value="partial_received">استلام جزئي</SelectItem>
-                                <SelectItem value="delayed">مؤجل</SelectItem>
-                                <SelectItem value="returned">مرتجع</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )} />
                         <FormField control={form.control} name="codAmount" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" />مبلغ COD (عند الاستلام)</FormLabel>
