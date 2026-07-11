@@ -1179,7 +1179,7 @@ function InvoiceGroupDeliveryRow({
         {/* Desktop row */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_100px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_100px_90px_100px_160px_160px] min-w-0 lg:min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Customer */}
@@ -1229,6 +1229,10 @@ function InvoiceGroupDeliveryRow({
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
+          </div>
+          {/* إجمالي الشحنة (COD كامل) */}
+          <div className="text-left font-bold px-3 flex items-center">
+            <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
           </div>
           {/* سعر الشحنة (COD) */}
           <div className="text-left font-bold px-3 flex items-center">
@@ -2244,76 +2248,87 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <div className="bg-card rounded-md p-3 border border-border">
-          <p className="text-[10px] text-muted-foreground mb-1">إجمالي المسلَّم</p>
-          <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(deliveredTotal)}</p>
-          <p className="text-[10px] text-emerald-700 dark:text-emerald-600">{s.delivered} طلبية</p>
-        </div>
-        <div className={`bg-card rounded-md p-3 border ${hasManualCost ? "border-amber-500/40" : effectiveShippingCost === 0 ? "border-dashed border-amber-500/40" : "border-border"}`}>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] text-muted-foreground">رسوم الشحن</p>
-            {!editingShipping && (
-              <button
-                onClick={() => { setShippingVal(manifest.manualShippingCost?.toString() ?? ""); setEditingShipping(true); }}
-                className="text-[9px] text-primary hover:underline"
-              >
-                {hasManualCost ? "تعديل" : "إضافة يدوي"}
-              </button>
-            )}
-          </div>
-          {editingShipping ? (
-            <div className="flex items-center gap-1 mt-1">
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={shippingVal}
-                onChange={e => setShippingVal(e.target.value)}
-                className="h-7 text-xs w-28 bg-background"
-                placeholder="0.00"
-                autoFocus
-              />
-              <span className="text-[10px] text-muted-foreground">ج.م</span>
-              <button onClick={() => shippingMutation.mutate(shippingVal)} disabled={shippingMutation.isPending}
-                className="text-[10px] text-emerald-500 hover:text-emerald-400 font-bold px-1">
-                <Check className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => setEditingShipping(false)} className="text-[10px] text-muted-foreground hover:text-foreground px-1">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+        {(() => {
+          const ordersForSettlement = manifest.orders ?? [];
+          const deliveredOrdersS = ordersForSettlement.filter(o => o.deliveryStatus === "delivered");
+          const returnedOrdersS  = ordersForSettlement.filter(o => o.deliveryStatus === "returned");
+          const totalCODs        = ordersForSettlement.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
+          const deliveredCODs    = deliveredOrdersS.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
+          const returnedCODs     = returnedOrdersS.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
+          return (
             <>
-              <p className="text-base font-black text-amber-700 dark:text-amber-400">
-                −{formatCurrency(effectiveShippingCost)}
-              </p>
-              {hasManualCost ? (
-                <p className="text-[10px] text-amber-600">يدوي ✏️</p>
-              ) : effectiveShippingCost === 0 ? (
-                <p className="text-[10px] text-muted-foreground/60">لم تُحدَّد — اضغط إضافة</p>
-              ) : (
-                <p className="text-[10px] text-amber-600">مُخصومة</p>
-              )}
+              <div className="bg-card rounded-md p-3 border border-border">
+                <p className="text-[10px] text-muted-foreground mb-1">إجمالي COD</p>
+                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(totalCODs)}</p>
+                <p className="text-[10px] text-muted-foreground">{ordersForSettlement.length} شحنة</p>
+              </div>
+              <div className="bg-card rounded-md p-3 border border-emerald-900/40">
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mb-1">COD المُسلَّم</p>
+                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(deliveredCODs)}</p>
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-600">{deliveredOrdersS.length} طلبية</p>
+              </div>
+              <div className="bg-card rounded-md p-3 border border-red-900/40">
+                <p className="text-[10px] text-red-700 dark:text-red-400 mb-1">COD المرتجع</p>
+                <p className="text-base font-black text-red-600 dark:text-red-400">{formatCurrency(returnedCODs)}</p>
+                <p className="text-[10px] text-muted-foreground">{returnedOrdersS.length} شحنة</p>
+              </div>
+              <div className={`bg-card rounded-md p-3 border ${hasManualCost ? "border-amber-500/40" : effectiveShippingCost === 0 ? "border-dashed border-amber-500/40" : "border-border"}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-muted-foreground">تكلفة الشحن</p>
+                  {!editingShipping && (
+                    <button
+                      onClick={() => { setShippingVal(manifest.manualShippingCost?.toString() ?? ""); setEditingShipping(true); }}
+                      className="text-[9px] text-primary hover:underline"
+                    >
+                      {hasManualCost ? "تعديل" : "إضافة يدوي"}
+                    </button>
+                  )}
+                </div>
+                {editingShipping ? (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={shippingVal}
+                      onChange={e => setShippingVal(e.target.value)}
+                      className="h-7 text-xs w-28 bg-background"
+                      placeholder="0.00"
+                      autoFocus
+                    />
+                    <span className="text-[10px] text-muted-foreground">ج.م</span>
+                    <button onClick={() => shippingMutation.mutate(shippingVal)} disabled={shippingMutation.isPending}
+                      className="text-[10px] text-emerald-500 hover:text-emerald-400 font-bold px-1">
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setEditingShipping(false)} className="text-[10px] text-muted-foreground hover:text-foreground px-1">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-base font-black text-amber-700 dark:text-amber-400">
+                      −{formatCurrency(effectiveShippingCost)}
+                    </p>
+                    {hasManualCost ? (
+                      <p className="text-[10px] text-amber-600">يدوي ✏️</p>
+                    ) : effectiveShippingCost === 0 ? (
+                      <p className="text-[10px] text-muted-foreground/60">لم تُحدَّد — اضغط إضافة</p>
+                    ) : (
+                      <p className="text-[10px] text-amber-600">مُخصومة</p>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="bg-card rounded-md p-3 border border-primary/40">
+                <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق</p>
+                <p className="text-base font-black text-primary">{formatCurrency(netBeforeInvoice)}</p>
+                <p className="text-[10px] text-muted-foreground">مُسلَّم − شحن</p>
+              </div>
             </>
-          )}
-        </div>
-        <div className="bg-card rounded-md p-3 border border-border">
-          <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق من الشركة</p>
-          <p className="text-base font-black text-primary">{formatCurrency(netBeforeInvoice)}</p>
-          <p className="text-[10px] text-muted-foreground">إيرادات − شحن</p>
-        </div>
-        <div className={`rounded-md p-3 border ${manifest.invoicePrice != null ? "bg-card border-border" : "bg-muted/20 border-dashed border-border"}`}>
-          <p className="text-[10px] text-muted-foreground mb-1">سعر الفاتورة المتفق</p>
-          {manifest.invoicePrice != null ? (
-            <>
-              <p className="text-base font-black">{formatCurrency(manifest.invoicePrice)}</p>
-              <p className="text-[10px] text-muted-foreground">المبلغ المتفق</p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground/50">غير محدد</p>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       {/* صافي الربح الحقيقي = إيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع */}
@@ -4863,7 +4878,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_100px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_100px_90px_100px_160px_160px] min-w-0 lg:min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── عمود العميل ─── */}
                   <div className="relative flex items-center">
@@ -4897,6 +4912,10 @@ export default function ShippingManifestPage() {
                   <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
                     <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
                     الراسل
+                  </div>
+                  {/* ─── إجمالي الشحنة (COD كامل) ─── */}
+                  <div className="flex items-center justify-between gap-1 px-3 h-9">
+                    <span className="font-bold">إجمالي الشحنة</span>
                   </div>
                   {/* ─── سعر الشحنة (COD) ─── */}
                   <div className="flex items-center justify-between gap-1 px-3 h-9">
