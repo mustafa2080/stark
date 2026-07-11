@@ -1346,7 +1346,9 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
         const qty = o.status === "partial_received" && o.partialQuantity ? o.partialQuantity : o.quantity;
         const revenue = qty * (o.unitPrice ?? 0);
         const cost = qty * (o.costPrice ?? 0);
-        const shipping = Math.abs(o.shippingCost ?? 0);
+        // تكلفة الشحن الفعلية = تكلفة المندوب (شركة الشحن) المرتبط بالشحنة، مش قيمة ثابتة على السطر
+        const courierCompany = shippingCompanies.find((sc: any) => sc.id === (o.shippingCompanyId ?? primaryOrder?.shippingCompanyId));
+        const shipping = Math.abs(Number(courierCompany?.shippingCost ?? o.shippingCost ?? 0));
         const netProfit = revenue - cost - shipping;
         const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
         const isRet = o.status === "returned";
@@ -1700,7 +1702,9 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                 if (isRet) { hasReturn = true; } else { allReturned = false; }
                 if (!isRet) totalRevenue += qty * o.unitPrice;
                 if (!retToStock) totalCost += qty * (o.costPrice ?? 0);
-                totalShipping += Math.abs(o.shippingCost ?? 0);
+                // تكلفة الشحن الفعلية = تكلفة المندوب (شركة الشحن) المرتبط بالشحنة
+                const courierCompany = shippingCompanies.find((sc: any) => sc.id === (o.shippingCompanyId ?? primaryOrder?.shippingCompanyId));
+                totalShipping += Math.abs(Number(courierCompany?.shippingCost ?? o.shippingCost ?? 0));
               }
               const netProfit = totalRevenue - totalCost - totalShipping;
               const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
