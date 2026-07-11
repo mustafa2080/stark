@@ -239,7 +239,7 @@ export default function NewShipmentPage() {
       pieces:          isEditMode ? undefined : (Number(form.pieces) || 1),
       description:     isEditMode ? undefined : (form.description || undefined),
       paymentMethod:   form.paymentMethod,
-      codAmount:       isEditMode ? undefined : (cod || undefined),
+      codAmount:       cod || undefined,
       shippingFee:     shippingFee || undefined,
       totalAmount:     total || undefined,
       notes:           form.notes || undefined,
