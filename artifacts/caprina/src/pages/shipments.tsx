@@ -318,7 +318,7 @@ function ShipmentFormDialog({
   const shippingFee     = zonePrice + parcelPrice;
   const insurance       = Number(form.insuranceFee) || 0;
   const cod             = Number(form.codAmount) || 0;
-  const total           = (form.paymentMethod === "cod" ? cod : 0) + shippingFee + insurance;
+  const total           = form.paymentMethod === "cod" ? (cod - shippingFee) : (shippingFee + insurance);
 
   const filteredClients = useMemo(() =>
     clients.filter(c => c.name.includes(clientSearch) || (c.phone || "").includes(clientSearch)),
