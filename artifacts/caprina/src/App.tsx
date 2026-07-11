@@ -535,6 +535,7 @@ function Router() {
           <Route path="/operations-center"        component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
           <Route path="/orders"                   component={() => <ProtectedRoute permission="orders.view" component={ShipmentsPage} />} />
           <Route path="/shipments/new"            component={() => <ProtectedRoute permission="orders.create" component={NewShipmentPage} />} />
+          <Route path="/shipments/:id/edit"       component={() => <ProtectedRoute permission="orders.edit"   component={NewShipmentPage} />} />
           <Route path="/shipments/:id"            component={() => <ProtectedRoute permission="orders.view" component={ShipmentDetailPage} />} />
           <Route path="/orders/new"               component={() => <ProtectedRoute permission="orders.create" component={OrderForm} />} />
           <Route path="/invoices/:invoiceNumber"  component={() => <ProtectedRoute permission="invoices.view" component={InvoiceGroupPage} />} />

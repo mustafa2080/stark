@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
-import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Check, ChevronsUpDown } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useLocation, useParams } from "wouter";
+import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Check, ChevronsUpDown, Save } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -76,9 +76,20 @@ function ClientAvatar({ avatar, name, className = "w-6 h-6 text-[10px]" }: { ava
 
 export default function NewShipmentPage() {
   const [, navigate] = useLocation();
+  const params = useParams();
+  const editId = params.id ? Number(params.id) : null;
+  const isEditMode = !!editId;
   const qc = useQueryClient();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
+
+  // ── الشحنة الحالية (وضع التعديل فقط) ──
+  const { data: existingShipment, isLoading: isLoadingShipment } = useQuery({
+    queryKey: ["shipment-detail", editId],
+    queryFn: () => apiFetch<any>(`/shipments/${editId}`),
+    enabled: isEditMode,
+  });
+  const prefilledRef = useRef(false);
 
   const [form, setForm] = useState({
     clientId: "",
@@ -116,6 +127,42 @@ export default function NewShipmentPage() {
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
 
+  // ── تعبئة الفورم تلقائياً ببيانات الشحنة الحالية (وضع التعديل) ──
+  useEffect(() => {
+    if (isEditMode && existingShipment && !prefilledRef.current) {
+      const s = existingShipment as any;
+      setForm({
+        clientId:        s.clientId != null ? String(s.clientId) : "",
+        senderName:      s.senderName ?? "",
+        senderPhone:     s.senderPhone ?? "",
+        senderPhone2:    s.senderPhone2 ?? "",
+        senderCity:      s.senderCity ?? "",
+        receiverName:    s.receiverName ?? "",
+        receiverPhone:   s.receiverPhone ?? "",
+        receiverPhone2:  s.receiverPhone2 ?? "",
+        receiverAddress: s.receiverAddress ?? "",
+        receiverCity:    s.receiverCity ?? "",
+        zoneId:          s.zoneId != null ? String(s.zoneId) : "",
+        parcelType:      (s.parcelType ?? "") as ParcelType | "",
+        weight:          s.weight != null ? String(s.weight) : "",
+        pieces:          s.pieces != null ? String(s.pieces) : "1",
+        description:     s.description ?? "",
+        paymentMethod:   (s.paymentMethod ?? "cod") as PaymentMethod,
+        codAmount:       s.codAmount != null ? String(s.codAmount) : "",
+        notes:           s.notes ?? "",
+        adSource:        s.adSource ?? "",
+        adCampaign:      s.adCampaign ?? "",
+        warehouseId:     s.warehouseId != null ? String(s.warehouseId) : "",
+        assignedUserId:  s.assignedUserId != null ? String(s.assignedUserId) : "",
+        shippingCompanyId: s.shippingCompanyId != null ? String(s.shippingCompanyId) : "",
+        canOpen:         s.canOpen != null ? String(s.canOpen) : "",
+        isDivisible:     s.isDivisible != null ? String(s.isDivisible) : "",
+        rejectionPolicy: s.rejectionPolicy ?? "",
+      });
+      prefilledRef.current = true;
+    }
+  }, [isEditMode, existingShipment]);
+
   // كل مناطق التوصيل — محافظة - منطقة (بدون تكرار لنفس الاسم)
   const toGovernorates = useMemo(() => {
     const seen = new Set<string>();
@@ -147,11 +194,19 @@ export default function NewShipmentPage() {
   const cod             = form.paymentMethod === "cod" ? (total - shippingFee) : total;
 
   const mutation = useMutation({
-    mutationFn: (data: any) => apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (data: any) => isEditMode
+      ? apiFetch(`/shipments/${editId}`, { method: "PATCH", body: JSON.stringify(data) })
+      : apiFetch("/shipments", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipments"] });
-      toast({ title: "تم إنشاء الشحنة بنجاح ✅" });
-      navigate("/orders");
+      if (isEditMode) {
+        qc.invalidateQueries({ queryKey: ["shipment-detail", editId] });
+        toast({ title: "تم حفظ التعديلات بنجاح ✅" });
+        navigate(`/shipments/${editId}`);
+      } else {
+        toast({ title: "تم إنشاء الشحنة بنجاح ✅" });
+        navigate("/orders");
+      }
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -181,10 +236,10 @@ export default function NewShipmentPage() {
       parcelType:      form.parcelType || undefined,
       parcelTypePrice: parcelPrice    || undefined,
       weight:          form.weight    || undefined,
-      pieces:          Number(form.pieces) || 1,
-      description:     form.description || undefined,
+      pieces:          isEditMode ? undefined : (Number(form.pieces) || 1),
+      description:     isEditMode ? undefined : (form.description || undefined),
       paymentMethod:   form.paymentMethod,
-      codAmount:       cod || undefined,
+      codAmount:       isEditMode ? undefined : (cod || undefined),
       shippingFee:     shippingFee || undefined,
       totalAmount:     total || undefined,
       notes:           form.notes || undefined,
@@ -196,19 +251,27 @@ export default function NewShipmentPage() {
       canOpen:         form.canOpen     !== "" ? Number(form.canOpen)     : undefined,
       isDivisible:     form.isDivisible !== "" ? Number(form.isDivisible) : undefined,
       rejectionPolicy: form.rejectionPolicy || undefined,
-      status:          "waiting",
+      ...(isEditMode ? {} : { status: "waiting" }),
     });
+  }
+
+  if (isEditMode && isLoadingShipment) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center" dir="rtl">
+        <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card border-b border-border px-6 py-4 flex items-center gap-3">
-        <button onClick={() => navigate("/orders")} className="p-2 rounded-lg hover:bg-muted/60 transition-colors">
+        <button onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/orders")} className="p-2 rounded-lg hover:bg-muted/60 transition-colors">
           <ArrowRight className="w-4 h-4" />
         </button>
         <Package className="w-5 h-5 text-primary" />
-        <h1 className="text-base font-black">شحنة جديدة</h1>
+        <h1 className="text-base font-black">{isEditMode ? "تعديل الشحنة" : "شحنة جديدة"}</h1>
       </div>
 
       {/* Form + Sidebar */}
@@ -472,7 +535,10 @@ export default function NewShipmentPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {form.paymentMethod === "cod" && (
-              <div><Label className="text-xs font-bold mb-1.5 block">سعر الشحنة</Label><Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} /></div>
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">سعر الشحنة{isEditMode && <span className="text-muted-foreground font-normal"> (غير قابل للتعديل هنا)</span>}</Label>
+                <Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} disabled={isEditMode} />
+              </div>
             )}
           </div>
         </section>
@@ -641,10 +707,12 @@ export default function NewShipmentPage() {
               {/* الأزرار */}
               <div className="px-5 pb-5 space-y-2">
                 <Button onClick={handleSubmit} disabled={mutation.isPending} className="w-full gap-2">
-                  {mutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  إنشاء الشحنة
+                  {mutation.isPending
+                    ? <RefreshCw className="w-4 h-4 animate-spin" />
+                    : isEditMode ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  {isEditMode ? "حفظ التعديلات" : "إنشاء الشحنة"}
                 </Button>
-                <Button variant="outline" onClick={() => navigate("/orders")} className="w-full">إلغاء</Button>
+                <Button variant="outline" onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/orders")} className="w-full">إلغاء</Button>
               </div>
             </div>
           </div>

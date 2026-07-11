@@ -3449,8 +3449,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               <Button variant="outline" size="sm"
                 onClick={() => {
                     if (!isOrderLocked) {
-                      initializedRef.current = false;
-                      setIsEditing(true);
+                      navigate(`/shipments/${id}/edit`);
                     }
                   }}
                 disabled={isOrderLocked}
