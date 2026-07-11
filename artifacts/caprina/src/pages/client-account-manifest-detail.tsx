@@ -852,6 +852,64 @@ function UrgentButton({
   );
 }
 
+// ─── Notes Cell — حقل ملاحظات قابل للتعديل، بيتحفظ عند الخروج من الحقل ─────
+function NotesCell({
+  manifestId,
+  shipmentId,
+  deliveryStatus,
+  initialNote,
+  disabled,
+}: {
+  manifestId: number;
+  shipmentId: number;
+  deliveryStatus: DeliveryStatus;
+  initialNote: string;
+  disabled: boolean;
+}) {
+  const { toast } = useToast();
+  const [value, setValue] = useState(initialNote);
+  const lastSavedRef = useRef(initialNote);
+
+  useEffect(() => {
+    setValue(initialNote);
+    lastSavedRef.current = initialNote;
+  }, [initialNote]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (note: string) => {
+      await clientAccountManifestsApi.updateItem(manifestId, shipmentId, {
+        deliveryStatus,
+        deliveryNote: note || null,
+      });
+    },
+    onSuccess: (_data, note) => {
+      lastSavedRef.current = note;
+    },
+    onError: (e: any) => {
+      toast({ title: "خطأ في حفظ الملاحظة", description: e.message, variant: "destructive" });
+      setValue(lastSavedRef.current);
+    },
+  });
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== lastSavedRef.current) saveMutation.mutate(value);
+      }}
+      onKeyDown={e => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      disabled={disabled}
+      placeholder="—"
+      className="w-full h-7 text-[10px] px-1.5 border border-border/50 rounded bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+      dir="rtl"
+    />
+  );
+}
+
 // ─── Invoice Group Row — يعرض مجموعة طلبات بنفس invoiceNumber كصف واحد ─────
 function InvoiceGroupDeliveryRow({
   group,
@@ -1121,7 +1179,7 @@ function InvoiceGroupDeliveryRow({
         {/* Desktop row */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Customer */}
@@ -1176,31 +1234,24 @@ function InvoiceGroupDeliveryRow({
           <div className="text-left font-bold px-3 flex items-center">
             <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
           </div>
-          {/* سعر الشحن (fee) */}
-          <div className="text-center px-2 flex items-center justify-center">
-            {(rep as any).shippingCost != null ? (
-              <span className="text-orange-400 font-semibold">{formatCurrency((rep as any).shippingCost)}</span>
-            ) : (
-              <span className="text-muted-foreground/40">—</span>
-            )}
-          </div>
-          {/* تكلفة الشحنة (courier cost) */}
-          <div className="text-center px-2 flex items-center justify-center">
-            {courierShippingCost != null ? (
-              <span className="text-amber-500 font-semibold">{formatCurrency(courierShippingCost)}</span>
-            ) : (
-              <span className="text-muted-foreground/40">—</span>
-            )}
-          </div>
-          {/* الإجمالي (COD - fee - courier) */}
+          {/* القيمة المستلمة (إجمالي - تكلفة الشحن) */}
           <div className="text-center px-2 flex items-center justify-center">
             {(() => {
-              const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
               const courier = courierShippingCost != null ? Number(courierShippingCost) : 0;
               return (
-                <span className="font-bold text-primary">{formatCurrency(totalPrice - fee - courier)}</span>
+                <span className="font-bold text-primary">{formatCurrency(totalPrice - courier)}</span>
               );
             })()}
+          </div>
+          {/* ملاحظات — قابلة للتعديل */}
+          <div className="px-2 flex items-center" onClick={e => e.stopPropagation()}>
+            <NotesCell
+              manifestId={manifestId}
+              shipmentId={(rep as any).shipmentId ?? rep.id}
+              deliveryStatus={rep.deliveryStatus as DeliveryStatus}
+              initialNote={rep.deliveryNote ?? ""}
+              disabled={locked}
+            />
           </div>
           {/* الحالة + زرار التقفيل */}
           <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
@@ -4812,7 +4863,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── عمود العميل ─── */}
                   <div className="relative flex items-center">
@@ -4861,17 +4912,13 @@ export default function ShippingManifestPage() {
                     }
                     {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
-                  {/* ─── سعر الشحن (fee) ─── */}
+                  {/* ─── القيمة المستلمة (إجمالي - تكلفة الشحن) ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9">
-                    سعر الشحن
+                    القيمة المستلمة
                   </div>
-                  {/* ─── تكلفة الشحنة (courier cost) ─── */}
-                  <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">
-                    تكلفة الشحنة
-                  </div>
-                  {/* ─── الإجمالي (COD - fee - courier) ─── */}
+                  {/* ─── ملاحظات ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9">
-                    الإجمالي
+                    ملاحظات
                   </div>
                   {/* ─── الحالة ─── */}
                   <div className="flex items-center gap-1 px-2 h-9">
