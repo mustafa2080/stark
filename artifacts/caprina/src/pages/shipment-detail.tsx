@@ -70,6 +70,7 @@ const editSchema = z.object({
   phone:             z.string().optional().nullable(),
   city:              z.string().optional().nullable(),
   address:           z.string().optional().nullable(),
+  zoneId:            z.coerce.number().optional().nullable(),
   clientId:          z.coerce.number().optional().nullable(),
   senderName:        z.string().optional().nullable(),
   senderPhone:       z.string().optional().nullable(),
@@ -2035,6 +2036,8 @@ function ShipmentUrgentButton({
 
 // ── بيانات العميل التجاري لاختيار الراسل (نفس منطق new-shipment.tsx) ──
 interface ShipmentClient { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null; defaultAdSource?: string | null }
+// ── مناطق التوصيل (نفس منطق new-shipment.tsx) ──
+interface ShipmentZone { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; isActive?: boolean }
 
 const AVATAR_COLORS = [
   ["#f59e0b","#78350f"],["#10b981","#064e3b"],["#3b82f6","#1e3a8a"],
@@ -2154,6 +2157,28 @@ export default function OrderDetail() {
   // كل أوردرات الفاتورة ماعدا الحالي (للعرض في القائمة)
   const otherInvoiceOrders = invoiceOrders.filter((o: any) => o.id !== id);
 
+  const { data: shipmentZones = [] } = useQuery<ShipmentZone[]>({ queryKey: ["shipment-zones"], queryFn: () => apiFetch("/shipments/zones") });
+  // كل مناطق التوصيل — محافظة - منطقة (بدون تكرار لنفس الاسم) — نفس منطق new-shipment.tsx
+  const editToGovernorates = useMemo(() => {
+    const seen = new Set<string>();
+    return shipmentZones
+      .filter(z => z.isActive !== false)
+      .map(z => {
+        const gov = z.toGovernorate?.trim() || "";
+        const area = z.name?.trim() || "";
+        const label = gov && area ? `${gov} - ${area}` : (gov || area);
+        return { label, zone: z };
+      })
+      .filter(x => x.label)
+      .filter(x => {
+        const key = x.label.replace(/\s+/g, " ").toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, "ar"));
+  }, [shipmentZones]);
+  const [editZoneOpen, setEditZoneOpen] = useState(false);
   const { data: shippingCompanies } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list });
   const { data: allVariants } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
@@ -2205,7 +2230,7 @@ export default function OrderDetail() {
   const form = useForm<EditFormValues>({
     resolver: zodResolver(editSchema),
     defaultValues: {
-      customerName: "", phone: "", city: "", address: "",
+      customerName: "", phone: "", city: "", address: "", zoneId: null,
       clientId: null,
       senderName: "", senderPhone: "", codAmount: 0,
       shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
@@ -2223,6 +2248,7 @@ export default function OrderDetail() {
         phone:             (order as any).receiverPhone ?? order.phone ?? "",
         city:              (order as any).receiverCity ?? (order as any).city ?? "",
         address:           (order as any).receiverAddress ?? order.address ?? "",
+        zoneId:            (order as any).zoneId ?? null,
         clientId:          (order as any).clientId ?? null,
         senderName:        (order as any).senderName ?? "",
         senderPhone:       (order as any).senderPhone ?? "",
@@ -2419,6 +2445,8 @@ export default function OrderDetail() {
       receiverPhone:     values.phone ?? null,
       receiverCity:      values.city ?? null,
       receiverAddress:   values.address ?? null,
+      zoneId:            values.zoneId ?? null,
+      zonePrice:         values.zoneId ? (shipmentZones.find(z => z.id === values.zoneId)?.price ?? undefined) : undefined,
       clientId:          values.clientId ?? null,
       senderName:        values.senderName ?? null,
       senderPhone:       values.senderPhone ?? null,
@@ -4304,13 +4332,61 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                         <FormField control={form.control} name="city" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />المحافظة</FormLabel>
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />المحافظة (نص حر)</FormLabel>
                             <FormControl>
                               <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="القاهرة، الإسكندرية..." {...field} value={field.value ?? ""} />
                             </FormControl>
                           </FormItem>
                         )} />
+                        <FormField control={form.control} name="zoneId" render={({ field }) => {
+                          const selectedEditZone = shipmentZones.find(z => z.id === field.value);
+                          return (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />المنطقة / المدينة</FormLabel>
+                            <Popover open={editZoneOpen} onOpenChange={setEditZoneOpen}>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  role="combobox"
+                                  aria-expanded={editZoneOpen}
+                                  className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background border-border/70 px-3 py-2 text-sm shadow-sm focus:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20"
+                                >
+                                  <span className={selectedEditZone ? "" : "text-muted-foreground"}>
+                                    {selectedEditZone ? (editToGovernorates.find(g => g.zone.id === selectedEditZone.id)?.label ?? selectedEditZone.name) : "اختر المحافظة / المنطقة..."}
+                                  </span>
+                                  <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
+                                <Command>
+                                  <CommandInput placeholder="ابحث عن المحافظة..." className="text-sm" />
+                                  <CommandList className="max-h-[260px]">
+                                    <CommandEmpty className="text-xs text-muted-foreground py-4">لا توجد محافظة بهذا الاسم</CommandEmpty>
+                                    <CommandGroup>
+                                      {editToGovernorates.map(({ label, zone }) => (
+                                        <CommandItem
+                                          key={zone.id}
+                                          value={label}
+                                          onSelect={() => { field.onChange(zone.id); setEditZoneOpen(false); }}
+                                          className="text-sm flex items-center justify-between gap-3"
+                                        >
+                                          <span className="flex items-center gap-2">
+                                            <Check className={`w-3.5 h-3.5 shrink-0 ${field.value === zone.id ? "opacity-100 text-primary" : "opacity-0"}`} />
+                                            {label}
+                                          </span>
+                                          <span className="text-xs text-muted-foreground font-bold">{formatCurrency(zone.price)}</span>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            {selectedEditZone && <p className="text-[10px] text-primary mt-1">سعر التوصيل: {formatCurrency(selectedEditZone.price)}</p>}
+                          </FormItem>
+                          );
+                        }} />
                         <FormField control={form.control} name="address" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />العنوان بالتفصيل</FormLabel>
