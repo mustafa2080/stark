@@ -4,11 +4,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Upload, FileSpreadsheet, CheckCircle2,
   ArrowRight, ArrowLeft, Settings2, Eye, Loader2,
-  RotateCcw, Info, Link2, ShoppingCart, Package, Undo2, AlertTriangle, GitMerge, List,
+  RotateCcw, Info, Link2, Package, Undo2, AlertTriangle, GitMerge, List,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { importApi, type ParsedImport, type ColumnMapping } from "@/lib/api";
-import { getListOrdersQueryKey, getGetOrdersSummaryQueryKey, getGetRecentOrdersQueryKey } from "@workspace/api-client-react";
+import { importApi, type ParsedImport } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type ImportMode = "orders" | "products" | "returns" | "inventory" | "shipments";
+type ImportMode = "products" | "returns" | "inventory" | "shipments";
 
 interface FieldDef {
   key: string;
@@ -27,23 +26,6 @@ interface FieldDef {
 }
 
 // ─── Field definitions per mode ────────────────────────────────────────────────
-const ORDERS_FIELDS: FieldDef[] = [
-  { key: "name",            label: "اسم العميل",          required: true,  hint: "اسم العميل، customer، name" },
-  { key: "phone",           label: "رقم الهاتف",          required: false, hint: "رقم الهاتف، phone، mobile" },
-  { key: "city",            label: "المحافظة",            required: false, hint: "المحافظة، city، محافظة" },
-  { key: "address",         label: "العنوان",             required: false, hint: "العنوان، address" },
-  { key: "product",         label: "الصنف",              required: true,  hint: "الصنف، المنتج، product، item" },
-  { key: "notes",           label: "ملاحظات",             required: false, hint: "ملاحظات، notes، remarks" },
-  { key: "color",           label: "اللون",               required: false, hint: "اللون، color، colour" },
-  { key: "quantity",        label: "العدد",               required: true,  hint: "العدد، الكمية، quantity، qty" },
-  { key: "size",            label: "المقاس المعادل",     required: false, hint: "المقاس المعادل، المقاس، size" },
-  { key: "price",           label: "السعر",              required: false, hint: "السعر، سعر الوحدة، price" },
-  { key: "adSource",        label: "مصدر الطلب",         required: false, hint: "مصدر الطلب، adSource، المصدر" },
-  { key: "warehouseId",     label: "المخزن الصادر منه",  required: false, hint: "المخزن، warehouse" },
-  { key: "assignedUserId",  label: "الموظف المسؤول",     required: false, hint: "الموظف، assignedUser" },
-  { key: "shippingCost",    label: "تكلفة الشحن",        required: false, hint: "تكلفة الشحن، شحن، shippingCost" },
-];
-
 const PRODUCTS_FIELDS: FieldDef[] = [
   { key: "name",           label: "اسم المنتج",        required: true,  hint: "product, item, name, منتج, اسم" },
   { key: "sku",            label: "SKU",               required: false, hint: "sku, code, كود, رقم" },
@@ -105,9 +87,7 @@ function autoDetect(headers: string[], fields: FieldDef[]): Record<string, strin
     quantity:         ["العدد", "عدد", "الكميه", "كميه", "quantity", "qty"],
     price:            ["السعر", "سعر", "سعرالوحده", "price", "unitprice"],
     notes:            ["ملاحظات", "ملاحظه", "notes", "remarks"],
-    adSource:         ["مصدرالطلب", "مصدرطلب", "المصدر", "مصدر", "adsource", "source"],
     warehouseId:      ["المخزنالصادرمنه", "المخزنالصادر", "المخزن", "مخزن", "warehouse"],
-    assignedUserId:   ["الموظفالمسؤول", "الموظفمسؤول", "موظف", "الموظف", "assigneduser"],
     shippingCost:     ["تكلفهالشحن", "شحن", "shippingcost", "shipping"],
     unitPrice:        ["سعرالبيع", "بيع", "selling", "unitprice", "price", "سعر"],
     costPrice:        ["سعرالتكلفه", "تكلفه", "cost", "شراء", "buying"],
@@ -193,11 +173,10 @@ function cellDisplay(v: any): string {
 
 // ─── Mode Selector ─────────────────────────────────────────────────────────────
 const MODES: { id: ImportMode; label: string; desc: string; icon: any; color: string }[] = [
-  { id: "orders",    label: "طلبات",      desc: "استورد قائمة طلبات العملاء",           icon: ShoppingCart, color: "border-primary/40 bg-primary/5 text-primary" },
+  { id: "shipments", label: "شحنات",     desc: "استورد قائمة شحنات جاهزة مباشرة",      icon: Package,      color: "border-teal-700/40 bg-teal-900/5 text-teal-400" },
   { id: "products",  label: "منتجات",     desc: "استورد منتجات بأسعار البيع والتكلفة",   icon: Package,      color: "border-amber-700/40 bg-amber-900/5 text-amber-400" },
   { id: "returns",   label: "مرتجعات",   desc: "سجّل مرتجعات بالجملة من ملف Excel",    icon: Undo2,        color: "border-red-800/40 bg-red-900/5 text-red-400" },
   { id: "inventory", label: "مخزون",     desc: "تحديث كميات المخزون عبر SKU",          icon: Package,      color: "border-green-700/40 bg-green-900/5 text-green-400" },
-  { id: "shipments", label: "شحنات",     desc: "استورد قائمة شحنات جاهزة مباشرة",      icon: Package,      color: "border-teal-700/40 bg-teal-900/5 text-teal-400" },
 ];
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -232,8 +211,7 @@ export default function Import() {
   const [duplicateCustomers, setDuplicateCustomers] = useState<{ name: string; count: number; rows: number[] }[]>([]);
   const [duplicateAction, setDuplicateAction] = useState<"separate" | "merge" | null>(null);
 
-  const currentFields = mode === "orders" ? ORDERS_FIELDS
-    : mode === "products" ? PRODUCTS_FIELDS
+  const currentFields = mode === "products" ? PRODUCTS_FIELDS
     : mode === "shipments" ? SHIPMENTS_FIELDS
     : RETURNS_FIELDS ?? [];
 
@@ -246,22 +224,9 @@ export default function Import() {
     setDuplicateCustomers([]); setDuplicateAction(null);
   };
 
-  // ── Detect duplicate customers ────────────────────────────────────────────────
-  const detectDuplicates = (rows: any[][], hdrs: string[], mp: Record<string, string>) => {
-    if (mode !== "orders") return [];
-    const nameCol = mp["name"];
-    const nameIdx = nameCol ? hdrs.indexOf(nameCol) : -1;
-    if (nameIdx < 0) return [];
-    const counts: Record<string, number[]> = {};
-    rows.forEach((row, i) => {
-      const name = String(row[nameIdx] ?? "").trim();
-      if (!name) return;
-      if (!counts[name]) counts[name] = [];
-      counts[name].push(i + 1);
-    });
-    return Object.entries(counts)
-      .filter(([, rowNums]) => rowNums.length > 1)
-      .map(([name, rowNums]) => ({ name, count: rowNums.length, rows: rowNums }));
+  // ── Detect duplicate customers (خاص بوضع الطلبات المحذوف - يرجع دايمًا فاضي) ──
+  const detectDuplicates = (_rows: any[][], _hdrs: string[], _mp: Record<string, string>) => {
+    return [] as { name: string; count: number; rows: number[] }[];
   };
   const resetAll = () => { reset(); setMode(null); };
   const handleFile = useCallback(async (file: File) => {
@@ -285,8 +250,7 @@ export default function Import() {
     }
 
     try {
-      const parseFn = mode === "orders" ? importApi.parse
-        : mode === "products" ? importApi.parseProducts
+      const parseFn = mode === "products" ? importApi.parseProducts
         : mode === "shipments" ? importApi.parseShipments
         : importApi.parseReturns;
       const data = await parseFn(file);
@@ -321,21 +285,17 @@ export default function Import() {
     try {
       let res: any;
       const payload = { headers: parsed.headers, rows: parsed.allRows, mapping, duplicateAction: duplicateAction ?? "separate" };
-      if (mode === "orders") res = await importApi.execute({ ...payload, mapping: mapping as any as ColumnMapping });
-      else if (mode === "products") res = await importApi.executeProducts(payload);
+      if (mode === "products") res = await importApi.executeProducts(payload);
       else if (mode === "shipments") res = await importApi.executeShipments(payload);
       else res = await importApi.executeReturns(payload);
       setResult(res);
       setStep(4);
       if (res.imported > 0) {
-        queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetOrdersSummaryQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetRecentOrdersQueryKey() });
         queryClient.invalidateQueries({ queryKey: ["products"] });
         queryClient.invalidateQueries({ queryKey: ["variants"] });
         queryClient.invalidateQueries({ queryKey: ["analytics-profit"] });
         if (mode === "shipments") queryClient.invalidateQueries({ queryKey: ["shipments"] });
-        const modeLabel = mode === "orders" ? "طلبات" : mode === "products" ? "منتجات" : mode === "shipments" ? "شحنات" : "مرتجعات";
+        const modeLabel = mode === "products" ? "منتجات" : mode === "shipments" ? "شحنات" : "مرتجعات";
         toast({
           title: `تم الاستيراد بنجاح`,
           description: `تم استيراد ${res.imported} ${modeLabel} بنجاح.${res.errors?.length ? ` (${res.errors.length} أخطاء)` : ""}`,

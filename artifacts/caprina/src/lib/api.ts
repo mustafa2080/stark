@@ -289,17 +289,6 @@ const executeImport = async (endpoint: string, payload: { headers: string[]; row
 };
 
 export const importApi = {
-  // Orders
-  parse: (file: File) => parseFile(file, "orders/import/parse"),
-  execute: (payload: { headers: string[]; rows: any[][]; mapping: ColumnMapping }) => executeImport("orders/import/execute", payload),
-  uploadExcel: async (file: File): Promise<ImportResult> => {
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch(`${BASE}/orders/import`, { method: "POST", body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    return data;
-  },
   // Products
   parseProducts: (file: File) => parseFile(file, "products/import/parse"),
   executeProducts: (payload: { headers: string[]; rows: any[][]; mapping: any }) => executeImport("products/import/execute", payload),
