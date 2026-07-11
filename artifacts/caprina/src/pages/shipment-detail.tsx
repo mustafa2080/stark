@@ -78,7 +78,6 @@ const editSchema = z.object({
   receiverPhone2:    z.string().optional().nullable(),
   parcelType:        z.string().optional().nullable(),
   weight:            z.string().optional().nullable(),
-  codAmount:         z.coerce.number().min(0).optional().nullable(),
   shippingCost:      z.coerce.number().min(0).optional().nullable(),
   shippingCompanyId: z.coerce.number().optional().nullable(),
   trackingNumber:    z.string().optional().nullable(),
@@ -90,10 +89,6 @@ const editSchema = z.object({
   isDivisible:       z.coerce.number().optional().nullable(),
   rejectionPolicy:   z.string().optional().nullable(),
   notes:             z.string().optional().nullable(),
-  product:           z.string().optional().nullable(),
-  quantity:          z.coerce.number().int().min(1),
-  unitPrice:         z.coerce.number().min(0),
-  costPrice:         z.coerce.number().min(0).optional().nullable(),
 });
 
 type EditFormValues = z.infer<typeof editSchema>;
@@ -2245,12 +2240,10 @@ export default function OrderDetail() {
       clientId: null,
       senderName: "", senderPhone: "", senderPhone2: "", receiverPhone2: "",
       parcelType: "", weight: "",
-      codAmount: 0,
       shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
       warehouseId: null, assignedUserId: null,
       adSource: null, adCampaign: null, notes: "",
       rejectionPolicy: null,
-      product: "", quantity: 1, unitPrice: 0, costPrice: null,
     },
   });
 
@@ -2269,7 +2262,6 @@ export default function OrderDetail() {
         receiverPhone2:    (order as any).receiverPhone2 ?? "",
         parcelType:        (order as any).parcelType ?? "",
         weight:            (order as any).weight ?? "",
-        codAmount:         (order as any).codAmount ?? 0,
         shippingCost:      (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
         shippingCompanyId: (order as any).shippingCompanyId ?? null,
         trackingNumber:    (order as any).trackingNumber ?? null,
@@ -2281,10 +2273,6 @@ export default function OrderDetail() {
         isDivisible:       (order as any).isDivisible ?? null,
         rejectionPolicy:   (order as any).rejectionPolicy ?? null,
         notes:             (order as any).notes ?? order.notes ?? "",
-        product:           (order as any).description ?? order.product ?? "",
-        quantity:          (order as any).pieces ?? order.quantity ?? 1,
-        unitPrice:         (order as any).codAmount ?? order.unitPrice ?? 0,
-        costPrice:         (order as any).costPrice ?? null,
       });
       initializedRef.current = true;
     }
@@ -2446,16 +2434,6 @@ export default function OrderDetail() {
   };
 
   const onSubmitEdit = (values: EditFormValues) => {
-    // resolve variant from inline search if product selected
-    const editProdVariants = editSelectedProduct && allVariants
-      ? (allVariants as any[]).filter((v: any) => v.productId === editSelectedProduct.id)
-      : [];
-    const editHasVariants = editProdVariants.length > 0;
-    const editRow = editVariantRows[0];
-    const editVariant = editHasVariants && editRow.color && editRow.size
-      ? editProdVariants.find((v: any) => v.color === editRow.color && v.size === editRow.size)
-      : null;
-
     // map order form fields → shipment fields
     updateOrder.mutate({ id, data: {
       receiverName:      values.customerName,
@@ -2472,11 +2450,6 @@ export default function OrderDetail() {
       parcelType:        values.parcelType || null,
       parcelTypePrice:   values.parcelType ? (parcelPricing.find(p => p.parcelType === values.parcelType)?.basePrice ?? undefined) : undefined,
       weight:            values.weight || null,
-      codAmount:         values.codAmount ?? null,
-      description:       values.product ?? null,
-      pieces:            values.quantity ?? null,
-      productId:         editSelectedProduct ? editSelectedProduct.id : undefined,
-      variantId:         editSelectedProduct ? (editVariant?.id ?? null) : undefined,
       warehouseId:       values.warehouseId ?? null,
       shippingFee:       values.shippingCost ?? null,
       shippingCompanyId: values.shippingCompanyId || null,
@@ -4508,14 +4481,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             </Select>
                           </FormItem>
                         )} />
-                        <FormField control={form.control} name="codAmount" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" />مبلغ COD (عند الاستلام)</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.01" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? 0} />
-                            </FormControl>
-                          </FormItem>
-                        )} />
                         <FormField control={form.control} name="shippingCompanyId" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" />شركة الشحن</FormLabel>
@@ -4567,31 +4532,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                                 <SelectItem value="free">الشحن مجانا</SelectItem>
                               </SelectContent>
                             </Select>
-                          </FormItem>
-                        )} />
-                      </div>
-                    </div>
-
-                    {/* القسم الرابع: تفاصيل المنتج */}
-                    <div className="px-4 sm:px-5 py-4 border-b border-border/60">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <Package className="w-3 h-3" />تفاصيل المنتج
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <FormField control={form.control} name="product" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">الوصف</FormLabel>
-                            <FormControl>
-                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? ""} />
-                            </FormControl>
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="quantity" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">الكمية</FormLabel>
-                            <FormControl>
-                              <Input type="number" min="1" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? 1} />
-                            </FormControl>
                           </FormItem>
                         )} />
                       </div>
