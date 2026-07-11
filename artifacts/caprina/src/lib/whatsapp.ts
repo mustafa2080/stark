@@ -180,3 +180,29 @@ export const SHIPPING_TEMPLATE_VARIABLES = [
   { var: "{trackingNumber}", label: "رقم التتبع" },
   { var: "{daysPending}", label: "أيام الانتظار" },
 ];
+
+// ─── قالب "متابعة تسليم البيان" — يُرسل للمستلم من جدول الطلبيات في البيان ──
+export interface WhatsAppManifestDeliveryData {
+  customerName: string;
+  phone?: string | null;
+  shipmentNumber?: string | null;
+  totalPrice: number;
+  representativeName?: string | null;
+}
+
+export function applyManifestDeliveryTemplate(templateBody: string, d: WhatsAppManifestDeliveryData): string {
+  const formatCurr = (n: number) =>
+    new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+  return templateBody
+    .replace(/\{customerName\}/g,      d.customerName)
+    .replace(/\{shipmentNumber\}/g,     d.shipmentNumber ?? "—")
+    .replace(/\{totalPrice\}/g,         formatCurr(d.totalPrice))
+    .replace(/\{representativeName\}/g, d.representativeName ?? "المندوب");
+}
+
+export const MANIFEST_DELIVERY_TEMPLATE_VARIABLES = [
+  { var: "{customerName}",      label: "اسم العميل" },
+  { var: "{shipmentNumber}",    label: "رقم الشحنة" },
+  { var: "{totalPrice}",        label: "إجمالي سعر الشحنة" },
+  { var: "{representativeName}", label: "اسم المندوب" },
+];

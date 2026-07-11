@@ -14,6 +14,7 @@ import {
   type DeliveryStatus,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { applyManifestDeliveryTemplate, buildWhatsAppLink } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +75,7 @@ import {
   Download,
   Eye,
   Zap,
+  MessageCircle,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1441,6 +1443,43 @@ function InvoiceGroupDeliveryRow({
                 <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
                   onClick={() => { setBulkEditing(true); setBulkStatus(groupStatus); setBulkNote(rep.deliveryNote ?? ""); setBulkReturnReason((rep as any).returnReason ?? ""); setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""]))); setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus]))); setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null); const ep = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null; setPartialReturnReceived(groupStatus === "partial_received" && ep === null ? false : ep); }}>
                   <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
+                </Button>
+              )}
+              {/* ── زرار واتساب المستلم — متابعة تسليم البيان ── */}
+              {(rep as any).phone && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] px-1.5 text-green-600 hover:text-green-700"
+                  onClick={async () => {
+                    const DEFAULT_MANIFEST_DELIVERY_BODY =
+                      `مرحباً {customerName} 👋\n\n` +
+                      `بخصوص شحنتك رقم *{shipmentNumber}*:\n` +
+                      `• إجمالي السعر: *{totalPrice}*\n` +
+                      `• المندوب المسؤول: *{representativeName}*\n\n` +
+                      `شكراً لتعاملك معنا 🙏`;
+                    let templateBody = DEFAULT_MANIFEST_DELIVERY_BODY;
+                    try {
+                      const waSettings = await apiFetch<{ templates: { name: string; body: string }[] }>("/whatsapp/settings");
+                      const tpl = waSettings?.templates?.find(t => t.name === "متابعة تسليم البيان");
+                      if (tpl) templateBody = tpl.body;
+                    } catch {
+                      // استخدم الرسالة الافتراضية لو فشل تحميل القالب
+                    }
+                    const body = applyManifestDeliveryTemplate(templateBody, {
+                      customerName: (rep as any).customerName || rep.senderName || "—",
+                      phone: (rep as any).phone ?? null,
+                      shipmentNumber: (rep as any).invoiceNumber ?? null,
+                      totalPrice,
+                      representativeName: (rep as any).representativeName ?? null,
+                    });
+                    const link = buildWhatsAppLink((rep as any).phone, body);
+                    window.open(link, "_blank", "noopener,noreferrer");
+                  }}
+                  title="إرسال رسالة متابعة تسليم للمستلم"
+                >
+                  <MessageCircle className="w-3 h-3" />
                 </Button>
               )}
               {/* ── زرار الاستعجال mobile جنب التقفيل ── */}

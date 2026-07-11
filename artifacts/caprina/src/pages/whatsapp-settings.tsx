@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
-import { type WaSettings, type WaTemplate, TEMPLATE_VARIABLES, SHIPPING_TEMPLATE_VARIABLES, SENDER_ISSUE_TEMPLATE_VARIABLES } from "@/lib/whatsapp";
+import { type WaSettings, type WaTemplate, TEMPLATE_VARIABLES, SHIPPING_TEMPLATE_VARIABLES, SENDER_ISSUE_TEMPLATE_VARIABLES, MANIFEST_DELIVERY_TEMPLATE_VARIABLES } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -85,10 +85,21 @@ export default function WhatsAppSettingsPage() {
     `فيه مشكلة بخصوص العميل ده، ياريت نتواصل بخصوصها 🙏\n\n` +
     `شكراً لتعاونك.`;
 
+  // ─── قالب متابعة تسليم البيان (يُرسل للعميل من جدول الطلبيات في البيان) ─
+  const MANIFEST_DELIVERY_TEMPLATE_NAME = "متابعة تسليم البيان";
+  const DEFAULT_MANIFEST_DELIVERY_BODY =
+    `السلام عليكم يا {customerName} 👋\n\n` +
+    `بنتواصل معاك بخصوص شحنتك رقم *#${"{shipmentNumber}"}*.\n\n` +
+    `💰 إجمالي المبلغ: *{totalPrice}*\n` +
+    `🚚 المندوب: *{representativeName}*\n\n` +
+    `ياريت التأكد من استلام الشحنة والمبلغ بشكل سليم 🙏\n\n` +
+    `شكراً لثقتك 🌹`;
+
   const templates = settings?.templates ?? [];
   const notifyTpl = templates.find(t => t.name === NOTIFY_TEMPLATE_NAME) ?? null;
   const shippingTpl = templates.find(t => t.name === SHIPPING_TEMPLATE_NAME) ?? null;
   const senderIssueTpl = templates.find(t => t.name === SENDER_ISSUE_TEMPLATE_NAME) ?? null;
+  const manifestDeliveryTpl = templates.find(t => t.name === MANIFEST_DELIVERY_TEMPLATE_NAME) ?? null;
 
   const [notifyBody, setNotifyBody] = useState(DEFAULT_NOTIFY_BODY);
   const [savingNotify, setSavingNotify] = useState(false);
@@ -102,6 +113,10 @@ export default function WhatsAppSettingsPage() {
   const [savingSenderIssue, setSavingSenderIssue] = useState(false);
   const [editingSenderIssue, setEditingSenderIssue] = useState(false);
 
+  const [manifestDeliveryBody, setManifestDeliveryBody] = useState(DEFAULT_MANIFEST_DELIVERY_BODY);
+  const [savingManifestDelivery, setSavingManifestDelivery] = useState(false);
+  const [editingManifestDelivery, setEditingManifestDelivery] = useState(false);
+
   useEffect(() => {
     if (notifyTpl) setNotifyBody(notifyTpl.body);
   }, [notifyTpl?.id]);
@@ -113,6 +128,10 @@ export default function WhatsAppSettingsPage() {
   useEffect(() => {
     if (senderIssueTpl) setSenderIssueBody(senderIssueTpl.body);
   }, [senderIssueTpl?.id]);
+
+  useEffect(() => {
+    if (manifestDeliveryTpl) setManifestDeliveryBody(manifestDeliveryTpl.body);
+  }, [manifestDeliveryTpl?.id]);
 
   const handleSaveNotifyTemplate = async () => {
     setSavingNotify(true);
@@ -187,6 +206,30 @@ export default function WhatsAppSettingsPage() {
       toast({ title: "خطأ", description: "فشل حفظ القالب", variant: "destructive" });
     } finally {
       setSavingSenderIssue(false);
+    }
+  };
+
+  const handleSaveManifestDeliveryTemplate = async () => {
+    setSavingManifestDelivery(true);
+    try {
+      if (manifestDeliveryTpl) {
+        await apiFetch(`/whatsapp/templates/${manifestDeliveryTpl.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: MANIFEST_DELIVERY_TEMPLATE_NAME, body: manifestDeliveryBody }),
+        });
+      } else {
+        await apiFetch("/whatsapp/templates", {
+          method: "POST",
+          body: JSON.stringify({ name: MANIFEST_DELIVERY_TEMPLATE_NAME, body: manifestDeliveryBody }),
+        });
+      }
+      refresh();
+      setEditingManifestDelivery(false);
+      toast({ title: "تم حفظ قالب متابعة تسليم البيان ✅" });
+    } catch {
+      toast({ title: "خطأ", description: "فشل حفظ القالب", variant: "destructive" });
+    } finally {
+      setSavingManifestDelivery(false);
     }
   };
 
@@ -659,6 +702,97 @@ export default function WhatsAppSettingsPage() {
                   variant="outline"
                   onClick={() => { setEditingSenderIssue(true); setSenderIssueBody(senderIssueTpl.body); }}
                   className="h-8 gap-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  تعديل القالب
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── قالب متابعة تسليم البيان (يُرسل للعميل من جدول الطلبيات في البيان) ─ */}
+      <Card className="border-teal-500/30 bg-teal-500/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Truck className="w-4 h-4 text-teal-500" />
+            قالب متابعة تسليم البيان — يُرسل للعميل
+            {manifestDeliveryTpl && (
+              <Badge className="text-[10px] bg-teal-600/20 text-teal-400 border-teal-600/30 font-bold mr-auto">
+                محفوظ ✓
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            هذه الرسالة تُستخدم عند الضغط على أيقونة واتساب في جدول <strong>«الطلبيات في البيان»</strong> بصفحة بيان العميل.
+            تُرسل للعميل لتأكيد استلام شحنته والمبلغ.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {MANIFEST_DELIVERY_TEMPLATE_VARIABLES.map(v => (
+              <button
+                key={v.var}
+                onClick={() => copyVar(v.var)}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-teal-500/10 border border-teal-500/30 hover:border-teal-500 text-xs transition-all"
+                title="انقر للنسخ"
+              >
+                <code className="text-teal-500 font-mono text-[10px]">{v.var}</code>
+                {copiedVar === v.var
+                  ? <Check className="w-2.5 h-2.5 text-green-500" />
+                  : <Copy className="w-2.5 h-2.5 text-muted-foreground" />
+                }
+              </button>
+            ))}
+          </div>
+          {editingManifestDelivery || !manifestDeliveryTpl ? (
+            <div className="space-y-3">
+              <Textarea
+                value={manifestDeliveryBody}
+                onChange={e => setManifestDeliveryBody(e.target.value)}
+                className="bg-muted/20 text-sm min-h-[200px] resize-none font-[Cairo] leading-relaxed"
+                dir="rtl"
+                disabled={!isAdmin}
+              />
+              {isAdmin && (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSaveManifestDeliveryTemplate}
+                    disabled={savingManifestDelivery}
+                    className="gap-1 h-8 bg-teal-600 hover:bg-teal-700 text-white"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {savingManifestDelivery ? "جاري الحفظ..." : "حفظ القالب"}
+                  </Button>
+                  {manifestDeliveryTpl && (
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingManifestDelivery(false); setManifestDeliveryBody(manifestDeliveryTpl.body); }} className="h-8 gap-1">
+                      <X className="w-3.5 h-3.5" />إلغاء
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setManifestDeliveryBody(DEFAULT_MANIFEST_DELIVERY_BODY)}
+                    className="h-8 text-xs text-muted-foreground"
+                  >
+                    استعادة الافتراضي
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-[Cairo] leading-relaxed bg-muted/20 rounded-md p-3 border border-teal-500/20">
+                {manifestDeliveryTpl.body}
+              </pre>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setEditingManifestDelivery(true); setManifestDeliveryBody(manifestDeliveryTpl.body); }}
+                  className="h-8 gap-1 text-xs border-teal-500/40 text-teal-400 hover:bg-teal-500/10"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   تعديل القالب

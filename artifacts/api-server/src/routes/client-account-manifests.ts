@@ -6,6 +6,7 @@ import {
   clientAccountManifestItemsTable,
   shipmentsTable,
   clientsTable,
+  usersTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -194,6 +195,17 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
+    // ── جلب أسماء المناديب (assignedUserId) دفعة واحدة ──────────────────────
+    const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
+    let repNameMap: Record<number, string> = {};
+    if (repUserIds.length) {
+      const repUsers = await db
+        .select({ id: usersTable.id, displayName: usersTable.displayName })
+        .from(usersTable)
+        .where(inArray(usersTable.id, repUserIds));
+      repNameMap = Object.fromEntries(repUsers.map(u => [u.id, u.displayName]));
+    }
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       return {
@@ -209,6 +221,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         unitPrice:     Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
         shippingCost:  Number(sh?.shippingFee ?? 0),
         invoiceNumber: sh?.shipmentNumber ?? "",
+        representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
       };
     });
 

@@ -1098,6 +1098,7 @@ export interface ManifestOrder extends Order {
   returnReason?: string | null;
   color?: string | null;
   size?: string | null;
+  representativeName?: string | null;
 }
 
 export interface ShippingManifestDetail extends ShippingManifestListItem {
@@ -2057,6 +2058,7 @@ export interface ClientAccountManifestDetail {
     unitPrice: number;
     shippingCost: number;
     invoiceNumber: string;
+    representativeName?: string | null;
   }>;
   stats: {
     total: number; delivered: number; returned: number; pending: number; delayed: number; partial: number;
