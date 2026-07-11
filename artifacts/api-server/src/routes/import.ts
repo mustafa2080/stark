@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import ExcelJS from "exceljs";
-import { db, ordersTable, productsTable, productVariantsTable, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, warehousesTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, warehousesTable, clientsTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { generateShipmentNumber } from "./shipments.js";
@@ -273,6 +273,8 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     .where(tenantId !== null ? eq(parcelTypePricingTable.tenantId, tenantId) : undefined as any);
   const warehouses = await db.select().from(warehousesTable)
     .where(tenantId !== null ? eq(warehousesTable.tenantId, tenantId) : undefined as any);
+  const clients = await db.select().from(clientsTable)
+    .where(tenantId !== null ? eq(clientsTable.tenantId, tenantId) : undefined as any);
 
   const norm = (s: string) => s.trim().toLowerCase();
 
@@ -318,6 +320,15 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     const n = norm(raw);
     return warehouses.find(w => norm(w.name || "") === n)
       ?? warehouses.find(w => norm(w.name || "").includes(n))
+      ?? null;
+  };
+
+  // مطابقة العميل بالاسم (لتحديد المخزن تلقائيًا من مخزن الراسل)
+  const findClient = (raw: string) => {
+    if (!raw) return null;
+    const n = norm(raw);
+    return clients.find(c => norm(c.name || "") === n)
+      ?? clients.find(c => norm(c.name || "").includes(n))
       ?? null;
   };
 
@@ -370,8 +381,7 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     // ── Validation: نفس الحقول المطلوبة الموجودة في فورم "شحنة جديدة" ──────────
     if (!senderName)   { errors.push(`الصف ${rowNum}: اسم الراسل مطلوب`); continue; }
     if (!receiverName) { errors.push(`الصف ${rowNum}: اسم المستلم مطلوب`); continue; }
-    if (!senderPhone2)   { errors.push(`الصف ${rowNum}: هاتف المرسل 2 مطلوب`); continue; }
-    if (!receiverPhone2) { errors.push(`الصف ${rowNum}: هاتف المستلم 2 مطلوب`); continue; }
+    if (!receiverPhone) { errors.push(`الصف ${rowNum}: هاتف المستلم مطلوب`); continue; }
 
     // حالة الفتح (canOpen) — إجباري، "نعم"/"لا"
     if (!canOpenRaw) { errors.push(`الصف ${rowNum}: حالة الشحنة (الفتح) مطلوبة`); continue; }
@@ -397,15 +407,19 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
       continue;
     }
 
-    // المخزن مطلوب (زي الفورم بالظبط)
+    // المخزن يتحدد تلقائيًا حسب مخزن العميل (الراسل) المرتبط، مش عمود إكسيل منفصل
     let warehouseId: number | null = null;
-    if (warehouseRaw) {
-      const wh = findWarehouse(warehouseRaw);
-      if (!wh) { errors.push(`الصف ${rowNum}: المخزن "${warehouseRaw}" غير موجود`); continue; }
-      warehouseId = wh.id;
-    } else {
-      errors.push(`الصف ${rowNum}: المخزن مطلوب`);
-      continue;
+    {
+      const clientRow = findClient(senderName);
+      if (!clientRow) {
+        errors.push(`الصف ${rowNum}: العميل "${senderName}" غير موجود في قائمة العملاء`);
+        continue;
+      }
+      if (!clientRow.warehouseId) {
+        errors.push(`الصف ${rowNum}: العميل "${senderName}" ليس له مخزن مرتبط`);
+        continue;
+      }
+      warehouseId = clientRow.warehouseId;
     }
 
     // المنطقة (اختيارية لكن لو مكتوبة لازم تكون موجودة فعلاً)
