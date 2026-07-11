@@ -349,6 +349,35 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
   const errors: string[] = [];
   const validShipments: any[] = [];
 
+  // ── تحقق مبدئي: كل اسم راسل في الملف لازم يكون مربوط بعميل تجاري موجود ──────
+  // لو فيه ولو صف واحد اسم الراسل بتاعه مش متطابق مع عميل، الملف كله يترفض
+  // ومفيش أي إدخال في قاعدة البيانات خالص.
+  {
+    const unmatchedRows: string[] = [];
+    const checkedNames = new Set<string>();
+    for (let i = 0; i < rows.length; i++) {
+      const senderNameRaw = getCell(rows[i], mapping.senderName);
+      const rowNum = i + 2;
+      if (!senderNameRaw) {
+        unmatchedRows.push(`الصف ${rowNum}: اسم الراسل فارغ`);
+        continue;
+      }
+      if (checkedNames.has(senderNameRaw)) continue;
+      checkedNames.add(senderNameRaw);
+      if (!findClient(senderNameRaw)) {
+        unmatchedRows.push(`الصف ${rowNum}: الراسل "${senderNameRaw}" غير مربوط بأي عميل تجاري`);
+      }
+    }
+    if (unmatchedRows.length > 0) {
+      res.status(400).json({
+        error: "الملف يحتوي على أسماء راسلين غير مربوطة بعملاء تجاريين، لم يتم استيراد أي شحنة",
+        errors: unmatchedRows.slice(0, 50),
+        unmatchedCount: unmatchedRows.length,
+      });
+      return;
+    }
+  }
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowNum = i + 2;
