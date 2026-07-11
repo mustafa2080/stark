@@ -456,14 +456,14 @@ router.patch("/shipment-manifests/:id/items/:shipmentId/urgent", async (req, res
       if (manifest?.shippingCompanyId) {
         const [shipmentItem] = await db
           .select({
-            customerName: shipmentManifestItemsTable.customerName,
-            phone:        shipmentManifestItemsTable.phone,
-            city:         shipmentManifestItemsTable.city,
-            invoiceNumber:shipmentManifestItemsTable.invoiceNumber,
-            totalPrice:   shipmentManifestItemsTable.totalPrice,
+            customerName: shipmentsTable.receiverName,
+            phone:        shipmentsTable.receiverPhone,
+            city:         shipmentsTable.receiverCity,
+            invoiceNumber:shipmentsTable.shipmentNumber,
+            totalPrice:   shipmentsTable.totalAmount,
           })
-          .from(shipmentManifestItemsTable)
-          .where(eq(shipmentManifestItemsTable.id, item.id))
+          .from(shipmentsTable)
+          .where(eq(shipmentsTable.id, shipmentId))
           .limit(1);
         broadcastUrgentToCompany(manifest.shippingCompanyId, {
           type: "urgent",
