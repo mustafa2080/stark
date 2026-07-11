@@ -306,6 +306,9 @@ export const importApi = {
   // Returns
   parseReturns: (file: File) => parseFile(file, "returns/import/parse"),
   executeReturns: (payload: { headers: string[]; rows: any[][]; mapping: any }) => executeImport("returns/import/execute", payload),
+  // Shipments
+  parseShipments: (file: File) => parseFile(file, "shipments/import/parse"),
+  executeShipments: (payload: { headers: string[]; rows: any[][]; mapping: any }) => executeImport("shipments/import/execute", payload),
   // Inventory bulk update
   uploadInventory: async (file: File): Promise<{ updated: number; failed: number; errors: string[]; items: any[] }> => {
     const form = new FormData();

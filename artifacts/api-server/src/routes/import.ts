@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import ExcelJS from "exceljs";
-import { db, ordersTable, productsTable, productVariantsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shipmentsTable, shipmentZonesTable, parcelTypePricingTable, warehousesTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
+import { getTenantId } from "../middlewares/requireTenant.js";
+import { generateShipmentNumber } from "./shipments.js";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -412,6 +414,283 @@ router.post("/products/import/execute", async (req, res): Promise<void> => {
     importedVariants,
     failed: errors.length,
     errors: errors.slice(0, 30),
+  });
+});
+
+// ─── Shipments Import: Parse ────────────────────────────────────────────────────
+router.post("/shipments/import/parse", upload.single("file"), async (req, res): Promise<void> => {
+  if (!req.file) { res.status(400).json({ error: "لم يتم رفع ملف" }); return; }
+  try {
+    const { headers, rows } = await parseFileToRaw(req.file.buffer, req.file.originalname);
+    if (!headers.length) { res.status(400).json({ error: "الملف فارغ أو غير مدعوم" }); return; }
+    res.json({ headers, sample: rows.slice(0, 5), totalRows: rows.length, allRows: rows });
+  } catch (err: any) {
+    res.status(500).json({ error: `فشل قراءة الملف: ${err.message}` });
+  }
+});
+
+// ─── Shipments Import: Execute ──────────────────────────────────────────────────
+// نفس منطق فورم "شحنة جديدة" بالظبط: نفس الحقول، نفس الـ validation، نفس طريقة حساب
+// السعر (سعر المنطقة + سعر نوع الطرد)، عشان أي ملف يترفع من غير مشاكل.
+router.post("/shipments/import/execute", async (req, res): Promise<void> => {
+  const { headers, rows, mapping } = req.body as {
+    headers: string[];
+    rows: any[][];
+    mapping: {
+      senderName?: string;
+      senderPhone?: string;
+      senderPhone2?: string;
+      senderCity?: string;
+      receiverName?: string;
+      receiverPhone?: string;
+      receiverPhone2?: string;
+      receiverAddress?: string;
+      receiverCity?: string;
+      zone?: string;
+      parcelType?: string;
+      weight?: string;
+      pieces?: string;
+      description?: string;
+      paymentMethod?: string;
+      codAmount?: string;
+      notes?: string;
+      warehouse?: string;
+      shippingCompanyId?: string;
+    };
+  };
+
+  if (!headers?.length || !rows?.length || !mapping) {
+    res.status(400).json({ error: "بيانات غير مكتملة" });
+    return;
+  }
+
+  const tenantId = getTenantId(req);
+  const user = (req as any).user;
+
+  const headerIdx: Record<string, number> = {};
+  headers.forEach((h, i) => { headerIdx[h] = i; });
+
+  const getCell = (row: any[], colName: string | undefined): string => {
+    if (!colName) return "";
+    const idx = headerIdx[colName];
+    if (idx === undefined) return "";
+    const v = row[idx];
+    if (v === null || v === undefined) return "";
+    return String(v).trim();
+  };
+
+  // ── تحميل جداول المرجع (مناطق التوصيل، أنواع الطرود، المخازن) مرة واحدة ──────
+  const zones = await db.select().from(shipmentZonesTable)
+    .where(tenantId !== null ? eq(shipmentZonesTable.tenantId, tenantId) : undefined as any);
+  const parcelPricing = await db.select().from(parcelTypePricingTable)
+    .where(tenantId !== null ? eq(parcelTypePricingTable.tenantId, tenantId) : undefined as any);
+  const warehouses = await db.select().from(warehousesTable)
+    .where(tenantId !== null ? eq(warehousesTable.tenantId, tenantId) : undefined as any);
+
+  const norm = (s: string) => s.trim().toLowerCase();
+
+  // مطابقة المنطقة: بالاسم أو بـ"المحافظة - المنطقة"
+  const findZone = (raw: string) => {
+    if (!raw) return null;
+    const n = norm(raw);
+    return zones.find(z => {
+      const name = norm(z.name || "");
+      const gov = norm(z.toGovernorate || "");
+      const combo = gov && name ? `${gov} - ${name}` : (gov || name);
+      return name === n || combo === n || gov === n;
+    }) ?? zones.find(z => norm(z.name || "").includes(n) || norm(z.toGovernorate || "").includes(n)) ?? null;
+  };
+
+  const PARCEL_TYPE_MAP: Record<string, string> = {
+    "مستندات": "document", "document": "document",
+    "عادي": "normal", "normal": "normal",
+    "قابل للكسر": "fragile", "fragile": "fragile",
+    "ثقيل": "heavy", "heavy": "heavy",
+    "إلكترونيات": "electronics", "electronics": "electronics",
+    "ملابس": "clothing", "clothing": "clothing",
+    "طعام": "food", "food": "food",
+    "أخرى": "other", "other": "other",
+  };
+  const findParcelPricing = (raw: string) => {
+    if (!raw) return null;
+    const n = norm(raw);
+    const mappedType = PARCEL_TYPE_MAP[raw] ?? PARCEL_TYPE_MAP[n] ?? null;
+    return parcelPricing.find(p => p.parcelType === mappedType)
+      ?? parcelPricing.find(p => norm(p.label || "") === n || norm(p.parcelType) === n)
+      ?? null;
+  };
+
+  const PAYMENT_METHOD_MAP: Record<string, string> = {
+    "الدفع عند الاستلام": "cod", "الدفع عند الاستلام (cod)": "cod", "cod": "cod",
+    "مدفوع مسبقا": "prepaid", "مدفوع مسبقاً": "prepaid", "prepaid": "prepaid",
+    "آجل": "deferred", "اجل": "deferred", "deferred": "deferred",
+  };
+
+  const findWarehouse = (raw: string) => {
+    if (!raw) return null;
+    const n = norm(raw);
+    return warehouses.find(w => norm(w.name || "") === n)
+      ?? warehouses.find(w => norm(w.name || "").includes(n))
+      ?? null;
+  };
+
+  const errors: string[] = [];
+  const validShipments: any[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2;
+
+    const senderName      = getCell(row, mapping.senderName);
+    const receiverName    = getCell(row, mapping.receiverName);
+    const senderPhone     = getCell(row, mapping.senderPhone) || null;
+    const senderPhone2    = getCell(row, mapping.senderPhone2) || null;
+    const senderCity      = getCell(row, mapping.senderCity) || null;
+    const receiverPhone   = getCell(row, mapping.receiverPhone) || null;
+    const receiverPhone2  = getCell(row, mapping.receiverPhone2) || null;
+    const receiverAddress = getCell(row, mapping.receiverAddress) || null;
+    const receiverCityRaw = getCell(row, mapping.receiverCity) || null;
+    const zoneRaw          = getCell(row, mapping.zone);
+    const parcelTypeRaw    = getCell(row, mapping.parcelType);
+    const rawWeight        = getCell(row, mapping.weight);
+    const rawPieces        = getCell(row, mapping.pieces);
+    const description      = getCell(row, mapping.description) || null;
+    const paymentMethodRaw = getCell(row, mapping.paymentMethod);
+    const rawCodAmount     = getCell(row, mapping.codAmount).replace(/,/g, "");
+    const notes            = getCell(row, mapping.notes) || null;
+    const warehouseRaw     = getCell(row, mapping.warehouse);
+
+    // تجاهل الصفوف الفاضية تماماً
+    if (!senderName && !receiverName && !rawCodAmount) continue;
+
+    // ── Validation: نفس الحقول المطلوبة الموجودة في فورم "شحنة جديدة" ──────────
+    if (!senderName)   { errors.push(`الصف ${rowNum}: اسم الراسل مطلوب`); continue; }
+    if (!receiverName) { errors.push(`الصف ${rowNum}: اسم المستلم مطلوب`); continue; }
+
+    // المخزن مطلوب (زي الفورم بالظبط)
+    let warehouseId: number | null = null;
+    if (warehouseRaw) {
+      const wh = findWarehouse(warehouseRaw);
+      if (!wh) { errors.push(`الصف ${rowNum}: المخزن "${warehouseRaw}" غير موجود`); continue; }
+      warehouseId = wh.id;
+    } else {
+      errors.push(`الصف ${rowNum}: المخزن مطلوب`);
+      continue;
+    }
+
+    // المنطقة (اختيارية لكن لو مكتوبة لازم تكون موجودة فعلاً)
+    let zoneId: number | null = null;
+    let zonePrice = 0;
+    let resolvedReceiverCity = receiverCityRaw;
+    if (zoneRaw) {
+      const zone = findZone(zoneRaw);
+      if (!zone) { errors.push(`الصف ${rowNum}: منطقة التوصيل "${zoneRaw}" غير موجودة`); continue; }
+      zoneId = zone.id;
+      zonePrice = Number(zone.price) || 0;
+      if (!resolvedReceiverCity) resolvedReceiverCity = zone.toGovernorate || null;
+    }
+
+    // نوع الطرد (اختياري لكن لو مكتوب لازم يكون معروف)
+    let parcelType: string | null = null;
+    let parcelPrice = 0;
+    if (parcelTypeRaw) {
+      const pricing = findParcelPricing(parcelTypeRaw);
+      if (!pricing) { errors.push(`الصف ${rowNum}: نوع الطرد "${parcelTypeRaw}" غير معروف`); continue; }
+      parcelType = pricing.parcelType;
+      parcelPrice = Number(pricing.basePrice) || 0;
+    }
+
+    const weight = rawWeight ? parseFloat(rawWeight) : null;
+    if (rawWeight && isNaN(weight as number)) { errors.push(`الصف ${rowNum}: الوزن غير صحيح ("${rawWeight}")`); continue; }
+
+    const pieces = rawPieces ? parseInt(rawPieces) : 1;
+    if (rawPieces && (isNaN(pieces) || pieces < 1)) { errors.push(`الصف ${rowNum}: عدد القطع غير صحيح ("${rawPieces}")`); continue; }
+
+    const paymentMethod = paymentMethodRaw
+      ? (PAYMENT_METHOD_MAP[paymentMethodRaw] ?? PAYMENT_METHOD_MAP[norm(paymentMethodRaw)] ?? null)
+      : "cod";
+    if (paymentMethodRaw && !paymentMethod) {
+      errors.push(`الصف ${rowNum}: طريقة الدفع "${paymentMethodRaw}" غير معروفة (المتاح: الدفع عند الاستلام، مدفوع مسبقاً، آجل)`);
+      continue;
+    }
+
+    const total = rawCodAmount ? parseFloat(rawCodAmount) : 0;
+    if (rawCodAmount && isNaN(total)) { errors.push(`الصف ${rowNum}: سعر الشحنة غير صحيح ("${rawCodAmount}")`); continue; }
+
+    const shippingFee = zonePrice + parcelPrice;
+    // نفس معادلة الفورم بالظبط: مبلغ COD = الإجمالي - رسوم الشحن (فقط لو الدفع COD)
+    const cod = paymentMethod === "cod" ? (total - shippingFee) : total;
+
+    validShipments.push({
+      senderName, senderPhone, senderPhone2, senderCity,
+      receiverName, receiverPhone, receiverPhone2, receiverAddress,
+      receiverCity: resolvedReceiverCity,
+      zoneId, zonePrice,
+      parcelType, parcelPrice,
+      weight, pieces: pieces || 1,
+      description,
+      paymentMethod: paymentMethod || "cod",
+      codAmount: cod || 0,
+      shippingFee,
+      totalAmount: total || 0,
+      notes,
+      warehouseId,
+    });
+  }
+
+  // ── إدخال الشحنات دفعة دفعة، كل شحنة برقمها التسلسلي الخاص ──────────────────
+  let insertedCount = 0;
+  const now = new Date();
+
+  for (const s of validShipments) {
+    try {
+      const shipmentNumber = await generateShipmentNumber(tenantId);
+      await db.insert(shipmentsTable).values({
+        ...(tenantId !== null ? { tenantId } : {}),
+        shipmentNumber,
+        senderName:      s.senderName,
+        senderPhone:     s.senderPhone ?? undefined,
+        senderPhone2:    s.senderPhone2 ?? undefined,
+        senderCity:      s.senderCity ?? undefined,
+        receiverName:    s.receiverName,
+        receiverPhone:   s.receiverPhone ?? undefined,
+        receiverPhone2:  s.receiverPhone2 ?? undefined,
+        receiverAddress: s.receiverAddress ?? undefined,
+        receiverCity:    s.receiverCity ?? undefined,
+        zoneId:          s.zoneId ?? undefined,
+        zonePrice:       String(s.zonePrice),
+        parcelType:      s.parcelType ?? undefined,
+        parcelTypePrice: String(s.parcelPrice),
+        weight:          s.weight != null ? String(s.weight) : undefined,
+        pieces:          s.pieces,
+        description:     s.description ?? undefined,
+        warehouseId:     s.warehouseId ?? undefined,
+        declaredValue:   "0",
+        paymentMethod:   s.paymentMethod,
+        codAmount:       String(s.codAmount),
+        shippingFee:     String(s.shippingFee),
+        insuranceFee:    "0",
+        totalAmount:     String(s.totalAmount),
+        collectedAmount: "0",
+        status:          "waiting",
+        notes:           s.notes ?? undefined,
+        createdByUserId: user?.id,
+        createdByName:   user?.displayName ?? user?.username,
+        createdAt:       now,
+        updatedAt:       now,
+      });
+      insertedCount++;
+    } catch (insertErr: any) {
+      errors.push(`فشل إدخال شحنة "${s.receiverName}": ${insertErr.message}`);
+    }
+  }
+
+  res.json({
+    imported: insertedCount,
+    failed: errors.length,
+    errors: errors.slice(0, 50),
+    receivedRows: rows.length,
+    validCount: validShipments.length,
   });
 });
 

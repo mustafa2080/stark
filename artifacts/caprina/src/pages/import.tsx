@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type ImportMode = "orders" | "products" | "returns" | "inventory";
+type ImportMode = "orders" | "products" | "returns" | "inventory" | "shipments";
 
 interface FieldDef {
   key: string;
@@ -62,6 +62,28 @@ const RETURNS_FIELDS: FieldDef[] = [
   { key: "reason",       label: "سبب الإرجاع",  required: false, hint: "reason, سبب, ملاحظة" },
 ];
 
+// نفس حقول فورم "شحنة جديدة" بالظبط، عشان يترفع الملف بدون مشاكل
+const SHIPMENTS_FIELDS: FieldDef[] = [
+  { key: "senderName",      label: "اسم الراسل",             required: true,  hint: "اسم الراسل، sender، senderName" },
+  { key: "senderPhone",     label: "هاتف الراسل",            required: false, hint: "هاتف الراسل، رقم الراسل، senderPhone" },
+  { key: "senderPhone2",    label: "هاتف الراسل 2",          required: false, hint: "هاتف بديل، senderPhone2" },
+  { key: "senderCity",      label: "محافظة الراسل",          required: false, hint: "محافظة الراسل، senderCity" },
+  { key: "receiverName",    label: "اسم المستلم",            required: true,  hint: "اسم المستلم، receiver، receiverName" },
+  { key: "receiverPhone",   label: "هاتف المستلم",           required: false, hint: "هاتف المستلم، رقم المستلم، receiverPhone" },
+  { key: "receiverPhone2",  label: "هاتف المستلم 2",         required: false, hint: "هاتف بديل، receiverPhone2" },
+  { key: "receiverAddress", label: "عنوان المستلم",          required: false, hint: "العنوان، address، receiverAddress" },
+  { key: "receiverCity",    label: "محافظة/مدينة المستلم",  required: false, hint: "المحافظة، المدينة، city" },
+  { key: "zone",            label: "منطقة التوصيل",          required: false, hint: "المحافظة - المنطقة، zone، منطقة" },
+  { key: "parcelType",      label: "نوع الشحنة",              required: false, hint: "عادي، مستندات، fragile، parcelType" },
+  { key: "weight",          label: "الوزن (كجم)",            required: false, hint: "الوزن، weight" },
+  { key: "pieces",          label: "عدد القطع",              required: false, hint: "القطع، pieces، عدد" },
+  { key: "description",     label: "وصف الشحنة",             required: false, hint: "الوصف، description" },
+  { key: "paymentMethod",   label: "طريقة الدفع",            required: false, hint: "COD، مدفوع مسبقاً، آجل، paymentMethod" },
+  { key: "codAmount",       label: "سعر الشحنة (الإجمالي)", required: false, hint: "السعر، الإجمالي، codAmount" },
+  { key: "notes",           label: "ملاحظات",                 required: false, hint: "ملاحظات، notes" },
+  { key: "warehouse",       label: "المخزن",                  required: true,  hint: "اسم المخزن، warehouse" },
+];
+
 // ─── Auto-detect ───────────────────────────────────────────────────────────────
 function autoDetect(headers: string[], fields: FieldDef[]): Record<string, string> {
   const norm = (s: string) =>
@@ -95,6 +117,23 @@ function autoDetect(headers: string[], fields: FieldDef[]): Record<string, strin
     orderId:          ["رقمالطلب", "id", "orderid", "رقم", "طلب"],
     customerName:     ["اسمالعميل", "اسم", "customer", "name", "عميل"],
     reason:           ["سبب", "reason", "ملاحظه", "notes"],
+    senderName:       ["اسمالراسل", "الراسل", "sendername", "sender"],
+    senderPhone:      ["هاتفالراسل", "رقمالراسل", "senderphone"],
+    senderPhone2:     ["هاتفالراسل2", "senderphone2"],
+    senderCity:       ["محافظهالراسل", "sendercity"],
+    receiverName:     ["اسمالمستلم", "المستلم", "receivername", "receiver"],
+    receiverPhone:    ["هاتفالمستلم", "رقمالمستلم", "receiverphone"],
+    receiverPhone2:   ["هاتفالمستلم2", "receiverphone2"],
+    receiverAddress:  ["عنوانالمستلم", "العنوان", "عنوان", "address", "receiveraddress"],
+    receiverCity:     ["محافظهالمستلم", "مدينهالمستلم", "المحافظه", "المدينه", "city", "receivercity"],
+    zone:             ["منطقهالتوصيل", "المنطقه", "منطقه", "zone"],
+    parcelType:       ["نوعالشحنه", "نوعالطرد", "parceltype"],
+    weight:           ["الوزن", "وزن", "weight"],
+    pieces:           ["عددالقطع", "القطع", "قطع", "pieces"],
+    description:      ["وصفالشحنه", "الوصف", "description"],
+    paymentMethod:    ["طريقهالدفع", "الدفع", "paymentmethod"],
+    codAmount:        ["سعرالشحنه", "الاجمالي", "codamount"],
+    warehouse:        ["المخزن", "مخزن", "warehouse"],
   };
   for (const field of fields) {
     const patterns = PATTERNS[field.key] ?? [];
@@ -158,6 +197,7 @@ const MODES: { id: ImportMode; label: string; desc: string; icon: any; color: st
   { id: "products",  label: "منتجات",     desc: "استورد منتجات بأسعار البيع والتكلفة",   icon: Package,      color: "border-amber-700/40 bg-amber-900/5 text-amber-400" },
   { id: "returns",   label: "مرتجعات",   desc: "سجّل مرتجعات بالجملة من ملف Excel",    icon: Undo2,        color: "border-red-800/40 bg-red-900/5 text-red-400" },
   { id: "inventory", label: "مخزون",     desc: "تحديث كميات المخزون عبر SKU",          icon: Package,      color: "border-green-700/40 bg-green-900/5 text-green-400" },
+  { id: "shipments", label: "شحنات",     desc: "استورد قائمة شحنات جاهزة مباشرة",      icon: Package,      color: "border-teal-700/40 bg-teal-900/5 text-teal-400" },
 ];
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -192,7 +232,10 @@ export default function Import() {
   const [duplicateCustomers, setDuplicateCustomers] = useState<{ name: string; count: number; rows: number[] }[]>([]);
   const [duplicateAction, setDuplicateAction] = useState<"separate" | "merge" | null>(null);
 
-  const currentFields = mode === "orders" ? ORDERS_FIELDS : mode === "products" ? PRODUCTS_FIELDS : RETURNS_FIELDS ?? [];
+  const currentFields = mode === "orders" ? ORDERS_FIELDS
+    : mode === "products" ? PRODUCTS_FIELDS
+    : mode === "shipments" ? SHIPMENTS_FIELDS
+    : RETURNS_FIELDS ?? [];
 
   useEffect(() => {
     if (mode) setHasSavedMapping(!!loadMapping(mode));
@@ -244,6 +287,7 @@ export default function Import() {
     try {
       const parseFn = mode === "orders" ? importApi.parse
         : mode === "products" ? importApi.parseProducts
+        : mode === "shipments" ? importApi.parseShipments
         : importApi.parseReturns;
       const data = await parseFn(file);
       if (!data.headers.length) { setError("لم يتم العثور على أعمدة."); setIsLoading(false); return; }
@@ -279,6 +323,7 @@ export default function Import() {
       const payload = { headers: parsed.headers, rows: parsed.allRows, mapping, duplicateAction: duplicateAction ?? "separate" };
       if (mode === "orders") res = await importApi.execute({ ...payload, mapping: mapping as any as ColumnMapping });
       else if (mode === "products") res = await importApi.executeProducts(payload);
+      else if (mode === "shipments") res = await importApi.executeShipments(payload);
       else res = await importApi.executeReturns(payload);
       setResult(res);
       setStep(4);
@@ -289,7 +334,8 @@ export default function Import() {
         queryClient.invalidateQueries({ queryKey: ["products"] });
         queryClient.invalidateQueries({ queryKey: ["variants"] });
         queryClient.invalidateQueries({ queryKey: ["analytics-profit"] });
-        const modeLabel = mode === "orders" ? "طلبات" : mode === "products" ? "منتجات" : "مرتجعات";
+        if (mode === "shipments") queryClient.invalidateQueries({ queryKey: ["shipments"] });
+        const modeLabel = mode === "orders" ? "طلبات" : mode === "products" ? "منتجات" : mode === "shipments" ? "شحنات" : "مرتجعات";
         toast({
           title: `تم الاستيراد بنجاح`,
           description: `تم استيراد ${res.imported} ${modeLabel} بنجاح.${res.errors?.length ? ` (${res.errors.length} أخطاء)` : ""}`,
@@ -427,6 +473,19 @@ export default function Import() {
                 <p className="text-muted-foreground leading-relaxed">
                   حدّد الطلبات بـ<span className="text-red-400 font-bold">رقم الطلب</span> أو بـ(اسم العميل + المنتج).
                   سيتم تغيير حالة الطلبات إلى &quot;مُرتجع&quot; وإضافة سبب الإرجاع في الملاحظات.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          {mode === "shipments" && (
+            <Card className="border-teal-900/40 bg-teal-900/5">
+              <CardContent className="p-3 flex gap-3 text-xs">
+                <Info className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                <p className="text-muted-foreground leading-relaxed">
+                  نفس بيانات فورم <span className="text-teal-400 font-bold">"شحنة جديدة"</span> بالظبط.
+                  <span className="text-teal-400 font-bold"> اسم الراسل، اسم المستلم، والمخزن</span> حقول مطلوبة.
+                  لو حددت <span className="text-teal-400 font-bold">منطقة توصيل</span> أو <span className="text-teal-400 font-bold">نوع شحنة</span>، لازم تكون مطابقة لاسم موجود بالفعل في النظام
+                  وإلا هيظهر خطأ واضح لكل صف يوضح سبب الرفض.
                 </p>
               </CardContent>
             </Card>
