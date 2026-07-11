@@ -571,8 +571,8 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
     const [client] = await db.select().from(clientsTable).where(and(...conds));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
-    // جلب الشحنات بالـ clientId أو بالاسم
-    const shipConds: any[] = [];
+    // جلب الشحنات بالـ clientId أو بالاسم (استبعاد المحذوفة)
+    const shipConds: any[] = [isNull(shipmentsTable.deletedAt)];
     const idCond   = eq(shipmentsTable.clientId, id);
     const nameCond = eq(shipmentsTable.senderName, client.name);
     shipConds.push(or(idCond, nameCond)!);
