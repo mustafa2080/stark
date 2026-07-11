@@ -536,8 +536,8 @@ export default function NewShipmentPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {form.paymentMethod === "cod" && (
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">سعر الشحنة{isEditMode && <span className="text-muted-foreground font-normal"> (غير قابل للتعديل هنا)</span>}</Label>
-                <Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} disabled={isEditMode} />
+                <Label className="text-xs font-bold mb-1.5 block">سعر الشحنة</Label>
+                <Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} />
               </div>
             )}
           </div>
