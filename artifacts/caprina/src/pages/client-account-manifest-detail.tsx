@@ -1179,7 +1179,7 @@ function InvoiceGroupDeliveryRow({
         {/* Desktop row */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Customer */}
@@ -4863,7 +4863,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_100px_100px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_100px_160px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── عمود العميل ─── */}
                   <div className="relative flex items-center">
