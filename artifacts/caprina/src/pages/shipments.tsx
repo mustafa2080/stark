@@ -317,8 +317,9 @@ function ShipmentFormDialog({
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
   const insurance       = Number(form.insuranceFee) || 0;
-  const cod             = Number(form.codAmount) || 0;
-  const total           = form.paymentMethod === "cod" ? (cod - shippingFee) : (shippingFee + insurance);
+  // المستخدم بيدخل "سعر الشحنة" (الإجمالي)، ومبلغ COD الفعلي = الإجمالي ناقص رسوم الشحن
+  const total           = Number(form.codAmount) || 0;
+  const cod             = form.paymentMethod === "cod" ? (total - shippingFee) : total;
 
   const filteredClients = useMemo(() =>
     clients.filter(c => c.name.includes(clientSearch) || (c.phone || "").includes(clientSearch)),
