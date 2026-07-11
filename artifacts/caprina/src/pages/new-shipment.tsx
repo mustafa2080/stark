@@ -148,7 +148,7 @@ export default function NewShipmentPage() {
         pieces:          s.pieces != null ? String(s.pieces) : "1",
         description:     s.description ?? "",
         paymentMethod:   (s.paymentMethod ?? "cod") as PaymentMethod,
-        codAmount:       s.codAmount != null ? String(s.codAmount) : "",
+        codAmount:       s.totalAmount != null ? String(s.totalAmount) : (s.codAmount != null ? String(s.codAmount) : ""),
         notes:           s.notes ?? "",
         adSource:        s.adSource ?? "",
         adCampaign:      s.adCampaign ?? "",
