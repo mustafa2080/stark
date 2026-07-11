@@ -14,6 +14,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
+import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
 import { broadcastUrgentToCompany } from "./representative.js";
 
 const router: IRouter = Router();
@@ -401,6 +402,11 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     await db.update(shipmentsTable)
       .set(shipmentPatch)
       .where(eq(shipmentsTable.id, shipmentId));
+
+    // مزامنة الحالة الجديدة مع بيان حساب العميل التجاري (لو الشحنة مضافة له كمان)
+    if (shipmentPatch.status) {
+      await syncShipmentStatusToManifests(shipmentId, shipmentPatch.status);
+    }
 
     res.json({ success: true });
   } catch (e: any) {

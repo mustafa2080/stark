@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { syncManifestItemToShipment } from "../lib/manifestSync.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -383,6 +384,9 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
         eq(clientAccountManifestItemsTable.manifestId, manifestId),
         eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
       ));
+
+    // مزامنة الحالة مع شحنة الأصل (shipmentsTable) عشان تفضل متسقة مع صفحة الشحنات
+    await syncManifestItemToShipment(shipmentId, body.deliveryStatus);
 
     res.json({ success: true });
   } catch (e: any) {

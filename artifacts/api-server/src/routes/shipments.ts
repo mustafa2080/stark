@@ -7,6 +7,7 @@ import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
 import { pushNotification } from "../lib/notifications.js";
 import { autoAddShipmentToClientAccountManifest } from "./client-account-manifests.js";
+import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
 
 const router: IRouter = Router();
 
@@ -954,6 +955,11 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
 
     await db.update(shipmentsTable).set(updateData).where(cond);
 
+    // مزامنة حالة كل الشحنات المُحدَّثة مع أي بيان مرتبطة بيها
+    for (const shId of numericIds) {
+      await syncShipmentStatusToManifests(shId, status);
+    }
+
     if (toAutoAdd.length > 0) {
       for (const r of toAutoAdd) {
         await autoAddShipmentToClientAccountManifest(r.id, r.clientId, tenantId);
@@ -1040,6 +1046,11 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);
     await db.update(shipmentsTable).set(updateData).where(cond);
+
+    // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها
+    if (updateData.status !== undefined) {
+      await syncShipmentStatusToManifests(id, updateData.status);
+    }
 
     // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"
     // ملحوظة: بتتنفذ طالما الحالة النهائية warehouse_ready، سواء كانت متغيرة دلوقتي
