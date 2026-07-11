@@ -355,9 +355,7 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
 
     const senderName      = getCell(row, mapping.senderName);
     const receiverName    = getCell(row, mapping.receiverName);
-    const senderPhone     = getCell(row, mapping.senderPhone) || null;
-    const senderPhone2    = getCell(row, mapping.senderPhone2) || null;
-    const senderCity      = getCell(row, mapping.senderCity) || null;
+    // ملاحظة: senderPhone/senderPhone2/senderCity بتتجاب تلقائياً من بيانات العميل (clientsTable) تحت، مش من الإكسيل
     const receiverPhone   = getCell(row, mapping.receiverPhone) || null;
     const receiverPhone2  = getCell(row, mapping.receiverPhone2) || null;
     const receiverAddress = getCell(row, mapping.receiverAddress) || null;
@@ -407,8 +405,12 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
       continue;
     }
 
-    // المخزن يتحدد تلقائيًا حسب مخزن العميل (الراسل) المرتبط، مش عمود إكسيل منفصل
+    // العميل (الراسل) يتحدد بالاسم، وبيانات المرسل (هاتف، هاتف 2، محافظة) والمخزن تُجلب منه تلقائيًا
+    // بنفس منطق فورم "شحنة جديدة" بالظبط (سطر اختيار العميل هناك)
     let warehouseId: number | null = null;
+    let senderPhone: string | null = null;
+    let senderPhone2: string | null = null;
+    let senderCity: string | null = null;
     {
       const clientRow = findClient(senderName);
       if (!clientRow) {
@@ -420,6 +422,9 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
         continue;
       }
       warehouseId = clientRow.warehouseId;
+      senderPhone = clientRow.phone || null;
+      senderPhone2 = clientRow.phone2 || null;
+      senderCity = clientRow.region || clientRow.city || null;
     }
 
     // المنطقة (اختيارية لكن لو مكتوبة لازم تكون موجودة فعلاً)
