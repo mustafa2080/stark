@@ -836,8 +836,10 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.clientId         !== undefined) updateData.clientId         = d.clientId;
     if (d.senderName       !== undefined) updateData.senderName       = d.senderName;
     if (d.senderPhone      !== undefined) updateData.senderPhone      = d.senderPhone;
+    if (d.senderPhone2     !== undefined) updateData.senderPhone2     = d.senderPhone2;
     if (d.receiverName     !== undefined) updateData.receiverName     = d.receiverName;
     if (d.receiverPhone    !== undefined) updateData.receiverPhone    = d.receiverPhone;
+    if (d.receiverPhone2   !== undefined) updateData.receiverPhone2   = d.receiverPhone2;
     if (d.receiverAddress  !== undefined) updateData.receiverAddress  = d.receiverAddress;
     if (d.receiverCity     !== undefined) updateData.receiverCity     = d.receiverCity;
     if (d.zoneId           !== undefined) {

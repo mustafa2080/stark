@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users, ChevronsUpDown, Check } from "lucide-react";
+import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users, ChevronsUpDown, Check, Boxes } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useRef, useEffect, useMemo } from "react";
 import React from "react";
@@ -74,6 +74,10 @@ const editSchema = z.object({
   clientId:          z.coerce.number().optional().nullable(),
   senderName:        z.string().optional().nullable(),
   senderPhone:       z.string().optional().nullable(),
+  senderPhone2:      z.string().optional().nullable(),
+  receiverPhone2:    z.string().optional().nullable(),
+  parcelType:        z.string().optional().nullable(),
+  weight:            z.string().optional().nullable(),
   codAmount:         z.coerce.number().min(0).optional().nullable(),
   shippingCost:      z.coerce.number().min(0).optional().nullable(),
   shippingCompanyId: z.coerce.number().optional().nullable(),
@@ -2038,6 +2042,12 @@ function ShipmentUrgentButton({
 interface ShipmentClient { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null; defaultAdSource?: string | null }
 // ── مناطق التوصيل (نفس منطق new-shipment.tsx) ──
 interface ShipmentZone { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; isActive?: boolean }
+// ── أنواع الشحنات وأسعارها (نفس منطق new-shipment.tsx) ──
+interface ParcelTypePricing { id: number; parcelType: string; label?: string; basePrice: number; isActive?: boolean }
+const PARCEL_LABELS: Record<string, string> = {
+  document: "مستندات", normal: "عادي", fragile: "قابل للكسر",
+  heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس", food: "طعام", other: "أخرى",
+};
 
 const AVATAR_COLORS = [
   ["#f59e0b","#78350f"],["#10b981","#064e3b"],["#3b82f6","#1e3a8a"],
@@ -2179,6 +2189,7 @@ export default function OrderDetail() {
       .sort((a, b) => a.label.localeCompare(b.label, "ar"));
   }, [shipmentZones]);
   const [editZoneOpen, setEditZoneOpen] = useState(false);
+  const { data: parcelPricing = [] } = useQuery<ParcelTypePricing[]>({ queryKey: ["parcel-pricing"], queryFn: () => apiFetch("/shipments/parcel-pricing") });
   const { data: shippingCompanies } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: productsApi.list });
   const { data: allVariants } = useQuery({ queryKey: ["variants"], queryFn: variantsApi.listAll });
@@ -2232,7 +2243,9 @@ export default function OrderDetail() {
     defaultValues: {
       customerName: "", phone: "", city: "", address: "", zoneId: null,
       clientId: null,
-      senderName: "", senderPhone: "", codAmount: 0,
+      senderName: "", senderPhone: "", senderPhone2: "", receiverPhone2: "",
+      parcelType: "", weight: "",
+      codAmount: 0,
       shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
       warehouseId: null, assignedUserId: null,
       adSource: null, adCampaign: null, notes: "",
@@ -2252,6 +2265,10 @@ export default function OrderDetail() {
         clientId:          (order as any).clientId ?? null,
         senderName:        (order as any).senderName ?? "",
         senderPhone:       (order as any).senderPhone ?? "",
+        senderPhone2:      (order as any).senderPhone2 ?? "",
+        receiverPhone2:    (order as any).receiverPhone2 ?? "",
+        parcelType:        (order as any).parcelType ?? "",
+        weight:            (order as any).weight ?? "",
         codAmount:         (order as any).codAmount ?? 0,
         shippingCost:      (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
         shippingCompanyId: (order as any).shippingCompanyId ?? null,
@@ -2443,6 +2460,7 @@ export default function OrderDetail() {
     updateOrder.mutate({ id, data: {
       receiverName:      values.customerName,
       receiverPhone:     values.phone ?? null,
+      receiverPhone2:    values.receiverPhone2 ?? null,
       receiverCity:      values.city ?? null,
       receiverAddress:   values.address ?? null,
       zoneId:            values.zoneId ?? null,
@@ -2450,6 +2468,10 @@ export default function OrderDetail() {
       clientId:          values.clientId ?? null,
       senderName:        values.senderName ?? null,
       senderPhone:       values.senderPhone ?? null,
+      senderPhone2:      values.senderPhone2 ?? null,
+      parcelType:        values.parcelType || null,
+      parcelTypePrice:   values.parcelType ? (parcelPricing.find(p => p.parcelType === values.parcelType)?.basePrice ?? undefined) : undefined,
+      weight:            values.weight || null,
       codAmount:         values.codAmount ?? null,
       description:       values.product ?? null,
       pieces:            values.quantity ?? null,
@@ -4303,6 +4325,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             </FormControl>
                           </FormItem>
                         )} />
+                        <FormField control={form.control} name="senderPhone2" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />هاتف الراسل 2</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="رقم بديل" dir="ltr" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
                       </div>
                     </div>
 
@@ -4324,6 +4354,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <FormField control={form.control} name="phone" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />رقم الهاتف</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="01x-xxxx-xxxx" dir="ltr" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="receiverPhone2" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />هاتف بديل</FormLabel>
                             <FormControl>
                               <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="01x-xxxx-xxxx" dir="ltr" {...field} value={field.value ?? ""} />
                             </FormControl>
@@ -4404,6 +4442,72 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <Truck className="w-3 h-3" />بيانات الشحن
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="parcelType" render={({ field }) => {
+                          const selectedPricing = parcelPricing.find(p => p.parcelType === field.value);
+                          return (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Package className="w-3 h-3" />نوع الشحنة</FormLabel>
+                            <Select value={field.value || "none"} onValueChange={v => field.onChange(v === "none" ? null : v)}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر نوع الشحنة..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">بدون تحديد</SelectItem>
+                                {parcelPricing.filter(p => p.isActive !== false).map(p => (
+                                  <SelectItem key={p.id} value={p.parcelType}>
+                                    <span className="flex items-center justify-between gap-4 w-full">
+                                      <span>{p.label || PARCEL_LABELS[p.parcelType] || p.parcelType}</span>
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {formatCurrency(selectedPricing.basePrice)}</p>}
+                          </FormItem>
+                          );
+                        }} />
+                        <FormField control={form.control} name="weight" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Boxes className="w-3 h-3" />الوزن (كجم)</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="0.01" className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="0.00" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="trackingNumber" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Truck className="w-3 h-3" />رقم التتبع</FormLabel>
+                            <FormControl>
+                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="رقم التتبع لدى شركة الشحن" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="warehouseId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Warehouse className="w-3 h-3" />المخزن</FormLabel>
+                            <Select value={field.value?.toString() || "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر المخزن..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— غير محدد —</SelectItem>
+                                {(warehouses as any[])?.map((w: any) => (
+                                  <SelectItem key={w.id} value={String(w.id)}>{w.name}{w.city ? ` — ${w.city}` : ""}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="assignedUserId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><UserCheck className="w-3 h-3" />الموظف المسؤول</FormLabel>
+                            <Select value={field.value?.toString() || "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                              <SelectTrigger className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20"><SelectValue placeholder="اختر الموظف..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— غير محدد —</SelectItem>
+                                {(users as any[])?.map((u: any) => (
+                                  <SelectItem key={u.id} value={String(u.id)}>{u.name || u.username}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
                         <FormField control={form.control} name="codAmount" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" />مبلغ COD (عند الاستلام)</FormLabel>
