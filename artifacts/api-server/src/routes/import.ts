@@ -240,6 +240,9 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
       notes?: string;
       warehouse?: string;
       shippingCompanyId?: string;
+      canOpen?: string;
+      isDivisible?: string;
+      rejectionPolicy?: string;
     };
   };
 
@@ -318,6 +321,20 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
       ?? null;
   };
 
+  // "نعم"/"لا" -> 1/0
+  const YES_NO_MAP: Record<string, number> = {
+    "نعم": 1, "لا": 0,
+  };
+  const parseYesNo = (raw: string): number | null => {
+    const n = raw.trim();
+    return n in YES_NO_MAP ? YES_NO_MAP[n] : null;
+  };
+
+  // "دفع كامل"/"مجاني" -> full_fee/free
+  const REJECTION_POLICY_MAP: Record<string, string> = {
+    "دفع كامل": "full_fee", "مجاني": "free",
+  };
+
   const errors: string[] = [];
   const validShipments: any[] = [];
 
@@ -343,6 +360,9 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     const rawCodAmount     = getCell(row, mapping.codAmount).replace(/,/g, "");
     const notes            = getCell(row, mapping.notes) || null;
     const warehouseRaw     = getCell(row, mapping.warehouse);
+    const canOpenRaw       = getCell(row, mapping.canOpen);
+    const isDivisibleRaw   = getCell(row, mapping.isDivisible);
+    const rejectionPolicyRaw = getCell(row, mapping.rejectionPolicy);
 
     // تجاهل الصفوف الفاضية تماماً
     if (!senderName && !receiverName && !rawCodAmount) continue;
@@ -350,6 +370,32 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     // ── Validation: نفس الحقول المطلوبة الموجودة في فورم "شحنة جديدة" ──────────
     if (!senderName)   { errors.push(`الصف ${rowNum}: اسم الراسل مطلوب`); continue; }
     if (!receiverName) { errors.push(`الصف ${rowNum}: اسم المستلم مطلوب`); continue; }
+    if (!senderPhone2)   { errors.push(`الصف ${rowNum}: هاتف المرسل 2 مطلوب`); continue; }
+    if (!receiverPhone2) { errors.push(`الصف ${rowNum}: هاتف المستلم 2 مطلوب`); continue; }
+
+    // حالة الفتح (canOpen) — إجباري، "نعم"/"لا"
+    if (!canOpenRaw) { errors.push(`الصف ${rowNum}: حالة الشحنة (الفتح) مطلوبة`); continue; }
+    const canOpen = parseYesNo(canOpenRaw);
+    if (canOpen === null) {
+      errors.push(`الصف ${rowNum}: حالة الشحنة (الفتح) "${canOpenRaw}" غير معروفة (المتاح: نعم، لا)`);
+      continue;
+    }
+
+    // حالة التجزئة (isDivisible) — إجباري، "نعم"/"لا"
+    if (!isDivisibleRaw) { errors.push(`الصف ${rowNum}: حالة التجزئة مطلوبة`); continue; }
+    const isDivisible = parseYesNo(isDivisibleRaw);
+    if (isDivisible === null) {
+      errors.push(`الصف ${rowNum}: حالة التجزئة "${isDivisibleRaw}" غير معروفة (المتاح: نعم، لا)`);
+      continue;
+    }
+
+    // حالة الرفض (rejectionPolicy) — إجباري، "دفع كامل"/"مجاني"
+    if (!rejectionPolicyRaw) { errors.push(`الصف ${rowNum}: حالة الرفض مطلوبة`); continue; }
+    const rejectionPolicy = REJECTION_POLICY_MAP[rejectionPolicyRaw.trim()] ?? null;
+    if (!rejectionPolicy) {
+      errors.push(`الصف ${rowNum}: حالة الرفض "${rejectionPolicyRaw}" غير معروفة (المتاح: دفع كامل، مجاني)`);
+      continue;
+    }
 
     // المخزن مطلوب (زي الفورم بالظبط)
     let warehouseId: number | null = null;
@@ -419,6 +465,9 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
       totalAmount: total || 0,
       notes,
       warehouseId,
+      canOpen,
+      isDivisible,
+      rejectionPolicy,
     });
   }
 
@@ -449,6 +498,9 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
         pieces:          s.pieces,
         description:     s.description ?? undefined,
         warehouseId:     s.warehouseId ?? undefined,
+        canOpen:         s.canOpen,
+        isDivisible:     s.isDivisible,
+        rejectionPolicy: s.rejectionPolicy,
         declaredValue:   "0",
         paymentMethod:   s.paymentMethod,
         codAmount:       String(s.codAmount),

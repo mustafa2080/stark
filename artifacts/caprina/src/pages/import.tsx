@@ -48,11 +48,11 @@ const RETURNS_FIELDS: FieldDef[] = [
 const SHIPMENTS_FIELDS: FieldDef[] = [
   { key: "senderName",      label: "اسم الراسل",             required: true,  hint: "اسم الراسل، sender، senderName" },
   { key: "senderPhone",     label: "هاتف الراسل",            required: false, hint: "هاتف الراسل، رقم الراسل، senderPhone" },
-  { key: "senderPhone2",    label: "هاتف الراسل 2",          required: false, hint: "هاتف بديل، senderPhone2" },
+  { key: "senderPhone2",    label: "هاتف الراسل 2",          required: true,  hint: "هاتف بديل، senderPhone2" },
   { key: "senderCity",      label: "محافظة الراسل",          required: false, hint: "محافظة الراسل، senderCity" },
   { key: "receiverName",    label: "اسم المستلم",            required: true,  hint: "اسم المستلم، receiver، receiverName" },
   { key: "receiverPhone",   label: "هاتف المستلم",           required: false, hint: "هاتف المستلم، رقم المستلم، receiverPhone" },
-  { key: "receiverPhone2",  label: "هاتف المستلم 2",         required: false, hint: "هاتف بديل، receiverPhone2" },
+  { key: "receiverPhone2",  label: "هاتف المستلم 2",         required: true,  hint: "هاتف بديل، receiverPhone2" },
   { key: "receiverAddress", label: "عنوان المستلم",          required: false, hint: "العنوان، address، receiverAddress" },
   { key: "receiverCity",    label: "محافظة/مدينة المستلم",  required: false, hint: "المحافظة، المدينة، city" },
   { key: "zone",            label: "منطقة التوصيل",          required: false, hint: "المحافظة - المنطقة، zone، منطقة" },
@@ -64,6 +64,9 @@ const SHIPMENTS_FIELDS: FieldDef[] = [
   { key: "codAmount",       label: "سعر الشحنة (الإجمالي)", required: false, hint: "السعر، الإجمالي، codAmount" },
   { key: "notes",           label: "ملاحظات",                 required: false, hint: "ملاحظات، notes" },
   { key: "warehouse",       label: "المخزن",                  required: true,  hint: "اسم المخزن، warehouse" },
+  { key: "canOpen",         label: "حالة الشحنة (الفتح)",    required: true,  hint: "نعم/لا، canOpen، هل يمكن الفتح" },
+  { key: "isDivisible",     label: "حالة التجزئة",            required: true,  hint: "نعم/لا، isDivisible، قابلة للتجزئة" },
+  { key: "rejectionPolicy", label: "حالة الرفض",              required: true,  hint: "دفع كامل/مجاني، rejectionPolicy" },
 ];
 
 // ─── Auto-detect ───────────────────────────────────────────────────────────────
@@ -114,6 +117,9 @@ function autoDetect(headers: string[], fields: FieldDef[]): Record<string, strin
     paymentMethod:    ["طريقهالدفع", "الدفع", "paymentmethod"],
     codAmount:        ["سعرالشحنه", "الاجمالي", "codamount"],
     warehouse:        ["المخزن", "مخزن", "warehouse"],
+    canOpen:          ["حالهالشحنهالفتح", "حالهالفتح", "الفتح", "canopen"],
+    isDivisible:      ["حالهالتجزئه", "التجزئه", "isdivisible"],
+    rejectionPolicy:  ["حالهالرفض", "الرفض", "rejectionpolicy"],
   };
   for (const field of fields) {
     const patterns = PATTERNS[field.key] ?? [];
