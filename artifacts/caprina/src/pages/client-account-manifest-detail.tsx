@@ -1321,6 +1321,43 @@ function InvoiceGroupDeliveryRow({
                     <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
                   </Button>
                 )}
+                {/* ── زرار واتساب المستلم — متابعة تسليم البيان (Desktop) ── */}
+                {(rep as any).phone && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-1.5 text-green-600 hover:text-green-700 self-start"
+                    onClick={async () => {
+                      const DEFAULT_MANIFEST_DELIVERY_BODY =
+                        `مرحباً {customerName} 👋\n\n` +
+                        `بخصوص شحنتك رقم *{shipmentNumber}*:\n` +
+                        `• إجمالي السعر: *{totalPrice}*\n` +
+                        `• المندوب المسؤول: *{representativeName}*\n\n` +
+                        `شكراً لتعاملك معنا 🙏`;
+                      let templateBody = DEFAULT_MANIFEST_DELIVERY_BODY;
+                      try {
+                        const waSettings = await apiFetch<{ templates: { name: string; body: string }[] }>("/whatsapp/settings");
+                        const tpl = waSettings?.templates?.find(t => t.name === "متابعة تسليم البيان");
+                        if (tpl) templateBody = tpl.body;
+                      } catch {
+                        // استخدم الرسالة الافتراضية لو فشل تحميل القالب
+                      }
+                      const body = applyManifestDeliveryTemplate(templateBody, {
+                        customerName: (rep as any).customerName || rep.senderName || "—",
+                        phone: (rep as any).phone ?? null,
+                        shipmentNumber: (rep as any).invoiceNumber ?? null,
+                        totalPrice,
+                        representativeName: (rep as any).representativeName ?? null,
+                      });
+                      const link = buildWhatsAppLink((rep as any).phone, body);
+                      window.open(link, "_blank", "noopener,noreferrer");
+                    }}
+                    title="إرسال رسالة متابعة تسليم للمستلم"
+                  >
+                    <MessageCircle className="w-3 h-3" />
+                  </Button>
+                )}
                 {/* ── زرار الاستعجال جنب التقفيل ── */}
                 {false && isShipmentManifest && (
                   <div onClick={e => e.stopPropagation()}>
