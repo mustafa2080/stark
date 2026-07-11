@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users } from "lucide-react";
+import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users, ChevronsUpDown, Check } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useRef, useEffect, useMemo } from "react";
 import React from "react";
@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,6 +70,7 @@ const editSchema = z.object({
   phone:             z.string().optional().nullable(),
   city:              z.string().optional().nullable(),
   address:           z.string().optional().nullable(),
+  clientId:          z.coerce.number().optional().nullable(),
   senderName:        z.string().optional().nullable(),
   senderPhone:       z.string().optional().nullable(),
   codAmount:         z.coerce.number().min(0).optional().nullable(),
@@ -2030,6 +2033,31 @@ function ShipmentUrgentButton({
   );
 }
 
+// ── بيانات العميل التجاري لاختيار الراسل (نفس منطق new-shipment.tsx) ──
+interface ShipmentClient { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null; defaultAdSource?: string | null }
+
+const AVATAR_COLORS = [
+  ["#f59e0b","#78350f"],["#10b981","#064e3b"],["#3b82f6","#1e3a8a"],
+  ["#8b5cf6","#4c1d95"],["#ef4444","#7f1d1d"],["#ec4899","#831843"],
+  ["#06b6d4","#164e63"],["#f97316","#7c2d12"],
+];
+function getAvatarColor(name: string) {
+  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function ClientAvatar({ avatar, name, className = "w-6 h-6 text-[10px]" }: { avatar?: string | null; name: string; className?: string }) {
+  if (avatar && avatar.startsWith("data:")) {
+    return <img src={avatar} className={`${className} rounded-full object-cover border border-border/50 shrink-0`} />;
+  }
+  const [bg, fg] = getAvatarColor(name || "؟");
+  return (
+    <div className={`${className} rounded-full flex items-center justify-center font-bold shrink-0 border border-primary/20`}
+      style={{ background: bg, color: fg }}>
+      {(name || "؟").charAt(0)}
+    </div>
+  );
+}
+
 export default function OrderDetail() {
   const params = useParams();
   const id = Number(params.id);
@@ -2105,6 +2133,13 @@ export default function OrderDetail() {
     whatsappGroupLink: senderCommercialClient?.whatsappGroupLink || null,
   };
 
+  // ── قائمة العملاء التجاريين لاختيار الراسل في التعديل (نفس منطق new-shipment.tsx) ──
+  const { data: shipmentClients = [] } = useQuery<ShipmentClient[]>({
+    queryKey: ["clients-for-shipment"],
+    queryFn: () => apiFetch<ShipmentClient[]>("/finance/clients/for-shipment"),
+  });
+  const [editClientOpen, setEditClientOpen] = useState(false);
+
 
   // الشحنات مش بيها invoiceNumber — نعطل الـ query ده
   const invoiceNumber = null;
@@ -2171,6 +2206,7 @@ export default function OrderDetail() {
     resolver: zodResolver(editSchema),
     defaultValues: {
       customerName: "", phone: "", city: "", address: "",
+      clientId: null,
       senderName: "", senderPhone: "", codAmount: 0,
       shippingCost: 0, shippingCompanyId: null, trackingNumber: null,
       warehouseId: null, assignedUserId: null,
@@ -2187,6 +2223,7 @@ export default function OrderDetail() {
         phone:             (order as any).receiverPhone ?? order.phone ?? "",
         city:              (order as any).receiverCity ?? (order as any).city ?? "",
         address:           (order as any).receiverAddress ?? order.address ?? "",
+        clientId:          (order as any).clientId ?? null,
         senderName:        (order as any).senderName ?? "",
         senderPhone:       (order as any).senderPhone ?? "",
         codAmount:         (order as any).codAmount ?? 0,
@@ -2382,6 +2419,7 @@ export default function OrderDetail() {
       receiverPhone:     values.phone ?? null,
       receiverCity:      values.city ?? null,
       receiverAddress:   values.address ?? null,
+      clientId:          values.clientId ?? null,
       senderName:        values.senderName ?? null,
       senderPhone:       values.senderPhone ?? null,
       codAmount:         values.codAmount ?? null,
@@ -4152,12 +4190,80 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
                         <UserCheck className="w-3 h-3" />بيانات المرسل
                       </p>
+                      <FormField control={form.control} name="clientId" render={({ field }) => (
+                        <FormItem className="mb-3">
+                          <FormLabel className="text-xs text-muted-foreground">العميل التجاري (الراسل)</FormLabel>
+                          <FormControl>
+                            <Popover open={editClientOpen} onOpenChange={setEditClientOpen}>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  role="combobox"
+                                  aria-expanded={editClientOpen}
+                                  className="flex h-9 w-full items-center justify-between rounded-md border border-border/70 bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  {(() => {
+                                    const c = shipmentClients.find(x => x.id === field.value);
+                                    if (!c) return <span className="flex items-center gap-2 text-muted-foreground"><UserCheck className="w-3.5 h-3.5" />اختر العميل...</span>;
+                                    return (
+                                      <span className="flex items-center gap-2">
+                                        <ClientAvatar avatar={c.avatar} name={c.name} className="w-5 h-5 text-[9px]" />
+                                        <span className="text-xs font-bold">{c.name}</span>
+                                      </span>
+                                    );
+                                  })()}
+                                  <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
+                                <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
+                                  <CommandInput placeholder="ابحث بالاسم أو المحافظة/المدينة..." className="text-sm" />
+                                  <CommandList className="max-h-[260px]">
+                                    <CommandEmpty className="text-xs text-muted-foreground py-4">لا يوجد عميل بهذا الاسم</CommandEmpty>
+                                    <CommandGroup>
+                                      {shipmentClients.filter(c => c.name).map(c => {
+                                        const gov = c.region || c.city || c.governorate || "";
+                                        return (
+                                          <CommandItem
+                                            key={c.id}
+                                            value={`${c.name} ${gov} ${c.phone || ""}`}
+                                            onSelect={() => {
+                                              form.setValue("clientId", c.id);
+                                              form.setValue("senderName", c.name);
+                                              form.setValue("senderPhone", c.phone || "");
+                                              setEditClientOpen(false);
+                                            }}
+                                            className="text-sm flex items-center justify-between gap-3"
+                                          >
+                                            <span className="flex items-center gap-2">
+                                              <Check className={`w-3.5 h-3.5 shrink-0 ${field.value === c.id ? "opacity-100 text-primary" : "opacity-0"}`} />
+                                              <ClientAvatar avatar={c.avatar} name={c.name} className="w-6 h-6 text-[10px]" />
+                                              <div className="flex flex-col">
+                                                <span className="text-xs font-bold">{c.name}</span>
+                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                  {c.phone && <span>{c.phone}</span>}
+                                                  {c.phone && gov && <span>·</span>}
+                                                  {gov && <span className="text-primary/70">{gov}</span>}
+                                                </span>
+                                              </div>
+                                            </span>
+                                          </CommandItem>
+                                        );
+                                      })}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                          </FormControl>
+                        </FormItem>
+                      )} />
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <FormField control={form.control} name="senderName" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground">اسم الراسل</FormLabel>
                             <FormControl>
-                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" {...field} value={field.value ?? ""} />
+                              <Input readOnly disabled className="h-9 text-sm bg-muted/40 border-border/70" {...field} value={field.value ?? ""} />
                             </FormControl>
                           </FormItem>
                         )} />
@@ -4165,7 +4271,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                           <FormItem>
                             <FormLabel className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />هاتف المرسل</FormLabel>
                             <FormControl>
-                              <Input className="h-9 text-sm bg-background border-border/70 focus-visible:border-primary focus-visible:ring-primary/20" placeholder="01x-xxxx-xxxx" dir="ltr" {...field} value={field.value ?? ""} />
+                              <Input readOnly disabled className="h-9 text-sm bg-muted/40 border-border/70" placeholder="01x-xxxx-xxxx" dir="ltr" {...field} value={field.value ?? ""} />
                             </FormControl>
                           </FormItem>
                         )} />

@@ -833,6 +833,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.status           !== undefined) updateData.status           = d.status;
     if (d.trackingNumber   !== undefined) updateData.trackingNumber   = d.trackingNumber;
     if (d.collectedAmount  !== undefined) updateData.collectedAmount  = String(d.collectedAmount);
+    if (d.clientId         !== undefined) updateData.clientId         = d.clientId;
     if (d.senderName       !== undefined) updateData.senderName       = d.senderName;
     if (d.senderPhone      !== undefined) updateData.senderPhone      = d.senderPhone;
     if (d.receiverName     !== undefined) updateData.receiverName     = d.receiverName;
@@ -980,6 +981,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.status            !== undefined) updateData.status            = d.status;
     if (d.trackingNumber    !== undefined) updateData.trackingNumber    = d.trackingNumber;
     if (d.collectedAmount   !== undefined) updateData.collectedAmount   = String(d.collectedAmount);
+    if (d.clientId          !== undefined) updateData.clientId          = d.clientId;
     if (d.senderName        !== undefined) updateData.senderName        = d.senderName;
     if (d.senderPhone       !== undefined) updateData.senderPhone       = d.senderPhone;
     if (d.receiverName      !== undefined) updateData.receiverName      = d.receiverName;
