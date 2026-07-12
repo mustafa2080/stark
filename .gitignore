@@ -10,12 +10,8 @@ tmp/
 *.tsbuildinfo
 
 # ─── Artifacts dist & node_modules (لكل المشاريع الفرعية) ────────────────────
-# caprina frontend dist مرفوع على GitHub عشان السيرفر يجيبه بـ git pull
-# api-server dist لازم يتبنى على السيرفر نفسه (Windows paths بتكسر Linux)
+# كل الـ dist بيتبنى على السيرفر نفسه بعد git pull (pnpm run build) — لا يترفع على GitHub
 artifacts/*/dist/
-!artifacts/caprina/dist/
-artifacts/api-server/dist/
-artifacts/caprina/dist/public/assets/*.map
 artifacts/*/node_modules/
 artifacts/*/.replit-artifact/
 
