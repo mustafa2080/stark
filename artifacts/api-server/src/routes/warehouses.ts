@@ -15,7 +15,7 @@ import {
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { syncProductQuantityFromWarehouses } from "../lib/inventory.js";
+import { syncProductQuantityFromWarehouses, recordMovement } from "../lib/inventory.js";
 
 // ─── Helper: سجّل حركة تسوية في inventory_movements ─────────────────────────
 async function recordAdjustmentMovement(
@@ -706,6 +706,32 @@ router.post("/warehouses/transfer", requireAuth, async (req, res): Promise<void>
 
     await db.update(shipmentsTable).set(updateData).where(eq(shipmentsTable.id, body.shipmentId));
 
+    // سجّل حركتين في جدول الحركات الرئيسي: OUT من المخزن المصدر، IN للمخزن الوجهة
+    const shipmentLabel = shipment.shipmentNumber || shipment.senderName || `شحنة #${shipment.id}`;
+    const fromWhId = shipment.warehouseId ?? null;
+    if (fromWhId) {
+      await recordMovement({
+        product:     shipmentLabel,
+        quantity:    1,
+        type:        "OUT",
+        reason:      "transfer",
+        warehouseId: fromWhId,
+        shipmentId:  body.shipmentId,
+        notes:       body.notes ?? null,
+      }).catch((err) => console.error("[transfer] recordMovement OUT failed:", err));
+    }
+    if (body.toWarehouseId) {
+      await recordMovement({
+        product:     shipmentLabel,
+        quantity:    1,
+        type:        "IN",
+        reason:      "transfer",
+        warehouseId: body.toWarehouseId,
+        shipmentId:  body.shipmentId,
+        notes:       body.notes ?? null,
+      }).catch((err) => console.error("[transfer] recordMovement IN failed:", err));
+    }
+
     res.json({ success: true });
   } catch (e) {
     console.error("[POST /warehouses/transfer]", e);
@@ -764,6 +790,34 @@ router.post("/warehouses/transfer-bulk", requireAuth, async (req, res): Promise<
     if (body.shippingCompanyId !== undefined) updateData.shippingCompanyId = body.shippingCompanyId;
 
     await db.update(shipmentsTable).set(updateData).where(inArray(shipmentsTable.id, Array.from(foundIds)));
+
+    // سجّل حركتين لكل شحنة في جدول الحركات الرئيسي: OUT من المخزن المصدر، IN للمخزن الوجهة
+    for (const s of shipments) {
+      const shipmentLabel = s.shipmentNumber || s.senderName || `شحنة #${s.id}`;
+      const fromWhId = s.warehouseId ?? null;
+      if (fromWhId) {
+        await recordMovement({
+          product:     shipmentLabel,
+          quantity:    1,
+          type:        "OUT",
+          reason:      "transfer",
+          warehouseId: fromWhId,
+          shipmentId:  s.id,
+          notes:       body.notes ?? null,
+        }).catch((err) => console.error("[transfer-bulk] recordMovement OUT failed:", err));
+      }
+      if (body.toWarehouseId) {
+        await recordMovement({
+          product:     shipmentLabel,
+          quantity:    1,
+          type:        "IN",
+          reason:      "transfer",
+          warehouseId: body.toWarehouseId,
+          shipmentId:  s.id,
+          notes:       body.notes ?? null,
+        }).catch((err) => console.error("[transfer-bulk] recordMovement IN failed:", err));
+      }
+    }
 
     res.json({
       success: true,
