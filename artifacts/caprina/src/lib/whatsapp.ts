@@ -18,6 +18,8 @@ export interface WhatsAppOrderData {
   totalPrice: number;
   status: string;
   phone?: string | null;
+  senderName?: string | null;
+  senderPhone?: string | null;
 }
 
 export interface WhatsAppShipmentData {
@@ -127,7 +129,11 @@ export function applyTemplate(templateBody: string, order: WhatsAppOrderData): s
     .replace(/\{quantity\}/g, String(order.quantity))
     .replace(/\{amount\}/g, formatCurrency(order.totalPrice))
     .replace(/\{status\}/g, order.status)
-    .replace(/\{phone\}/g, order.phone ?? "—");
+    .replace(/\{phone\}/g, order.phone ?? "—")
+    // الأوردر العادي مفيهوش "استور/راسل" منفصل في الداتابيز (بعكس الشحنات) —
+    // فبنستخدم اسم الشركة الثابت هنا بدل ما تفضل الفقرة فاضية أو "—"
+    .replace(/\{senderName\}/g, order.senderName ?? "STARK")
+    .replace(/\{senderPhone\}/g, order.senderPhone ?? order.phone ?? "—");
 }
 
 export function buildWhatsAppLink(phone: string, message: string): string {
@@ -183,6 +189,8 @@ export const TEMPLATE_VARIABLES = [
   { var: "{amount}", label: "المبلغ الإجمالي" },
   { var: "{status}", label: "حالة الأوردر" },
   { var: "{phone}", label: "رقم هاتف العميل" },
+  { var: "{senderName}", label: "اسم الاستور" },
+  { var: "{senderPhone}", label: "رقم هاتف الاستور" },
 ];
 
 export const SHIPPING_TEMPLATE_VARIABLES = [
