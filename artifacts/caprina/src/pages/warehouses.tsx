@@ -167,6 +167,8 @@ function TransferShipmentDialog({
     qc.invalidateQueries({ queryKey: ["warehouse-shipments"] });
     qc.invalidateQueries({ queryKey: ["warehouse-stats"] });
     qc.invalidateQueries({ queryKey: ["warehouses"] });
+    qc.invalidateQueries({ queryKey: ["movements"] });
+    qc.invalidateQueries({ queryKey: ["movements-totals"] });
   };
 
   const handleSave = async () => {
