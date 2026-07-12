@@ -49,11 +49,14 @@ export default function WhatsAppSettingsPage() {
   const NOTIFY_TEMPLATE_NAME = "إشعار الشحن";
   const DEFAULT_NOTIFY_BODY =
     `أهلاً يا {customerName} 👋\n\n` +
-    `أوردرك رقم *#${"{orderNumber}"}* من *CAPRINA* خرج للشحن! 📦\n\n` +
+    `أوردرك رقم *#${"{orderNumber}"}* خرج للشحن! 📦\n\n` +
     `📌 المنتج: *{product}* × {quantity}\n` +
     `💰 المبلغ: *{amount}*\n\n` +
-    `المندوب في طريقه إليك — يرجى الاستعداد للاستلام والدفع ✅\n\n` +
-    `شكراً لثقتك في CAPRINA ❤️`;
+    `المندوب في طريقه إليك — يرجى الاستعداد للاستلام والدفع ✅\n` +
+    `——————————————\n` +
+    `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
+    `• اسم الاستور: STARK\n` +
+    `• رقم الهاتف: {phone}`;
 
   // ─── قالب متابعة الشحن ──────────────────────────────────────────────────
   const SHIPPING_TEMPLATE_NAME = "متابعة الشحن";
