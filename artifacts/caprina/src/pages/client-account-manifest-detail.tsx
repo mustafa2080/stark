@@ -947,6 +947,8 @@ function InvoiceGroupDeliveryRow({
   }, 0);
   // السعر الكامل للفاتورة (للعرض والمرجع)
   const totalFullPrice = group.reduce((s, o) => s + Number(o.totalPrice), 0);
+  // إجمالي سعر الشحن الفعلي للمجموعة (منفصل عن قيمة الشحنة/COD)
+  const totalShippingFee = group.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
   const invoiceNum = (rep as any).invoiceNumber?.trim() || null;
   const isMulti = group.length > 1;
 
@@ -1231,9 +1233,9 @@ function InvoiceGroupDeliveryRow({
           <div className="text-left font-bold px-3 flex items-center">
             <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
           </div>
-          {/* سعر الشحنة (COD) */}
+          {/* سعر الشحنة */}
           <div className="text-left font-bold px-3 flex items-center">
-            <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
+            <span className="text-amber-500">{formatCurrency(totalShippingFee)}</span>
           </div>
           {/* القيمة المستلمة (إجمالي - تكلفة الشحن) */}
           <div className="text-center px-2 flex items-center justify-center">
