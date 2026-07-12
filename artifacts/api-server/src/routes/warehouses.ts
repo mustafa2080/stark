@@ -659,6 +659,7 @@ router.get("/warehouses/:id/stats", requireAuth, async (req, res): Promise<void>
 
 // POST /warehouses/transfer — تحويل شحنة من مخزن لآخر
 router.post("/transfer", requireAuth, async (req, res): Promise<void> => {
+  console.log("[DEBUG-TRANSFER] route HIT", { path: req.path, originalUrl: req.originalUrl, baseUrl: req.baseUrl });
   try {
     const tenantId = getTenantId(req);
     const user = (req as any).user;
