@@ -245,7 +245,10 @@ const DEFAULT_SHIPMENT_TEMPLATE = `أهلاً يا {receiverName} 👋
 🔍 رقم التتبع: *{trackingNumber}*
 💰 رسوم الشحن: *{shippingFee}*
 
-📌 لتتبع شحنتك يرجى كتابة اسم الاستور *{senderName}* ورقم الهاتف الخاص بحضرتك *{receiverPhone}*
+——————————————
+📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:
+• اسم الاستور: *{senderName}*
+• رقم الهاتف: *{receiverPhone}*
 
 شكراً لثقتك في STARK ❤️`;
 

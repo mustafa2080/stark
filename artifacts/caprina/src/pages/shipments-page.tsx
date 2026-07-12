@@ -1248,23 +1248,28 @@ export default function Orders() {
     // fallback عام: الـ default أو أول قالب
     if (!tpl) tpl = templates.find(t => t.isDefault) ?? templates[0] ?? null;
 
+    const shipment = order as any;
+    const customerName = shipment.receiverName || shipment.customerName || shipment.senderName || "العميل";
+    const product       = shipment.description || shipment.product || "شحنة";
+    const totalPrice    = Number(shipment.totalAmount || shipment.codAmount || shipment.totalPrice || 0);
+    const orderNumber   = order.id.toString().padStart(4, "0");
+    const formatCurr = (n: number) =>
+      new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+
     let message = "";
+    // حاول استخدام القالب المخزّن أولاً، لكن تحقق أنه لا يحتوي على رموز ترميز معطوبة (�)
     if (status === "in_shipping" && tpl) {
-      const shipment = order as any;
-      message = applyShippingTemplate(tpl.body, {
+      const candidate = applyShippingTemplate(tpl.body, {
         id: order.id,
-        customerName: shipment.receiverName || shipment.customerName || shipment.senderName || "العميل",
-        product: shipment.description || shipment.product || "شحنة",
+        customerName,
+        product,
         trackingNumber: shipment.trackingNumber ?? null,
         shippingCompany: (shipment.shippingCompanyName || shipment.shippingCompany) ?? null,
         daysPending: shipment.daysPending ?? 0,
       });
+      if (!candidate.includes("\uFFFD")) message = candidate;
     } else if (tpl) {
-      const shipment = order as any;
-      const customerName = shipment.receiverName || shipment.customerName || shipment.senderName || "العميل";
-      const product      = shipment.description || shipment.product || "شحنة";
-      const totalPrice   = Number(shipment.totalAmount || shipment.codAmount || shipment.totalPrice || 0);
-      message = applyTemplate(tpl.body, {
+      const candidate = applyTemplate(tpl.body, {
         id: order.id,
         customerName,
         product,
@@ -1273,6 +1278,17 @@ export default function Orders() {
         status: order.status,
         phone,
       });
+      if (!candidate.includes("\uFFFD")) message = candidate;
+    }
+
+    // fallback نظيف — رسالة منسقة بإيموجيز سليمة لو القالب المخزّن مفقود أو تالف الترميز
+    if (!message) {
+      message =
+        `أهلاً يا ${customerName} 👋\n\n` +
+        `أوردرك رقم #${orderNumber} خرج للشحن 📦\n\n` +
+        `المنتج: ${product}\n` +
+        `المبلغ: ${formatCurr(totalPrice)}\n\n` +
+        `المندوب في طريقه إليك — يرجى الاستعداد للاستلام والدفع ✅`;
     }
 
     if (!message) {
@@ -1281,13 +1297,14 @@ export default function Orders() {
     }
 
     // ── إضافة تنويه تتبع الشحنة: اسم الاستور (الراسل) ورقم هاتف المستلم ──
-    {
-      const shipment = order as any;
-      const senderNameForTrack = shipment.senderName || shipment.storeName || null;
-      const receiverPhoneForTrack = shipment.receiverPhone || phone || null;
-      if (senderNameForTrack || receiverPhoneForTrack) {
-        message += `\n\n📌 لتتبع شحنتك يرجى كتابة اسم الاستور *${senderNameForTrack ?? "—"}* ورقم الهاتف الخاص بحضرتك *${receiverPhoneForTrack ?? "—"}*`;
-      }
+    const senderNameForTrack = shipment.senderName || shipment.storeName || null;
+    const receiverPhoneForTrack = shipment.receiverPhone || phone || null;
+    if (senderNameForTrack || receiverPhoneForTrack) {
+      message +=
+        `\n——————————————\n` +
+        `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
+        `• اسم الاستور: ${senderNameForTrack ?? "—"}\n` +
+        `• رقم الهاتف: ${receiverPhoneForTrack ?? "—"}`;
     }
 
     const link = buildWhatsAppLink(phone, message);
