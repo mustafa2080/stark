@@ -273,11 +273,25 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }:
   );
   const defaultTpl = shipmentTemplates.find(t => t.isDefault) ?? shipmentTemplates[0];
 
+  // يضيف فقرة تتبع الشحنة (اسم الاستور + هاتف المستلم) لو القالب لا يحتوي عليها أصلاً
+  const withTrackingFooter = (body: string, s: WhatsAppShipmentData): string => {
+    if (/لتتبع شحنتك|اسم الاستور/.test(body)) return body;
+    const senderNameForTrack = s.senderName ?? "—";
+    const receiverPhoneForTrack = s.receiverPhone ?? "—";
+    return (
+      body +
+      `\n——————————————\n` +
+      `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
+      `• اسم الاستور: ${senderNameForTrack}\n` +
+      `• رقم الهاتف: ${receiverPhoneForTrack}`
+    );
+  };
+
   useEffect(() => {
     if (!open || !shipment) return;
     // استخدم قالب شحنة لو موجود، وإلا DEFAULT_SHIPMENT_TEMPLATE
-    const body = applyShipmentTemplate(
-      defaultTpl ? defaultTpl.body : DEFAULT_SHIPMENT_TEMPLATE,
+    const body = withTrackingFooter(
+      applyShipmentTemplate(defaultTpl ? defaultTpl.body : DEFAULT_SHIPMENT_TEMPLATE, shipment),
       shipment
     );
     setSelectedId(defaultTpl?.id ?? "");
@@ -293,7 +307,7 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }:
   const selectTemplate = (tpl: WaTemplate) => {
     if (!shipment) return;
     setSelectedId(tpl.id);
-    setEditingBody(applyShipmentTemplate(tpl.body, shipment));
+    setEditingBody(withTrackingFooter(applyShipmentTemplate(tpl.body, shipment), shipment));
   };
 
   const handleSend = () => {

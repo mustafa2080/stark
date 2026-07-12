@@ -36,16 +36,24 @@ export interface WhatsAppShipmentData {
 export function applyShipmentTemplate(templateBody: string, s: WhatsAppShipmentData): string {
   const formatCurr = (n: number | string | null | undefined) =>
     new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
+  const orderNumFallback = s.shipmentNumber ?? s.id.toString().padStart(4, "0");
   return templateBody
     .replace(/\{receiverName\}/g,    s.receiverName)
-    .replace(/\{shipmentNumber\}/g,  s.shipmentNumber ?? String(s.id))
+    .replace(/\{customerName\}/g,    s.receiverName)
+    .replace(/\{shipmentNumber\}/g,  orderNumFallback)
+    .replace(/\{orderNumber\}/g,     orderNumFallback)
     .replace(/\{trackingNumber\}/g,  s.trackingNumber ?? "—")
     .replace(/\{status\}/g,          s.status)
     .replace(/\{shippingFee\}/g,     formatCurr(s.shippingFee))
     .replace(/\{codAmount\}/g,       formatCurr(s.codAmount))
+    .replace(/\{amount\}/g,          formatCurr(s.codAmount ?? s.shippingFee))
     .replace(/\{zone\}/g,            s.zoneLabel ?? "—")
     .replace(/\{senderName\}/g,      s.senderName ?? "—")
-    .replace(/\{receiverPhone\}/g,   s.receiverPhone ?? "—");
+    .replace(/\{receiverPhone\}/g,   s.receiverPhone ?? "—")
+    .replace(/\{product\}/g,         "شحنة")
+    .replace(/\{quantity\}/g,        "1")
+    .replace(/\{shippingCompany\}/g, "—")
+    .replace(/\{daysPending\}/g,     "0");
 }
 
 export const SHIPMENT_TEMPLATE_VARIABLES = [
