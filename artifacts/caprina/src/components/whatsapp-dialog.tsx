@@ -245,6 +245,8 @@ const DEFAULT_SHIPMENT_TEMPLATE = `أهلاً يا {receiverName} 👋
 🔍 رقم التتبع: *{trackingNumber}*
 💰 رسوم الشحن: *{shippingFee}*
 
+📌 لتتبع شحنتك يرجى كتابة اسم الاستور *{senderName}* ورقم الهاتف الخاص بحضرتك *{receiverPhone}*
+
 شكراً لثقتك في STARK ❤️`;
 
 export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }: ShipmentDialogProps) {

@@ -44,7 +44,8 @@ export function applyShipmentTemplate(templateBody: string, s: WhatsAppShipmentD
     .replace(/\{shippingFee\}/g,     formatCurr(s.shippingFee))
     .replace(/\{codAmount\}/g,       formatCurr(s.codAmount))
     .replace(/\{zone\}/g,            s.zoneLabel ?? "—")
-    .replace(/\{senderName\}/g,      s.senderName ?? "—");
+    .replace(/\{senderName\}/g,      s.senderName ?? "—")
+    .replace(/\{receiverPhone\}/g,   s.receiverPhone ?? "—");
 }
 
 export const SHIPMENT_TEMPLATE_VARIABLES = [
@@ -55,6 +56,8 @@ export const SHIPMENT_TEMPLATE_VARIABLES = [
   { var: "{shippingFee}",    label: "رسوم الشحن" },
   { var: "{codAmount}",      label: "مبلغ COD" },
   { var: "{zone}",           label: "المنطقة" },
+  { var: "{senderName}",     label: "اسم الراسل (الاستور)" },
+  { var: "{receiverPhone}",  label: "هاتف المستلم" },
 ];
 
 // ─── قالب "مشكلة العميل" — يُرسل للراسل تفاصيل شحنة المستلم ───────────────
