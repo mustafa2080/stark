@@ -59,10 +59,13 @@ export default function WhatsAppSettingsPage() {
   const SHIPPING_TEMPLATE_NAME = "متابعة الشحن";
   const DEFAULT_SHIPPING_BODY =
     `السلام عليكم يا {customerName} 👋\n\n` +
-    `بنتواصل معاكم من *CAPRINA* بخصوص طلبكم رقم *#${"{orderNumber}"}*.\n\n` +
+    `بنتواصل معاكم من *STARK* بخصوص طلبكم رقم *#${"{orderNumber}"}*.\n\n` +
     `هل وصلكم الطلب بشكل سليم؟ 📦\n` +
     `لو عندكم أي استفسار إحنا دايماً هنا.\n\n` +
-    `شكراً لثقتكم في CAPRINA ❤️`;
+    `شكراً لثقتكم في STARK ❤️\n` +
+    `——————————————\n` +
+    `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
+    `• رقم الهاتف: {phone}`;
 
   // ─── قالب مشكلة العميل (يُرسل للراسل) ──────────────────────────────────
   const SENDER_ISSUE_TEMPLATE_NAME = "مشكلة العميل";

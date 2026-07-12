@@ -37,18 +37,16 @@ const stripOrderDetailsBlockDlg = (body: string): string => {
     .trim();
 };
 
-// يضيف فقرة تتبع الشحنة (اسم الاستور + هاتف المستلم) لو القالب لا يحتوي عليها أصلاً
+// يضيف فقرة تتبع الشحنة (رقم هاتف العميل) لو القالب لا يحتوي عليها أصلاً — احتياطي فقط، القالب المحفوظ يحتوي عليها افتراضياً
 const withTrackingFooterDlg = (body: string, o: WhatsAppOrderData): string => {
   const cleaned = stripOrderDetailsBlockDlg(body);
-  if (/لتتبع شحنتك|اسم الاستور/.test(cleaned)) return cleaned;
-  const senderNameForTrack = (o as any).senderName ?? (o as any).storeName ?? o.customerName ?? "—";
-  const receiverPhoneForTrack = o.phone ?? "—";
+  if (/لتتبع شحنتك|رقم الهاتف/.test(cleaned)) return cleaned;
+  const phoneForTrack = o.phone ?? "—";
   return (
     cleaned +
     `\n——————————————\n` +
     `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
-    `• اسم الاستور: ${senderNameForTrack}\n` +
-    `• رقم الهاتف: ${receiverPhoneForTrack}`
+    `• رقم الهاتف: ${phoneForTrack}`
   );
 };
 

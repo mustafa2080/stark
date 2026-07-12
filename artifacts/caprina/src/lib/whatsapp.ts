@@ -126,7 +126,8 @@ export function applyTemplate(templateBody: string, order: WhatsAppOrderData): s
     .replace(/\{product\}/g, order.product)
     .replace(/\{quantity\}/g, String(order.quantity))
     .replace(/\{amount\}/g, formatCurrency(order.totalPrice))
-    .replace(/\{status\}/g, order.status);
+    .replace(/\{status\}/g, order.status)
+    .replace(/\{phone\}/g, order.phone ?? "—");
 }
 
 export function buildWhatsAppLink(phone: string, message: string): string {
@@ -181,6 +182,7 @@ export const TEMPLATE_VARIABLES = [
   { var: "{quantity}", label: "الكمية" },
   { var: "{amount}", label: "المبلغ الإجمالي" },
   { var: "{status}", label: "حالة الأوردر" },
+  { var: "{phone}", label: "رقم هاتف العميل" },
 ];
 
 export const SHIPPING_TEMPLATE_VARIABLES = [
