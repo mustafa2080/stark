@@ -2250,14 +2250,14 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           const ordersForSettlement = manifest.orders ?? [];
           const deliveredOrdersS = ordersForSettlement.filter(o => o.deliveryStatus === "delivered");
           const returnedOrdersS  = ordersForSettlement.filter(o => o.deliveryStatus === "returned");
-          const totalCODs        = ordersForSettlement.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
+          const totalShippingFees = ordersForSettlement.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
           const deliveredCODs    = deliveredOrdersS.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
           const returnedCODs     = returnedOrdersS.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
           return (
             <>
               <div className="bg-card rounded-md p-3 border border-border">
                 <p className="text-[10px] text-muted-foreground mb-1">إجمالي COD</p>
-                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(totalCODs)}</p>
+                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(totalShippingFees)}</p>
                 <p className="text-[10px] text-muted-foreground">{ordersForSettlement.length} شحنة</p>
               </div>
               <div className="bg-card rounded-md p-3 border border-emerald-900/40">
@@ -5063,7 +5063,7 @@ export default function ShippingManifestPage() {
         const ordersForPnl = ordersExcludingPendingShipping;
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        const totalShippingFee = ordersForPnl.reduce((s, o) => s + (o.shippingCost ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const shippingCost    = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0));
@@ -5073,7 +5073,7 @@ export default function ShippingManifestPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-border bg-card p-4">
               <p className="text-xs text-muted-foreground mb-1">إجمالي COD</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalCOD)}</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalShippingFee)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
