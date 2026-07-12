@@ -29,6 +29,29 @@ const STATUS_LABELS: Record<string, string> = {
   partial_received: "مستلم جزئياً",
 };
 
+// يشيل بلوك "تفاصيل الطلب" (المنتج/شركة الشحن/رقم التتبع/مدة الشحن) لو موجود بالقالب
+const stripOrderDetailsBlockDlg = (body: string): string => {
+  return body
+    .replace(/\*?تفاصيل الطلب:?\*?\n(?:[•\-][^\n]*\n?)+\n?/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
+// يضيف فقرة تتبع الشحنة (اسم الاستور + هاتف المستلم) لو القالب لا يحتوي عليها أصلاً
+const withTrackingFooterDlg = (body: string, o: WhatsAppOrderData): string => {
+  const cleaned = stripOrderDetailsBlockDlg(body);
+  if (/لتتبع شحنتك|اسم الاستور/.test(cleaned)) return cleaned;
+  const senderNameForTrack = (o as any).senderName ?? (o as any).storeName ?? o.customerName ?? "—";
+  const receiverPhoneForTrack = o.phone ?? "—";
+  return (
+    cleaned +
+    `\n——————————————\n` +
+    `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
+    `• اسم الاستور: ${senderNameForTrack}\n` +
+    `• رقم الهاتف: ${receiverPhoneForTrack}`
+  );
+};
+
 export function WhatsAppDialog({ open, onOpenChange, order, onSent }: Props) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [preview, setPreview] = useState("");
@@ -52,7 +75,7 @@ export function WhatsAppDialog({ open, onOpenChange, order, onSent }: Props) {
     const tpl = templates.find(t => t.id === selectedId) ?? defaultTpl;
     if (tpl) {
       setSelectedId(tpl.id);
-      const body = applyTemplate(tpl.body, order);
+      const body = withTrackingFooterDlg(applyTemplate(tpl.body, order), order);
       setEditingBody(body);
       setPreview(body);
     }
@@ -66,7 +89,7 @@ export function WhatsAppDialog({ open, onOpenChange, order, onSent }: Props) {
   const selectTemplate = (tpl: WaTemplate) => {
     if (!order) return;
     setSelectedId(tpl.id);
-    const body = applyTemplate(tpl.body, order);
+    const body = withTrackingFooterDlg(applyTemplate(tpl.body, order), order);
     setEditingBody(body);
   };
 
