@@ -1277,6 +1277,8 @@ export default function Orders() {
         totalPrice,
         status: order.status,
         phone,
+        senderName: shipment.senderName || shipment.storeName || null,
+        senderPhone: shipment.senderPhone || null,
       });
       if (!candidate.includes("\uFFFD")) message = candidate;
     }
@@ -1296,16 +1298,8 @@ export default function Orders() {
       return;
     }
 
-    // ── إضافة تنويه تتبع الشحنة: اسم الاستور (الراسل) ورقم هاتف المستلم ──
-    const senderNameForTrack = shipment.senderName || shipment.storeName || null;
-    const receiverPhoneForTrack = shipment.receiverPhone || phone || null;
-    if (senderNameForTrack || receiverPhoneForTrack) {
-      message +=
-        `\n——————————————\n` +
-        `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
-        `• اسم الاستور: ${senderNameForTrack ?? "—"}\n` +
-        `• رقم الهاتف: ${receiverPhoneForTrack ?? "—"}`;
-    }
+    // ملحوظة: نص تتبع الشحنة (اسم الاستور ورقم الهاتف) بقى جزء من القالب نفسه
+    // عبر متغيرات {senderName} و {senderPhone} — بيتحكم فيه بالكامل من إعدادات واتساب
 
     const link = buildWhatsAppLink(phone, message);
     window.open(link, "_blank", "noopener,noreferrer");

@@ -130,9 +130,7 @@ export function applyTemplate(templateBody: string, order: WhatsAppOrderData): s
     .replace(/\{amount\}/g, formatCurrency(order.totalPrice))
     .replace(/\{status\}/g, order.status)
     .replace(/\{phone\}/g, order.phone ?? "—")
-    // الأوردر العادي مفيهوش "استور/راسل" منفصل في الداتابيز (بعكس الشحنات) —
-    // فبنستخدم اسم الشركة الثابت هنا بدل ما تفضل الفقرة فاضية أو "—"
-    .replace(/\{senderName\}/g, order.senderName ?? "STARK")
+    .replace(/\{senderName\}/g, order.senderName ?? "—")
     .replace(/\{senderPhone\}/g, order.senderPhone ?? order.phone ?? "—");
 }
 
