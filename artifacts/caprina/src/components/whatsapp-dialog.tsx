@@ -286,11 +286,12 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }:
   });
 
   const templates = settings?.templates ?? [];
-  // فلتر القوالب اللي فيها shipment placeholders بس
+  // فلتر القوالب اللي فيها shipment placeholders (بما فيها متغيرات قالب "إشعار الشحن" العام)
   const shipmentTemplates = templates.filter(t =>
-    /\{receiverName\}|\{shipmentNumber\}|\{trackingNumber\}|\{shippingFee\}|\{codAmount\}|\{zone\}/.test(t.body)
+    /\{receiverName\}|\{shipmentNumber\}|\{trackingNumber\}|\{shippingFee\}|\{codAmount\}|\{zone\}|\{customerName\}|\{orderNumber\}/.test(t.body)
   );
-  const defaultTpl = shipmentTemplates.find(t => t.isDefault) ?? shipmentTemplates[0];
+  const notifyTpl = templates.find(t => t.name === "إشعار الشحن" || t.name === "اشعار الشحن");
+  const defaultTpl = notifyTpl ?? shipmentTemplates.find(t => t.isDefault) ?? shipmentTemplates[0];
 
   // يشيل بلوك "تفاصيل الطلب" (المنتج/شركة الشحن/رقم التتبع/مدة الشحن) لو موجود بالقالب
   const stripOrderDetailsBlock = (body: string): string => {
@@ -300,18 +301,18 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }:
       .trim();
   };
 
-  // يضيف فقرة تتبع الشحنة (اسم الاستور + هاتف المستلم) لو القالب لا يحتوي عليها أصلاً
+  // يضيف فقرة تتبع الشحنة (اسم الاستور + هاتف الراسل) لو القالب لا يحتوي عليها أصلاً
   const withTrackingFooter = (body: string, s: WhatsAppShipmentData): string => {
     const cleaned = stripOrderDetailsBlock(body);
     if (/لتتبع شحنتك|اسم الاستور/.test(cleaned)) return cleaned;
     const senderNameForTrack = s.senderName ?? "—";
-    const receiverPhoneForTrack = s.receiverPhone ?? "—";
+    const senderPhoneForTrack = s.senderPhone ?? s.receiverPhone ?? "—";
     return (
       cleaned +
       `\n——————————————\n` +
       `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
       `• اسم الاستور: ${senderNameForTrack}\n` +
-      `• رقم الهاتف: ${receiverPhoneForTrack}`
+      `• رقم الهاتف: ${senderPhoneForTrack}`
     );
   };
 

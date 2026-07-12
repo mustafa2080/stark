@@ -28,6 +28,7 @@ export interface WhatsAppShipmentData {
   receiverName: string;
   receiverPhone?: string | null;
   senderName?: string | null;
+  senderPhone?: string | null;
   trackingNumber?: string | null;
   status: string;
   shippingFee?: number | string | null;
@@ -51,6 +52,7 @@ export function applyShipmentTemplate(templateBody: string, s: WhatsAppShipmentD
     .replace(/\{amount\}/g,          formatCurr(s.codAmount ?? s.shippingFee))
     .replace(/\{zone\}/g,            s.zoneLabel ?? "—")
     .replace(/\{senderName\}/g,      s.senderName ?? "—")
+    .replace(/\{senderPhone\}/g,     s.senderPhone ?? s.receiverPhone ?? "—")
     .replace(/\{receiverPhone\}/g,   s.receiverPhone ?? "—")
     .replace(/\{product\}/g,         "شحنة")
     .replace(/\{quantity\}/g,        "1")
