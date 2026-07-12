@@ -1280,6 +1280,16 @@ export default function Orders() {
       return;
     }
 
+    // ── إضافة تنويه تتبع الشحنة: اسم الاستور (الراسل) ورقم هاتف المستلم ──
+    {
+      const shipment = order as any;
+      const senderNameForTrack = shipment.senderName || shipment.storeName || null;
+      const receiverPhoneForTrack = shipment.receiverPhone || phone || null;
+      if (senderNameForTrack || receiverPhoneForTrack) {
+        message += `\n\n📌 لتتبع شحنتك يرجى كتابة اسم الاستور *${senderNameForTrack ?? "—"}* ورقم الهاتف الخاص بحضرتك *${receiverPhoneForTrack ?? "—"}*`;
+      }
+    }
+
     const link = buildWhatsAppLink(phone, message);
     window.open(link, "_blank", "noopener,noreferrer");
 
