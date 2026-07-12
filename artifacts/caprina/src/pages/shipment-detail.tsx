@@ -4975,7 +4975,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             receiverPhone: (order as any).receiverPhone || order.phone || null,
             senderName: (order as any).senderName ?? null,
             trackingNumber: (order as any).trackingNumber ?? null,
-            status: order.status,
+            status: statusLabels[order.status] || order.status,
             shippingFee: (order as any).shippingFee ?? null,
             codAmount: (order as any).codAmount ?? null,
             zoneLabel: (order as any).zoneLabel ?? null,
