@@ -278,6 +278,22 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
 
   const norm = (s: string) => s.trim().toLowerCase();
 
+  // تطبيع عربي ذكي: بيشيل التشكيل، المسافات الزيادة، ويوحّد الحروف المتشابهة
+  // (أ/إ/آ/ا، ة/ه، ي/ى) عشان مطابقة اسم الراسل تبقى حساسة زي البحث اليدوي بالظبط
+  const normArabic = (s: string) => {
+    if (!s) return "";
+    return s
+      .trim()
+      .toLowerCase()
+      .replace(/[\u064B-\u065F\u0670]/g, "")   // إزالة التشكيل
+      .replace(/[أإآ]/g, "ا")                    // توحيد الألف
+      .replace(/ة/g, "ه")                        // تاء مربوطة -> هاء
+      .replace(/ى/g, "ي")                        // ألف مقصورة -> ياء
+      .replace(/[\u200B\u200C\u200D]/g, "")      // إزالة المسافات الخفية
+      .replace(/\s+/g, " ")                       // توحيد المسافات المتعددة
+      .trim();
+  };
+
   // مطابقة المنطقة: بالاسم أو بـ"المحافظة - المنطقة"
   const findZone = (raw: string) => {
     if (!raw) return null;
@@ -324,12 +340,44 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
   };
 
   // مطابقة العميل بالاسم (لتحديد المخزن تلقائيًا من مخزن الراسل)
+  // مطابقة ذكية ومتدرجة، زي البحث اليدوي بالظبط:
+  // 1) تطابق تام بعد التطبيع العربي (تشكيل/مسافات/همزات/تاء مربوطة... إلخ)
+  // 2) احتواء نصي (اسم الراسل يحتوي اسم العميل أو العكس)
+  // 3) تطابق بالكلمات: كل كلمات اسم العميل موجودة في اسم الراسل، بأي ترتيب
+  //    (بيعالج فرق ترتيب الاسم أو وجود لقب/كلمة زيادة زي "شركة"/"مؤسسة")
   const findClient = (raw: string) => {
     if (!raw) return null;
-    const n = norm(raw);
-    return clients.find(c => norm(c.name || "") === n)
-      ?? clients.find(c => norm(c.name || "").includes(n))
-      ?? null;
+    const n = normArabic(raw);
+    if (!n) return null;
+
+    // 1) تطابق تام
+    const exact = clients.find(c => normArabic(c.name || "") === n);
+    if (exact) return exact;
+
+    // 2) احتواء نصي في أي اتجاه
+    const contains = clients.find(c => {
+      const cn = normArabic(c.name || "");
+      return cn && (cn.includes(n) || n.includes(cn));
+    });
+    if (contains) return contains;
+
+    // 3) تطابق بالكلمات (بدون ترتيب)، لو فيه أكتر من عميل مطابق ناخد الأقرب في عدد الكلمات
+    const rawWords = n.split(" ").filter(Boolean);
+    if (rawWords.length > 0) {
+      const wordMatches = clients
+        .map(c => {
+          const cWords = normArabic(c.name || "").split(" ").filter(Boolean);
+          if (cWords.length === 0) return null;
+          const matchedCount = cWords.filter(w => rawWords.includes(w)).length;
+          const fullyContained = matchedCount === cWords.length || matchedCount === rawWords.length;
+          return fullyContained && matchedCount > 0 ? { client: c, matchedCount } : null;
+        })
+        .filter((x): x is { client: typeof clients[number]; matchedCount: number } => x !== null)
+        .sort((a, b) => b.matchedCount - a.matchedCount);
+      if (wordMatches.length > 0) return wordMatches[0].client;
+    }
+
+    return null;
   };
 
   // "نعم"/"لا" -> 1/0
