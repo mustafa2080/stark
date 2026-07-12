@@ -658,8 +658,7 @@ router.get("/warehouses/:id/stats", requireAuth, async (req, res): Promise<void>
 });
 
 // POST /warehouses/transfer — تحويل شحنة من مخزن لآخر
-router.post("/transfer", requireAuth, async (req, res): Promise<void> => {
-  console.log("[DEBUG-TRANSFER] route HIT", { path: req.path, originalUrl: req.originalUrl, baseUrl: req.baseUrl });
+router.post("/warehouses/transfer", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
     const user = (req as any).user;
@@ -715,7 +714,7 @@ router.post("/transfer", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /warehouses/transfer-bulk — تحويل عدة شحنات دفعة واحدة لمخزن آخر
-router.post("/transfer-bulk", requireAuth, async (req, res): Promise<void> => {
+router.post("/warehouses/transfer-bulk", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
     const user = (req as any).user;
@@ -778,7 +777,7 @@ router.post("/transfer-bulk", requireAuth, async (req, res): Promise<void> => {
 });
 
 // GET /warehouses/transfers/:shipmentId — سجل تحويلات شحنة معينة
-router.get("/transfers/:shipmentId", requireAuth, async (req, res): Promise<void> => {
+router.get("/warehouses/transfers/:shipmentId", requireAuth, async (req, res): Promise<void> => {
   try {
     const shipmentId = Number(req.params.shipmentId);
     const transfers = await db
@@ -799,7 +798,7 @@ router.get("/transfers/:shipmentId", requireAuth, async (req, res): Promise<void
 });
 
 // PATCH /warehouses/shipments/:id/courier — تعيين/تحديث مندوب الشحنة (شركة الشحن) عند خروجها من المخزن
-router.patch("/shipments/:id/courier", requireAuth, async (req, res): Promise<void> => {
+router.patch("/warehouses/shipments/:id/courier", requireAuth, async (req, res): Promise<void> => {
   try {
     const shipmentId = Number(req.params.id);
     const schema = z.object({
