@@ -258,22 +258,18 @@ const SHIPMENT_STATUS_LABELS: Record<string, string> = {
   delivered: "مُسلَّمة", delayed: "متأخرة", returned: "مرتجعة", cancelled: "ملغاة",
 };
 
-const DEFAULT_SHIPMENT_TEMPLATE = `السلام عليكم يا {receiverName} 👋
+const DEFAULT_SHIPMENT_TEMPLATE = `أهلاً يا {receiverName} 👋
 
-بنتواصل معاكم من *STARK* بخصوص شحنتكم رقم *#{shipmentNumber}*.
+أوردرك رقم *#{shipmentNumber}* خرج للشحن! 📦
 
-📍 الحالة: *{status}*
-🔍 رقم التتبع: *{trackingNumber}*
-💰 رسوم الشحن: *{shippingFee}*
+📌 المنتج: *{product}* × {quantity}
+💰 المبلغ: *{amount}*
 
-هل وصلكم الطلب بشكل سليم؟ 📦
-لو عندكم أي استفسار إحنا دايماً هنا.
-
-شكراً لثقتكم في STARK ❤️
+المندوب في طريقه إليك — يرجى الاستعداد للاستلام والدفع ✅
 ——————————————
 📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:
-• اسم الاستور: *{senderName}*
-• رقم الهاتف: *{receiverPhone}*`;
+• اسم الاستور: {senderName}
+• رقم الهاتف: {receiverPhone}`;
 
 export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }: ShipmentDialogProps) {
   const [selectedId, setSelectedId] = useState<string>("");
