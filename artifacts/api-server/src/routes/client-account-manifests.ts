@@ -38,21 +38,25 @@ export async function autoAddShipmentToClientAccountManifest(
   if (!clientId) return;
 
   try {
-    // لو الشحنة دي مضافة بالفعل لبيان لسه موجود فعليًا (مش يتيم/بيان محذوف) — متضافش تاني
-    const [existingItem] = await db
+    // لو الشحنة دي مضافة بالفعل لبيان "مفتوح" لسه موجود فعليًا — متضافش تاني.
+    // لو مضافة لبيان "مقفول" أو "ملغى" (اتقفل/اتلغى بعد كده)، لازم تتحرك لبيان جديد
+    // بمجرد ما تدخل تاني "قيد الشحن في المخزن" — عشان كده بنشترط status = "open" هنا.
+    const [existingOpenItem] = await db
       .select({ id: clientAccountManifestItemsTable.id })
       .from(clientAccountManifestItemsTable)
       .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
-      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
+      .where(and(
+        eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
+        eq(clientAccountManifestsTable.status, "open"),
+      ))
       .limit(1);
-    if (existingItem) return;
+    if (existingOpenItem) return;
 
-    // لو فيه صف item يتيم (البيان بتاعه اتمسح) لنفس الشحنة — امسحه الأول عشان
-    // نقدر نضيف صف جديد نظيف (منع duplicate key على shipmentId لو فيه unique constraint)
-    await db
-      .delete(clientAccountManifestItemsTable)
-      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
-
+    // ملحوظة: manifestId عليها onDelete: "cascade"، يعني لو البيان اتحذف (إلغاء)
+    // الـ items بتاعته بتتمسح تلقائيًا مع الشحنة على مستوى الداتابيز، فمفيش سيناريو
+    // "صف يتيم" هنا. وبما إن shipmentId مالهاش unique constraint، الشحنة تقدر تتضاف
+    // لأكتر من بيان بمرور الوقت (بيان قديم مقفول + بيان جديد مفتوح) من غير أي تعارض،
+    // فمفيش داعي نمسح سجل البيان المقفول القديم — بيفضل محفوظ للتاريخ كما هو.
     const tenantCondition = tenantId !== null
       ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
       : undefined;
