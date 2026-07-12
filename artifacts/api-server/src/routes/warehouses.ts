@@ -706,31 +706,26 @@ router.post("/warehouses/transfer", requireAuth, async (req, res): Promise<void>
 
     await db.update(shipmentsTable).set(updateData).where(eq(shipmentsTable.id, body.shipmentId));
 
-    // سجّل حركتين في جدول الحركات الرئيسي: OUT من المخزن المصدر، IN للمخزن الوجهة
+    // سجّل حركة واحدة في جدول الحركات الرئيسي (صف واحد يجمع المصدر والوجهة)
     const shipmentLabel = shipment.shipmentNumber || shipment.senderName || `شحنة #${shipment.id}`;
     const fromWhId = shipment.warehouseId ?? null;
-    if (fromWhId) {
-      await recordMovement({
-        product:     shipmentLabel,
-        quantity:    1,
-        type:        "OUT",
-        reason:      "transfer",
-        warehouseId: fromWhId,
-        shipmentId:  body.shipmentId,
-        notes:       body.notes ?? null,
-      }).catch((err) => console.error("[transfer] recordMovement OUT failed:", err));
-    }
-    if (body.toWarehouseId) {
-      await recordMovement({
-        product:     shipmentLabel,
-        quantity:    1,
-        type:        "IN",
-        reason:      "transfer",
-        warehouseId: body.toWarehouseId,
-        shipmentId:  body.shipmentId,
-        notes:       body.notes ?? null,
-      }).catch((err) => console.error("[transfer] recordMovement IN failed:", err));
-    }
+    const warehouseNameRows = await db
+      .select({ id: warehousesTable.id, name: warehousesTable.name })
+      .from(warehousesTable)
+      .where(inArray(warehousesTable.id, [fromWhId, body.toWarehouseId].filter((id): id is number => id != null)));
+    const whNameById = new Map(warehouseNameRows.map(w => [w.id, w.name]));
+
+    await recordMovement({
+      product:      shipmentLabel,
+      quantity:     1,
+      type:         "OUT",
+      reason:       "transfer",
+      warehouseId:  fromWhId,
+      shipmentId:   body.shipmentId,
+      fromLocation: fromWhId ? (whNameById.get(fromWhId) ?? null) : null,
+      toLocation:   body.toWarehouseId ? (whNameById.get(body.toWarehouseId) ?? null) : null,
+      notes:        body.notes ?? null,
+    }).catch((err) => console.error("[transfer] recordMovement failed:", err));
 
     res.json({ success: true });
   } catch (e) {
@@ -791,32 +786,27 @@ router.post("/warehouses/transfer-bulk", requireAuth, async (req, res): Promise<
 
     await db.update(shipmentsTable).set(updateData).where(inArray(shipmentsTable.id, Array.from(foundIds)));
 
-    // سجّل حركتين لكل شحنة في جدول الحركات الرئيسي: OUT من المخزن المصدر، IN للمخزن الوجهة
+    // سجّل حركة واحدة لكل شحنة في جدول الحركات الرئيسي (صف واحد يجمع المصدر والوجهة)
+    const allWhIds = [...shipments.map(s => s.warehouseId), body.toWarehouseId].filter((id): id is number => id != null);
+    const warehouseNameRows = allWhIds.length > 0
+      ? await db.select({ id: warehousesTable.id, name: warehousesTable.name }).from(warehousesTable).where(inArray(warehousesTable.id, allWhIds))
+      : [];
+    const whNameById = new Map(warehouseNameRows.map(w => [w.id, w.name]));
+
     for (const s of shipments) {
       const shipmentLabel = s.shipmentNumber || s.senderName || `شحنة #${s.id}`;
       const fromWhId = s.warehouseId ?? null;
-      if (fromWhId) {
-        await recordMovement({
-          product:     shipmentLabel,
-          quantity:    1,
-          type:        "OUT",
-          reason:      "transfer",
-          warehouseId: fromWhId,
-          shipmentId:  s.id,
-          notes:       body.notes ?? null,
-        }).catch((err) => console.error("[transfer-bulk] recordMovement OUT failed:", err));
-      }
-      if (body.toWarehouseId) {
-        await recordMovement({
-          product:     shipmentLabel,
-          quantity:    1,
-          type:        "IN",
-          reason:      "transfer",
-          warehouseId: body.toWarehouseId,
-          shipmentId:  s.id,
-          notes:       body.notes ?? null,
-        }).catch((err) => console.error("[transfer-bulk] recordMovement IN failed:", err));
-      }
+      await recordMovement({
+        product:      shipmentLabel,
+        quantity:     1,
+        type:         "OUT",
+        reason:       "transfer",
+        warehouseId:  fromWhId,
+        shipmentId:   s.id,
+        fromLocation: fromWhId ? (whNameById.get(fromWhId) ?? null) : null,
+        toLocation:   body.toWarehouseId ? (whNameById.get(body.toWarehouseId) ?? null) : null,
+        notes:        body.notes ?? null,
+      }).catch((err) => console.error("[transfer-bulk] recordMovement failed:", err));
     }
 
     res.json({
