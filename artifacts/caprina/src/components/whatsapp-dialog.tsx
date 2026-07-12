@@ -273,13 +273,22 @@ export function WhatsAppShipmentDialog({ open, onOpenChange, onSent, shipment }:
   );
   const defaultTpl = shipmentTemplates.find(t => t.isDefault) ?? shipmentTemplates[0];
 
+  // يشيل بلوك "تفاصيل الطلب" (المنتج/شركة الشحن/رقم التتبع/مدة الشحن) لو موجود بالقالب
+  const stripOrderDetailsBlock = (body: string): string => {
+    return body
+      .replace(/\*?تفاصيل الطلب:?\*?\n(?:•[^\n]*\n?)+\n?/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  };
+
   // يضيف فقرة تتبع الشحنة (اسم الاستور + هاتف المستلم) لو القالب لا يحتوي عليها أصلاً
   const withTrackingFooter = (body: string, s: WhatsAppShipmentData): string => {
-    if (/لتتبع شحنتك|اسم الاستور/.test(body)) return body;
+    const cleaned = stripOrderDetailsBlock(body);
+    if (/لتتبع شحنتك|اسم الاستور/.test(cleaned)) return cleaned;
     const senderNameForTrack = s.senderName ?? "—";
     const receiverPhoneForTrack = s.receiverPhone ?? "—";
     return (
-      body +
+      cleaned +
       `\n——————————————\n` +
       `📍 لتتبع شحنتك يرجى كتابة البيانات الآتية:\n` +
       `• اسم الاستور: ${senderNameForTrack}\n` +

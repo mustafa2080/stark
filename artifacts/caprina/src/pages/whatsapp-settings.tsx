@@ -60,11 +60,6 @@ export default function WhatsAppSettingsPage() {
   const DEFAULT_SHIPPING_BODY =
     `السلام عليكم يا {customerName} 👋\n\n` +
     `بنتواصل معاكم من *CAPRINA* بخصوص طلبكم رقم *#${"{orderNumber}"}*.\n\n` +
-    `*تفاصيل الطلب:*\n` +
-    `• المنتج: *{product}*\n` +
-    `• شركة الشحن: *{shippingCompany}*\n` +
-    `• رقم التتبع: *{trackingNumber}*\n` +
-    `• مدة الشحن: *{daysPending} يوم*\n\n` +
     `هل وصلكم الطلب بشكل سليم؟ 📦\n` +
     `لو عندكم أي استفسار إحنا دايماً هنا.\n\n` +
     `شكراً لثقتكم في CAPRINA ❤️`;
