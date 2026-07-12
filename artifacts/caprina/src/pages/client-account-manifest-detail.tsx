@@ -181,9 +181,9 @@ function OrderDeliveryRow({
   }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, editing]);
 
   const cancelMutation = useMutation({
-    mutationFn: () => manifestsApi.cancelOrder(manifestId, order.id),
+    mutationFn: () => clientAccountManifestsApi.removeShipment(manifestId, order.id),
     onSuccess: () => {
-      toast({ title: "تم إلغاء الطلبية من البيان وإرجاعها للانتظار" });
+      toast({ title: "تم إلغاء الشحنة من البيان وإرجاعها لقيد الانتظار" });
       setEditing(false);
       onSaved();
       setTimeout(() => window.location.reload(), 500);
@@ -1046,14 +1046,11 @@ function InvoiceGroupDeliveryRow({
     mutationFn: async () => {
       for (const order of group) {
         if (isShipmentManifest) {
-          await clientAccountManifestsApi.updateItem(manifestId, order.id, {
-            deliveryStatus: "pending",
-            deliveryNote: null,
-            returnReceived: null,
-            returnReason: null,
-          });
-        } else {
+          // بيان شركة الشحن — نظام مختلف (ordersTable)، له endpoint خاص بيه
           await manifestsApi.cancelOrder(manifestId, order.id);
+        } else {
+          // بيان حساب عميل تجاري — يشيل الشحنة من البيان ويرجّعها لقيد الانتظار
+          await clientAccountManifestsApi.removeShipment(manifestId, order.id);
         }
       }
     },

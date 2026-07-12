@@ -2091,6 +2091,10 @@ export const clientAccountManifestsApi = {
     apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (id: number) =>
     apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "DELETE" }),
+  removeShipment: (manifestId: number, shipmentId: number) =>
+    apiFetch<{ success: boolean; shipmentId: number; message: string }>(
+      `/client-account-manifests/${manifestId}/items/${shipmentId}`, { method: "DELETE" }
+    ),
   clientStats: (clientId: number) =>
     apiFetch<{ total: number; delivered: number; partial: number; returned: number; pending: number; deliveryRate: number; manifestCount: number }>(
       `/clients/${clientId}/account-manifest-stats`

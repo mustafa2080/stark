@@ -399,6 +399,45 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
   }
 });
 
+// ─── DELETE /client-account-manifests/:id/items/:shipmentId ──────────────────
+// إلغاء/إزالة شحنة من بيان حساب العميل: بيشيل صف الـ item من البيان ويرجّع
+// الشحنة نفسها (shipmentsTable) لحالة "قيد الانتظار" — بنفس فكرة إزالة الطلب
+// من بيان شركة الشحن، لكن على جدول الشحنات الصحيح (shipmentsTable) مش ordersTable.
+router.delete("/client-account-manifests/:id/items/:shipmentId", async (req, res): Promise<void> => {
+  try {
+    const manifestId = Number(req.params.id);
+    const shipmentId = Number(req.params.shipmentId);
+    if (isNaN(manifestId) || isNaN(shipmentId)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+
+    const [manifestRow] = await db.select({ status: clientAccountManifestsTable.status })
+      .from(clientAccountManifestsTable).where(eq(clientAccountManifestsTable.id, manifestId)).limit(1);
+    if (!manifestRow) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+    if (manifestRow.status === "closed") { res.status(400).json({ error: "البيان مغلق — لا يمكن التعديل" }); return; }
+
+    const [item] = await db.select({ id: clientAccountManifestItemsTable.id })
+      .from(clientAccountManifestItemsTable)
+      .where(and(
+        eq(clientAccountManifestItemsTable.manifestId, manifestId),
+        eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
+      ))
+      .limit(1);
+    if (!item) { res.status(404).json({ error: "الشحنة غير موجودة في هذا البيان" }); return; }
+
+    await db.delete(clientAccountManifestItemsTable)
+      .where(eq(clientAccountManifestItemsTable.id, item.id));
+
+    // رجّع الشحنة الأصلية لقيد الانتظار — عشان تدخل بيان جديد لما ترجع "قيد الشحن في المخزن" تاني
+    await db.update(shipmentsTable)
+      .set({ status: "pending", updatedAt: new Date() })
+      .where(eq(shipmentsTable.id, shipmentId));
+
+    res.json({ success: true, shipmentId, message: "تم إلغاء الشحنة من البيان وإرجاعها لقيد الانتظار" });
+  } catch (e: any) {
+    console.error("[DELETE /client-account-manifests/:id/items/:shipmentId]", e);
+    res.status(500).json({ error: "خطأ في إلغاء الشحنة من البيان" });
+  }
+});
+
 // ─── PATCH /client-account-manifests/:id  (قفل/فتح البيان) ──────────────────
 router.patch("/client-account-manifests/:id", async (req, res): Promise<void> => {
   try {
