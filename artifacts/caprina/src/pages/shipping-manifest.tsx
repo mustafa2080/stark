@@ -1108,10 +1108,18 @@ function InvoiceGroupDeliveryRow({
         {/* Desktop row */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden md:grid grid-cols-[110px_minmax(120px,1.3fr)_90px_80px_75px_75px_140px] lg:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-0 lg:min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
-          {/* Customer */}
+          {/* اسم الراسل */}
+          <div className="hidden lg:flex min-w-0 px-3 items-center">
+            {(rep as any).senderName ? (
+              <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
+          </div>
+          {/* اسم العميل */}
           <div className="min-w-0 px-3 flex items-start gap-2">
             {onToggleSelect && (
               <Checkbox
@@ -1129,11 +1137,16 @@ function InvoiceGroupDeliveryRow({
                     {invoiceNum}
                   </span>
                 )}
-                {rep.phone && (
-                  <span className="text-muted-foreground text-[10px]">{rep.phone}</span>
-                )}
               </div>
             </div>
+          </div>
+          {/* رقم تليفون العميل */}
+          <div className="hidden lg:flex min-w-0 px-3 items-center">
+            {rep.phone ? (
+              <p className="text-[10px] text-muted-foreground truncate">{rep.phone}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
           </div>
           {/* المحافظة */}
           <div className="min-w-0 px-3 flex items-center">
@@ -1151,27 +1164,15 @@ function InvoiceGroupDeliveryRow({
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
-          {/* الشركة الراسلة */}
-          <div className="hidden lg:flex min-w-0 px-3 items-center">
-            {(rep as any).senderName ? (
-              <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
-            ) : (
-              <p className="text-muted-foreground/40 text-[10px]">—</p>
-            )}
-          </div>
-          {/* سعر الشحنة (COD) */}
+          {/* اجمالى سعر الشحنة (COD) */}
           <div className="text-left font-bold px-3 flex items-center">
             <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
           </div>
-          {/* سعر الشحن (fee) */}
+          {/* القيمة المستلمة (= سعر الشحنة) */}
           <div className="text-center px-2 flex items-center justify-center">
-            {(rep as any).shippingCost != null ? (
-              <span className="text-orange-400 font-semibold">{formatCurrency((rep as any).shippingCost)}</span>
-            ) : (
-              <span className="text-muted-foreground/40">—</span>
-            )}
+            <span className="text-emerald-500 font-semibold">{formatCurrency(totalPrice)}</span>
           </div>
-          {/* تكلفة الشحنة (courier cost) */}
+          {/* تكلفة الشحن (المندوب) */}
           <div className="text-center px-2 flex items-center justify-center">
             {courierShippingCost != null ? (
               <span className="text-amber-500 font-semibold">{formatCurrency(courierShippingCost)}</span>
@@ -1179,17 +1180,7 @@ function InvoiceGroupDeliveryRow({
               <span className="text-muted-foreground/40">—</span>
             )}
           </div>
-          {/* الإجمالي (COD - fee - courier) */}
-          <div className="text-center px-2 flex items-center justify-center">
-            {(() => {
-              const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-              const courier = courierShippingCost != null ? Number(courierShippingCost) : 0;
-              return (
-                <span className="font-bold text-primary">{formatCurrency(totalPrice - fee - courier)}</span>
-              );
-            })()}
-          </div>
-          {/* الحالة + زرار التقفيل */}
+          {/* حالة الاوردر + زرار التقفيل */}
           <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
             {hasMultipleStatuses && !hasMixedPartial ? (
               <div className="flex flex-col gap-0.5">
@@ -1335,6 +1326,14 @@ function InvoiceGroupDeliveryRow({
                   disabled={false}
                 />
               </div>
+            )}
+          </div>
+          {/* ملاحظات */}
+          <div className="hidden lg:flex min-w-0 px-2 items-start">
+            {rep.deliveryNote ? (
+              <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{rep.deliveryNote}</p>
+            ) : (
+              <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
         </div>
@@ -2590,14 +2589,14 @@ function ExportDialog({
     ws1.pageMargins = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.35, header: 0.15, footer: 0.15 };
     ws1.columns = [
       { key: "idx",        width: 6  },
+      { key: "sender",     width: 18 },
       { key: "customer",   width: 20 },
       { key: "phone",      width: 14 },
       { key: "gov",        width: 14 },
       { key: "address",    width: 30 },
-      { key: "sender",     width: 18 },
       { key: "cod",        width: 14 },
-      { key: "fee",        width: 12 },
-      { key: "net",        width: 14 },
+      { key: "received",   width: 14 },
+      { key: "courier",    width: 14 },
       { key: "status",     width: 14 },
       { key: "note",       width: 24 },
       { key: "invoice",    width: 16 },
@@ -2634,7 +2633,7 @@ function ExportDialog({
     setCell(ws1.getCell("A4"), "", { fill: C.bg, border: C.bg });
     ws1.getRow(4).height = 8;
 
-    const headers = ["#", "اسم العميل", "الهاتف", "المحافظة", "العنوان", "الشركة الراسلة", "سعر الشحنة", "سعر الشحن", "الإجمالي", "حالة التسليم", "ملاحظة", "رقم الشحنة"];
+    const headers = ["#", "اسم الراسل", "اسم العميل", "رقم تليفون العميل", "المحافظة", "العنوان", "اجمالى سعر الشحنة", "القيمة المستلمة", "تكلفة الشحن", "حالة الاوردر", "ملاحظات", "رقم الشحنة"];
     const headerRow = ws1.getRow(5);
     headerRow.values = headers;
     headerRow.height = 24;
@@ -2651,8 +2650,7 @@ function ExportDialog({
       const rep = group[0];
       const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
       const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
-      const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-      const net = cod - fee;
+      const courierCost = rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null;
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
       const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
       const deliveryLabel = statuses.length === 1
@@ -2671,42 +2669,42 @@ function ExportDialog({
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
       });
-      // 2: اسم العميل
-      setCell(row.getCell(2), rep.customerName, {
-        fill: baseFill,
-        font: { bold: true, color: { argb: C.darkText } },
-        align: { horizontal: "right", vertical: "middle" },
-        border: "FFD1D5DB",
-      });
-      // 3: الهاتف
-      setCell(row.getCell(3), rep.phone ?? "—", {
-        fill: baseFill,
-        font: baseFont,
-        align: { horizontal: "center", vertical: "middle" },
-        border: "FFD1D5DB",
-      });
-      // 4: المحافظة
-      setCell(row.getCell(4), rep.city ?? "—", {
-        fill: baseFill,
-        font: baseFont,
-        align: { horizontal: "center", vertical: "middle" },
-        border: "FFD1D5DB",
-      });
-      // 5: العنوان
-      setCell(row.getCell(5), (rep as any).address ?? "—", {
-        fill: baseFill,
-        font: { size: 9, color: { argb: C.darkText } },
-        align: { horizontal: "right", vertical: "middle", wrapText: true },
-        border: "FFD1D5DB",
-      });
-      // 6: الشركة الراسلة
-      setCell(row.getCell(6), (rep as any).senderName ?? "—", {
+      // 2: اسم الراسل
+      setCell(row.getCell(2), (rep as any).senderName ?? "—", {
         fill: baseFill,
         font: { bold: true, color: { argb: C.blue } },
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
       });
-      // 7: سعر الشحنة (COD)
+      // 3: اسم العميل
+      setCell(row.getCell(3), rep.customerName, {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.darkText } },
+        align: { horizontal: "right", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 4: رقم تليفون العميل
+      setCell(row.getCell(4), rep.phone ?? "—", {
+        fill: baseFill,
+        font: baseFont,
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 5: المحافظة
+      setCell(row.getCell(5), rep.city ?? "—", {
+        fill: baseFill,
+        font: baseFont,
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+      });
+      // 6: العنوان
+      setCell(row.getCell(6), (rep as any).address ?? "—", {
+        fill: baseFill,
+        font: { size: 9, color: { argb: C.darkText } },
+        align: { horizontal: "right", vertical: "middle", wrapText: true },
+        border: "FFD1D5DB",
+      });
+      // 7: اجمالى سعر الشحنة (COD)
       setCell(row.getCell(7), cod, {
         fill: baseFill,
         font: { bold: true, color: { argb: C.green } },
@@ -2714,30 +2712,30 @@ function ExportDialog({
         border: "FFD1D5DB",
         numFmt: '#,##0 "ج.م"',
       });
-      // 8: سعر الشحن (fee)
-      setCell(row.getCell(8), fee > 0 ? fee : "—", {
+      // 8: القيمة المستلمة (= سعر الشحنة)
+      setCell(row.getCell(8), cod, {
         fill: baseFill,
-        font: { color: { argb: C.amber } },
-        align: { horizontal: "center", vertical: "middle" },
-        border: "FFD1D5DB",
-        numFmt: fee > 0 ? '#,##0 "ج.م"' : undefined,
-      });
-      // 9: الإجمالي (net)
-      setCell(row.getCell(9), net, {
-        fill: baseFill,
-        font: { bold: true, color: { argb: C.blue } },
+        font: { bold: true, color: { argb: C.green } },
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
         numFmt: '#,##0 "ج.م"',
       });
-      // 10: الحالة
+      // 9: تكلفة الشحن (المندوب)
+      setCell(row.getCell(9), courierCost != null && courierCost > 0 ? courierCost : "—", {
+        fill: baseFill,
+        font: { color: { argb: C.amber } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+        numFmt: courierCost != null && courierCost > 0 ? '#,##0 "ج.م"' : undefined,
+      });
+      // 10: حالة الاوردر
       setCell(row.getCell(10), deliveryLabel, {
         fill: deliveryStatus === "delivered" ? C.greenBg : deliveryStatus === "returned" ? C.redBg : deliveryStatus === "partial_received" ? C.tealBg : deliveryStatus === "postponed" ? C.amberBg : C.grayBg,
         font: { bold: true, color: { argb: deliveryStatus === "delivered" ? C.green : deliveryStatus === "returned" ? C.red : deliveryStatus === "partial_received" ? C.teal : deliveryStatus === "postponed" ? C.amber : C.gray } },
         align: { horizontal: "center", vertical: "middle" },
         border: deliveryStatus === "delivered" ? C.green : deliveryStatus === "returned" ? C.red : deliveryStatus === "partial_received" ? C.teal : deliveryStatus === "postponed" ? C.amber : "FFCBD5E1",
       });
-      // 11: ملاحظة
+      // 11: ملاحظات
       setCell(row.getCell(11), notes || "", {
         fill: baseFill,
         font: baseFont,
@@ -3998,16 +3996,17 @@ export default function ShippingManifestPage() {
       <table className="mp-table">
         <thead>
           <tr>
-            <th style={{ width: "4%" }}>#</th>
-            <th style={{ width: "14%" }}>العميل</th>
-            <th style={{ width: "8%" }}>المحافظة</th>
-            <th style={{ width: "20%" }}>العنوان</th>
-            <th style={{ width: "12%" }}>الراسل</th>
-            <th style={{ width: "10%" }}>سعر الشحنة</th>
-            <th style={{ width: "9%" }}>سعر الشحن</th>
-            <th style={{ width: "9%" }}>الإجمالي</th>
-            <th style={{ width: "8%" }}>الحالة</th>
-            <th style={{ width: "6%" }}>ملاحظة</th>
+            <th style={{ width: "3%" }}>#</th>
+            <th style={{ width: "10%" }}>الراسل</th>
+            <th style={{ width: "13%" }}>العميل</th>
+            <th style={{ width: "9%" }}>الهاتف</th>
+            <th style={{ width: "7%" }}>المحافظة</th>
+            <th style={{ width: "16%" }}>العنوان</th>
+            <th style={{ width: "9%" }}>اجمالى سعر الشحنة</th>
+            <th style={{ width: "9%" }}>القيمة المستلمة</th>
+            <th style={{ width: "8%" }}>تكلفة الشحن</th>
+            <th style={{ width: "8%" }}>حالة الاوردر</th>
+            <th style={{ width: "8%" }}>ملاحظات</th>
           </tr>
         </thead>
         <tbody>
@@ -4018,22 +4017,19 @@ export default function ShippingManifestPage() {
             const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
             const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-            const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-            const net = cod - fee;
+            const courierCost = rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null;
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
                 <td className="mp-td-center mp-num">{idx + 1}</td>
-                <td className="mp-td-bold">
-                  {rep.customerName}
-                  <div className="mp-sub">{rep.phone ?? ""}</div>
-                </td>
+                <td style={{ fontSize: "8.5pt" }}>{(rep as any).senderName ?? "—"}</td>
+                <td className="mp-td-bold">{rep.customerName}</td>
+                <td className="mp-td-center" style={{ fontSize: "8.5pt" }}>{rep.phone ?? "—"}</td>
                 <td>{rep.city ?? "—"}</td>
                 <td style={{ fontSize: "8.5pt" }}>{(rep as any).address ?? "—"}</td>
-                <td style={{ fontSize: "8.5pt" }}>{(rep as any).senderName ?? "—"}</td>
                 <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
-                <td className="mp-td-center" style={{ color: "#d97706" }}>{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
-                <td className="mp-td-center mp-td-bold" style={{ color: "#1d4ed8" }}>{net.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center" style={{ color: "#d97706" }}>{courierCost != null ? courierCost.toLocaleString("ar-EG") + " ج" : "—"}</td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
               </tr>
@@ -4469,9 +4465,14 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden md:grid grid-cols-[110px_minmax(120px,1.3fr)_90px_80px_75px_75px_140px] lg:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-0 lg:min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
-                  {/* ─── عمود العميل ─── */}
+                  {/* ─── اسم الراسل ─── */}
+                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
+                    <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                    اسم الراسل
+                  </div>
+                  {/* ─── اسم العميل ─── */}
                   <div className="relative flex items-center">
                     <div className="flex items-center px-3 shrink-0">
                       <Checkbox
@@ -4482,9 +4483,13 @@ export default function ShippingManifestPage() {
                       />
                     </div>
                     <div className="flex items-center justify-between w-full h-9 px-3">
-                      <span className="font-bold">العميل</span>
+                      <span className="font-bold">اسم العميل</span>
                       {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                     </div>
+                  </div>
+                  {/* ─── رقم تليفون العميل ─── */}
+                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
+                    رقم تليفون العميل
                   </div>
                   {/* ─── المحافظة ─── */}
                   <div className="flex items-center justify-between gap-1 px-3 h-9">
@@ -4499,12 +4504,7 @@ export default function ShippingManifestPage() {
                     <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
                     العنوان
                   </div>
-                  {/* ─── الشركة الراسلة ─── */}
-                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
-                    <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
-                    الراسل
-                  </div>
-                  {/* ─── سعر الشحنة (COD) ─── */}
+                  {/* ─── اجمالى سعر الشحنة (COD) ─── */}
                   <div className="flex items-center justify-between gap-1 px-3 h-9">
                     {!showColFilters
                       ? <input
@@ -4514,29 +4514,29 @@ export default function ShippingManifestPage() {
                           className="w-full h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
                           dir="rtl"
                         />
-                      : <span className="font-bold">سعر الشحنة</span>
+                      : <span className="font-bold">اجمالى سعر الشحنة</span>
                     }
                     {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
-                  {/* ─── سعر الشحن (fee) ─── */}
+                  {/* ─── القيمة المستلمة (= سعر الشحنة) ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9">
-                    سعر الشحن
+                    القيمة المستلمة
                   </div>
-                  {/* ─── تكلفة الشحنة (courier cost) ─── */}
+                  {/* ─── تكلفة الشحن (المندوب) ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">
-                    تكلفة الشحنة
+                    تكلفة الشحن
                   </div>
-                  {/* ─── الإجمالي (COD - fee - courier) ─── */}
-                  <div className="flex items-center justify-center gap-1 px-2 h-9">
-                    الإجمالي
-                  </div>
-                  {/* ─── الحالة ─── */}
+                  {/* ─── حالة الاوردر ─── */}
                   <div className="flex items-center gap-1 px-2 h-9">
                     <span className="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
                       <CheckCircle2 className="w-2.5 h-2.5 opacity-50" />
                     </span>
-                    <span className="shrink-0">الحالة</span>
+                    <span className="shrink-0">حالة الاوردر</span>
                     {showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                  </div>
+                  {/* ─── ملاحظات ─── */}
+                  <div className="hidden lg:flex items-center gap-1 px-2 h-9">
+                    ملاحظات
                   </div>
                 </div>
                 {displayGroups.length === 0 && colFilterHasActive ? (
