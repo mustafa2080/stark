@@ -1105,14 +1105,14 @@ function InvoiceGroupDeliveryRow({
           animationDelay: `${rowIndex * 45}ms`,
         }}
       >
-        {/* Desktop row */}
+        {/* Desktop row (lg+) */}
         <div
           dir="rtl"
-          className="hidden md:grid grid-cols-[110px_minmax(120px,1.3fr)_90px_80px_75px_75px_140px] lg:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-0 lg:min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="hidden lg:grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* اسم الراسل */}
-          <div className="hidden lg:flex min-w-0 px-3 items-center">
+          <div className="flex min-w-0 px-3 items-center">
             {(rep as any).senderName ? (
               <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
             ) : (
@@ -1141,7 +1141,7 @@ function InvoiceGroupDeliveryRow({
             </div>
           </div>
           {/* رقم تليفون العميل */}
-          <div className="hidden lg:flex min-w-0 px-3 items-center">
+          <div className="flex min-w-0 px-3 items-center">
             {rep.phone ? (
               <p className="text-[10px] text-muted-foreground truncate">{rep.phone}</p>
             ) : (
@@ -1157,7 +1157,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* العنوان التفصيلي */}
-          <div className="hidden lg:flex min-w-0 px-3 items-start">
+          <div className="flex min-w-0 px-3 items-start">
             {(rep as any).address ? (
               <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{(rep as any).address}</p>
             ) : (
@@ -1329,7 +1329,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* ملاحظات */}
-          <div className="hidden lg:flex min-w-0 px-2 items-start">
+          <div className="flex min-w-0 px-2 items-start">
             {rep.deliveryNote ? (
               <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{rep.deliveryNote}</p>
             ) : (
@@ -1338,8 +1338,8 @@ function InvoiceGroupDeliveryRow({
           </div>
         </div>
 
-        {/* Mobile card (md:hidden) */}
-        <div className="md:hidden px-3 py-2.5 text-xs flex flex-col gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        {/* Tablet / Mobile card (lg:hidden) */}
+        <div className="lg:hidden px-3 py-2.5 text-xs flex flex-col gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           {/* Row 1: customer + status badge */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2 min-w-0">
@@ -1358,6 +1358,12 @@ function InvoiceGroupDeliveryRow({
                   {rep.phone && <span className="text-muted-foreground text-[10px]">{rep.phone}</span>}
                   {rep.city && <span className="text-muted-foreground text-[10px]">📍 {rep.city}</span>}
                 </div>
+                {(rep as any).senderName && (
+                  <p className="text-primary/70 text-[10px] mt-0.5 flex items-center gap-1">
+                    <Truck className="w-2.5 h-2.5 shrink-0" />
+                    {(rep as any).senderName}
+                  </p>
+                )}
               </div>
             </div>
             <div className="shrink-0 flex items-start gap-1.5">
@@ -1368,6 +1374,27 @@ function InvoiceGroupDeliveryRow({
                   {displayOpt.label}
                 </Badge>
               )}
+            </div>
+          </div>
+          {/* Row 1.5: address */}
+          {(rep as any).address && (
+            <p className="text-[10px] text-muted-foreground/80 leading-relaxed -mt-1">{(rep as any).address}</p>
+          )}
+          {/* Row 1.75: financial summary */}
+          <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-border/60 bg-muted/10 px-2 py-1.5">
+            <div className="text-center">
+              <p className="text-[9px] text-muted-foreground">اجمالى سعر الشحنة</p>
+              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalPrice)}</p>
+            </div>
+            <div className="text-center border-x border-border/40">
+              <p className="text-[9px] text-muted-foreground">القيمة المستلمة</p>
+              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalPrice)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[9px] text-muted-foreground">تكلفة الشحن</p>
+              <p className="text-[11px] font-bold text-amber-500">
+                {courierShippingCost != null ? formatCurrency(courierShippingCost) : "—"}
+              </p>
             </div>
           </div>
           {/* Row 2: products + qty + price */}
@@ -4465,10 +4492,10 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden md:grid grid-cols-[110px_minmax(120px,1.3fr)_90px_80px_75px_75px_140px] lg:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-0 lg:min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="hidden lg:grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── اسم الراسل ─── */}
-                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
+                  <div className="flex items-center gap-1.5 px-3 h-9">
                     <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
                     اسم الراسل
                   </div>
@@ -4488,7 +4515,7 @@ export default function ShippingManifestPage() {
                     </div>
                   </div>
                   {/* ─── رقم تليفون العميل ─── */}
-                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
+                  <div className="flex items-center gap-1.5 px-3 h-9">
                     رقم تليفون العميل
                   </div>
                   {/* ─── المحافظة ─── */}
@@ -4500,7 +4527,7 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── العنوان التفصيلي ─── */}
-                  <div className="hidden lg:flex items-center gap-1.5 px-3 h-9">
+                  <div className="flex items-center gap-1.5 px-3 h-9">
                     <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
                     العنوان
                   </div>
@@ -4535,7 +4562,7 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── ملاحظات ─── */}
-                  <div className="hidden lg:flex items-center gap-1 px-2 h-9">
+                  <div className="flex items-center gap-1 px-2 h-9">
                     ملاحظات
                   </div>
                 </div>
