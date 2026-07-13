@@ -3558,20 +3558,16 @@ export default function ShippingManifestPage() {
       return !isConfirmedReturn;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
-    if (!manifestCustomerSearch && !manifestProductSearch && !manifestTotalSearch) return groups;
+    if (!manifestCustomerSearch && !manifestProductSearch) return groups;
     const cLow = manifestCustomerSearch.toLowerCase();
     const pLow = manifestProductSearch.toLowerCase();
     return groups.filter(group => {
       const rep = group[0];
       if (cLow && !(rep.customerName ?? "").toLowerCase().includes(cLow)) return false;
       if (pLow && !group.some(o => (o.product ?? "").toLowerCase().includes(pLow) || (o.phone ?? "").toLowerCase().includes(pLow))) return false;
-      if (manifestTotalSearch) {
-        const total = group.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        if (!String(Math.round(total)).includes(manifestTotalSearch)) return false;
-      }
       return true;
     });
-  }, [manifest?.orders, manifestCustomerSearch, manifestProductSearch, manifestTotalSearch]);
+  }, [manifest?.orders, manifestCustomerSearch, manifestProductSearch]);
 
   // ─── Sort — حسب الحالة فوق الـ filter ──────────────────────────────────────
   const sortedManifestOrders = useMemo(() => {
@@ -4485,21 +4481,6 @@ export default function ShippingManifestPage() {
                     />
                     {manifestProductSearch && (
                       <button className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setManifestProductSearch("")}>
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative hidden lg:block">
-                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input
-                      value={manifestTotalSearch}
-                      onChange={e => setManifestTotalSearch(e.target.value)}
-                      placeholder="ابحث بإجمالي سعر الشحنة..."
-                      className="w-full pr-9 bg-card text-sm h-9 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/60"
-                      dir="rtl"
-                    />
-                    {manifestTotalSearch && (
-                      <button className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setManifestTotalSearch("")}>
                         <X className="w-3.5 h-3.5" />
                       </button>
                     )}
