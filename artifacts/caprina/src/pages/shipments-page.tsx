@@ -1279,6 +1279,9 @@ export default function Orders() {
         phone,
         senderName: shipment.senderName || shipment.storeName || null,
         senderPhone: shipment.senderPhone || null,
+        senderCity: shipment.senderCity || null,
+        customerCity: shipment.receiverCity || null,
+        customerAddress: shipment.receiverAddress || null,
       });
       if (!candidate.includes("\uFFFD")) message = candidate;
     }

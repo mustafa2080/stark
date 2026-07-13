@@ -20,6 +20,9 @@ export interface WhatsAppOrderData {
   phone?: string | null;
   senderName?: string | null;
   senderPhone?: string | null;
+  senderCity?: string | null;
+  customerCity?: string | null;
+  customerAddress?: string | null;
 }
 
 export interface WhatsAppShipmentData {
@@ -27,8 +30,11 @@ export interface WhatsAppShipmentData {
   shipmentNumber?: string | null;
   receiverName: string;
   receiverPhone?: string | null;
+  receiverCity?: string | null;
+  receiverAddress?: string | null;
   senderName?: string | null;
   senderPhone?: string | null;
+  senderCity?: string | null;
   trackingNumber?: string | null;
   status: string;
   shippingFee?: number | string | null;
@@ -53,6 +59,10 @@ export function applyShipmentTemplate(templateBody: string, s: WhatsAppShipmentD
     .replace(/\{zone\}/g,            s.zoneLabel ?? "—")
     .replace(/\{senderName\}/g,      s.senderName ?? "—")
     .replace(/\{senderPhone\}/g,     s.senderPhone ?? s.receiverPhone ?? "—")
+    .replace(/\{senderCity\}/g,      s.senderCity ?? "—")
+    .replace(/\{receiverCity\}/g,    s.receiverCity ?? "—")
+    .replace(/\{customerCity\}/g,    s.receiverCity ?? "—")
+    .replace(/\{customerAddress\}/g, s.receiverAddress ?? "—")
     .replace(/\{receiverPhone\}/g,   s.receiverPhone ?? "—")
     .replace(/\{product\}/g,         "شحنة")
     .replace(/\{quantity\}/g,        "1")
@@ -69,7 +79,11 @@ export const SHIPMENT_TEMPLATE_VARIABLES = [
   { var: "{codAmount}",      label: "مبلغ COD" },
   { var: "{zone}",           label: "المنطقة" },
   { var: "{senderName}",     label: "اسم الراسل (الاستور)" },
+  { var: "{senderPhone}",    label: "هاتف الراسل" },
+  { var: "{senderCity}",     label: "محافظة الراسل" },
   { var: "{receiverPhone}",  label: "هاتف المستلم" },
+  { var: "{receiverCity}",   label: "محافظة العميل" },
+  { var: "{customerAddress}", label: "عنوان العميل" },
 ];
 
 // ─── قالب "مشكلة العميل" — يُرسل للراسل تفاصيل شحنة المستلم ───────────────
@@ -133,7 +147,10 @@ export function applyTemplate(templateBody: string, order: WhatsAppOrderData): s
     .replace(/\{status\}/g, order.status)
     .replace(/\{phone\}/g, order.phone ?? "—")
     .replace(/\{senderName\}/g, order.senderName ?? "—")
-    .replace(/\{senderPhone\}/g, order.senderPhone ?? order.phone ?? "—");
+    .replace(/\{senderPhone\}/g, order.senderPhone ?? order.phone ?? "—")
+    .replace(/\{senderCity\}/g, order.senderCity ?? "—")
+    .replace(/\{customerCity\}/g, order.customerCity ?? "—")
+    .replace(/\{customerAddress\}/g, order.customerAddress ?? "—");
 }
 
 export function buildWhatsAppLink(phone: string, message: string): string {
@@ -191,6 +208,9 @@ export const TEMPLATE_VARIABLES = [
   { var: "{phone}", label: "رقم هاتف العميل" },
   { var: "{senderName}", label: "اسم الاستور" },
   { var: "{senderPhone}", label: "رقم هاتف الاستور" },
+  { var: "{senderCity}", label: "محافظة الاستور (الراسل)" },
+  { var: "{customerCity}", label: "محافظة العميل" },
+  { var: "{customerAddress}", label: "عنوان العميل" },
 ];
 
 export const SHIPPING_TEMPLATE_VARIABLES = [
