@@ -4489,6 +4489,21 @@ export default function ShippingManifestPage() {
                       </button>
                     )}
                   </div>
+                  <div className="relative hidden lg:block">
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input
+                      value={manifestTotalSearch}
+                      onChange={e => setManifestTotalSearch(e.target.value)}
+                      placeholder="ابحث بإجمالي سعر الشحنة..."
+                      className="w-full pr-9 bg-card text-sm h-9 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/60"
+                      dir="rtl"
+                    />
+                    {manifestTotalSearch && (
+                      <button className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setManifestTotalSearch("")}>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
@@ -4532,18 +4547,11 @@ export default function ShippingManifestPage() {
                     العنوان
                   </div>
                   {/* ─── اجمالى سعر الشحنة (COD) ─── */}
-                  <div className="flex items-center justify-between gap-1 px-3 h-9">
-                    {!showColFilters
-                      ? <input
-                          value={manifestTotalSearch}
-                          onChange={e => setManifestTotalSearch(e.target.value)}
-                          placeholder="COD..."
-                          className="w-full h-5 text-[10px] px-1.5 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
-                          dir="rtl"
-                        />
-                      : <span className="font-bold">اجمالى سعر الشحنة</span>
-                    }
-                    {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                  <div className="flex flex-col justify-center gap-0.5 px-3 h-9">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold">اجمالى سعر الشحنة</span>
+                      {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                    </div>
                   </div>
                   {/* ─── القيمة المستلمة (= سعر الشحنة) ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9">
