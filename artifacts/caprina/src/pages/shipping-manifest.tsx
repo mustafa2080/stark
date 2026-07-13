@@ -1166,11 +1166,11 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* اجمالى سعر الشحنة (COD) */}
           <div className="text-left font-bold px-3 flex items-center">
-            <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
+            <span className="text-emerald-500">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* القيمة المستلمة (= سعر الشحنة) */}
           <div className="text-center px-2 flex items-center justify-center">
-            <span className="text-emerald-500 font-semibold">{formatCurrency(totalPrice)}</span>
+            <span className="text-emerald-500 font-semibold">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* تكلفة الشحن (المندوب) */}
           <div className="text-center px-2 flex items-center justify-center">
@@ -1384,11 +1384,11 @@ function InvoiceGroupDeliveryRow({
           <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-border/60 bg-muted/10 px-2 py-1.5">
             <div className="text-center">
               <p className="text-[9px] text-muted-foreground">اجمالى سعر الشحنة</p>
-              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalPrice)}</p>
+              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalFullPrice)}</p>
             </div>
             <div className="text-center border-x border-border/40">
               <p className="text-[9px] text-muted-foreground">القيمة المستلمة</p>
-              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalPrice)}</p>
+              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalFullPrice)}</p>
             </div>
             <div className="text-center">
               <p className="text-[9px] text-muted-foreground">تكلفة الشحن</p>
