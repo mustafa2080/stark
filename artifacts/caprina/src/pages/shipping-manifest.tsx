@@ -4428,9 +4428,16 @@ export default function ShippingManifestPage() {
       {canViewFinancials && (() => {
         // نستخدم نفس helper isStillAtShipping المعرّف فوق
         const ordersForPnl = ordersExcludingPendingShipping;
-        const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
+        const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
+        // مسلَّم بالكامل = السعر الكامل، مسلَّم جزئي = سعر الوحدة × الكمية المستلمة فقط
+        const deliveredCOD    = deliveredOrders.reduce((s, o) => {
+          if (o.deliveryStatus === "partial_delivered" && (o as any).partialQuantity != null) {
+            return s + Number((o as any).unitPrice) * Number((o as any).partialQuantity);
+          }
+          return s + (o.totalPrice ?? 0);
+        }, 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
