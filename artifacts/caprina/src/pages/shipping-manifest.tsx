@@ -187,10 +187,11 @@ function OrderDeliveryRow({
       if (status === "partial_received" || status === "partial_delivered") {
         const qty = parseInt(partialQty);
         if (partialQty === "" || partialQty === null || partialQty === undefined || isNaN(qty) || qty < 0) {
-          throw new Error("يجب إدخال الكمية المستلمة أولاً");
+          throw new Error(status === "partial_delivered" && isShipmentManifest ? "يجب إدخال القيمة المستلمة أولاً" : "يجب إدخال الكمية المستلمة أولاً");
         }
-        if (qty > order.quantity) {
-          throw new Error("الكمية لا يمكن أن تتجاوز " + order.quantity);
+        const maxVal: number = status === "partial_delivered" && isShipmentManifest ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0);
+        if (qty > maxVal) {
+          throw new Error((status === "partial_delivered" && isShipmentManifest ? "القيمة لا يمكن أن تتجاوز " : "الكمية لا يمكن أن تتجاوز ") + maxVal);
         }
       }
       let finalNote = note.trim() || null;
@@ -513,7 +514,7 @@ function OrderDeliveryRow({
                 <SelectContent>
                   {(isShipmentManifest
                     ? SHIPMENT_DELIVERY_OPTIONS.filter((o) => o.value !== "pending")
-                    : DELIVERY_OPTIONS.filter((o) => o.value !== "partial_received" || order.quantity > 1)
+                    : DELIVERY_OPTIONS.filter((o) => o.value !== "partial_received" || Number(order.quantity ?? 0) > 1)
                   ).map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-xs">
                       <span className={o.color}>{o.label}</span>
@@ -522,39 +523,42 @@ function OrderDeliveryRow({
                 </SelectContent>
               </Select>
             </div>
-            {needsPartial && (
+            {needsPartial && (() => {
+              const isValueMode = status === "partial_delivered" && isShipmentManifest;
+              const maxVal = isValueMode ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0);
+              return (
               <>
                 <div>
                   <Label className="text-[10px] mb-1 block text-muted-foreground">
-                    الكمية المستلمة (من {order.quantity}) <span className="text-destructive font-bold">*</span>
+                    {isValueMode ? `القيمة المستلمة من العميل (من إجمالي الشحنة ${formatCurrency(maxVal)})` : `الكمية المستلمة (من ${order.quantity})`} <span className="text-destructive font-bold">*</span>
                   </Label>
                   <Input
                     type="number"
                     min={0}
-                    max={order.quantity}
+                    max={maxVal}
                     value={partialQty}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") { setPartialQty(""); return; }
                       const n = parseInt(val);
-                      if (!isNaN(n) && n > order.quantity) { setPartialQty(String(order.quantity)); e.target.value = String(order.quantity); return; }
+                      if (!isNaN(n) && n > maxVal) { setPartialQty(String(maxVal)); e.target.value = String(maxVal); return; }
                       if (!isNaN(n) && n < 0) { setPartialQty("0"); e.target.value = "0"; return; }
                       setPartialQty(val);
                     }}
                     onBlur={(e) => {
                       const n = parseInt(e.target.value);
-                      if (!isNaN(n) && n > order.quantity) setPartialQty(String(order.quantity));
+                      if (!isNaN(n) && n > maxVal) setPartialQty(String(maxVal));
                       if (!isNaN(n) && n < 0) setPartialQty("0");
                     }}
-                    className={`h-8 text-xs w-28 bg-background ${partialQty === "" || parseInt(partialQty) > order.quantity ? "border-destructive" : ""}`}
+                    className={`h-8 text-xs w-28 bg-background ${partialQty === "" || parseInt(partialQty) > maxVal ? "border-destructive" : ""}`}
                     placeholder="مطلوب"
                     autoFocus
                   />
                   {(partialQty === "") && (
-                    <p className="text-[10px] text-destructive mt-0.5">⚠ أدخل الكمية المستلمة</p>
+                    <p className="text-[10px] text-destructive mt-0.5">{isValueMode ? "⚠ أدخل القيمة المستلمة" : "⚠ أدخل الكمية المستلمة"}</p>
                   )}
-                  {(partialQty !== "" && parseInt(partialQty) > order.quantity) && (
-                    <p className="text-[10px] text-destructive mt-0.5">⚠ الحد الأقصى {order.quantity}</p>
+                  {(partialQty !== "" && parseInt(partialQty) > maxVal) && (
+                    <p className="text-[10px] text-destructive mt-0.5">⚠ الحد الأقصى {isValueMode ? formatCurrency(maxVal) : maxVal}</p>
                   )}
                 </div>
                 <div>
@@ -569,7 +573,8 @@ function OrderDeliveryRow({
                   />
                 </div>
               </>
-            )}
+              );
+            })()}
           </div>
           {/* هل الباقي من الاستلام الجزئي عند الشحن؟ */}
           {status === "partial_received" && (
@@ -869,9 +874,12 @@ function InvoiceGroupDeliveryRow({
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
-  // السعر الفعلي: لو partial_received أو partial_delivered احسب الجزء المستلم فقط
+  // السعر الفعلي: لو partial_received احسب الجزء المستلم (كمية)، لو partial_delivered في بيان الشحن القيمة مسجَّلة مباشرة
   const totalPrice = group.reduce((s, o) => {
-    if ((o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity != null) {
+    if (o.deliveryStatus === "partial_delivered" && isShipmentManifest && o.partialQuantity != null) {
+      return s + Number(o.partialQuantity);
+    }
+    if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
       return s + Number(o.unitPrice) * Number(o.partialQuantity);
     }
     return s + Number(o.totalPrice);
@@ -1376,14 +1384,18 @@ function InvoiceGroupDeliveryRow({
               {!isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (() => {
                 const o = group[0];
                 const variant = [o.color, o.size].filter(Boolean).join(" / ");
-                const unitPrice = o.quantity > 0 ? o.totalPrice / o.quantity : 0;
+                const oQty = Number(o.quantity ?? 0);
+                const oTotal = Number(o.totalPrice ?? 0);
+                const unitPrice = oQty > 0 ? oTotal / oQty : 0;
+                const isValueMode = bulkStatus === "partial_delivered" && isShipmentManifest;
+                const maxVal = isValueMode ? oTotal : oQty;
                 const rawVal = partialQtyMap[o.id];
                 const hasQty = rawVal !== "" && rawVal !== undefined && rawVal !== null;
                 const partialVal = hasQty ? parseInt(rawVal) : 0;
                 return (
                   <div className="flex flex-col gap-2 border border-teal-300 dark:border-teal-700 rounded-md p-2.5 bg-teal-50 dark:bg-teal-900/20">
                     <Label className="text-[10px] font-bold text-teal-700 dark:text-teal-400">
-                      حدد الكمية المستلمة
+                      {isValueMode ? "حدد القيمة المستلمة من العميل" : "حدد الكمية المستلمة"}
                     </Label>
                     <div className="rounded-md border border-teal-200 dark:border-teal-800 bg-background p-2 flex flex-col gap-1.5">
                       <div className="flex items-center justify-between">
@@ -1391,14 +1403,14 @@ function InvoiceGroupDeliveryRow({
                           <p className="text-xs font-semibold">{o.product || o.invoiceNumber}</p>
                           {variant && <p className="text-[10px] text-muted-foreground">{variant}</p>}
                         </div>
-                        <span className="text-xs font-bold text-muted-foreground">الإجمالي: {o.quantity}</span>
+                        <span className="text-xs font-bold text-muted-foreground">{isValueMode ? `إجمالي الشحنة: ${formatCurrency(maxVal)}` : `الإجمالي: ${o.quantity}`}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Label className="text-[10px] text-muted-foreground shrink-0">المستلم:</Label>
                         <input
                           type="number"
                           min={0}
-                          max={o.quantity}
+                          max={maxVal}
                           value={rawVal ?? ""}
                           onChange={e => {
                             const raw = e.target.value;
@@ -1406,7 +1418,7 @@ function InvoiceGroupDeliveryRow({
                               setPartialQtyMap(prev => ({ ...prev, [o.id]: "" }));
                             } else {
                               const n = parseInt(raw);
-                              if (!isNaN(n) && n >= 0 && n <= o.quantity) {
+                              if (!isNaN(n) && n >= 0 && n <= maxVal) {
                                 setPartialQtyMap(prev => ({ ...prev, [o.id]: String(n) }));
                               }
                             }
@@ -1415,11 +1427,11 @@ function InvoiceGroupDeliveryRow({
                           placeholder="مطلوب"
                           autoFocus
                         />
-                        <span className="text-[10px] text-muted-foreground">من {o.quantity}</span>
+                        <span className="text-[10px] text-muted-foreground">من {isValueMode ? formatCurrency(maxVal) : maxVal}</span>
                         {!hasQty && (
                           <span className="text-[10px] text-destructive">⚠ مطلوب</span>
                         )}
-                        {partialVal > 0 && (
+                        {!isValueMode && partialVal > 0 && (
                           <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
                             = {(unitPrice * partialVal).toFixed(0)} ج.م
                           </span>
@@ -1435,11 +1447,15 @@ function InvoiceGroupDeliveryRow({
             {isMulti && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && (
               <div className="flex flex-col gap-2 border border-teal-300 dark:border-teal-700 rounded-md p-2.5 bg-teal-50 dark:bg-teal-900/20">
                 <Label className="text-[10px] font-bold text-teal-700 dark:text-teal-400">
-                  حدد الكمية المستلمة لكل منتج
+                  {bulkStatus === "partial_delivered" && isShipmentManifest ? "حدد القيمة المستلمة من العميل لكل منتج" : "حدد الكمية المستلمة لكل منتج"}
                 </Label>
                 {group.map((o) => {
                   const variant = [o.color, o.size].filter(Boolean).join(" / ");
-                  const unitPrice = o.quantity > 0 ? o.totalPrice / o.quantity : 0;
+                  const oQty = Number(o.quantity ?? 0);
+                  const oTotal = Number(o.totalPrice ?? 0);
+                  const unitPrice = oQty > 0 ? oTotal / oQty : 0;
+                  const isValueMode = bulkStatus === "partial_delivered" && isShipmentManifest;
+                  const maxVal = isValueMode ? oTotal : oQty;
                   const mKey = o.id;
                   const rawVal = partialQtyMap[mKey];
                   const hasQty = rawVal !== "" && rawVal !== undefined && rawVal !== null;
@@ -1451,14 +1467,14 @@ function InvoiceGroupDeliveryRow({
                           <p className="text-xs font-semibold">{o.product}</p>
                           {variant && <p className="text-[10px] text-muted-foreground">{variant}</p>}
                         </div>
-                        <span className="text-xs font-bold text-muted-foreground">الإجمالي: {o.quantity}</span>
+                        <span className="text-xs font-bold text-muted-foreground">{isValueMode ? `إجمالي الشحنة: ${formatCurrency(maxVal)}` : `الإجمالي: ${o.quantity}`}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Label className="text-[10px] text-muted-foreground shrink-0">المستلم:</Label>
                         <input
                           type="number"
                           min={0}
-                          max={o.quantity}
+                          max={maxVal}
                           value={partialQtyMap[mKey] ?? ""}
                           onChange={e => {
                             const raw = e.target.value;
@@ -1466,7 +1482,7 @@ function InvoiceGroupDeliveryRow({
                               setPartialQtyMap(prev => ({ ...prev, [mKey]: "" }));
                             } else {
                               const n = parseInt(raw);
-                              if (!isNaN(n) && n >= 0 && n <= o.quantity) {
+                              if (!isNaN(n) && n >= 0 && n <= maxVal) {
                                 setPartialQtyMap(prev => ({ ...prev, [mKey]: String(n) }));
                               }
                             }
@@ -1475,11 +1491,11 @@ function InvoiceGroupDeliveryRow({
                           placeholder="مطلوب"
                           autoFocus={o.id === group[0].id}
                         />
-                        <span className="text-[10px] text-muted-foreground">من {o.quantity}</span>
+                        <span className="text-[10px] text-muted-foreground">من {isValueMode ? formatCurrency(maxVal) : maxVal}</span>
                         {!hasQty && (
                           <span className="text-[10px] text-destructive">⚠ مطلوب</span>
                         )}
-                        {partialVal > 0 && (
+                        {!isValueMode && partialVal > 0 && (
                           <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
                             = {(unitPrice * partialVal).toFixed(0)} ج.م
                           </span>
@@ -4431,22 +4447,23 @@ export default function ShippingManifestPage() {
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
-        // مسلَّم بالكامل = السعر الكامل، مسلَّم جزئي = سعر الوحدة × الكمية المستلمة فقط
+        // مسلَّم بالكامل = السعر الكامل، مسلَّم جزئي = القيمة المستلمة من العميل المُدخلة مباشرة
         const deliveredCOD    = deliveredOrders.reduce((s, o) => {
           if (o.deliveryStatus === "partial_delivered" && (o as any).partialQuantity != null) {
-            return s + Number((o as any).unitPrice) * Number((o as any).partialQuantity);
+            return s + Number((o as any).partialQuantity);
           }
           return s + (o.totalPrice ?? 0);
         }, 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
-        // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / مرتجع مع دفع رسوم الشحن فقط)
+        // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع مع دفع رسوم الشحن فقط)
         // pending/delayed لا تُحسب أبدًا (صفر) حتى تتغيّر حالتها فعليًا
         const courierShippingCostForCalc = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
         const shippingCostOrders = ordersForPnl.filter(o =>
           o.deliveryStatus === "delivered" ||
           o.deliveryStatus === "partial_delivered" ||
+          o.deliveryStatus === "partial_received" ||
           (o.deliveryStatus === "returned" && (o as any).returnReason === "refused_paid")
         );
         const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
