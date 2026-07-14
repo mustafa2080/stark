@@ -1175,15 +1175,14 @@ function InvoiceGroupDeliveryRow({
           animationDelay: `${rowIndex * 45}ms`,
         }}
       >
-        {/* Row (visible on all screen sizes, horizontal scroll on small screens) */}
-        <div className="overflow-x-auto">
+        {/* Row (visible on all screen sizes; no horizontal scroll — columns collapse on mobile) */}
         <div
           dir="rtl"
-          className="grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* اسم الراسل */}
-          <div className="flex min-w-0 px-3 items-center">
+          <div className="hidden md:flex min-w-0 px-3 items-center">
             {(rep as any).senderName ? (
               <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
             ) : (
@@ -1226,7 +1225,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* العنوان التفصيلي */}
-          <div className="flex min-w-0 px-3 items-start">
+          <div className="hidden md:flex min-w-0 px-3 items-start">
             {(rep as any).address ? (
               <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{(rep as any).address}</p>
             ) : (
@@ -1238,7 +1237,7 @@ function InvoiceGroupDeliveryRow({
             <span className="text-emerald-500">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* القيمة المستلمة (= سعر الشحنة) */}
-          <div className="text-center px-2 flex items-center justify-center">
+          <div className="hidden md:flex text-center px-2 items-center justify-center">
             <span className="text-emerald-500 font-semibold">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* تكلفة الشحن (فعلية من مناديب Stark لكل شحنة) */}
@@ -1444,7 +1443,6 @@ function InvoiceGroupDeliveryRow({
               disabled={locked}
             />
           </div>
-        </div>
         </div>
         {/* Mobile card block removed — the grid row above is now shown on all breakpoints with horizontal scroll */}
         {false && (
@@ -4801,7 +4799,7 @@ export default function ShippingManifestPage() {
                 }
                 setShowColFilters(v => !v);
               }}
-              className={`hidden md:flex h-7 items-center gap-1.5 px-2.5 rounded-lg border text-xs font-medium transition-all shrink-0 ${showColFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
+              className={`flex h-7 items-center gap-1.5 px-2.5 rounded-lg border text-xs font-medium transition-all shrink-0 ${showColFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
             >
               <svg viewBox="0 0 24 24" className="w-3 h-3" fill={showColFilters ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
               {showColFilters ? "إلغاء الفلتر" : "إنشاء فلتر"}
@@ -4882,10 +4880,10 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] md:min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── اسم الراسل ─── */}
-                  <div className="flex items-center gap-1.5 px-3 h-9">
+                  <div className="hidden md:flex items-center gap-1.5 px-3 h-9">
                     <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
                     اسم الراسل
                   </div>
@@ -4917,7 +4915,7 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── العنوان التفصيلي ─── */}
-                  <div className="flex items-center gap-1.5 px-3 h-9">
+                  <div className="hidden md:flex items-center gap-1.5 px-3 h-9">
                     <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
                     العنوان
                   </div>
@@ -4927,7 +4925,7 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── القيمة المستلمة (= سعر الشحنة) ─── */}
-                  <div className="flex items-center justify-center gap-1 px-2 h-9">
+                  <div className="hidden md:flex items-center justify-center gap-1 px-2 h-9">
                     القيمة المستلمة
                   </div>
                   {/* ─── تكلفة الشحن (المندوب) ─── */}
