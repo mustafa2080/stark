@@ -3773,7 +3773,12 @@ export default function ShippingManifestPage() {
   };
 
   // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها (returnReceived=1) — خالص مش في البيان
+  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يفضل داخل في الحسابات المالية دايمًا
   const isReturnConfirmed = (o: typeof manifest.orders[number]) => {
+    const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
+    if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
+      return false;
+    }
     const rr = (o as any).returnReceived;
     return rr === 1 || rr === true || rr === "1";
   };
