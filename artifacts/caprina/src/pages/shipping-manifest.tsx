@@ -1955,11 +1955,16 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const [netProfitOpen, setNetProfitOpen] = useState(false);
   const [netDueOpen, setNetDueOpen] = useState(false);
 
-  // تكلفة الشحن = مجموع shippingCost الفعلي المسجّل على كل أوردر في البيان
-  const effectiveShippingCost = (manifest.orders ?? []).reduce(
-    (sum, o: any) => sum + (Number(o.shippingCost) || 0),
-    0
-  );
+  // تكلفة الشحن = مجموع shippingCost الفعلي، لكن فقط للأوردرات في حالات:
+  // مُسلَّم، مُسلَّم جزئي، أو مرتجع بسبب (رفض الاستلام بعد المعاينة ودفع/لم يدفع الشحن، أو هرب من الاستلام بدون معاينة)
+  const SHIPPING_COST_RETURN_REASONS = ["refused_paid", "refused_unpaid", "quality"];
+  const effectiveShippingCost = (manifest.orders ?? [])
+    .filter((o: any) =>
+      o.deliveryStatus === "delivered" ||
+      o.deliveryStatus === "partial_delivered" ||
+      (o.deliveryStatus === "returned" && SHIPPING_COST_RETURN_REASONS.includes(o.returnReason))
+    )
+    .reduce((sum, o: any) => sum + (Number(o.shippingCost) || 0), 0);
 
   // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (من قسم المناطق والأسعار)
   const { data: settlementZones = [] } = useQuery<{ id: number; price: number }[]>({
@@ -4538,7 +4543,16 @@ export default function ShippingManifestPage() {
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const shippingCost    = (rawManifest as any)?.company?.shippingCost != null ? Number((rawManifest as any).company.shippingCost) : 0;
+        // تكلفة الشحن = مجموع shippingCost الفعلي، لكن فقط للأوردرات في حالات:
+        // مُسلَّم، مُسلَّم جزئي، أو مرتجع بسبب (رفض الاستلام بعد المعاينة ودفع/لم يدفع الشحن، أو هرب من الاستلام بدون معاينة)
+        const SHIPPING_COST_RETURN_REASONS_PNL = ["refused_paid", "refused_unpaid", "quality"];
+        const shippingCost    = ordersForPnl
+          .filter((o: any) =>
+            o.deliveryStatus === "delivered" ||
+            o.deliveryStatus === "partial_delivered" ||
+            (o.deliveryStatus === "returned" && SHIPPING_COST_RETURN_REASONS_PNL.includes(o.returnReason))
+          )
+          .reduce((sum, o: any) => sum + (Number(o.shippingCost) || 0), 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
         let pnlZoneIds: number[] = [];
