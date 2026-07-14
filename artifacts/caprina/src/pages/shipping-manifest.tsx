@@ -3709,11 +3709,11 @@ export default function ShippingManifestPage() {
     (o) => o.deliveryStatus === "pending"
   ).length;
   // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
-  // (مرتجع أو جزئي مرحَّل ولم يُستلم بعد)
+  // (مرتجع أو استلام جزئي (قديم) مرحَّل ولم يُستلم بعد — partial_delivered مستثناة لأن جزءها المستلم مؤكد فورًا)
   const isStillAtShipping = (o: typeof manifest.orders[number]) => {
     const rr = (o as any).returnReceived;
     const isConfirmed = rr === 1 || rr === true || rr === "1";
-    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received") &&
       !isConfirmed;
   };
 
