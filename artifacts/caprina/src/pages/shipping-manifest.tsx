@@ -1105,8 +1105,7 @@ function InvoiceGroupDeliveryRow({
           animationDelay: `${rowIndex * 45}ms`,
         }}
       >
-        {/* Row (visible on all screen sizes, horizontal scroll on small screens) */}
-        <div className="overflow-x-auto">
+        {/* Row (visible on all screen sizes; horizontal scroll handled by the shared table container) */}
         <div
           dir="rtl"
           className="grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
@@ -1338,145 +1337,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
         </div>
-        </div>
         {/* Mobile card block removed — the grid row above is now shown on all breakpoints with horizontal scroll */}
-        {false && (
-        <div className="lg:hidden px-3 py-2.5 text-xs flex flex-col gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-          {/* Row 1: customer + status badge */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2 min-w-0">
-              {onToggleSelect && (
-                <Checkbox
-                  checked={selected}
-                  onCheckedChange={() => onToggleSelect(groupKey)}
-                  className="mt-0.5 shrink-0"
-                  onClick={e => e.stopPropagation()}
-                />
-              )}
-              <div className="min-w-0">
-                <p className="font-semibold truncate">{rep.customerName}</p>
-                <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                  {invoiceNum && <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono">{invoiceNum}</span>}
-                  {rep.phone && <span className="text-muted-foreground text-[10px]">{rep.phone}</span>}
-                  {rep.city && <span className="text-muted-foreground text-[10px]">📍 {rep.city}</span>}
-                </div>
-                {(rep as any).senderName && (
-                  <p className="text-primary/70 text-[10px] mt-0.5 flex items-center gap-1">
-                    <Truck className="w-2.5 h-2.5 shrink-0" />
-                    {(rep as any).senderName}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="shrink-0 flex items-start gap-1.5">
-              {hasMultipleStatuses && !hasMixedPartial ? (
-                <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground">حالات متعددة</Badge>
-              ) : (
-                <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
-                  {displayOpt.label}
-                </Badge>
-              )}
-            </div>
-          </div>
-          {/* Row 1.5: address */}
-          {(rep as any).address && (
-            <p className="text-[10px] text-muted-foreground/80 leading-relaxed -mt-1">{(rep as any).address}</p>
-          )}
-          {/* Row 1.75: financial summary */}
-          <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-border/60 bg-muted/10 px-2 py-1.5">
-            <div className="text-center">
-              <p className="text-[9px] text-muted-foreground">اجمالى سعر الشحنة</p>
-              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalFullPrice)}</p>
-            </div>
-            <div className="text-center border-x border-border/40">
-              <p className="text-[9px] text-muted-foreground">القيمة المستلمة</p>
-              <p className="text-[11px] font-bold text-emerald-500">{formatCurrency(totalFullPrice)}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[9px] text-muted-foreground">تكلفة الشحن</p>
-              <p className="text-[11px] font-bold text-amber-500">
-                {courierShippingCost != null ? formatCurrency(courierShippingCost) : "—"}
-              </p>
-            </div>
-          </div>
-          {/* Row 2: products + qty + price */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-primary text-[10px] font-bold flex items-center gap-1">
-                {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                {isMulti ? `${group.length} منتجات` : rep.product}
-              </p>
-              {isMulti ? (
-                <p className="text-muted-foreground text-[10px] truncate">{expanded ? "إخفاء المنتجات" : productsText}</p>
-              ) : (
-                (rep.color || rep.size) && <p className="text-muted-foreground text-[10px] truncate">{[rep.color, rep.size].filter(Boolean).join(" / ")}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="font-bold">{totalQty}</span>
-              <span className="font-bold text-primary">{formatCurrency(totalPrice)}</span>
-            </div>
-          </div>
-          {/* Sub-statuses */}
-          {displayStatus === "returned" && (rep as any).returnReceived === 1 && (
-            <>
-              <p className="text-[10px] text-emerald-600 font-semibold">↩ تم الاستلام</p>
-              <p className="text-[10px] text-red-500 font-medium flex items-center gap-1">
-                ↳ {(rep as any).returnReason
-                  ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason)
-                  : "لم يحدد السبب"}
-              </p>
-            </>
-          )}
-          {displayStatus === "returned" && (rep as any).returnReceived === 0 && (
-            <>
-              <p className="text-[10px] text-orange-500 font-semibold">⏳ عند شركة الشحن</p>
-              <p className="text-[10px] text-red-500 font-medium flex items-center gap-1">
-                ↳ {(rep as any).returnReason
-                  ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason)
-                  : "لم يحدد السبب"}
-              </p>
-            </>
-          )}
-          {displayStatus === "returned" && (rep as any).returnReceived == null && (
-            <p className="text-[10px] text-red-500 font-medium flex items-center gap-1">
-              ↳ {(rep as any).returnReason
-                ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason)
-                : "لم يحدد السبب"}
-            </p>
-          )}
-          {displayStatus === "partial_received" && (rep as any).returnReceived === 1 && <p className="text-[10px] text-emerald-600 font-semibold">↩ الباقي في المخزن</p>}
-          {displayStatus === "partial_received" && (rep as any).returnReceived === 0 && <p className="text-[10px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>}
-          {/* Action button */}
-          {!locked && (
-            <div className="flex justify-end items-center gap-1" onClick={e => e.stopPropagation()}>
-              {bulkEditing ? (
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground" onClick={() => setBulkEditing(false)}>
-                  <X className="w-3 h-3" />
-                </Button>
-              ) : (
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
-                  onClick={() => { setBulkEditing(true); setBulkStatus(groupStatus); setBulkNote(rep.deliveryNote ?? ""); setBulkReturnReason((rep as any).returnReason ?? ""); setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""]))); setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus]))); setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null); const ep = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null; setPartialReturnReceived(groupStatus === "partial_received" && ep === null ? false : ep); }}>
-                  <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
-                </Button>
-              )}
-              {/* ── زرار الاستعجال mobile جنب التقفيل ── */}
-              {false && isShipmentManifest && (
-                <div onClick={e => e.stopPropagation()}>
-                  <UrgentButton
-                    manifestId={manifestId}
-                    shipmentId={(rep as any).shipmentId ?? rep.id}
-                    isUrgent={!!(rep as any).isUrgent}
-                    urgentNote={(rep as any).urgentNote}
-                    onToggled={onSaved}
-                    disabled={false}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        )}
 
         {/* Bulk editing panel */}
         {bulkEditing && (
@@ -4491,7 +4352,8 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden lg:grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div className="min-w-[1180px]">
+                <div dir="rtl" className="grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── اسم الراسل ─── */}
                   <div className="flex items-center gap-1.5 px-3 h-9">
@@ -4587,6 +4449,7 @@ export default function ShippingManifestPage() {
                   ))}
                   </div>
                 )}
+                </div>{/* end min-w-[1180px] */}
                 </div>{/* end overflow-x-auto */}
               </>
             )}

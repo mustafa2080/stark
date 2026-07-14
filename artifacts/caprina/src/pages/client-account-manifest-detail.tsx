@@ -4882,7 +4882,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
-                <div dir="rtl" className="hidden lg:grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── اسم الراسل ─── */}
                   <div className="flex items-center gap-1.5 px-3 h-9">
