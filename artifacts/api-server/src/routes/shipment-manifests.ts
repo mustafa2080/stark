@@ -201,9 +201,10 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         if ((item as any).returnReceived === 1) {
           totalShippingCost += shipping;
         }
-        // إجمالي المسلَّم: لو العميل دفع مصاريف الشحن وقت الرفض (refused_paid) → تُحسب رسوم الشحن كمحصَّل
-        if ((item as any).returnReason === "refused_paid") {
-          deliveredGross += shipping;
+        // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش
+        if (["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason)) {
+          const manualVal = Number((item as any).returnValueReceived ?? 0);
+          deliveredGross += manualVal;
           deliveredShippingFees += shipping;
         }
       } else {
@@ -322,6 +323,7 @@ const UpdateItemSchema = z.object({
   partialQuantity: z.number().int().nullish(),
   returnReceived: z.boolean().nullish(),
   returnReason:   z.string().nullish(),
+  returnValueReceived: z.coerce.number().nullish(),
   itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
 });
 
@@ -356,6 +358,7 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         partialQuantity: body.partialQuantity ?? null,
         returnReason:   body.returnReason ?? null,
         returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
+        returnValueReceived: body.deliveryStatus === "returned" ? (body.returnValueReceived ?? null) : null,
         deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
       })
       .where(and(

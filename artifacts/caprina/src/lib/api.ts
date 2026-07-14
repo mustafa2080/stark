@@ -1096,6 +1096,7 @@ export interface ManifestOrder extends Order {
   unitPrice?: number;
   partialQuantity?: number | null;
   returnReason?: string | null;
+  returnValueReceived?: number | null;
   color?: string | null;
   size?: string | null;
   representativeName?: string | null;
@@ -1982,7 +1983,7 @@ export const shipmentManifestsApi = {
     apiFetch<{ id: number; manifestNumber: string; shipmentCount: number }>(
       "/shipment-manifests", { method: "POST", body: JSON.stringify(data) }
     ),
-  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; partialQuantity?: number | null; returnReceived?: boolean | null; returnReason?: string | null }) =>
+  updateItem: (manifestId: number, shipmentId: number, data: { deliveryStatus: string; deliveryNote?: string | null; partialQuantity?: number | null; returnReceived?: boolean | null; returnReason?: string | null; returnValueReceived?: number | null }) =>
     apiFetch<{ success: boolean }>(`/shipment-manifests/${manifestId}/items/${shipmentId}`, {
       method: "PATCH", body: JSON.stringify(data),
     }),

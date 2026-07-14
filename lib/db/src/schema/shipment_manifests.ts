@@ -29,6 +29,7 @@ export const shipmentManifestItemsTable = mysqlTable("shipment_manifest_items", 
   deliveredAt:    datetime("delivered_at"),
   returnReceived: int("return_received"), // 1=تم الاستلام، 0=مازال في شركة الشحن
   returnReason:   varchar("return_reason", { length: 100 }), // سبب الإرجاع (لو deliveryStatus = returned)
+  returnValueReceived: decimal("return_value_received", { precision: 10, scale: 2 }), // القيمة الفعلية المستلمة من العميل عند المرتجع (يدخلها المندوب)
   addedAt:        datetime("added_at").notNull(),
   isUrgent:       int("is_urgent").default(0),        // 1 = مستعجل
   urgentNote:     varchar("urgent_note", { length: 255 }), // سبب الاستعجال (اختياري)

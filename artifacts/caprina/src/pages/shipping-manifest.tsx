@@ -144,11 +144,16 @@ function OrderDeliveryRow({
   const [returnReason, setReturnReason] = useState<string>(
     (order as any).returnReason ?? ""
   );
+  const [returnValueReceived, setReturnValueReceived] = useState<string>(
+    (order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""
+  );
   const [partialReturnReceived, setPartialReturnReceived] = useState<boolean | null>(
     order.deliveryStatus === "partial_received"
       ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
       : null
   );
+  const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "quality"];
+  const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE.includes(returnReason);
 
   // مزامنة الـ state مع الـ prop بعد كل refetch
   useEffect(() => {
@@ -160,6 +165,7 @@ function OrderDeliveryRow({
         (order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null
       );
       setReturnReason((order as any).returnReason ?? "");
+      setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
       setPartialReturnReceived(
         order.deliveryStatus === "partial_received"
           ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
@@ -198,8 +204,13 @@ function OrderDeliveryRow({
       if ((status === "partial_received" || status === "partial_delivered") && partialProduct.trim()) {
         finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
       }
+      if (status === "returned" && needsReturnValue) {
+        if (returnValueReceived.trim() === "" || isNaN(Number(returnValueReceived))) {
+          throw new Error("يجب إدخال القيمة المستلمة فعليًا قبل الحفظ");
+        }
+      }
       if (isShipmentManifest) {
-        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
+        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason, returnValueReceived
         const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
         const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
         return shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
@@ -211,6 +222,7 @@ function OrderDeliveryRow({
               : null,
           returnReceived: status === "returned" ? returnReceived : null,
           returnReason: status === "returned" ? (returnReason || null) : null,
+          returnValueReceived: status === "returned" && needsReturnValue ? Number(returnValueReceived) : null,
         });
       }
       return manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -655,6 +667,21 @@ function OrderDeliveryRow({
               {returnReceived === null && (
                 <p className="text-[10px] text-destructive w-full">⚠ يجب اختيار حالة الاستلام قبل الحفظ</p>
               )}
+              {needsReturnValue && (
+                <div>
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">القيمة المستلمة فعليًا *</Label>
+                  <Input
+                    type="number"
+                    value={returnValueReceived}
+                    onChange={(e) => setReturnValueReceived(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background border-red-800/60 focus-visible:ring-red-700"
+                    placeholder="0"
+                  />
+                </div>
+              )}
+              {needsReturnValue && returnValueReceived.trim() === "" && (
+                <p className="text-[10px] text-destructive w-full">⚠ يجب إدخال القيمة المستلمة فعليًا قبل الحفظ</p>
+              )}
             </div>
           )}
           <div>
@@ -698,6 +725,7 @@ function OrderDeliveryRow({
                 (needsPartial && (partialQty === "")) ||
                 (needsPartial && parseInt(partialQty) > order.quantity) ||
                 (status === "returned" && returnReceived === null) ||
+                (needsReturnValue && returnValueReceived.trim() === "") ||
                 (status === "partial_received" && partialReturnReceived === null)
               }
             >
@@ -898,8 +926,8 @@ function InvoiceGroupDeliveryRow({
     if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
       return s + Number(o.unitPrice) * Number(o.partialQuantity);
     }
-    if (o.deliveryStatus === "returned" && (o as any).returnReason === "refused_paid") {
-      return s + Number(courierShippingCost ?? 0);
+    if (o.deliveryStatus === "returned" && ["refused_paid", "refused_unpaid", "quality"].includes((o as any).returnReason)) {
+      return s + Number((o as any).returnValueReceived ?? 0);
     }
     return s;
   }, 0);
@@ -932,6 +960,11 @@ function InvoiceGroupDeliveryRow({
     (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null
   );
   const [bulkReturnReason, setBulkReturnReason] = useState<string>((rep as any).returnReason ?? "");
+  const [bulkReturnValueReceived, setBulkReturnValueReceived] = useState<string>(
+    (rep as any).returnValueReceived != null ? String((rep as any).returnValueReceived) : ""
+  );
+  const RETURN_REASONS_NEED_VALUE_BULK = ["refused_paid", "refused_unpaid", "quality"];
+  const bulkNeedsReturnValue = bulkStatus === "returned" && RETURN_REASONS_NEED_VALUE_BULK.includes(bulkReturnReason);
 
   // لكل منتج في الفاتورة: حالة مستقلة — نستخدم o.id كـ key
   const [perOrderStatus, setPerOrderStatus] = useState<Record<number, DeliveryStatus>>(
@@ -991,6 +1024,7 @@ function InvoiceGroupDeliveryRow({
       setBulkNote(rep.deliveryNote ?? "");
       setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
       setBulkReturnReason((rep as any).returnReason ?? "");
+      setBulkReturnValueReceived((rep as any).returnValueReceived != null ? String((rep as any).returnValueReceived) : "");
       setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
       setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
       const serverPartialReturn = group[0]?.returnReceived === 1 ? true : group[0]?.returnReceived === 0 ? false : null;
@@ -1024,6 +1058,9 @@ function InvoiceGroupDeliveryRow({
 
   const bulkMutation = useMutation({
     mutationFn: async () => {
+      if (bulkStatus === "returned" && bulkNeedsReturnValue && (bulkReturnValueReceived.trim() === "" || isNaN(Number(bulkReturnValueReceived)))) {
+        throw new Error("يجب إدخال القيمة المستلمة فعليًا قبل الحفظ");
+      }
       // نحفظ snapshot من القيم الحالية قبل الـ API calls
       pendingSaveRef.current = {
         partialQtyMap: { ...partialQtyMap },
@@ -1079,6 +1116,7 @@ function InvoiceGroupDeliveryRow({
             partialQuantity: safeSt === "partial_delivered" ? finalPartialQty : null,
             returnReceived: safeSt === "returned" ? bulkReturnReceived : null,
             returnReason: safeSt === "returned" ? (bulkReturnReason.trim() || null) : null,
+            returnValueReceived: safeSt === "returned" && bulkNeedsReturnValue ? Number(bulkReturnValueReceived) : null,
           });
         } else {
           await manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -1659,6 +1697,21 @@ function InvoiceGroupDeliveryRow({
                     </SelectContent>
                   </Select>
                 </div>
+                {bulkNeedsReturnValue && (
+                  <div className="w-full sm:w-auto">
+                    <Label className="text-[10px] mb-1 block text-muted-foreground">القيمة المستلمة فعليًا *</Label>
+                    <Input
+                      type="number"
+                      value={bulkReturnValueReceived}
+                      onChange={(e) => setBulkReturnValueReceived(e.target.value)}
+                      className="h-8 text-xs w-32 bg-background border-red-800/60 focus-visible:ring-red-700"
+                      placeholder="0"
+                    />
+                  </div>
+                )}
+                {bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "" && (
+                  <p className="text-[10px] text-destructive font-medium">⚠ يجب إدخال القيمة المستلمة فعليًا قبل الحفظ</p>
+                )}
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل تم استلام المرتجع؟</p>
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setBulkReturnReceived(true)}
@@ -1751,6 +1804,7 @@ function InvoiceGroupDeliveryRow({
                   bulkMutation.isPending ||
                   (needsBulkNote && !bulkNote.trim()) ||
                   (bulkStatus === "returned" && bulkReturnReceived === null) ||
+                  (bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "") ||
                   (bulkStatus === "partial_received" && partialReturnReceived === null) ||
                   (!isPerItemMode && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
                     partialQtyMap[group[0].id] === "" || partialQtyMap[group[0].id] === undefined
@@ -4473,8 +4527,7 @@ export default function ShippingManifestPage() {
         const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"] as const;
         // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
         // مسلَّم بالكامل = السعر الكامل، مسلَّم جزئي = القيمة المستلمة من العميل المُدخلة مباشرة
-        // مرتجع (رفض بعد معاينة ودفع مصاريف الشحن) = مصاريف الشحن فقط (اللي دفعها العميل كتعويض)
-        // مرتجع (رفض بدون دفع / هرب بدون معاينة) = صفر (العميل ماخدش ولا دفع حاجة)
+        // مرتجع (الثلاث أسباب) = القيمة اللي أدخلها المندوب يدويًا (returnValueReceived) — صفر لو لسه ماتسجّلش
         const deliveredCOD    = deliveredOrders.reduce((s, o) => {
           if (o.deliveryStatus === "partial_delivered" && (o as any).partialQuantity != null) {
             return s + Number((o as any).partialQuantity);
@@ -4484,8 +4537,8 @@ export default function ShippingManifestPage() {
           }
           return s + (o.totalPrice ?? 0);
         }, 0) + ordersForPnl
-          .filter(o => o.deliveryStatus === "returned" && (o as any).returnReason === "refused_paid")
-          .reduce((s) => s + courierShippingCostForCalc, 0);
+          .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason))
+          .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const shippingCostOrders = ordersForPnl.filter(o =>
           o.deliveryStatus === "delivered" ||
