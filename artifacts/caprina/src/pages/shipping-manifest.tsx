@@ -1953,12 +1953,10 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const s = manifest.stats;
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
 
-  // تكلفة الشحن الفعلية = مجموع تكلفة الشحن الفعلية المسجّلة على كل أوردر في البيان
-  // (لم تعد تُدخل يدويًا ولا تُحسب من سعر الشركة الثابت).
-  const effectiveShippingCost = (manifest.orders ?? []).reduce(
-    (sum, o) => sum + Number((o as any).shippingCost ?? 0),
-    0
-  );
+  // تكلفة الشحن = السعر الثابت المسجّل على شركة/مندوب الشحن نفسه (بدون أي حسبة أو ضرب)
+  const effectiveShippingCost = (manifest as any).company?.shippingCost != null
+    ? Number((manifest as any).company.shippingCost)
+    : 0;
 
   const deliveredTotal = s.deliveredGross;
   // صافي الربح الحقيقي = إجمالي سعر المنطقة (إيراد الشحن الفعلي لكل أوردر) − تكلفة الشحن الفعلية
@@ -1998,7 +1996,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
             −{formatCurrency(effectiveShippingCost)}
           </p>
           {effectiveShippingCost === 0 ? (
-            <p className="text-[10px] text-muted-foreground/60">لا توجد تكلفة شحن مسجّلة على الطلبيات</p>
+            <p className="text-[10px] text-muted-foreground/60">لم تُحدَّد تكلفة شحن للشركة</p>
           ) : (
             <p className="text-[10px] text-amber-600">مُخصومة</p>
           )}
@@ -2195,7 +2193,7 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+                const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
                 const due = (s?.deliveredGross ?? 0) - effectiveShipping;
                 return (
                   <>
@@ -2292,7 +2290,7 @@ function ExportDialog({
   onClose: () => void;
 }) {
   const s = manifest.stats;
-  const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+  const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
   const { brand } = useBrand();
   const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
@@ -3789,10 +3787,9 @@ export default function ShippingManifestPage() {
     }, 0);
 
   const totalCollected = deliveredGross + partialGross;
-  const effectiveShipping = (manifest.orders ?? []).reduce(
-    (sum, o) => sum + Number((o as any).shippingCost ?? 0),
-    0
-  );
+  const effectiveShipping = (manifest as any)?.company?.shippingCost != null
+    ? Number((manifest as any).company.shippingCost)
+    : 0;
 
   return (
     <>
@@ -4497,7 +4494,7 @@ export default function ShippingManifestPage() {
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const shippingCost    = ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0);
+        const shippingCost    = (rawManifest as any)?.company?.shippingCost != null ? Number((rawManifest as any).company.shippingCost) : 0;
         const netAmount       = deliveredCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
