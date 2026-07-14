@@ -1955,10 +1955,11 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const [netProfitOpen, setNetProfitOpen] = useState(false);
   const [netDueOpen, setNetDueOpen] = useState(false);
 
-  // تكلفة الشحن = السعر الثابت المسجّل على شركة/مندوب الشحن نفسه (بدون أي حسبة أو ضرب)
-  const effectiveShippingCost = (manifest as any).company?.shippingCost != null
-    ? Number((manifest as any).company.shippingCost)
-    : 0;
+  // تكلفة الشحن = مجموع shippingCost الفعلي المسجّل على كل أوردر في البيان
+  const effectiveShippingCost = (manifest.orders ?? []).reduce(
+    (sum, o: any) => sum + (Number(o.shippingCost) || 0),
+    0
+  );
 
   // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (من قسم المناطق والأسعار)
   const { data: settlementZones = [] } = useQuery<{ id: number; price: number }[]>({
