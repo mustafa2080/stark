@@ -4462,7 +4462,7 @@ export default function ShippingManifestPage() {
       {canViewFinancials && (() => {
         // نستخدم نفس helper isStillAtShipping المعرّف فوق
         const ordersForPnl = ordersExcludingPendingShipping;
-        const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered");
+        const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
@@ -4478,6 +4478,9 @@ export default function ShippingManifestPage() {
         const deliveredCOD    = deliveredOrders.reduce((s, o) => {
           if (o.deliveryStatus === "partial_delivered" && (o as any).partialQuantity != null) {
             return s + Number((o as any).partialQuantity);
+          }
+          if (o.deliveryStatus === "partial_received" && (o as any).partialQuantity != null) {
+            return s + Number((o as any).unitPrice) * Number((o as any).partialQuantity);
           }
           return s + (o.totalPrice ?? 0);
         }, 0) + ordersForPnl
