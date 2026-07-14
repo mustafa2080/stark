@@ -510,7 +510,18 @@ export default function OrderForm() {
                     <FormField control={form.control} name="shippingCompanyId" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-xs">شركة الشحن</FormLabel>
-                        <Select value={field.value?.toString() || "none"} onValueChange={v => field.onChange(v === "none" ? null : Number(v))}>
+                        <Select
+                          value={field.value?.toString() || "none"}
+                          onValueChange={v => {
+                            const companyId = v === "none" ? null : Number(v);
+                            field.onChange(companyId);
+                            // تعبئة تكلفة الشحن تلقائيًا بالسعر الثابت المسجّل على شركة الشحن المختارة
+                            const selectedCompany = shippingCompanies?.find((c: any) => c.id === companyId);
+                            if (selectedCompany?.shippingCost != null) {
+                              form.setValue("shippingCost", Number(selectedCompany.shippingCost));
+                            }
+                          }}
+                        >
                           <SelectTrigger className="h-9 text-sm bg-card"><SelectValue placeholder="اختر شركة" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">بدون</SelectItem>
@@ -581,7 +592,7 @@ export default function OrderForm() {
                   <CardContent className="px-4 pb-4 pt-3">
                     <FormField control={form.control} name="shippingCost" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">تكلفة الشحن (ج.م) — تُوزَّع على المنتجات</FormLabel>
+                        <FormLabel className="text-xs">تكلفة الشحن (ج.م) — تُعبَّأ تلقائيًا من سعر شركة الشحن، ويمكن تعديلها</FormLabel>
                         <FormControl>
                           <Input type="number" min="0" step="0.01" placeholder="0" className="h-9 text-sm"
                             {...field} value={field.value ?? ""}
