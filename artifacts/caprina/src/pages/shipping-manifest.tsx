@@ -4454,10 +4454,8 @@ export default function ShippingManifestPage() {
         const zonePricePnl = pnlZone?.price != null ? Number(pnlZone.price) : 0;
         const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
-        // إجمالي المستحق للمندوب = تكلفة الشحن (المندوب) × عدد الفواتير/المجموعات في الجدول
-        const courierShippingCostPnl = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
-        const pnlGroupsCount = groupManifestOrders(ordersForPnl).length;
-        const totalDueToCourier = courierShippingCostPnl * pnlGroupsCount;
+        // إجمالي المستحق للمندوب = إجمالي قيمة الطلبيات المسلَّمة فقط (تمن الشحنة كاملة)
+        const totalDueToCourier = deliveredCOD;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
@@ -4477,7 +4475,7 @@ export default function ShippingManifestPage() {
             <Card className="border-sky-900/40 bg-sky-900/10 p-4">
               <p className="text-xs text-sky-400 mb-1">إجمالي المستحق للمندوب</p>
               <p className="text-lg font-black text-sky-400">{formatCurrency(totalDueToCourier)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{pnlGroupsCount} شحنة</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
             <Card className={`col-span-2 border overflow-hidden transition-all duration-300 ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
               <button
