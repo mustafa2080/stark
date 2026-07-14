@@ -4471,11 +4471,6 @@ export default function ShippingManifestPage() {
               <p className="text-lg font-black text-emerald-400">{formatCurrency(deliveredCOD)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
-            <Card className="border-red-900/40 bg-red-900/10 p-4">
-              <p className="text-xs text-red-400 mb-1">COD المرتجع</p>
-              <p className="text-lg font-black text-red-400">{formatCurrency(returnedCOD)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{returnedOrders.length} شحنة</p>
-            </Card>
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
