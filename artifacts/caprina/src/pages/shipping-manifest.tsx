@@ -3765,7 +3765,12 @@ export default function ShippingManifestPage() {
   ).length;
   // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
   // (مرتجع أو استلام جزئي (قديم) مرحَّل ولم يُستلم بعد — partial_delivered مستثناة لأن جزءها المستلم مؤكد فورًا)
+  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يعتبر مؤكدًا ماليًا فورًا بغض النظر عن returnReceived
   const isStillAtShipping = (o: typeof manifest.orders[number]) => {
+    const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
+    if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
+      return false;
+    }
     const rr = (o as any).returnReceived;
     const isConfirmed = rr === 1 || rr === true || rr === "1";
     return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received") &&
