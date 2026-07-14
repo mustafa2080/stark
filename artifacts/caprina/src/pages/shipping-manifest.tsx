@@ -864,7 +864,6 @@ function InvoiceGroupDeliveryRow({
   courierShippingCost?: number | null;
 }) {
   const { toast } = useToast();
-  const [expanded, setExpanded] = useState(false);
 
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
@@ -1104,8 +1103,7 @@ function InvoiceGroupDeliveryRow({
         {/* Row (fully responsive, no horizontal scroll) */}
         <div
           dir="rtl"
-          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,1.3fr)_88px_84px_minmax(0,1.2fr)_72px_64px_64px_56px_90px] gap-0 items-start py-2.5 text-xs cursor-pointer"
-          onClick={() => setExpanded(!expanded)}
+          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,1.3fr)_88px_84px_minmax(0,1.2fr)_72px_64px_64px_56px_90px] gap-0 items-start py-2.5 text-xs"
         >
           {/* تحديد */}
           <div className="flex items-center justify-center pt-0.5" onClick={e => e.stopPropagation()}>
@@ -1760,78 +1758,6 @@ function InvoiceGroupDeliveryRow({
         )}
       </div>
 
-      {/* Expanded: product cards */}
-      {expanded && (
-        <div className="px-4 pb-3 pt-1 flex flex-col gap-2 bg-muted/5 border-t border-border/20">
-          {group.map((order) => {
-            const variant = [order.color, order.size].filter(Boolean).join(" / ");
-            const unitPrice = order.quantity > 0 ? order.totalPrice / order.quantity : 0;
-            const opt = deliveryOpt(order.deliveryStatus as DeliveryStatus, isShipmentManifest);
-            const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
-            return (
-              <div
-                key={order.id}
-                className="rounded-lg border border-border/50 bg-background/60 px-3 py-2.5 flex flex-col gap-1.5"
-              >
-                {/* رأس الكارت: اسم المنتج + حالة التسليم */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold truncate">{order.product || "—"}</p>
-                    {variant && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{variant}</p>
-                    )}
-                  </div>
-                  <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${opt.bg} ${opt.color}`}>
-                    {opt.label}
-                  </Badge>
-                </div>
-
-                {/* صف الأرقام: الكمية / سعر الوحدة / الإجمالي */}
-                <div className="grid grid-cols-3 gap-2 text-center bg-muted/30 rounded-md py-1.5">
-                  <div>
-                    <p className="text-[9px] text-muted-foreground">الكمية</p>
-                    <p className="text-xs font-bold">
-                      {isPartial && order.partialQuantity != null ? (
-                        <>
-                          <span className="text-teal-500">{order.partialQuantity}</span>
-                          <span className="text-muted-foreground">/{order.quantity}</span>
-                        </>
-                      ) : order.quantity}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-muted-foreground">سعر الوحدة</p>
-                    <p className="text-xs font-bold">{formatCurrency(unitPrice)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-muted-foreground">الإجمالي</p>
-                    <p className="text-xs font-bold text-primary">{formatCurrency(order.totalPrice)}</p>
-                  </div>
-                </div>
-
-                {/* بيانات إضافية: رقم الفاتورة + تاريخ الإضافة */}
-                {(order.invoiceNumber || (order as any).addedAt) && (
-                  <div className="flex items-center gap-2 flex-wrap text-[9px] text-muted-foreground">
-                    {order.invoiceNumber && (
-                      <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">{order.invoiceNumber}</span>
-                    )}
-                    {(order as any).addedAt && (
-                      <span>أُضيف {format(new Date((order as any).addedAt), "yyyy/MM/dd HH:mm")}</span>
-                    )}
-                  </div>
-                )}
-
-                {/* ملاحظة التسليم الخاصة بهذا المنتج */}
-                {order.deliveryNote && (
-                  <p className="text-[10px] text-orange-400 font-medium">
-                    ⏸ {order.deliveryNote}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </>
   );
 }
