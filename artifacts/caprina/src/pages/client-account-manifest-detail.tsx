@@ -2452,7 +2452,7 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
+                const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
                 const due = (s?.deliveredGross ?? 0) - effectiveShipping;
                 return (
                   <>
@@ -2549,7 +2549,7 @@ function ExportDialog({
   onClose: () => void;
 }) {
   const s = manifest.stats;
-  const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
+  const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   const { brand } = useBrand();
   const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
@@ -4167,11 +4167,11 @@ export default function ShippingManifestPage() {
         </div>
         <div className="mp-total-card">
           <div className="mp-total-lbl">رسوم الشحن</div>
-          <div className="mp-total-val mp-total-orange">{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-orange">{Number(effectiveShipping).toLocaleString("ar-EG")} ج.م</div>
         </div>
         <div className="mp-total-card mp-total-highlight">
           <div className="mp-total-lbl">الصافي المستحق</div>
-          <div className="mp-total-val mp-total-green">{Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-green">{Number((totalCollected || 0) - Number(effectiveShipping)).toLocaleString("ar-EG")} ج.م</div>
         </div>
         {manifest.invoicePrice != null && (
           <div className="mp-total-card">
@@ -4263,7 +4263,7 @@ export default function ShippingManifestPage() {
 
         {/* شريط الإجمالي (سالب رسوم الشحن + إجمالي القيم المستلمة) */}
         <div className="tr-summary-row">
-          <div className="tr-summary-neg">-{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")}</div>
+          <div className="tr-summary-neg">-{Number(effectiveShipping).toLocaleString("ar-EG")}</div>
           <div className="tr-summary-gross">{Number(totalCollected || 0).toLocaleString("ar-EG")}</div>
         </div>
 
@@ -4278,7 +4278,7 @@ export default function ShippingManifestPage() {
           <div className="tr-balance-box">
             <span className="tr-balance-lbl">الرصيد</span>
             <span className="tr-balance-val">
-              {Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")}
+              {Number((totalCollected || 0) - Number(effectiveShipping)).toLocaleString("ar-EG")}
             </span>
           </div>
         </div>
@@ -4614,7 +4614,7 @@ export default function ShippingManifestPage() {
         {/* شريط الإجمالي */}
         <div className="flex items-stretch bg-slate-800 dark:bg-slate-900 text-white">
           <div className="flex items-center px-5 py-2.5 text-base sm:text-lg font-black text-red-300">
-            -{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")}
+            -{Number(effectiveShipping).toLocaleString("ar-EG")}
           </div>
           <div className="flex items-center px-5 py-2.5 text-base sm:text-lg font-black border-r border-slate-600">
             {Number(totalCollected || 0).toLocaleString("ar-EG")}
@@ -4640,7 +4640,7 @@ export default function ShippingManifestPage() {
           <div className="flex-1 min-w-0 flex items-center justify-between px-5 py-3 bg-slate-100 dark:bg-slate-800/50">
             <span className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-200">الرصيد</span>
             <span className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white bg-white dark:bg-slate-900 border-2 border-slate-700 rounded-md px-5 py-1 whitespace-nowrap">
-              {Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")}
+              {Number((totalCollected || 0) - Number(effectiveShipping)).toLocaleString("ar-EG")}
             </span>
           </div>
         </div>
@@ -5009,7 +5009,7 @@ export default function ShippingManifestPage() {
         const totalShippingFee = ordersForPnl.reduce((s, o) => s + (o.shippingCost ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const shippingCost    = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0));
+        const shippingCost    = totalShippingFee;
         const netAmount       = deliveredCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
@@ -5032,9 +5032,6 @@ export default function ShippingManifestPage() {
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">−{formatCurrency(shippingCost)}</p>
-              {manifest.manualShippingCost != null && (
-                <p className="text-[10px] text-amber-600">يدوي ✏️</p>
-              )}
             </Card>
             <Card className={`col-span-2 p-4 border ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
               <div className="flex items-center justify-between">
