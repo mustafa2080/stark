@@ -1103,7 +1103,7 @@ function InvoiceGroupDeliveryRow({
         {/* Row (fully responsive, no horizontal scroll) */}
         <div
           dir="rtl"
-          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,1.3fr)_88px_84px_minmax(0,1.2fr)_72px_64px_64px_56px_90px] gap-0 items-start py-2.5 text-xs"
+          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,0.85fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_56px_90px] gap-0 items-start py-2.5 text-xs"
         >
           {/* تحديد */}
           <div className="flex items-center justify-center pt-0.5" onClick={e => e.stopPropagation()}>
@@ -4271,7 +4271,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="w-full">
-                <div dir="rtl" className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,1.3fr)_88px_84px_minmax(0,1.2fr)_72px_64px_64px_56px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div dir="rtl" className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,0.85fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_56px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── تحديد ─── */}
                   <div className="flex items-center justify-center h-9">
