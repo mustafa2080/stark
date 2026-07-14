@@ -4457,9 +4457,9 @@ export default function ShippingManifestPage() {
         } else if (companyAnyPnl?.zoneId) {
           pnlZoneIds = [companyAnyPnl.zoneId];
         }
-        const pnlZone = pnlZoneIds.length ? pnlSettlementZones.find(z => z.id === pnlZoneIds[0]) : null;
-        const zonePricePnl = pnlZone?.price != null ? Number(pnlZone.price) : 0;
-        // صافي الربح الحقيقي = سعر المنطقة (من قسم المناطق) - إجمالي تكلفة الشحن
+        // سعر الشحنة = مجموع "سعر الشحنة" الفعلي المسجَّل على كل شحنة (shippingCost/shippingFee) للطلبيات المسلَّمة
+        const zonePricePnl = deliveredOrders.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
+        // صافي الربح الحقيقي = سعر الشحنة (من جدول الشحنات) - إجمالي تكلفة الشحن
         const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
         // الرصيد المستحق من المندوب = إجمالي الإيرادات - إجمالي تكلفة الشحن
@@ -4503,7 +4503,7 @@ export default function ShippingManifestPage() {
                       : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
                   </div>
                   <p className="text-[10px] text-muted-foreground px-4 pb-4">
-                    {formatCurrency(zonePricePnl)} سعر المنطقة − {formatCurrency(shippingCost)} إجمالي تكلفة الشحن
+                    {formatCurrency(zonePricePnl)} سعر الشحنة − {formatCurrency(shippingCost)} إجمالي تكلفة الشحن
                   </p>
                 </div>
               </div>
