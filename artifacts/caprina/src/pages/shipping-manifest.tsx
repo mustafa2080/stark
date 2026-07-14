@@ -4446,25 +4446,31 @@ export default function ShippingManifestPage() {
         const ordersForPnl = ordersExcludingPendingShipping;
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
-        // مسلَّم بالكامل = السعر الكامل، مسلَّم جزئي = القيمة المستلمة من العميل المُدخلة مباشرة
-        const deliveredCOD    = deliveredOrders.reduce((s, o) => {
-          if (o.deliveryStatus === "partial_delivered" && (o as any).partialQuantity != null) {
-            return s + Number((o as any).partialQuantity);
-          }
-          return s + (o.totalPrice ?? 0);
-        }, 0);
-        const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
         // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع مع دفع رسوم الشحن فقط)
         // pending/delayed لا تُحسب أبدًا (صفر) حتى تتغيّر حالتها فعليًا
         const courierShippingCostForCalc = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
+        // أسباب المرتجع اللي بتدخل في الحسابات المالية (شحن فعليًا اتنفذ رغم الرفض/الهروب)
+        const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"] as const;
+        // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
+        // مسلَّم بالكامل = السعر الكامل، مسلَّم جزئي = القيمة المستلمة من العميل المُدخلة مباشرة
+        // مرتجع (رفض بعد معاينة ودفع مصاريف الشحن) = مصاريف الشحن فقط (اللي دفعها العميل كتعويض)
+        // مرتجع (رفض بدون دفع / هرب بدون معاينة) = صفر (العميل ماخدش ولا دفع حاجة)
+        const deliveredCOD    = deliveredOrders.reduce((s, o) => {
+          if (o.deliveryStatus === "partial_delivered" && (o as any).partialQuantity != null) {
+            return s + Number((o as any).partialQuantity);
+          }
+          return s + (o.totalPrice ?? 0);
+        }, 0) + ordersForPnl
+          .filter(o => o.deliveryStatus === "returned" && (o as any).returnReason === "refused_paid")
+          .reduce((s) => s + courierShippingCostForCalc, 0);
+        const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const shippingCostOrders = ordersForPnl.filter(o =>
           o.deliveryStatus === "delivered" ||
           o.deliveryStatus === "partial_delivered" ||
           o.deliveryStatus === "partial_received" ||
-          (o.deliveryStatus === "returned" && (o as any).returnReason === "refused_paid")
+          (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason))
         );
         const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
         const shippingCost    = courierShippingCostForCalc * shippingCostGroupsCount;
