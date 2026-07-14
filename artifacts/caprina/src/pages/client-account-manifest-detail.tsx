@@ -1240,10 +1240,10 @@ function InvoiceGroupDeliveryRow({
           <div className="text-center px-2 flex items-center justify-center">
             <span className="text-emerald-500 font-semibold">{formatCurrency(totalFullPrice)}</span>
           </div>
-          {/* تكلفة الشحن (المندوب) */}
+          {/* تكلفة الشحن (فعلية من مناديب Stark لكل شحنة) */}
           <div className="text-center px-2 flex items-center justify-center">
-            {courierShippingCost != null ? (
-              <span className="text-amber-500 font-semibold">{formatCurrency(courierShippingCost)}</span>
+            {totalShippingFee > 0 ? (
+              <span className="text-amber-500 font-semibold">{formatCurrency(totalShippingFee)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
