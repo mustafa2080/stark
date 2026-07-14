@@ -977,19 +977,14 @@ function InvoiceGroupDeliveryRow({
     mutationFn: async () => {
       for (const order of group) {
         if (isShipmentManifest) {
-          await shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
-            deliveryStatus: "pending",
-            deliveryNote: null,
-            returnReceived: null,
-            returnReason: null,
-          });
+          await shipmentManifestsApi.deleteItem(manifestId, order.shipmentId);
         } else {
           await manifestsApi.cancelOrder(manifestId, order.id);
         }
       }
     },
     onSuccess: () => {
-      toast({ title: "تم إلغاء الفاتورة كاملها من البيان وإرجاعها للانتظار" });
+      toast({ title: "تم إلغاء الفاتورة كاملها من البيان نهائيًا" });
       setBulkEditing(false);
       onSaved();
     },
