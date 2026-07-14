@@ -1952,8 +1952,8 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const { toast } = useToast();
   const s = manifest.stats;
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
-  const [netProfitOpen, setNetProfitOpen] = useState(true);
-  const [netDueOpen, setNetDueOpen] = useState(true);
+  const [netProfitOpen, setNetProfitOpen] = useState(false);
+  const [netDueOpen, setNetDueOpen] = useState(false);
 
   // تكلفة الشحن = السعر الثابت المسجّل على شركة/مندوب الشحن نفسه (بدون أي حسبة أو ضرب)
   const effectiveShippingCost = (manifest as any).company?.shippingCost != null
@@ -3278,7 +3278,7 @@ export default function ShippingManifestPage() {
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
-  const [netDueOpen, setNetDueOpen] = useState(true);
+  const [netDueOpen, setNetDueOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
