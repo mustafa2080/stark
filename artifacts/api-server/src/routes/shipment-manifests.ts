@@ -182,6 +182,9 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+        // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
+        totalShippingCost += shipping;
+        deliveredShippingFees += shipping;
         // returnReceived === 1 → الجزء الباقي تم استلامه فعليًا (إيراد كامل على الكمية المستلمة)
         // returnReceived !== 1 (0 أو null) → لسه عند شركة الشحن، إيراد صفر مؤقتًا لحد ما يتم الاستلام
         if ((item as any).returnReceived === 1) {
@@ -192,8 +195,6 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
           totalRevenue += partialCod;
           deliveredGross += partialCod;
           totalCost += unitCost * Number(item.partialQuantity);
-          totalShippingCost += shipping;
-          deliveredShippingFees += shipping;
         }
       } else if (item.deliveryStatus === "returned") {
         // مرتجع لسه عند شركة الشحن (returnReceived !== 1) → خسارة شحن صفر مؤقتًا لحد ما يتم الاستلام فعليًا

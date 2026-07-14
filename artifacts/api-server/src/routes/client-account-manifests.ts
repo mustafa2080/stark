@@ -253,6 +253,9 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+        // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
+        totalShippingCost += shipping;
+        deliveredShippingFees += shipping;
         if ((item as any).returnReceived === 1) {
           const qty = Number(shipment.quantity ?? 1);
           const unitCod = qty > 0 ? cod / qty : cod;
@@ -261,8 +264,6 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
           totalRevenue += partialCod;
           deliveredGross += partialCod;
           totalCost += unitCost * Number(item.partialQuantity);
-          totalShippingCost += shipping;
-          deliveredShippingFees += shipping;
         }
       } else if (item.deliveryStatus === "returned") {
         if ((item as any).returnReceived === 1) {
