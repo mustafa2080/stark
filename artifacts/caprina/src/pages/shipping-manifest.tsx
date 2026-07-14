@@ -1961,8 +1961,12 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   );
 
   const deliveredTotal = s.deliveredGross;
-  // صافي الربح الحقيقي = إجمالي الإيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع
-  const netProfit = s.totalRevenue - s.totalCost - effectiveShippingCost - s.returnLosses;
+  // صافي الربح الحقيقي = إجمالي سعر المنطقة (إيراد الشحن الفعلي لكل أوردر) − تكلفة الشحن الفعلية
+  const totalZonePrice = (manifest.orders ?? []).reduce(
+    (sum, o) => sum + Math.abs(Number((o as any).zonePrice ?? 0)),
+    0
+  );
+  const netProfit = totalZonePrice - effectiveShippingCost;
   const netBeforeInvoice = deliveredTotal - effectiveShippingCost;
   const balance = invoicePrice > 0 ? invoicePrice - netBeforeInvoice : null;
 
@@ -2017,7 +2021,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
         </div>
       </div>
 
-      {/* صافي الربح الحقيقي = إيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع */}
+      {/* صافي الربح الحقيقي = إجمالي سعر المنطقة − تكلفة الشحن الفعلية */}
       <div className={`rounded-md p-4 border flex items-center justify-between ${netProfit >= 0 ? "border-emerald-700/40 bg-emerald-900/10" : "border-red-700/40 bg-red-900/10"}`}>
         <div>
           <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
@@ -2025,10 +2029,8 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
             {formatCurrency(netProfit)}
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">
-            {formatCurrency(s.totalRevenue)} إيرادات
-            &nbsp;−&nbsp;{formatCurrency(s.totalCost)} تكلفة بضاعة
+            {formatCurrency(totalZonePrice)} سعر المنطقة
             &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
-            {s.returnLosses > 0 && <>&nbsp;−&nbsp;{formatCurrency(s.returnLosses)} خسائر مرتجع</>}
           </p>
         </div>
         {netProfit >= 0
