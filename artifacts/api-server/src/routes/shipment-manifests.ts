@@ -198,14 +198,18 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         }
       } else if (item.deliveryStatus === "returned") {
         // مرتجع لسه عند شركة الشحن (returnReceived !== 1) → خسارة شحن صفر مؤقتًا لحد ما يتم الاستلام فعليًا
-        if ((item as any).returnReceived === 1) {
+        const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
+        if ((item as any).returnReceived === 1 && !returnReasonHasValue) {
           totalShippingCost += shipping;
         }
         // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش
-        if (["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason)) {
+        if (returnReasonHasValue) {
           const manualVal = Number((item as any).returnValueReceived ?? 0);
           deliveredGross += manualVal;
           deliveredShippingFees += shipping;
+          // القيمة المستلمة فعليًا عند المرتجع تضاف لإجمالي الإيرادات، ومصاريف شحنها لإجمالي تكلفة الشحن
+          totalRevenue += manualVal;
+          totalShippingCost += shipping;
         }
       } else {
         // pending/delayed → لسه عند شركة الشحن، مفيش تكلفة شحن تُحسب عليه دلوقتي
