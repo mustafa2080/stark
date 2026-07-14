@@ -418,6 +418,56 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
   }
 });
 
+// ─── DELETE /shipment-manifests/:id/items/:shipmentId — إلغاء الشحنة خالص من البيان ──
+router.delete("/shipment-manifests/:id/items/:shipmentId", async (req, res): Promise<void> => {
+  try {
+    const manifestId = Number(req.params.id);
+    const shipmentId = Number(req.params.shipmentId);
+
+    // المندوب يقدر يمسح من بيان شركته بس، وبشرط البيان لسه مفتوح
+    const reqUser = (req as any).user;
+    const [manifestRow] = await db.select({
+      shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
+      status: shipmentManifestsTable.status,
+    }).from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, manifestId)).limit(1);
+
+    if (!manifestRow) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+
+    if (reqUser?.role === "representative") {
+      if (manifestRow.shippingCompanyId !== reqUser.shippingCompanyId) {
+        res.status(403).json({ error: "غير مصرح بتعديل هذا البيان" });
+        return;
+      }
+      if (manifestRow.status === "closed") {
+        res.status(400).json({ error: "البيان مغلق — لا يمكن التعديل" });
+        return;
+      }
+    }
+
+    const [item] = await db.select({ id: shipmentManifestItemsTable.id })
+      .from(shipmentManifestItemsTable)
+      .where(and(
+        eq(shipmentManifestItemsTable.manifestId, manifestId),
+        eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+      ))
+      .limit(1);
+
+    if (!item) { res.status(404).json({ error: "الشحنة غير موجودة في هذا البيان" }); return; }
+
+    await db.delete(shipmentManifestItemsTable).where(eq(shipmentManifestItemsTable.id, item.id));
+
+    // رجّع حالة الشحنة نفسها → قيد الشحن في المخزن (زي قبل ما تتضاف للبيان)
+    await db.update(shipmentsTable)
+      .set({ status: "warehouse_ready", updatedAt: new Date() })
+      .where(eq(shipmentsTable.id, shipmentId));
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[DELETE /shipment-manifests/:id/items/:shipmentId]", e);
+    res.status(500).json({ error: "خطأ في إلغاء الشحنة من البيان" });
+  }
+});
+
 // ─── PATCH /shipment-manifests/:id/items/:shipmentId/urgent — تفعيل/إلغاء الاستعجال ──
 router.patch("/shipment-manifests/:id/items/:shipmentId/urgent", async (req, res): Promise<void> => {
   try {

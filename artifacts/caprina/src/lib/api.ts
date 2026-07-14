@@ -1985,6 +1985,10 @@ export const shipmentManifestsApi = {
     apiFetch<{ success: boolean }>(`/shipment-manifests/${manifestId}/items/${shipmentId}`, {
       method: "PATCH", body: JSON.stringify(data),
     }),
+  deleteItem: (manifestId: number, shipmentId: number) =>
+    apiFetch<{ success: boolean }>(`/shipment-manifests/${manifestId}/items/${shipmentId}`, {
+      method: "DELETE",
+    }),
   addShipments: (manifestId: number, shipmentIds: number[]) =>
     apiFetch<{ added: number; manifestNumber: string }>(
       `/shipment-manifests/${manifestId}/add-shipments`,

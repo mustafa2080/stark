@@ -170,15 +170,10 @@ function OrderDeliveryRow({
   const cancelMutation = useMutation({
     mutationFn: () =>
       isShipmentManifest
-        ? shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
-            deliveryStatus: "pending",
-            deliveryNote: null,
-            returnReceived: null,
-            returnReason: null,
-          })
+        ? shipmentManifestsApi.deleteItem(manifestId, order.shipmentId)
         : manifestsApi.cancelOrder(manifestId, order.id),
     onSuccess: () => {
-      toast({ title: "تم إلغاء الطلبية من البيان وإرجاعها للانتظار" });
+      toast({ title: "تم إلغاء الطلبية من البيان نهائيًا" });
       setEditing(false);
       onSaved();
     },
