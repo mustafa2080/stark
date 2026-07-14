@@ -4536,8 +4536,8 @@ export default function ShippingManifestPage() {
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        // تكلفة الشحن = مجموع shippingCost لكل الطلبيات في البيان (بدون أي فلترة على الحالة)
-        const shippingCost    = ordersForPnl
+        // تكلفة الشحن = مجموع shippingCost لكل الطلبيات الظاهرة فعليًا في قائمة البيان (manifest.orders كاملة، بدون استبعاد pending shipping / return confirmed)
+        const shippingCost    = (manifest.orders ?? [])
           .reduce((sum, o: any) => sum + (Number(o.shippingCost) || 0), 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
