@@ -4452,7 +4452,8 @@ export default function ShippingManifestPage() {
         }
         const pnlZone = pnlZoneIds.length ? pnlSettlementZones.find(z => z.id === pnlZoneIds[0]) : null;
         const zonePricePnl = pnlZone?.price != null ? Number(pnlZone.price) : 0;
-        const netAmount       = zonePricePnl - shippingCost;
+        // صافي الربح الحقيقي = إجمالي الإيرادات - تكلفة الشحن
+        const netAmount       = deliveredCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         // إجمالي المستحق للمندوب = إجمالي قيمة الطلبيات المسلَّمة فقط (تمن الشحنة كاملة)
         const totalDueToCourier = deliveredCOD;
@@ -4500,7 +4501,7 @@ export default function ShippingManifestPage() {
                       : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
                   </div>
                   <p className="text-[10px] text-muted-foreground px-4 pb-4">
-                    {formatCurrency(zonePricePnl)} سعر المنطقة − {formatCurrency(shippingCost)} شحن
+                    {formatCurrency(deliveredCOD)} إجمالي الإيرادات − {formatCurrency(shippingCost)} تكلفة الشحن
                   </p>
                 </div>
               </div>
