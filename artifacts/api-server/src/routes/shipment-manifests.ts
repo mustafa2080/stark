@@ -200,6 +200,11 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         if ((item as any).returnReceived === 1) {
           totalShippingCost += shipping;
         }
+        // إجمالي المسلَّم: لو العميل دفع مصاريف الشحن وقت الرفض (refused_paid) → تُحسب رسوم الشحن كمحصَّل
+        if ((item as any).returnReason === "refused_paid") {
+          deliveredGross += shipping;
+          deliveredShippingFees += shipping;
+        }
       } else {
         // pending/delayed → لسه عند شركة الشحن، مفيش تكلفة شحن تُحسب عليه دلوقتي
       }
@@ -935,6 +940,9 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
           totalShippingCost += shipping;
         } else if (item.deliveryStatus === "returned") {
           returnLosses += shipping;
+          if ((item as any).returnReason === "refused_paid") {
+            deliveredGross += shipping;
+          }
         } else {
           totalShippingCost += shipping;
         }
