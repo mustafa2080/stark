@@ -1101,14 +1101,24 @@ function InvoiceGroupDeliveryRow({
           animationDelay: `${rowIndex * 45}ms`,
         }}
       >
-        {/* Row (visible on all screen sizes; horizontal scroll handled by the shared table container) */}
+        {/* Row (fully responsive, no horizontal scroll) */}
         <div
           dir="rtl"
-          className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,1.3fr)_88px_84px_minmax(0,1.2fr)_72px_64px_64px_56px_90px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
+          {/* تحديد */}
+          <div className="flex items-center justify-center pt-0.5" onClick={e => e.stopPropagation()}>
+            {onToggleSelect && (
+              <Checkbox
+                checked={selected}
+                onCheckedChange={() => onToggleSelect(groupKey)}
+                className="shrink-0"
+              />
+            )}
+          </div>
           {/* اسم الراسل */}
-          <div className="hidden md:flex min-w-0 px-3 items-center">
+          <div className="hidden md:flex min-w-0 px-1.5 items-center overflow-hidden">
             {(rep as any).senderName ? (
               <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
             ) : (
@@ -1116,20 +1126,12 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* اسم العميل */}
-          <div className="min-w-0 px-3 flex items-start gap-2">
-            {onToggleSelect && (
-              <Checkbox
-                checked={selected}
-                onCheckedChange={() => onToggleSelect(groupKey)}
-                className="mt-0.5 shrink-0"
-                onClick={e => e.stopPropagation()}
-              />
-            )}
-            <div className="min-w-0">
+          <div className="min-w-0 px-1.5 flex items-start overflow-hidden">
+            <div className="min-w-0 w-full">
               <p className="font-semibold truncate">{rep.customerName}</p>
               <div className="flex items-center gap-1 flex-wrap">
                 {invoiceNum && (
-                  <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono">
+                  <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono truncate max-w-full">
                     {invoiceNum}
                   </span>
                 )}
@@ -1137,7 +1139,7 @@ function InvoiceGroupDeliveryRow({
             </div>
           </div>
           {/* رقم تليفون العميل */}
-          <div className="flex min-w-0 px-3 items-center">
+          <div className="flex min-w-0 px-1.5 items-center overflow-hidden">
             {rep.phone ? (
               <p className="text-[10px] text-muted-foreground truncate">{rep.phone}</p>
             ) : (
@@ -1145,7 +1147,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* المحافظة */}
-          <div className="min-w-0 px-3 flex items-center">
+          <div className="min-w-0 px-1.5 flex items-center overflow-hidden">
             {rep.city ? (
               <p className="font-semibold text-[10px] truncate">{rep.city}</p>
             ) : (
@@ -1153,31 +1155,31 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* العنوان التفصيلي */}
-          <div className="hidden md:flex min-w-0 px-3 items-start">
+          <div className="hidden md:flex min-w-0 px-1.5 items-start overflow-hidden">
             {(rep as any).address ? (
-              <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{(rep as any).address}</p>
+              <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{(rep as any).address}</p>
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
           {/* اجمالى سعر الشحنة (COD) */}
-          <div className="text-left font-bold px-3 flex items-center">
-            <span className="text-emerald-500">{formatCurrency(totalFullPrice)}</span>
+          <div className="text-left font-bold px-1.5 flex items-center overflow-hidden">
+            <span className="text-emerald-500 truncate">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* القيمة المستلمة (= سعر الشحنة) */}
-          <div className="hidden md:flex text-center px-2 items-center justify-center">
-            <span className="text-emerald-500 font-semibold">{formatCurrency(totalFullPrice)}</span>
+          <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
+            <span className="text-emerald-500 font-semibold truncate">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* تكلفة الشحن (المندوب) */}
-          <div className="text-center px-2 flex items-center justify-center">
+          <div className="text-center px-1 flex items-center justify-center overflow-hidden">
             {courierShippingCost != null ? (
-              <span className="text-amber-500 font-semibold">{formatCurrency(courierShippingCost)}</span>
+              <span className="text-amber-500 font-semibold truncate">{formatCurrency(courierShippingCost)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
           </div>
           {/* حالة الاوردر + زرار التقفيل */}
-          <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
+          <div className="px-1.5 flex flex-col gap-1 overflow-hidden" onClick={e => e.stopPropagation()}>
             {hasMultipleStatuses && !hasMixedPartial ? (
               <div className="flex flex-col gap-0.5">
                 <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground">
@@ -1325,15 +1327,15 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* ملاحظات */}
-          <div className="flex min-w-0 px-2 items-start">
+          <div className="hidden md:flex min-w-0 px-1.5 items-start overflow-hidden">
             {rep.deliveryNote ? (
-              <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{rep.deliveryNote}</p>
+              <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{rep.deliveryNote}</p>
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
         </div>
-        {/* Mobile card block removed — the grid row above is now shown on all breakpoints with horizontal scroll */}
+        {/* Row is fully responsive — no horizontal scroll needed on any breakpoint */}
 
         {/* Bulk editing panel */}
         {bulkEditing && (
@@ -4342,73 +4344,70 @@ export default function ShippingManifestPage() {
                   </div>
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
-                <div className="overflow-x-auto">
-                <div className="md:min-w-[1180px]">
-                <div dir="rtl" className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div className="w-full">
+                <div dir="rtl" className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,1.3fr)_88px_84px_minmax(0,1.2fr)_72px_64px_64px_56px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
+                  {/* ─── تحديد ─── */}
+                  <div className="flex items-center justify-center h-9">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      className={someSelected ? "opacity-60" : ""}
+                      aria-label="تحديد الكل"
+                    />
+                  </div>
                   {/* ─── اسم الراسل ─── */}
-                  <div className="hidden md:flex items-center gap-1.5 px-3 h-9">
+                  <div className="hidden md:flex items-center gap-1 px-1.5 h-9 overflow-hidden">
                     <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
-                    اسم الراسل
+                    <span className="truncate">اسم الراسل</span>
                   </div>
                   {/* ─── اسم العميل ─── */}
                   <div className="relative flex items-center">
-                    <div className="flex items-center px-3 shrink-0">
-                      <Checkbox
-                        checked={allSelected}
-                        onCheckedChange={toggleAll}
-                        className={someSelected ? "opacity-60" : ""}
-                        aria-label="تحديد الكل"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between w-full h-9 px-3">
-                      <span className="font-bold">اسم العميل</span>
+                    <div className="flex items-center justify-between w-full h-9 px-1.5 overflow-hidden">
+                      <span className="font-bold truncate">اسم العميل</span>
                       {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                     </div>
                   </div>
                   {/* ─── رقم تليفون العميل ─── */}
-                  <div className="flex items-center gap-1.5 px-3 h-9">
-                    رقم تليفون العميل
+                  <div className="flex items-center gap-1 px-1.5 h-9 overflow-hidden">
+                    <span className="truncate">تليفون</span>
                   </div>
                   {/* ─── المحافظة ─── */}
-                  <div className="flex items-center justify-between gap-1 px-3 h-9">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between gap-1 px-1.5 h-9 overflow-hidden">
+                    <div className="flex items-center gap-1 min-w-0">
                       <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
-                      المحافظة
+                      <span className="truncate">المحافظة</span>
                     </div>
                     {showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── العنوان التفصيلي ─── */}
-                  <div className="hidden md:flex items-center gap-1.5 px-3 h-9">
+                  <div className="hidden md:flex items-center gap-1 px-1.5 h-9 overflow-hidden">
                     <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
-                    العنوان
+                    <span className="truncate">العنوان</span>
                   </div>
                   {/* ─── اجمالى سعر الشحنة (COD) ─── */}
-                  <div className="flex flex-col justify-center gap-0.5 px-3 h-9">
+                  <div className="flex flex-col justify-center gap-0.5 px-1.5 h-9 overflow-hidden">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold">اجمالى سعر الشحنة</span>
+                      <span className="font-bold truncate">إجمالي</span>
                       {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                     </div>
                   </div>
                   {/* ─── القيمة المستلمة (= سعر الشحنة) ─── */}
-                  <div className="hidden md:flex items-center justify-center gap-1 px-2 h-9">
-                    القيمة المستلمة
+                  <div className="hidden md:flex items-center justify-center gap-1 px-1 h-9 overflow-hidden">
+                    <span className="truncate">مستلم</span>
                   </div>
                   {/* ─── تكلفة الشحن (المندوب) ─── */}
-                  <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">
-                    تكلفة الشحن
+                  <div className="flex items-center justify-center gap-1 px-1 h-9 text-amber-500 overflow-hidden">
+                    <span className="truncate">شحن</span>
                   </div>
                   {/* ─── حالة الاوردر ─── */}
-                  <div className="flex items-center gap-1 px-2 h-9">
-                    <span className="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-2.5 h-2.5 opacity-50" />
-                    </span>
-                    <span className="shrink-0">حالة الاوردر</span>
+                  <div className="flex items-center gap-1 px-1.5 h-9 overflow-hidden">
+                    <span className="shrink-0 truncate">الحالة</span>
                     {showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── ملاحظات ─── */}
-                  <div className="flex items-center gap-1 px-2 h-9">
-                    ملاحظات
+                  <div className="hidden md:flex items-center gap-1 px-1.5 h-9 overflow-hidden">
+                    <span className="truncate">ملاحظات</span>
                   </div>
                 </div>
                 {displayGroups.length === 0 && colFilterHasActive ? (
@@ -4440,8 +4439,7 @@ export default function ShippingManifestPage() {
                   ))}
                   </div>
                 )}
-                </div>{/* end min-w-[1180px] */}
-                </div>{/* end overflow-x-auto */}
+                </div>{/* end table container */}
               </>
             )}
           </>
