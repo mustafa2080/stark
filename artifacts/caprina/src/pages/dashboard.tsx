@@ -212,7 +212,7 @@ function DamagedOrdersModal({ onClose }: { onClose: () => void }) {
                     </p>
                     {(o.returnReason || o.returnNote) && (
                       <p className="text-[9px] text-red-500/70 mt-0.5 truncate">
-                        {o.returnReason === "quality" ? "جودة المنتج" :
+                        {o.returnReason === "quality" ? "هرب من الاستلام بدون معاينة" :
                          o.returnReason === "size_mismatch" ? "مقاس غير مناسب" :
                          o.returnReason === "customer_refused" ? "عميل غير جاد" :
                          o.returnReason === "customer_requested_return" ? "طلب العميل" :
