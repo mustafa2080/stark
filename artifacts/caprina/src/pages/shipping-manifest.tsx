@@ -4432,11 +4432,18 @@ export default function ShippingManifestPage() {
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        // تكلفة الشحن = رسوم الشحن المحصَّلة فعليًا من الباك إند (مسلَّم / مسلَّم جزئي مستلم / مرتجع دفع الشحن فقط)
-        // pending/delayed لا تُحسب أبدًا حتى تتغيّر حالتها فعليًا
-        const shippingCost    = Number((rawManifest as any)?.stats?.deliveredShippingFees ?? 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
+        // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / مرتجع مع دفع رسوم الشحن فقط)
+        // pending/delayed لا تُحسب أبدًا (صفر) حتى تتغيّر حالتها فعليًا
+        const courierShippingCostForCalc = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
+        const shippingCostOrders = ordersForPnl.filter(o =>
+          o.deliveryStatus === "delivered" ||
+          o.deliveryStatus === "partial_delivered" ||
+          (o.deliveryStatus === "returned" && (o as any).returnReason === "refused_paid")
+        );
+        const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
+        const shippingCost    = courierShippingCostForCalc * shippingCostGroupsCount;
         let pnlZoneIds: number[] = [];
         if (companyAnyPnl?.zoneIds) {
           try { pnlZoneIds = JSON.parse(companyAnyPnl.zoneIds); } catch {}
