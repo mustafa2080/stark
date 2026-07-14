@@ -72,6 +72,7 @@ import {
   FileSpreadsheet,
   Download,
   Eye,
+  EyeOff,
   Zap,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -4133,31 +4134,6 @@ export default function ShippingManifestPage() {
         </div>
       </Card>
 
-      {/* ─── Invoice Section ─── */}
-      {canViewFinancials && (
-        <Card className="border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Banknote className="w-4 h-4 text-muted-foreground" />
-            <h2 className="font-bold text-sm">فاتورة البيان</h2>
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className="text-[10px] text-muted-foreground">
-              المبلغ المتفق عليه مع شركة الشحن (ما سيُدفع لنا)
-            </p>
-            <InvoicePriceEditor
-              manifestId={id}
-              current={manifest.invoicePrice}
-              currentNotes={(manifest as any).invoiceNotes ?? null}
-              isShipmentManifest={true}
-              onSaved={refetch}
-            />
-          </div>
-        </Card>
-      )}
-
-      {/* ─── Settlement Card ─── */}
-      {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} isShipmentManifest={true} />}
-
       {/* ─── Orders Table ─── */}
       <Card className="border-border bg-card overflow-visible print:break-inside-avoid">
         <div
@@ -4454,7 +4430,6 @@ export default function ShippingManifestPage() {
         const ordersForPnl = ordersExcludingPendingShipping;
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         // تكلفة الشحن = رسوم الشحن المحصَّلة فعليًا من الباك إند (مسلَّم / مسلَّم جزئي مستلم / مرتجع دفع الشحن فقط)
@@ -4472,15 +4447,14 @@ export default function ShippingManifestPage() {
         const zonePricePnl = pnlZone?.price != null ? Number(pnlZone.price) : 0;
         const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
+        // إجمالي المستحق للمندوب = تكلفة الشحن (المندوب) × عدد الفواتير/المجموعات في الجدول
+        const courierShippingCostPnl = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
+        const pnlGroupsCount = groupManifestOrders(ordersForPnl).length;
+        const totalDueToCourier = courierShippingCostPnl * pnlGroupsCount;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
-            <Card className="border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground mb-1">إجمالي COD</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalCOD)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
-            </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
-              <p className="text-xs text-emerald-400 mb-1">COD المُسلَّم</p>
+              <p className="text-xs text-emerald-400 mb-1">إجمالي الإيرادات</p>
               <p className="text-lg font-black text-emerald-400">{formatCurrency(deliveredCOD)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
@@ -4493,14 +4467,20 @@ export default function ShippingManifestPage() {
               <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
             </Card>
+            <Card className="border-sky-900/40 bg-sky-900/10 p-4">
+              <p className="text-xs text-sky-400 mb-1">إجمالي المستحق للمندوب</p>
+              <p className="text-lg font-black text-sky-400">{formatCurrency(totalDueToCourier)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{pnlGroupsCount} شحنة</p>
+            </Card>
             <Card className={`col-span-2 border overflow-hidden transition-all duration-300 ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
               <button
                 type="button"
                 onClick={() => setNetDueOpen(v => !v)}
                 className="w-full flex items-center justify-between p-4 text-right"
               >
-                <p className={`text-xs mb-0 font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                  {isProfit ? "صافي المستحق" : "صافي الخسارة"}
+                <p className={`text-xs mb-0 font-bold flex items-center gap-1.5 ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                  {netDueOpen ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  صافي الربح الحقيقي
                 </p>
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
               </button>
