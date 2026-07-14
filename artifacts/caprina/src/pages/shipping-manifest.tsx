@@ -886,8 +886,26 @@ function InvoiceGroupDeliveryRow({
   }, 0);
   // السعر الكامل للفاتورة (للعرض والمرجع)
   const totalFullPrice = group.reduce((s, o) => s + Number(o.totalPrice), 0);
+  // القيمة المستلمة فعليًا (عمود "المستلم" في الجدول): صفر لحد ما المندوب يحدد حالة فيها قيمة فعلية
+  // مسلَّم بالكامل = القيمة كاملة | استلام جزئي = القيمة اللي دخلها المندوب | مرتجع (دفع مصاريف الشحن) = مصاريف الشحن | غير كده = صفر
+  const receivedAmount = group.reduce((s, o) => {
+    if (o.deliveryStatus === "delivered") {
+      return s + Number(o.totalPrice ?? 0);
+    }
+    if (o.deliveryStatus === "partial_delivered" && isShipmentManifest && o.partialQuantity != null) {
+      return s + Number(o.partialQuantity);
+    }
+    if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
+      return s + Number(o.unitPrice) * Number(o.partialQuantity);
+    }
+    if (o.deliveryStatus === "returned" && (o as any).returnReason === "refused_paid") {
+      return s + Number(courierShippingCost ?? 0);
+    }
+    return s;
+  }, 0);
   const invoiceNum = (rep as any).invoiceNumber?.trim() || null;
   const isMulti = group.length > 1;
+
 
   // حالة المجموعة: لو كل الطلبات بنفس الحالة → اعرضها
   // لو مختلطة بين partial_received و pending/postponed → partial_received (بعض المنتجات استُلمت وبعضها لا)
@@ -1173,9 +1191,9 @@ function InvoiceGroupDeliveryRow({
           <div className="text-left font-bold px-1.5 flex items-center overflow-hidden">
             <span className="text-emerald-500 truncate">{formatCurrency(totalFullPrice)}</span>
           </div>
-          {/* القيمة المستلمة (= سعر الشحنة) */}
+          {/* القيمة المستلمة (فعليًا) */}
           <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
-            <span className="text-emerald-500 font-semibold truncate">{formatCurrency(totalFullPrice)}</span>
+            <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
           {/* تكلفة الشحن (المندوب) */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
