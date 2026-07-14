@@ -2042,21 +2042,19 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           onClick={() => setNetProfitOpen(v => !v)}
           className="w-full flex items-center justify-between p-4 text-right"
         >
-          <div>
-            <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
-            <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {formatCurrency(netProfit)}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {netProfit >= 0
-              ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
-              : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netProfitOpen ? "rotate-180" : ""}`} />
-          </div>
+          <p className="text-[10px] font-bold text-muted-foreground mb-0">صافي الربح الحقيقي</p>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netProfitOpen ? "rotate-180" : ""}`} />
         </button>
         <div className={`grid transition-all duration-300 ease-in-out ${netProfitOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
           <div className="overflow-hidden">
+            <div className="flex items-center justify-between px-4 pb-1">
+              <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {formatCurrency(netProfit)}
+              </p>
+              {netProfit >= 0
+                ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
+                : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
+            </div>
             <p className="text-[10px] text-muted-foreground px-4 pb-4">
               {formatCurrency(zonePriceValue)} سعر المنطقة
               &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
@@ -4579,23 +4577,21 @@ export default function ShippingManifestPage() {
                 onClick={() => setNetDueOpen(v => !v)}
                 className="w-full flex items-center justify-between p-4 text-right"
               >
-                <div>
-                  <p className={`text-xs mb-1 font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                    {isProfit ? "صافي المستحق" : "صافي الخسارة"}
-                  </p>
-                  <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                    {formatCurrency(Math.abs(netAmount))}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isProfit
-                    ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
-                    : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
-                </div>
+                <p className={`text-xs mb-0 font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                  {isProfit ? "صافي المستحق" : "صافي الخسارة"}
+                </p>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
               </button>
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden">
+                  <div className="flex items-center justify-between px-4 pb-1">
+                    <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                      {formatCurrency(Math.abs(netAmount))}
+                    </p>
+                    {isProfit
+                      ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
+                      : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
+                  </div>
                   <p className="text-[10px] text-muted-foreground px-4 pb-4">
                     {formatCurrency(zonePricePnl)} سعر المنطقة − {formatCurrency(shippingCost)} شحن
                   </p>
