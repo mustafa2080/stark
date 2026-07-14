@@ -170,7 +170,7 @@ function OrderDeliveryRow({
   const cancelMutation = useMutation({
     mutationFn: () =>
       isShipmentManifest
-        ? shipmentManifestsApi.updateItem(manifestId, order.id, {
+        ? shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
             deliveryStatus: "pending",
             deliveryNote: null,
             returnReceived: null,
@@ -205,7 +205,7 @@ function OrderDeliveryRow({
         // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
         const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
         const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
-        return shipmentManifestsApi.updateItem(manifestId, order.id, {
+        return shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
           partialQuantity:
@@ -982,7 +982,7 @@ function InvoiceGroupDeliveryRow({
     mutationFn: async () => {
       for (const order of group) {
         if (isShipmentManifest) {
-          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+          await shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
             deliveryStatus: "pending",
             deliveryNote: null,
             returnReceived: null,
@@ -1057,7 +1057,7 @@ function InvoiceGroupDeliveryRow({
         if (isShipmentManifest) {
           const allowedSt = ["pending","delivered","partial_delivered","returned","delayed"] as const;
           const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
-          await shipmentManifestsApi.updateItem(manifestId, order.id, {
+          await shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
             deliveryStatus: safeSt,
             deliveryNote: bulkNote.trim() || null,
             partialQuantity: safeSt === "partial_delivered" ? finalPartialQty : null,
@@ -3217,7 +3217,7 @@ function ReturnReceivedButton({
 
   const mutation = useMutation({
     mutationFn: () =>
-      shipmentManifestsApi.updateItem(manifestId, order.id, {
+      shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
         deliveryStatus: order.deliveryStatus,
         deliveryNote: order.deliveryNote ?? null,
         partialQuantity: order.partialQuantity ?? null,
