@@ -1175,10 +1175,11 @@ function InvoiceGroupDeliveryRow({
           animationDelay: `${rowIndex * 45}ms`,
         }}
       >
-        {/* Desktop row */}
+        {/* Row (visible on all screen sizes, horizontal scroll on small screens) */}
+        <div className="overflow-x-auto">
         <div
           dir="rtl"
-          className="hidden lg:grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="grid grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* اسم الراسل */}
@@ -1444,8 +1445,9 @@ function InvoiceGroupDeliveryRow({
             />
           </div>
         </div>
-
-        {/* Mobile card (md:hidden) */}
+        </div>
+        {/* Mobile card block removed — the grid row above is now shown on all breakpoints with horizontal scroll */}
+        {false && (
         <div className="md:hidden px-3 py-2.5 text-xs flex flex-col gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           {/* Row 1: customer + status badge */}
           <div className="flex items-start justify-between gap-2">
@@ -1591,6 +1593,7 @@ function InvoiceGroupDeliveryRow({
             </div>
           )}
         </div>
+        )}
 
         {/* Bulk editing panel */}
         {bulkEditing && (
