@@ -3789,6 +3789,10 @@ export default function ShippingManifestPage() {
     }, 0);
 
   const totalCollected = deliveredGross + partialGross;
+  const effectiveShipping = (manifest.orders ?? []).reduce(
+    (sum, o) => sum + Number((o as any).shippingCost ?? 0),
+    0
+  );
 
   return (
     <>
