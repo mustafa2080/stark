@@ -730,7 +730,7 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
   const codReturned = items.filter(i => i.deliveryStatus === "returned").reduce((s, i) => s + Number(i.totalPrice ?? 0), 0);
 
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : null;
-  const courierCostManual = manifest.courierCostManual != null ? Number(manifest.courierCostManual) : 0;
+  const courierCostManual = Number(manifest.courierCostManual ?? 0);
   const netDueToCompany = st.netDueToCompany ?? null;
 
   return (

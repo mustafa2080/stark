@@ -207,15 +207,18 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
 
     // ─── حسابات بيان التسوية الجديدة ───────────────────────────────────────
-    // تكلفة المندوب اليدوية على مستوى البيان (تُدخل من البطاقة)
-    const courierCostManual = manifest.courierCostManual != null ? Number(manifest.courierCostManual) : 0;
+    const [company] = await db.select().from(shippingCompaniesTable)
+      .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
+
+    // تكلفة المندوب تُحسب تلقائيًا من تكلفة الشحن المسجّلة على شركة الشحن نفسها
+    // (company.shippingCost) × عدد الشحنات المسلَّمة فعليًا، بدل الإدخال اليدوي القديم.
+    // لو الشركة معندهاش shippingCost مسجل → صفر.
+    const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
+    const courierCostManual = courierCostPerShipment * delivered;
     // صافي المستحق للشركة = إجمالي المسلَّم (COD) − تكلفة المندوب
     const netDueToCompany   = deliveredGross - courierCostManual;
     // صافي الربح الحقيقي = إجمالي رسوم الشحن − تكلفة المندوب
     const realNetProfit     = deliveredShippingFees - courierCostManual;
-
-    const [company] = await db.select().from(shippingCompaniesTable)
-      .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
 
     res.json({
       ...manifest,
@@ -230,7 +233,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         netDueToCompany,                             // صافي المستحق للشركة = المسلَّم − تكلفة المندوب
         realNetProfit,                               // صافي الربح الحقيقي = رسوم الشحن − تكلفة المندوب
       },
-      courierCostManual: manifest.courierCostManual != null ? Number(manifest.courierCostManual) : null,
+      courierCostManual, // محسوبة تلقائيًا الآن من company.shippingCost × عدد المسلَّم
     });
   } catch (e) {
     console.error("[GET /shipment-manifests/:id]", e);
