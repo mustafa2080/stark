@@ -1958,13 +1958,27 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
     ? Number((manifest as any).company.shippingCost)
     : 0;
 
+  // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (من قسم المناطق والأسعار)
+  const { data: settlementZones = [] } = useQuery<{ id: number; price: number }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipments/zones"),
+  });
+  const zonePriceValue = (() => {
+    const companyAny = (manifest as any).company;
+    let zIds: number[] = [];
+    if (companyAny?.zoneIds) {
+      try { zIds = JSON.parse(companyAny.zoneIds); } catch {}
+    } else if (companyAny?.zoneId) {
+      zIds = [companyAny.zoneId];
+    }
+    if (!zIds.length) return 0;
+    const zone = settlementZones.find(z => z.id === zIds[0]);
+    return zone?.price != null ? Number(zone.price) : 0;
+  })();
+
   const deliveredTotal = s.deliveredGross;
-  // صافي الربح الحقيقي = إجمالي سعر المنطقة (إيراد الشحن الفعلي لكل أوردر) − تكلفة الشحن الفعلية
-  const totalZonePrice = (manifest.orders ?? []).reduce(
-    (sum, o) => sum + Math.abs(Number((o as any).zonePrice ?? 0)),
-    0
-  );
-  const netProfit = totalZonePrice - effectiveShippingCost;
+  // صافي الربح الحقيقي = سعر المنطقة (من شركة الشحن) − تكلفة الشحن الثابتة
+  const netProfit = zonePriceValue - effectiveShippingCost;
   const netBeforeInvoice = deliveredTotal - effectiveShippingCost;
   const balance = invoicePrice > 0 ? invoicePrice - netBeforeInvoice : null;
 
@@ -2019,7 +2033,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
         </div>
       </div>
 
-      {/* صافي الربح الحقيقي = إجمالي سعر المنطقة − تكلفة الشحن الفعلية */}
+      {/* صافي الربح الحقيقي = سعر المنطقة (من شركة الشحن) − تكلفة الشحن الثابتة */}
       <div className={`rounded-md p-4 border flex items-center justify-between ${netProfit >= 0 ? "border-emerald-700/40 bg-emerald-900/10" : "border-red-700/40 bg-red-900/10"}`}>
         <div>
           <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
@@ -2027,7 +2041,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
             {formatCurrency(netProfit)}
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">
-            {formatCurrency(totalZonePrice)} سعر المنطقة
+            {formatCurrency(zonePriceValue)} سعر المنطقة
             &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
           </p>
         </div>
