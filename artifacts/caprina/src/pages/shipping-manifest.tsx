@@ -173,7 +173,6 @@ function OrderDeliveryRow({
       toast({ title: "تم إلغاء الطلبية من البيان وإرجاعها للانتظار" });
       setEditing(false);
       onSaved();
-      setTimeout(() => window.location.reload(), 500);
     },
     onError: (e: any) =>
       toast({ title: "خطأ", description: e.message, variant: "destructive" }),
@@ -990,7 +989,6 @@ function InvoiceGroupDeliveryRow({
       toast({ title: "تم إلغاء الفاتورة كاملها من البيان وإرجاعها للانتظار" });
       setBulkEditing(false);
       onSaved();
-      setTimeout(() => window.location.reload(), 500);
     },
     onError: (e: any) =>
       toast({ title: "خطأ", description: e.message, variant: "destructive" }),
