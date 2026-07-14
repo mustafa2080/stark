@@ -4472,11 +4472,11 @@ export default function ShippingManifestPage() {
               <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
-              <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
+              <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
             </Card>
             <Card className="border-sky-900/40 bg-sky-900/10 p-4">
-              <p className="text-xs text-sky-400 mb-1">إجمالي المستحق للمندوب</p>
+              <p className="text-xs text-sky-400 mb-1">الرصيد المستحق من المندوب</p>
               <p className="text-lg font-black text-sky-400">{formatCurrency(totalDueToCourier)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
