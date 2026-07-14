@@ -1952,6 +1952,8 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const { toast } = useToast();
   const s = manifest.stats;
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
+  const [netProfitOpen, setNetProfitOpen] = useState(true);
+  const [netDueOpen, setNetDueOpen] = useState(true);
 
   // تكلفة الشحن = السعر الثابت المسجّل على شركة/مندوب الشحن نفسه (بدون أي حسبة أو ضرب)
   const effectiveShippingCost = (manifest as any).company?.shippingCost != null
@@ -2034,20 +2036,33 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
       </div>
 
       {/* صافي الربح الحقيقي = سعر المنطقة (من شركة الشحن) − تكلفة الشحن الثابتة */}
-      <div className={`rounded-md p-4 border flex items-center justify-between ${netProfit >= 0 ? "border-emerald-700/40 bg-emerald-900/10" : "border-red-700/40 bg-red-900/10"}`}>
-        <div>
-          <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
-          <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {formatCurrency(netProfit)}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            {formatCurrency(zonePriceValue)} سعر المنطقة
-            &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
-          </p>
+      <div className={`rounded-md border overflow-hidden transition-all duration-300 ${netProfit >= 0 ? "border-emerald-700/40 bg-emerald-900/10" : "border-red-700/40 bg-red-900/10"}`}>
+        <button
+          type="button"
+          onClick={() => setNetProfitOpen(v => !v)}
+          className="w-full flex items-center justify-between p-4 text-right"
+        >
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
+            <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {formatCurrency(netProfit)}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {netProfit >= 0
+              ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
+              : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netProfitOpen ? "rotate-180" : ""}`} />
+          </div>
+        </button>
+        <div className={`grid transition-all duration-300 ease-in-out ${netProfitOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+          <div className="overflow-hidden">
+            <p className="text-[10px] text-muted-foreground px-4 pb-4">
+              {formatCurrency(zonePriceValue)} سعر المنطقة
+              &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
+            </p>
+          </div>
         </div>
-        {netProfit >= 0
-          ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
-          : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
       </div>
 
       {/* Balance */}
@@ -2204,27 +2219,38 @@ function CloseConfirmDialog({
 
           {/* ─── صافي المستحق من الشركة ─── */}
           <div className="space-y-2">
-            <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
-              <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
-              {(() => {
-                const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
-                const due = (s?.deliveredGross ?? 0) - effectiveShipping;
-                return (
-                  <>
-                    <p className="font-black text-lg text-primary">
-                      {formatCurrency(due)}
+            <div className="rounded-md bg-primary/10 border border-primary/30 overflow-hidden transition-all duration-300">
+              <button
+                type="button"
+                onClick={() => setNetDueOpen(v => !v)}
+                className="w-full flex items-center justify-between p-3 text-right text-xs"
+              >
+                <p className="text-muted-foreground mb-0">صافي المستحق من الشركة</p>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
+              </button>
+              <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                <div className="overflow-hidden px-3 pb-3 text-xs">
+                  {(() => {
+                    const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+                    const due = (s?.deliveredGross ?? 0) - effectiveShipping;
+                    return (
+                      <>
+                        <p className="font-black text-lg text-primary">
+                          {formatCurrency(due)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          إيرادات مستلمة ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
+                        </p>
+                      </>
+                    );
+                  })()}
+                  {manifest.invoicePrice != null && (
+                    <p className="text-muted-foreground mt-1">
+                      سعر الفاتورة المتفق: {formatCurrency(manifest.invoicePrice)}
                     </p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      إيرادات مستلمة ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
-                    </p>
-                  </>
-                );
-              })()}
-              {manifest.invoicePrice != null && (
-                <p className="text-muted-foreground mt-1">
-                  سعر الفاتورة المتفق: {formatCurrency(manifest.invoicePrice)}
-                </p>
-              )}
+                  )}
+                </div>
+              </div>
             </div>
             {(s as any).stillAtShippingCount > 0 && (
               <div className="p-2 rounded-md bg-orange-900/10 border border-orange-700 text-xs flex items-start gap-2">
@@ -4547,8 +4573,12 @@ export default function ShippingManifestPage() {
               <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">−{formatCurrency(shippingCost)}</p>
             </Card>
-            <Card className={`col-span-2 p-4 border ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
-              <div className="flex items-center justify-between">
+            <Card className={`col-span-2 border overflow-hidden transition-all duration-300 ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
+              <button
+                type="button"
+                onClick={() => setNetDueOpen(v => !v)}
+                className="w-full flex items-center justify-between p-4 text-right"
+              >
                 <div>
                   <p className={`text-xs mb-1 font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
                     {isProfit ? "صافي المستحق" : "صافي الخسارة"}
@@ -4556,13 +4586,20 @@ export default function ShippingManifestPage() {
                   <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
                     {formatCurrency(Math.abs(netAmount))}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                </div>
+                <div className="flex items-center gap-2">
+                  {isProfit
+                    ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
+                    : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
+                </div>
+              </button>
+              <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] text-muted-foreground px-4 pb-4">
                     {formatCurrency(zonePricePnl)} سعر المنطقة − {formatCurrency(shippingCost)} شحن
                   </p>
                 </div>
-                {isProfit
-                  ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
-                  : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
               </div>
             </Card>
           </div>
