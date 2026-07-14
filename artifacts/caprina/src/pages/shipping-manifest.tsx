@@ -1951,9 +1951,9 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const [netProfitOpen, setNetProfitOpen] = useState(false);
   const [netDueOpen, setNetDueOpen] = useState(false);
 
-  // تكلفة الشحن = مجموع shippingCost لكل الطلبيات في البيان (بدون أي فلترة على الحالة)
-  const effectiveShippingCost = (manifest.orders ?? [])
-    .reduce((sum, o: any) => sum + (Number(o.shippingCost) || 0), 0);
+  // تكلفة الشحن الفعلية = رسوم الشحن المحصَّلة فعليًا من الباك إند (مسلَّم / مسلَّم جزئي مستلم / مرتجع دفع الشحن فقط)
+  // pending/delayed وأي حالة تانية = صفر تلقائيًا لأنها مش داخلة في الحساب أصلًا
+  const effectiveShippingCost = Number((s as any).deliveredShippingFees ?? 0);
 
   // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (من قسم المناطق والأسعار)
   const { data: settlementZones = [] } = useQuery<{ id: number; price: number }[]>({
@@ -4533,9 +4533,9 @@ export default function ShippingManifestPage() {
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        // تكلفة الشحن = مجموع shippingCost لكل الطلبيات الظاهرة فعليًا في قائمة البيان (manifest.orders كاملة، بدون استبعاد pending shipping / return confirmed)
-        const shippingCost    = (manifest.orders ?? [])
-          .reduce((sum, o: any) => sum + (Number(o.shippingCost) || 0), 0);
+        // تكلفة الشحن = رسوم الشحن المحصَّلة فعليًا من الباك إند (مسلَّم / مسلَّم جزئي مستلم / مرتجع دفع الشحن فقط)
+        // pending/delayed لا تُحسب أبدًا حتى تتغيّر حالتها فعليًا
+        const shippingCost    = Number((rawManifest as any)?.stats?.deliveredShippingFees ?? 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
         let pnlZoneIds: number[] = [];

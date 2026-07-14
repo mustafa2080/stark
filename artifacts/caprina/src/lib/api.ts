@@ -1968,6 +1968,7 @@ export interface ShipmentManifestDetail {
     total: number; delivered: number; returned: number; pending: number; delayed: number; partial: number;
     totalRevenue: number; totalCost: number; totalShippingCost: number;
     returnLosses: number; netProfit: number; deliveredGross: number;
+    deliveredShippingFees: number; netDueToCompany: number; realNetProfit: number;
   };
   manualShippingCost?: number | null;
 }
