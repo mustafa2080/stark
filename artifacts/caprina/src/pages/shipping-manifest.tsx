@@ -4459,11 +4459,14 @@ export default function ShippingManifestPage() {
         }
         const pnlZone = pnlZoneIds.length ? pnlSettlementZones.find(z => z.id === pnlZoneIds[0]) : null;
         const zonePricePnl = pnlZone?.price != null ? Number(pnlZone.price) : 0;
-        // صافي الربح الحقيقي = إجمالي الإيرادات - تكلفة الشحن
-        const netAmount       = deliveredCOD - shippingCost;
+        // إجمالي تكلفة الشحن لكل الطلبيات في البيان مهما كانت حالتها (بدون أي فلترة)
+        const allGroupsCount = groupManifestOrders(ordersForPnl).length;
+        const totalShippingCostAllOrders = courierShippingCostForCalc * allGroupsCount;
+        // صافي الربح الحقيقي = إجمالي تكلفة الشحن لكل الطلبيات - إجمالي تكلفة الشحن (الحاوية اللي فوق)
+        const netAmount       = totalShippingCostAllOrders - shippingCost;
         const isProfit        = netAmount >= 0;
-        // إجمالي المستحق للمندوب = إجمالي قيمة الطلبيات المسلَّمة فقط (تمن الشحنة كاملة)
-        const totalDueToCourier = deliveredCOD;
+        // الرصيد المستحق من المندوب = إجمالي الإيرادات - إجمالي تكلفة الشحن
+        const totalDueToCourier = deliveredCOD - shippingCost;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
@@ -4503,7 +4506,7 @@ export default function ShippingManifestPage() {
                       : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
                   </div>
                   <p className="text-[10px] text-muted-foreground px-4 pb-4">
-                    {formatCurrency(deliveredCOD)} إجمالي الإيرادات − {formatCurrency(shippingCost)} تكلفة الشحن
+                    {formatCurrency(totalShippingCostAllOrders)} إجمالي تكلفة شحن كل الطلبيات − {formatCurrency(shippingCost)} إجمالي تكلفة الشحن
                   </p>
                 </div>
               </div>
