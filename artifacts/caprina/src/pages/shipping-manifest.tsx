@@ -1953,10 +1953,12 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const s = manifest.stats;
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
 
-  // تكلفة الشحن الفعلية = تكلفة الشحن المسجّلة على شركة الشحن نفسها × عدد الشحنات المسلَّمة
-  // (لم تعد تُدخل يدويًا). لو الشركة معندهاش shippingCost مسجل → صفر.
-  const courierCostPerShipment = Math.abs(Number((manifest as any).company?.shippingCost ?? 0));
-  const effectiveShippingCost = courierCostPerShipment * (s.delivered ?? 0);
+  // تكلفة الشحن الفعلية = مجموع تكلفة الشحن الفعلية المسجّلة على كل أوردر في البيان
+  // (لم تعد تُدخل يدويًا ولا تُحسب من سعر الشركة الثابت).
+  const effectiveShippingCost = (manifest.orders ?? []).reduce(
+    (sum, o) => sum + Number((o as any).shippingCost ?? 0),
+    0
+  );
 
   const deliveredTotal = s.deliveredGross;
   // صافي الربح الحقيقي = إجمالي الإيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع
@@ -1992,7 +1994,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
             −{formatCurrency(effectiveShippingCost)}
           </p>
           {effectiveShippingCost === 0 ? (
-            <p className="text-[10px] text-muted-foreground/60">لم تُحدَّد تكلفة شحن للشركة</p>
+            <p className="text-[10px] text-muted-foreground/60">لا توجد تكلفة شحن مسجّلة على الطلبيات</p>
           ) : (
             <p className="text-[10px] text-amber-600">مُخصومة</p>
           )}
@@ -2191,7 +2193,7 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
+                const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
                 const due = (s?.deliveredGross ?? 0) - effectiveShipping;
                 return (
                   <>
@@ -2288,7 +2290,7 @@ function ExportDialog({
   onClose: () => void;
 }) {
   const s = manifest.stats;
-  const effectiveShipping = Number(manifest.manualShippingCost ?? s?.totalShippingCost ?? 0);
+  const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   const { brand } = useBrand();
   const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
@@ -3880,11 +3882,11 @@ export default function ShippingManifestPage() {
         </div>
         <div className="mp-total-card">
           <div className="mp-total-lbl">رسوم الشحن</div>
-          <div className="mp-total-val mp-total-orange">{Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-orange">{Number(effectiveShipping).toLocaleString("ar-EG")} ج.م</div>
         </div>
         <div className="mp-total-card mp-total-highlight">
           <div className="mp-total-lbl">الصافي المستحق</div>
-          <div className="mp-total-val mp-total-green">{Number((totalCollected || 0) - Number(manifest.manualShippingCost ?? s.totalShippingCost ?? 0)).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-green">{Number((totalCollected || 0) - Number(effectiveShipping)).toLocaleString("ar-EG")} ج.م</div>
         </div>
         {manifest.invoicePrice != null && (
           <div className="mp-total-card">
@@ -4489,7 +4491,7 @@ export default function ShippingManifestPage() {
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const shippingCost    = Number(manifest.manualShippingCost ?? s.totalShippingCost ?? ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0));
+        const shippingCost    = ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0);
         const netAmount       = deliveredCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
@@ -4512,9 +4514,6 @@ export default function ShippingManifestPage() {
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">−{formatCurrency(shippingCost)}</p>
-              {manifest.manualShippingCost != null && (
-                <p className="text-[10px] text-amber-600">يدوي ✏️</p>
-              )}
             </Card>
             <Card className={`col-span-2 p-4 border ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
               <div className="flex items-center justify-between">
