@@ -3340,6 +3340,7 @@ export default function ShippingManifestPage() {
         : sh ? parseFloat(sh.shippingFee ?? '0') : 0;
       return {
         id: item.shipmentId,
+        shipmentId: item.shipmentId,
         manifestOrderId: item.id,
         invoiceNumber: sh?.shipmentNumber ?? `S-${item.shipmentId}`,
         customerName: sh?.receiverName ?? '—',
