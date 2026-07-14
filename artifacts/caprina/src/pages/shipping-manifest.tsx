@@ -3249,6 +3249,11 @@ export default function ShippingManifestPage() {
   const { toast } = useToast();
   const { canViewFinancials, isAdmin } = useAuth();
   const { brand } = useBrand();
+  // سعر المنطقة (لحاوية صافي المستحق) — نفس مصدر صافي الربح الحقيقي
+  const { data: pnlSettlementZones = [] } = useQuery<{ id: number; price: number }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipments/zones"),
+  });
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
@@ -4509,7 +4514,17 @@ export default function ShippingManifestPage() {
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const shippingCost    = (rawManifest as any)?.company?.shippingCost != null ? Number((rawManifest as any).company.shippingCost) : 0;
-        const netAmount       = deliveredCOD - shippingCost;
+        // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
+        const companyAnyPnl = (rawManifest as any)?.company;
+        let pnlZoneIds: number[] = [];
+        if (companyAnyPnl?.zoneIds) {
+          try { pnlZoneIds = JSON.parse(companyAnyPnl.zoneIds); } catch {}
+        } else if (companyAnyPnl?.zoneId) {
+          pnlZoneIds = [companyAnyPnl.zoneId];
+        }
+        const pnlZone = pnlZoneIds.length ? pnlSettlementZones.find(z => z.id === pnlZoneIds[0]) : null;
+        const zonePricePnl = pnlZone?.price != null ? Number(pnlZone.price) : 0;
+        const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
@@ -4542,7 +4557,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netAmount))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(deliveredCOD)} مُسلَّم − {formatCurrency(shippingCost)} شحن
+                    {formatCurrency(zonePricePnl)} سعر المنطقة − {formatCurrency(shippingCost)} شحن
                   </p>
                 </div>
                 {isProfit
