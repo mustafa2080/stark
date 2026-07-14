@@ -4570,7 +4570,7 @@ export default function ShippingManifestPage() {
             </Card>
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
-              <p className="text-lg font-black text-amber-400">−{formatCurrency(shippingCost)}</p>
+              <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
             </Card>
             <Card className={`col-span-2 border overflow-hidden transition-all duration-300 ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
               <button
