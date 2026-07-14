@@ -1955,15 +1955,8 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const [netProfitOpen, setNetProfitOpen] = useState(false);
   const [netDueOpen, setNetDueOpen] = useState(false);
 
-  // تكلفة الشحن = مجموع shippingCost الفعلي، لكن فقط للأوردرات في حالات:
-  // مُسلَّم، مُسلَّم جزئي، أو مرتجع بسبب (رفض الاستلام بعد المعاينة ودفع/لم يدفع الشحن، أو هرب من الاستلام بدون معاينة)
-  const SHIPPING_COST_RETURN_REASONS = ["refused_paid", "refused_unpaid", "quality"];
+  // تكلفة الشحن = مجموع shippingCost لكل الطلبيات في البيان (بدون أي فلترة على الحالة)
   const effectiveShippingCost = (manifest.orders ?? [])
-    .filter((o: any) =>
-      o.deliveryStatus === "delivered" ||
-      o.deliveryStatus === "partial_delivered" ||
-      (o.deliveryStatus === "returned" && SHIPPING_COST_RETURN_REASONS.includes(o.returnReason))
-    )
     .reduce((sum, o: any) => sum + (Number(o.shippingCost) || 0), 0);
 
   // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (من قسم المناطق والأسعار)
@@ -2015,7 +2008,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
             <p className="text-[10px] text-muted-foreground">رسوم الشحن</p>
           </div>
           <p className="text-base font-black text-amber-700 dark:text-amber-400">
-            −{formatCurrency(effectiveShippingCost)}
+            {formatCurrency(effectiveShippingCost)}
           </p>
           {effectiveShippingCost === 0 ? (
             <p className="text-[10px] text-muted-foreground/60">لم تُحدَّد تكلفة شحن للشركة</p>
@@ -4543,15 +4536,8 @@ export default function ShippingManifestPage() {
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        // تكلفة الشحن = مجموع shippingCost الفعلي، لكن فقط للأوردرات في حالات:
-        // مُسلَّم، مُسلَّم جزئي، أو مرتجع بسبب (رفض الاستلام بعد المعاينة ودفع/لم يدفع الشحن، أو هرب من الاستلام بدون معاينة)
-        const SHIPPING_COST_RETURN_REASONS_PNL = ["refused_paid", "refused_unpaid", "quality"];
+        // تكلفة الشحن = مجموع shippingCost لكل الطلبيات في البيان (بدون أي فلترة على الحالة)
         const shippingCost    = ordersForPnl
-          .filter((o: any) =>
-            o.deliveryStatus === "delivered" ||
-            o.deliveryStatus === "partial_delivered" ||
-            (o.deliveryStatus === "returned" && SHIPPING_COST_RETURN_REASONS_PNL.includes(o.returnReason))
-          )
           .reduce((sum, o: any) => sum + (Number(o.shippingCost) || 0), 0);
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
