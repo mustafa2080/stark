@@ -726,14 +726,18 @@ async function rolloverPartialShipments(
   for (const item of stillAtShippingItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
-      manifestId:      targetManifestId,
-      shipmentId:      item.shipmentId,
-      deliveryStatus:  item.deliveryStatus,
-      deliveryNote:    item.deliveryNote,
-      partialQuantity: item.partialQuantity,
-      returnReceived:  item.returnReceived,
-      returnReason:    item.returnReason,
-      addedAt:         now,
+      manifestId:          targetManifestId,
+      shipmentId:          item.shipmentId,
+      deliveryStatus:      item.deliveryStatus,
+      deliveryNote:        item.deliveryNote,
+      partialQuantity:     item.partialQuantity,
+      returnReceived:      item.returnReceived,
+      returnReason:        item.returnReason,
+      // لازم تترحّل مع السبب، وإلا القيمة اللي دخلها المندوب يدويًا (لحالات
+      // refused_paid/refused_unpaid/quality) بتضيع وبتتصفر لـ NULL في البيان
+      // الجديد، فبتتشال من إجمالي الإيرادات/تكلفة الشحن غلط بمجرد الترحيل.
+      returnValueReceived: item.returnValueReceived,
+      addedAt:             now,
     });
     existingIds.add(item.shipmentId);
     if (item.deliveryStatus === "returned") returnedStillAtShippingCount++;
