@@ -315,6 +315,7 @@ const UpdateItemSchema = z.object({
   returnReceived: z.boolean().nullish(),
   returnReason:   z.string().nullish(),
   returnValueReceived: z.coerce.number().nullish(),
+  deliveredValueReceived: z.coerce.number().nullish(),
   itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
 });
 
@@ -354,6 +355,7 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         ...(body.returnReason !== undefined ? { returnReason: body.returnReason ?? null } : {}),
         returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
         ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived ?? null } : {}),
+        ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived ?? null } : {}),
         deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
       })
       .where(and(

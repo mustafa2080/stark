@@ -147,6 +147,9 @@ function OrderDeliveryRow({
   const [returnValueReceived, setReturnValueReceived] = useState<string>(
     (order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""
   );
+  const [deliveredValueReceived, setDeliveredValueReceived] = useState<string>(
+    (order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""
+  );
   const [partialReturnReceived, setPartialReturnReceived] = useState<boolean | null>(
     order.deliveryStatus === "partial_received"
       ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
@@ -166,6 +169,7 @@ function OrderDeliveryRow({
       );
       setReturnReason((order as any).returnReason ?? "");
       setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
+      setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
       setPartialReturnReceived(
         order.deliveryStatus === "partial_received"
           ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
@@ -223,6 +227,10 @@ function OrderDeliveryRow({
           returnReceived: status === "returned" ? returnReceived : null,
           returnReason: status === "returned" ? (returnReason || null) : null,
           returnValueReceived: status === "returned" && needsReturnValue ? Number(returnValueReceived) : null,
+          deliveredValueReceived:
+            status === "delivered" && deliveredValueReceived.trim() !== "" && !isNaN(Number(deliveredValueReceived))
+              ? Number(deliveredValueReceived)
+              : null,
         });
       }
       return manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -627,6 +635,40 @@ function OrderDeliveryRow({
               </p>
             </div>
           )}
+          {/* القيمة المستلمة فعليًا عند التسليم — مقارنة تلقائية بإجمالي الطلب */}
+          {status === "delivered" && isShipmentManifest && (() => {
+            const totalVal = Number(order.totalPrice ?? 0);
+            const receivedVal = deliveredValueReceived.trim() === "" || isNaN(Number(deliveredValueReceived))
+              ? null
+              : Number(deliveredValueReceived);
+            const diff = receivedVal != null ? receivedVal - totalVal : null;
+            return (
+              <div className="space-y-1.5">
+                <div>
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">
+                    القيمة المستلمة فعليًا (من إجمالي الشحنة {formatCurrency(totalVal)})
+                  </Label>
+                  <Input
+                    type="number"
+                    value={deliveredValueReceived}
+                    onChange={(e) => setDeliveredValueReceived(e.target.value)}
+                    className="h-8 text-xs w-40 bg-background"
+                    placeholder={String(totalVal)}
+                  />
+                </div>
+                {diff != null && diff > 0 && (
+                  <p className="text-[10px] font-semibold text-emerald-500">
+                    ⬆ المندوب استلم زيادة قدرها {formatCurrency(diff)}
+                  </p>
+                )}
+                {diff != null && diff < 0 && (
+                  <p className="text-[10px] font-semibold text-destructive">
+                    ⬇ المندوب استلم ناقص قدرها {formatCurrency(Math.abs(diff))}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {/* حالة استلام المرتجع + سبب — زي الطلبات */}
           {status === "returned" && (
             <div className="flex flex-wrap gap-2 items-end">
