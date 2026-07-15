@@ -4453,6 +4453,9 @@ export default function ShippingManifestPage() {
               {groupedPendingOrders} بانتظار التقفيل
             </p>
           )}
+          <p className="text-[9px] text-muted-foreground/60 mt-1 leading-tight">
+            ⓘ العدد لا يشمل البضاعة لسه عند شركة الشحن، ولا المرتجع اللي اتأكد استلامه (بيتحسبوا لوحدهم تحت)
+          </p>
         </Card>
         <Card className="border-emerald-900/50 bg-emerald-900/10 p-4">
           <p className="text-xs text-emerald-400 mb-1 flex items-center gap-1">
