@@ -176,7 +176,7 @@ function OrderDeliveryRow({
           : null
       );
     }
-  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, editing]);
+  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, (order as any).returnValueReceived, (order as any).deliveredValueReceived, editing]);
 
   const cancelMutation = useMutation({
     mutationFn: () =>
@@ -390,6 +390,9 @@ function OrderDeliveryRow({
                   setPartialProduct("");
                   setPartialQty(order.partialQuantity?.toString() ?? "");
                   setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null);
+                  setReturnReason((order as any).returnReason ?? "");
+                  setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
+                  setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
                   setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null);
                 }}
               >
@@ -405,6 +408,9 @@ function OrderDeliveryRow({
                   setNote(order.deliveryNote ?? "");
                   setPartialQty(order.partialQuantity?.toString() ?? "");
                   setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null);
+                  setReturnReason((order as any).returnReason ?? "");
+                  setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
+                  setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
                   setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null);
                   setEditing(true);
                 }}
