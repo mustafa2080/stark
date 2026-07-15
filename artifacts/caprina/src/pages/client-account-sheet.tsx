@@ -3975,7 +3975,7 @@ export default function ShippingManifestPage() {
           </tr>
         </thead>
         <tbody>
-          {displayGroups.map((group, idx) => {
+          {groupedManifestOrders.map((group, idx) => {
             const rep = group[0];
             const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
             const isSingleStatus = statuses.length === 1;
