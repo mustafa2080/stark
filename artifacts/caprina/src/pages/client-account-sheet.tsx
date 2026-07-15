@@ -3833,8 +3833,9 @@ export default function ShippingManifestPage() {
     (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
   );
 
-  // ─── كل العدادات (مرتجع / جزئي / مؤجل / الإجمالي) بتتحسب من نفس القائمة المستبعد منها المُستلم ───
-  const allGroupedOrders = groupManifestOrders(ordersExcludingPendingShipping);
+  // ─── عدادات الحالات (مرتجع / جزئي / مؤجل): من كل أوردرات البيان، شاملة اللي لسه عند شركة الشحن ───
+  // ─── عدادات الإجمالي/المُسلَّم/بانتظار: من القائمة المستبعد منها اللي لسه عند الشحن والمُستلم خالص ───
+  const allGroupedOrders = groupManifestOrders(manifest.orders ?? []);
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
@@ -3862,6 +3863,7 @@ export default function ShippingManifestPage() {
   const groupedPendingCount   = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
   const groupedDeliveredCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
   const groupedTotalCount     = groupedManifestOrders.length;
+  const allGroupedTotalCount  = allGroupedOrders.length; // إجمالي كل الأوردرات شاملة اللي لسه عند الشحن — للنسب المئوية لكروت مرتجع/مؤجل
   const groupedCompletedCount = groupedDeliveredCount + groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
   const groupedDeliveryRate   = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
   const screenDeliveryRate    = groupedTotalCount > 0 ? Math.round((groupedDeliveredCount / groupedTotalCount) * 100) : 0;
@@ -4176,6 +4178,9 @@ export default function ShippingManifestPage() {
               {groupedPendingOrders} بانتظار التقفيل
             </p>
           )}
+          <p className="text-[9px] text-muted-foreground/60 mt-1 leading-tight">
+            ⓘ العدد لا يشمل البضاعة لسه عند شركة الشحن، ولا المرتجع اللي اتأكد استلامه (بيتحسبوا لوحدهم تحت)
+          </p>
         </Card>
         <Card className="border-emerald-900/50 bg-emerald-900/10 p-4">
           <p className="text-xs text-emerald-400 mb-1 flex items-center gap-1">
@@ -4192,7 +4197,7 @@ export default function ShippingManifestPage() {
           </p>
           <p className="text-2xl font-black text-red-400">{groupedReturnedCount}</p>
           <p className="text-xs text-red-600 mt-0.5 font-bold">
-            {groupedTotalCount > 0 ? Math.round((groupedReturnedCount / groupedTotalCount) * 100) : 0}% نسبة الإرجاع
+            {allGroupedTotalCount > 0 ? Math.round((groupedReturnedCount / allGroupedTotalCount) * 100) : 0}% نسبة الإرجاع
           </p>
         </Card>
         <Card className="border-teal-900/50 bg-teal-900/10 p-4">
@@ -4230,7 +4235,7 @@ export default function ShippingManifestPage() {
           </p>
           <p className="text-2xl font-black text-amber-400">{groupedPostponedCount}</p>
           <p className="text-xs text-amber-600 mt-0.5 font-bold">
-            {groupedTotalCount > 0 ? Math.round((groupedPostponedCount / groupedTotalCount) * 100) : 0}% من الإجمالي
+            {allGroupedTotalCount > 0 ? Math.round((groupedPostponedCount / allGroupedTotalCount) * 100) : 0}% من الإجمالي
           </p>
         </Card>
       </div>
