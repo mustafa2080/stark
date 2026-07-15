@@ -4529,7 +4529,7 @@ export default function ShippingManifestPage() {
           </p>
           <p className="text-2xl font-black text-teal-400">{groupedPartialCount}</p>
           {(() => {
-            const partialOrders = manifest.orders.filter(o => o.deliveryStatus === "partial_received");
+            const partialOrders = manifest.orders.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
             const partialReturnedQty = partialOrders.reduce((sum, o) => {
               const delivered = o.partialQuantity ?? 0;
               const remaining = o.quantity - delivered;
