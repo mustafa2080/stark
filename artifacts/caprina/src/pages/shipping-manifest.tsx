@@ -3791,8 +3791,19 @@ export default function ShippingManifestPage() {
     (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
   );
 
-  // ─── عدادات الحالة (مرتجع/مؤجل/جزئي) من كل أوردرات البيان بدون استبعاد ───
-  const allGroupedOrders = groupManifestOrders(manifest.orders ?? []);
+  // ─── عدادات الكروت لازم تتطابق بالظبط مع نفس منطق استبعاد جدول الطلبيات ───
+  // (نفس فلترة ordersWithoutPendingReturns: بيختفي بس اللي اتأكد استلامه return/جزئي)
+  const ordersForCardCounts = (manifest.orders ?? []).filter((o) => {
+    const rr = (o as any).returnReceived;
+    const isConfirmed = rr === 1 || rr === true;
+    const dStatus = o.deliveryStatus;
+    const shipmentStatus = (o as any).status;
+    const isReturnedOrPartial =
+      dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered" ||
+      shipmentStatus === "returned" || shipmentStatus === "partial_received";
+    return !(isReturnedOrPartial && isConfirmed);
+  });
+  const allGroupedOrders = groupManifestOrders(ordersForCardCounts);
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
