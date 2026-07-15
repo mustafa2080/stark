@@ -572,7 +572,13 @@ async function createTreasuryEntryOnClose(
     : [];
   const shipmentMap = new Map(shipments.map(s => [s.id, s]));
 
-  let grossRevenue = 0;
+  // جيب شركة الشحن عشان تكلفة المندوب لكل شحنة (courierCostPerShipment)
+  const [company] = await db.select().from(shippingCompaniesTable)
+    .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
+  const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
+
+  let deliveredGross = 0;
+  let deliveredCount = 0;
 
   for (const item of items) {
     const shipment = shipmentMap.get(item.shipmentId);
@@ -580,17 +586,24 @@ async function createTreasuryEntryOnClose(
     const price = Number(shipment.totalPrice ?? shipment.shippingFee ?? 0);
 
     if (item.deliveryStatus === "delivered") {
-      grossRevenue += price;
+      deliveredGross += price;
+      deliveredCount += 1;
     } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
       // لو الشحنة مسلمة جزئياً → نحسب نسبة من السعر
       const qty = Number(shipment.quantity ?? 1);
       const unitPrice = qty > 0 ? price / qty : price;
-      grossRevenue += unitPrice * Number(item.partialQuantity);
+      deliveredGross += unitPrice * Number(item.partialQuantity);
+      deliveredCount += 1;
     }
     // returned / delayed / pending → مش بيتحسب
   }
 
-  if (grossRevenue <= 0) return;
+  // الرصيد المُرحَّل للخزنة = صافي المستحق من المندوب (COD المسلَّم − تكلفة شحن المندوب)
+  // مش إجمالي الإيرادات الخام — نفس منطق netDueToCompany المستخدم في عرض إحصائيات البيان
+  const courierCostManual = courierCostPerShipment * deliveredCount;
+  const netDueToCompany = deliveredGross - courierCostManual;
+
+  if (netDueToCompany <= 0) return;
 
   // جيب الخزنة الرئيسية
   const [mainRegister] = await db
@@ -602,15 +615,12 @@ async function createTreasuryEntryOnClose(
   if (!mainRegister) return;
 
   const balanceBefore = Number(mainRegister.balance ?? 0);
-  const balanceAfter  = balanceBefore + grossRevenue;
-
-  const [company] = await db.select().from(shippingCompaniesTable)
-    .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
+  const balanceAfter  = balanceBefore + netDueToCompany;
 
   await db.insert(cashTransactionsTable).values({
     registerId:      mainRegister.id,
     type:            "shipping_transfer" as any,
-    amount:          String(grossRevenue),
+    amount:          String(netDueToCompany),
     balanceBefore:   String(balanceBefore),
     balanceAfter:    String(balanceAfter),
     description:     `تحصيل بيان شحنات ${manifest.manifestNumber} - ${company?.name ?? ""}`,
