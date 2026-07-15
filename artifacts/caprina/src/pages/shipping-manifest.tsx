@@ -1005,6 +1005,9 @@ function InvoiceGroupDeliveryRow({
   const [bulkReturnValueReceived, setBulkReturnValueReceived] = useState<string>(
     (rep as any).returnValueReceived != null ? String((rep as any).returnValueReceived) : ""
   );
+  const [bulkDeliveredValueReceived, setBulkDeliveredValueReceived] = useState<string>(
+    (rep as any).deliveredValueReceived != null ? String((rep as any).deliveredValueReceived) : ""
+  );
   const RETURN_REASONS_NEED_VALUE_BULK = ["refused_paid", "refused_unpaid", "quality"];
   const bulkNeedsReturnValue = bulkStatus === "returned" && RETURN_REASONS_NEED_VALUE_BULK.includes(bulkReturnReason);
 
@@ -1067,6 +1070,7 @@ function InvoiceGroupDeliveryRow({
       setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
       setBulkReturnReason((rep as any).returnReason ?? "");
       setBulkReturnValueReceived((rep as any).returnValueReceived != null ? String((rep as any).returnValueReceived) : "");
+      setBulkDeliveredValueReceived((rep as any).deliveredValueReceived != null ? String((rep as any).deliveredValueReceived) : "");
       setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
       setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
       const serverPartialReturn = group[0]?.returnReceived === 1 ? true : group[0]?.returnReceived === 0 ? false : null;
@@ -1159,6 +1163,10 @@ function InvoiceGroupDeliveryRow({
             returnReceived: safeSt === "returned" ? bulkReturnReceived : null,
             returnReason: safeSt === "returned" ? (bulkReturnReason.trim() || null) : null,
             returnValueReceived: safeSt === "returned" && bulkNeedsReturnValue ? Number(bulkReturnValueReceived) : null,
+            deliveredValueReceived:
+              safeSt === "delivered" && bulkDeliveredValueReceived.trim() !== "" && !isNaN(Number(bulkDeliveredValueReceived))
+                ? Number(bulkDeliveredValueReceived)
+                : null,
           });
         } else {
           await manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -1721,6 +1729,41 @@ function InvoiceGroupDeliveryRow({
                 )}
               </div>
             )}
+
+            {/* القيمة المستلمة فعليًا عند التسليم — مقارنة تلقائية بإجمالي الطلبات في المجموعة */}
+            {bulkStatus === "delivered" && isShipmentManifest && (() => {
+              const totalVal = group.reduce((s, o) => s + Number(o.totalPrice ?? 0), 0);
+              const receivedVal = bulkDeliveredValueReceived.trim() === "" || isNaN(Number(bulkDeliveredValueReceived))
+                ? null
+                : Number(bulkDeliveredValueReceived);
+              const diff = receivedVal != null ? receivedVal - totalVal : null;
+              return (
+                <div className="space-y-1.5">
+                  <div className="w-full sm:w-auto">
+                    <Label className="text-[10px] mb-1 block text-muted-foreground">
+                      القيمة المستلمة فعليًا (من إجمالي الشحنة {formatCurrency(totalVal)})
+                    </Label>
+                    <Input
+                      type="number"
+                      value={bulkDeliveredValueReceived}
+                      onChange={(e) => setBulkDeliveredValueReceived(e.target.value)}
+                      className="h-8 text-xs w-40 bg-background"
+                      placeholder={String(totalVal)}
+                    />
+                  </div>
+                  {diff != null && diff > 0 && (
+                    <p className="text-[10px] font-semibold text-emerald-500">
+                      ⬆ المندوب استلم زيادة قدرها {formatCurrency(diff)}
+                    </p>
+                  )}
+                  {diff != null && diff < 0 && (
+                    <p className="text-[10px] font-semibold text-destructive">
+                      ⬇ المندوب استلم ناقص قدرها {formatCurrency(Math.abs(diff))}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* حالة استلام المرتجع — تظهر فقط لما المستخدم يختار "مرتجع" */}
             {bulkStatus === "returned" && (
