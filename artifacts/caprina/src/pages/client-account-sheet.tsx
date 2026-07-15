@@ -3891,6 +3891,10 @@ export default function ShippingManifestPage() {
   const groupedPostponedCount = allGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
   const groupedPartialCount   = allGroupedOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
   const groupedReturnedCount  = allGroupedOrders.filter((group) => groupManifestStatus(group) === "returned").length;
+  // كارت "استلم جزئي" لازم يشمل كل الطلبيات partial حتى اللي لسه عند شركة الشحن ومتأكدش استلامها
+  const groupedPartialCountDisplay = groupManifestOrders(manifest.orders ?? []).filter(
+    (group) => isPartialStatus(groupManifestStatus(group))
+  ).length;
 
   // عدادات الإجمالي والتسليم والمعلق: من الطلبيات المفلترة (بدون البضاعة عند الشحن)
   const groupedPendingCount   = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
@@ -4249,7 +4253,7 @@ export default function ShippingManifestPage() {
           <p className="text-xs text-teal-400 mb-1 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" />استلم جزئي
           </p>
-          <p className="text-2xl font-black text-teal-400">{groupedPartialCount}</p>
+          <p className="text-2xl font-black text-teal-400">{groupedPartialCountDisplay}</p>
           {(() => {
             const partialOrders = manifest.orders.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
             const partialReturnedQty = partialOrders.reduce((sum, o) => {

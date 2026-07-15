@@ -3834,6 +3834,17 @@ export default function ShippingManifestPage() {
   // عدادات كل الحالات لازم تتحسب من نفس المصدر (allGroupedOrders) عشان مجموع الحالات = الإجمالي دايمًا
   const groupedPostponedCount = allGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
   const groupedPartialCount   = allGroupedOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  // كارت "استلم جزئي" لازم يشمل كل الطلبيات partial حتى اللي لسه عند شركة الشحن ومتأكدش استلامها
+  // (allGroupedOrders بتستثنيها زي ما بتستثني المرتجع، فكانت بتخفي العداد ده بالكامل)
+  const groupManifestStatusAll = (group: ManifestOrder[]) =>
+    group.reduce((worst, order) =>
+      (manifestGroupPriority[order.deliveryStatus] ?? 0) > (manifestGroupPriority[worst] ?? 0)
+        ? order.deliveryStatus
+        : worst,
+    group[0]?.deliveryStatus ?? "pending");
+  const groupedPartialCountDisplay = groupManifestOrders(manifest.orders ?? []).filter(
+    (group) => isPartialStatus(groupManifestStatusAll(group))
+  ).length;
   const groupedReturnedCount  = allGroupedOrders.filter((group) => groupManifestStatus(group) === "returned").length;
   const groupedPendingCount   = allGroupedOrders.filter((group) => groupManifestStatus(group) === "pending").length;
   const groupedDeliveredCount = allGroupedOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
@@ -4186,7 +4197,7 @@ export default function ShippingManifestPage() {
           <p className="text-xs text-teal-400 mb-1 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" />استلم جزئي
           </p>
-          <p className="text-2xl font-black text-teal-400">{groupedPartialCount}</p>
+          <p className="text-2xl font-black text-teal-400">{groupedPartialCountDisplay}</p>
           {(() => {
             const partialOrders = manifest.orders.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
             const partialReturnedQty = partialOrders.reduce((sum, o) => {
