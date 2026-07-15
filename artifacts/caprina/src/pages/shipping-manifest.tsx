@@ -3832,7 +3832,6 @@ export default function ShippingManifestPage() {
   const isPostponedStatus = (st: string) => st === "postponed" || st === "delayed";
 
   // عدادات كل الحالات لازم تتحسب من نفس المصدر (allGroupedOrders) عشان مجموع الحالات = الإجمالي دايمًا
-  const groupedPostponedCount = allGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
   const groupedPartialCount   = allGroupedOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
   // كارت "استلم جزئي" لازم يشمل كل الطلبيات partial حتى اللي لسه عند شركة الشحن ومتأكدش استلامها
   // (allGroupedOrders بتستثنيها زي ما بتستثني المرتجع، فكانت بتخفي العداد ده بالكامل)
@@ -3845,11 +3844,18 @@ export default function ShippingManifestPage() {
   const groupedPartialCountDisplay = groupManifestOrders(manifest.orders ?? []).filter(
     (group) => isPartialStatus(groupManifestStatusAll(group))
   ).length;
-  const groupedReturnedCount  = allGroupedOrders.filter((group) => groupManifestStatus(group) === "returned").length;
-  const groupedPendingCount   = allGroupedOrders.filter((group) => groupManifestStatus(group) === "pending").length;
-  const groupedDeliveredCount = allGroupedOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
-  const groupedTotalCount     = allGroupedOrders.length;
-  const groupedCompletedCount = groupedDeliveredCount + groupedPartialCount;
+  // ─── كروت العرض (إجمالي/مرتجع/مسلَّم/مؤجل) لازم تتطابق مع صفوف الجدول الفعلية ───
+  // المصدر الصح لكروت العرض هو manifest.orders كامل (مستبعد منه بس اللي اترجع واتأكد ماليًا isReturnConfirmed)،
+  // مش allGroupedOrders اللي كمان بتستبعد isStillAtShipping وتُخفي الطلبيات اللي لسه عند شركة الشحن.
+  const displayGroupedOrders = groupManifestOrders(
+    (manifest.orders ?? []).filter((o) => !isReturnConfirmed(o))
+  );
+  const groupedReturnedCount  = displayGroupedOrders.filter((group) => groupManifestStatusAll(group) === "returned").length;
+  const groupedPendingCount   = displayGroupedOrders.filter((group) => groupManifestStatusAll(group) === "pending").length;
+  const groupedDeliveredCount = displayGroupedOrders.filter((group) => groupManifestStatusAll(group) === "delivered").length;
+  const groupedPostponedCount = displayGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatusAll(group))).length;
+  const groupedTotalCount     = displayGroupedOrders.length;
+  const groupedCompletedCount = groupedDeliveredCount + groupedPartialCountDisplay;
   const groupedDeliveryRate   = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
   const screenDeliveryRate    = groupedTotalCount > 0 ? Math.round((groupedDeliveredCount / groupedTotalCount) * 100) : 0;
   const groupedPendingOrders  = groupedPendingCount;
