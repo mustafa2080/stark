@@ -4565,8 +4565,9 @@ export default function ShippingManifestPage() {
         } else if (companyAnyPnl?.zoneId) {
           pnlZoneIds = [companyAnyPnl.zoneId];
         }
-        // سعر الشحنة = مجموع "سعر الشحنة" الفعلي المسجَّل على كل شحنة (shippingCost/shippingFee) للطلبيات المسلَّمة
-        const zonePricePnl = deliveredOrders.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
+        // سعر الشحنة = مجموع "سعر الشحنة" الفعلي المسجَّل على كل شحنة (shippingCost/shippingFee)
+        // لنفس مجموعة الطلبات اللي دخلت في حساب تكلفة الشحن (مسلَّم / جزئي / مرتجع بأسباب الثلاثة)
+        const zonePricePnl = shippingCostOrders.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
         // صافي الربح الحقيقي = سعر الشحنة (من جدول الشحنات) - إجمالي تكلفة الشحن
         const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
