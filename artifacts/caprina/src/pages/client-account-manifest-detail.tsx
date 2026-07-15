@@ -4022,10 +4022,9 @@ export default function ShippingManifestPage() {
     (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
   );
 
-  // ─── عدادات الحالات (مرتجع / جزئي / مؤجل): من كل أوردرات البيان، شاملة اللي لسه عند شركة الشحن ───
-  // ─── عدادات الإجمالي/المُسلَّم/بانتظار: من القائمة المستبعد منها اللي لسه عند الشحن والمُستلم خالص ───
-  const allGroupedOrders = groupManifestOrders(manifest.orders ?? []);
+  // ─── كل العدادات (مسلَّم/مرتجع/جزئي/مؤجل/بانتظار/إجمالي) لازم تطابق صفوف جدول الطلبيات في البيان ───
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
+  const allGroupedOrders = groupedManifestOrders;
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
     postponed: 4,
