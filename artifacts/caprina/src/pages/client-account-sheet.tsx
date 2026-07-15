@@ -2432,8 +2432,6 @@ function ExportDialog({
   const partialGross = safeOrders
     .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
-      const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
-      if (returnReceived == null) return sum;
       if (o.partialQuantity == null || o.quantity <= 0) return sum;
       const unitPrice = (o as any).unitPrice != null
         ? Number((o as any).unitPrice)
@@ -2441,10 +2439,10 @@ function ExportDialog({
       return sum + Math.round(unitPrice * Number(o.partialQuantity));
     }, 0);
   const totalCollected = deliveredGross + partialGross;
-  // رسوم الشحن الفعلية: بتُحسب بس على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي مستلم)
+  // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
   const collectedOrdersForShipping = safeOrders.filter(o =>
     o.deliveryStatus === "delivered" ||
-    (o.deliveryStatus === "partial_received" && (o as any).returnReceived === 1)
+    o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
   );
   const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   const netDue = totalCollected - effectiveShipping;
@@ -3896,8 +3894,6 @@ export default function ShippingManifestPage() {
   const partialGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "partial_received")
     .reduce((sum, o) => {
-      const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
-      if (returnReceived == null) return sum;
       if (o.partialQuantity == null || o.quantity <= 0) return sum;
       const unitPrice = (o as any).unitPrice != null
         ? Number((o as any).unitPrice)
@@ -3907,10 +3903,9 @@ export default function ShippingManifestPage() {
 
   const totalCollected = deliveredGross + partialGross;
 
-  // رسوم الشحن الفعلية: بتُحسب بس على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي مستلم)
+  // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
   const collectedOrdersForShipping = ordersExcludingPendingShipping.filter(o =>
-    o.deliveryStatus === "delivered" ||
-    (o.deliveryStatus === "partial_received" && (o as any).returnReceived === 1)
+    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received"
   );
   const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
 
