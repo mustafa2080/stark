@@ -1035,8 +1035,8 @@ function InvoiceGroupDeliveryRow({
     partialReturnReceived: boolean | null;
   } | null>(null);
 
-  // key مستقر للـ group — بيتغير لما partialQuantity أو returnReceived يتغيروا
-  const groupPartialKey = group.map(o => `${o.id}:${o.partialQuantity ?? ""}:${(o as any).returnReceived ?? ""}`).join(",");
+  // key مستقر للـ group — بيتغير لما partialQuantity أو returnReceived أو القيمة المستلمة فعليًا يتغيروا
+  const groupPartialKey = group.map(o => `${o.id}:${o.partialQuantity ?? ""}:${(o as any).returnReceived ?? ""}:${(o as any).deliveredValueReceived ?? ""}:${(o as any).returnValueReceived ?? ""}`).join(",");
 
   // الكميات المعروضة: لو في وضع التعديل أو بعد حفظ فوري → من state، وإلا من server
   // الحالة المعروضة في الـ UI (خارج وضع التعديل): لما pendingSaveRef موجود نعرض bulkStatus (الحالة المحفوظة) لحد ما يجي الـ refetch
