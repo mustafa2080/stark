@@ -2381,7 +2381,12 @@ function ExportDialog({
     .reduce((sum, o) => {
       const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
       if (returnReceived == null) return sum;
-      if (o.partialQuantity == null || o.quantity <= 0) return sum;
+      if (o.partialQuantity == null) return sum;
+      // partial_delivered (بيان شحن): القيمة الفعلية متسجّلة مباشرة في partialQuantity
+      if (o.deliveryStatus === "partial_delivered") {
+        return sum + Number(o.partialQuantity);
+      }
+      if (o.quantity <= 0) return sum;
       const unitPrice = (o as any).unitPrice != null
         ? Number((o as any).unitPrice)
         : Number(o.totalPrice) / Number(o.quantity);
@@ -3851,9 +3856,15 @@ export default function ShippingManifestPage() {
     .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
 
   const partialGross = ordersExcludingPendingShipping
-    .filter(o => o.deliveryStatus === "partial_received")
+    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
-      if (o.partialQuantity == null || o.quantity <= 0) return sum;
+      if (o.partialQuantity == null) return sum;
+      // partial_delivered (بيان شحن): القيمة الفعلية متسجّلة مباشرة في partialQuantity
+      if (o.deliveryStatus === "partial_delivered") {
+        return sum + Number(o.partialQuantity);
+      }
+      // partial_received: احسب من سعر الوحدة × الكمية المستلمة
+      if (o.quantity <= 0) return sum;
       const unitPrice = (o as any).unitPrice != null
         ? Number((o as any).unitPrice)
         : Number(o.totalPrice) / Number(o.quantity);
@@ -3863,7 +3874,7 @@ export default function ShippingManifestPage() {
   const totalCollected = deliveredGross + partialGross;
   // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
   const collectedOrdersForShipping = ordersExcludingPendingShipping.filter(o =>
-    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received"
+    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
   );
   const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
 

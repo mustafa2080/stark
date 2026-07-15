@@ -2587,7 +2587,11 @@ function ExportDialog({
   const partialGross = safeOrders
     .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
-      if (o.partialQuantity == null || o.quantity <= 0) return sum;
+      if (o.partialQuantity == null) return sum;
+      if (o.deliveryStatus === "partial_delivered") {
+        return sum + Number(o.partialQuantity);
+      }
+      if (o.quantity <= 0) return sum;
       const unitPrice = (o as any).unitPrice != null
         ? Number((o as any).unitPrice)
         : Number(o.totalPrice) / Number(o.quantity);
@@ -4047,9 +4051,13 @@ export default function ShippingManifestPage() {
     .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
 
   const partialGross = ordersExcludingPendingShipping
-    .filter(o => o.deliveryStatus === "partial_received")
+    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
-      if (o.partialQuantity == null || o.quantity <= 0) return sum;
+      if (o.partialQuantity == null) return sum;
+      if (o.deliveryStatus === "partial_delivered") {
+        return sum + Number(o.partialQuantity);
+      }
+      if (o.quantity <= 0) return sum;
       const unitPrice = (o as any).unitPrice != null
         ? Number((o as any).unitPrice)
         : Number(o.totalPrice) / Number(o.quantity);
@@ -4060,7 +4068,7 @@ export default function ShippingManifestPage() {
   // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
   // مش على كل أوردرات البيان، عشان الصافي المستحق ميتخصمش منه رسوم شحن طلبات لسه ماتحصّلتش
   const collectedOrdersForShipping = ordersExcludingPendingShipping.filter(o =>
-    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received"
+    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
   );
   const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
