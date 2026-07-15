@@ -3685,6 +3685,9 @@ export default function ShippingManifestPage() {
     .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:3mm; }
     .mp-header-left { flex:1; }
     .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
+    .mp-stark-brand { display:flex; align-items:baseline; gap:2mm; margin-bottom:1.5mm; }
+    .mp-stark-name { font-size:15pt; font-weight:900; letter-spacing:3px; color:#0f172a; background:linear-gradient(90deg,#0f172a,#1e3a5f); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .mp-stark-tagline { font-size:6.5pt; font-weight:700; letter-spacing:2px; color:#c9a24b; border-left:2px solid #c9a24b; padding-left:2mm; }
     .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
     .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
     .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
@@ -3886,6 +3889,10 @@ export default function ShippingManifestPage() {
       {/* ─── Header ─── */}
       <div className="mp-header">
         <div className="mp-header-left">
+          <div className="mp-stark-brand">
+            <span className="mp-stark-name">STARK</span>
+            <span className="mp-stark-tagline">SHIPPING &amp; LOGISTICS</span>
+          </div>
           <div className="mp-title">بيان الشحن — {manifest.manifestNumber}</div>
           <div className="mp-meta">
             تاريخ الإنشاء: {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
@@ -4806,6 +4813,9 @@ export default function ShippingManifestPage() {
     .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:3mm; }
     .mp-header-left { flex:1; }
     .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
+    .mp-stark-brand { display:flex; align-items:baseline; gap:2mm; margin-bottom:1.5mm; }
+    .mp-stark-name { font-size:15pt; font-weight:900; letter-spacing:3px; color:#0f172a; background:linear-gradient(90deg,#0f172a,#1e3a5f); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .mp-stark-tagline { font-size:6.5pt; font-weight:700; letter-spacing:2px; color:#c9a24b; border-left:2px solid #c9a24b; padding-left:2mm; }
     .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
     .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
     .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
