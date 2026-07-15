@@ -3969,7 +3969,10 @@ export default function ShippingManifestPage() {
       const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : (o.quantity > 0 ? Number(o.totalPrice) / Number(o.quantity) : 0);
       return s + unitPrice * Number(o.partialQuantity);
     }
-    return s + Number(o.totalPrice ?? 0);
+    // مسلَّم بالكامل: السعر الكامل + الزيادة فقط لو المندوب استلم أكتر من الإجمالي
+    const totalValPrint = Number(o.totalPrice ?? 0);
+    const deliveredExtraPrint = Number((o as any).deliveredValueReceived ?? 0) - totalValPrint;
+    return s + totalValPrint + (deliveredExtraPrint > 0 ? deliveredExtraPrint : 0);
   }, 0) + ordersForPnlPrint
     .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
     .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
@@ -4681,7 +4684,11 @@ export default function ShippingManifestPage() {
           if (o.deliveryStatus === "partial_received" && (o as any).partialQuantity != null) {
             return s + Number((o as any).unitPrice) * Number((o as any).partialQuantity);
           }
-          return s + (o.totalPrice ?? 0);
+          // مسلَّم بالكامل: السعر الكامل + الزيادة فقط لو المندوب استلم أكتر من الإجمالي
+          // (نفس منطق الباك اند — النقص لا يُخصم، الإجمالي العادي يفضل ثابت دايمًا)
+          const totalVal = Number(o.totalPrice ?? 0);
+          const deliveredExtra = Number((o as any).deliveredValueReceived ?? 0) - totalVal;
+          return s + totalVal + (deliveredExtra > 0 ? deliveredExtra : 0);
         }, 0) + ordersForPnl
           .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason))
           .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
