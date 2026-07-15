@@ -3791,8 +3791,8 @@ export default function ShippingManifestPage() {
     (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
   );
 
-  // ─── كل العدادات (مرتجع / جزئي / مؤجل / الإجمالي) بتتحسب من نفس القائمة المستبعد منها المُستلم ───
-  const allGroupedOrders = groupManifestOrders(ordersExcludingPendingShipping);
+  // ─── عدادات الحالة (مرتجع/مؤجل/جزئي) من كل أوردرات البيان بدون استبعاد ───
+  const allGroupedOrders = groupManifestOrders(manifest.orders ?? []);
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
