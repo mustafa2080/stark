@@ -3851,32 +3851,32 @@ export default function ShippingManifestPage() {
     }
   };
 
-  const deliveredGross = ordersExcludingPendingShipping
-    .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-
-  const partialGross = ordersExcludingPendingShipping
-    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
-    .reduce((sum, o) => {
-      if (o.partialQuantity == null) return sum;
-      // partial_delivered (بيان شحن): القيمة الفعلية متسجّلة مباشرة في partialQuantity
-      if (o.deliveryStatus === "partial_delivered") {
-        return sum + Number(o.partialQuantity);
-      }
-      // partial_received: احسب من سعر الوحدة × الكمية المستلمة
-      if (o.quantity <= 0) return sum;
-      const unitPrice = (o as any).unitPrice != null
-        ? Number((o as any).unitPrice)
-        : Number(o.totalPrice) / Number(o.quantity);
-      return sum + Math.round(unitPrice * Number(o.partialQuantity));
-    }, 0);
-
-  const totalCollected = deliveredGross + partialGross;
-  // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
-  const collectedOrdersForShipping = ordersExcludingPendingShipping.filter(o =>
-    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
+  // ─── حسابات الطباعة: نفس منطق كارت الشاشة (deliveredCOD / shippingCost / totalDueToCourier) بالضبط ───
+  const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
+  const printDeliveredOrders = ordersExcludingPendingShipping.filter(o =>
+    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received"
   );
-  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+  // إجمالي الإيرادات = القيمة المستلمة فعليًا (مسلَّم كامل + جزء مُسلَّم/مُستلم + مرتجع بأسباب مالية معتبرة)
+  const totalCollected = printDeliveredOrders.reduce((s, o) => {
+    if (o.deliveryStatus === "partial_delivered" && o.partialQuantity != null) {
+      return s + Number(o.partialQuantity);
+    }
+    if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
+      const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : (o.quantity > 0 ? Number(o.totalPrice) / Number(o.quantity) : 0);
+      return s + unitPrice * Number(o.partialQuantity);
+    }
+    return s + Number(o.totalPrice ?? 0);
+  }, 0) + ordersExcludingPendingShipping
+    .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
+    .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
+  // رسوم الشحن = تكلفة الشحن الثابتة على شركة الشحن × عدد الطلبات الداخلة في الحساب (مسلَّم/جزئي/مرتجع بسبب مالي)
+  const courierCostPerShipmentPrint = Number((manifest as any)?.company?.shippingCost ?? 0);
+  const shippingCostOrdersPrint = ordersExcludingPendingShipping.filter(o =>
+    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received" ||
+    (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
+  );
+  const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length;
+
 
   return (
     <>
