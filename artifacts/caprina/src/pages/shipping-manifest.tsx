@@ -3868,8 +3868,11 @@ export default function ShippingManifestPage() {
   };
 
   // ─── حسابات الطباعة: نفس منطق كارت الشاشة (deliveredCOD / shippingCost / totalDueToCourier) بالضبط ───
+  // مهم: بنستبعد بس اللي لسه عند الشحن (isStillAtShipping)، ومش بنستبعد المرتجع
+  // اللي اتضغط عليه "تم الاستلام" — عشان يفضل داخل في حسابات الطباعة زي الشاشة بالظبط.
+  const ordersForPnlPrint = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o));
   const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
-  const printDeliveredOrders = ordersExcludingPendingShipping.filter(o =>
+  const printDeliveredOrders = ordersForPnlPrint.filter(o =>
     o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received"
   );
   // إجمالي الإيرادات = القيمة المستلمة فعليًا (مسلَّم كامل + جزء مُسلَّم/مُستلم + مرتجع بأسباب مالية معتبرة)
@@ -3882,12 +3885,12 @@ export default function ShippingManifestPage() {
       return s + unitPrice * Number(o.partialQuantity);
     }
     return s + Number(o.totalPrice ?? 0);
-  }, 0) + ordersExcludingPendingShipping
+  }, 0) + ordersForPnlPrint
     .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
     .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
   // رسوم الشحن = تكلفة الشحن الثابتة على شركة الشحن × عدد الطلبات الداخلة في الحساب (مسلَّم/جزئي/مرتجع بسبب مالي)
   const courierCostPerShipmentPrint = Number((manifest as any)?.company?.shippingCost ?? 0);
-  const shippingCostOrdersPrint = ordersExcludingPendingShipping.filter(o =>
+  const shippingCostOrdersPrint = ordersForPnlPrint.filter(o =>
     o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received" ||
     (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
   );
@@ -4566,7 +4569,11 @@ export default function ShippingManifestPage() {
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
         // نستخدم نفس helper isStillAtShipping المعرّف فوق
-        const ordersForPnl = ordersExcludingPendingShipping;
+        // مهم: بنستبعد بس اللي لسه عند الشحن (isStillAtShipping)، ومش بنستبعد
+        // المرتجع اللي اتضغط عليه "تم الاستلام" (isReturnConfirmed) — لأن ضغط
+        // "تم الاستلام" لازم يفضل الأوردر في الحسابات المالية زي ما كان بالظبط
+        // (لو من أسباب الـ PNL الثلاثة) وميأثرش على إجمالي الإيرادات ولا تكلفة الشحن.
+        const ordersForPnl = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o));
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
