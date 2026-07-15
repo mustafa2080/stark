@@ -2201,6 +2201,7 @@ function CloseConfirmDialog({
   loading: boolean;
 }) {
   const s = manifest.stats;
+  const [netDueOpen, setNetDueOpen] = useState(false);
 
   // احسب الإحصائيات على مستوى الفواتير (مش الطلبات الفردية)
   const invoiceStatusMap = useMemo(() => {
