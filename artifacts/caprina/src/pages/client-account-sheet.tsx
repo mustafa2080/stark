@@ -2394,7 +2394,6 @@ function ExportDialog({
   onClose: () => void;
 }) {
   const s = manifest.stats;
-  const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   const { brand } = useBrand();
   const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
@@ -2442,6 +2441,12 @@ function ExportDialog({
       return sum + Math.round(unitPrice * Number(o.partialQuantity));
     }, 0);
   const totalCollected = deliveredGross + partialGross;
+  // رسوم الشحن الفعلية: بتُحسب بس على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي مستلم)
+  const collectedOrdersForShipping = safeOrders.filter(o =>
+    o.deliveryStatus === "delivered" ||
+    (o.deliveryStatus === "partial_received" && (o as any).returnReceived === 1)
+  );
+  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   const netDue = totalCollected - effectiveShipping;
 
   // ── Excel Export — styled workbook with RTL layout ────────────────────────
@@ -3733,6 +3738,9 @@ export default function ShippingManifestPage() {
     .mp-header-left { flex:1; }
     .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
     .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
+    .mp-stark-brand { display:flex; align-items:baseline; gap:2mm; margin-bottom:1.5mm; }
+    .mp-stark-name { font-size:15pt; font-weight:900; letter-spacing:3px; color:#0f172a; background:linear-gradient(90deg,#0f172a,#1e3a5f); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .mp-stark-tagline { font-size:6.5pt; font-weight:700; letter-spacing:2px; color:#c9a24b; border-left:2px solid #c9a24b; padding-left:2mm; }
     .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
     .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
     .mp-badge-open   { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
@@ -3899,6 +3907,13 @@ export default function ShippingManifestPage() {
 
   const totalCollected = deliveredGross + partialGross;
 
+  // رسوم الشحن الفعلية: بتُحسب بس على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي مستلم)
+  const collectedOrdersForShipping = ordersExcludingPendingShipping.filter(o =>
+    o.deliveryStatus === "delivered" ||
+    (o.deliveryStatus === "partial_received" && (o as any).returnReceived === 1)
+  );
+  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+
   return (
     <>
     {/* ══════════════ PRINT-ONLY ══════════════ */}
@@ -3907,6 +3922,10 @@ export default function ShippingManifestPage() {
       {/* ─── Header ─── */}
       <div className="mp-header">
         <div className="mp-header-left">
+          <div className="mp-stark-brand">
+            <span className="mp-stark-name">STARK</span>
+            <span className="mp-stark-tagline">SHIPPING &amp; LOGISTICS</span>
+          </div>
           <div className="mp-title">بيان الشحن — {manifest.manifestNumber}</div>
           <div className="mp-meta">
             تاريخ الإنشاء: {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
@@ -4820,6 +4839,9 @@ export default function ShippingManifestPage() {
     .mp-header-left { flex:1; }
     .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
     .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
+    .mp-stark-brand { display:flex; align-items:baseline; gap:2mm; margin-bottom:1.5mm; }
+    .mp-stark-name { font-size:15pt; font-weight:900; letter-spacing:3px; color:#0f172a; background:linear-gradient(90deg,#0f172a,#1e3a5f); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .mp-stark-tagline { font-size:6.5pt; font-weight:700; letter-spacing:2px; color:#c9a24b; border-left:2px solid #c9a24b; padding-left:2mm; }
     .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
     .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
     .mp-badge-open { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
