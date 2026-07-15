@@ -3868,9 +3868,9 @@ export default function ShippingManifestPage() {
   };
 
   // ─── حسابات الطباعة: نفس منطق كارت الشاشة (deliveredCOD / shippingCost / totalDueToCourier) بالضبط ───
-  // مهم: بنستبعد بس اللي لسه عند الشحن (isStillAtShipping)، ومش بنستبعد المرتجع
-  // اللي اتضغط عليه "تم الاستلام" — عشان يفضل داخل في حسابات الطباعة زي الشاشة بالظبط.
-  const ordersForPnlPrint = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o));
+  // بنستبعد (1) اللي لسه عند الشحن (isStillAtShipping) و (2) اللي اترجع فعليًا
+  // للمخزن "تم الاستلام" (isReturnConfirmed) — يتشال بالكامل من الحسابات المالية.
+  const ordersForPnlPrint = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o) && !isReturnConfirmed(o));
   const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
   const printDeliveredOrders = ordersForPnlPrint.filter(o =>
     o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received"
@@ -4573,12 +4573,11 @@ export default function ShippingManifestPage() {
 
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
-        // نستخدم نفس helper isStillAtShipping المعرّف فوق
-        // مهم: بنستبعد بس اللي لسه عند الشحن (isStillAtShipping)، ومش بنستبعد
-        // المرتجع اللي اتضغط عليه "تم الاستلام" (isReturnConfirmed) — لأن ضغط
-        // "تم الاستلام" لازم يفضل الأوردر في الحسابات المالية زي ما كان بالظبط
-        // (لو من أسباب الـ PNL الثلاثة) وميأثرش على إجمالي الإيرادات ولا تكلفة الشحن.
-        const ordersForPnl = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o));
+        // نستبعد (1) اللي لسه عند الشحن (isStillAtShipping) و (2) اللي اترجع
+        // فعليًا للمخزن "تم الاستلام" (isReturnConfirmed) — لأن أي مرتجع بمجرد
+        // ما يترجع المخزن يتشال بالكامل من كل الحسابات المالية (الإيرادات،
+        // تكلفة الشحن، الرصيد المستحق، صافي الربح) ويترتبط بالمخزون بس.
+        const ordersForPnl = (manifest.orders ?? []).filter((o) => !isStillAtShipping(o) && !isReturnConfirmed(o));
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
@@ -4586,7 +4585,7 @@ export default function ShippingManifestPage() {
         // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع مع دفع رسوم الشحن فقط)
         // pending/delayed لا تُحسب أبدًا (صفر) حتى تتغيّر حالتها فعليًا
         const courierShippingCostForCalc = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
-        // أسباب المرتجع اللي بتدخل في الحسابات المالية (شحن فعليًا اتنفذ رغم الرفض/الهروب)
+        // أسباب المرتجع اللي بتدخل في الحسابات المالية (شحن فعليًا اتنفذ رغم الرفض/الهروب) — ما دام لسه عند الشحن
         const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"] as const;
         // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
         // مسلَّم بالكامل = السعر الكامل، مسلَّم جزئي = القيمة المستلمة من العميل المُدخلة مباشرة
