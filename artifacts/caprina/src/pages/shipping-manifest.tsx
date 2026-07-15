@@ -3811,16 +3811,14 @@ export default function ShippingManifestPage() {
   const isPartialStatus = (st: string) => st === "partial_received" || st === "partial_delivered";
   const isPostponedStatus = (st: string) => st === "postponed" || st === "delayed";
 
-  // عدادات الحالات: من كل الطلبيات (شاملة البضاعة عند الشحن)
+  // عدادات كل الحالات لازم تتحسب من نفس المصدر (allGroupedOrders) عشان مجموع الحالات = الإجمالي دايمًا
   const groupedPostponedCount = allGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
   const groupedPartialCount   = allGroupedOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
   const groupedReturnedCount  = allGroupedOrders.filter((group) => groupManifestStatus(group) === "returned").length;
-
-  // عدادات الإجمالي والتسليم والمعلق: من الطلبيات المفلترة (بدون البضاعة عند الشحن)
-  const groupedPendingCount   = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
-  const groupedDeliveredCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
-  const groupedTotalCount     = groupedManifestOrders.length;
-  const groupedCompletedCount = groupedDeliveredCount + groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  const groupedPendingCount   = allGroupedOrders.filter((group) => groupManifestStatus(group) === "pending").length;
+  const groupedDeliveredCount = allGroupedOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
+  const groupedTotalCount     = allGroupedOrders.length;
+  const groupedCompletedCount = groupedDeliveredCount + groupedPartialCount;
   const groupedDeliveryRate   = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
   const screenDeliveryRate    = groupedTotalCount > 0 ? Math.round((groupedDeliveredCount / groupedTotalCount) * 100) : 0;
   const groupedPendingOrders  = groupedPendingCount;
