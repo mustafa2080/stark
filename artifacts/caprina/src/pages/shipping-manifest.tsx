@@ -3844,8 +3844,6 @@ export default function ShippingManifestPage() {
   const partialGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "partial_received")
     .reduce((sum, o) => {
-      const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
-      if (returnReceived == null) return sum;
       if (o.partialQuantity == null || o.quantity <= 0) return sum;
       const unitPrice = (o as any).unitPrice != null
         ? Number((o as any).unitPrice)
@@ -3854,9 +3852,11 @@ export default function ShippingManifestPage() {
     }, 0);
 
   const totalCollected = deliveredGross + partialGross;
-  const effectiveShipping = (manifest as any)?.company?.shippingCost != null
-    ? Number((manifest as any).company.shippingCost)
-    : 0;
+  // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
+  const collectedOrdersForShipping = ordersExcludingPendingShipping.filter(o =>
+    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received"
+  );
+  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
 
   return (
     <>
@@ -3890,9 +3890,9 @@ export default function ShippingManifestPage() {
 
       {/* ─── Stats strip ─── */}
       <div className="mp-stats">
-        <div className="mp-stat"><div className="mp-stat-lbl">إجمالي الطلبيات</div><div className="mp-stat-val">{s.total}</div></div>
-        <div className="mp-stat mp-stat-delivered"><div className="mp-stat-lbl">مسلَّم</div><div className="mp-stat-val">{s.delivered}</div></div>
-        <div className="mp-stat mp-stat-returned"><div className="mp-stat-lbl">مرتجع</div><div className="mp-stat-val">{s.returned}</div></div>
+        <div className="mp-stat"><div className="mp-stat-lbl">إجمالي الطلبيات</div><div className="mp-stat-val">{groupedTotalCount}</div></div>
+        <div className="mp-stat mp-stat-delivered"><div className="mp-stat-lbl">مسلَّم</div><div className="mp-stat-val">{groupedDeliveredCount}</div></div>
+        <div className="mp-stat mp-stat-returned"><div className="mp-stat-lbl">مرتجع</div><div className="mp-stat-val">{groupedReturnedCount}</div></div>
         <div className="mp-stat mp-stat-postponed"><div className="mp-stat-lbl">مؤجل</div><div className="mp-stat-val">{groupedPostponedCount}</div></div>
         <div className="mp-stat mp-stat-partial"><div className="mp-stat-lbl">جزئي</div><div className="mp-stat-val">{groupedPartialCount}</div></div>
         <div className="mp-stat"><div className="mp-stat-lbl">نسبة التسليم</div><div className="mp-stat-val">{screenDeliveryRate}%</div></div>
@@ -3916,7 +3916,7 @@ export default function ShippingManifestPage() {
           </tr>
         </thead>
         <tbody>
-          {displayGroups.map((group, idx) => {
+          {groupedManifestOrders.map((group, idx) => {
             const rep = group[0];
             const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
             const isSingleStatus = statuses.length === 1;
