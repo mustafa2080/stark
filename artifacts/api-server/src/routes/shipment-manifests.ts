@@ -347,9 +347,13 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         deliveryStatus: body.deliveryStatus,
         deliveryNote:   body.deliveryNote ?? null,
         partialQuantity: body.partialQuantity ?? null,
-        returnReason:   body.returnReason ?? null,
+        // returnReason و returnValueReceived: لو الطلب مابعتهمش (undefined) — زي زرار
+        // "تم الاستلام" السريع اللي بيبعت returnReceived بس — نسيب القيمة القديمة زي
+        // ما هي (undefined في drizzle .set = تجاهل العمود)، عشان الحسابات المالية
+        // اللي اتسجلت وقت تسجيل المرتجع تفضل زي ما هي ومتتصفرش بمجرد "تم الاستلام".
+        ...(body.returnReason !== undefined ? { returnReason: body.returnReason ?? null } : {}),
         returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
-        returnValueReceived: body.deliveryStatus === "returned" ? (body.returnValueReceived ?? null) : null,
+        ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived ?? null } : {}),
         deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
       })
       .where(and(
@@ -386,7 +390,10 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     } else {
       shipmentPatch.returnReceived = null;
     }
-    if (body.deliveryStatus === "returned") shipmentPatch.returnReason = body.returnReason ?? null;
+    // returnReason: لو الطلب مابعتهش (زرار "تم الاستلام" السريع) نسيبها زي ما هي
+    if (body.deliveryStatus === "returned" && body.returnReason !== undefined) {
+      shipmentPatch.returnReason = body.returnReason ?? null;
+    }
 
     if (inventoryStatus) {
       const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, shipmentId)).limit(1);
