@@ -156,11 +156,19 @@ function OrderDeliveryRow({
   const [returnReason, setReturnReason] = useState<string>(
     (order as any).returnReason ?? ""
   );
+  const [returnValueReceived, setReturnValueReceived] = useState<string>(
+    (order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""
+  );
+  const [deliveredValueReceived, setDeliveredValueReceived] = useState<string>(
+    (order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""
+  );
   const [partialReturnReceived, setPartialReturnReceived] = useState<boolean | null>(
     order.deliveryStatus === "partial_received"
       ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
       : null
   );
+  const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "quality"];
+  const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE.includes(returnReason);
 
   // مزامنة الـ state مع الـ prop بعد كل refetch
   useEffect(() => {
@@ -172,6 +180,8 @@ function OrderDeliveryRow({
         (order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null
       );
       setReturnReason((order as any).returnReason ?? "");
+      setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
+      setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
       setPartialReturnReceived(
         order.deliveryStatus === "partial_received"
           ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
@@ -207,8 +217,13 @@ function OrderDeliveryRow({
       if ((status === "partial_received" || status === "partial_delivered") && partialProduct.trim()) {
         finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
       }
+      if (status === "returned" && needsReturnValue) {
+        if (returnValueReceived.trim() === "" || isNaN(Number(returnValueReceived))) {
+          throw new Error("يجب إدخال القيمة المستلمة فعليًا قبل الحفظ");
+        }
+      }
       if (isShipmentManifest) {
-        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
+        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason, returnValueReceived, deliveredValueReceived
         const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
         const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
         return clientAccountManifestsApi.updateItem(manifestId, order.id, {
@@ -220,6 +235,11 @@ function OrderDeliveryRow({
               : null,
           returnReceived: status === "returned" ? returnReceived : null,
           returnReason: status === "returned" ? (returnReason || null) : null,
+          returnValueReceived: status === "returned" && needsReturnValue ? Number(returnValueReceived) : null,
+          deliveredValueReceived:
+            status === "delivered" && deliveredValueReceived.trim() !== "" && !isNaN(Number(deliveredValueReceived))
+              ? Number(deliveredValueReceived)
+              : null,
         });
       }
       return manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -581,6 +601,40 @@ function OrderDeliveryRow({
               </>
             )}
           </div>
+          {/* القيمة المستلمة فعليًا عند التسليم — مقارنة تلقائية بإجمالي الطلب */}
+          {status === "delivered" && (() => {
+            const totalVal = Number((order as any).totalPrice ?? 0);
+            const receivedVal = deliveredValueReceived.trim() === "" || isNaN(Number(deliveredValueReceived))
+              ? null
+              : Number(deliveredValueReceived);
+            const diff = receivedVal != null ? receivedVal - totalVal : null;
+            return (
+              <div className="space-y-1.5">
+                <div>
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">
+                    القيمة المستلمة فعليًا (من إجمالي الشحنة {formatCurrency(totalVal)})
+                  </Label>
+                  <Input
+                    type="number"
+                    value={deliveredValueReceived}
+                    onChange={(e) => setDeliveredValueReceived(e.target.value)}
+                    className="h-8 text-xs w-40 bg-background"
+                    placeholder={String(totalVal)}
+                  />
+                </div>
+                {diff != null && diff > 0 && (
+                  <p className="text-[10px] font-semibold text-emerald-500">
+                    ⬆ المندوب استلم زيادة قدرها {formatCurrency(diff)}
+                  </p>
+                )}
+                {diff != null && diff < 0 && (
+                  <p className="text-[10px] font-semibold text-destructive">
+                    ⬇ المندوب استلم ناقص قدرها {formatCurrency(Math.abs(diff))}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {/* هل الباقي من الاستلام الجزئي عند الشحن؟ */}
           {status === "partial_received" && (
             <div className="space-y-1.5">
@@ -657,8 +711,23 @@ function OrderDeliveryRow({
                   </SelectContent>
                 </Select>
               </div>
+              {needsReturnValue && (
+                <div>
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">القيمة المستلمة فعليًا *</Label>
+                  <Input
+                    type="number"
+                    value={returnValueReceived}
+                    onChange={(e) => setReturnValueReceived(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background border-red-800/60 focus-visible:ring-red-700"
+                    placeholder="0"
+                  />
+                </div>
+              )}
               {returnReceived === null && (
                 <p className="text-[10px] text-destructive w-full">⚠ يجب اختيار حالة الاستلام قبل الحفظ</p>
+              )}
+              {needsReturnValue && (returnValueReceived.trim() === "" || isNaN(Number(returnValueReceived))) && (
+                <p className="text-[10px] text-destructive w-full">⚠ يجب إدخال القيمة المستلمة فعليًا قبل الحفظ</p>
               )}
             </div>
           )}
@@ -703,6 +772,7 @@ function OrderDeliveryRow({
                 (needsPartial && (partialQty === "")) ||
                 (needsPartial && parseInt(partialQty) > order.quantity) ||
                 (status === "returned" && returnReceived === null) ||
+                (needsReturnValue && (returnValueReceived.trim() === "" || isNaN(Number(returnValueReceived)))) ||
                 (status === "partial_received" && partialReturnReceived === null)
               }
             >
@@ -2583,7 +2653,11 @@ function ExportDialog({
 
   const deliveredGross = safeOrders
     .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+    .reduce((sum, o) => {
+      const dvr = (o as any).deliveredValueReceived;
+      const actual = dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
+      return sum + actual;
+    }, 0);
   const partialGross = safeOrders
     .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
@@ -4075,7 +4149,11 @@ export default function ShippingManifestPage() {
 
   const deliveredGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+    .reduce((sum, o) => {
+      const dvr = (o as any).deliveredValueReceived;
+      const actual = dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
+      return sum + actual;
+    }, 0);
 
   const partialGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
@@ -4175,8 +4253,12 @@ export default function ShippingManifestPage() {
             // القيمة المستلمة فعليًا (0 لو لسه قيد الانتظار/مؤجل/مرتجع بالكامل ولم يُستلم)
             const isDeliveredLike = singleStatus === "delivered";
             const isPartialLike = singleStatus === "partial_received" || singleStatus === "partial_delivered";
+            const deliveredActual = group.reduce((sum, o) => {
+              const dvr = (o as any).deliveredValueReceived;
+              return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+            }, 0);
             const receivedValue = isDeliveredLike
-              ? net
+              ? deliveredActual - fee
               : isPartialLike
                 ? group.reduce((sum, o) => {
                     const rr = (o as any).returnReceived;

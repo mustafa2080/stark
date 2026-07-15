@@ -247,8 +247,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       const cost     = Number(shipment.costPrice ?? 0);
 
       if (item.deliveryStatus === "delivered") {
-        totalRevenue += cod;
-        deliveredGross += cod;
+        // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا الإجمالي العادي (cod)
+        const dvr = (item as any).deliveredValueReceived;
+        const actualCod = dvr != null ? Number(dvr) : cod;
+        totalRevenue += actualCod;
+        deliveredGross += actualCod;
         totalCost += cost;
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
@@ -266,7 +269,14 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
           totalCost += unitCost * Number(item.partialQuantity);
         }
       } else if (item.deliveryStatus === "returned") {
-        if ((item as any).returnReceived === 1) {
+        // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش
+        const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
+        if (returnReasonHasValue) {
+          const manualVal = Number((item as any).returnValueReceived ?? 0);
+          deliveredGross += manualVal;
+          totalRevenue += manualVal;
+          totalShippingCost += shipping;
+        } else if ((item as any).returnReceived === 1) {
           totalShippingCost += shipping;
         }
       }
@@ -362,6 +372,8 @@ const UpdateItemSchema = z.object({
   partialQuantity: z.number().int().nullish(),
   returnReceived: z.boolean().nullish(),
   returnReason:   z.string().nullish(),
+  returnValueReceived: z.coerce.number().nullish(),
+  deliveredValueReceived: z.coerce.number().nullish(),
 });
 
 router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res): Promise<void> => {
@@ -381,8 +393,14 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
         deliveryStatus:  body.deliveryStatus,
         deliveryNote:    body.deliveryNote ?? null,
         partialQuantity: body.partialQuantity ?? null,
-        returnReason:    body.returnReason ?? null,
+        // returnReason و returnValueReceived: لو الطلب مابعتهمش (undefined) — زي زرار
+        // "تم الاستلام" السريع اللي بيبعت returnReceived بس — نسيب القيمة القديمة زي
+        // ما هي (undefined في drizzle .set = تجاهل العمود)، عشان الحسابات المالية
+        // اللي اتسجلت وقت تسجيل المرتجع تفضل زي ما هي ومتتصفرش بمجرد "تم الاستلام".
+        ...(body.returnReason !== undefined ? { returnReason: body.returnReason ?? null } : {}),
         returnReceived:  body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
+        ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived ?? null } : {}),
+        ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived ?? null } : {}),
         deliveredAt:     (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
       })
       .where(and(

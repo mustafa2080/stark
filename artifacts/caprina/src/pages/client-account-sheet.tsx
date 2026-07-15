@@ -2428,7 +2428,10 @@ function ExportDialog({
 
   const deliveredGross = safeOrders
     .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+    .reduce((sum, o) => {
+      const dvr = (o as any).deliveredValueReceived;
+      return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+    }, 0);
   const partialGross = safeOrders
     .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
@@ -3920,7 +3923,10 @@ export default function ShippingManifestPage() {
 
   const deliveredGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+    .reduce((sum, o) => {
+      const dvr = (o as any).deliveredValueReceived;
+      return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+    }, 0);
 
   const partialGross = ordersExcludingPendingShipping
     .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
@@ -4010,10 +4016,16 @@ export default function ShippingManifestPage() {
             const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
             const isSingleStatus = statuses.length === 1;
             const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
+            const singleStatusVal = isSingleStatus ? statuses[0] : "pending";
             const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
             const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-            const net = cod - fee;
+            // للمسلَّم: نستخدم القيمة المستلمة فعليًا (زيادة/نقص) لو المندوب دخلها، وإلا الإجمالي العادي
+            const deliveredActual = group.reduce((sum, o) => {
+              const dvr = (o as any).deliveredValueReceived;
+              return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+            }, 0);
+            const net = (singleStatusVal === "delivered" ? deliveredActual : cod) - fee;
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
@@ -4655,7 +4667,10 @@ export default function ShippingManifestPage() {
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         const totalCOD        = ordersForPnl.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        const deliveredCOD    = deliveredOrders.reduce((s, o) => {
+          const dvr = (o as any).deliveredValueReceived;
+          return s + (dvr != null ? Number(dvr) : (o.totalPrice ?? 0));
+        }, 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const shippingCost    = ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0);
         const netAmount       = deliveredCOD - shippingCost;

@@ -28,6 +28,8 @@ export const clientAccountManifestItemsTable = mysqlTable("client_account_manife
   deliveredAt:    datetime("delivered_at"),
   returnReceived: int("return_received"),
   returnReason:   varchar("return_reason", { length: 100 }),
+  returnValueReceived: decimal("return_value_received", { precision: 10, scale: 2 }), // القيمة الفعلية المستلمة من العميل عند المرتجع (يدخلها المندوب)
+  deliveredValueReceived: decimal("delivered_value_received", { precision: 10, scale: 2 }), // القيمة الفعلية المستلمة من العميل عند التسليم العادي (يدخلها المندوب — لمقارنتها بإجمالي الطلب وكشف أي فرق زيادة/نقص)
   addedAt:        datetime("added_at").notNull(),
   isUrgent:       int("is_urgent").default(0),
   urgentNote:     varchar("urgent_note", { length: 255 }),
