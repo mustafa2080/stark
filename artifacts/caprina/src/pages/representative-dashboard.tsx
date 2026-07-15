@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Redirect } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import { formatDistanceToNow } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "انتظار", confirmed: "مؤكدة", picked_up: "تم الاستلام",
@@ -892,28 +893,102 @@ function ManifestsTab({ companyId }: { companyId: number | null }) {
 
   return (
     <div className="space-y-2">
-      {manifests.map((m: any) => (
-        <Card key={m.id} className="p-3 bg-card/60 border-border cursor-pointer hover:bg-card/90 transition-colors"
-          onClick={() => setSelectedId(m.id)}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black font-mono">{m.manifestNumber}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {m.createdAt ? format(new Date(m.createdAt), "dd/MM/yyyy", { locale: ar }) : ""} · {m.shipmentCount ?? 0} شحنة
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={m.status === "closed" ? "border-red-500/30 text-red-400 bg-red-500/10 text-[9px]" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-[9px]"}>
-                {m.status === "closed" ? "مغلق" : "مفتوح"}
-              </Badge>
-              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
-            </div>
-          </div>
-        </Card>
+      {manifests.map((m: any, idx: number) => (
+        <RepManifestCard key={m.id} m={m} isLatest={idx === 0} onOpen={() => setSelectedId(m.id)} />
       ))}
       {manifests.length === 0 && (
         <p className="text-xs text-muted-foreground text-center py-8">لا توجد بيانات شحن حالياً</p>
       )}
+    </div>
+  );
+}
+
+// ─── كارت البيان — نفس تصميم صفحة الأدمن (shipping-company-detail.tsx) ───────
+function RepManifestCard({ m, isLatest, onOpen }: { m: any; isLatest: boolean; onOpen: () => void }) {
+  const sc = m.statusCounts ?? { delivered: 0, returned: 0, pending: 0, delayed: 0, partial: 0 };
+  const total = m.shipmentCount ?? 0;
+  const delivered = (sc.delivered ?? 0) + (sc.partial ?? 0);
+  const returned = sc.returned ?? 0;
+  const pending = (sc.pending ?? 0) + (sc.delayed ?? 0);
+  const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+
+  return (
+    <div
+      onClick={onOpen}
+      className={`group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border ${
+        m.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"
+      }`}
+    >
+      <div className={`w-1 rounded-r-lg shrink-0 ${m.status === "closed" ? "bg-emerald-500" : "bg-blue-500"}`} />
+      <div className="flex-1 px-4 py-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-black text-sm">{m.manifestNumber}</span>
+              {isLatest && m.status === "open" && (
+                <Badge variant="outline" className="text-[9px] border-primary/50 bg-primary/10 text-primary">الأحدث</Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-2.5 h-2.5" />{format(new Date(m.createdAt), "yyyy/MM/dd")}
+              </span>
+              {m.closedAt ? (
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <Lock className="w-2.5 h-2.5" />أُغلق {format(new Date(m.closedAt), "yyyy/MM/dd")}
+                </span>
+              ) : (
+                <span className="text-blue-500">
+                  منذ {formatDistanceToNow(new Date(m.createdAt), { locale: ar, addSuffix: false })}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="outline" className={`text-[9px] font-bold border ${
+              m.status === "closed"
+                ? "border-emerald-700 bg-emerald-900/20 text-emerald-400"
+                : "border-blue-700 bg-blue-900/20 text-blue-400"
+            }`}>
+              {m.status === "closed"
+                ? <><Lock className="w-2.5 h-2.5 inline ml-0.5" />مغلق</>
+                : <><Clock className="w-2.5 h-2.5 inline ml-0.5" />مفتوح</>}
+            </Badge>
+            <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mt-2 text-[11px] flex-wrap">
+          <span className="flex items-center gap-1">
+            <Package className="w-3 h-3 text-muted-foreground" />
+            <span className="font-bold">{total}</span><span className="text-muted-foreground">شحنة</span>
+          </span>
+          <span className="flex items-center gap-1 text-emerald-400">
+            <CheckCircle2 className="w-3 h-3" /><span className="font-bold">{delivered}</span> مسلَّم
+          </span>
+          <span className="flex items-center gap-1 text-red-400">
+            <RotateCcw className="w-3 h-3" /><span className="font-bold">{returned}</span> مرتجع
+          </span>
+          {pending > 0 && (
+            <span className="flex items-center gap-1 text-amber-400">
+              <Clock className="w-3 h-3" /><span className="font-bold">{pending}</span> معلَّق
+            </span>
+          )}
+          {m.invoicePrice != null && (
+            <span className="flex items-center gap-1 text-primary font-bold mr-auto">
+              {formatCurrency(Number(m.invoicePrice))}
+            </span>
+          )}
+        </div>
+
+        {total > 0 && (
+          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden flex mt-2">
+            <div className="h-1.5 bg-emerald-500" style={{ width: `${deliveryRate}%` }} />
+            <div className="h-1.5 bg-red-500" style={{ width: `${total > 0 ? (returned / total) * 100 : 0}%` }} />
+            <div className="h-1.5 bg-amber-500" style={{ width: `${total > 0 ? (pending / total) * 100 : 0}%` }} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
