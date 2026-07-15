@@ -3271,7 +3271,7 @@ function ReturnReceivedButton({
             <AlertDialogHeader>
               <AlertDialogTitle>تأكيد استلام البضاعة</AlertDialogTitle>
               <AlertDialogDescription>
-                هل أنت متأكد من استلام بضاعة طلبية <strong>{order.customerName}</strong> ({order.product}) من شركة الشحن؟
+                هل أنت متأكد من استلام بضاعة طلبية <strong>{order.customerName}</strong> ({order.product}) من مندوب الشحن؟
                 <br />سيتم إضافتها للمخزن فورًا.
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -3440,23 +3440,9 @@ export default function ShippingManifestPage() {
   // ─── Search filter — real-time, no popover ────────────────────────────────
   const filteredManifestOrders = useMemo(() => {
     const orders = manifest?.orders ?? [];
-    // ─── استبعاد المرتجع/الجزئي اللي لسه عند شركة الشحن من جدول الطلبيات ───────
-    // دول بيظهروا فقط في حاوية "بضاعة لسه عند شركة الشحن" تحت، مش في الجدول
-    // الشحنات المسلَّمة (delivered) تظل ظاهرة في الجدول بحالة "مسلَّم"
-    const ordersWithoutPendingReturns = orders.filter(o => {
-      const rr = (o as any).returnReceived;
-      const isConfirmed = rr === 1 || rr === true;
-      const dStatus = o.deliveryStatus;
-      const shipmentStatus = (o as any).status;
-      const isReturnedOrPartial =
-        dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered" ||
-        shipmentStatus === "returned" || shipmentStatus === "partial_received";
-      // اللي تم استلامه → يختفي من الجدول
-      const isConfirmedReturn = isReturnedOrPartial && isConfirmed;
-      // لا نخفي الأوردرات المسلَّمة — تظهر في الجدول بحالة "مسلَّم"
-      return !isConfirmedReturn;
-    });
-    const groups = groupManifestOrders(ordersWithoutPendingReturns);
+    // كل الطلبيات تفضل ظاهرة في الجدول دايمًا، بما فيها المرتجع/الجزئي بعد "تم الاستلام"
+    // (الحالة نفسها بتتغير في الـ badge، لكن الطلبية ملهاش تختفي)
+    const groups = groupManifestOrders(orders);
     if (!manifestCustomerSearch && !manifestProductSearch) return groups;
     const cLow = manifestCustomerSearch.toLowerCase();
     const pLow = manifestProductSearch.toLowerCase();

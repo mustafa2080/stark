@@ -185,23 +185,10 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
-        // returnReceived === 1 → الجزء الباقي تم استلامه فعليًا (إيراد كامل على الكمية المستلمة)
-        // returnReceived !== 1 (0 أو null) → لسه عند شركة الشحن، إيراد صفر مؤقتًا لحد ما يتم الاستلام
-        if ((item as any).returnReceived === 1) {
-          const qty = Number(shipment.quantity ?? 1);
-          const unitCod = qty > 0 ? cod / qty : cod;
-          const unitCost = qty > 0 ? cost / qty : cost;
-          const partialCod = unitCod * Number(item.partialQuantity);
-          totalRevenue += partialCod;
-          deliveredGross += partialCod;
-          totalCost += unitCost * Number(item.partialQuantity);
-        }
+        // ملاحظة: returnReceived بيتحكم في المخزون فقط، ومالوش أي تأثير على الإيرادات هنا
       } else if (item.deliveryStatus === "returned") {
-        // مرتجع لسه عند شركة الشحن (returnReceived !== 1) → خسارة شحن صفر مؤقتًا لحد ما يتم الاستلام فعليًا
+        // مرتجع: returnReceived بيتحكم في المخزون فقط، ومالوش أي تأثير على الإيرادات/تكلفة الشحن هنا
         const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
-        if ((item as any).returnReceived === 1 && !returnReasonHasValue) {
-          totalShippingCost += shipping;
-        }
         // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش
         if (returnReasonHasValue) {
           const manualVal = Number((item as any).returnValueReceived ?? 0);

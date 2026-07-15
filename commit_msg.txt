@@ -1,5 +1,1 @@
-fix: استخدام order.shipmentId بدل order.id في كل استدعاءات shipmentManifestsApi.updateItem
-
-الباك إند بيدور بعمود shipmentId (FK) مش id (primary key) في WHERE clause،
-فكان التحديث بيتنفذ من غير ما يعدّل أي صف (0 rows) ويرجع 200 OK بردو.
-اتصلحت 4 أماكن: مutation الحفظ الفردي، cancelMutation، cancelGroupMutation، bulkMutation، وReturnReceivedButton mutation.
+﻿تعديل تأكيد استلام بضاعة المرتجع: النص أصبح (من مندوب الشحن)، وإلغاء ربط returnReceived بالإيرادات وتكلفة الشحن، مع إبقاء الطلبية ظاهرة في جدول البيان بعد الاستلام

@@ -3328,7 +3328,7 @@ function ReturnReceivedButton({
             <AlertDialogHeader>
               <AlertDialogTitle>تأكيد استلام البضاعة</AlertDialogTitle>
               <AlertDialogDescription>
-                هل أنت متأكد من استلام بضاعة طلبية <strong>{order.customerName}</strong> ({order.product}) من شركة الشحن؟
+                هل أنت متأكد من استلام بضاعة طلبية <strong>{order.customerName}</strong> ({order.product}) من مندوب الشحن؟
                 <br />سيتم إضافتها للمخزن فورًا.
               </AlertDialogDescription>
             </AlertDialogHeader>
