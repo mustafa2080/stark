@@ -181,6 +181,14 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         totalCost += cost;
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
+        // زيادة عن الإجمالي (لو المندوب استلم أكتر من قيمة الشحنة): تتضاف فوق الإجمالي
+        // العادي لإجمالي الإيرادات فقط — بدون أي تأثير على تكلفة البضاعة/الشحن.
+        // النقص (لو استلم أقل) لا يُخصم — الإجمالي العادي (cod) يفضل ثابت دايمًا.
+        const deliveredExtra = Number((item as any).deliveredValueReceived ?? 0) - cod;
+        if (deliveredExtra > 0) {
+          totalRevenue += deliveredExtra;
+          deliveredGross += deliveredExtra;
+        }
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
         // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
         totalShippingCost += shipping;
@@ -583,6 +591,10 @@ async function createTreasuryEntryOnClose(
 
     if (item.deliveryStatus === "delivered") {
       deliveredGross += price;
+      // زيادة عن الإجمالي (لو المندوب استلم أكتر من قيمة الشحنة) تتضاف للخزنة كمان،
+      // بنفس منطق حساب الشاشة — النقص لا يُخصم، الإجمالي العادي يفضل ثابت.
+      const deliveredExtra = Number((item as any).deliveredValueReceived ?? 0) - price;
+      if (deliveredExtra > 0) deliveredGross += deliveredExtra;
       deliveredCount += 1;
     } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
       // لو الشحنة مسلمة جزئياً → نحسب نسبة من السعر
