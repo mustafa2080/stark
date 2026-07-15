@@ -3809,10 +3809,11 @@ export default function ShippingManifestPage() {
     (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
   );
 
-  // ─── عدادات الكروت لازم تتطابق بالظبط مع صفوف جدول الطلبيات في البيان ───
-  // نفس مصدر الجدول (ordersExcludingPendingShipping) عشان أي صف مختفي من الجدول
-  // (لسه عند الشحن ومتأكدش استلامه) يختفي من الكروت بردو.
-  const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
+  // ─── عدادات الكروت لازم تتطابق بالظبط مع صفوف جدول "الطلبيات في البيان" ───
+  // الجدول (filteredManifestOrders) بيعرض manifest.orders كامل بدون أي استبعاد
+  // (ولا isStillAtShipping ولا isReturnConfirmed) عشان أي طلبية "ملهاش تختفي".
+  // فالكروت لازم تاخد بالظبط نفس المصدر ده، مش ordersExcludingPendingShipping.
+  const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const allGroupedOrders = groupedManifestOrders;
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
