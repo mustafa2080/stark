@@ -917,7 +917,7 @@ const WAREHOUSE_TABS = [
   {
     id:       "returned",
     label:    "مرتجع",
-    statuses: ["returned"],
+    statuses: ["returned", "partial_received"],
     icon:     RotateCcw,
     color:    "text-red-600 dark:text-red-400",
     bg:       "bg-red-50 dark:bg-red-900/20",
