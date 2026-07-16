@@ -256,7 +256,14 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   if (statusFilter === "active") {
     conditions.push(inArray(shipmentsTable.status, ACTIVE_STATUSES));
   } else if (statusFilter === "delivered") {
-    conditions.push(inArray(shipmentsTable.status, ["delivered", "received", "partial_received"]));
+    // partial_received يُعتبر "في المخزن" فقط لو returnReceived=1 فعلاً (تم استلامه من مندوب الشحن)،
+    // مش بمجرد الحالة — قبل كده لسه المرتجع مع مندوب الشحن
+    conditions.push(
+      or(
+        inArray(shipmentsTable.status, ["delivered", "received"]),
+        and(eq(shipmentsTable.status, "partial_received"), eq(shipmentsTable.returnReceived, 1)),
+      )
+    );
   } else if (statusFilter === "returned") {
     conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled"]));
   }
@@ -293,7 +300,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
   // إحصائيات سريعة — بنفس قيد VISIBLE_IN_WAREHOUSE (مفيش عد للشحنات اللي لسه قبل warehouse_ready)
   const allForStats = await db
-    .select({ status: shipmentsTable.status })
+    .select({ status: shipmentsTable.status, returnReceived: shipmentsTable.returnReceived })
     .from(shipmentsTable)
     .where(and(
       eq(shipmentsTable.warehouseId, id),
@@ -304,7 +311,10 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   const stats = {
     total:     allForStats.length,
     active:    allForStats.filter(s => ACTIVE_STATUSES.includes(s.status)).length,
-    delivered: allForStats.filter(s => ["delivered", "received", "partial_received"].includes(s.status)).length,
+    delivered: allForStats.filter(s =>
+      ["delivered", "received"].includes(s.status) ||
+      (s.status === "partial_received" && s.returnReceived === 1)
+    ).length,
     returned:  allForStats.filter(s => ["returned", "cancelled"].includes(s.status)).length,
   };
 
