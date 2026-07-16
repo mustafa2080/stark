@@ -1321,11 +1321,9 @@ function InvoiceGroupDeliveryRow({
           <div className="text-left font-bold px-1.5 flex items-center overflow-hidden">
             <span className="text-emerald-500 truncate">{formatCurrency(totalFullPrice)}</span>
           </div>
-          {/* القيمة المستلمة (فعليًا) / الإجمالي */}
+          {/* القيمة المستلمة (فعليًا) */}
           <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
-            <span className="text-emerald-500 font-semibold truncate">
-              {formatCurrency(receivedAmount)} / {formatCurrency(totalFullPrice)}
-            </span>
+            <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
           {/* تكلفة الشحن (المندوب) */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
@@ -1345,8 +1343,8 @@ function InvoiceGroupDeliveryRow({
                 {group.map(o => {
                   const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
                   const label = (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity
-                    ? `${o.product} ×${o.partialQuantity}/${o.quantity}`
-                    : `${o.product}`;
+                    ? `×${o.partialQuantity}/${o.quantity} — ${formatCurrency(o.totalPrice ?? 0)}`
+                    : formatCurrency(o.totalPrice ?? 0);
                   return (
                     <p key={o.id} className={`text-[9px] truncate max-w-[110px] font-medium ${opt.color}`}>
                       {o.deliveryStatus === "delivered" ? "✓" :
@@ -1364,7 +1362,7 @@ function InvoiceGroupDeliveryRow({
                 </Badge>
                 {group.filter(o => (displayPartialQtyMap[o.id] ?? 0) > 0).map(o => (
                   <p key={o.id} className="text-[9px] text-teal-600 dark:text-teal-400 truncate max-w-[110px]">
-                    ◑ {o.product} ×{displayPartialQtyMap[o.id]}
+                    ◑ ×{displayPartialQtyMap[o.id]} — {formatCurrency(o.totalPrice ?? 0)}
                   </p>
                 ))}
                 {(rep as any).returnReceived === 1 ? (
