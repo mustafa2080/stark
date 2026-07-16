@@ -245,7 +245,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   // الحالات اللي قبلها (pending, waiting, confirmed...) متظهرش خالص لحد ما توصل warehouse_ready
   const VISIBLE_IN_WAREHOUSE = [
     "warehouse_ready", "picked_up", "in_transit", "out_for_delivery",
-    "delivered", "received", "partial_received", "returned", "cancelled",
+    "delivered", "received", "partial_received", "returned", "cancelled", "delayed",
   ];
 
   const conditions: any[] = [
@@ -257,16 +257,13 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   if (statusFilter === "active") {
     conditions.push(inArray(shipmentsTable.status, ACTIVE_STATUSES));
   } else if (statusFilter === "delivered") {
-    // partial_received يُعتبر "في المخزن" فقط لو returnReceived=1 فعلاً (تم استلامه من مندوب الشحن)،
-    // مش بمجرد الحالة — قبل كده لسه المرتجع مع مندوب الشحن
-    conditions.push(
-      or(
-        inArray(shipmentsTable.status, ["delivered", "received"]),
-        and(eq(shipmentsTable.status, "partial_received"), eq(shipmentsTable.returnReceived, 1)),
-      )
-    );
+    // partial_received ما بيدخلش هنا خالص — بيتصنف مرتجع طول ما فيه جزء راجع (نفس منطق تاب "مرتجع" في المخزون)
+    conditions.push(inArray(shipmentsTable.status, ["delivered", "received"]));
   } else if (statusFilter === "returned") {
-    conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled"]));
+    // مرتجع بالكامل، أو مرتجع جزئي (سواء لسه عند مندوب الشحن أو راجع للمخزن) — زي تصنيف تاب "مرتجع" في المخزون
+    conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled", "partial_received"]));
+  } else if (statusFilter === "delayed") {
+    conditions.push(eq(shipmentsTable.status, "delayed"));
   }
   // بدون فلتر = كل الشحنات اللي وصلت warehouse_ready على الأقل (مش كل الشحنات المرتبطة بالمخزن)
 
@@ -351,11 +348,9 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   const stats = {
     total:     allForStats.length,
     active:    allForStats.filter(s => ACTIVE_STATUSES.includes(s.status)).length,
-    delivered: allForStats.filter(s =>
-      ["delivered", "received"].includes(s.status) ||
-      (s.status === "partial_received" && s.returnReceived === 1)
-    ).length,
-    returned:  allForStats.filter(s => ["returned", "cancelled"].includes(s.status)).length,
+    delivered: allForStats.filter(s => ["delivered", "received"].includes(s.status)).length,
+    returned:  allForStats.filter(s => ["returned", "cancelled", "partial_received"].includes(s.status)).length,
+    delayed:   allForStats.filter(s => s.status === "delayed").length,
   };
 
   res.json({ shipments: shipmentsWithCollected, stats });

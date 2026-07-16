@@ -1247,7 +1247,7 @@ export interface WarehouseShipment {
 
 export interface WarehouseShipmentsResponse {
   shipments: WarehouseShipment[];
-  stats: { total: number; active: number; delivered: number; returned: number };
+  stats: { total: number; active: number; delivered: number; returned: number; delayed: number };
 }
 
 export interface WarehouseStats {
@@ -1287,7 +1287,7 @@ export const warehousesApi = {
     apiFetch<WarehouseStockItem>(`/warehouses/${warehouseId}/stock`, { method: "POST", body: JSON.stringify(data) }),
 
   // ── شحنات Stark بالمخزن ─────────────────────────────────────────────────
-  shipments: (warehouseId: number, status?: "active" | "delivered" | "returned" | "all") =>
+  shipments: (warehouseId: number, status?: "active" | "delivered" | "returned" | "delayed" | "all") =>
     apiFetch<WarehouseShipmentsResponse>(`/warehouses/${warehouseId}/shipments${status ? `?status=${status}` : ""}`),
   stats: (warehouseId: number) =>
     apiFetch<WarehouseStats>(`/warehouses/${warehouseId}/stats`),
