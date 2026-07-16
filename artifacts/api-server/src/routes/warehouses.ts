@@ -309,6 +309,8 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     const manifestItems = await db
       .select({
         shipmentId:             shipmentManifestItemsTable.shipmentId,
+        deliveryStatus:         shipmentManifestItemsTable.deliveryStatus,
+        partialQuantity:        shipmentManifestItemsTable.partialQuantity,
         deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
         returnValueReceived:    shipmentManifestItemsTable.returnValueReceived,
         addedAt:                shipmentManifestItemsTable.addedAt,
@@ -319,7 +321,14 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
     for (const mi of manifestItems) {
       if (collectedMap.has(mi.shipmentId)) continue; // خد أحدث سجل بس (مرتب desc)
-      const received = mi.deliveredValueReceived ?? mi.returnValueReceived;
+      // partial_delivered: القيمة المستلمة بتتخزن في partialQuantity (مش deliveredValueReceived)
+      // delivered: القيمة المستلمة بتتخزن في deliveredValueReceived
+      // returned: القيمة المستلمة بتتخزن في returnValueReceived
+      const received =
+        mi.deliveryStatus === "partial_delivered" ? mi.partialQuantity :
+        mi.deliveryStatus === "delivered"         ? mi.deliveredValueReceived :
+        mi.deliveryStatus === "returned"          ? mi.returnValueReceived :
+        null;
       if (received != null) collectedMap.set(mi.shipmentId, Number(received));
     }
   }
