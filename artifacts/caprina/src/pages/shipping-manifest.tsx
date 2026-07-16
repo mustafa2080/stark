@@ -356,18 +356,13 @@ function OrderDeliveryRow({
               {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
             </p>
           )}
-          {order.deliveryStatus === "partial_received" && (
+          {order.deliveryStatus === "partial_received" && (order as any).returnReceived === 1 && (
             <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
               ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
             </p>
           )}
           {order.deliveryStatus === "partial_received" && (order as any).returnReceived !== 1 && (
-            <>
-              {(order as any).returnReceived === 0 && (
-                <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">🚚 الباقي عند الشحن</p>
-              )}
-              <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
-            </>
+            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال مع مندوب الشحن</p>
           )}
           {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا قيمة مالية (مبلغ) دفعه العميل فعليًا */}
           {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
@@ -375,13 +370,13 @@ function OrderDeliveryRow({
               {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
             </p>
           )}
-          {order.deliveryStatus === "partial_delivered" && (
+          {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived === 1 && (
             <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
               ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
             </p>
           )}
           {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (
-            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال مع مندوب الشحن</p>
           )}
           {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && !editing && (
             <p className="text-[10px] text-orange-400 mt-0.5 font-semibold truncate max-w-[110px]">
