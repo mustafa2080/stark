@@ -1768,6 +1768,7 @@ const SHIPMENT_STATUS_LABELS: Record<string, { label: string; color: string }> =
   delivered:        { label: "تم التسليم",        color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
   received:         { label: "تم التسليم",        color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
   returned:         { label: "مرتجع",             color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
+  partial_received: { label: "مرتجع جزئي",        color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300" },
   cancelled:        { label: "ملغية",             color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
 };
 function getStatusInfo(status: string) {
