@@ -1263,7 +1263,7 @@ function ShipmentWarehouseTab() {
         <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;">المستلم</th>
         <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;">المدينة</th>
         <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;">COD</th>
-        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;">شركة الشحن</th>
+        <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;">مندوب الشحن</th>
         <th style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;">رقم التتبع</th>
         ${ageHeader}
       </tr>
@@ -1612,7 +1612,7 @@ function ShipmentWarehouseTab() {
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المستلم</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">المدينة</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">COD</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">شركة الشحن</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">مندوب الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">المخزن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
