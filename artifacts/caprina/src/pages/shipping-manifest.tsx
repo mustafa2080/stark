@@ -500,8 +500,15 @@ function OrderDeliveryRow({
           </p>
         )}
         {/* سبب الإرجاع مباشرة تحت حالة الاستلام */}
-        {order.deliveryStatus === "partial_received" && (order as any).returnReceived === 1 && (
-          <p className="text-[10px] text-emerald-600 font-semibold">↩ الباقي في المخزن</p>
+        {order.deliveryStatus === "partial_received" && order.partialQuantity != null && (
+          <p className="text-[10px] text-teal-400 font-semibold">
+            {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
+          </p>
+        )}
+        {order.deliveryStatus === "partial_received" && (
+          <p className="text-[10px] text-emerald-600 font-semibold">
+            ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
+          </p>
         )}
         {order.deliveryStatus === "partial_received" && (order as any).returnReceived !== 1 && (
           <>
@@ -517,7 +524,7 @@ function OrderDeliveryRow({
             {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
           </p>
         )}
-        {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived === 1 && (
+        {order.deliveryStatus === "partial_delivered" && (
           <p className="text-[10px] text-emerald-600 font-semibold">
             ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
           </p>
@@ -1366,9 +1373,9 @@ function InvoiceGroupDeliveryRow({
                 {(rep as any).returnReceived === 0 && (
                   <p className="text-[9px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>
                 )}
-                {(rep as any).returnReceived === 1 && (
-                  <p className="text-[9px] text-emerald-500 font-semibold">↩ الباقي في المخزن</p>
-                )}
+                <p className="text-[9px] text-emerald-500 font-semibold">
+                  ↩ الباقي في مخزن {(rep as any).warehouseName || "—"}
+                </p>
                 {(rep as any).returnReceived !== 1 && (
                   <p className="text-[9px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
                 )}
@@ -1406,8 +1413,10 @@ function InvoiceGroupDeliveryRow({
                     ↳ {(rep as any).returnReason ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason) : "لم يحدد السبب"}
                   </p>
                 )}
-                {displayStatus === "partial_received" && (rep as any).returnReceived === 1 && (
-                  <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ الباقي في المخزن</p>
+                {displayStatus === "partial_received" && (
+                  <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
+                    ↩ الباقي في مخزن {(rep as any).warehouseName || "—"}
+                  </p>
                 )}
                 {displayStatus === "partial_received" && (rep as any).returnReceived !== 1 && (
                   <>
