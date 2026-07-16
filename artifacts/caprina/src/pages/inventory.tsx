@@ -1084,7 +1084,7 @@ function ShipmentWarehouseTab() {
         </td>
         <td style="padding:10px 14px;font-size:13px;color:#374151;white-space:nowrap;">${sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</td>
         <td style="padding:10px 14px;font-size:15px;font-weight:900;color:#059669;white-space:nowrap;">${fmt(sh.codAmount)}</td>
-        <td style="padding:10px 14px;font-size:13px;color:#6b7280;">${sh.shippingCompanyName ?? "—"}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#6b7280;">${sh.courierName ?? sh.shippingCompanyName ?? "—"}</td>
         <td style="padding:10px 14px;font-size:12px;font-family:monospace;color:#9ca3af;">${sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</td>
         ${ageStr !== null ? `<td style="padding:10px 14px;font-size:13px;font-weight:700;color:${ageColor};white-space:nowrap;">${ageStr}</td>` : ""}
       </tr>`;
@@ -1641,7 +1641,7 @@ function ShipmentWarehouseTab() {
                         <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">{fc2(sh.codAmount)}</span>
                       </td>
                       <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
-                        <span className="text-[11px] text-muted-foreground">{sh.shippingCompanyName ?? "—"}</span>
+                        <span className="text-[11px] text-muted-foreground">{sh.courierName ?? sh.shippingCompanyName ?? "—"}</span>
                       </td>
                       <td className="px-3 py-2.5 hidden lg:table-cell whitespace-nowrap">
                         <span className="text-[10px] font-mono text-muted-foreground">{sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</span>
