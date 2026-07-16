@@ -151,7 +151,7 @@ function OrderDeliveryRow({
     (order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""
   );
   const [partialReturnReceived, setPartialReturnReceived] = useState<boolean | null>(
-    order.deliveryStatus === "partial_received"
+    (order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered")
       ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
       : null
   );
@@ -171,7 +171,7 @@ function OrderDeliveryRow({
       setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
       setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
       setPartialReturnReceived(
-        order.deliveryStatus === "partial_received"
+        (order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered")
           ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
           : null
       );
@@ -197,11 +197,11 @@ function OrderDeliveryRow({
       if (status === "partial_received" || status === "partial_delivered") {
         const qty = parseInt(partialQty);
         if (partialQty === "" || partialQty === null || partialQty === undefined || isNaN(qty) || qty < 0) {
-          throw new Error(status === "partial_delivered" && isShipmentManifest ? "يجب إدخال القيمة المستلمة أولاً" : "يجب إدخال الكمية المستلمة أولاً");
+          throw new Error("يجب إدخال الكمية المستلمة أولاً");
         }
-        const maxVal: number = status === "partial_delivered" && isShipmentManifest ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0);
+        const maxVal: number = Number(order.quantity ?? 0);
         if (qty > maxVal) {
-          throw new Error((status === "partial_delivered" && isShipmentManifest ? "القيمة لا يمكن أن تتجاوز " : "الكمية لا يمكن أن تتجاوز ") + maxVal);
+          throw new Error("الكمية لا يمكن أن تتجاوز " + maxVal);
         }
       }
       let finalNote = note.trim() || null;
@@ -212,6 +212,9 @@ function OrderDeliveryRow({
         if (returnValueReceived.trim() === "" || isNaN(Number(returnValueReceived))) {
           throw new Error("يجب إدخال القيمة المستلمة فعليًا قبل الحفظ");
         }
+      }
+      if ((status === "partial_received" || status === "partial_delivered") && partialReturnReceived === null) {
+        throw new Error("يجب اختيار حالة الباقي (عند الشحن / تم استلامه في المخزن) قبل الحفظ");
       }
       if (isShipmentManifest) {
         // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason, returnValueReceived
@@ -224,7 +227,10 @@ function OrderDeliveryRow({
             safeStatus === "partial_delivered" && partialQty !== "" && partialQty !== null && partialQty !== undefined
               ? parseInt(partialQty)
               : null,
-          returnReceived: status === "returned" ? returnReceived : null,
+          returnReceived:
+            status === "returned" ? returnReceived :
+            status === "partial_delivered" ? partialReturnReceived :
+            null,
           returnReason: status === "returned" ? (returnReason || null) : null,
           returnValueReceived: status === "returned" && needsReturnValue ? Number(returnValueReceived) : null,
           deliveredValueReceived:
@@ -358,10 +364,10 @@ function OrderDeliveryRow({
               <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
             </>
           )}
-          {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا قيمة مالية (مبلغ) وليست عدد قطع */}
+          {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا عدد قطع مستلمة من إجمالي كمية الشحنة */}
           {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
             <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">
-              ✓ دفع {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
+              ✓ {order.partialQuantity} من {order.quantity ?? order.partialQuantity}
             </p>
           )}
           {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (
@@ -558,13 +564,13 @@ function OrderDeliveryRow({
               </Select>
             </div>
             {needsPartial && (() => {
-              const isValueMode = status === "partial_delivered" && isShipmentManifest;
-              const maxVal = isValueMode ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0);
+              const isValueMode = false;
+              const maxVal = Number(order.quantity ?? 0);
               return (
               <>
                 <div>
                   <Label className="text-[10px] mb-1 block text-muted-foreground">
-                    {isValueMode ? `القيمة المستلمة من العميل (من إجمالي الشحنة ${formatCurrency(maxVal)})` : `الكمية المستلمة (من ${order.quantity})`} <span className="text-destructive font-bold">*</span>
+                    {`الكمية المستلمة (من ${order.quantity})`} <span className="text-destructive font-bold">*</span>
                   </Label>
                   <Input
                     type="number"
@@ -611,7 +617,7 @@ function OrderDeliveryRow({
             })()}
           </div>
           {/* هل الباقي من الاستلام الجزئي عند الشحن؟ */}
-          {status === "partial_received" && (
+          {(status === "partial_received" || status === "partial_delivered") && (
             <div className="space-y-1.5">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل الباقي عند شركة الشحن؟ *</p>
               <div className="flex gap-2.5">
@@ -779,10 +785,10 @@ function OrderDeliveryRow({
                 mutation.isPending ||
                 (needsNote && !note.trim()) ||
                 (needsPartial && (partialQty === "")) ||
-                (needsPartial && parseInt(partialQty) > order.quantity) ||
+                (needsPartial && parseInt(partialQty) > Number(order.quantity ?? 0)) ||
                 (status === "returned" && returnReceived === null) ||
                 (needsReturnValue && returnValueReceived.trim() === "") ||
-                (status === "partial_received" && partialReturnReceived === null)
+                ((status === "partial_received" || status === "partial_delivered") && partialReturnReceived === null)
               }
             >
               <Save className="w-3 h-3" />
@@ -3487,7 +3493,8 @@ export default function ShippingManifestPage() {
         address: sh?.receiverAddress ?? null,
         senderName: sh?.senderName ?? null,
         product: sh ? `${sh.shipmentNumber}${sh.trackingNumber ? ` (${sh.trackingNumber})` : ''}` : '—',
-        quantity: 1,
+        quantity: sh?.pieces ?? 1,
+        warehouseName: (item as any).warehouseName ?? null,
         total: codAmt,
         totalPrice: codAmt,
         cost: null,
