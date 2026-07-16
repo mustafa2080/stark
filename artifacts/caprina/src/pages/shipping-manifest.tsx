@@ -4338,17 +4338,18 @@ export default function ShippingManifestPage() {
           <p className="text-2xl font-black text-teal-400">{groupedPartialCount}</p>
           {(() => {
             const partialOrders = manifest.orders.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
-            const partialReturnedQty = partialOrders.reduce((sum, o) => {
-              const delivered = o.partialQuantity ?? 0;
-              const remaining = o.quantity - delivered;
+            const partialReturnedAmount = partialOrders.reduce((sum, o) => {
+              const delivered = o.partialQuantity ?? 0; // partialQuantity قيمة مالية دايمًا (مش عدد قطع)
+              const total = o.totalPrice ?? 0;
+              const remaining = total - delivered;
               return sum + (remaining > 0 ? remaining : 0);
             }, 0);
             const stillAtShipping = partialOrders.filter(o => (o as any).returnReceived !== 1).length;
             return (
               <>
-                {partialReturnedQty > 0 && (
+                {partialReturnedAmount > 0 && (
                   <p className="text-[10px] text-red-400 mt-0.5 font-semibold">
-                    ↩ مرتجع جزئي: {partialReturnedQty} قطعة
+                    ↩ مرتجع جزئي: {formatCurrency(partialReturnedAmount)}
                   </p>
                 )}
                 {stillAtShipping > 0 && (
