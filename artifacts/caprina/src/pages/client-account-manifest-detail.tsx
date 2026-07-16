@@ -188,7 +188,7 @@ function OrderDeliveryRow({
           : null
       );
     }
-  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, editing]);
+  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, (order as any).deliveredValueReceived, (order as any).returnValueReceived, editing]);
 
   const cancelMutation = useMutation({
     mutationFn: () => clientAccountManifestsApi.removeShipment(manifestId, order.id),
@@ -275,7 +275,11 @@ function OrderDeliveryRow({
     (status === "partial_received" &&
       partialReturnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
     (status === "returned" &&
-      returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null));
+      returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
+    (status === "delivered" &&
+      deliveredValueReceived !== ((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "")) ||
+    (status === "returned" &&
+      returnValueReceived !== ((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""));
 
   return (
     <div className={`border-b border-border/50 transition-colors ${editing ? "bg-primary/5" : "hover:bg-muted/10"}`}>
@@ -400,6 +404,9 @@ function OrderDeliveryRow({
                   setPartialQty(order.partialQuantity?.toString() ?? "");
                   setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null);
                   setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null);
+                  setReturnReason((order as any).returnReason ?? "");
+                  setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
+                  setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
                 }}
               >
                 <X className="w-3 h-3" />
@@ -415,6 +422,9 @@ function OrderDeliveryRow({
                   setPartialQty(order.partialQuantity?.toString() ?? "");
                   setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null);
                   setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null);
+                  setReturnReason((order as any).returnReason ?? "");
+                  setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
+                  setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
                   setEditing(true);
                 }}
               >

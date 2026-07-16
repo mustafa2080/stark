@@ -266,7 +266,11 @@ function OrderDeliveryRow({
     (status === "partial_received" &&
       partialReturnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
     (status === "returned" &&
-      returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null));
+      returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
+    (status === "delivered" &&
+      deliveredValueReceived !== ((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "")) ||
+    (status === "returned" &&
+      returnValueReceived !== ((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""));
 
   return (
     <div className={`border-b border-border/50 transition-colors ${editing ? "bg-primary/5" : "hover:bg-muted/10"}`}>
@@ -504,12 +508,12 @@ function OrderDeliveryRow({
           <div className="flex justify-end">
             {editing ? (
               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground"
-                onClick={() => { setEditing(false); setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialProduct(""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); }}>
+                onClick={() => { setEditing(false); setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialProduct(""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); }}>
                 <X className="w-3 h-3" />
               </Button>
             ) : (
               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
-                onClick={() => { setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setEditing(true); }}>
+                onClick={() => { setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); setEditing(true); }}>
                 <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
               </Button>
             )}

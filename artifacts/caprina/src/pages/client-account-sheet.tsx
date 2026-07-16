@@ -143,6 +143,12 @@ function OrderDeliveryRow({
   const [returnReason, setReturnReason] = useState<string>(
     (order as any).returnReason ?? ""
   );
+  const [returnValueReceived, setReturnValueReceived] = useState<string>(
+    (order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""
+  );
+  const [deliveredValueReceived, setDeliveredValueReceived] = useState<string>(
+    (order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""
+  );
   const [partialReturnReceived, setPartialReturnReceived] = useState<boolean | null>(
     order.deliveryStatus === "partial_received"
       ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
@@ -159,13 +165,15 @@ function OrderDeliveryRow({
         (order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null
       );
       setReturnReason((order as any).returnReason ?? "");
+      setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : "");
+      setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "");
       setPartialReturnReceived(
         order.deliveryStatus === "partial_received"
           ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
           : null
       );
     }
-  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, editing]);
+  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, (order as any).deliveredValueReceived, (order as any).returnValueReceived, editing]);
 
   const cancelMutation = useMutation({
     mutationFn: () => manifestsApi.cancelOrder(manifestId, order.id),
@@ -195,7 +203,7 @@ function OrderDeliveryRow({
         finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
       }
       if (isShipmentManifest) {
-        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason
+        // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason, returnValueReceived, deliveredValueReceived
         const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
         const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
         return shipmentManifestsApi.updateItem(manifestId, order.id, {
@@ -207,6 +215,11 @@ function OrderDeliveryRow({
               : null,
           returnReceived: status === "returned" ? returnReceived : null,
           returnReason: status === "returned" ? (returnReason || null) : null,
+          returnValueReceived: status === "returned" && returnValueReceived.trim() !== "" && !isNaN(Number(returnValueReceived)) ? Number(returnValueReceived) : null,
+          deliveredValueReceived:
+            status === "delivered" && deliveredValueReceived.trim() !== "" && !isNaN(Number(deliveredValueReceived))
+              ? Number(deliveredValueReceived)
+              : null,
         });
       }
       return manifestsApi.updateOrderDelivery(manifestId, order.id, {
@@ -242,7 +255,11 @@ function OrderDeliveryRow({
     (status === "partial_received" &&
       partialReturnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
     (status === "returned" &&
-      returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null));
+      returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
+    (status === "delivered" &&
+      deliveredValueReceived !== ((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "")) ||
+    (status === "returned" &&
+      returnValueReceived !== ((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""));
 
   return (
     <div className={`border-b border-border/50 transition-colors ${editing ? "bg-primary/5" : "hover:bg-muted/10"}`}>
@@ -474,12 +491,12 @@ function OrderDeliveryRow({
           <div className="flex justify-end">
             {editing ? (
               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground"
-                onClick={() => { setEditing(false); setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialProduct(""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); }}>
+                onClick={() => { setEditing(false); setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialProduct(""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnReason((order as any).returnReason ?? ""); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); }}>
                 <X className="w-3 h-3" />
               </Button>
             ) : (
               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
-                onClick={() => { setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setEditing(true); }}>
+                onClick={() => { setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnReason((order as any).returnReason ?? ""); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); setEditing(true); }}>
                 <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
               </Button>
             )}
