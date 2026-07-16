@@ -346,7 +346,9 @@ function OrderDeliveryRow({
           )}
           {/* sub-status للاستلام الجزئي — الباقي */}
           {order.deliveryStatus === "partial_received" && (order as any).returnReceived === 1 && (
-            <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ الباقي في المخزن</p>
+            <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
+              ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
+            </p>
           )}
           {order.deliveryStatus === "partial_received" && (order as any).returnReceived !== 1 && (
             <>
@@ -366,7 +368,9 @@ function OrderDeliveryRow({
             <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
           )}
           {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived === 1 && (
-            <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ الباقي في المخزن</p>
+            <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
+              ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
+            </p>
           )}
           {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && !editing && (
             <p className="text-[10px] text-orange-400 mt-0.5 font-semibold truncate max-w-[110px]">

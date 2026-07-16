@@ -7,11 +7,14 @@ import {
   shipmentsTable,
   clientsTable,
   usersTable,
+  warehousesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncManifestItemToShipment } from "../lib/manifestSync.js";
+import { syncShipmentInventory } from "./shipments.js";
+import { syncShipmentItemsInventory } from "../lib/inventory.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -211,6 +214,17 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       repNameMap = Object.fromEntries(repUsers.map(u => [u.id, u.displayName]));
     }
 
+    // ── جلب أسماء المخازن (warehouseId) دفعة واحدة — المخزن اللي المرتجع بيرجع له ──
+    const warehouseIds = [...new Set(shipments.map(s => s.warehouseId).filter((v): v is number => !!v))];
+    let warehouseNameMap: Record<number, string> = {};
+    if (warehouseIds.length) {
+      const warehouseRows = await db
+        .select({ id: warehousesTable.id, name: warehousesTable.name })
+        .from(warehousesTable)
+        .where(inArray(warehousesTable.id, warehouseIds));
+      warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
+    }
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       return {
@@ -227,6 +241,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         shippingCost:  Number(sh?.shippingFee ?? 0),
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
+        warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
       };
     });
 
@@ -374,6 +389,7 @@ const UpdateItemSchema = z.object({
   returnReason:   z.string().nullish(),
   returnValueReceived: z.coerce.number().nullish(),
   deliveredValueReceived: z.coerce.number().nullish(),
+  itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
 });
 
 router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res): Promise<void> => {
@@ -407,6 +423,28 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
         eq(clientAccountManifestItemsTable.manifestId, manifestId),
         eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
       ));
+
+    // ربط المخزون: لو الحالة "مرتجع" أو "استلام جزئي" → نفس منطق بيان شركة الشحن بالظبط
+    // (deliveryStatus بتاع البيان بيستخدم "partial_delivered"، نظام المخزون بيتوقع "partial_received")
+    const inventoryStatus =
+      body.deliveryStatus === "returned"          ? "returned" :
+      body.deliveryStatus === "partial_delivered" ? "partial_received" :
+      undefined;
+
+    if (inventoryStatus) {
+      const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, shipmentId)).limit(1);
+      if (existingShipment) {
+        const invPatch: Record<string, any> = {
+          status: inventoryStatus,
+          returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
+          partialQuantity: body.partialQuantity ?? undefined,
+        };
+        // منتج واحد (single product) على الشحنة نفسها
+        await syncShipmentInventory(existingShipment, invPatch);
+        // منتجات متعددة (shipment_items) على الشحنة
+        await syncShipmentItemsInventory(shipmentId, inventoryStatus, body.itemReceivedQuantities ?? undefined, body.returnReceived === true);
+      }
+    }
 
     // مزامنة الحالة مع شحنة الأصل (shipmentsTable) عشان تفضل متسقة مع صفحة الشحنات
     await syncManifestItemToShipment(shipmentId, body.deliveryStatus);

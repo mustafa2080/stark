@@ -1100,6 +1100,7 @@ export interface ManifestOrder extends Order {
   color?: string | null;
   size?: string | null;
   representativeName?: string | null;
+  warehouseName?: string | null;
 }
 
 export interface ShippingManifestDetail extends ShippingManifestListItem {

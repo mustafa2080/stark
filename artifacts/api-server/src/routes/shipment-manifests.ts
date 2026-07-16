@@ -8,6 +8,7 @@ import {
   shippingCompaniesTable,
   cashRegistersTable,
   cashTransactionsTable,
+  warehousesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -134,6 +135,17 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
+    // ── جلب أسماء المخازن (warehouseId) دفعة واحدة — المخزن اللي المرتجع بيرجع له ──
+    const warehouseIds = [...new Set(shipments.map(s => s.warehouseId).filter((v): v is number => !!v))];
+    let warehouseNameMap: Record<number, string> = {};
+    if (warehouseIds.length) {
+      const warehouseRows = await db
+        .select({ id: warehousesTable.id, name: warehousesTable.name })
+        .from(warehousesTable)
+        .where(inArray(warehousesTable.id, warehouseIds));
+      warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
+    }
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       return {
@@ -150,6 +162,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         unitPrice:     Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
         shippingCost:  Number(sh?.shippingFee ?? 0),
         invoiceNumber: sh?.shipmentNumber ?? "",
+        warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
       };
     });
 
