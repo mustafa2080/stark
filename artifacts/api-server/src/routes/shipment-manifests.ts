@@ -576,6 +576,10 @@ async function createTreasuryEntryOnClose(
     .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
   const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
 
+  // نفس الأسباب المالية المستخدمة في عرض إحصائيات البيان (RETURN_REASONS_IN_PNL بالفرونت)
+  // — لازم تفضل متطابقة، لأن المرتجع بالأسباب دي بيرجّع فلوس فعلية من المندوب
+  const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
+
   let deliveredGross = 0;
   let deliveredCount = 0;
 
@@ -595,8 +599,12 @@ async function createTreasuryEntryOnClose(
       const unitPrice = qty > 0 ? price / qty : price;
       deliveredGross += unitPrice * Number(item.partialQuantity);
       deliveredCount += 1;
+    } else if (item.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((item as any).returnReason)) {
+      // مرتجع بسبب مالي (رفض بالدفع / جودة): القيمة اللي استلمها المندوب فعليًا من العميل
+      deliveredGross += Number((item as any).returnValueReceived ?? 0);
+      deliveredCount += 1;
     }
-    // returned / delayed / pending → مش بيتحسب
+    // delayed / pending / مرتجع بأسباب أخرى → مش بيتحسب
   }
 
   // الرصيد المُرحَّل للخزنة = صافي المستحق من المندوب (COD المسلَّم − تكلفة شحن المندوب)
