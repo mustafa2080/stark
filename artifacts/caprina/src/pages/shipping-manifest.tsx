@@ -3518,6 +3518,7 @@ export default function ShippingManifestPage() {
         partialQuantity: item.partialQuantity ?? null,
         returnReason: item.returnReason ?? null,
         returnValueReceived: (item as any).returnValueReceived != null ? Number((item as any).returnValueReceived) : null,
+        deliveredValueReceived: (item as any).deliveredValueReceived != null ? Number((item as any).deliveredValueReceived) : null,
       } as any;
     });
     const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
