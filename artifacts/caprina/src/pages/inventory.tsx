@@ -1646,9 +1646,9 @@ function ShipmentWarehouseTab() {
                       {activeTab === "returned" && (
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           {(() => {
-                            const total = Number(sh.totalAmount ?? sh.codAmount ?? 0);
+                            const cod = Number(sh.codAmount ?? 0);
                             const collected = sh.courierCollectedAmount != null ? Number(sh.courierCollectedAmount) : 0;
-                            const remaining = total - collected;
+                            const remaining = cod - collected;
                             return sh.courierCollectedAmount != null && remaining > 0 ? (
                               <span className="text-[12px] font-black text-red-600 dark:text-red-400">{fc2(remaining)}</span>
                             ) : (
