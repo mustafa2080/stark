@@ -256,17 +256,17 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+        // partialQuantity هنا في بيان الشحن قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي
         // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
+        const partialCod = Number(item.partialQuantity);
+        totalRevenue += partialCod;
+        deliveredGross += partialCod;
         if ((item as any).returnReceived === 1) {
           const qty = Number(shipment.quantity ?? 1);
-          const unitCod = qty > 0 ? cod / qty : cod;
           const unitCost = qty > 0 ? cost / qty : cost;
-          const partialCod = unitCod * Number(item.partialQuantity);
-          totalRevenue += partialCod;
-          deliveredGross += partialCod;
-          totalCost += unitCost * Number(item.partialQuantity);
+          totalCost += unitCost * partialCod;
         }
       } else if (item.deliveryStatus === "returned") {
         // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش

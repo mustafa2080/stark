@@ -356,10 +356,10 @@ function OrderDeliveryRow({
               <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
             </>
           )}
-          {/* sub-status لمسلَّم جزئي (shipment) */}
+          {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا قيمة مالية (مبلغ) وليست عدد قطع */}
           {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
             <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">
-              ✓ {order.partialQuantity}/{order.quantity} مُسلَّم
+              ✓ دفع {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
             </p>
           )}
           {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (

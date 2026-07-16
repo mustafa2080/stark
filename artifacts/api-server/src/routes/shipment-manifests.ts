@@ -185,6 +185,10 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+        // partialQuantity هنا قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي كإيراد فعلي
+        const partialCod = Number(item.partialQuantity);
+        totalRevenue += partialCod;
+        deliveredGross += partialCod;
         // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
@@ -594,10 +598,8 @@ async function createTreasuryEntryOnClose(
       deliveredGross += dvr != null ? Number(dvr) : price;
       deliveredCount += 1;
     } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
-      // لو الشحنة مسلمة جزئياً → نحسب نسبة من السعر
-      const qty = Number(shipment.quantity ?? 1);
-      const unitPrice = qty > 0 ? price / qty : price;
-      deliveredGross += unitPrice * Number(item.partialQuantity);
+      // partialQuantity هنا قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي
+      deliveredGross += Number(item.partialQuantity);
       deliveredCount += 1;
     } else if (item.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((item as any).returnReason)) {
       // مرتجع بسبب مالي (رفض بالدفع / جودة): القيمة اللي استلمها المندوب فعليًا من العميل
