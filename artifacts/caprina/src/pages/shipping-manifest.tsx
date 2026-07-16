@@ -367,7 +367,7 @@ function OrderDeliveryRow({
           {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا قيمة مالية (مبلغ) دفعه العميل فعليًا */}
           {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
             <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">
-              ✓ دفع {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
+              {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
             </p>
           )}
           {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (
@@ -505,6 +505,20 @@ function OrderDeliveryRow({
             )}
             <p className="text-[10px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
           </>
+        )}
+        {/* استلام جزئي (بيان شركة الشحن) — القيمة المستلمة من الإجمالي + مكان المرتجع */}
+        {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
+          <p className="text-[10px] text-teal-400 font-semibold">
+            {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
+          </p>
+        )}
+        {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived === 1 && (
+          <p className="text-[10px] text-emerald-600 font-semibold">
+            ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
+          </p>
+        )}
+        {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (
+          <p className="text-[10px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
         )}
         {order.deliveryStatus === "delayed" && order.deliveryNote && !editing && (
           <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">

@@ -163,6 +163,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         shippingCost:  Number(sh?.shippingFee ?? 0),
         invoiceNumber: sh?.shipmentNumber ?? "",
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
+        returnReceived: sh?.returnReceived ?? null,
       };
     });
 
