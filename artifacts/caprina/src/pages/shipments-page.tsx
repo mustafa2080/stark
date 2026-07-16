@@ -1777,7 +1777,7 @@ export default function Orders() {
                               {pq != null && qty != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {pq} من {qty}</span>}
                               {rr === 1
                                 ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في المخزن</span>
-                                : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند شركة الشحن</span>}
+                                : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
                             </span>
                           );
                         })()}
@@ -1984,7 +1984,7 @@ export default function Orders() {
                                 {pq != null && qty != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {pq} من {qty}</span>}
                                 {rr === 1
                                   ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في المخزن</span>
-                                  : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال مع مندوب الشحن</span>}
+                                  : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
                               </div>
                             );
                           })()}
