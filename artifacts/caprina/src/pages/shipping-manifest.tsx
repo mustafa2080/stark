@@ -197,11 +197,11 @@ function OrderDeliveryRow({
       if (status === "partial_received" || status === "partial_delivered") {
         const qty = parseInt(partialQty);
         if (partialQty === "" || partialQty === null || partialQty === undefined || isNaN(qty) || qty < 0) {
-          throw new Error("يجب إدخال الكمية المستلمة أولاً");
+          throw new Error(status === "partial_delivered" && isShipmentManifest ? "يجب إدخال القيمة المستلمة أولاً" : "يجب إدخال الكمية المستلمة أولاً");
         }
-        const maxVal: number = Number(order.quantity ?? 0);
+        const maxVal: number = status === "partial_delivered" && isShipmentManifest ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0);
         if (qty > maxVal) {
-          throw new Error("الكمية لا يمكن أن تتجاوز " + maxVal);
+          throw new Error((status === "partial_delivered" && isShipmentManifest ? "القيمة لا يمكن أن تتجاوز " : "الكمية لا يمكن أن تتجاوز ") + maxVal);
         }
       }
       let finalNote = note.trim() || null;
@@ -364,10 +364,10 @@ function OrderDeliveryRow({
               <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
             </>
           )}
-          {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا عدد قطع مستلمة من إجمالي كمية الشحنة */}
+          {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا قيمة مالية (مبلغ) دفعه العميل فعليًا */}
           {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
             <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">
-              ✓ {order.partialQuantity} من {order.quantity ?? order.partialQuantity}
+              ✓ دفع {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
             </p>
           )}
           {order.deliveryStatus === "partial_delivered" && (order as any).returnReceived !== 1 && (
@@ -564,13 +564,13 @@ function OrderDeliveryRow({
               </Select>
             </div>
             {needsPartial && (() => {
-              const isValueMode = false;
-              const maxVal = Number(order.quantity ?? 0);
+              const isValueMode = status === "partial_delivered" && isShipmentManifest;
+              const maxVal = isValueMode ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0);
               return (
               <>
                 <div>
                   <Label className="text-[10px] mb-1 block text-muted-foreground">
-                    {`الكمية المستلمة (من ${order.quantity})`} <span className="text-destructive font-bold">*</span>
+                    {isValueMode ? `القيمة المستلمة من العميل (من إجمالي الشحنة ${formatCurrency(maxVal)})` : `الكمية المستلمة (من ${order.quantity})`} <span className="text-destructive font-bold">*</span>
                   </Label>
                   <Input
                     type="number"
@@ -785,7 +785,7 @@ function OrderDeliveryRow({
                 mutation.isPending ||
                 (needsNote && !note.trim()) ||
                 (needsPartial && (partialQty === "")) ||
-                (needsPartial && parseInt(partialQty) > Number(order.quantity ?? 0)) ||
+                (needsPartial && parseInt(partialQty) > (status === "partial_delivered" && isShipmentManifest ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0))) ||
                 (status === "returned" && returnReceived === null) ||
                 (needsReturnValue && returnValueReceived.trim() === "") ||
                 ((status === "partial_received" || status === "partial_delivered") && partialReturnReceived === null)
