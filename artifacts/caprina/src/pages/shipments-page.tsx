@@ -1771,10 +1771,10 @@ export default function Orders() {
                         {order.status === "partial_received" && (() => {
                           const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                           const pq = (order as any).partialQuantity as number | null | undefined;
-                          const totalPrice = (order as any).totalPrice as number | undefined;
+                          const totalPrice = ((order as any).totalPrice ?? 0) as number;
                           return (
                             <span className="inline-flex flex-col gap-0 text-[9px] font-bold leading-tight">
-                              {pq != null && totalPrice != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
+                              {pq != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
                               {rr === 1
                                 ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {(order as any).warehouseName || "—"}</span>
                                 : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
@@ -1978,10 +1978,10 @@ export default function Orders() {
                           {order.status === "partial_received" && (() => {
                             const rr = (o as any).returnReceived as 0 | 1 | null | undefined;
                             const pq = o.partialQuantity as number | null | undefined;
-                            const totalPrice = (o as any).totalPrice as number | undefined;
+                            const totalPrice = ((o as any).totalPrice ?? 0) as number;
                             return (
                               <div className="flex flex-col items-center gap-0 mt-1 text-[9px] font-bold leading-tight">
-                                {pq != null && totalPrice != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
+                                {pq != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
                                 {rr === 1
                                   ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {(o as any).warehouseName || "—"}</span>
                                   : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
