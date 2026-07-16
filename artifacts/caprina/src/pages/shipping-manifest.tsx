@@ -1370,7 +1370,7 @@ function InvoiceGroupDeliveryRow({
                     ↩ الباقي في مخزن {(rep as any).warehouseName || "—"}
                   </p>
                 ) : (
-                  <p className="text-[9px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+                  <p className="text-[9px] text-orange-400 font-semibold">🚚 المرتجع ما زال عند مندوب الشحن</p>
                 )}
               </div>
             ) : (
