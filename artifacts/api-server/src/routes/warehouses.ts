@@ -283,6 +283,8 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
       notes:             shipmentsTable.notes,
       codAmount:         shipmentsTable.codAmount,
       shippingFee:       shipmentsTable.shippingFee,
+      totalAmount:       shipmentsTable.totalAmount,
+      collectedAmount:   shipmentsTable.collectedAmount,
       pieces:            shipmentsTable.pieces,
       createdAt:         shipmentsTable.createdAt,
       deliveredAt:       shipmentsTable.actualDelivery,

@@ -1612,6 +1612,9 @@ function ShipmentWarehouseTab() {
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المستلم</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">المدينة</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">COD</th>
+                  {activeTab === "returned" && (
+                    <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المتبقي</th>
+                  )}
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">مندوب الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">المخزن</th>
@@ -1640,6 +1643,20 @@ function ShipmentWarehouseTab() {
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">{fc2(sh.codAmount)}</span>
                       </td>
+                      {activeTab === "returned" && (
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          {(() => {
+                            const total = Number(sh.totalAmount ?? sh.codAmount ?? 0);
+                            const collected = Number(sh.collectedAmount ?? 0);
+                            const remaining = total - collected;
+                            return remaining > 0 ? (
+                              <span className="text-[12px] font-black text-red-600 dark:text-red-400">{fc2(remaining)}</span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">—</span>
+                            );
+                          })()}
+                        </td>
+                      )}
                       <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
                         <span className="text-[11px] text-muted-foreground">{sh.courierName ?? sh.shippingCompanyName ?? "—"}</span>
                       </td>

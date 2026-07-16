@@ -1232,6 +1232,8 @@ export interface WarehouseShipment {
   notes: string | null;
   codAmount: string | null;
   shippingFee: string | null;
+  totalAmount: string | null;
+  collectedAmount: string | null;
   pieces: number | null;
   createdAt: string;
   deliveredAt: string | null;
