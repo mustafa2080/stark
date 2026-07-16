@@ -1358,7 +1358,7 @@ function InvoiceGroupDeliveryRow({
             ) : (displayStatus === "partial_received" || displayStatus === "partial_delivered") ? (
               <div className="flex flex-col gap-0.5">
                 <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
-                  {displayOpt.label} ({displayTotalPartialQty}/{totalQty})
+                  {displayOpt.label}
                 </Badge>
                 {group.filter(o => (displayPartialQtyMap[o.id] ?? 0) > 0).map(o => (
                   <p key={o.id} className="text-[9px] text-teal-600 dark:text-teal-400 truncate max-w-[110px]">
