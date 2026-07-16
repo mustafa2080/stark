@@ -970,7 +970,8 @@ function InvoiceGroupDeliveryRow({
   // مسلَّم بالكامل = القيمة كاملة | استلام جزئي = القيمة اللي دخلها المندوب | مرتجع (دفع مصاريف الشحن) = مصاريف الشحن | غير كده = صفر
   const receivedAmount = group.reduce((s, o) => {
     if (o.deliveryStatus === "delivered") {
-      return s + Number(o.totalPrice ?? 0);
+      const dvr = (o as any).deliveredValueReceived;
+      return s + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
     }
     if (o.deliveryStatus === "partial_delivered" && isShipmentManifest && o.partialQuantity != null) {
       return s + Number(o.partialQuantity);
