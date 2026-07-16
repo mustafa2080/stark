@@ -350,8 +350,13 @@ function OrderDeliveryRow({
               ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
             </p>
           )}
-          {/* sub-status للاستلام الجزئي — الباقي */}
-          {order.deliveryStatus === "partial_received" && (order as any).returnReceived === 1 && (
+          {/* sub-status للاستلام الجزئي — المبلغ المستلم من الإجمالي، ثم اسم المخزن دايمًا، ثم حالة الباقي */}
+          {order.deliveryStatus === "partial_received" && order.partialQuantity != null && (
+            <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">
+              {formatCurrency(order.partialQuantity)} من {formatCurrency(order.totalPrice ?? 0)}
+            </p>
+          )}
+          {order.deliveryStatus === "partial_received" && (
             <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
               ↩ الباقي في مخزن {(order as any).warehouseName || "—"}
             </p>
