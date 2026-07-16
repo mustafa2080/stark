@@ -11,6 +11,7 @@ import {
   ordersTable,
   shipmentsTable,
   shippingCompaniesTable,
+  shipmentManifestItemsTable,
 } from "@workspace/db";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
@@ -300,6 +301,34 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     .orderBy(desc(shipmentsTable.createdAt))
     .limit(200);
 
+  // ── المبلغ اللي المندوب حصّله فعليًا من العميل (من بيان مندوب الشحن) ───────
+  // بنجيب آخر سجل manifest item لكل شحنة مرتجعة/جزئية عشان نحسب "المتبقي" الصح
+  const shipmentIds = shipments.map(s => s.id);
+  const collectedMap = new Map<number, number>();
+  if (shipmentIds.length > 0) {
+    const manifestItems = await db
+      .select({
+        shipmentId:             shipmentManifestItemsTable.shipmentId,
+        deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+        returnValueReceived:    shipmentManifestItemsTable.returnValueReceived,
+        addedAt:                shipmentManifestItemsTable.addedAt,
+      })
+      .from(shipmentManifestItemsTable)
+      .where(inArray(shipmentManifestItemsTable.shipmentId, shipmentIds))
+      .orderBy(desc(shipmentManifestItemsTable.addedAt));
+
+    for (const mi of manifestItems) {
+      if (collectedMap.has(mi.shipmentId)) continue; // خد أحدث سجل بس (مرتب desc)
+      const received = mi.deliveredValueReceived ?? mi.returnValueReceived;
+      if (received != null) collectedMap.set(mi.shipmentId, Number(received));
+    }
+  }
+
+  const shipmentsWithCollected = shipments.map(s => ({
+    ...s,
+    courierCollectedAmount: collectedMap.has(s.id) ? collectedMap.get(s.id)! : null,
+  }));
+
   // إحصائيات سريعة — بنفس قيد VISIBLE_IN_WAREHOUSE (مفيش عد للشحنات اللي لسه قبل warehouse_ready)
   const allForStats = await db
     .select({ status: shipmentsTable.status, returnReceived: shipmentsTable.returnReceived })
@@ -320,7 +349,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     returned:  allForStats.filter(s => ["returned", "cancelled"].includes(s.status)).length,
   };
 
-  res.json({ shipments, stats });
+  res.json({ shipments: shipmentsWithCollected, stats });
 });
 
 // ─── Update ────────────────────────────────────────────────────────────────────

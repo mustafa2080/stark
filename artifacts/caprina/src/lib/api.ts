@@ -1242,6 +1242,7 @@ export interface WarehouseShipment {
   shippingCompanyId: number | null;
   courierName: string | null;   // اسم المندوب (شركة الشحن)
   courierPhone: string | null;  // رقم المندوب
+  courierCollectedAmount: number | null; // المبلغ اللي المندوب حصّله فعليًا من العميل (من بيان مندوب الشحن)
 }
 
 export interface WarehouseShipmentsResponse {
