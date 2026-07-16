@@ -1611,7 +1611,7 @@ function ShipmentWarehouseTab() {
                   <th className="text-right px-3 sm:px-4 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المُرسِل</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المستلم</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">المدينة</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">COD</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">{activeTab === "returned" ? "الإجمالي" : "COD"}</th>
                   {activeTab === "returned" && (
                     <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">المتبقي</th>
                   )}
@@ -1641,7 +1641,7 @@ function ShipmentWarehouseTab() {
                         <span className="text-[11px] font-semibold">{sh.receiverCity ?? sh.zoneGovernorate ?? "—"}</span>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">{fc2(sh.codAmount)}</span>
+                        <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">{fc2(activeTab === "returned" ? sh.totalAmount : sh.codAmount)}</span>
                       </td>
                       {activeTab === "returned" && (
                         <td className="px-3 py-2.5 whitespace-nowrap">
