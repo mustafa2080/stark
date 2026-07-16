@@ -45,6 +45,7 @@ const SHIPMENT_STATUS_MAP: Record<string, { label: string; color: string; bg: st
   returned:         { label: "مرتجعة",             color: "text-red-600",          bg: "bg-red-500/10" },
   cancelled:        { label: "ملغية",              color: "text-gray-500",         bg: "bg-gray-500/10" },
   partial_delivered:{ label: "تسليم جزئي",          color: "text-violet-600",       bg: "bg-violet-500/10" },
+  partial_received: { label: "مرتجع جزئي",          color: "text-teal-600",         bg: "bg-teal-500/10" },
 };
 
 function WarehouseFormDialog({
@@ -298,6 +299,7 @@ const ALL_STATUS_LABELS: Record<string, string> = {
   in_transit:       "في الطريق",
   delivered:        "مسلّمة",
   returned:         "مرتجعة",
+  partial_received: "مرتجع جزئي",
 };
 
 function KanbanCard({
