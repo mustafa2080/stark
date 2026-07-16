@@ -1321,9 +1321,11 @@ function InvoiceGroupDeliveryRow({
           <div className="text-left font-bold px-1.5 flex items-center overflow-hidden">
             <span className="text-emerald-500 truncate">{formatCurrency(totalFullPrice)}</span>
           </div>
-          {/* القيمة المستلمة (فعليًا) */}
+          {/* القيمة المستلمة (فعليًا) / الإجمالي */}
           <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
-            <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
+            <span className="text-emerald-500 font-semibold truncate">
+              {formatCurrency(receivedAmount)} / {formatCurrency(totalFullPrice)}
+            </span>
           </div>
           {/* تكلفة الشحن (المندوب) */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
@@ -1365,13 +1367,11 @@ function InvoiceGroupDeliveryRow({
                     ◑ {o.product} ×{displayPartialQtyMap[o.id]}
                   </p>
                 ))}
-                {(rep as any).returnReceived === 0 && (
-                  <p className="text-[9px] text-orange-500 font-semibold">🚚 الباقي عند الشحن</p>
-                )}
-                <p className="text-[9px] text-emerald-500 font-semibold">
-                  ↩ الباقي في مخزن {(rep as any).warehouseName || "—"}
-                </p>
-                {(rep as any).returnReceived !== 1 && (
+                {(rep as any).returnReceived === 1 ? (
+                  <p className="text-[9px] text-emerald-500 font-semibold">
+                    ↩ الباقي في مخزن {(rep as any).warehouseName || "—"}
+                  </p>
+                ) : (
                   <p className="text-[9px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
                 )}
               </div>
