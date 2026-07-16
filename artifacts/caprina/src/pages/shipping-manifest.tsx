@@ -4652,8 +4652,9 @@ export default function ShippingManifestPage() {
             <div className="flex flex-col gap-2">
               {pendingReturnOrders.map(order => {
                 const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
-                const deliveredQty = order.partialQuantity ?? 0;
-                const remainingQty = isPartial ? (order.quantity - deliveredQty) : order.quantity;
+                const deliveredAmount = order.partialQuantity ?? 0; // partialQuantity قيمة مالية دايمًا
+                const totalAmount = order.totalPrice ?? 0;
+                const remainingAmount = isPartial ? Math.max(totalAmount - deliveredAmount, 0) : order.quantity;
                 const rr = (order as any).returnReceived;
                 const isAtShipping = rr === 0 || rr === null;
                 return (
@@ -4677,7 +4678,7 @@ export default function ShippingManifestPage() {
                       </p>
                       <p className="text-[10px] font-semibold text-red-400 mt-0.5">
                         {isPartial
-                          ? `كمية باقية عند الشحن: ${remainingQty} من ${order.quantity}`
+                          ? `باقي عند الشحن: ${formatCurrency(remainingAmount)} من ${formatCurrency(totalAmount)}`
                           : `كمية مرتجعة: ${order.quantity}`}
                       </p>
                     </div>
