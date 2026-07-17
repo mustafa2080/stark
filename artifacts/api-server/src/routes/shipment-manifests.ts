@@ -172,7 +172,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const returned  = items.filter(i => i.deliveryStatus === "returned").length;
     const pending   = items.filter(i => i.deliveryStatus === "pending").length;
     const delayed   = items.filter(i => i.deliveryStatus === "delayed").length;
-    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
+    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered" || i.deliveryStatus === "partial_received").length;
 
     // ─── حسابات مالية (P&L) ───────────────────────────────────────────────
     // الحقول:
@@ -207,6 +207,20 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
         // ملاحظة: returnReceived بيتحكم في المخزون فقط، ومالوش أي تأثير على الإيرادات هنا
+      } else if (item.deliveryStatus === "partial_received") {
+        // استلام جزئي مُرحَّل من بيان قديم — القيمة المالية (partialQuantity) كانت
+        // بتضيع من الحساب لأن الحالة دي معالجتش قبل كده هنا. نفس منطق
+        // partial_delivered بالظبط، بس بنشترط تأكيد الاستلام (returnReceived=1)
+        // عشان طول ما البضاعة لسه عند شركة الشحن مفيش إيراد يتحسب عليها.
+        const rr = (item as any).returnReceived;
+        const isConfirmedReceived = rr === 1 || rr === true || rr === "1";
+        if (isConfirmedReceived && item.partialQuantity != null) {
+          const partialCod = Number(item.partialQuantity);
+          totalRevenue += partialCod;
+          deliveredGross += partialCod;
+          totalShippingCost += shipping;
+          deliveredShippingFees += shipping;
+        }
       } else if (item.deliveryStatus === "returned") {
         // مرتجع: returnReceived بيتحكم في المخزون فقط، ومالوش أي تأثير على الإيرادات/تكلفة الشحن هنا
         const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
@@ -620,6 +634,16 @@ async function createTreasuryEntryOnClose(
       // partialQuantity هنا قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي
       deliveredGross += Number(item.partialQuantity);
       deliveredCount += 1;
+    } else if (item.deliveryStatus === "partial_received") {
+      // استلام جزئي مُرحَّل من بيان قديم — نفس منطق partial_delivered، بس بنشترط
+      // تأكيد الاستلام (returnReceived=1) عشان طول ما البضاعة لسه عند شركة الشحن
+      // مفيش تحويل للخزنة يحصل عليها.
+      const rr = (item as any).returnReceived;
+      const isConfirmedReceived = rr === 1 || rr === true || rr === "1";
+      if (isConfirmedReceived && item.partialQuantity != null) {
+        deliveredGross += Number(item.partialQuantity);
+        deliveredCount += 1;
+      }
     } else if (item.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((item as any).returnReason)) {
       // مرتجع بسبب مالي (رفض بالدفع / جودة): القيمة اللي استلمها المندوب فعليًا من العميل
       deliveredGross += Number((item as any).returnValueReceived ?? 0);
@@ -1020,7 +1044,7 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
 
     const delivered = items.filter(i => i.deliveryStatus === "delivered").length;
     const returned  = items.filter(i => i.deliveryStatus === "returned").length;
-    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
+    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered" || i.deliveryStatus === "partial_received").length;
     const pending   = items.filter(i => i.deliveryStatus === "pending" || i.deliveryStatus === "delayed").length;
     const total     = items.length;
     const deliveryRate = total > 0 ? Math.round(((delivered + partial) / total) * 100) : 0;
@@ -1039,7 +1063,7 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
         const shipping = Number(shipment.shippingFee ?? 0);
         const cost     = Number(shipment.costPrice ?? 0);
 
-        if (item.deliveryStatus === "delivered" || item.deliveryStatus === "partial_delivered") {
+        if (item.deliveryStatus === "delivered" || item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") {
           totalRevenue += cod;
           deliveredGross += cod;
           totalCost += cost;
