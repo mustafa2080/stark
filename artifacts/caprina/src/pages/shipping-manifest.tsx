@@ -4369,7 +4369,7 @@ export default function ShippingManifestPage() {
                 )}
                 {stillAtShipping > 0 && (
                   <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
-                    🚚 المرتجع ما زال في شركة الشحن
+                    🚚 المرتجع ما زال مع مندوب الشحن
                   </p>
                 )}
               </>
