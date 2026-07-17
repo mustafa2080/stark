@@ -750,13 +750,14 @@ async function rolloverPartialShipments(
   let returnedStillAtShippingCount = 0;
   let partialStillAtShippingCount = 0;
 
-  // 1) مؤجل → صف pending جديد (نفس الشحنة بالكامل)
+  // 1) مؤجل → يترحّل بنفس حالته "مؤجل" (مش pending) عشان يفضل واضح إنه كان مؤجل
+  //    قيد الانتظار → يترحّل كصف pending جديد زي ما هو
   for (const item of delayedItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
       manifestId:     targetManifestId,
       shipmentId:     item.shipmentId,
-      deliveryStatus: "pending",
+      deliveryStatus: item.deliveryStatus === "delayed" ? "delayed" : "pending",
       deliveryNote:   item.deliveryStatus === "delayed"
         ? `مؤجل من بيان ${closedManifest.manifestNumber}`
         : `مرحّل من بيان ${closedManifest.manifestNumber} — لسه قيد الانتظار`,
