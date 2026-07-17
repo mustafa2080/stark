@@ -2697,6 +2697,9 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
 
     const [rows, users] = await Promise.all([
       db.select({
+          id: shipmentsTable.id,
+          shipmentNumber: shipmentsTable.shipmentNumber,
+          receiverName: shipmentsTable.receiverName,
           city: shipmentsTable.receiverCity,
           status: shipmentsTable.status,
           shippingCompanyId: shipmentsTable.shippingCompanyId,
@@ -2711,6 +2714,13 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
     ]);
     const repNameById = new Map(users.map((u: typeof users[number]) => [u.id, u.displayName]));
 
+    type LiveCityShipment = {
+      id: number;
+      shipmentNumber: string | null;
+      receiverName: string | null;
+      status: string;
+    };
+
     type LiveCityBucket = {
       city: string;
       total: number;
@@ -2719,6 +2729,7 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
       delayed: number;
       problem: number;
       repIds: Set<number>;
+      shipments: LiveCityShipment[];
     };
 
     const byCityLive = new Map<string, LiveCityBucket>();
@@ -2728,7 +2739,7 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
 
       const status = normalize(r.status);
       if (!byCityLive.has(cityName)) {
-        byCityLive.set(cityName, { city: cityName, total: 0, inTransit: 0, delivered: 0, delayed: 0, problem: 0, repIds: new Set() });
+        byCityLive.set(cityName, { city: cityName, total: 0, inTransit: 0, delivered: 0, delayed: 0, problem: 0, repIds: new Set(), shipments: [] });
       }
       const bucket = byCityLive.get(cityName)!;
       bucket.total++;
@@ -2737,6 +2748,9 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
       else if (status === "delayed") bucket.delayed++;
       else if (status === "returned") bucket.problem++;
       if (r.shippingCompanyId) bucket.repIds.add(r.shippingCompanyId);
+      if (bucket.shipments.length < 8) {
+        bucket.shipments.push({ id: r.id, shipmentNumber: r.shipmentNumber, receiverName: r.receiverName, status });
+      }
     }
 
     const liveCities = Array.from(byCityLive.values())
@@ -2757,6 +2771,7 @@ router.get("/analytics/live-map", requireAuth, async (req, res): Promise<void> =
           heatScore,
           representatives: Array.from(b.repIds).map((id) => repNameById.get(id) ?? "مندوب").slice(0, 8),
           representativesCount: b.repIds.size,
+          shipments: b.shipments,
         };
       });
 

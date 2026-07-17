@@ -712,6 +712,7 @@ export interface LiveMapCity {
   heatScore: number;
   representatives: string[];
   representativesCount: number;
+  shipments: { id: number; shipmentNumber: string | null; receiverName: string | null; status: string }[];
 }
 export interface LiveMapResponse {
   cities: LiveMapCity[];

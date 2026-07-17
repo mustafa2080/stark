@@ -1529,7 +1529,12 @@ export default function OperationsCenterPage() {
               )}
             </CardHeader>
             <CardContent className="flex-1 min-h-0">
-              <LiveMap cities={liveMapCities} isLoading={liveMapLoading && liveMapCities.length === 0} />
+              <LiveMap
+                cities={liveMapCities}
+                isLoading={liveMapLoading && liveMapCities.length === 0}
+                busiestCity={liveMapData?.busiestCity ?? null}
+                mostDelayedCity={liveMapData?.mostDelayedCity ?? null}
+              />
             </CardContent>
           </Card>
         </div>
