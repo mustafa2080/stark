@@ -3585,10 +3585,14 @@ export default function ShippingManifestPage() {
   };
 
   const filteredManifestOrders = useMemo(() => {
-    const orders = (manifest?.orders ?? []).filter((o) => !isStillAtShipping(o));
-    // كل الطلبيات تفضل ظاهرة في الجدول (ما عدا "لسه عند شركة الشحن" — دي بتظهر في حاويتها الخاصة فقط)
-    // بما فيها المرتجع/الجزئي بعد "تم الاستلام"
-    // (الحالة نفسها بتتغير في الـ badge، لكن الطلبية ملهاش تختفي)
+    // استبعد المرتجع/الجزئي بالكامل من الجدول ده، سواء لسه عند الشحن أو اتأكد استلامه —
+    // الحالتين كانت لازم تتصرف في البيان القديم المغلق، فمينفعش يرجعوا يظهروا هنا بعد الترحيل.
+    const orders = (manifest?.orders ?? []).filter((o) => {
+      if (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+        return false;
+      }
+      return true;
+    });
     const groups = groupManifestOrders(orders);
     if (!manifestCustomerSearch && !manifestProductSearch) return groups;
     const cLow = manifestCustomerSearch.toLowerCase();
