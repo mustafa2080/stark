@@ -229,7 +229,7 @@ function OrderDeliveryRow({
               : null,
           returnReceived:
             status === "returned" ? returnReceived :
-            status === "partial_delivered" ? partialReturnReceived :
+            (status === "partial_delivered" || status === "partial_received") ? partialReturnReceived :
             null,
           returnReason: status === "returned" ? (returnReason || null) : null,
           returnValueReceived: status === "returned" && needsReturnValue ? Number(returnValueReceived) : null,
