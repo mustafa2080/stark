@@ -339,7 +339,9 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
 
 // ─── PATCH /shipment-manifests/:id/items/:shipmentId ─────────────────────────
 const UpdateItemSchema = z.object({
-  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed", "partial_delivered"]),
+  // partial_received مقبولة كمرادف لـ partial_delivered (فرق تسمية قديم بين
+  // بيانات الشحنة وجدول shipments نفسه) — بنطبّعها فورًا بعد الـ parse تحت.
+  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed", "partial_delivered", "partial_received"]),
   deliveryNote:   z.string().nullish(),
   partialQuantity: z.number().int().nullish(),
   returnReceived: z.boolean().nullish(),
@@ -353,7 +355,14 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
   try {
     const manifestId  = Number(req.params.id);
     const shipmentId  = Number(req.params.shipmentId);
-    const body        = UpdateItemSchema.parse(req.body);
+    const parsedBody  = UpdateItemSchema.parse(req.body);
+    // تطبيع partial_received → partial_delivered عشان باقي الراوت (statusMap، شروط
+    // الحسابات المالية، إلخ) يتعامل مع قيمة واحدة بس زي ما كان متوقع أصلًا.
+    const body = {
+      ...parsedBody,
+      deliveryStatus: (parsedBody.deliveryStatus === "partial_received" ? "partial_delivered" : parsedBody.deliveryStatus) as
+        "pending" | "delivered" | "returned" | "delayed" | "partial_delivered",
+    };
     const now         = new Date();
 
     // المندوب يقدر يعدّل بيانات شركته بس، وبشرط البيان يكون لسه مفتوح
