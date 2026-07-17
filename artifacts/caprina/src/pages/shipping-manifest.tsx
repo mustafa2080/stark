@@ -4019,9 +4019,12 @@ export default function ShippingManifestPage() {
     return true;
   });
   const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
-  const printDeliveredOrders = ordersForPnlPrint.filter(o =>
-    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received"
-  );
+  // partial_received: يدخل الحسابات المالية (نسخة الطباعة) بس لو اتأكد استلامه فعليًا في البيان ده نفسه
+  const printDeliveredOrders = ordersForPnlPrint.filter(o => {
+    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
+    if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
+    return false;
+  });
   // إجمالي الإيرادات = القيمة المستلمة فعليًا (مسلَّم كامل + جزء مُسلَّم/مُستلم + مرتجع بأسباب مالية معتبرة)
   const totalCollected = printDeliveredOrders.reduce((s, o) => {
     if (o.deliveryStatus === "partial_delivered" && o.partialQuantity != null) {
@@ -4039,10 +4042,12 @@ export default function ShippingManifestPage() {
     .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
   // رسوم الشحن = تكلفة الشحن الثابتة على شركة الشحن × عدد الطلبات الداخلة في الحساب (مسلَّم/جزئي/مرتجع بسبب مالي)
   const courierCostPerShipmentPrint = Number((manifest as any)?.company?.shippingCost ?? 0);
-  const shippingCostOrdersPrint = ordersForPnlPrint.filter(o =>
-    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received" ||
-    (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
-  );
+  // partial_received: يدخل تكلفة الشحن (طباعة) بس لو اتأكد استلامه فعليًا (نفس منطق printDeliveredOrders فوق)
+  const shippingCostOrdersPrint = ordersForPnlPrint.filter(o => {
+    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
+    if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
+    return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
+  });
   const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length;
 
 
@@ -4737,7 +4742,15 @@ export default function ShippingManifestPage() {
           }
           return true;
         });
-        const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received");
+        // partial_received: بيدخل الحسابات المالية بس لو اتأكد استلامه فعليًا في البيان ده
+        // نفسه (returnReceived === 1). لو لسه معلَّق (null/false) فده معناه إنه أوردر
+        // مُرحَّل من بيان قديم مقفول — قيمته اتحسبت هناك بالفعل، فمش بيتحسب تاني هنا
+        // حتى لو معاه partialQuantity (الكمية الباقية) عشان الترحيل التلقائي.
+        const deliveredOrders = ordersForPnl.filter(o => {
+          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
+          if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
+          return false;
+        });
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
@@ -4763,12 +4776,12 @@ export default function ShippingManifestPage() {
           .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason))
           .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        const shippingCostOrders = ordersForPnl.filter(o =>
-          o.deliveryStatus === "delivered" ||
-          o.deliveryStatus === "partial_delivered" ||
-          o.deliveryStatus === "partial_received" ||
-          (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason))
-        );
+        // partial_received: يدخل في تكلفة الشحن بس لو اتأكد استلامه فعليًا في البيان ده (نفس منطق deliveredOrders فوق)
+        const shippingCostOrders = ordersForPnl.filter(o => {
+          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
+          if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
+          return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason);
+        });
         const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
         const shippingCost    = courierShippingCostForCalc * shippingCostGroupsCount;
         let pnlZoneIds: number[] = [];
