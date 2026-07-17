@@ -3575,19 +3575,20 @@ export default function ShippingManifestPage() {
   const isStillAtShipping = (o: ManifestOrder) => {
     const rr = (o as any).returnReceived;
     const isReceivedBack = rr === 1 || rr === true || rr === "1";
-    const isConfirmedStillAtShipping = rr === 0 || rr === false || rr === "0";
     // ملحوظة: delayed (مؤجل) وpending (قيد الانتظار) مستثنيين عمدًا من هنا —
     // لازم يفضلوا في الجدول العادي ويدخلوا في الحسابات المالية عادي،
     // ومايظهروش في الحاوية الحمرا (دي بس لـ returned/partial المُعلَّقين فعليًا عند الشحن).
+    // نفس الشرط بالظبط لـ returned و partial: تظهر في الحاوية الحمرا طول ما مفيش
+    // تأكيد صريح إنها اتسلّمت (returnReceived === 1)، حتى لو لسه null من أول تسجيل.
     if (o.deliveryStatus === "returned") {
       return !isReceivedBack;
     }
     // partial_received / partial_delivered: بتفضل ظاهرة في الجدول العادي دايمًا
     // (شرط ده بيتحدد في filteredManifestOrders، مش هنا). الحاوية الحمرا دي منفصلة
-    // تمامًا وبتعرض بالتوازي "الباقي" لو اتأكد صراحة إنه لسه عند الشحن
-    // (returnReceived === false/0) — ممكن الأوردر يظهر في الجدول والحاوية الحمرا مع بعض.
+    // تمامًا وبتعرض بالتوازي "الباقي" طول ما مفيش تأكيد صريح إنه اتسلّم — نفس
+    // منطق المرتجع بالظبط — ممكن الأوردر يظهر في الجدول والحاوية الحمرا مع بعض.
     if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
-      return isConfirmedStillAtShipping;
+      return !isReceivedBack;
     }
     return false;
   };
