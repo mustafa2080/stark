@@ -3575,8 +3575,10 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
       return false;
     }
-    return o.deliveryStatus === "delayed" ||
-      o.deliveryStatus === "returned" ||
+    // ملحوظة: delayed (مؤجل) وpending (قيد الانتظار) مستثنيين عمدًا من هنا —
+    // لازم يفضلوا في الجدول العادي ويدخلوا في الحسابات المالية عادي،
+    // ومايظهروش في الحاوية الحمرا (دي بس لـ returned/partial المُعلَّقين فعليًا عند الشحن).
+    return o.deliveryStatus === "returned" ||
       o.deliveryStatus === "partial_received" ||
       o.deliveryStatus === "partial_delivered";
   };
