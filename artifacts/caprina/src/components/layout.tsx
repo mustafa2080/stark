@@ -40,7 +40,7 @@ const ALL_NAV = [
   { href: "/shipping-followup", label: "متابعة الشحنات",        icon: Clock,                       permission: "section_shipping_followup", section: "section_shipping_followup",  iconColor: "text-cyan-400",       group: "orders"       },
   { href: "/shipping",          label: "مناديب STARK",         icon: Truck,                       permission: "shipping.view",           section: "section_shipping",           iconColor: "text-sky-400",        group: "shipping"     },
   { href: "/inventory",         label: "المخزون",               icon: Boxes,        permission: "inventory.view",          section: "section_inventory",          iconColor: "text-violet-400",     group: "inventory"    },
-  { href: "/shipments",         label: "المناطق",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "inventory"    },
+  { href: "/shipments",         label: "المناطق",             icon: MapPin,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-cyan-400",       group: "zones"        },
   { href: "/warehouses",        label: "المخازن",               icon: Warehouse,    permission: "inventory.view",          section: "section_warehouses",         iconColor: "text-indigo-400",     group: "inventory"    },
   { href: "/movements",         label: "حركات المخزون",       icon: Activity,                    permission: "inventory.movements",     section: "section_movements",          iconColor: "text-purple-400",     group: "inventory"    },
   { href: "/product-performance",label: "أداء الشحنات",      icon: BarChart3,                   permission: "analytics.products",      section: "section_product_performance", iconColor: "text-pink-400",      group: "analytics"    },
@@ -731,8 +731,14 @@ export default function Layout({ children }: LayoutProps) {
               </NavGroup>
             )}
 
+            {visibleNav.some(i => i.group === "zones") && (
+              <NavGroup label="المناطق والأسعار" icon={MapPin} iconColor="text-cyan-400" location={location} prefixes={["/shipments"]} isOpen={openGroup === "zones"} onToggle={() => toggleGroup("zones", visibleNav.find(i => i.group === "zones")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "zones")?.href} groupKey="zones">
+                {visibleNav.filter(i => i.group === "zones").map(item => <NavItem key={item.href} item={item} location={location} sub />)}
+              </NavGroup>
+            )}
+
             {visibleNav.some(i => i.group === "inventory") && (
-              <NavGroup label="المناطق والأسعار" icon={Boxes} iconColor="text-violet-400" location={location} prefixes={["/shipments","/inventory","/warehouses","/movements"]} isOpen={openGroup === "inventory"} onToggle={() => toggleGroup("inventory", visibleNav.find(i => i.group === "inventory")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "inventory")?.href} groupKey="inventory">
+              <NavGroup label="المخزون" icon={Boxes} iconColor="text-violet-400" location={location} prefixes={["/inventory","/warehouses","/movements"]} isOpen={openGroup === "inventory"} onToggle={() => toggleGroup("inventory", visibleNav.find(i => i.group === "inventory")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "inventory")?.href} groupKey="inventory">
                 {visibleNav.filter(i => i.group === "inventory").map(item => <NavItem key={item.href} item={item} location={location} sub />)}
               </NavGroup>
             )}
