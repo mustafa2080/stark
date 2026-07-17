@@ -4752,9 +4752,12 @@ export default function ShippingManifestPage() {
           if (o.deliveryStatus === "returned") {
             // مرتجع بسبب مالي (refused_paid/refused_unpaid/quality) لازم يدخل الحساب
             // طالما مش لسه معلّق عند شركة الشحن — نفس منطق isStillAtShipping.
+            // استثناء: لو المندوب سجّل returnValueReceived فعليًا، القيمة المالية بقت
+            // محسومة فورًا حتى لو البضاعة نفسها لسه ما رجعتش المخزن (returnReceived=0).
             const RETURN_REASONS_IN_PNL_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
             if (!RETURN_REASONS_IN_PNL_LOCAL.includes((o as any).returnReason)) return false;
-            return !isStillAtShipping(o);
+            const hasReturnValueLocal = (o as any).returnValueReceived != null;
+            return hasReturnValueLocal || !isStillAtShipping(o);
           }
           // partial_delivered: الجزء المُسلَّم فعليًا — يدخل الحساب دايمًا بغض النظر
           // عن حالة الباقي المرتجع عند شركة الشحن (isStillAtShipping بتخص الباقي بس).
