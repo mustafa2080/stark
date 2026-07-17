@@ -3569,18 +3569,19 @@ export default function ShippingManifestPage() {
   // منها تمامًا. لو الاستلام اتأكد قبل إغلاق البيان الأصلي، الطلبية أصلاً متترحلش (بتفضل في
   // البيان القديم المغلق) — الشرط ده بيتطبق فقط بعد الترحيل الفعلي.
   // ملحوظة: "قيد الانتظار" (pending) مستثناة عمدًا — لازم تفضل ظاهرة في الجدول العادي دايمًا.
-  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يعتبر مؤكدًا ماليًا فورًا بغض النظر عن الحالة
+  // ملحوظة مهمة: مرتجع لسه فعليًا عند شركة الشحن (returnReceived !== 1) لازم يفضل في الحاوية
+  // الحمرا دايمًا، بغض النظر عن سبب الرفض — السبب لوحده (حتى لو من الأسباب المالية) مايكفيش
+  // عشان نعتبره "مؤكد ماليًا"، لازم شركة الشحن تكون سلّمته فعلاً (returnReceived=1).
   const isStillAtShipping = (o: ManifestOrder) => {
-    const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
-    if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
-      return false;
-    }
+    const rr = (o as any).returnReceived;
+    const isReceivedBack = rr === 1 || rr === true || rr === "1";
     // ملحوظة: delayed (مؤجل) وpending (قيد الانتظار) مستثنيين عمدًا من هنا —
     // لازم يفضلوا في الجدول العادي ويدخلوا في الحسابات المالية عادي،
     // ومايظهروش في الحاوية الحمرا (دي بس لـ returned/partial المُعلَّقين فعليًا عند الشحن).
-    return o.deliveryStatus === "returned" ||
-      o.deliveryStatus === "partial_received" ||
-      o.deliveryStatus === "partial_delivered";
+    if (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+      return !isReceivedBack;
+    }
+    return false;
   };
 
   const filteredManifestOrders = useMemo(() => {
@@ -3929,13 +3930,8 @@ export default function ShippingManifestPage() {
   ).length;
   // isStillAtShipping معرّفة فوق (قبل filteredManifestOrders) عشان تُستخدم فيها كمان
 
-  // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها (returnReceived=1) — خالص مش في البيان
-  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يفضل داخل في الحسابات المالية دايمًا
+  // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها فعليًا (returnReceived=1) — خالص مش في البيان
   const isReturnConfirmed = (o: typeof manifest.orders[number]) => {
-    const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
-    if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
-      return false;
-    }
     const rr = (o as any).returnReceived;
     return rr === 1 || rr === true || rr === "1";
   };
