@@ -3563,9 +3563,24 @@ export default function ShippingManifestPage() {
   }, [rawManifest]);
 
   // ─── Search filter — real-time, no popover ────────────────────────────────
+  // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
+  // (مرتجع أو استلام جزئي (قديم) مرحَّل ولم يُستلم بعد — partial_delivered مستثناة لأن جزءها المستلم مؤكد فورًا)
+  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يعتبر مؤكدًا ماليًا فورًا بغض النظر عن returnReceived
+  const isStillAtShipping = (o: ManifestOrder) => {
+    const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
+    if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
+      return false;
+    }
+    const rr = (o as any).returnReceived;
+    const isConfirmed = rr === 1 || rr === true || rr === "1";
+    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received") &&
+      !isConfirmed;
+  };
+
   const filteredManifestOrders = useMemo(() => {
-    const orders = manifest?.orders ?? [];
-    // كل الطلبيات تفضل ظاهرة في الجدول دايمًا، بما فيها المرتجع/الجزئي بعد "تم الاستلام"
+    const orders = (manifest?.orders ?? []).filter((o) => !isStillAtShipping(o));
+    // كل الطلبيات تفضل ظاهرة في الجدول (ما عدا "لسه عند شركة الشحن" — دي بتظهر في حاويتها الخاصة فقط)
+    // بما فيها المرتجع/الجزئي بعد "تم الاستلام"
     // (الحالة نفسها بتتغير في الـ badge، لكن الطلبية ملهاش تختفي)
     const groups = groupManifestOrders(orders);
     if (!manifestCustomerSearch && !manifestProductSearch) return groups;
@@ -3906,19 +3921,7 @@ export default function ShippingManifestPage() {
   const pendingOrders = manifest.orders.filter(
     (o) => o.deliveryStatus === "pending"
   ).length;
-  // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
-  // (مرتجع أو استلام جزئي (قديم) مرحَّل ولم يُستلم بعد — partial_delivered مستثناة لأن جزءها المستلم مؤكد فورًا)
-  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يعتبر مؤكدًا ماليًا فورًا بغض النظر عن returnReceived
-  const isStillAtShipping = (o: typeof manifest.orders[number]) => {
-    const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
-    if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
-      return false;
-    }
-    const rr = (o as any).returnReceived;
-    const isConfirmed = rr === 1 || rr === true || rr === "1";
-    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received") &&
-      !isConfirmed;
-  };
+  // isStillAtShipping معرّفة فوق (قبل filteredManifestOrders) عشان تُستخدم فيها كمان
 
   // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها (returnReceived=1) — خالص مش في البيان
   // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يفضل داخل في الحسابات المالية دايمًا
