@@ -4750,6 +4750,11 @@ export default function ShippingManifestPage() {
         // الباقي (لسه عند الشحن) هو بس اللي بيستبعد (isStillAtShipping).
         const ordersForPnl = (manifest.orders ?? []).filter(o => {
           if (o.deliveryStatus === "returned") {
+            // شحنة مُرحَّلة من بيان قديم مقفول (معلَّمة [ROLLED_OVER]) — قيمتها
+            // المالية اتحسبت أصلًا في البيان القديم، فمستبعدة هنا خالص حتى لو
+            // المندوب سجّل returnValueReceived تانية في البيان الجديد بالغلط.
+            const isRolledOverLocal = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+            if (isRolledOverLocal) return false;
             // مرتجع بسبب مالي (refused_paid/refused_unpaid/quality) لازم يدخل الحساب
             // طالما مش لسه معلّق عند شركة الشحن — نفس منطق isStillAtShipping.
             // استثناء: لو المندوب سجّل returnValueReceived فعليًا، القيمة المالية بقت
