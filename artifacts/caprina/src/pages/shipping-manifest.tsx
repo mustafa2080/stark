@@ -3565,12 +3565,14 @@ export default function ShippingManifestPage() {
   // ─── Search filter — real-time, no popover ────────────────────────────────
   // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
   // (مرتجع أو استلام جزئي (قديم) مرحَّل ولم يُستلم بعد — partial_delivered مستثناة لأن جزءها المستلم مؤكد فورًا)
+  // (مؤجل (delayed) بردو بيتحسب هنا — طلبية مؤجلة ما اتاخدش فيها إجراء لسه، فبتفضل في الحاوية الحمرا لحد ما تتحدد نتيجتها)
   // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يعتبر مؤكدًا ماليًا فورًا بغض النظر عن returnReceived
   const isStillAtShipping = (o: ManifestOrder) => {
     const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
     if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
       return false;
     }
+    if (o.deliveryStatus === "delayed") return true;
     const rr = (o as any).returnReceived;
     const isConfirmed = rr === 1 || rr === true || rr === "1";
     return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received") &&
@@ -4628,10 +4630,7 @@ export default function ShippingManifestPage() {
 
       {/* ─── حاوية المرتجعات والجزئي لسه عند شركة الشحن ─── */}
       {(() => {
-        const pendingReturnOrders = (manifest.orders ?? []).filter(o =>
-          (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-          (o as any).returnReceived !== 1
-        );
+        const pendingReturnOrders = (manifest.orders ?? []).filter(o => isStillAtShipping(o));
         if (pendingReturnOrders.length === 0) return null;
         return (
           <div
@@ -4648,6 +4647,7 @@ export default function ShippingManifestPage() {
             <div className="flex flex-col gap-2">
               {pendingReturnOrders.map(order => {
                 const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
+                const isDelayed = order.deliveryStatus === "delayed";
                 const deliveredAmount = order.partialQuantity ?? 0; // partialQuantity قيمة مالية دايمًا
                 const totalAmount = order.totalPrice ?? 0;
                 const remainingAmount = isPartial ? Math.max(totalAmount - deliveredAmount, 0) : order.quantity;
@@ -4664,8 +4664,8 @@ export default function ShippingManifestPage() {
                         {order.phone && (
                           <span className="text-[10px] text-muted-foreground">{order.phone}</span>
                         )}
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
-                          {isPartial ? "جزئي" : "مرتجع"}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : isDelayed ? "bg-orange-900/40 text-orange-400" : "bg-red-900/40 text-red-400"}`}>
+                          {isPartial ? "جزئي" : isDelayed ? "مؤجل" : "مرتجع"}
                         </span>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
@@ -4675,26 +4675,30 @@ export default function ShippingManifestPage() {
                       <p className="text-[10px] font-semibold text-red-400 mt-0.5">
                         {isPartial
                           ? `باقي عند الشحن: ${formatCurrency(remainingAmount)} من ${formatCurrency(totalAmount)}`
+                          : isDelayed
+                          ? `مؤجل — إجمالي الشحنة: ${formatCurrency(totalAmount)}`
                           : `كمية مرتجعة: ${order.quantity}`}
                       </p>
                     </div>
-                    <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
-                      <ReturnReceivedButton
-                        manifestId={id}
-                        order={order}
-                        received={true}
-                        onSaved={refetch}
-                        locked={isLocked}
-                      />
-                      <ReturnReceivedButton
-                        manifestId={id}
-                        order={order}
-                        received={false}
-                        onSaved={refetch}
-                        locked={isLocked}
-                        currentlyAtShipping={isAtShipping}
-                      />
-                    </div>
+                    {!isDelayed && (
+                      <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
+                        <ReturnReceivedButton
+                          manifestId={id}
+                          order={order}
+                          received={true}
+                          onSaved={refetch}
+                          locked={isLocked}
+                        />
+                        <ReturnReceivedButton
+                          manifestId={id}
+                          order={order}
+                          received={false}
+                          onSaved={refetch}
+                          locked={isLocked}
+                          currentlyAtShipping={isAtShipping}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
