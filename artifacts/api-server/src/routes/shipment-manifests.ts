@@ -208,19 +208,9 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         deliveredShippingFees += shipping;
         // ملاحظة: returnReceived بيتحكم في المخزون فقط، ومالوش أي تأثير على الإيرادات هنا
       } else if (item.deliveryStatus === "partial_received") {
-        // استلام جزئي مُرحَّل من بيان قديم — القيمة المالية (partialQuantity) كانت
-        // بتضيع من الحساب لأن الحالة دي معالجتش قبل كده هنا. نفس منطق
-        // partial_delivered بالظبط، بس بنشترط تأكيد الاستلام (returnReceived=1)
-        // عشان طول ما البضاعة لسه عند شركة الشحن مفيش إيراد يتحسب عليها.
-        const rr = (item as any).returnReceived;
-        const isConfirmedReceived = rr === 1 || rr === true || rr === "1";
-        if (isConfirmedReceived && item.partialQuantity != null) {
-          const partialCod = Number(item.partialQuantity);
-          totalRevenue += partialCod;
-          deliveredGross += partialCod;
-          totalShippingCost += shipping;
-          deliveredShippingFees += shipping;
-        }
+        // إشعار "باقي مرتجع من استلام جزئي" مُرحَّل من بيان قديم — بدون قيمة
+        // مالية (زي المرتجع العادي بالظبط)، حتى بعد تأكيد الاستلام. الجزء
+        // المسلَّم الفعلي محسوب أصلًا في البيان القديم على السجل الأصلي.
       } else if (item.deliveryStatus === "returned") {
         // مرتجع: returnReceived بيتحكم في المخزون فقط، ومالوش أي تأثير على الإيرادات/تكلفة الشحن هنا
         const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
@@ -635,15 +625,9 @@ async function createTreasuryEntryOnClose(
       deliveredGross += Number(item.partialQuantity);
       deliveredCount += 1;
     } else if (item.deliveryStatus === "partial_received") {
-      // استلام جزئي مُرحَّل من بيان قديم — نفس منطق partial_delivered، بس بنشترط
-      // تأكيد الاستلام (returnReceived=1) عشان طول ما البضاعة لسه عند شركة الشحن
-      // مفيش تحويل للخزنة يحصل عليها.
-      const rr = (item as any).returnReceived;
-      const isConfirmedReceived = rr === 1 || rr === true || rr === "1";
-      if (isConfirmedReceived && item.partialQuantity != null) {
-        deliveredGross += Number(item.partialQuantity);
-        deliveredCount += 1;
-      }
+      // إشعار "باقي مرتجع من استلام جزئي" مُرحَّل من بيان قديم — بدون قيمة مالية
+      // (زي المرتجع العادي)، فمفيش تحويل للخزنة عليه. الجزء المسلَّم الفعلي
+      // اتحسب أصلًا وقت إغلاق البيان القديم على السجل الأصلي.
     } else if (item.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((item as any).returnReason)) {
       // مرتجع بسبب مالي (رفض بالدفع / جودة): القيمة اللي استلمها المندوب فعليًا من العميل
       deliveredGross += Number((item as any).returnValueReceived ?? 0);
@@ -756,11 +740,14 @@ async function rolloverPartialShipments(
     i.deliveryStatus === "returned" && i.returnReceived !== 1
   );
 
-  // ── 3) استلام جزئي (partial_delivered): الشحنة الأصلية تترحّل هي نفسها
-  //    (نفس shipmentId) للبيان الجديد بحالة partial_received، من غير ما يتعمل
-  //    clone ولا يتقسم الأوردر لسجلين. مبلغ الـ COD يفضل زي ما هو على الشحنة
-  //    الأصلية، والمبلغ الباقي بيتابَع من نفس الشحنة (مش شحنة منفصلة) —
-  //    تحديث بناءً على تعليمات بشمهندس مصطفى: الاستلام الجزئي ميتقسمش لأوردرين.
+  // ── 3) استلام جزئي (partial_delivered) لسه فيه باقي عند شركة الشحن (returnReceived != 1):
+  //    الجزء المسلَّم يفضل ثابت في البيان القديم زي ما هو (مش بيتلمس خالص) —
+  //    ده جزء منفّذ وقيمته المالية مسجَّلة في البيان اللي اتسلّم فيه فعلاً.
+  //    اللي بيترحّل هو بس "إشعار" إن فيه باقي مرتجع لسه عند الشحن (بدون clone
+  //    للسجل الأصلي ولا قيمة مالية) — بالظبط زي منطق المرتجع العادي لسه عند
+  //    الشحن، عشان يظهر في الحاوية الحمرا بس في البيان الجديد.
+  //    تحديث بناءً على تعليمات بشمهندس مصطفى: الجزء المسلَّم ميترحلش، بس
+  //    الباقي المرتجع (بدون قيمة مالية) هو اللي بيتمثّل في البيان الجديد.
   const partialItems = items.filter(i =>
     i.deliveryStatus === "partial_delivered" && i.returnReceived !== 1
   );
@@ -828,18 +815,19 @@ async function rolloverPartialShipments(
     // الشحنة لسه فعلياً عند شركة الشحن، فمش بنغيّر حالتها في shipmentsTable
   }
 
-  // 3) استلام جزئي (partial_delivered) → نفس الشحنة الأصلية (بدون clone) تترحّل
-  //    للبيان الجديد بحالة partial_received، والمبلغ الباقي يفضل متابَع على
-  //    نفس الأوردر (مش أوردر جديد منفصل). بادئة [ROLLED_OVER] عشان تفضل في
-  //    الحاوية الحمرا بس (لسه عند الشحن) وتختفي من جدول الطلبيات في البيان الجديد.
+  // 3) استلام جزئي (partial_delivered) لسه فيه باقي عند الشحن → الجزء المسلَّم
+  //    يفضل زي ما هو في البيان القديم من غير أي تعديل (مش بيتلمس خالص).
+  //    اللي بيترحّل هو إشعار بس (clone منفصل بحالة partial_received، بدون قيمة
+  //    مالية) في الحاوية الحمرا للبيان الجديد — بمجرد "تم الاستلام" هناك، برضو
+  //    مفيش رقم مالي بيتضاف، هو مجرد تأكيد إن الباقي رجع المخزن.
   for (const item of partialItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
       manifestId:          targetManifestId,
       shipmentId:          item.shipmentId,
       deliveryStatus:      "partial_received",
-      deliveryNote:        `[ROLLED_OVER] ${item.deliveryNote ?? `استلام جزئي — مرحّل من بيان ${closedManifest.manifestNumber}`}`.trim(),
-      partialQuantity:     item.partialQuantity ?? null,
+      deliveryNote:        `[ROLLED_OVER] ${item.deliveryNote ?? `استلام جزئي — الباقي مرتجع من بيان ${closedManifest.manifestNumber}`}`.trim(),
+      partialQuantity:     null,
       returnReceived:      0,
       returnReason:        item.returnReason ?? "استلام جزئي",
       returnValueReceived: null,
@@ -847,8 +835,8 @@ async function rolloverPartialShipments(
     } as typeof shipmentManifestItemsTable.$inferInsert);
     existingIds.add(item.shipmentId);
     partialStillAtShippingCount++;
-    // الشحنة الأصلية تفضل بحالتها partial_received في shipmentsTable — مش بتتقفل
-    // ومش بيتعمل clone؛ الباقي بيفضل متابَع على نفس الشحنة.
+    // الشحنة الأصلية والسجل بتاعها في البيان القديم مايتلمسوش خالص —
+    // الجزء المسلَّم فعلاً يفضل محسوب في نفس البيان اللي اتسلّم فيه.
   }
 
   if (rowsToInsert.length === 0) return null;
@@ -861,13 +849,9 @@ async function rolloverPartialShipments(
       .where(inArray(shipmentsTable.id, shipmentIdsToMarkInTransit));
   }
 
-  // الشحنات الأصلية بتاعة استلام جزئي: تفضل بحالة partial_received في shipmentsTable
-  // نفسها (مش clone، ومش قفل بحالة تانية) — نفس الأوردر يتابَع للباقي.
-  if (partialItems.length > 0) {
-    await db.update(shipmentsTable)
-      .set({ status: "partial_received", updatedAt: now })
-      .where(inArray(shipmentsTable.id, partialItems.map(i => i.shipmentId)));
-  }
+  // ملحوظة: الشحنات الأصلية بتاعة الاستلام الجزئي مابتتلمسش خالص هنا —
+  // الجزء المسلَّم فعلاً محسوب ومستقر في البيان القديم، والباقي المرتجع بس
+  // هو اللي اتمثّل بإشعار (clone) في البيان الجديد فوق.
 
   return {
     id:                      targetManifestId,
@@ -1063,11 +1047,13 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
         const shipping = Number(shipment.shippingFee ?? 0);
         const cost     = Number(shipment.costPrice ?? 0);
 
-        if (item.deliveryStatus === "delivered" || item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") {
+        if (item.deliveryStatus === "delivered" || item.deliveryStatus === "partial_delivered") {
           totalRevenue += cod;
           deliveredGross += cod;
           totalCost += cost;
           totalShippingCost += shipping;
+        } else if (item.deliveryStatus === "partial_received") {
+          // إشعار باقي مرتجع من استلام جزئي — بدون قيمة مالية (زي المرتجع)
         } else if (item.deliveryStatus === "returned") {
           returnLosses += shipping;
           if ((item as any).returnReason === "refused_paid") {
