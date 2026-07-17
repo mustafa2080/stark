@@ -748,6 +748,9 @@ async function rolloverPartialShipments(
   const targetManifestId = targetManifest.id;
 
   // ── معالجة partial_delivered: تقسيم الشحنة الأصلية (قفل + clone) ──────────
+  // ملحوظة مهمة: partialQuantity هنا مبلغ فلوس اتحصّل من المندوب (مش عدد قطع
+  // زي نظام الأوردرات) — الشحنة نفسها وحدة واحدة (pieces مايتغيّرش)، واللي بيتقسم
+  // هو قيمة التحصيل (codAmount) بس، على أساس المبلغ المُحصَّل مقابل الباقي.
   const clonedReturnShipmentIds: number[] = [];
   if (partialItems.length > 0) {
     const originalShipments = await db.select().from(shipmentsTable).where(
@@ -756,19 +759,18 @@ async function rolloverPartialShipments(
     for (const item of partialItems) {
       const original = originalShipments.find((s) => s.id === item.shipmentId);
       if (!original) continue;
-      const totalPieces = original.pieces ?? 1;
-      const deliveredQty = item.partialQuantity ?? original.partialQuantity ?? 0;
-      const remainingQty = totalPieces - deliveredQty;
-      if (remainingQty <= 0) continue; // اتسلم كامل فعليًا، مفيش حاجة ترجع
+      const totalCod = Number(original.codAmount ?? 0);
+      const collectedAmount = item.partialQuantity != null ? Number(item.partialQuantity) : Number(original.partialQuantity ?? 0);
+      const remainingCod = totalCod - collectedAmount;
+      if (remainingCod <= 0) continue; // اتحصّل المبلغ كامل فعليًا، مفيش حاجة ترجع
 
-      // نسبة الكمية الباقية من الإجمالي — تُستخدم لتقسيم القيم المالية
-      const ratio = totalPieces > 0 ? remainingQty / totalPieces : 0;
-      const codAmount    = Number(original.codAmount ?? 0);
+      // نسبة المبلغ الباقي من الإجمالي — تُستخدم لتقسيم القيم المالية الأخرى
+      const ratio = totalCod > 0 ? remainingCod / totalCod : 1;
       const costPrice    = Number(original.costPrice ?? 0);
-      const shippingFee  = Number(original.shippingFee ?? 0);
       const totalAmount  = Number(original.totalAmount ?? 0);
 
-      // clone كامل بشحنة جديدة لنفس الأوردر بالكمية الباقية، حالة returned
+      // clone كامل بشحنة جديدة لنفس الأوردر بمبلغ التحصيل الباقي، حالة returned
+      // pieces بتفضل زي ما هي (الشحنة فعليًا وحدة واحدة، مش قطع بتتقسم)
       const cloneInsert = await db.insert(shipmentsTable).values({
         tenantId: original.tenantId, shipmentNumber: null, trackingNumber: original.trackingNumber,
         clientId: original.clientId, senderName: original.senderName, senderPhone: original.senderPhone,
@@ -778,11 +780,11 @@ async function rolloverPartialShipments(
         receiverPhone2: original.receiverPhone2, receiverAddress: original.receiverAddress,
         receiverCity: original.receiverCity, zoneId: original.zoneId, zonePrice: original.zonePrice,
         parcelType: original.parcelType, parcelTypePrice: original.parcelTypePrice,
-        weight: original.weight, pieces: remainingQty, description: original.description,
+        weight: original.weight, pieces: original.pieces, description: original.description,
         productId: original.productId, variantId: original.variantId, warehouseId: original.warehouseId,
         declaredValue: original.declaredValue, canOpen: original.canOpen, isDivisible: original.isDivisible,
         rejectionPolicy: original.rejectionPolicy, paymentMethod: original.paymentMethod,
-        codAmount: String((codAmount * ratio).toFixed(2)), costPrice: String((costPrice * ratio).toFixed(2)),
+        codAmount: String(remainingCod.toFixed(2)), costPrice: String((costPrice * ratio).toFixed(2)),
         shippingFee: "0", insuranceFee: "0", totalAmount: String((totalAmount * ratio).toFixed(2)),
         collectedAmount: "0", status: "returned", shippingCompanyId: original.shippingCompanyId,
         assignedUserId: original.assignedUserId, createdByUserId: original.createdByUserId,
@@ -795,9 +797,9 @@ async function rolloverPartialShipments(
       const clonedId = (cloneInsert as any)[0]?.insertId ?? (cloneInsert as any).insertId;
       clonedReturnShipmentIds.push(clonedId);
 
-      // ننقص الشحنة الأصلية لتفضل بكميتها المُسلَّمة فقط — تقفل في البيان القديم زي ما هي
+      // الشحنة الأصلية تفضل بمبلغ التحصيل المُحصَّل فعلاً فقط — تقفل في البيان القديم زي ما هي
       await db.update(shipmentsTable)
-        .set({ pieces: deliveredQty, updatedAt: now })
+        .set({ codAmount: String(collectedAmount.toFixed(2)), updatedAt: now })
         .where(eq(shipmentsTable.id, original.id));
     }
   }
