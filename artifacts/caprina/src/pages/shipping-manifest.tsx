@@ -3510,6 +3510,7 @@ export default function ShippingManifestPage() {
         senderName: sh?.senderName ?? null,
         product: sh ? `${sh.shipmentNumber}${sh.trackingNumber ? ` (${sh.trackingNumber})` : ''}` : '—',
         quantity: sh?.pieces ?? 1,
+        zoneId: sh?.zoneId ?? null,
         warehouseName: (item as any).warehouseName ?? null,
         total: codAmt,
         totalPrice: codAmt,
@@ -4806,16 +4807,16 @@ export default function ShippingManifestPage() {
         });
         const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
         const shippingCost    = courierShippingCostForCalc * shippingCostGroupsCount;
-        let pnlZoneIds: number[] = [];
-        if (companyAnyPnl?.zoneIds) {
-          try { pnlZoneIds = JSON.parse(companyAnyPnl.zoneIds); } catch {}
-        } else if (companyAnyPnl?.zoneId) {
-          pnlZoneIds = [companyAnyPnl.zoneId];
-        }
-        // سعر الشحنة = مجموع "سعر الشحنة" الفعلي المسجَّل على كل شحنة (shippingCost/shippingFee)
-        // لنفس مجموعة الطلبات اللي دخلت في حساب تكلفة الشحن (مسلَّم / جزئي / مرتجع بأسباب الثلاثة)
-        const zonePricePnl = shippingCostOrders.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
-        // صافي الربح الحقيقي = سعر الشحنة (من جدول الشحنات) - إجمالي تكلفة الشحن
+        // سعر المنطقة الفعلي لكل شحنة = من جدول shipment_zones الحالي حسب zoneId
+        // بتاع كل شحنة (مش سعر ثابت للشركة ومش shippingFee المجمَّد وقت الإنشاء).
+        // لو الشحنة مالهاش zoneId أو المنطقة مش موجودة في الجدول الحالي → صفر لها.
+        const zonePricePnl = shippingCostOrders.reduce((s, o) => {
+          const zId = (o as any).zoneId;
+          if (zId == null) return s;
+          const zone = pnlSettlementZones.find(z => z.id === zId);
+          return s + (zone?.price != null ? Number(zone.price) : 0);
+        }, 0);
+        // صافي الربح الحقيقي = سعر المنطقة الفعلي (لكل شحنة حسب منطقتها) - إجمالي تكلفة الشحن
         const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
         // الرصيد المستحق من المندوب = إجمالي الإيرادات - إجمالي تكلفة الشحن
