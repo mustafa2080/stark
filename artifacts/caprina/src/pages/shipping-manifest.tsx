@@ -4019,8 +4019,13 @@ export default function ShippingManifestPage() {
   // returned: يستبعد بالكامل من حسابات الطباعة دايمًا. partial_delivered/partial_received:
   // يفضلوا لو مش لسه عند الشحن — بنفس منطق كارت الشاشة بالضبط.
   const ordersForPnlPrint = (manifest.orders ?? []).filter(o => {
-    if (o.deliveryStatus === "returned") return false;
-    if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+    if (o.deliveryStatus === "returned") {
+      const RETURN_REASONS_IN_PNL_PRINT_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
+      if (!RETURN_REASONS_IN_PNL_PRINT_LOCAL.includes((o as any).returnReason)) return false;
+      return !isStillAtShipping(o);
+    }
+    if (o.deliveryStatus === "partial_delivered") return true;
+    if (o.deliveryStatus === "partial_received") {
       return !isStillAtShipping(o);
     }
     return true;
@@ -4743,8 +4748,18 @@ export default function ShippingManifestPage() {
         // partial_delivered/partial_received: الجزء المُسلَّم فعلي وحقيقي فيتحسب ماليًا عادي؛
         // الباقي (لسه عند الشحن) هو بس اللي بيستبعد (isStillAtShipping).
         const ordersForPnl = (manifest.orders ?? []).filter(o => {
-          if (o.deliveryStatus === "returned") return false;
-          if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+          if (o.deliveryStatus === "returned") {
+            // مرتجع بسبب مالي (refused_paid/refused_unpaid/quality) لازم يدخل الحساب
+            // طالما مش لسه معلّق عند شركة الشحن — نفس منطق isStillAtShipping.
+            const RETURN_REASONS_IN_PNL_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
+            if (!RETURN_REASONS_IN_PNL_LOCAL.includes((o as any).returnReason)) return false;
+            return !isStillAtShipping(o);
+          }
+          // partial_delivered: الجزء المُسلَّم فعليًا — يدخل الحساب دايمًا بغض النظر
+          // عن حالة الباقي المرتجع عند شركة الشحن (isStillAtShipping بتخص الباقي بس).
+          if (o.deliveryStatus === "partial_delivered") return true;
+          // partial_received: إشعار "الباقي المرحّل" فقط — يدخل بس لو اتأكد استلامه فعليًا.
+          if (o.deliveryStatus === "partial_received") {
             return !isStillAtShipping(o);
           }
           return true;
