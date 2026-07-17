@@ -563,10 +563,58 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
 
   if (parsed.data.status === "closed") {
     // الطلبات اللي "مازال في شركة الشحن" = pending/postponed/in_shipping + returned بدون returnReceived
-    // partial_received (مسلَّم جزئي) ميترحّلش خالص — يفضل قاعد في البيان القديم بحالته
-    // زي ما هو (بيحسب كإيراد جزئي فعلي هناك). العميل نفس الأوردر بـ orderId واحد بس في
-    // النظام، فمينفعش يترحّل سطر جديد ليه في بيان تاني وهو لسه موجود في القديم.
-    const pendingLinks = await db.select().from(shippingManifestOrdersTable).where(
+    // partial_received (مسلَّم جزئي): السطر الأصلي بحاله يفضل في البيان القديم (مايتلمسش هنا)،
+    // وبس الكمية الباقية عند المندوب بتترحّل كأوردر جديد منفصل (clone) بحالة returned —
+    // ده بيتعمل في كتلة منفصلة تحت (createPartialReturnClones) قبل ما نجمع pendingLinks.
+    const partialReceivedLinks = await db.select().from(shippingManifestOrdersTable).where(
+      and(
+        eq(shippingManifestOrdersTable.manifestId, id),
+        eq(shippingManifestOrdersTable.deliveryStatus, "partial_received")
+      )
+    );
+
+    const clonedReturnOrderIds: number[] = [];
+    if (partialReceivedLinks.length > 0) {
+      const originalOrders = await db.select().from(ordersTable).where(
+        inArray(ordersTable.id, partialReceivedLinks.map((l) => l.orderId))
+      );
+      for (const link of partialReceivedLinks) {
+        const original = originalOrders.find((o) => o.id === link.orderId);
+        if (!original) continue;
+        const deliveredQty = link.partialQuantity ?? 0;
+        const remainingQty = original.quantity - deliveredQty;
+        if (remainingQty <= 0) continue; // اتسلم كامل فعليًا، مفيش حاجة ترجع
+
+        // 1) ننقص كمية الأصل للجزء المُسلَّم فقط (يفضل partial_received في بيانه القديم)
+        const newTotalPrice = original.unitPrice * deliveredQty;
+        await db.update(ordersTable)
+          .set({ quantity: deliveredQty, totalPrice: newTotalPrice })
+          .where(eq(ordersTable.id, original.id));
+
+        // 2) clone كامل بصف جديد لنفس الأوردر بالكمية الباقية، حالة returned
+        const clonedTotalPrice = original.unitPrice * remainingQty;
+        const cloneInsert = await db.insert(ordersTable).values({
+          tenantId: original.tenantId, customerName: original.customerName, phone: original.phone,
+          city: original.city, address: original.address, product: original.product,
+          color: original.color, size: original.size, quantity: remainingQty,
+          unitPrice: original.unitPrice, totalPrice: clonedTotalPrice, status: "returned",
+          partialQuantity: null, shippingCompanyId: original.shippingCompanyId,
+          productId: original.productId, variantId: original.variantId, warehouseId: original.warehouseId,
+          assignedUserId: original.assignedUserId, createdByUserId: original.createdByUserId,
+          createdByName: original.createdByName, adSource: original.adSource, adCampaign: original.adCampaign,
+          costPrice: original.costPrice, shippingCost: 0, collectedAmount: null,
+          notes: original.notes, returnReason: original.returnReason ?? "استلام جزئي - الباقي مرتجع",
+          returnNote: link.deliveryNote ?? null, returnReceived: 0, isDamaged: 0, isReplacementRequested: 0,
+          trackingNumber: original.trackingNumber, invoiceNumber: original.invoiceNumber,
+          createdAt: new Date(), updatedAt: new Date(),
+        });
+        const clonedId = (cloneInsert as any)[0]?.insertId ?? (cloneInsert as any).insertId;
+        clonedReturnOrderIds.push(clonedId);
+      }
+      // السطور الأصلية partial_received تخرج من الفلتر النهائي — مبتترحّلش هي، الـ clone هو اللي بيترحّل
+    }
+
+    const pendingLinks: (typeof shippingManifestOrdersTable.$inferSelect)[] = await db.select().from(shippingManifestOrdersTable).where(
       and(
         eq(shippingManifestOrdersTable.manifestId, id),
         or(
@@ -575,6 +623,14 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
         )
       )
     );
+    // ضيف الأوردرات المُستنسخة (returned) كـ pendingLinks اصطناعية عشان تترحّل زي أي returned عادي
+    for (const clonedId of clonedReturnOrderIds) {
+      pendingLinks.push({
+        id: -1, manifestId: id, orderId: clonedId, deliveryStatus: "returned",
+        deliveryNote: null, deliveredAt: null, partialQuantity: null,
+        returnReceived: 0, addedAt: new Date(),
+      } as typeof shippingManifestOrdersTable.$inferSelect);
+    }
 
     console.log(`[CLOSE manifest ${id}] pendingLinks count=${pendingLinks.length}`, JSON.stringify(pendingLinks.map(l => ({ orderId: l.orderId, deliveryStatus: l.deliveryStatus, returnReceived: l.returnReceived, partialQuantity: l.partialQuantity }))));
 
@@ -595,9 +651,9 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
         await reverseShipping(buildOrderRef(order), order.quantity, order.id);
       }
 
-      // ملحوظة: partial_received ميدخلش pendingLinks خالص (شُيل من الفلتر فوق) —
-      // فمفيش حاجة تترحّل أو ترجع للمخزن بخصوصه هنا. الأوردر يفضل قاعد بحالته
-      // partial_received في نفس البيان القديم زي ما هو.
+      // ملحوظة: partial_received الأصلي ميدخلش pendingLinks خالص، ويفضل قاعد بحالته
+      // partial_received (بكميته المُسلَّمة فقط) في نفس البيان القديم. الكمية الباقية
+      // منه بقت أوردر مستنسخ منفصل بحالة returned (اتضاف فوق) وهو اللي بيترحّل فعليًا.
 
       // ── رحّل كل الطلبات لبيان جديد ───────────────────────────────────────────
       const newManifestNumber = await generateManifestNumber(updated.shippingCompanyId);
