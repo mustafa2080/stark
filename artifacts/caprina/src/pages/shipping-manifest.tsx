@@ -3582,9 +3582,10 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "returned") {
       return !isReceivedBack;
     }
-    // partial_received / partial_delivered: من أول لحظة (returnReceived لسه null) تفضل
-    // في الجدول العادي فقط — الحاوية الحمرا بترضاها بس لو اتأكد صراحة إنها لسه عند الشحن
-    // (returnReceived === false/0)، مش مجرد كونها null.
+    // partial_received / partial_delivered: بتفضل ظاهرة في الجدول العادي دايمًا
+    // (شرط ده بيتحدد في filteredManifestOrders، مش هنا). الحاوية الحمرا دي منفصلة
+    // تمامًا وبتعرض بالتوازي "الباقي" لو اتأكد صراحة إنه لسه عند الشحن
+    // (returnReceived === false/0) — ممكن الأوردر يظهر في الجدول والحاوية الحمرا مع بعض.
     if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
       return isConfirmedStillAtShipping;
     }
@@ -3592,13 +3593,18 @@ export default function ShippingManifestPage() {
   };
 
   const filteredManifestOrders = useMemo(() => {
-    // returned: يستبعد بالكامل من الجدول ده دايمًا — سواء لسه عند الشحن أو اتأكد استلامه
-    // (كان لازم يتصرف في البيان القديم المغلق، مايرجعش يظهر هنا بعد الترحيل).
-    // partial_delivered/partial_received: الجزء المُسلَّم فعلي وحقيقي، فالأوردر يفضل ظاهر
-    // في الجدول عادي دايمًا من أول لحظة (حتى لو returnReceived لسه null) — الحاوية الحمرا
-    // (isStillAtShipping) بتعرض بالتوازي "الباقي" لو اتأكد صراحة إنه لسه عند الشحن.
+    // returned: يستبعد من جدول "الطلبيات في البيان" بس لو كان مرحّل من بيان قديم
+    // مقفول (معلَّم بـ [ROLLED_OVER] من الباك إند وقت الترحيل) — في الحالة دي
+    // لازم يفضل بس في الحاوية الحمرا "بضاعة لسه عند شركة الشحن".
+    // لو المرتجع اتسجل لأول مرة في البيان الحالي (مش مرحّل)، يفضل ظاهر في
+    // الجدول والحاوية الحمرا مع بعض طول ما البيان مفتوح ولسه عند الشحن.
+    // partial_delivered/partial_received: نفس المنطق — الأصلي يفضل في الجدول،
+    // المرحّل (ROLLED_OVER) يختفي منه ويفضل بس في الحاوية الحمرا.
     const orders = (manifest?.orders ?? []).filter((o) => {
-      if (o.deliveryStatus === "returned") return false;
+      const isRolledOver = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+      if (isRolledOver && (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")) {
+        return false;
+      }
       return true;
     });
     const groups = groupManifestOrders(orders);

@@ -781,13 +781,17 @@ async function rolloverPartialShipments(
   // 2) مرتجع لسه عند الشحن → الحالة والملاحظات والسبب يترحّلوا زي ما هم،
   //    لكن القيم المالية (returnValueReceived) تترصفّر عمدًا لـ NULL في البيان
   //    الجديد: البيان الجديد لازم يبدأ نضيف ماليًا (تأكيد صريح من بشمهندس مصطفى).
+  //    بادئة "[ROLLED_OVER]" بتتحط في deliveryNote عشان الفرونت إند يقدر يميّز
+  //    الطلبية المرحّلة من بيان قديم عن طلبية مرتجع اتسجلت لأول مرة في البيان
+  //    الحالي — المرحّلة لازم تفضل في الحاوية الحمرا بس (تختفي من جدول الطلبيات)،
+  //    والأصلية لازم تظهر في الجدول والحاوية الحمرا مع بعض طول ما البيان مفتوح.
   for (const item of stillAtShippingItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
       manifestId:          targetManifestId,
       shipmentId:          item.shipmentId,
       deliveryStatus:      item.deliveryStatus,
-      deliveryNote:        item.deliveryNote,
+      deliveryNote:        `[ROLLED_OVER] ${item.deliveryNote ?? ""}`.trim(),
       partialQuantity:     null,
       returnReceived:      item.returnReceived,
       returnReason:        item.returnReason,
@@ -802,14 +806,15 @@ async function rolloverPartialShipments(
 
   // 3) استلام جزئي (partial_delivered) → نفس الشحنة الأصلية (بدون clone) تترحّل
   //    للبيان الجديد بحالة partial_received، والمبلغ الباقي يفضل متابَع على
-  //    نفس الأوردر (مش أوردر جديد منفصل).
+  //    نفس الأوردر (مش أوردر جديد منفصل). بادئة [ROLLED_OVER] عشان تفضل في
+  //    الحاوية الحمرا بس (لسه عند الشحن) وتختفي من جدول الطلبيات في البيان الجديد.
   for (const item of partialItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
       manifestId:          targetManifestId,
       shipmentId:          item.shipmentId,
       deliveryStatus:      "partial_received",
-      deliveryNote:        item.deliveryNote ?? `استلام جزئي — مرحّل من بيان ${closedManifest.manifestNumber}`,
+      deliveryNote:        `[ROLLED_OVER] ${item.deliveryNote ?? `استلام جزئي — مرحّل من بيان ${closedManifest.manifestNumber}`}`.trim(),
       partialQuantity:     item.partialQuantity ?? null,
       returnReceived:      0,
       returnReason:        item.returnReason ?? "استلام جزئي",
