@@ -4001,10 +4001,11 @@ export default function ShippingManifestPage() {
     }
   };
 
-  // ─── حسابات الطباعة: نفس منطق كارت الشاشة (deliveredCOD / shippingCost / totalDueToCourier) بالضبط ───
-  // الحسابات بتعتمد بس على deliveryStatus/returnReason، وميتأثرش بـ returnReceived
-  // (تم الاستلام) خالص — "تم الاستلام" بترجع الأوردر للمخزن فقط ومتغيرش أي رقم مالي.
-  const ordersForPnlPrint = (manifest.orders ?? []).filter(o => !isStillAtShipping(o));
+  // المرتجع/الجزئي المُرحَّل لازم يستبعد خالص من حسابات الطباعة كمان — سواء لسه عند
+  // الشحن أو اتأكد استلامه، بنفس منطق كارت الشاشة بالضبط.
+  const ordersForPnlPrint = (manifest.orders ?? []).filter(o =>
+    o.deliveryStatus !== "returned" && o.deliveryStatus !== "partial_received" && o.deliveryStatus !== "partial_delivered"
+  );
   const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
   const printDeliveredOrders = ordersForPnlPrint.filter(o =>
     o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received"
@@ -4713,12 +4714,13 @@ export default function ShippingManifestPage() {
 
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
-        // الحسابات المالية بتعتمد بس على deliveryStatus/returnReason، وميتأثرش
-        // بـ returnReceived (تم الاستلام) خالص — "تم الاستلام" بترجع الأوردر
-        // للمخزن فقط ومتغيرش أي رقم مالي: الأرقام قبلها وبعدها لازم تفضل واحدة.
-        // استبعاد صريح لأي طلبية لسه عند شركة الشحن (isStillAtShipping) — عشان أي طلبية اترحّلت
-        // (مؤجل/مرتجع/جزئي) متدخلش في أي حساب مالي هنا، حتى لو partial_received معاها قيمة قديمة.
-        const ordersForPnl = (manifest.orders ?? []).filter(o => !isStillAtShipping(o));
+        // المرتجع/الجزئي المُرحَّل (returned/partial_received/partial_delivered) لازم يستبعد
+        // خالص من كل الحسابات المالية في البيان الجديد ده — سواء لسه عند الشحن أو اتأكد
+        // استلامه ("تم الاستلام") — لأن حالته كانت لازم تتصرف في البيان القديم المغلق،
+        // فمينفعش يرجع فلوسه (إيرادات/تكلفة شحن/رصيد/صافي ربح) هنا بعد الترحيل.
+        const ordersForPnl = (manifest.orders ?? []).filter(o =>
+          o.deliveryStatus !== "returned" && o.deliveryStatus !== "partial_received" && o.deliveryStatus !== "partial_delivered"
+        );
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
