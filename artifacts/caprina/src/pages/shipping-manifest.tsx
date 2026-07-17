@@ -338,7 +338,7 @@ function OrderDeliveryRow({
           )}
           {order.deliveryStatus === "returned" && (order as any).returnReceived === 0 && (
             <>
-              <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">⏳ عند شركة الشحن</p>
+              <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">⏳ مع مندوب الشحن</p>
               <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
                 ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
               </p>
@@ -482,7 +482,7 @@ function OrderDeliveryRow({
         )}
         {order.deliveryStatus === "returned" && (order as any).returnReceived === 0 && (
           <>
-            <p className="text-[10px] text-orange-500 font-semibold">⏳ عند شركة الشحن</p>
+            <p className="text-[10px] text-orange-500 font-semibold">⏳ مع مندوب الشحن</p>
             <p className="text-[10px] text-red-400 font-semibold">
               ↳ {(order as any).returnReason ? returnReasonLabel((order as any).returnReason) : "لم يحدد السبب"}
             </p>
@@ -1390,7 +1390,7 @@ function InvoiceGroupDeliveryRow({
                 )}
                 {displayStatus === "returned" && (rep as any).returnReceived === 0 && (
                   <>
-                    <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">⏳ عند شركة الشحن</p>
+                    <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">⏳ مع مندوب الشحن</p>
                     <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
                       ↳ {(rep as any).returnReason ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason) : "لم يحدد السبب"}
                     </p>
@@ -4675,7 +4675,7 @@ export default function ShippingManifestPage() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-base">🚚</span>
               <h2 className="font-bold text-sm text-red-400">
-                بضاعة لسه عند شركة الشحن ({pendingReturnOrders.length})
+                بضاعة لسه مع مندوب الشحن ({pendingReturnOrders.length})
               </h2>
               <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
             </div>
