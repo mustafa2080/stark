@@ -3874,8 +3874,11 @@ export default function ShippingManifestPage() {
   const isStillAtShipping = (o: typeof manifest.orders[number]) => {
     const rr = (o as any).returnReceived;
     const isConfirmed = rr === 1 || rr === true || rr === "1";
+    // لو اتسجلت قيمة مالية مستلمة فعليًا من العميل (returnValueReceived)، الطلبية بقت
+    // مالياً محسومة حتى لو البضاعة نفسها لسه ما رجعتش المخزن (returnReceived=0)
+    const hasReturnValue = (o as any).returnValueReceived != null;
     return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-      !isConfirmed;
+      !isConfirmed && !hasReturnValue;
   };
 
   // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها (returnReceived=1) — خالص مش في البيان
@@ -4688,9 +4691,13 @@ export default function ShippingManifestPage() {
           const dvr = (o as any).deliveredValueReceived;
           return s + (dvr != null ? Number(dvr) : (o.totalPrice ?? 0));
         }, 0);
-        const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        const returnedCOD     = returnedOrders.reduce((s, o) => {
+          const rvr = (o as any).returnValueReceived;
+          return s + (rvr != null ? Number(rvr) : 0);
+        }, 0);
         const shippingCost    = ordersForPnl.reduce((sum, o) => sum + (o.shippingCost ?? 0), 0);
-        const netAmount       = deliveredCOD - shippingCost;
+        // القيمة المستلمة فعليًا من العميل في المرتجعات (returnValueReceived) بتضاف للإيرادات
+        const netAmount       = deliveredCOD + returnedCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
@@ -4723,7 +4730,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netAmount))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(deliveredCOD)} مُسلَّم − {formatCurrency(shippingCost)} شحن
+                    {formatCurrency(deliveredCOD)} مُسلَّم + {formatCurrency(returnedCOD)} مرتجع مستلم − {formatCurrency(shippingCost)} شحن
                   </p>
                 </div>
                 {isProfit
