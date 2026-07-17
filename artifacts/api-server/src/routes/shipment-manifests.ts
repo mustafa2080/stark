@@ -727,24 +727,80 @@ async function rolloverPartialShipments(
     (i.deliveryStatus === "delayed" || i.deliveryStatus === "pending") && hasZeroBalance(i)
   );
 
-  // ── 2) مرتجع / استلام جزئي لسه عند شركة الشحن (بدون returnReceived، وبرصيد صفر) ─
-  //    يترحّل بنفس بياناته بالظبط، بدون تغيير أي حاجة — يشمل الجزئي اللي لسه
-  //    عند الشحن كله أو جزء منه، الملاحظة والكمية الجزئية بتترحّل زي ما هي
-  // ملحوظة: هنا عمدًا من غير hasZeroBalance — لأن المبلغ في partial_delivered
-  // (partialQuantity) هو قيمة الجزء المُسلَّم فعلاً، مش رصيد قفل نهائي للبيان.
-  // طالما returnReceived !== 1 فالطلبية لسه فعليًا عند شركة الشحن ولازم تترحّل
-  // بغض النظر عن وجود مبلغ متسجل، وإلا هتفضل عالقة في البيان القديم المغلق
-  // وتستمر تدخل في حسابات مالية قديمة بالغلط.
+  // ── 2) مرتجع لسه عند شركة الشحن (بدون returnReceived) → يترحّل بنفس بياناته بالظبط ─
   const stillAtShippingItems = items.filter(i =>
-    (i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered") &&
-    i.returnReceived !== 1
+    i.deliveryStatus === "returned" && i.returnReceived !== 1
   );
 
-  const hasRollover = delayedItems.length > 0 || stillAtShippingItems.length > 0;
+  // ── 3) استلام جزئي (partial_delivered): الشحنة الأصلية تقفل في البيان القديم
+  //    بكميتها المُسلَّمة فعليًا فقط. الكمية الباقية عند المندوب تتحوّل لشحنة جديدة
+  //    (clone) بـ shipmentId منفصل تمامًا، حالتها returned، وهي اللي بتترحّل للبيان
+  //    الجديد — تأكيد صريح من بشمهندس مصطفى: الجزئي ميترحلش زي ما هو، الباقي بس
+  //    اللي يترحّل كمرتجع في الحاوية الحمرا.
+  const partialItems = items.filter(i =>
+    i.deliveryStatus === "partial_delivered" && i.returnReceived !== 1
+  );
+
+  const hasRollover = delayedItems.length > 0 || stillAtShippingItems.length > 0 || partialItems.length > 0;
   if (!hasRollover) return null;
 
   const targetManifest = await getOrCreateOpenManifest(closedManifest, "بيان مرحّل تلقائياً");
   const targetManifestId = targetManifest.id;
+
+  // ── معالجة partial_delivered: تقسيم الشحنة الأصلية (قفل + clone) ──────────
+  const clonedReturnShipmentIds: number[] = [];
+  if (partialItems.length > 0) {
+    const originalShipments = await db.select().from(shipmentsTable).where(
+      inArray(shipmentsTable.id, partialItems.map((i) => i.shipmentId))
+    );
+    for (const item of partialItems) {
+      const original = originalShipments.find((s) => s.id === item.shipmentId);
+      if (!original) continue;
+      const totalPieces = original.pieces ?? 1;
+      const deliveredQty = item.partialQuantity ?? original.partialQuantity ?? 0;
+      const remainingQty = totalPieces - deliveredQty;
+      if (remainingQty <= 0) continue; // اتسلم كامل فعليًا، مفيش حاجة ترجع
+
+      // نسبة الكمية الباقية من الإجمالي — تُستخدم لتقسيم القيم المالية
+      const ratio = totalPieces > 0 ? remainingQty / totalPieces : 0;
+      const codAmount    = Number(original.codAmount ?? 0);
+      const costPrice    = Number(original.costPrice ?? 0);
+      const shippingFee  = Number(original.shippingFee ?? 0);
+      const totalAmount  = Number(original.totalAmount ?? 0);
+
+      // clone كامل بشحنة جديدة لنفس الأوردر بالكمية الباقية، حالة returned
+      const cloneInsert = await db.insert(shipmentsTable).values({
+        tenantId: original.tenantId, shipmentNumber: null, trackingNumber: original.trackingNumber,
+        clientId: original.clientId, senderName: original.senderName, senderPhone: original.senderPhone,
+        senderPhone2: original.senderPhone2, senderEmail: original.senderEmail,
+        senderAddress: original.senderAddress, senderCity: original.senderCity,
+        receiverName: original.receiverName, receiverPhone: original.receiverPhone,
+        receiverPhone2: original.receiverPhone2, receiverAddress: original.receiverAddress,
+        receiverCity: original.receiverCity, zoneId: original.zoneId, zonePrice: original.zonePrice,
+        parcelType: original.parcelType, parcelTypePrice: original.parcelTypePrice,
+        weight: original.weight, pieces: remainingQty, description: original.description,
+        productId: original.productId, variantId: original.variantId, warehouseId: original.warehouseId,
+        declaredValue: original.declaredValue, canOpen: original.canOpen, isDivisible: original.isDivisible,
+        rejectionPolicy: original.rejectionPolicy, paymentMethod: original.paymentMethod,
+        codAmount: String((codAmount * ratio).toFixed(2)), costPrice: String((costPrice * ratio).toFixed(2)),
+        shippingFee: "0", insuranceFee: "0", totalAmount: String((totalAmount * ratio).toFixed(2)),
+        collectedAmount: "0", status: "returned", shippingCompanyId: original.shippingCompanyId,
+        assignedUserId: original.assignedUserId, createdByUserId: original.createdByUserId,
+        createdByName: original.createdByName, notes: original.notes, internalNotes: original.internalNotes,
+        returnReason: item.returnReason ?? "استلام جزئي - الباقي مرتجع", returnReceived: 0,
+        returnNote: item.deliveryNote ?? null, partialQuantity: null, isReplacementRequested: 0,
+        inventoryDeducted: 0, inventoryReturned: 0,
+        createdAt: now, updatedAt: now,
+      } as typeof shipmentsTable.$inferInsert);
+      const clonedId = (cloneInsert as any)[0]?.insertId ?? (cloneInsert as any).insertId;
+      clonedReturnShipmentIds.push(clonedId);
+
+      // ننقص الشحنة الأصلية لتفضل بكميتها المُسلَّمة فقط — تقفل في البيان القديم زي ما هي
+      await db.update(shipmentsTable)
+        .set({ pieces: deliveredQty, updatedAt: now })
+        .where(eq(shipmentsTable.id, original.id));
+    }
+  }
 
   // الشحنات اللي ممكن تتكرر بين الفئات (نادراً) — نمنع تكرار نفس shipmentId في نفس البيان
   const existing = await db
@@ -777,11 +833,9 @@ async function rolloverPartialShipments(
     delayedCount++;
   }
 
-  // 2) مرتجع / جزئي لسه عند الشحن → الحالة والملاحظات والسبب يترحّلوا زي ما هم،
-  //    لكن القيم المالية (returnValueReceived / partialQuantity) تترصفّر عمدًا
-  //    لـ NULL في البيان الجديد: البيان الجديد لازم يبدأ نضيف ماليًا، والمندوب
-  //    هو اللي يدخل القيمة تاني بنفسه لو الأوردر اتسجل تاني (تأكيد صريح من
-  //    بشمهندس مصطفى — القيمة القديمة معندهاش داعي تتوارث للبيان الجديد).
+  // 2) مرتجع لسه عند الشحن → الحالة والملاحظات والسبب يترحّلوا زي ما هم،
+  //    لكن القيم المالية (returnValueReceived) تترصفّر عمدًا لـ NULL في البيان
+  //    الجديد: البيان الجديد لازم يبدأ نضيف ماليًا (تأكيد صريح من بشمهندس مصطفى).
   for (const item of stillAtShippingItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
@@ -799,6 +853,25 @@ async function rolloverPartialShipments(
     if (item.deliveryStatus === "returned") returnedStillAtShippingCount++;
     else partialStillAtShippingCount++;
     // الشحنة لسه فعلياً عند شركة الشحن، فمش بنغيّر حالتها في shipmentsTable
+  }
+
+  // 3) الشحنات المستنسخة من partial_delivered → تدخل البيان الجديد كمرتجع returned
+  //    (الشحنة الأصلية بحالتها partial_delivered قفلت في البيان القديم ومش بتترحّل)
+  for (const clonedId of clonedReturnShipmentIds) {
+    if (existingIds.has(clonedId)) continue;
+    rowsToInsert.push({
+      manifestId:          targetManifestId,
+      shipmentId:          clonedId,
+      deliveryStatus:      "returned",
+      deliveryNote:        `مرتجع من استلام جزئي — بيان ${closedManifest.manifestNumber}`,
+      partialQuantity:     null,
+      returnReceived:      0,
+      returnReason:        "استلام جزئي - الباقي مرتجع",
+      returnValueReceived: null,
+      addedAt:             now,
+    } as typeof shipmentManifestItemsTable.$inferInsert);
+    existingIds.add(clonedId);
+    partialStillAtShippingCount++;
   }
 
   if (rowsToInsert.length === 0) return null;
