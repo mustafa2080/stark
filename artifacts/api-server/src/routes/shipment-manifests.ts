@@ -213,11 +213,16 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش
         if (returnReasonHasValue) {
           const manualVal = Number((item as any).returnValueReceived ?? 0);
-          deliveredGross += manualVal;
-          deliveredShippingFees += shipping;
-          // القيمة المستلمة فعليًا عند المرتجع تضاف لإجمالي الإيرادات، ومصاريف شحنها لإجمالي تكلفة الشحن
-          totalRevenue += manualVal;
-          totalShippingCost += shipping;
+          // تكلفة الشحن بتتضاف فقط لو فيه قيمة إيراد فعلية متحصّلة من العميل —
+          // من غيرها (لسه صفر / متسجّلاش تاني بعد الترحيل) البيان يفضل صفر
+          // بالكامل، من غير تكلفة شحن بدون إيراد مقابلها (كانت بتسبب رصيد
+          // سالب للمندوب بالغلط في البيانات المرحّلة الجديدة).
+          if (manualVal > 0) {
+            deliveredGross += manualVal;
+            deliveredShippingFees += shipping;
+            totalRevenue += manualVal;
+            totalShippingCost += shipping;
+          }
         }
       } else {
         // pending/delayed → لسه عند شركة الشحن، مفيش تكلفة شحن تُحسب عليه دلوقتي
