@@ -562,14 +562,16 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
   let rolledOverManifest: any = null;
 
   if (parsed.data.status === "closed") {
-    // الطلبات اللي "مازال في شركة الشحن" = pending/postponed/in_shipping + returned/partial بدون returnReceived
+    // الطلبات اللي "مازال في شركة الشحن" = pending/postponed/in_shipping + returned بدون returnReceived
+    // partial_received (مسلَّم جزئي) ميترحّلش خالص — يفضل قاعد في البيان القديم بحالته
+    // زي ما هو (بيحسب كإيراد جزئي فعلي هناك). العميل نفس الأوردر بـ orderId واحد بس في
+    // النظام، فمينفعش يترحّل سطر جديد ليه في بيان تاني وهو لسه موجود في القديم.
     const pendingLinks = await db.select().from(shippingManifestOrdersTable).where(
       and(
         eq(shippingManifestOrdersTable.manifestId, id),
         or(
           inArray(shippingManifestOrdersTable.deliveryStatus, ["postponed", "pending", "in_shipping"]),
-          and(eq(shippingManifestOrdersTable.deliveryStatus, "returned"), or(sql`${shippingManifestOrdersTable.returnReceived} = 0`, isNull(shippingManifestOrdersTable.returnReceived))),
-          and(eq(shippingManifestOrdersTable.deliveryStatus, "partial_received"), or(sql`${shippingManifestOrdersTable.returnReceived} = 0`, isNull(shippingManifestOrdersTable.returnReceived)))
+          and(eq(shippingManifestOrdersTable.deliveryStatus, "returned"), or(sql`${shippingManifestOrdersTable.returnReceived} = 0`, isNull(shippingManifestOrdersTable.returnReceived)))
         )
       )
     );
@@ -593,19 +595,9 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
         await reverseShipping(buildOrderRef(order), order.quantity, order.id);
       }
 
-      // ── الطلبات الجزئية (partial_received) بدون returnReceived ──────────────
-      // الجزء المتبقي (لم يستلم) لسه عند شركة الشحن → نرجعه للمخزن
-      const partialWithoutReturn = pendingLinks.filter((l) => l.deliveryStatus === "partial_received");
-      for (const link of partialWithoutReturn) {
-        const order = pendingOrders.find(o => o.id === link.orderId);
-        if (!order) continue;
-        // الكمية اللي اتستلمت = link.partialQuantity (دايماً من الـ link مش ordersTable)
-        // لأن ordersTable.partialQuantity ممكن يكون اتغير في بيانات سابقة
-        const deliveredQty = link.partialQuantity != null ? Number(link.partialQuantity) : 0;
-        const remainingQty = order.quantity - deliveredQty;
-        // الجزء الباقي كان عند شركة الشحن → أرجعه للمخزن
-        if (remainingQty > 0) await reverseShipping(buildOrderRef(order), remainingQty, order.id);
-      }
+      // ملحوظة: partial_received ميدخلش pendingLinks خالص (شُيل من الفلتر فوق) —
+      // فمفيش حاجة تترحّل أو ترجع للمخزن بخصوصه هنا. الأوردر يفضل قاعد بحالته
+      // partial_received في نفس البيان القديم زي ما هو.
 
       // ── رحّل كل الطلبات لبيان جديد ───────────────────────────────────────────
       const newManifestNumber = await generateManifestNumber(updated.shippingCompanyId);
@@ -617,36 +609,28 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
       const [newManifest] = await db.select().from(shippingManifestsTable).where(eq(shippingManifestsTable.id, newId));
 
       // الطلبات في البيان الجديد: المؤجل يفضل مؤجل، المرتجع يفضل مرتجع، الباقي pending
+      // (partial_received مش موجود هنا خالص — شُيل من pendingLinks فوق)
       await db.insert(shippingManifestOrdersTable).values(
         pendingLinks.map((link) => {
           const isDelayed   = link.deliveryStatus === "postponed" || link.deliveryStatus === "delayed";
           const isReturned  = link.deliveryStatus === "returned";
-          const isPartial   = link.deliveryStatus === "partial_received";
-          // partial_received المُرحَّل بيبقى "returned" (مرتجع لم يتم الاستلام) في البيان الجديد
-          // بنفس منطق returned العادي — عشان يتفلتر ماليًا (صفر) لحد ما يتحدد مصيره فعليًا
-          const newStatus   = isDelayed ? link.deliveryStatus : (isReturned || isPartial) ? "returned" : "pending";
-          const newNote     = isDelayed || isReturned || isPartial ? link.deliveryNote : null;
-          // partial: نحسب الكمية الباقية عند شركة الشحن = quantity - partialQuantity
-          // هنحتاج order.quantity — هنجيبه من pendingOrders
-          const pOrder = pendingOrders.find(o => o.id === link.orderId);
-          const deliveredQty = isPartial && link.partialQuantity != null ? Number(link.partialQuantity) : 0;
-          const remainingQty = isPartial && pOrder ? (pOrder.quantity - deliveredQty) : null;
+          const newStatus   = isDelayed ? link.deliveryStatus : isReturned ? "returned" : "pending";
+          const newNote     = isDelayed || isReturned ? link.deliveryNote : null;
           return {
             manifestId: newManifest.id,
             orderId: link.orderId,
             deliveryStatus: newStatus as any,
             deliveryNote: newNote,
             deliveredAt: null,
-            // في البيان الجديد: partialQuantity = الكمية الباقية عند الشحن (مش اللي اتستلمت)
-            partialQuantity: isPartial ? (remainingQty != null && remainingQty > 0 ? remainingQty : null) : null,
-            // returnReceived = null دايمًا للمُرحَّل الجديد (لسه معلّق) — سواء كان returned أو partial أصلًا
-            returnReceived: (isReturned || isPartial) ? link.returnReceived ?? null : null,
+            partialQuantity: null,
+            // returnReceived = null دايمًا للمُرحَّل الجديد (لسه معلّق)
+            returnReceived: isReturned ? link.returnReceived ?? null : null,
             addedAt: new Date(),
           };
         })
       );
 
-      console.log(`[CLOSE manifest ${id}] new manifest ${newManifest.id} inserted links:`, JSON.stringify(pendingLinks.map(l => { const isPartial = l.deliveryStatus === "partial_received"; const newStatus = (l.deliveryStatus === "postponed" || l.deliveryStatus === "delayed") ? l.deliveryStatus : (l.deliveryStatus === "returned" || isPartial) ? "returned" : "pending"; return { orderId: l.orderId, newStatus, partialQuantity: isPartial ? l.partialQuantity : null }; })));
+      console.log(`[CLOSE manifest ${id}] new manifest ${newManifest.id} inserted links:`, JSON.stringify(pendingLinks.map(l => { const newStatus = (l.deliveryStatus === "postponed" || l.deliveryStatus === "delayed") ? l.deliveryStatus : (l.deliveryStatus === "returned") ? "returned" : "pending"; return { orderId: l.orderId, newStatus }; })));
 
       // ── جيب الطلبات وأضفها للبيان الجديد بدون خصم مخزون إضافي ─────────────
       // المخزون اتخصم بالفعل لما الطلبات دخلت البيان الأول
@@ -654,10 +638,10 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
 
       // ── الطلبات المرحّلة: لما ترجعت للمخزن عبر reverseShipping ──
       // processToShipping هتخصمها تاني وتسجل to_shipping في البيان الجديد
-      // الطلبات المرتجعة (returned) والـ partial_received (بقت returned برضو) لا تحتاج to_shipping
+      // الطلبات المرتجعة (returned) لا تحتاج to_shipping
       const returnedIdsForShipping = new Set(
         pendingLinks
-          .filter((l) => l.deliveryStatus === "returned" || l.deliveryStatus === "partial_received")
+          .filter((l) => l.deliveryStatus === "returned")
           .map((l) => l.orderId)
       );
       for (const order of pendingOrders) {
@@ -666,13 +650,10 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
         }
       }
 
-      // تحديث الطلبات: المرتجعة (وpartial_received المُحوَّل لمرتجع) تفضل "returned"، الباقي يبقى "in_shipping"
-      const partialIds = pendingLinks.filter((l) => l.deliveryStatus === "partial_received").map((l) => l.orderId);
-      const originallyReturnedIds = pendingLinks
+      // تحديث الطلبات: المرتجعة تفضل "returned"، الباقي يبقى "in_shipping"
+      const returnedIds = pendingLinks
         .filter((l) => l.deliveryStatus === "returned")
         .map((l) => l.orderId);
-      // partial_received بقت returned برضو في البيان الجديد
-      const returnedIds = [...originallyReturnedIds, ...partialIds];
       const nonReturnedIds = allPendingIds.filter((id) => !returnedIds.includes(id));
 
       if (nonReturnedIds.length > 0) {
