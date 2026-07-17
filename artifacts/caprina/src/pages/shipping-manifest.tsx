@@ -3585,11 +3585,14 @@ export default function ShippingManifestPage() {
   };
 
   const filteredManifestOrders = useMemo(() => {
-    // استبعد المرتجع/الجزئي بالكامل من الجدول ده، سواء لسه عند الشحن أو اتأكد استلامه —
-    // الحالتين كانت لازم تتصرف في البيان القديم المغلق، فمينفعش يرجعوا يظهروا هنا بعد الترحيل.
+    // returned: يستبعد بالكامل من الجدول ده دايمًا — سواء لسه عند الشحن أو اتأكد استلامه
+    // (كان لازم يتصرف في البيان القديم المغلق، مايرجعش يظهر هنا بعد الترحيل).
+    // partial_delivered/partial_received: الجزء المُسلَّم فعلي وحقيقي، فالأوردر يفضل ظاهر
+    // في الجدول عادي؛ الباقي (لسه عند الشحن) هو بس اللي بيظهر في الحاوية الحمرا (isStillAtShipping).
     const orders = (manifest?.orders ?? []).filter((o) => {
-      if (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
-        return false;
+      if (o.deliveryStatus === "returned") return false;
+      if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+        return !isStillAtShipping(o);
       }
       return true;
     });
@@ -4001,11 +4004,15 @@ export default function ShippingManifestPage() {
     }
   };
 
-  // المرتجع/الجزئي المُرحَّل لازم يستبعد خالص من حسابات الطباعة كمان — سواء لسه عند
-  // الشحن أو اتأكد استلامه، بنفس منطق كارت الشاشة بالضبط.
-  const ordersForPnlPrint = (manifest.orders ?? []).filter(o =>
-    o.deliveryStatus !== "returned" && o.deliveryStatus !== "partial_received" && o.deliveryStatus !== "partial_delivered"
-  );
+  // returned: يستبعد بالكامل من حسابات الطباعة دايمًا. partial_delivered/partial_received:
+  // يفضلوا لو مش لسه عند الشحن — بنفس منطق كارت الشاشة بالضبط.
+  const ordersForPnlPrint = (manifest.orders ?? []).filter(o => {
+    if (o.deliveryStatus === "returned") return false;
+    if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+      return !isStillAtShipping(o);
+    }
+    return true;
+  });
   const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
   const printDeliveredOrders = ordersForPnlPrint.filter(o =>
     o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received"
@@ -4714,13 +4721,17 @@ export default function ShippingManifestPage() {
 
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
-        // المرتجع/الجزئي المُرحَّل (returned/partial_received/partial_delivered) لازم يستبعد
-        // خالص من كل الحسابات المالية في البيان الجديد ده — سواء لسه عند الشحن أو اتأكد
-        // استلامه ("تم الاستلام") — لأن حالته كانت لازم تتصرف في البيان القديم المغلق،
-        // فمينفعش يرجع فلوسه (إيرادات/تكلفة شحن/رصيد/صافي ربح) هنا بعد الترحيل.
-        const ordersForPnl = (manifest.orders ?? []).filter(o =>
-          o.deliveryStatus !== "returned" && o.deliveryStatus !== "partial_received" && o.deliveryStatus !== "partial_delivered"
-        );
+        // returned: يستبعد بالكامل من الحسابات المالية دايمًا — سواء لسه عند الشحن أو اتأكد استلامه
+        // (كان لازم يتصرف في البيان القديم المغلق، مايرجعش فلوسه هنا بعد الترحيل).
+        // partial_delivered/partial_received: الجزء المُسلَّم فعلي وحقيقي فيتحسب ماليًا عادي؛
+        // الباقي (لسه عند الشحن) هو بس اللي بيستبعد (isStillAtShipping).
+        const ordersForPnl = (manifest.orders ?? []).filter(o => {
+          if (o.deliveryStatus === "returned") return false;
+          if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+            return !isStillAtShipping(o);
+          }
+          return true;
+        });
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
