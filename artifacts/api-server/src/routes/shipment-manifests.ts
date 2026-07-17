@@ -699,8 +699,8 @@ async function getOrCreateOpenManifest(
 //    بنفس بياناته (الملاحظات والكمية الجزئية) من بيان لبيان لحد ما اليوزر يضغط "تم الاستلام"
 //    (ده شامل الحالتين: لسه ولا اتستلمش خالص، أو اتستلم جزء وفضل جزء عند الشحن)
 function hasZeroBalance(item: typeof shipmentManifestItemsTable.$inferSelect): boolean {
-  const returnVal = item.returnValueReceived != null ? Number(item.returnValueReceived) : 0;
-  const deliveredVal = item.deliveredValueReceived != null ? Number(item.deliveredValueReceived) : 0;
+  const returnVal = (item as any).returnValueReceived != null ? Number((item as any).returnValueReceived) : 0;
+  const deliveredVal = (item as any).deliveredValueReceived != null ? Number((item as any).deliveredValueReceived) : 0;
   return returnVal === 0 && deliveredVal === 0;
 }
 
@@ -772,7 +772,11 @@ async function rolloverPartialShipments(
     delayedCount++;
   }
 
-  // 2) مرتجع / جزئي لسه عند الشحن → يترحّل زي ما هو بدون أي تغيير (ملاحظات وكمية جزئية فقط)
+  // 2) مرتجع / جزئي لسه عند الشحن → الحالة والملاحظات والسبب يترحّلوا زي ما هم،
+  //    لكن القيم المالية (returnValueReceived / partialQuantity) تترصفّر عمدًا
+  //    لـ NULL في البيان الجديد: البيان الجديد لازم يبدأ نضيف ماليًا، والمندوب
+  //    هو اللي يدخل القيمة تاني بنفسه لو الأوردر اتسجل تاني (تأكيد صريح من
+  //    بشمهندس مصطفى — القيمة القديمة معندهاش داعي تتوارث للبيان الجديد).
   for (const item of stillAtShippingItems) {
     if (existingIds.has(item.shipmentId)) continue;
     rowsToInsert.push({
@@ -780,15 +784,12 @@ async function rolloverPartialShipments(
       shipmentId:          item.shipmentId,
       deliveryStatus:      item.deliveryStatus,
       deliveryNote:        item.deliveryNote,
-      partialQuantity:     item.partialQuantity,
+      partialQuantity:     null,
       returnReceived:      item.returnReceived,
       returnReason:        item.returnReason,
-      // لازم تترحّل مع السبب، وإلا القيمة اللي دخلها المندوب يدويًا (لحالات
-      // refused_paid/refused_unpaid/quality) بتضيع وبتتصفر لـ NULL في البيان
-      // الجديد، فبتتشال من إجمالي الإيرادات/تكلفة الشحن غلط بمجرد الترحيل.
-      returnValueReceived: item.returnValueReceived,
+      returnValueReceived: null,
       addedAt:             now,
-    });
+    } as typeof shipmentManifestItemsTable.$inferInsert);
     existingIds.add(item.shipmentId);
     if (item.deliveryStatus === "returned") returnedStillAtShippingCount++;
     else partialStillAtShippingCount++;
