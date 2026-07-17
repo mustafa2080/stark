@@ -3575,11 +3575,18 @@ export default function ShippingManifestPage() {
   const isStillAtShipping = (o: ManifestOrder) => {
     const rr = (o as any).returnReceived;
     const isReceivedBack = rr === 1 || rr === true || rr === "1";
+    const isConfirmedStillAtShipping = rr === 0 || rr === false || rr === "0";
     // ملحوظة: delayed (مؤجل) وpending (قيد الانتظار) مستثنيين عمدًا من هنا —
     // لازم يفضلوا في الجدول العادي ويدخلوا في الحسابات المالية عادي،
     // ومايظهروش في الحاوية الحمرا (دي بس لـ returned/partial المُعلَّقين فعليًا عند الشحن).
-    if (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+    if (o.deliveryStatus === "returned") {
       return !isReceivedBack;
+    }
+    // partial_received / partial_delivered: من أول لحظة (returnReceived لسه null) تفضل
+    // في الجدول العادي فقط — الحاوية الحمرا بترضاها بس لو اتأكد صراحة إنها لسه عند الشحن
+    // (returnReceived === false/0)، مش مجرد كونها null.
+    if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
+      return isConfirmedStillAtShipping;
     }
     return false;
   };
@@ -3588,12 +3595,10 @@ export default function ShippingManifestPage() {
     // returned: يستبعد بالكامل من الجدول ده دايمًا — سواء لسه عند الشحن أو اتأكد استلامه
     // (كان لازم يتصرف في البيان القديم المغلق، مايرجعش يظهر هنا بعد الترحيل).
     // partial_delivered/partial_received: الجزء المُسلَّم فعلي وحقيقي، فالأوردر يفضل ظاهر
-    // في الجدول عادي؛ الباقي (لسه عند الشحن) هو بس اللي بيظهر في الحاوية الحمرا (isStillAtShipping).
+    // في الجدول عادي دايمًا من أول لحظة (حتى لو returnReceived لسه null) — الحاوية الحمرا
+    // (isStillAtShipping) بتعرض بالتوازي "الباقي" لو اتأكد صراحة إنه لسه عند الشحن.
     const orders = (manifest?.orders ?? []).filter((o) => {
       if (o.deliveryStatus === "returned") return false;
-      if (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") {
-        return !isStillAtShipping(o);
-      }
       return true;
     });
     const groups = groupManifestOrders(orders);
