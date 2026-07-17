@@ -622,7 +622,9 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
           const isDelayed   = link.deliveryStatus === "postponed" || link.deliveryStatus === "delayed";
           const isReturned  = link.deliveryStatus === "returned";
           const isPartial   = link.deliveryStatus === "partial_received";
-          const newStatus   = isDelayed ? link.deliveryStatus : isReturned ? "returned" : isPartial ? "partial_received" : "pending";
+          // partial_received المُرحَّل بيبقى "returned" (مرتجع لم يتم الاستلام) في البيان الجديد
+          // بنفس منطق returned العادي — عشان يتفلتر ماليًا (صفر) لحد ما يتحدد مصيره فعليًا
+          const newStatus   = isDelayed ? link.deliveryStatus : (isReturned || isPartial) ? "returned" : "pending";
           const newNote     = isDelayed || isReturned || isPartial ? link.deliveryNote : null;
           // partial: نحسب الكمية الباقية عند شركة الشحن = quantity - partialQuantity
           // هنحتاج order.quantity — هنجيبه من pendingOrders
@@ -637,13 +639,14 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
             deliveredAt: null,
             // في البيان الجديد: partialQuantity = الكمية الباقية عند الشحن (مش اللي اتستلمت)
             partialQuantity: isPartial ? (remainingQty != null && remainingQty > 0 ? remainingQty : null) : null,
-            returnReceived: isPartial ? null : (isReturned ? link.returnReceived : null),
+            // returnReceived = null دايمًا للمُرحَّل الجديد (لسه معلّق) — سواء كان returned أو partial أصلًا
+            returnReceived: (isReturned || isPartial) ? link.returnReceived ?? null : null,
             addedAt: new Date(),
           };
         })
       );
 
-      console.log(`[CLOSE manifest ${id}] new manifest ${newManifest.id} inserted links:`, JSON.stringify(pendingLinks.map(l => { const isPartial = l.deliveryStatus === "partial_received"; const newStatus = (l.deliveryStatus === "postponed" || l.deliveryStatus === "delayed") ? l.deliveryStatus : l.deliveryStatus === "returned" ? "returned" : isPartial ? "partial_received" : "pending"; return { orderId: l.orderId, newStatus, partialQuantity: isPartial ? l.partialQuantity : null }; })));
+      console.log(`[CLOSE manifest ${id}] new manifest ${newManifest.id} inserted links:`, JSON.stringify(pendingLinks.map(l => { const isPartial = l.deliveryStatus === "partial_received"; const newStatus = (l.deliveryStatus === "postponed" || l.deliveryStatus === "delayed") ? l.deliveryStatus : (l.deliveryStatus === "returned" || isPartial) ? "returned" : "pending"; return { orderId: l.orderId, newStatus, partialQuantity: isPartial ? l.partialQuantity : null }; })));
 
       // ── جيب الطلبات وأضفها للبيان الجديد بدون خصم مخزون إضافي ─────────────
       // المخزون اتخصم بالفعل لما الطلبات دخلت البيان الأول
@@ -651,60 +654,35 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
 
       // ── الطلبات المرحّلة: لما ترجعت للمخزن عبر reverseShipping ──
       // processToShipping هتخصمها تاني وتسجل to_shipping في البيان الجديد
-      // الطلبات المرتجعة (returned) لا تحتاج to_shipping — هي لسه في حالة مرتجعة
-      const returnedIdsForShipping = new Set(pendingLinks.filter((l) => l.deliveryStatus === "returned").map((l) => l.orderId));
-      // map من orderId → partialLink عشان نعرف الكمية الباقية للـ partial
-      const partialLinkMap = new Map(pendingLinks.filter((l) => l.deliveryStatus === "partial_received").map((l) => [l.orderId, l]));
+      // الطلبات المرتجعة (returned) والـ partial_received (بقت returned برضو) لا تحتاج to_shipping
+      const returnedIdsForShipping = new Set(
+        pendingLinks
+          .filter((l) => l.deliveryStatus === "returned" || l.deliveryStatus === "partial_received")
+          .map((l) => l.orderId)
+      );
       for (const order of pendingOrders) {
         if (!returnedIdsForShipping.has(order.id)) {
-          const partialLink = partialLinkMap.get(order.id);
-          if (partialLink) {
-            // partial_received: نبعت الكمية الباقية فقط (اللي لسه عند الشحن)
-            const deliveredQty = partialLink.partialQuantity != null ? Number(partialLink.partialQuantity) : 0;
-            const remainingQty = order.quantity - deliveredQty;
-            if (remainingQty > 0) await processToShipping(buildOrderRef(order), remainingQty, order.id);
-          } else {
-            await processToShipping(buildOrderRef(order), order.quantity, order.id);
-          }
+          await processToShipping(buildOrderRef(order), order.quantity, order.id);
         }
       }
 
-      // تحديث الطلبات: المرتجعة تفضل "returned"، الباقي يبقى "in_shipping"
-      const returnedIds = pendingLinks
+      // تحديث الطلبات: المرتجعة (وpartial_received المُحوَّل لمرتجع) تفضل "returned"، الباقي يبقى "in_shipping"
+      const partialIds = pendingLinks.filter((l) => l.deliveryStatus === "partial_received").map((l) => l.orderId);
+      const originallyReturnedIds = pendingLinks
         .filter((l) => l.deliveryStatus === "returned")
         .map((l) => l.orderId);
+      // partial_received بقت returned برضو في البيان الجديد
+      const returnedIds = [...originallyReturnedIds, ...partialIds];
       const nonReturnedIds = allPendingIds.filter((id) => !returnedIds.includes(id));
 
-      const partialIds = pendingLinks.filter((l) => l.deliveryStatus === "partial_received").map((l) => l.orderId);
-      const nonPartialNonReturnedIds = allPendingIds.filter((id) => !returnedIds.includes(id) && !partialIds.includes(id));
-
-      if (nonPartialNonReturnedIds.length > 0) {
+      if (nonReturnedIds.length > 0) {
         await db.update(ordersTable)
           .set({ status: "in_shipping", shippingCompanyId: updated.shippingCompanyId, partialQuantity: null })
-          .where(inArray(ordersTable.id, nonPartialNonReturnedIds));
-      }
-      // partial_received: نحدّث ordersTable بالكمية الباقية كـ partialQuantity جديدة
-      // عشان الماليات في البيان الجديد تتحسب على الكمية الباقية فقط (مش الكاملة)
-      if (partialIds.length > 0) {
-        for (const partialOrderId of partialIds) {
-          const pLink = partialLinkMap.get(partialOrderId);
-          const pOrder = pendingOrders.find(o => o.id === partialOrderId);
-          if (!pLink || !pOrder) continue;
-          const deliveredQty = pLink.partialQuantity != null ? Number(pLink.partialQuantity) : 0;
-          const remainingQty = pOrder.quantity - deliveredQty;
-          await db.update(ordersTable)
-            .set({
-              status: "partial_received",
-              shippingCompanyId: updated.shippingCompanyId,
-              // partialQuantity = الكمية الباقية عند شركة الشحن (مش اللي اتستلمت)
-              partialQuantity: remainingQty > 0 ? remainingQty : null,
-            })
-            .where(eq(ordersTable.id, partialOrderId));
-        }
+          .where(inArray(ordersTable.id, nonReturnedIds));
       }
       if (returnedIds.length > 0) {
         await db.update(ordersTable)
-          .set({ status: "returned", shippingCompanyId: updated.shippingCompanyId })
+          .set({ status: "returned", shippingCompanyId: updated.shippingCompanyId, partialQuantity: null })
           .where(inArray(ordersTable.id, returnedIds));
       }
 
