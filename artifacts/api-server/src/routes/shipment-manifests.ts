@@ -341,7 +341,9 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
 const UpdateItemSchema = z.object({
   // partial_received مقبولة كمرادف لـ partial_delivered (فرق تسمية قديم بين
   // بيانات الشحنة وجدول shipments نفسه) — بنطبّعها فورًا بعد الـ parse تحت.
-  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed", "partial_delivered", "partial_received"]),
+  // postponed ("قيد الشحن") من خيارات الفرونت إند (SHIPMENT_DELIVERY_OPTIONS) —
+  // لازم تكون مقبولة هنا وإلا فشل الحفظ بـ 500 وقت اختيارها.
+  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed", "partial_delivered", "partial_received", "postponed"]),
   deliveryNote:   z.string().nullish(),
   partialQuantity: z.number().int().nullish(),
   returnReceived: z.boolean().nullish(),
@@ -358,10 +360,11 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     const parsedBody  = UpdateItemSchema.parse(req.body);
     // تطبيع partial_received → partial_delivered عشان باقي الراوت (statusMap، شروط
     // الحسابات المالية، إلخ) يتعامل مع قيمة واحدة بس زي ما كان متوقع أصلًا.
+    // postponed تعدّي زي ما هي بدون تطبيع (مالهاش مرادف).
     const body = {
       ...parsedBody,
       deliveryStatus: (parsedBody.deliveryStatus === "partial_received" ? "partial_delivered" : parsedBody.deliveryStatus) as
-        "pending" | "delivered" | "returned" | "delayed" | "partial_delivered",
+        "pending" | "delivered" | "returned" | "delayed" | "partial_delivered" | "postponed",
     };
     const now         = new Date();
 
@@ -410,6 +413,7 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       delayed:   "delayed",
       partial_delivered: "partial_received",
       pending:   "in_transit",
+      postponed: "in_transit",
     };
 
     // ربط المخزون: لو الحالة "مرتجع" أو "استلام جزئي" → نفس منطق صفحة الشحنة مباشرة
