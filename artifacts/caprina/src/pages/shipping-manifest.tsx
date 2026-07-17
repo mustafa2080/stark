@@ -4766,7 +4766,11 @@ export default function ShippingManifestPage() {
           }
           // partial_delivered: الجزء المُسلَّم فعليًا — يدخل الحساب دايمًا بغض النظر
           // عن حالة الباقي المرتجع عند شركة الشحن (isStillAtShipping بتخص الباقي بس).
-          if (o.deliveryStatus === "partial_delivered") return true;
+          // استثناء: لو معلَّم [ROLLED_OVER] فقيمته اتحسبت أصلًا في البيان القديم.
+          if (o.deliveryStatus === "partial_delivered") {
+            const isRolledOverPD = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+            return !isRolledOverPD;
+          }
           // partial_received: إشعار "الباقي المرحّل" فقط — يدخل بس لو اتأكد استلامه فعليًا.
           if (o.deliveryStatus === "partial_received") {
             return !isStillAtShipping(o);
