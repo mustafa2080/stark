@@ -1411,7 +1411,7 @@ function InvoiceGroupDeliveryRow({
                     {(rep as any).returnReceived === 0 && (
                       <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">🚚 الباقي عند الشحن</p>
                     )}
-                    <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
+                    <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال مع مندوب الشحن</p>
                   </>
                 )}
               </div>
