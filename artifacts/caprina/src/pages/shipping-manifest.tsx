@@ -3563,20 +3563,21 @@ export default function ShippingManifestPage() {
   }, [rawManifest]);
 
   // ─── Search filter — real-time, no popover ────────────────────────────────
-  // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
-  // (مرتجع أو استلام جزئي (قديم) مرحَّل ولم يُستلم بعد — partial_delivered مستثناة لأن جزءها المستلم مؤكد فورًا)
-  // (مؤجل (delayed) بردو بيتحسب هنا — طلبية مؤجلة ما اتاخدش فيها إجراء لسه، فبتفضل في الحاوية الحمرا لحد ما تتحدد نتيجتها)
-  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يعتبر مؤكدًا ماليًا فورًا بغض النظر عن returnReceived
+  // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟ (مؤجل / مرتجع / استلام جزئي)
+  // ملحوظة مهمة: طلبية مؤجل/مرتجع/جزئي تفضل دايمًا في الحاوية الحمرا فقط طول ما هي في البيان ده،
+  // حتى لو اتضغط "تم الاستلام" (returnReceived=1) — جدول "الطلبيات في البيان" لازم يفضل فاضي
+  // منها تمامًا. لو الاستلام اتأكد قبل إغلاق البيان الأصلي، الطلبية أصلاً متترحلش (بتفضل في
+  // البيان القديم المغلق) — الشرط ده بيتطبق فقط بعد الترحيل الفعلي.
+  // ملحوظة: "قيد الانتظار" (pending) مستثناة عمدًا — لازم تفضل ظاهرة في الجدول العادي دايمًا.
+  // استثناء: مرتجع بأحد الأسباب الثلاثة (القيمة مُدخلة يدويًا) يعتبر مؤكدًا ماليًا فورًا بغض النظر عن الحالة
   const isStillAtShipping = (o: ManifestOrder) => {
     const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
     if (o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason)) {
       return false;
     }
-    if (o.deliveryStatus === "delayed") return true;
-    const rr = (o as any).returnReceived;
-    const isConfirmed = rr === 1 || rr === true || rr === "1";
-    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received") &&
-      !isConfirmed;
+    return o.deliveryStatus === "delayed" ||
+      o.deliveryStatus === "returned" ||
+      o.deliveryStatus === "partial_received";
   };
 
   const filteredManifestOrders = useMemo(() => {
@@ -4000,7 +4001,7 @@ export default function ShippingManifestPage() {
   // ─── حسابات الطباعة: نفس منطق كارت الشاشة (deliveredCOD / shippingCost / totalDueToCourier) بالضبط ───
   // الحسابات بتعتمد بس على deliveryStatus/returnReason، وميتأثرش بـ returnReceived
   // (تم الاستلام) خالص — "تم الاستلام" بترجع الأوردر للمخزن فقط ومتغيرش أي رقم مالي.
-  const ordersForPnlPrint = (manifest.orders ?? []);
+  const ordersForPnlPrint = (manifest.orders ?? []).filter(o => !isStillAtShipping(o));
   const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
   const printDeliveredOrders = ordersForPnlPrint.filter(o =>
     o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received"
@@ -4712,7 +4713,9 @@ export default function ShippingManifestPage() {
         // الحسابات المالية بتعتمد بس على deliveryStatus/returnReason، وميتأثرش
         // بـ returnReceived (تم الاستلام) خالص — "تم الاستلام" بترجع الأوردر
         // للمخزن فقط ومتغيرش أي رقم مالي: الأرقام قبلها وبعدها لازم تفضل واحدة.
-        const ordersForPnl = (manifest.orders ?? []);
+        // استبعاد صريح لأي طلبية لسه عند شركة الشحن (isStillAtShipping) — عشان أي طلبية اترحّلت
+        // (مؤجل/مرتجع/جزئي) متدخلش في أي حساب مالي هنا، حتى لو partial_received معاها قيمة قديمة.
+        const ordersForPnl = (manifest.orders ?? []).filter(o => !isStillAtShipping(o));
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
         // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
