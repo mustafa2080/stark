@@ -218,8 +218,10 @@ function OrderDeliveryRow({
       }
       if (isShipmentManifest) {
         // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason, returnValueReceived
-        const allowed = ["pending","delivered","partial_delivered","returned","delayed"] as const;
-        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
+        // لازم يشمل كل قيم SHIPMENT_DELIVERY_OPTIONS وإلا القيمة المختارة بتتحول
+        // بصمت لـ "pending" قبل حتى ما توصل للباك إند (كانت مشكلة postponed).
+        const allowed = ["pending","delivered","partial_delivered","returned","delayed","postponed"] as const;
+        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed"|"postponed" : "pending";
         return shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
