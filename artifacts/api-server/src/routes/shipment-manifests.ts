@@ -690,11 +690,20 @@ async function getOrCreateOpenManifest(
 }
 
 // ─── ترحيل الشحنات لبيان جديد عند إغلاق البيان ───────────────────────────────
-// 1) مؤجل (delayed): يترحّل كصف pending جديد كامل في الجدول — الحالة الوحيدة اللي بتاخد صف جديد كامل
+// الشرط العام: تترحّل فقط الشحنات اللي لسه ما اتاخدش فيها أي إجراء فعلي —
+// يعني الرصيد في حساباتها المالية (returnValueReceived / deliveredValueReceived) صفر أو فارغ.
+// لو فيه أي مبلغ اتحصّل فعلاً، الشحنة بتفضل في البيان المغلق ومتترحلش تلقائي.
+// 1) قيد الانتظار (pending) أو مؤجل (delayed): يترحّل كصف pending جديد كامل في الجدول
 // 2) مرتجع (returned) أو استلام جزئي (partial_delivered) لسه عند شركة الشحن (returnReceived != 1):
 //    يترحّل "زي ما هو تماماً" بدون أي تغيير في الجدول — بيفضل ظاهر في حاوية "بضاعة لسه عند شركة الشحن"
 //    بنفس بياناته (الملاحظات والكمية الجزئية) من بيان لبيان لحد ما اليوزر يضغط "تم الاستلام"
 //    (ده شامل الحالتين: لسه ولا اتستلمش خالص، أو اتستلم جزء وفضل جزء عند الشحن)
+function hasZeroBalance(item: typeof shipmentManifestItemsTable.$inferSelect): boolean {
+  const returnVal = item.returnValueReceived != null ? Number(item.returnValueReceived) : 0;
+  const deliveredVal = item.deliveredValueReceived != null ? Number(item.deliveredValueReceived) : 0;
+  return returnVal === 0 && deliveredVal === 0;
+}
+
 async function rolloverPartialShipments(
   closedManifest: typeof shipmentManifestsTable.$inferSelect,
   items: (typeof shipmentManifestItemsTable.$inferSelect)[],
@@ -708,15 +717,18 @@ async function rolloverPartialShipments(
 } | null> {
   const now = new Date();
 
-  // ── 1) مؤجل: يترحّل كصف pending جديد زي ما هو ───────────────────────────────
-  const delayedItems = items.filter(i => i.deliveryStatus === "delayed");
+  // ── 1) قيد الانتظار أو مؤجل: يترحّل كصف pending جديد زي ما هو (بشرط رصيد صفر) ─
+  const delayedItems = items.filter(i =>
+    (i.deliveryStatus === "delayed" || i.deliveryStatus === "pending") && hasZeroBalance(i)
+  );
 
-  // ── 2) مرتجع / استلام جزئي لسه عند شركة الشحن (بدون returnReceived) ────────
+  // ── 2) مرتجع / استلام جزئي لسه عند شركة الشحن (بدون returnReceived، وبرصيد صفر) ─
   //    يترحّل بنفس بياناته بالظبط، بدون تغيير أي حاجة — يشمل الجزئي اللي لسه
   //    عند الشحن كله أو جزء منه، الملاحظة والكمية الجزئية بتترحّل زي ما هي
   const stillAtShippingItems = items.filter(i =>
     (i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered") &&
-    i.returnReceived !== 1
+    i.returnReceived !== 1 &&
+    hasZeroBalance(i)
   );
 
   const hasRollover = delayedItems.length > 0 || stillAtShippingItems.length > 0;
@@ -745,7 +757,9 @@ async function rolloverPartialShipments(
       manifestId:     targetManifestId,
       shipmentId:     item.shipmentId,
       deliveryStatus: "pending",
-      deliveryNote:   `مؤجل من بيان ${closedManifest.manifestNumber}`,
+      deliveryNote:   item.deliveryStatus === "delayed"
+        ? `مؤجل من بيان ${closedManifest.manifestNumber}`
+        : `مرحّل من بيان ${closedManifest.manifestNumber} — لسه قيد الانتظار`,
       addedAt:        now,
     });
     shipmentIdsToMarkInTransit.push(item.shipmentId);
