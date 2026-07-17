@@ -1016,7 +1016,7 @@ export default function Orders() {
       case "product":  return o.receiverName ?? "";
       case "total":    return String(Math.round(Number(o.totalAmount || 0)));
       case "creator":  return (o as any).createdByName ?? "";
-      case "status":   return o.status ?? "";
+      case "status":   return statusLabels[o.status] ?? o.status ?? "";
       default:         return "";
     }
   }, []);

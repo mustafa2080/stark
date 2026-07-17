@@ -18,6 +18,15 @@ const manifestShippingCompanyTable = alias(shippingCompaniesTable, "manifest_shi
 // alias لجدول المخازن عشان نجيب مخزن العميل التجاري كـ fallback لو الشحنة مالهاش مخزن
 const clientWarehouseTable = alias(warehousesTable, "client_warehouse");
 
+// subquery خام: يرجّع أقصى (أحدث) id في shipment_manifest_items لكل shipmentId.
+// بيتستخدم كشرط إضافي في الـ LEFT JOIN عشان الشحنة تتربط بأحدث سجل بيان بس،
+// لأن الـ JOIN المباشر (بدون الشرط ده) كان بيرجع صف منفصل لكل مرة اتضافت
+// فيها نفس الشحنة لأي بيان عبر الوقت، فتظهر مكررة في القائمة.
+const latestManifestItemIdSql = sql`(
+  SELECT MAX(smi2.id) FROM shipment_manifest_items smi2
+  WHERE smi2.shipment_id = ${shipmentsTable.id}
+)`;
+
 // ─── Public router (no auth) ──────────────────────────────────────────────────
 export const publicShipmentsRouter: IRouter = Router();
 
@@ -475,7 +484,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
-        .leftJoin(shipmentManifestItemsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+        .leftJoin(shipmentManifestItemsTable, and(
+          eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id),
+          eq(shipmentManifestItemsTable.id, latestManifestItemIdSql),
+        ))
         .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
         .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
