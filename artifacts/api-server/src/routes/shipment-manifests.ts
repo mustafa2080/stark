@@ -725,10 +725,14 @@ async function rolloverPartialShipments(
   // ── 2) مرتجع / استلام جزئي لسه عند شركة الشحن (بدون returnReceived، وبرصيد صفر) ─
   //    يترحّل بنفس بياناته بالظبط، بدون تغيير أي حاجة — يشمل الجزئي اللي لسه
   //    عند الشحن كله أو جزء منه، الملاحظة والكمية الجزئية بتترحّل زي ما هي
+  // ملحوظة: هنا عمدًا من غير hasZeroBalance — لأن المبلغ في partial_delivered
+  // (partialQuantity) هو قيمة الجزء المُسلَّم فعلاً، مش رصيد قفل نهائي للبيان.
+  // طالما returnReceived !== 1 فالطلبية لسه فعليًا عند شركة الشحن ولازم تترحّل
+  // بغض النظر عن وجود مبلغ متسجل، وإلا هتفضل عالقة في البيان القديم المغلق
+  // وتستمر تدخل في حسابات مالية قديمة بالغلط.
   const stillAtShippingItems = items.filter(i =>
     (i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered") &&
-    i.returnReceived !== 1 &&
-    hasZeroBalance(i)
+    i.returnReceived !== 1
   );
 
   const hasRollover = delayedItems.length > 0 || stillAtShippingItems.length > 0;

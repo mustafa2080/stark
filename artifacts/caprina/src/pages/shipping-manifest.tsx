@@ -3577,7 +3577,8 @@ export default function ShippingManifestPage() {
     }
     return o.deliveryStatus === "delayed" ||
       o.deliveryStatus === "returned" ||
-      o.deliveryStatus === "partial_received";
+      o.deliveryStatus === "partial_received" ||
+      o.deliveryStatus === "partial_delivered";
   };
 
   const filteredManifestOrders = useMemo(() => {
