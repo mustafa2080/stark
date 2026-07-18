@@ -1204,37 +1204,37 @@ ${filtersRow}
                       />
                     </TableHead>
                   )}
-                  <TableHead className="text-right text-xs w-40">
+                  <TableHead className="text-right text-xs w-28">
                     <div className="flex items-center justify-between gap-1">التاريخ {showColFilters && <ColFilterBtn col="date" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
                   <TableHead className="text-center text-xs w-20">
                     <div className="flex items-center justify-between gap-1">النوع {showColFilters && <ColFilterBtn col="type" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs">
+                  <TableHead className="text-right text-xs w-32">
                     <div className="flex items-center justify-between gap-1">المنتج {showColFilters && <ColFilterBtn col="product" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs">
+                  <TableHead className="text-right text-xs w-28">
                     <div className="flex items-center justify-between gap-1">اللون / المقاس {showColFilters && <ColFilterBtn col="variant" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs">
+                  <TableHead className="text-center text-xs w-16">
                     <div className="flex items-center justify-between gap-1">الكمية {showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs">
+                  <TableHead className="text-center text-xs w-28">
                     <div className="flex items-center justify-between gap-1">السبب {showColFilters && <ColFilterBtn col="reason" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs">
+                  <TableHead className="text-center text-xs w-20">
                     <div className="flex items-center justify-between gap-1">طلب {showColFilters && <ColFilterBtn col="order" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs">
+                  <TableHead className="text-right text-xs w-28">
                     <div className="flex items-center justify-between gap-1">العميل {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs">
+                  <TableHead className="text-right text-xs w-24">
                     <div className="flex items-center justify-between gap-1">الفون {showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs">
+                  <TableHead className="text-right text-xs w-32">
                     <div className="flex items-center justify-between gap-1">الموقع {showColFilters && <ColFilterBtn col="location" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs">
+                  <TableHead className="text-right text-xs w-28">
                     <div className="flex items-center justify-between gap-1">ملاحظات {showColFilters && <ColFilterBtn col="notes" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
                   <TableHead className="text-center text-xs w-14">تعديل</TableHead>
@@ -1276,7 +1276,7 @@ ${filtersRow}
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm font-semibold">{m.product}</TableCell>
+                    <TableCell className="text-sm font-semibold truncate max-w-[128px]">{m.product}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {m.color || m.size ? (
                         <div className="flex items-center gap-1">
@@ -1306,13 +1306,13 @@ ${filtersRow}
                         </a>
                       ) : "—"}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs truncate max-w-[112px]">
                       {m.customerName ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground" dir="ltr">
+                    <TableCell className="text-xs text-muted-foreground truncate max-w-[96px]" dir="ltr">
                       {m.customerPhone ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground truncate max-w-[128px]">
                       {isTransfer && m.fromLocation && m.toLocation ? (
                         <div className="flex items-center gap-1 text-violet-700 dark:text-violet-300 font-medium">
                           <span className="text-[10px]">{m.fromLocation}</span>
@@ -1321,7 +1321,7 @@ ${filtersRow}
                         </div>
                       ) : (m as any).warehouseName ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate">{m.notes || "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[112px] truncate">{m.notes || "—"}</TableCell>
                     <TableCell className="text-center">
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary hover:bg-primary/10" title="تعديل" onClick={() => openEdit(m)}>
                         <Pencil className="w-3 h-3" />
