@@ -260,8 +260,11 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // partial_received ما بيدخلش هنا خالص — بيتصنف مرتجع طول ما فيه جزء راجع (نفس منطق تاب "مرتجع" في المخزون)
     conditions.push(inArray(shipmentsTable.status, ["delivered", "received"]));
   } else if (statusFilter === "returned") {
-    // مرتجع بالكامل، أو مرتجع جزئي (سواء لسه عند مندوب الشحن أو راجع للمخزن) — زي تصنيف تاب "مرتجع" في المخزون
-    conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled", "partial_received"]));
+    // مرتجع كامل فقط — partial_received بقى ليه فلتر منفصل (returned_partial) تحت
+    conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled"]));
+  } else if (statusFilter === "returned_partial") {
+    // مرتجع عن استلام جزئي فقط — منفصل عن المرتجع الكامل بناءً على طلب صاحب المشروع
+    conditions.push(eq(shipmentsTable.status, "partial_received"));
   } else if (statusFilter === "delayed") {
     conditions.push(eq(shipmentsTable.status, "delayed"));
   }
@@ -349,12 +352,16 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     total:     allForStats.length,
     active:    allForStats.filter(s => ACTIVE_STATUSES.includes(s.status)).length,
     delivered: allForStats.filter(s => ["delivered", "received"].includes(s.status)).length,
-    // "مرتجع" هنا بيمثّل بس البضاعة اللي رجعت فعليًا للمخزون (returnReceived=true)؛
-    // لسه مع المندوب/شركة الشحن (returnReceived غير true) متحسبش هنا — نفس منطق
-    // تاب "مرتجع" في صفحة المخزون (inventory.tsx / tabMap).
+    // "مرتجع" و"مرتجع عن استلام جزئي" بيمثّلوا بس البضاعة اللي رجعت فعليًا للمخزون
+    // (returnReceived=true) — لسه مع المندوب/شركة الشحن (returnReceived غير true)
+    // متحسبش في أي منهم، نفس منطق تاب "مرتجع" في صفحة المخزون (inventory.tsx / tabMap).
+    // مفصولين بقى عن بعض بناءً على طلب صاحب المشروع: مرتجع كامل، ومرتجع جزئي.
     returned:  allForStats.filter(s =>
-      (["returned", "partial_received"].includes(s.status) && (s.returnReceived === 1 || (s.returnReceived as any) === true))
+      (s.status === "returned" && (s.returnReceived === 1 || (s.returnReceived as any) === true))
       || s.status === "cancelled"
+    ).length,
+    returnedPartial: allForStats.filter(s =>
+      s.status === "partial_received" && (s.returnReceived === 1 || (s.returnReceived as any) === true)
     ).length,
     delayed:   allForStats.filter(s => s.status === "delayed").length,
   };
