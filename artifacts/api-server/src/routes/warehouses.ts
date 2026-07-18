@@ -275,8 +275,16 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     conditions.push(eq(shipmentsTable.returnReceived, 1));
   } else if (statusFilter === "delayed") {
     conditions.push(eq(shipmentsTable.status, "delayed"));
+  } else {
+    // "الكل" (بدون فلتر): كل الشحنات اللي وصلت warehouse_ready على الأقل، إلا الشحنات
+    // المرتجعة (returned/partial_received) اللي لسه مع المندوب/شركة الشحن ومارجعتش
+    // فعليًا للمخزون (returnReceived غير true) — نفس شرط تابي "مرتجع" و"مرتجع جزئي"
+    // بالظبط، عشان "الكل" ميعرضش شحنة مش موجودة فعليًا في المخزن.
+    conditions.push(or(
+      sql`${shipmentsTable.status} NOT IN ('returned', 'partial_received')`,
+      eq(shipmentsTable.returnReceived, 1),
+    ));
   }
-  // بدون فلتر = كل الشحنات اللي وصلت warehouse_ready على الأقل (مش كل الشحنات المرتبطة بالمخزن)
 
   const shipments = await db
     .select({
@@ -356,8 +364,16 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
       inArray(shipmentsTable.status, VISIBLE_IN_WAREHOUSE),
     ));
 
+  // "الكل" هنا لازم يتطابق بالظبط مع نفس منطق فلتر "الكل" فوق في /shipments:
+  // شحنة returned/partial_received لسه مع المندوب (returnReceived غير true) متتحسبش
+  // ضمن "الكل" لأنها مش موجودة فعليًا في المخزون.
+  const totalVisible = allForStats.filter(s =>
+    !["returned", "partial_received"].includes(s.status)
+    || (s.returnReceived === 1 || (s.returnReceived as any) === true)
+  ).length;
+
   const stats = {
-    total:     allForStats.length,
+    total:     totalVisible,
     active:    allForStats.filter(s => ACTIVE_STATUSES.includes(s.status)).length,
     delivered: allForStats.filter(s => ["delivered", "received"].includes(s.status)).length,
     // "مرتجع" و"مرتجع عن استلام جزئي" بيمثّلوا بس البضاعة اللي رجعت فعليًا للمخزون
