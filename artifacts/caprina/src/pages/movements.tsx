@@ -884,10 +884,6 @@ ${filtersRow}
             onClick={() => setShowShipmentsTransfer(true)}>
             <PackageCheck className="w-4 h-4" />نقل شحنات لمخزن
           </Button>
-          <Button className="gap-2 bg-primary text-primary-foreground font-bold text-sm h-9 flex-1 sm:flex-none min-w-[130px]"
-            onClick={() => { setDialogMode("manual"); setForm(f => ({ ...f, reason: "manual_in", type: "IN" })); setShowDialog(true); }}>
-            <Plus className="w-4 h-4" />حركة يدوية
-          </Button>
         </div>
       </div>
 
