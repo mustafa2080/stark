@@ -595,7 +595,8 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
   const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics" | "clients">("shipments");
   const [clientSearch, setClientSearch] = useState("");
   const [clientSort, setClientSort] = useState<"count" | "name" | "cod">("count");
-  const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"active" | "delivered" | "returned" | "delayed" | "all">("active");
+  // "all" لازالت مطلوبة داخليًا لتاب "العملاء" (بيحتاج كل الشحنات بغض النظر عن الحالة)
+  const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"active" | "returned" | "all">("active");
 
   const { data: warehouse, isLoading } = useQuery({
     queryKey: ["warehouses", warehouseId],
@@ -1214,13 +1215,12 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
         <div className="space-y-4">
 
           {/* إحصائيات سريعة */}
-          <div className="grid grid-cols-5 gap-2">
+          {/* تابات إحصائيات الشحنات — مقصورة على "قيد الشحن في المخزن" و"مرتجع" فقط
+              (الكل / مسلّمة / مؤجل اتشالوا بناءً على طلب صاحب المشروع) */}
+          <div className="grid grid-cols-2 gap-2">
             {[
-              { label: "الكل",        value: stats?.total ?? 0,     key: "all",       color: "text-foreground",  bg: "bg-muted/20" },
-              { label: "قيد الشحن",   value: stats?.active ?? 0,    key: "active",    color: "text-amber-500",   bg: "bg-amber-500/10" },
-              { label: "مسلّمة",      value: stats?.delivered ?? 0, key: "delivered", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-              { label: "مرتجع",       value: stats?.returned ?? 0,  key: "returned",  color: "text-red-500",     bg: "bg-red-500/10" },
-              { label: "مؤجل",        value: stats?.delayed ?? 0,   key: "delayed",   color: "text-orange-500",  bg: "bg-orange-500/10" },
+              { label: "قيد الشحن في المخزن", value: stats?.active ?? 0,   key: "active",   color: "text-amber-500", bg: "bg-amber-500/10" },
+              { label: "مرتجع",               value: stats?.returned ?? 0, key: "returned", color: "text-red-500",   bg: "bg-red-500/10" },
             ].map(s => (
               <button
                 key={s.key}
