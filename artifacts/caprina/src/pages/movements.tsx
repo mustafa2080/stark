@@ -361,7 +361,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg" dir="rtl">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
             <PackageCheck className="w-4 h-4 text-teal-600" />
