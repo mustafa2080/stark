@@ -1192,7 +1192,7 @@ ${filtersRow}
               })}
             </div>
             <div className="hidden sm:block overflow-x-auto">
-            <Table className="min-w-[1100px]">
+            <Table className="min-w-[1300px]">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
                   {isAdmin && (
@@ -1231,7 +1231,7 @@ ${filtersRow}
                   <TableHead className="text-right text-xs w-24">
                     <div className="flex items-center justify-between gap-1">الفون {showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs w-32">
+                  <TableHead className="text-right text-xs w-40">
                     <div className="flex items-center justify-between gap-1">الموقع {showColFilters && <ColFilterBtn col="location" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-xs w-28">
@@ -1309,10 +1309,10 @@ ${filtersRow}
                     <TableCell className="text-xs truncate max-w-[112px]">
                       {m.customerName ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground truncate max-w-[96px]" dir="ltr">
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap" dir="ltr">
                       {m.customerPhone ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground truncate max-w-[128px]">
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                       {isTransfer && m.fromLocation && m.toLocation ? (
                         <div className="flex items-center gap-1 text-violet-700 dark:text-violet-300 font-medium">
                           <span className="text-[10px]">{m.fromLocation}</span>
