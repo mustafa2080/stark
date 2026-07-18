@@ -385,8 +385,12 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
               <SelectTrigger className="h-9 text-xs w-40 shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">كل الحالات</SelectItem>
-                {Object.entries(TRANSFER_STATUS_MAP).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                {/* فلتر النقل بين المخازن مخصص لحالتين بس: قيد الشحن في المخزن، ومرتجع —
+                    الحالات التانية (قيد الانتظار، مؤكدة، تم الاستلام، في الطريق، مع المندوب،
+                    مسلّمة، ملغية، تسليم/مرتجع جزئي) مش منطقية هنا لأنها مش شحنات موجودة
+                    فعليًا داخل مخزن تقدر تنقلها. */}
+                {(["warehouse_ready", "returned"] as const).map((k) => (
+                  <SelectItem key={k} value={k}>{TRANSFER_STATUS_MAP[k].label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
