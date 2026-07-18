@@ -924,16 +924,6 @@ const WAREHOUSE_TABS = [
     border:   "border-red-200 dark:border-red-700",
     dot:      "bg-red-500",
   },
-  {
-    id:       "delayed",
-    label:    "مؤجل",
-    statuses: ["delayed"],
-    icon:     AlertCircle,
-    color:    "text-orange-600 dark:text-orange-400",
-    bg:       "bg-orange-50 dark:bg-orange-900/20",
-    border:   "border-orange-200 dark:border-orange-700",
-    dot:      "bg-orange-500",
-  },
 ] as const;
 
 type TabId = typeof WAREHOUSE_TABS[number]["id"];
@@ -1011,6 +1001,7 @@ function ShipmentWarehouseTab() {
   const activeCount    = tabMap.warehouse_ready?.length ?? 0;
   const inTransitCount = 0; // لا يوجد تاب "قيد الشحن" منفصل في هذا الـ view بعد التبسيط
   const returnedCount  = tabMap.returned?.length ?? 0;
+  const delayedCount   = allWarehouseShipments.filter((sh: any) => sh.status === "delayed").length;
   const deliveredCount = 0; // لا يوجد تاب "استلم" في هذا الـ view بعد التبسيط
   const totalAll       = WAREHOUSE_TABS.reduce((s, t) => s + (tabMap[t.id]?.length ?? 0), 0);
 
@@ -1289,11 +1280,9 @@ function ShipmentWarehouseTab() {
   // ── Phase 4: تنبيهات استباقية ─────────────────────────────────────────────
   // 1) شحنات ستتجاوز SLA خلال 24 ساعة القادمة
   const upcomingSlaWarnings = useMemo(() => {
-    const activeSh = [
-      ...(tabMap.pending ?? []),
-      ...(tabMap.warehouse_ready ?? []),
-      ...(tabMap.in_shipping ?? []),
-    ];
+    const activeSh = allWarehouseShipments.filter((sh: any) =>
+      ["pending", "warehouse_ready", "picked_up", "in_shipping", "in_transit"].includes(sh.status)
+    );
     return activeSh.map((sh: any) => {
         const ageHours = hoursSince(sh.updatedAt ?? sh.createdAt);
         const sla = SLA_HOURS[sh.status];
@@ -1304,13 +1293,16 @@ function ShipmentWarehouseTab() {
       })
       .filter(Boolean)
       .sort((a: any, b: any) => a._hoursLeft - b._hoursLeft) as any[];
-  }, [tabMap]);
+  }, [allWarehouseShipments]);
 
   // 2) أنماط غريبة — شركة شحن معدل إرجاعها أعلى من المتوسط بـ 50%+
   const anomalousCompanies = useMemo(() => {
     // نجمع per-company: delivered count + returned count
     const compMap: Record<string, { name: string; delivered: number; returned: number }> = {};
-    for (const sh of [...(tabMap.received ?? []), ...(tabMap.delayed ?? [])]) {
+    const relevantSh = allWarehouseShipments.filter((sh: any) =>
+      ["received", "delivered", "delayed", "returned", "partial_received"].includes(sh.status)
+    );
+    for (const sh of relevantSh) {
       const key = sh.shippingCompanyName ?? "بدون شركة";
       if (!compMap[key]) compMap[key] = { name: key, delivered: 0, returned: 0 };
       if (["received", "delivered"].includes(sh.status)) compMap[key].delivered += 1;
@@ -1323,7 +1315,7 @@ function ShipmentWarehouseTab() {
       .map(c => ({ ...c, returnRate: c.returned / (c.delivered + c.returned) }))
       .filter(c => c.returnRate > avgReturnRate * 1.5 && c.returnRate > 0.1) // > 10% إرجاع وأعلى من المتوسط بـ 50%
       .sort((a, b) => b.returnRate - a.returnRate);
-  }, [tabMap.received, tabMap.delayed]);
+  }, [allWarehouseShipments]);
 
   // ── اسم المخزن لكل شحنة: بنطابق warehouseId مع قائمة المخازن ─────────────
   // شحنة "مرتجع" لسه في شركة الشحن (مفيهاش warehouseId) بنعرض ليها المخزن الافتراضي
@@ -1404,15 +1396,15 @@ function ShipmentWarehouseTab() {
         </Card>
 
         {/* مؤجل */}
-        <Card onClick={() => setActiveTab("delayed")}
-          className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${(tabMap.delayed?.length ?? 0) > 0 ? "border-orange-200 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/10" : "border-border bg-card"}`}>
+        <Card
+          className={`p-3 sm:p-4 border transition-all ${delayedCount > 0 ? "border-orange-200 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/10" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${(tabMap.delayed?.length ?? 0) > 0 ? "bg-orange-500/15" : "bg-muted/30"}`}>
-              <AlertCircle className={`w-4 h-4 ${(tabMap.delayed?.length ?? 0) > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"}`} />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${delayedCount > 0 ? "bg-orange-500/15" : "bg-muted/30"}`}>
+              <AlertCircle className={`w-4 h-4 ${delayedCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"}`} />
             </div>
-            {(tabMap.delayed?.length ?? 0) > 0 && <span className="text-[9px] font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-600/70 px-1.5 py-0.5 rounded-full">مؤجل</span>}
+            {delayedCount > 0 && <span className="text-[9px] font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-600/70 px-1.5 py-0.5 rounded-full">مؤجل</span>}
           </div>
-          <p className={`text-2xl sm:text-3xl font-black ${(tabMap.delayed?.length ?? 0) > 0 ? "text-orange-600 dark:text-orange-400" : ""}`}>{isLoading ? "—" : (tabMap.delayed?.length ?? 0)}</p>
+          <p className={`text-2xl sm:text-3xl font-black ${delayedCount > 0 ? "text-orange-600 dark:text-orange-400" : ""}`}>{isLoading ? "—" : delayedCount}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مؤجلة</p>
         </Card>
 
@@ -1617,9 +1609,7 @@ function ShipmentWarehouseTab() {
                   )}
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">مندوب الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
-                  {activeTab !== "delayed" && (
-                    <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">المخزن</th>
-                  )}
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">المخزن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
                   {["pending", "warehouse_ready", "in_shipping"].includes(activeTab) && (
                     <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">العمر</th>
@@ -1665,11 +1655,9 @@ function ShipmentWarehouseTab() {
                       <td className="px-3 py-2.5 hidden lg:table-cell whitespace-nowrap">
                         <span className="text-[10px] font-mono text-muted-foreground">{sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</span>
                       </td>
-                      {activeTab !== "delayed" && (
-                        <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
-                          <span className="text-[11px] font-semibold">{sh._warehouseName ?? "—"}</span>
-                        </td>
-                      )}
+                      <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
+                        <span className="text-[11px] font-semibold">{sh._warehouseName ?? "—"}</span>
+                      </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${meta.bg} ${meta.border} ${meta.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
