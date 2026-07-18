@@ -504,6 +504,14 @@ export default function Movements() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // ─── بحث نصي شامل (اسم المنتج، اللون/المقاس، الموقع، الملاحظات، رقم الأوردر) ──
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
 
   const [showDialog, setShowDialog] = useState(false);
   const [editingMovement, setEditingMovement] = useState<InventoryMovement | null>(null);
@@ -619,15 +627,39 @@ export default function Movements() {
   }, []);
 
   const colFilteredMovements = useMemo(() => {
-    if (!colFilterHasActive) return movements as InventoryMovement[];
-    return (movements as InventoryMovement[]).filter(m =>
-      (Object.keys(colFilters) as ColKey[]).every(col => {
-        const s = colFilters[col];
-        if (s.size === 0) return true;
-        return s.has(getColVal(col, m));
-      })
-    );
-  }, [movements, colFilters, colFilterHasActive, getColVal]);
+    let list = movements as InventoryMovement[];
+
+    if (colFilterHasActive) {
+      list = list.filter(m =>
+        (Object.keys(colFilters) as ColKey[]).every(col => {
+          const s = colFilters[col];
+          if (s.size === 0) return true;
+          return s.has(getColVal(col, m));
+        })
+      );
+    }
+
+    if (debouncedSearchQuery) {
+      const q = debouncedSearchQuery.toLowerCase();
+      list = list.filter(m => {
+        const haystack = [
+          m.product,
+          m.color,
+          m.size,
+          m.notes,
+          m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "",
+          m.orderId ? String(m.orderId) : "",
+          (m as any).warehouseName,
+          m.fromLocation,
+          m.toLocation,
+          REASON_LABELS[m.reason],
+        ].filter(Boolean).join(" ").toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+
+    return list;
+  }, [movements, colFilters, colFilterHasActive, getColVal, debouncedSearchQuery]);
 
   const createMutation = useMutation({
     mutationFn: movementsApi.create,
@@ -931,7 +963,25 @@ ${filtersRow}
       </div>
 
       <Card className="border-border">
-        <CardContent className="p-3">
+        <CardContent className="p-3 space-y-2">
+          {/* بحث نصي شامل */}
+          <div className="relative">
+            <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="بحث بالمنتج، اللون/المقاس، رقم الأوردر، الموقع، أو الملاحظات..."
+              className="h-9 text-sm pr-8"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="h-8 text-xs bg-card border-border">
@@ -1050,6 +1100,12 @@ ${filtersRow}
             <Activity className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
             <p className="font-bold">لا توجد حركات</p>
             <p className="text-sm text-muted-foreground mt-1">لم يتم تسجيل أي حركة مخزون حتى الآن.</p>
+          </div>
+        ) : colFilteredMovements.length === 0 ? (
+          <div className="p-12 text-center">
+            <Search className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
+            <p className="font-bold">لا توجد نتائج مطابقة</p>
+            <p className="text-sm text-muted-foreground mt-1">جرّب تعديل كلمة البحث أو مسح الفلاتر.</p>
           </div>
         ) : (
           <>
