@@ -3720,7 +3720,8 @@ export default function ShippingManifestPage() {
       queryClient.invalidateQueries({ queryKey: ["variants-all"] });
       // حذف البيان بيرجّع حالة الشحنات إلى "قيد الانتظار" في الباك إند —
       // لازم نعمل invalidate لقسم الشحنات عشان عمود الحالة يتحدث فورًا
-      queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      // ملحوظة: query key الحقيقي بتاع صفحة الشحنات هو "shipments-list" (مش "shipments")
+      queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
       queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
       toast({ title: "تم الحذف" });
       window.history.back();

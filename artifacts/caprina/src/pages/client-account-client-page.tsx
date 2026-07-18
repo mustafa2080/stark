@@ -799,7 +799,8 @@ function ShipmentManifestRow({ manifest, companyId, qc }: {
       qc.invalidateQueries({ queryKey: ["company-shipments", companyId] });
       // حذف البيان بيرجّع حالة الشحنات إلى "قيد الانتظار" في الباك إند —
       // لازم نعمل invalidate لقسم الشحنات عشان عمود الحالة يتحدث فورًا
-      qc.invalidateQueries({ queryKey: ["shipments"] });
+      // ملحوظة: query key الحقيقي بتاع صفحة الشحنات هو "shipments-list" (مش "shipments")
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
       qc.invalidateQueries({ queryKey: ["shipments-stats"] });
       toast({ title: "تم حذف البيان" });
     },
