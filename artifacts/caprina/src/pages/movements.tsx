@@ -1115,88 +1115,12 @@ ${filtersRow}
           </div>
         ) : (
           <>
-            <div className="xl:hidden p-3 space-y-3">
-              {colFilteredMovements.map((m: InventoryMovement) => {
-                const isTransfer = m.reason === "transfer";
-                return (
-                  <Card key={m.id} className={`border-border ${selectedIds.has(m.id) ? "bg-destructive/5" : ""}`}>
-                    <CardContent className="p-3 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] text-muted-foreground">{formatMovementDate(m.createdAt)}</p>
-                          <p className="text-sm font-bold leading-5 break-words">{m.product}</p>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
-                            <Badge variant="outline" className={`text-[9px] font-bold border ${REASON_COLORS[m.reason] ?? "bg-muted text-muted-foreground border-border"}`}>
-                              {REASON_LABELS[m.reason] ?? m.reason}
-                            </Badge>
-                            <Badge variant="outline" className="text-[9px] border-border">
-                              {isTransfer ? "تحويل" : m.type === "IN" ? "دخول" : "خروج"}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {isAdmin && (
-                            <Checkbox
-                              checked={selectedIds.has(m.id)}
-                              onCheckedChange={() => toggleSelect(m.id)}
-                              aria-label="تحديد الصف"
-                            />
-                          )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" title="تعديل" onClick={() => openEdit(m)}>
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                          {isAdmin && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="حذف" onClick={() => handleDelete(m.id)} disabled={deleteMutation.isPending}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                          <p className="text-[9px] text-muted-foreground">الكمية</p>
-                          <p className={`font-black ${isTransfer ? "text-violet-600 dark:text-violet-400" : m.type === "IN" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                            {isTransfer ? m.quantity : formatQty(m.type, m.quantity)}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                          <p className="text-[9px] text-muted-foreground">رقم الطلب / الشحنة</p>
-                          <p className="font-mono font-bold text-foreground">{m.shipmentNumber ?? (m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "—")}</p>
-                        </div>
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                          <p className="text-[9px] text-muted-foreground">العميل</p>
-                          <p className="font-medium text-foreground break-words">{m.customerName ?? "—"}</p>
-                        </div>
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                          <p className="text-[9px] text-muted-foreground">الفون</p>
-                          <p className="font-mono text-foreground" dir="ltr">{m.customerPhone ?? "—"}</p>
-                        </div>
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                          <p className="text-[9px] text-muted-foreground">اللون / المقاس</p>
-                          <p className="font-medium text-foreground break-words">{m.color || m.size ? [m.color, m.size].filter(Boolean).join(" / ") : "—"}</p>
-                        </div>
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                          <p className="text-[9px] text-muted-foreground">الموقع</p>
-                          <p className="font-medium text-foreground break-words">{isTransfer && m.fromLocation && m.toLocation ? `${m.fromLocation} → ${m.toLocation}` : (m as any).warehouseName ?? "—"}</p>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                        <p className="text-[9px] text-muted-foreground">ملاحظات</p>
-                        <p className="text-xs text-foreground/80 break-words">{m.notes || "—"}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-            <div className="hidden xl:block overflow-x-auto">
-            <Table className="min-w-[1300px]">
+            <div className="overflow-x-auto">
+            <Table className="min-w-[1020px] [&_th]:px-2 [&_td]:px-2 [&_th]:py-2 [&_td]:py-1.5">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
                   {isAdmin && (
-                    <TableHead className="w-10 text-center">
+                    <TableHead className="w-8 text-center">
                       <Checkbox
                         checked={movements.length > 0 && selectedIds.size === movements.length}
                         onCheckedChange={toggleSelectAll}
@@ -1204,41 +1128,41 @@ ${filtersRow}
                       />
                     </TableHead>
                   )}
-                  <TableHead className="text-right text-xs w-28">
+                  <TableHead className="text-right text-[11px] w-24">
                     <div className="flex items-center justify-between gap-1">التاريخ {showColFilters && <ColFilterBtn col="date" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs w-20">
+                  <TableHead className="text-center text-[11px] w-16">
                     <div className="flex items-center justify-between gap-1">النوع {showColFilters && <ColFilterBtn col="type" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs w-32">
+                  <TableHead className="text-right text-[11px] w-24">
                     <div className="flex items-center justify-between gap-1">المنتج {showColFilters && <ColFilterBtn col="product" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs w-28">
+                  <TableHead className="text-right text-[11px] w-20">
                     <div className="flex items-center justify-between gap-1">اللون / المقاس {showColFilters && <ColFilterBtn col="variant" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs w-16">
+                  <TableHead className="text-center text-[11px] w-12">
                     <div className="flex items-center justify-between gap-1">الكمية {showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs w-28">
+                  <TableHead className="text-center text-[11px] w-20">
                     <div className="flex items-center justify-between gap-1">السبب {showColFilters && <ColFilterBtn col="reason" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs w-20">
+                  <TableHead className="text-center text-[11px] w-16">
                     <div className="flex items-center justify-between gap-1">طلب {showColFilters && <ColFilterBtn col="order" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs w-28">
+                  <TableHead className="text-right text-[11px] w-20">
                     <div className="flex items-center justify-between gap-1">العميل {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs w-24">
+                  <TableHead className="text-right text-[11px] w-20">
                     <div className="flex items-center justify-between gap-1">الفون {showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs w-40">
+                  <TableHead className="text-right text-[11px] w-32">
                     <div className="flex items-center justify-between gap-1">الموقع {showColFilters && <ColFilterBtn col="location" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-right text-xs w-28">
+                  <TableHead className="text-right text-[11px] w-20">
                     <div className="flex items-center justify-between gap-1">ملاحظات {showColFilters && <ColFilterBtn col="notes" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
-                  <TableHead className="text-center text-xs w-14">تعديل</TableHead>
-                  {isAdmin && <TableHead className="text-center text-xs w-14">حذف</TableHead>}
+                  <TableHead className="text-center text-[11px] w-10">تعديل</TableHead>
+                  {isAdmin && <TableHead className="text-center text-[11px] w-10">حذف</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1255,73 +1179,73 @@ ${filtersRow}
                         />
                       </TableCell>
                     )}
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
                       {formatMovementDate(m.createdAt)}
                     </TableCell>
                     <TableCell className="text-center">
                       {isTransfer ? (
                         <div className="flex items-center justify-center gap-1">
-                          <ArrowRightLeft className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-                          <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400">تحويل</span>
+                          <ArrowRightLeft className="w-3 h-3 text-violet-600 dark:text-violet-400" />
+                          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400">تحويل</span>
                         </div>
                       ) : m.type === "IN" ? (
                         <div className="flex items-center justify-center gap-1">
-                          <TrendingDown className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">دخول</span>
+                          <TrendingDown className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">دخول</span>
                         </div>
                       ) : (
                         <div className="flex items-center justify-center gap-1">
-                          <TrendingUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                          <span className="text-[10px] font-bold text-red-600 dark:text-red-400">خروج</span>
+                          <TrendingUp className="w-3 h-3 text-red-600 dark:text-red-400" />
+                          <span className="text-[9px] font-bold text-red-600 dark:text-red-400">خروج</span>
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm font-semibold truncate max-w-[128px]">{m.product}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-[11px] font-semibold truncate max-w-[96px]">{m.product}</TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground">
                       {m.color || m.size ? (
                         <div className="flex items-center gap-1">
-                          {m.color && <Badge variant="outline" className="text-[9px] border-border">{m.color}</Badge>}
-                          {m.size && <Badge variant="outline" className="text-[9px] border-primary/40 text-primary">{m.size}</Badge>}
+                          {m.color && <Badge variant="outline" className="text-[9px] border-border px-1">{m.color}</Badge>}
+                          {m.size && <Badge variant="outline" className="text-[9px] border-primary/40 text-primary px-1">{m.size}</Badge>}
                         </div>
                       ) : "—"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className={`font-bold text-sm ${isTransfer ? "text-violet-600 dark:text-violet-400" : m.type === "IN" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                      <span className={`font-bold text-[12px] ${isTransfer ? "text-violet-600 dark:text-violet-400" : m.type === "IN" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                         {isTransfer ? m.quantity : formatQty(m.type, m.quantity)}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className={`text-[9px] font-bold border ${REASON_COLORS[m.reason] ?? "bg-muted text-muted-foreground border-border"}`}>
+                      <Badge variant="outline" className={`text-[9px] font-bold border px-1 ${REASON_COLORS[m.reason] ?? "bg-muted text-muted-foreground border-border"}`}>
                         {REASON_LABELS[m.reason] ?? m.reason}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       {m.shipmentId ? (
-                        <a href={`/shipments/${m.shipmentId}`} onClick={e => e.stopPropagation()} className="text-[10px] font-mono text-teal-600 dark:text-teal-400 hover:underline">
+                        <a href={`/shipments/${m.shipmentId}`} onClick={e => e.stopPropagation()} className="text-[9px] font-mono text-teal-600 dark:text-teal-400 hover:underline">
                           {m.shipmentNumber ?? `#${m.shipmentId}`}
                         </a>
                       ) : m.orderId ? (
-                        <a href={`/orders/${m.orderId}`} onClick={e => e.stopPropagation()} className="text-[10px] font-mono text-primary hover:underline">
+                        <a href={`/orders/${m.orderId}`} onClick={e => e.stopPropagation()} className="text-[9px] font-mono text-primary hover:underline">
                           #{String(m.orderId).padStart(4, "0")}
                         </a>
                       ) : "—"}
                     </TableCell>
-                    <TableCell className="text-xs truncate max-w-[112px]">
+                    <TableCell className="text-[11px] truncate max-w-[80px]">
                       {m.customerName ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap" dir="ltr">
+                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap" dir="ltr">
                       {m.customerPhone ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
                       {isTransfer && m.fromLocation && m.toLocation ? (
                         <div className="flex items-center gap-1 text-violet-700 dark:text-violet-300 font-medium">
-                          <span className="text-[10px]">{m.fromLocation}</span>
-                          <ArrowRightLeft className="w-3 h-3 shrink-0" />
-                          <span className="text-[10px]">{m.toLocation}</span>
+                          <span className="text-[9px]">{m.fromLocation}</span>
+                          <ArrowRightLeft className="w-2.5 h-2.5 shrink-0" />
+                          <span className="text-[9px]">{m.toLocation}</span>
                         </div>
                       ) : (m as any).warehouseName ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[112px] truncate">{m.notes || "—"}</TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground max-w-[80px] truncate">{m.notes || "—"}</TableCell>
                     <TableCell className="text-center">
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary hover:bg-primary/10" title="تعديل" onClick={() => openEdit(m)}>
                         <Pencil className="w-3 h-3" />
