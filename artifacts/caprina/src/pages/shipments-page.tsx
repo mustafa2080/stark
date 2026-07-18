@@ -1788,6 +1788,21 @@ export default function Orders() {
                           if (!reason) return null;
                           return <span className="inline-flex items-center gap-0.5 text-[9px] text-red-600 dark:text-red-400"><RotateCcw className="w-2.5 h-2.5 shrink-0" />{reason}</span>;
                         })()}
+                        {order.status === "returned" && (() => {
+                          const repName = (order as any).shippingCompanyName as string | null | undefined;
+                          const warehouseName = (order as any).warehouseName as string | null | undefined;
+                          if (!repName && !warehouseName) return null;
+                          return (
+                            <span className="inline-flex flex-col items-start gap-0">
+                              {repName && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-blue-500 dark:text-blue-300">🚚 مع {repName}</span>
+                              )}
+                              {warehouseName && (
+                                <span className="text-[9px] font-semibold text-teal-500 dark:text-teal-400">📦 {warehouseName}</span>
+                              )}
+                            </span>
+                          );
+                        })()}
                         <span className="text-[9px] text-muted-foreground mr-auto">{format(new Date(order.createdAt), "MM/dd")}</span>
                       </div>
                     </div>
@@ -1982,6 +1997,23 @@ export default function Orders() {
                               </div>
                             );
                             return null;
+                          })()}
+                          {order.status === "returned" && (() => {
+                            const repName = (order as any).shippingCompanyName as string | null | undefined;
+                            const warehouseName = (order as any).warehouseName as string | null | undefined;
+                            if (!repName && !warehouseName) return null;
+                            return (
+                              <div className="flex flex-col items-center gap-0.5 mt-1">
+                                {repName && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-500 dark:text-blue-300 leading-none">
+                                    🚚 مع {repName}
+                                  </span>
+                                )}
+                                {warehouseName && (
+                                  <span className="text-[9px] font-semibold text-teal-500 dark:text-teal-400 leading-none">📦 {warehouseName}</span>
+                                )}
+                              </div>
+                            );
                           })()}
                           {order.status === "partial_received" && (() => {
                             const rr = (o as any).returnReceived as 0 | 1 | null | undefined;
