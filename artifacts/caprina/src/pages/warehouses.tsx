@@ -46,6 +46,7 @@ const SHIPMENT_STATUS_MAP: Record<string, { label: string; color: string; bg: st
   cancelled:        { label: "ملغية",              color: "text-gray-500",         bg: "bg-gray-500/10" },
   partial_delivered:{ label: "تسليم جزئي",          color: "text-violet-600",       bg: "bg-violet-500/10" },
   partial_received: { label: "مرتجع جزئي",          color: "text-teal-600",         bg: "bg-teal-500/10" },
+  delayed:          { label: "مؤجلة",              color: "text-orange-600",       bg: "bg-orange-500/10" },
 };
 
 function WarehouseFormDialog({
