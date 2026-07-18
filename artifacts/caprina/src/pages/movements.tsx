@@ -1040,7 +1040,7 @@ ${filtersRow}
             </div>
           )}
           {showColFilters && (
-            <div className="mt-3 sm:hidden rounded-xl border border-border bg-muted/20 p-3">
+            <div className="mt-3 xl:hidden rounded-xl border border-border bg-muted/20 p-3">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <p className="text-xs font-bold text-foreground">فلاتر الأعمدة</p>
                 <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1 text-muted-foreground" onClick={() => setShowColFilters(false)}>
@@ -1115,7 +1115,7 @@ ${filtersRow}
           </div>
         ) : (
           <>
-            <div className="sm:hidden p-3 space-y-3">
+            <div className="xl:hidden p-3 space-y-3">
               {colFilteredMovements.map((m: InventoryMovement) => {
                 const isTransfer = m.reason === "transfer";
                 return (
@@ -1191,7 +1191,7 @@ ${filtersRow}
                 );
               })}
             </div>
-            <div className="hidden sm:block overflow-x-auto">
+            <div className="hidden xl:block overflow-x-auto">
             <Table className="min-w-[1300px]">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
