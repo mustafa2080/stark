@@ -260,11 +260,19 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // partial_received ما بيدخلش هنا خالص — بيتصنف مرتجع طول ما فيه جزء راجع (نفس منطق تاب "مرتجع" في المخزون)
     conditions.push(inArray(shipmentsTable.status, ["delivered", "received"]));
   } else if (statusFilter === "returned") {
-    // مرتجع كامل فقط — partial_received بقى ليه فلتر منفصل (returned_partial) تحت
-    conditions.push(inArray(shipmentsTable.status, ["returned", "cancelled"]));
+    // مرتجع كامل، وبس اللي رجع فعليًا للمخزون (returnReceived=true) — لسه مع المندوب/
+    // شركة الشحن (returnReceived غير true) مايدخلش هنا خالص، نفس شرط الـ stats بالظبط
+    // عشان الجدول والعداد يفضلوا متطابقين مع بعض. "ملغية" منطقيًا مالهاش returnReceived
+    // (اتلغت مش اترجعت)، فبتفضل تدخل هنا بدون الشرط ده.
+    conditions.push(or(
+      and(eq(shipmentsTable.status, "returned"), eq(shipmentsTable.returnReceived, 1)),
+      eq(shipmentsTable.status, "cancelled"),
+    ));
   } else if (statusFilter === "returned_partial") {
-    // مرتجع عن استلام جزئي فقط — منفصل عن المرتجع الكامل بناءً على طلب صاحب المشروع
+    // مرتجع عن استلام جزئي فقط، وبس اللي رجع فعليًا للمخزون (returnReceived=true) —
+    // نفس شرط الـ stats بالظبط.
     conditions.push(eq(shipmentsTable.status, "partial_received"));
+    conditions.push(eq(shipmentsTable.returnReceived, 1));
   } else if (statusFilter === "delayed") {
     conditions.push(eq(shipmentsTable.status, "delayed"));
   }
