@@ -1005,6 +1005,7 @@ function InvoiceGroupDeliveryRow({
   manifestCompanyName?: string | null;
 }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
 
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
@@ -1158,6 +1159,10 @@ function InvoiceGroupDeliveryRow({
     onSuccess: () => {
       toast({ title: "تم إلغاء الفاتورة كاملها من البيان نهائيًا" });
       setBulkEditing(false);
+      // إلغاء الشحنة من البيان بيرجّع حالتها للمخزن/قيد الانتظار في الباك إند —
+      // لازم invalidate لقسم الشحنات عشان عمود الحالة يتحدث فورًا (مش يفضل شايف "مؤجل" القديمة)
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
+      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
       onSaved();
     },
     onError: (e: any) =>
