@@ -1193,8 +1193,11 @@ function InvoiceGroupDeliveryRow({
         }
 
         if (isShipmentManifest) {
-          const allowedSt = ["pending","delivered","partial_delivered","returned","delayed"] as const;
-          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed" : "pending";
+          // لازم تشمل كل قيم SHIPMENT_DELIVERY_OPTIONS (خصوصًا "postponed" = قيد الشحن)
+          // وإلا اختيار "قيد الشحن" من التعديل الجماعي كان بيترجم بصمت لـ "pending"
+          // قبل حتى ما يوصل للباك إند (نفس مشكلة الصف الفردي القديمة، لكن منسية هنا).
+          const allowedSt = ["pending","delivered","partial_delivered","returned","delayed","postponed"] as const;
+          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed"|"postponed" : "pending";
           await shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
             deliveryStatus: safeSt,
             deliveryNote: bulkNote.trim() || null,
