@@ -210,6 +210,21 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
 // نقل شحنة واحدة أو عدة شحنات بين المخازن، مع انعكاس فوري على حالة الشحنة
 // (تبقى "قيد الشحن في المخزن" ويظهر تحتها اسم المخزن الحالي في صفحة الشحنات).
 
+// ── ترجمة حالات الشحنات (نفس خريطة warehouses.tsx) ──────────────────────────
+const TRANSFER_STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  waiting:          { label: "قيد الانتظار",       color: "text-muted-foreground", bg: "bg-muted/20" },
+  confirmed:        { label: "مؤكدة",              color: "text-sky-600",          bg: "bg-sky-500/10" },
+  picked_up:        { label: "تم الاستلام",         color: "text-blue-600",         bg: "bg-blue-500/10" },
+  in_transit:       { label: "في الطريق",           color: "text-indigo-600",       bg: "bg-indigo-500/10" },
+  out_for_delivery: { label: "مع المندوب",          color: "text-amber-600",        bg: "bg-amber-500/10" },
+  warehouse_ready:  { label: "قيد الشحن بالمخزن",  color: "text-orange-600",       bg: "bg-orange-500/10" },
+  delivered:        { label: "مسلّمة",             color: "text-emerald-600",      bg: "bg-emerald-500/10" },
+  returned:         { label: "مرتجعة",             color: "text-red-600",          bg: "bg-red-500/10" },
+  cancelled:        { label: "ملغية",              color: "text-gray-500",         bg: "bg-gray-500/10" },
+  partial_delivered:{ label: "تسليم جزئي",          color: "text-violet-600",       bg: "bg-violet-500/10" },
+  partial_received: { label: "مرتجع جزئي",          color: "text-teal-600",         bg: "bg-teal-500/10" },
+};
+
 function ShipmentTransferRow({
   shipment, checked, onToggle,
 }: {
@@ -218,6 +233,7 @@ function ShipmentTransferRow({
   onToggle: () => void;
 }) {
   const currentWarehouseName = (shipment as any).warehouseName as string | undefined;
+  const si = TRANSFER_STATUS_MAP[shipment.status];
   return (
     <label
       className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
@@ -226,13 +242,22 @@ function ShipmentTransferRow({
     >
       <Checkbox checked={checked} onCheckedChange={onToggle} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-bold text-sm truncate">
             {shipment.shipmentNumber ?? `#${shipment.id}`}
           </span>
           <span className="text-xs text-muted-foreground truncate">{shipment.receiverName}</span>
+          <span
+            className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${si?.bg ?? "bg-muted"} ${si?.color ?? "text-muted-foreground"}`}
+          >
+            {si?.label ?? shipment.status}
+          </span>
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <span className="text-[10px] text-muted-foreground" dir="ltr">
+            {shipment.receiverPhone ?? "—"}
+          </span>
+          <span className="text-[10px] text-muted-foreground">•</span>
           <span className="text-[10px] text-muted-foreground">{shipment.receiverCity ?? "—"}</span>
           {currentWarehouseName && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
@@ -251,6 +276,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("warehouse_ready");
   const [selectedShipmentIds, setSelectedShipmentIds] = useState<Set<number>>(new Set());
   const [toWarehouseId, setToWarehouseId] = useState<string>("none");
   const [notes, setNotes] = useState("");
@@ -267,14 +293,14 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   });
 
   // افتراضياً نعرض الشحنات "قيد الشحن في المخزن" — وهي أكثر حالة محتاجة نقل بين مخازن.
-  // لو المستخدم بحث برقم شحنة/اسم، نوسّع البحث لكل الحالات النشطة.
+  // البحث (رقم شحنة/اسم/فون) بيشتغل جنب فلتر الحالة، مش بدلاً منه — إلا لو المستخدم اختار "كل الحالات".
   const { data: shipmentsRes, isLoading } = useQuery({
-    queryKey: ["shipments-for-transfer", debouncedSearch],
-    queryFn: () => shipmentsApi.list(
-      debouncedSearch
-        ? { search: debouncedSearch, limit: 50 }
-        : { status: "warehouse_ready", limit: 50 }
-    ),
+    queryKey: ["shipments-for-transfer", debouncedSearch, statusFilter],
+    queryFn: () => shipmentsApi.list({
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      limit: 50,
+    }),
   });
 
   const shipments = shipmentsRes?.data ?? [];
@@ -344,15 +370,26 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="space-y-3 py-1">
-          {/* بحث */}
-          <div className="relative">
-            <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="ابحث برقم الشحنة أو اسم المستلم... (فارغ = الشحنات في المخزن)"
-              className="h-9 text-sm pr-8"
-            />
+          {/* بحث + فلتر حالة */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="بحث برقم الشحنة، اسم المستلم، أو رقم الفون..."
+                className="h-9 text-sm pr-8"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 text-xs w-40 shrink-0"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الحالات</SelectItem>
+                {Object.entries(TRANSFER_STATUS_MAP).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* قائمة الشحنات القابلة للاختيار */}
