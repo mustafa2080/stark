@@ -458,9 +458,15 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       .set(shipmentPatch)
       .where(eq(shipmentsTable.id, shipmentId));
 
-    // مزامنة الحالة الجديدة مع بيان حساب العميل التجاري (لو الشحنة مضافة له كمان)
+    // مزامنة الحالة الجديدة مع بيان حساب العميل التجاري فقط (لو الشحنة مضافة له كمان).
+    // ملحوظة: مش بنمرر التحديث لبيان شركة الشحن نفسه هنا لأننا أصلاً حدّثنا
+    // deliveryStatus فوق بالقيمة الدقيقة اللي المستخدم اختارها (زي "postponed").
+    // الـ statusMap العام جوه syncShipmentStatusToManifests مبيفرقش بين
+    // pending/postponed (الاثنين بيترجموا لـ in_transit)، فلو سبناها تحدّث
+    // shipmentManifestItemsTable كمان كانت بترجّع "postponed" لـ "pending" فورًا
+    // بعد الحفظ (كانت هي سبب مشكلة "قيد الشحن" بترجع قيد الانتظار بعد الريفريش).
     if (shipmentPatch.status) {
-      await syncShipmentStatusToManifests(shipmentId, shipmentPatch.status);
+      await syncShipmentStatusToManifests(shipmentId, shipmentPatch.status, { skipShipmentManifestItems: true });
     }
 
     res.json({ success: true });

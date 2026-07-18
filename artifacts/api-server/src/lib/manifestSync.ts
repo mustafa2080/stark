@@ -55,6 +55,7 @@ const DELIVERY_TO_SHIPMENT_STATUS: Record<ManifestDeliveryStatus, string> = {
 export async function syncShipmentStatusToManifests(
   shipmentId: number,
   newShipmentStatus: string,
+  options?: { skipShipmentManifestItems?: boolean },
 ): Promise<void> {
   const mapped = SHIPMENT_STATUS_TO_DELIVERY[newShipmentStatus];
   if (!mapped) return; // حالة مش معروفة → متلمسش البيانات
@@ -72,6 +73,14 @@ export async function syncShipmentStatusToManifests(
   } catch (e) {
     console.error("[syncShipmentStatusToManifests] client-account-manifests error:", e);
   }
+
+  // بيان شركة الشحن (shipmentManifestItemsTable) عنده منطق تحديث خاص به بالفعل
+  // جوه شيبمنت-مانيفستس (PATCH /items/:shipmentId)، واللي بيحفظ القيمة الدقيقة
+  // اللي المستخدم اختارها (زي "postponed" لـ "قيد الشحن"). الـ statusMap هنا عام
+  // ومبيفرقش بين "pending" و"postponed" (الاثنين بيترجموا لنفس shipmentsTable.status)،
+  // فلو سبناه يحدّث هنا كمان كان بيرجّع "postponed" لـ "pending" فورًا بعد الحفظ
+  // ويمسح اختيار المستخدم. عشان كده بنتجاهله من هنا لما بييجي مستدعى من نفس الراوت.
+  if (options?.skipShipmentManifestItems) return;
 
   try {
     await db.update(shipmentManifestItemsTable)
