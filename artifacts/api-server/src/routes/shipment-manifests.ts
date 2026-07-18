@@ -419,9 +419,17 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
 
     // حدّث حالة الشحنة نفسها — partial_delivered (البيان) يقابل partial_received (شحنات) بنفس الاسم
     // عشان عمود "الحالة" في صفحة الشحنات يفضل واحد ثابت، والفرق (لسه عند الشحن / في المخزن) بييجي من returnReceived
+    //
+    // ملاحظة مهمة: لو "مرتجع" واتسجل returnReceived=true (يعني رجعت المخزن فعليًا) —
+    // الحالة لازم ترجع "warehouse_ready" مباشرة بدل ما تفضل "returned" للأبد.
+    // السبب: تاب "مرتجع" في المخزون (inventory.tsx) بيفلتر على status=returned بس،
+    // فلو فضلت الحالة "returned" حتى بعد الاستلام الفعلي، الشحنة هتفضل ظاهرة هناك
+    // للأبد وميتقدرش تتاخد وتتضاف لبيان شحن جديد لأي مندوب (لأن كل أماكن إنشاء/إضافة
+    // بيان بتفلتر warehouse_ready بس). رجوعها warehouse_ready هو اللي بيمثّل فعليًا
+    // إنها بقت في المخزون ومتاحة تتحرك تاني.
     const statusMap: Record<string, string> = {
       delivered: "delivered",
-      returned:  "returned",
+      returned:  body.returnReceived === true ? "warehouse_ready" : "returned",
       delayed:   "delayed",
       partial_delivered: "partial_received",
       pending:   "in_transit",
