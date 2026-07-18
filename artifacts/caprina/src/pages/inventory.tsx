@@ -986,10 +986,19 @@ function ShipmentWarehouseTab() {
   }, [warehouseShipmentsData, dateFrom, dateTo, shippingCompany]);
 
   // tabMap: لكل tab نجمع الشحنات اللي status بتاعتها موجود في statuses[] بتاعت الـ tab
+  //
+  // تاب "مرتجع" (returned): لازم يعرض بس البضاعة اللي رجعت فعليًا للمخزون —
+  // يعني returnReceived === true. طول ما returnReceived لسه false/null، البضاعة
+  // فعليًا لسه مع المندوب/شركة الشحن ومش موجودة في المخزن، فمش المفروض تظهر هنا
+  // (حتى لو status الشحنة لسه "returned" في قاعدة البيانات).
   const tabMap = useMemo(() => {
     const result: Record<TabId, any[]> = {} as any;
     for (const tab of WAREHOUSE_TABS) {
-      result[tab.id] = allWarehouseShipments.filter((sh: any) => (tab.statuses as readonly string[]).includes(sh.status));
+      result[tab.id] = allWarehouseShipments.filter((sh: any) => {
+        if (!(tab.statuses as readonly string[]).includes(sh.status)) return false;
+        if (tab.id === "returned" && sh.returnReceived !== 1 && sh.returnReceived !== true) return false;
+        return true;
+      });
     }
     return result;
   }, [allWarehouseShipments]);

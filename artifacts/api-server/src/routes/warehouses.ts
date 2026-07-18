@@ -349,7 +349,13 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     total:     allForStats.length,
     active:    allForStats.filter(s => ACTIVE_STATUSES.includes(s.status)).length,
     delivered: allForStats.filter(s => ["delivered", "received"].includes(s.status)).length,
-    returned:  allForStats.filter(s => ["returned", "cancelled", "partial_received"].includes(s.status)).length,
+    // "مرتجع" هنا بيمثّل بس البضاعة اللي رجعت فعليًا للمخزون (returnReceived=true)؛
+    // لسه مع المندوب/شركة الشحن (returnReceived غير true) متحسبش هنا — نفس منطق
+    // تاب "مرتجع" في صفحة المخزون (inventory.tsx / tabMap).
+    returned:  allForStats.filter(s =>
+      (["returned", "partial_received"].includes(s.status) && (s.returnReceived === 1 || (s.returnReceived as any) === true))
+      || s.status === "cancelled"
+    ).length,
     delayed:   allForStats.filter(s => s.status === "delayed").length,
   };
 
