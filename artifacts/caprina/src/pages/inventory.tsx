@@ -1617,7 +1617,9 @@ function ShipmentWarehouseTab() {
                   )}
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">مندوب الشحن</th>
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden lg:table-cell">رقم التتبع</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">المخزن</th>
+                  {activeTab !== "delayed" && (
+                    <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden md:table-cell">المخزن</th>
+                  )}
                   <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap">الحالة</th>
                   {["pending", "warehouse_ready", "in_shipping"].includes(activeTab) && (
                     <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">العمر</th>
@@ -1663,9 +1665,11 @@ function ShipmentWarehouseTab() {
                       <td className="px-3 py-2.5 hidden lg:table-cell whitespace-nowrap">
                         <span className="text-[10px] font-mono text-muted-foreground">{sh.trackingNumber ?? sh.shipmentNumber ?? "—"}</span>
                       </td>
-                      <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
-                        <span className="text-[11px] font-semibold">{sh._warehouseName ?? "—"}</span>
-                      </td>
+                      {activeTab !== "delayed" && (
+                        <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
+                          <span className="text-[11px] font-semibold">{sh._warehouseName ?? "—"}</span>
+                        </td>
+                      )}
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${meta.bg} ${meta.border} ${meta.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
