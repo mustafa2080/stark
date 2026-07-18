@@ -4249,9 +4249,9 @@ export default function ShippingManifestPage() {
               </Badge>
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-1 font-semibold text-blue-500 dark:text-blue-300">
                 <Truck className="w-3 h-3" />
-                {manifest.companyName}
+                المندوب: {manifest.companyName}
               </p>
               <p className="text-xs text-muted-foreground">
                 {format(new Date(manifest.createdAt), "yyyy/MM/dd")}

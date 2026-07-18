@@ -9,7 +9,6 @@ import {
   cashRegistersTable,
   cashTransactionsTable,
   warehousesTable,
-  usersTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -115,19 +114,15 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
     if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
 
-    // ── اسم المندوب المسؤول عن شركة الشحن المرتبطة بالبيان ──
+    // ── اسم المندوب: في هذا النظام "شركة الشحن" تحمل اسم المندوب نفسه ──
     let manifestRepName: string | null = null;
     if (manifest.shippingCompanyId) {
-      const [rep] = await db
-        .select({ displayName: usersTable.displayName })
-        .from(usersTable)
-        .where(and(
-          eq(usersTable.shippingCompanyId, manifest.shippingCompanyId),
-          eq(usersTable.role, "representative"),
-        ))
-        .orderBy(usersTable.id)
+      const [company] = await db
+        .select({ name: shippingCompaniesTable.name })
+        .from(shippingCompaniesTable)
+        .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId))
         .limit(1);
-      manifestRepName = rep?.displayName ?? null;
+      manifestRepName = company?.name ?? null;
     }
 
     // المندوب يشوف بيانات شركته فقط
