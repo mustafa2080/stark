@@ -84,7 +84,7 @@ function formatMovementDate(raw: string | Date): string {
 }
 
 // ─── Column Filter Types & Component ─────────────────────────────────────────
-type ColKey = "date" | "type" | "product" | "variant" | "qty" | "reason" | "order" | "location" | "notes";
+type ColKey = "date" | "type" | "product" | "variant" | "qty" | "reason" | "order" | "customer" | "phone" | "location" | "notes";
 type ColFilters = Record<ColKey, Set<string>>;
 
 function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter }: {
@@ -582,7 +582,8 @@ export default function Movements() {
   // ─── Excel-style Column Filters ──────────────────────────────────────────
   const [colFilters, setColFilters] = useState<ColFilters>({
     date: new Set(), type: new Set(), product: new Set(), variant: new Set(),
-    qty: new Set(), reason: new Set(), order: new Set(), location: new Set(), notes: new Set(),
+    qty: new Set(), reason: new Set(), order: new Set(), customer: new Set(), phone: new Set(),
+    location: new Set(), notes: new Set(),
   });
   const [showColFilters, setShowColFilters] = useState(false);
   const colFilterHasActive = Object.values(colFilters).some(s => s.size > 0);
@@ -597,6 +598,8 @@ export default function Movements() {
       case "qty":      return isTransfer ? String(m.quantity) : formatQty(m.type, m.quantity);
       case "reason":   return REASON_LABELS[m.reason] ?? m.reason;
       case "order":    return m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "—";
+      case "customer": return m.customerName ?? "—";
+      case "phone":    return m.customerPhone ?? "—";
       case "location": return isTransfer && m.fromLocation && m.toLocation
         ? `${m.fromLocation} ← ${m.toLocation}`
         : (m as any).warehouseName ?? "—";
@@ -649,6 +652,8 @@ export default function Movements() {
           m.notes,
           m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "",
           m.orderId ? String(m.orderId) : "",
+          m.customerName,
+          m.customerPhone,
           (m as any).warehouseName,
           m.fromLocation,
           m.toLocation,
@@ -1159,6 +1164,14 @@ ${filtersRow}
                           <p className="font-mono font-bold text-foreground">{m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "—"}</p>
                         </div>
                         <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
+                          <p className="text-[9px] text-muted-foreground">العميل</p>
+                          <p className="font-medium text-foreground break-words">{m.customerName ?? "—"}</p>
+                        </div>
+                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
+                          <p className="text-[9px] text-muted-foreground">الفون</p>
+                          <p className="font-mono text-foreground" dir="ltr">{m.customerPhone ?? "—"}</p>
+                        </div>
+                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
                           <p className="text-[9px] text-muted-foreground">اللون / المقاس</p>
                           <p className="font-medium text-foreground break-words">{m.color || m.size ? [m.color, m.size].filter(Boolean).join(" / ") : "—"}</p>
                         </div>
@@ -1210,6 +1223,12 @@ ${filtersRow}
                   </TableHead>
                   <TableHead className="text-center text-xs">
                     <div className="flex items-center justify-between gap-1">طلب {showColFilters && <ColFilterBtn col="order" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                  </TableHead>
+                  <TableHead className="text-right text-xs">
+                    <div className="flex items-center justify-between gap-1">العميل {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                  </TableHead>
+                  <TableHead className="text-right text-xs">
+                    <div className="flex items-center justify-between gap-1">الفون {showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-xs">
                     <div className="flex items-center justify-between gap-1">الموقع {showColFilters && <ColFilterBtn col="location" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
@@ -1281,6 +1300,12 @@ ${filtersRow}
                           #{String(m.orderId).padStart(4, "0")}
                         </a>
                       ) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {m.customerName ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground" dir="ltr">
+                      {m.customerPhone ?? "—"}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {isTransfer && m.fromLocation && m.toLocation ? (

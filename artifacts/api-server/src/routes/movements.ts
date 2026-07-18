@@ -97,6 +97,8 @@ router.get("/inventory/movements", async (req, res): Promise<void> => {
       type:         inventoryMovementsTable.type,
       reason:       inventoryMovementsTable.reason,
       orderId:      inventoryMovementsTable.orderId,
+      customerName: ordersTable.customerName,
+      customerPhone: ordersTable.phone,
       fromLocation: inventoryMovementsTable.fromLocation,
       toLocation:   inventoryMovementsTable.toLocation,
       notes:        inventoryMovementsTable.notes,
