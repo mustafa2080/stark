@@ -991,6 +991,7 @@ function InvoiceGroupDeliveryRow({
   onToggleSelect,
   isShipmentManifest = false,
   courierShippingCost = null,
+  manifestCompanyName = null,
 }: {
   group: ManifestOrder[];
   manifestId: number;
@@ -1001,6 +1002,7 @@ function InvoiceGroupDeliveryRow({
   onToggleSelect?: (groupKey: string) => void;
   isShipmentManifest?: boolean;
   courierShippingCost?: number | null;
+  manifestCompanyName?: string | null;
 }) {
   const { toast } = useToast();
 
@@ -1405,9 +1407,16 @@ function InvoiceGroupDeliveryRow({
                 </Badge>
                 {/* سبب التأجيل تحت الـ badge مباشرة */}
                 {(displayStatus === "delayed" || displayStatus === "postponed") && (
-                  <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
-                    ⏸ {rep.deliveryNote || "لم يحدد السبب"}
-                  </p>
+                  <>
+                    <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+                      ⏸ {rep.deliveryNote || "لم يحدد السبب"}
+                    </p>
+                    {manifestCompanyName && (
+                      <p className="text-[10px] text-blue-400 mt-0.5 font-semibold flex items-center gap-0.5">
+                        🚚 {manifestCompanyName}
+                      </p>
+                    )}
+                  </>
                 )}
                 {/* sub-status للمرتجع في الـ group row */}
                 {displayStatus === "returned" && (rep as any).returnReceived === 1 && (
@@ -4687,6 +4696,7 @@ export default function ShippingManifestPage() {
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
                     courierShippingCost={rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null}
+                    manifestCompanyName={manifest.companyName}
                   />
                   ))}
                   </div>

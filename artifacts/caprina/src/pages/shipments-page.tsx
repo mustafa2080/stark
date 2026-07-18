@@ -1764,7 +1764,7 @@ export default function Orders() {
                           </span>
                         )}
                         {order.status === "delayed" && (() => {
-                          const reason = (order as any).notes as string | null | undefined;
+                          const reason = (order as any).delayNote as string | null | undefined;
                           if (!reason) return null;
                           return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-violet-400 dark:text-violet-300">⏸ {reason}</span>;
                         })()}
@@ -1946,7 +1946,7 @@ export default function Orders() {
                             </div>
                           )}
                           {order.status === "delayed" && (() => {
-                            const reason = o.notes as string | null | undefined;
+                            const reason = (o as any).delayNote as string | null | undefined;
                             const warehouseName = (order as any).warehouseName as string | null | undefined;
                             const repName = (order as any).shippingCompanyName as string | null | undefined;
                             if (!reason && !warehouseName && !repName) return null;
