@@ -1948,11 +1948,18 @@ export default function Orders() {
                           {order.status === "delayed" && (() => {
                             const reason = o.notes as string | null | undefined;
                             const warehouseName = (order as any).warehouseName as string | null | undefined;
-                            if (!reason && !warehouseName) return null;
+                            const repName = (order as any).manifestRepName as string | null | undefined;
+                            const companyName = (order as any).shippingCompanyName as string | null | undefined;
+                            if (!reason && !warehouseName && !repName && !companyName) return null;
                             return (
                               <div className="flex flex-col items-center gap-0.5 mt-1">
                                 {reason && (
                                   <span className="text-[9px] font-bold text-violet-400 dark:text-violet-300 leading-none">⏸ {reason}</span>
+                                )}
+                                {(repName || companyName) && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-500 dark:text-blue-300 leading-none">
+                                    🚚 مع {repName ?? companyName}
+                                  </span>
                                 )}
                                 {warehouseName && (
                                   <span className="text-[9px] font-semibold text-teal-500 dark:text-teal-400 leading-none">📦 {warehouseName}</span>

@@ -324,9 +324,16 @@ function OrderDeliveryRow({
           </Badge>
           {/* سبب التأجيل تحت الـ badge مباشرة */}
           {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && (
-            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
-              ⏸ {order.deliveryNote || "لم يحدد السبب"}
-            </p>
+            <>
+              <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+                ⏸ {order.deliveryNote || "لم يحدد السبب"}
+              </p>
+              {(order as any).manifestRepName && (
+                <p className="text-[10px] text-blue-500 dark:text-blue-300 mt-0.5 font-semibold">
+                  🚚 مع {(order as any).manifestRepName}
+                </p>
+              )}
+            </>
           )}
           {/* sub-status للمرتجع */}
           {order.deliveryStatus === "returned" && (order as any).returnReceived === 1 && (
@@ -380,9 +387,16 @@ function OrderDeliveryRow({
             <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال عند مندوب الشحن</p>
           )}
           {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && !editing && (
-            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold truncate max-w-[110px]">
-              ⏸ {order.deliveryNote || "لم يحدد السبب"}
-            </p>
+            <>
+              <p className="text-[10px] text-orange-400 mt-0.5 font-semibold truncate max-w-[110px]">
+                ⏸ {order.deliveryNote || "لم يحدد السبب"}
+              </p>
+              {(order as any).manifestRepName && (
+                <p className="text-[10px] text-blue-500 dark:text-blue-300 mt-0.5 font-semibold truncate max-w-[110px]">
+                  🚚 مع {(order as any).manifestRepName}
+                </p>
+              )}
+            </>
           )}
           {order.deliveryStatus !== "delayed" && order.deliveryStatus !== "postponed" && order.deliveryNote && !editing && (
             <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[110px]">
@@ -459,7 +473,12 @@ function OrderDeliveryRow({
         </div>
         {/* سبب التأجيل تحت الـ badge في الموبايل */}
         {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && (
-          <p className="text-[10px] text-orange-400 font-semibold">⏸ {order.deliveryNote || "لم يحدد السبب"}</p>
+          <>
+            <p className="text-[10px] text-orange-400 font-semibold">⏸ {order.deliveryNote || "لم يحدد السبب"}</p>
+            {(order as any).manifestRepName && (
+              <p className="text-[10px] text-blue-500 dark:text-blue-300 font-semibold">🚚 مع {(order as any).manifestRepName}</p>
+            )}
+          </>
         )}
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
@@ -524,9 +543,16 @@ function OrderDeliveryRow({
           <p className="text-[10px] text-orange-400 font-semibold">🚚 المرتجع ما زال عند مندوب الشحن</p>
         )}
         {order.deliveryStatus === "delayed" && order.deliveryNote && !editing && (
-          <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
-            ⏸ {order.deliveryNote}
-          </p>
+          <>
+            <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+              ⏸ {order.deliveryNote}
+            </p>
+            {(order as any).manifestRepName && (
+              <p className="text-[10px] text-blue-500 dark:text-blue-300 mt-0.5 font-semibold">
+                🚚 مع {(order as any).manifestRepName}
+              </p>
+            )}
+          </>
         )}
         {order.deliveryStatus !== "delayed" && order.deliveryNote && !editing && (
           <p className="text-[10px] text-muted-foreground">{order.deliveryNote}</p>

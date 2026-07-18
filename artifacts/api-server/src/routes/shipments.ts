@@ -18,6 +18,10 @@ const manifestShippingCompanyTable = alias(shippingCompaniesTable, "manifest_shi
 // alias لجدول المخازن عشان نجيب مخزن العميل التجاري كـ fallback لو الشحنة مالهاش مخزن
 const clientWarehouseTable = alias(warehousesTable, "client_warehouse");
 
+// alias لجدول المستخدمين عشان نجيب اسم المندوب المسؤول عن شركة الشحن المرتبطة بالبيان
+// (المندوب = صف في usersTable بدور representative مربوط بـ shippingCompanyId)
+const manifestRepTable = alias(usersTable, "manifest_rep");
+
 // subquery خام: يرجّع أقصى (أحدث) id في shipment_manifest_items لكل shipmentId.
 // بيتستخدم كشرط إضافي في الـ LEFT JOIN عشان الشحنة تتربط بأحدث سجل بيان بس،
 // لأن الـ JOIN المباشر (بدون الشرط ده) كان بيرجع صف منفصل لكل مرة اتضافت
@@ -25,6 +29,15 @@ const clientWarehouseTable = alias(warehousesTable, "client_warehouse");
 const latestManifestItemIdSql = sql`(
   SELECT MAX(smi2.id) FROM shipment_manifest_items smi2
   WHERE smi2.shipment_id = ${shipmentsTable.id}
+)`;
+
+// subquery: يرجّع id أول مندوب (role = 'representative') مرتبط بشركة الشحن.
+// ده عشان لو فيه أكتر من مندوب لنفس الشركة، الـ JOIN المباشر كان هيكرر الصف
+// لكل مندوب منهم — فبنقفل الاختيار على واحد بس (الأقدم/الأول بالـ id).
+const manifestRepIdSql = sql`(
+  SELECT MIN(u2.id) FROM users u2
+  WHERE u2.shipping_company_id = shipment_manifests.shipping_company_id
+    AND u2.role = 'representative'
 )`;
 
 // ─── Public router (no auth) ──────────────────────────────────────────────────
@@ -472,8 +485,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
           updatedAt:        shipmentsTable.updatedAt,
           // ── JOIN: اسم شركة الشحن (من الشحنة مباشرة أو من البيان المرتبط) ──
           shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
-          // ── JOIN: اسم المندوب ──
+          // ── JOIN: اسم المندوب (موظف داخلي معيّن للشحنة) ──
           assignedUserName: usersTable.displayName,
+          // ── JOIN: اسم مندوب شركة الشحن المسؤول عن بيان الشحن المرتبط ──
+          manifestRepName: manifestRepTable.displayName,
           // ── JOIN: المنطقة ──
           zoneLabel:       shipmentZonesTable.name,
           zoneGovernorate: shipmentZonesTable.toGovernorate,
@@ -490,6 +505,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
         ))
         .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
         .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
+        .leftJoin(manifestRepTable, eq(manifestRepTable.id, manifestRepIdSql))
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
         .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
         .leftJoin(clientsTable, eq(shipmentsTable.clientId, clientsTable.id))

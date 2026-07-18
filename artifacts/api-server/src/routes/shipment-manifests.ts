@@ -9,6 +9,7 @@ import {
   cashRegistersTable,
   cashTransactionsTable,
   warehousesTable,
+  usersTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -114,6 +115,21 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
     if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
 
+    // ── اسم المندوب المسؤول عن شركة الشحن المرتبطة بالبيان ──
+    let manifestRepName: string | null = null;
+    if (manifest.shippingCompanyId) {
+      const [rep] = await db
+        .select({ displayName: usersTable.displayName })
+        .from(usersTable)
+        .where(and(
+          eq(usersTable.shippingCompanyId, manifest.shippingCompanyId),
+          eq(usersTable.role, "representative"),
+        ))
+        .orderBy(usersTable.id)
+        .limit(1);
+      manifestRepName = rep?.displayName ?? null;
+    }
+
     // المندوب يشوف بيانات شركته فقط
     const reqUser = (req as any).user;
     if (reqUser?.role === "representative" && manifest.shippingCompanyId !== reqUser.shippingCompanyId) {
@@ -164,6 +180,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         invoiceNumber: sh?.shipmentNumber ?? "",
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
         returnReceived: sh?.returnReceived ?? null,
+        manifestRepName,
       };
     });
 
