@@ -494,6 +494,7 @@ function ManifestItemRow({ item, manifestId, locked, onSaved }: {
   item: any; manifestId: number; locked: boolean; onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<string>(item.deliveryStatus);
   const [note, setNote] = useState(item.deliveryNote ?? "");
@@ -525,6 +526,9 @@ function ManifestItemRow({ item, manifestId, locked, onSaved }: {
       toast({ title: "✅ تم تحديث حالة الشحنة" });
       setEditing(false);
       onSaved();
+      // تزامن مع صفحة الشحنات
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
+      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -632,6 +636,7 @@ function StillWithCourierRow({ item, manifestId, locked, onSaved }: {
   item: any; manifestId: number; locked: boolean; onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const mutation = useMutation({
     mutationFn: () => apiFetch(`/shipment-manifests/${manifestId}/items/${item.shipmentId}`, {
       method: "PATCH",
@@ -643,7 +648,12 @@ function StillWithCourierRow({ item, manifestId, locked, onSaved }: {
         returnReason: item.returnReason ?? null,
       }),
     }),
-    onSuccess: () => { toast({ title: "✅ تم تأكيد التسليم للتاجر" }); onSaved(); },
+    onSuccess: () => {
+      toast({ title: "✅ تم تأكيد التسليم للتاجر" });
+      onSaved();
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
+      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
+    },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
@@ -706,6 +716,9 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
       toast({ title: "✅ تم قفل البيان بنجاح" });
       qc.invalidateQueries({ queryKey: ["rep-manifest", manifestId] });
       qc.invalidateQueries({ queryKey: ["rep-manifests"] });
+      // تزامن مع صفحة الشحنات — الحالات بتتغير جوه البيان لازم تنعكس فورًا
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
+      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
       setConfirmClose(false);
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
@@ -1087,6 +1100,8 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
       qc.invalidateQueries({ queryKey: ["rep-shipments"] });
       qc.invalidateQueries({ queryKey: ["rep-dashboard"] });
       qc.invalidateQueries({ queryKey: ["rep-all-shipments"] });
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
+      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
