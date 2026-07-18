@@ -1000,6 +1000,8 @@ export interface InventoryMovement {
   type: MovementType;
   reason: MovementReason;
   orderId: number | null;
+  shipmentId: number | null;
+  shipmentNumber: string | null;
   customerName: string | null;
   customerPhone: string | null;
   fromLocation: string | null;

@@ -597,7 +597,7 @@ export default function Movements() {
       case "variant":  return [m.color, m.size].filter(Boolean).join(" / ") || "—";
       case "qty":      return isTransfer ? String(m.quantity) : formatQty(m.type, m.quantity);
       case "reason":   return REASON_LABELS[m.reason] ?? m.reason;
-      case "order":    return m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "—";
+      case "order":    return m.shipmentNumber ? m.shipmentNumber : m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "—";
       case "customer": return m.customerName ?? "—";
       case "phone":    return m.customerPhone ?? "—";
       case "location": return isTransfer && m.fromLocation && m.toLocation
@@ -652,6 +652,7 @@ export default function Movements() {
           m.notes,
           m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "",
           m.orderId ? String(m.orderId) : "",
+          m.shipmentNumber,
           m.customerName,
           m.customerPhone,
           (m as any).warehouseName,
@@ -1160,8 +1161,8 @@ ${filtersRow}
                           </p>
                         </div>
                         <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                          <p className="text-[9px] text-muted-foreground">رقم الطلب</p>
-                          <p className="font-mono font-bold text-foreground">{m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "—"}</p>
+                          <p className="text-[9px] text-muted-foreground">رقم الطلب / الشحنة</p>
+                          <p className="font-mono font-bold text-foreground">{m.shipmentNumber ?? (m.orderId ? `#${String(m.orderId).padStart(4, "0")}` : "—")}</p>
                         </div>
                         <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
                           <p className="text-[9px] text-muted-foreground">العميل</p>
@@ -1295,7 +1296,11 @@ ${filtersRow}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      {m.orderId ? (
+                      {m.shipmentId ? (
+                        <a href={`/shipments/${m.shipmentId}`} onClick={e => e.stopPropagation()} className="text-[10px] font-mono text-teal-600 dark:text-teal-400 hover:underline">
+                          {m.shipmentNumber ?? `#${m.shipmentId}`}
+                        </a>
+                      ) : m.orderId ? (
                         <a href={`/orders/${m.orderId}`} onClick={e => e.stopPropagation()} className="text-[10px] font-mono text-primary hover:underline">
                           #{String(m.orderId).padStart(4, "0")}
                         </a>

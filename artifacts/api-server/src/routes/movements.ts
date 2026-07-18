@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, gte, lte, or, like, sum, isNull, ne, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, lte, or, like, sum, isNull, ne, inArray, sql } from "drizzle-orm";
 import {
   db,
   inventoryMovementsTable,
@@ -8,6 +8,7 @@ import {
   warehousesTable,
   warehouseStockTable,
   ordersTable,
+  shipmentsTable,
 } from "@workspace/db";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import {
@@ -97,8 +98,10 @@ router.get("/inventory/movements", async (req, res): Promise<void> => {
       type:         inventoryMovementsTable.type,
       reason:       inventoryMovementsTable.reason,
       orderId:      inventoryMovementsTable.orderId,
-      customerName: ordersTable.customerName,
-      customerPhone: ordersTable.phone,
+      shipmentId:   inventoryMovementsTable.shipmentId,
+      shipmentNumber: shipmentsTable.shipmentNumber,
+      customerName: sql<string | null>`COALESCE(${ordersTable.customerName}, ${shipmentsTable.receiverName})`,
+      customerPhone: sql<string | null>`COALESCE(${ordersTable.phone}, ${shipmentsTable.receiverPhone})`,
       fromLocation: inventoryMovementsTable.fromLocation,
       toLocation:   inventoryMovementsTable.toLocation,
       notes:        inventoryMovementsTable.notes,
@@ -107,6 +110,7 @@ router.get("/inventory/movements", async (req, res): Promise<void> => {
     .from(inventoryMovementsTable)
     .leftJoin(warehousesTable, eq(inventoryMovementsTable.warehouseId, warehousesTable.id))
     .leftJoin(ordersTable, eq(inventoryMovementsTable.orderId, ordersTable.id))
+    .leftJoin(shipmentsTable, eq(inventoryMovementsTable.shipmentId, shipmentsTable.id))
     .orderBy(desc(inventoryMovementsTable.createdAt))
     .$dynamic();
 
