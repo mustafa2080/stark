@@ -28,7 +28,7 @@ const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
-const emptyForm = { name: "", phone: "", website: "", shippingCost: "", costMode: "zone" as "rep" | "zone", zoneCostIds: [] as number[], notes: "", logo: "", isActive: true, repUsername: "", repPassword: "" };
+const emptyForm = { name: "", phone: "", website: "", shippingCost: "", costMode: "zone" as "rep" | "zone", zoneIds: [] as number[], zoneCostIds: [] as number[], notes: "", logo: "", isActive: true, repUsername: "", repPassword: "" };
 const formatCurrency = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
 // ─── Multi-Select للزونات ────────────────────────────────────────────────────
@@ -1250,6 +1250,13 @@ export default function ShippingCompanies() {
     } else if ((c as any).zoneCostId) {
       parsedZoneCostIds = [Number((c as any).zoneCostId)];
     }
+    // استرجاع zoneIds (مناطق التغطية الجغرافية) — نفس المنطق fallback على zoneId القديم
+    let parsedZoneIds: number[] = [];
+    if ((c as any).zoneIds) {
+      try { parsedZoneIds = JSON.parse((c as any).zoneIds); } catch {}
+    } else if ((c as any).zoneId) {
+      parsedZoneIds = [Number((c as any).zoneId)];
+    }
     setEditingCompany(c);
     setForm({
       name: c.name,
@@ -1257,6 +1264,7 @@ export default function ShippingCompanies() {
       website: c.website ?? "",
       shippingCost: (c as any).shippingCost != null ? String((c as any).shippingCost) : "",
       costMode: ((c as any).costMode === "rep" ? "rep" : "zone") as "rep" | "zone",
+      zoneIds: parsedZoneIds,
       zoneCostIds: parsedZoneCostIds,
       notes: c.notes ?? "",
       logo: c.logo ?? "",
@@ -1273,6 +1281,10 @@ export default function ShippingCompanies() {
       toast({ title: "خطأ", description: "اختر منطقة واحدة على الأقل.", variant: "destructive" });
       return;
     }
+    if (form.zoneIds.length === 0) {
+      toast({ title: "خطأ", description: "اختر منطقة تغطية واحدة على الأقل (المناطق اللي المندوب بيغطيها).", variant: "destructive" });
+      return;
+    }
     // في وضع "سعر الزون" التكلفة بتتحدد حسب منطقة كل شحنة وقت الفعلي (لا يوجد سعر إجمالي واحد)
     // في وضع "سعر المندوب" السعر بييجي يدوي من الـ input
     const resolvedCost = form.costMode === "zone"
@@ -1284,6 +1296,8 @@ export default function ShippingCompanies() {
       website: form.website || null,
       shippingCost: resolvedCost,
       costMode: form.costMode,
+      zoneIds: form.zoneIds.length > 0 ? form.zoneIds : null,
+      zoneId: form.zoneIds.length > 0 ? form.zoneIds[0] : null,
       zoneCostIds: form.zoneCostIds.length > 0 ? form.zoneCostIds : null,
       zoneCostId: form.zoneCostIds.length > 0 ? form.zoneCostIds[0] : null,
       notes: form.notes || null,
@@ -1577,6 +1591,23 @@ export default function ShippingCompanies() {
                   </SelectContent>
                 </Select>
 
+                <div className="mt-2">
+                  <Label className="text-[10px] text-muted-foreground mb-1 block flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    مناطق التغطية (المناطق اللي المندوب بيوصّل فيها)
+                  </Label>
+                  <ZonesMultiSelect
+                    value={form.zoneIds}
+                    onChange={ids => setForm(f => ({ ...f, zoneIds: ids }))}
+                    zones={zones}
+                  />
+                  {form.zoneIds.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {form.zoneIds.length} منطقة تغطية محددة — هتستخدم لفلترة الشحنات المتاحة عند إنشاء بيان جديد
+                    </p>
+                  )}
+                </div>
+
                 {form.costMode === "zone" ? (
                   <div className="mt-2">
                     <ZoneCostsMultiSelect
@@ -1605,7 +1636,7 @@ export default function ShippingCompanies() {
                     <div>
                       <Label className="text-[10px] text-muted-foreground mb-1 block flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        المناطق اللي المندوب شغال عليها
+                        مناطق التكلفة (لحساب سعر الشحنة)
                       </Label>
                       <ZoneCostsMultiSelect
                         value={form.zoneCostIds}
