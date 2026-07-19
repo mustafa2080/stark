@@ -59,7 +59,7 @@ function ZonesMultiSelect({
   const selectedLabels = value
     .map(id => zones.find(z => z.id === id))
     .filter(Boolean)
-    .map(z => z!.name);
+    .map(z => ({ id: z!.id, name: z!.name }));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -75,8 +75,8 @@ function ZonesMultiSelect({
               <span className="text-muted-foreground">اختر الزونات...</span>
             ) : (
               selectedLabels.map(label => (
-                <Badge key={label} variant="secondary" className="text-[10px] py-0 px-1.5 h-5">
-                  {label}
+                <Badge key={label.id} variant="secondary" className="text-[10px] py-0 px-1.5 h-5">
+                  {label.name}
                 </Badge>
               ))
             )}
@@ -193,7 +193,7 @@ function ZoneCostsMultiSelect({
   const selectedLabels = value
     .map(id => activeZoneCosts.find(z => z.id === id))
     .filter(Boolean)
-    .map(z => z!.name);
+    .map(z => ({ id: z!.id, name: z!.name }));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -209,8 +209,8 @@ function ZoneCostsMultiSelect({
               <span className="text-muted-foreground">اختر المناطق...</span>
             ) : (
               selectedLabels.map(label => (
-                <Badge key={label} variant="secondary" className="text-[10px] py-0 px-1.5 h-5">
-                  {label}
+                <Badge key={label.id} variant="secondary" className="text-[10px] py-0 px-1.5 h-5">
+                  {label.name}
                 </Badge>
               ))
             )}
