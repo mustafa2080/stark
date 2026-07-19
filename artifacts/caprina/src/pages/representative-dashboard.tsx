@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -889,7 +889,7 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
 
 // ─── تاب البيانات — قائمة بيانات الشحن بتاعة المندوب ─────────────────────────
 function ManifestsTab({ companyId }: { companyId: number | null }) {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [, setLocation] = useLocation();
 
   const { data, isLoading } = useQuery({
     queryKey: ["rep-manifests", companyId],
@@ -898,16 +898,12 @@ function ManifestsTab({ companyId }: { companyId: number | null }) {
   });
   const manifests = (data as any[]) ?? [];
 
-  if (selectedId) {
-    return <ManifestDetail manifestId={selectedId} onBack={() => setSelectedId(null)} />;
-  }
-
   if (isLoading) return <p className="text-xs text-muted-foreground text-center py-8">جاري التحميل...</p>;
 
   return (
     <div className="space-y-2">
       {manifests.map((m: any, idx: number) => (
-        <RepManifestCard key={m.id} m={m} isLatest={idx === 0} onOpen={() => setSelectedId(m.id)} />
+        <RepManifestCard key={m.id} m={m} isLatest={idx === 0} onOpen={() => setLocation(`/representative/manifests/${m.id}`)} />
       ))}
       {manifests.length === 0 && (
         <p className="text-xs text-muted-foreground text-center py-8">لا توجد بيانات شحن حالياً</p>
