@@ -147,6 +147,7 @@ export interface ShippingCompany {
   shippingCost: string | number | null;
   costMode: "rep" | "zone" | null;
   zoneCostId: string | number | null;
+  zoneCostIds: string | number[] | null;
   notes: string | null;
   logo: string | null;
   isActive: boolean;

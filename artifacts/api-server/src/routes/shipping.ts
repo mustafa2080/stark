@@ -17,8 +17,9 @@ const CreateSchema = z.object({
   zoneId: z.number().int().nullish(),
   zoneIds: z.array(z.number().int()).nullish(),
   shippingCost: z.number().min(0).nullish(), // تكلفة الشحن لكل شحنة
-  costMode:   z.enum(["rep", "zone"]).nullish(),  // "rep" = سعر المندوب (من منطقة تكلفة) | "zone" = سعر يدوي حر
-  zoneCostId: z.number().int().nullish(),         // مرجع منطقة التكلفة عند اختيار "سعر المندوب"
+  costMode:   z.enum(["rep", "zone"]).nullish(),  // "zone" = سعر الزون (من منطقة/مناطق تكلفة) | "rep" = سعر المندوب اليدوي
+  zoneCostId: z.number().int().nullish(),         // (قديم) مرجع منطقة تكلفة واحدة
+  zoneCostIds: z.array(z.number().int()).nullish(), // مناطق تكلفة متعددة عند اختيار "سعر الزون"
   notes: z.string().nullish(),
   logo: z.string().nullish(),
   isActive: z.boolean().default(true),
@@ -55,7 +56,8 @@ router.post("/shipping-companies", async (req, res): Promise<void> => {
       zoneIds: parsed.data.zoneIds?.length ? JSON.stringify(parsed.data.zoneIds) : null,
       shippingCost: parsed.data.shippingCost != null ? String(parsed.data.shippingCost) : null,
       costMode:   parsed.data.costMode ?? "zone",
-      zoneCostId: parsed.data.zoneCostId ?? null,
+      zoneCostId: parsed.data.zoneCostId ?? (parsed.data.zoneCostIds?.[0] ?? null),
+      zoneCostIds: parsed.data.zoneCostIds?.length ? JSON.stringify(parsed.data.zoneCostIds) : null,
       notes: parsed.data.notes ?? null,
       logo: parsed.data.logo ?? null,
       isActive: parsed.data.isActive ?? true,
@@ -249,6 +251,12 @@ router.patch("/shipping-companies/:id", async (req, res): Promise<void> => {
     updatePayload.zoneIds = parsed.data.zoneIds?.length ? JSON.stringify(parsed.data.zoneIds) : null;
     if (!('zoneId' in parsed.data)) {
       updatePayload.zoneId = parsed.data.zoneIds?.[0] ?? null;
+    }
+  }
+  if (parsed.data.zoneCostIds !== undefined) {
+    updatePayload.zoneCostIds = parsed.data.zoneCostIds?.length ? JSON.stringify(parsed.data.zoneCostIds) : null;
+    if (!('zoneCostId' in parsed.data)) {
+      updatePayload.zoneCostId = parsed.data.zoneCostIds?.[0] ?? null;
     }
   }
   if (parsed.data.shippingCost !== undefined) {

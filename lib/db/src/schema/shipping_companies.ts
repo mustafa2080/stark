@@ -16,7 +16,8 @@ export const shippingCompaniesTable = mysqlTable("shipping_companies", {
   // "rep"  = سعر المندوب — مأخوذ من منطقة تكلفة محددة (zone_costs)
   // "zone" = سعر الزون — قيمة يدوية حرة (shippingCost أعلاه)
   costMode:   varchar("cost_mode", { length: 10 }).default("zone"),  // "rep" | "zone"
-  zoneCostId: int("zone_cost_id"),                                  // مرجع منطقة التكلفة عند اختيار "سعر المندوب"
+  zoneCostId: int("zone_cost_id"),                                  // (قديم) مرجع منطقة تكلفة واحدة
+  zoneCostIds: text("zone_cost_ids"),                               // مصفوفة JSON لمناطق تكلفة متعددة عند اختيار "سعر الزون"
 
   notes: text("notes"),
   logo: longtext("logo"),

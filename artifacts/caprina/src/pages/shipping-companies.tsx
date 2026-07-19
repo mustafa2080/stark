@@ -28,7 +28,7 @@ const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
-const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], shippingCost: "", costMode: "zone" as "rep" | "zone", zoneCostId: "" as string, notes: "", logo: "", isActive: true, repUsername: "", repPassword: "" };
+const emptyForm = { name: "", phone: "", website: "", shippingCost: "", costMode: "zone" as "rep" | "zone", zoneCostIds: [] as number[], notes: "", logo: "", isActive: true, repUsername: "", repPassword: "" };
 const formatCurrency = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
 // ─── Multi-Select للزونات ────────────────────────────────────────────────────
@@ -154,6 +154,140 @@ function ZonesMultiSelect({
           >
             <Check className="w-3 h-3 mr-1" />
             تم ({value.length} زون)
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── Multi-Select لمناطق التكلفة (تكاليف المناطق) ─────────────────────────────
+function ZoneCostsMultiSelect({
+  value,
+  onChange,
+  zoneCosts,
+  formatCurrency,
+}: {
+  value: number[];
+  onChange: (ids: number[]) => void;
+  zoneCosts: { id: number; name: string; fromGovernorate?: string | null; toGovernorate?: string | null; deliveryCost: number | string; isActive?: boolean }[];
+  formatCurrency: (n: number) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const activeZoneCosts = useMemo(() => zoneCosts.filter(z => z.isActive !== false), [zoneCosts]);
+
+  const filtered = useMemo(() =>
+    activeZoneCosts.filter(z =>
+      !search.trim() ||
+      z.name.toLowerCase().includes(search.toLowerCase()) ||
+      (z.fromGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      (z.toGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false)
+    ), [activeZoneCosts, search]);
+
+  const toggle = (id: number) => {
+    onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
+  };
+
+  const selectedLabels = value
+    .map(id => activeZoneCosts.find(z => z.id === id))
+    .filter(Boolean)
+    .map(z => z!.name);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          className="h-auto min-h-9 w-full justify-between bg-background border-input text-sm font-normal"
+          type="button"
+        >
+          <div className="flex flex-wrap gap-1 py-0.5">
+            {value.length === 0 ? (
+              <span className="text-muted-foreground">اختر المناطق...</span>
+            ) : (
+              selectedLabels.map(label => (
+                <Badge key={label} variant="secondary" className="text-[10px] py-0 px-1.5 h-5">
+                  {label}
+                </Badge>
+              ))
+            )}
+          </div>
+          <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-50 mr-2" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[300px] p-0"
+        align="start"
+        dir="rtl"
+        onInteractOutside={e => e.preventDefault()}
+        onOpenAutoFocus={e => e.preventDefault()}
+      >
+        <div className="p-2 border-b border-border">
+          <div className="relative">
+            <Search className="absolute right-2 top-2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              placeholder="بحث في المناطق..."
+              className="h-8 text-xs pr-7 bg-background"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="max-h-52 overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">لا توجد نتائج</p>
+          ) : (
+            filtered.map(zc => {
+              const isSelected = value.includes(zc.id);
+              return (
+                <div
+                  key={zc.id}
+                  data-zonecost-item="true"
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); toggle(zc.id); }}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-primary border-primary" : "border-border"}`}>
+                    {isSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">
+                      {zc.name}
+                      {(zc.fromGovernorate || zc.toGovernorate) ? ` (${zc.fromGovernorate ?? "—"} ← ${zc.toGovernorate ?? "—"})` : ""}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">{formatCurrency(Number(zc.deliveryCost))}</p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {value.length > 0 && (
+          <div className="p-2 border-t border-border">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-7 text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => onChange([])}
+              type="button"
+            >
+              <XIcon className="w-3 h-3 mr-1" />
+              مسح الكل ({value.length})
+            </Button>
+          </div>
+        )}
+        <div className="p-2 border-t border-border">
+          <Button
+            size="sm"
+            className="w-full h-7 text-xs font-bold"
+            onClick={() => setOpen(false)}
+            type="button"
+          >
+            <Check className="w-3 h-3 mr-1" />
+            تم ({value.length} منطقة)
           </Button>
         </div>
       </PopoverContent>
@@ -1081,22 +1215,21 @@ export default function ShippingCompanies() {
 
   const openAdd = () => { setEditingCompany(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (c: ShippingCompany) => {
-    // استرجاع zoneIds: إما من الحقل الجديد أو fallback على zoneId القديم
-    let parsedZoneIds: number[] = [];
-    if ((c as any).zoneIds) {
-      try { parsedZoneIds = JSON.parse((c as any).zoneIds); } catch {}
-    } else if ((c as any).zoneId) {
-      parsedZoneIds = [(c as any).zoneId];
+    // استرجاع zoneCostIds: إما من الحقل الجديد أو fallback على zoneCostId القديم (منطقة واحدة)
+    let parsedZoneCostIds: number[] = [];
+    if ((c as any).zoneCostIds) {
+      try { parsedZoneCostIds = JSON.parse((c as any).zoneCostIds); } catch {}
+    } else if ((c as any).zoneCostId) {
+      parsedZoneCostIds = [Number((c as any).zoneCostId)];
     }
     setEditingCompany(c);
     setForm({
       name: c.name,
       phone: c.phone ?? "",
       website: c.website ?? "",
-      zoneIds: parsedZoneIds,
       shippingCost: (c as any).shippingCost != null ? String((c as any).shippingCost) : "",
       costMode: ((c as any).costMode === "rep" ? "rep" : "zone") as "rep" | "zone",
-      zoneCostId: (c as any).zoneCostId != null ? String((c as any).zoneCostId) : "",
+      zoneCostIds: parsedZoneCostIds,
       notes: c.notes ?? "",
       logo: c.logo ?? "",
       isActive: c.isActive,
@@ -1108,23 +1241,23 @@ export default function ShippingCompanies() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
-    if (form.costMode === "zone" && !form.zoneCostId) {
-      toast({ title: "خطأ", description: "اختر منطقة من قائمة تكاليف المناطق.", variant: "destructive" });
+    if (form.costMode === "zone" && form.zoneCostIds.length === 0) {
+      toast({ title: "خطأ", description: "اختر منطقة واحدة على الأقل من قائمة تكاليف المناطق.", variant: "destructive" });
       return;
     }
-    // في وضع "سعر الزون" السعر بييجي من المنطقة المختارة تلقائي، في وضع "سعر المندوب" بييجي يدوي من الـ input
+    // في وضع "سعر الزون" التكلفة بتتحدد حسب منطقة كل شحنة وقت الفعلي (لا يوجد سعر إجمالي واحد)
+    // في وضع "سعر المندوب" السعر بييجي يدوي من الـ input
     const resolvedCost = form.costMode === "zone"
-      ? Number(zoneCosts.find(z => String(z.id) === form.zoneCostId)?.deliveryCost ?? 0)
+      ? null
       : (form.shippingCost !== "" ? Number(form.shippingCost) : null);
     const data = {
       ...form,
       phone: form.phone || null,
       website: form.website || null,
-      zoneIds: form.zoneIds.length > 0 ? form.zoneIds : null,
-      zoneId: form.zoneIds[0] ?? null,
       shippingCost: resolvedCost,
       costMode: form.costMode,
-      zoneCostId: form.costMode === "zone" && form.zoneCostId ? Number(form.zoneCostId) : null,
+      zoneCostIds: form.costMode === "zone" && form.zoneCostIds.length > 0 ? form.zoneCostIds : null,
+      zoneCostId: form.costMode === "zone" && form.zoneCostIds.length > 0 ? form.zoneCostIds[0] : null,
       notes: form.notes || null,
       logo: form.logo || null,
     };
@@ -1269,7 +1402,7 @@ export default function ShippingCompanies() {
                     </a>
                   </div>
                 )}
-                {(company as any).shippingCost != null && (
+                {(company as any).costMode !== "zone" && (company as any).shippingCost != null && (
                   <p className="text-xs flex items-center gap-2">
                     <span className="text-[10px] font-bold text-primary">ج.م</span>
                     <span className="text-muted-foreground">تكلفة الشحنة:</span>
@@ -1279,23 +1412,23 @@ export default function ShippingCompanies() {
                   </p>
                 )}
                 {(() => {
-                  // استخراج zoneIds من الشركة
-                  let zIds: number[] = [];
-                  if ((company as any).zoneIds) {
-                    try { zIds = JSON.parse((company as any).zoneIds); } catch {}
-                  } else if ((company as any).zoneId) {
-                    zIds = [(company as any).zoneId];
+                  // استخراج zoneCostIds من الشركة (مناطق التكلفة عند وضع "سعر الزون")
+                  let zcIds: number[] = [];
+                  if ((company as any).zoneCostIds) {
+                    try { zcIds = JSON.parse((company as any).zoneCostIds); } catch {}
+                  } else if ((company as any).zoneCostId) {
+                    zcIds = [(company as any).zoneCostId];
                   }
-                  if (!zIds.length) return null;
-                  const zoneNames = zIds
-                    .map(id => zones.find(z => z.id === id))
+                  if (!zcIds.length) return null;
+                  const zoneCostNames = zcIds
+                    .map(id => zoneCosts.find(z => z.id === id))
                     .filter(Boolean);
-                  if (!zoneNames.length) return null;
+                  if (!zoneCostNames.length) return null;
                   return (
                     <div className="flex items-start gap-2 pt-1">
                       <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground" />
                       <div className="flex flex-wrap gap-1">
-                        {zoneNames.map(z => (
+                        {zoneCostNames.map(z => (
                           <span
                             key={z!.id}
                             className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border"
@@ -1405,7 +1538,7 @@ export default function ShippingCompanies() {
                 </Label>
                 <Select
                   value={form.costMode}
-                  onValueChange={(v: "rep" | "zone") => setForm(f => ({ ...f, costMode: v, shippingCost: "", zoneCostId: "" }))}
+                  onValueChange={(v: "rep" | "zone") => setForm(f => ({ ...f, costMode: v, shippingCost: "", zoneCostIds: [] }))}
                 >
                   <SelectTrigger className="h-9 text-sm bg-background">
                     <SelectValue />
@@ -1418,29 +1551,15 @@ export default function ShippingCompanies() {
 
                 {form.costMode === "zone" ? (
                   <div className="mt-2">
-                    <Select
-                      value={form.zoneCostId}
-                      onValueChange={(v: string) => setForm(f => ({ ...f, zoneCostId: v }))}
-                    >
-                      <SelectTrigger className="h-9 text-sm bg-background">
-                        <SelectValue placeholder="اختر المنطقة..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {zoneCosts.filter(z => z.isActive !== false).length === 0 && (
-                          <div className="px-3 py-2 text-xs text-muted-foreground">لا توجد مناطق تكلفة مضافة بعد</div>
-                        )}
-                        {zoneCosts.filter(z => z.isActive !== false).map(z => (
-                          <SelectItem key={z.id} value={String(z.id)}>
-                            {z.name}
-                            {z.fromGovernorate || z.toGovernorate ? ` (${z.fromGovernorate ?? "—"} ← ${z.toGovernorate ?? "—"})` : ""}
-                            {" — "}{formatCurrency(Number(z.deliveryCost))}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {form.zoneCostId && (
+                    <ZoneCostsMultiSelect
+                      value={form.zoneCostIds}
+                      onChange={ids => setForm(f => ({ ...f, zoneCostIds: ids }))}
+                      zoneCosts={zoneCosts}
+                      formatCurrency={formatCurrency}
+                    />
+                    {form.zoneCostIds.length > 0 && (
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        التكلفة: {formatCurrency(Number(zoneCosts.find(z => String(z.id) === form.zoneCostId)?.deliveryCost ?? 0))}
+                        {form.zoneCostIds.length} منطقة محددة — كل منطقة بتتسجل بتكلفتها الخاصة
                       </p>
                     )}
                   </div>
@@ -1454,19 +1573,6 @@ export default function ShippingCompanies() {
                     value={form.shippingCost}
                     onChange={e => setForm(f => ({ ...f, shippingCost: e.target.value }))}
                   />
-                )}
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" />الزونات (يمكن اختيار أكثر من زون)</Label>
-                <ZonesMultiSelect
-                  value={form.zoneIds}
-                  onChange={ids => setForm(f => ({ ...f, zoneIds: ids }))}
-                  zones={zones}
-                />
-                {form.zoneIds.length > 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {form.zoneIds.length} زون محدد
-                  </p>
                 )}
               </div>
             </div>
