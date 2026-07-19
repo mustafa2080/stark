@@ -1241,8 +1241,8 @@ export default function ShippingCompanies() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
-    if (form.costMode === "zone" && form.zoneCostIds.length === 0) {
-      toast({ title: "خطأ", description: "اختر منطقة واحدة على الأقل من قائمة تكاليف المناطق.", variant: "destructive" });
+    if (form.zoneCostIds.length === 0) {
+      toast({ title: "خطأ", description: "اختر منطقة واحدة على الأقل.", variant: "destructive" });
       return;
     }
     // في وضع "سعر الزون" التكلفة بتتحدد حسب منطقة كل شحنة وقت الفعلي (لا يوجد سعر إجمالي واحد)
@@ -1256,8 +1256,8 @@ export default function ShippingCompanies() {
       website: form.website || null,
       shippingCost: resolvedCost,
       costMode: form.costMode,
-      zoneCostIds: form.costMode === "zone" && form.zoneCostIds.length > 0 ? form.zoneCostIds : null,
-      zoneCostId: form.costMode === "zone" && form.zoneCostIds.length > 0 ? form.zoneCostIds[0] : null,
+      zoneCostIds: form.zoneCostIds.length > 0 ? form.zoneCostIds : null,
+      zoneCostId: form.zoneCostIds.length > 0 ? form.zoneCostIds[0] : null,
       notes: form.notes || null,
       logo: form.logo || null,
     };
@@ -1412,8 +1412,7 @@ export default function ShippingCompanies() {
                   </p>
                 )}
                 {(() => {
-                  // استخراج zoneCostIds من الشركة (مناطق التكلفة عند وضع "سعر الزون" فقط)
-                  if ((company as any).costMode === "rep") return null;
+                  // استخراج zoneCostIds من الشركة (المناطق المرتبطة بالمندوب)
                   let zcIds: number[] = [];
                   if ((company as any).zoneCostIds) {
                     try { zcIds = JSON.parse((company as any).zoneCostIds); } catch {}
@@ -1539,7 +1538,7 @@ export default function ShippingCompanies() {
                 </Label>
                 <Select
                   value={form.costMode}
-                  onValueChange={(v: "rep" | "zone") => setForm(f => ({ ...f, costMode: v, shippingCost: "", zoneCostIds: [] }))}
+                  onValueChange={(v: "rep" | "zone") => setForm(f => ({ ...f, costMode: v, shippingCost: "" }))}
                 >
                   <SelectTrigger className="h-9 text-sm bg-background">
                     <SelectValue />
@@ -1565,15 +1564,34 @@ export default function ShippingCompanies() {
                     )}
                   </div>
                 ) : (
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    placeholder="0.00"
-                    className="h-9 text-sm bg-background mt-2"
-                    value={form.shippingCost}
-                    onChange={e => setForm(f => ({ ...f, shippingCost: e.target.value }))}
-                  />
+                  <div className="mt-2 space-y-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="0.00"
+                      className="h-9 text-sm bg-background"
+                      value={form.shippingCost}
+                      onChange={e => setForm(f => ({ ...f, shippingCost: e.target.value }))}
+                    />
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground mb-1 block flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        المناطق اللي المندوب شغال عليها
+                      </Label>
+                      <ZoneCostsMultiSelect
+                        value={form.zoneCostIds}
+                        onChange={ids => setForm(f => ({ ...f, zoneCostIds: ids }))}
+                        zoneCosts={zoneCosts}
+                        formatCurrency={formatCurrency}
+                      />
+                      {form.zoneCostIds.length > 0 && (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {form.zoneCostIds.length} منطقة محددة
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
