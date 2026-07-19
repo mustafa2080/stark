@@ -1242,7 +1242,18 @@ router.get("/zone-costs", async (req, res): Promise<void> => {
     const tenantId = getTenantId(req);
     const cond = tenantId !== null ? eq(zoneCostsTable.tenantId, tenantId) : undefined;
     const rows = await db.select().from(zoneCostsTable).where(cond).orderBy(zoneCostsTable.name);
-    res.json(rows);
+    // نجيب أحدث بيانات المنطقة (الاسم/المحافظات) من shipment_zones لو zoneId موجود ولسه مرتبط بمنطقة حية
+    const zoneIds = [...new Set(rows.map(r => r.zoneId).filter((v): v is number => v != null))];
+    const zonesById = new Map<number, { name: string; fromGovernorate: string | null; toGovernorate: string | null }>();
+    if (zoneIds.length > 0) {
+      const zoneRows = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+      for (const z of zoneRows) zonesById.set(z.id, { name: z.name, fromGovernorate: z.fromGovernorate ?? null, toGovernorate: z.toGovernorate ?? null });
+    }
+    const enriched = rows.map(r => {
+      const live = r.zoneId != null ? zonesById.get(r.zoneId) : undefined;
+      return live ? { ...r, name: live.name, fromGovernorate: live.fromGovernorate, toGovernorate: live.toGovernorate } : r;
+    });
+    res.json(enriched);
   } catch (e) { console.error("[GET /zone-costs]", e); res.status(500).json({ error: "خطأ في استرجاع تكاليف المناطق" }); }
 });
 
@@ -1250,15 +1261,19 @@ router.get("/zone-costs", async (req, res): Promise<void> => {
 router.post("/zone-costs", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { name, fromGovernorate, toGovernorate, deliveryCost, isActive = true } = req.body;
-    if (!name) { res.status(400).json({ error: "اسم المنطقة مطلوب" }); return; }
+    const { zoneId, deliveryCost, isActive = true, notes } = req.body;
+    if (!zoneId) { res.status(400).json({ error: "اختر منطقة من تاب المناطق" }); return; }
+    const [zone] = await db.select().from(shipmentZonesTable).where(eq(shipmentZonesTable.id, Number(zoneId))).limit(1);
+    if (!zone) { res.status(400).json({ error: "المنطقة المختارة غير موجودة" }); return; }
     const result = await db.insert(zoneCostsTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
-      name,
-      fromGovernorate: fromGovernorate ?? null,
-      toGovernorate:   toGovernorate ?? null,
+      zoneId: zone.id,
+      name: zone.name,
+      fromGovernorate: zone.fromGovernorate ?? null,
+      toGovernorate:   zone.toGovernorate ?? null,
       deliveryCost:    String(deliveryCost ?? 0),
       isActive,
+      notes: notes ?? null,
       createdAt: new Date(), updatedAt: new Date(),
     });
     const id = (result as any)[0]?.insertId ?? (result as any).insertId;
@@ -1271,13 +1286,19 @@ router.post("/zone-costs", async (req, res): Promise<void> => {
 router.put("/zone-costs/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { name, fromGovernorate, toGovernorate, deliveryCost, isActive } = req.body;
+    const { zoneId, deliveryCost, isActive, notes } = req.body;
     const upd: any = { updatedAt: new Date() };
-    if (name            !== undefined) upd.name            = name;
-    if (fromGovernorate !== undefined) upd.fromGovernorate = fromGovernorate;
-    if (toGovernorate   !== undefined) upd.toGovernorate   = toGovernorate;
+    if (zoneId !== undefined) {
+      const [zone] = await db.select().from(shipmentZonesTable).where(eq(shipmentZonesTable.id, Number(zoneId))).limit(1);
+      if (!zone) { res.status(400).json({ error: "المنطقة المختارة غير موجودة" }); return; }
+      upd.zoneId = zone.id;
+      upd.name = zone.name;
+      upd.fromGovernorate = zone.fromGovernorate ?? null;
+      upd.toGovernorate   = zone.toGovernorate ?? null;
+    }
     if (deliveryCost    !== undefined) upd.deliveryCost    = String(deliveryCost);
     if (isActive        !== undefined) upd.isActive        = isActive;
+    if (notes           !== undefined) upd.notes           = notes;
     await db.update(zoneCostsTable).set(upd).where(eq(zoneCostsTable.id, id));
     const rows = await db.select().from(zoneCostsTable).where(eq(zoneCostsTable.id, id)).limit(1);
     res.json(rows[0]);

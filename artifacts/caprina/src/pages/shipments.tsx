@@ -33,7 +33,7 @@ type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 
 interface ShipmentZone      { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: string | number; isActive?: boolean }
-interface ZoneCost          { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; deliveryCost: string | number; isActive?: boolean }
+interface ZoneCost          { id: number; zoneId?: number | null; name: string; fromGovernorate?: string; toGovernorate?: string; deliveryCost: string | number; isActive?: boolean }
 interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number }
 interface Client            { id: number; name: string; phone?: string; phone2?: string; email?: string; address?: string; city?: string; warehouseId?: number | null }
 
@@ -1180,11 +1180,11 @@ function ZonesTab() {
 // سعر توصيل واحد بس لكل منطقة — بدون تصنيفات عملاء. تُستخدم كقيمة افتراضية
 // عند اختيار "منطقة التكلفة" في فورم إضافة عميل جديد.
 type ZoneCostFormState = {
-  name: string; fromGovernorate: string; toGovernorate: string; deliveryCost: string;
+  zoneId: string; deliveryCost: string;
 };
-const emptyZoneCostForm = (): ZoneCostFormState => ({ name: "", fromGovernorate: "", toGovernorate: "", deliveryCost: "" });
+const emptyZoneCostForm = (): ZoneCostFormState => ({ zoneId: "", deliveryCost: "" });
 
-function ZoneCostsTab() {
+function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState<ZoneCostFormState>(emptyZoneCostForm());
@@ -1195,6 +1195,13 @@ function ZoneCostsTab() {
     queryKey: ["zone-costs"],
     queryFn: () => apiFetch<ZoneCost[]>("/zone-costs"),
   });
+  const { data: zones = [] } = useQuery({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch<ShipmentZone[]>("/shipments/zones"),
+  });
+  // المناطق المتاحة للإضافة = اللي لسه ما اتضافتلهاش تكلفة (تفادي تكرار نفس المنطقة)
+  const usedZoneIds = new Set((zoneCosts as ZoneCost[]).map(z => z.zoneId).filter((v): v is number => v != null));
+  const availableZones = (zones as ShipmentZone[]).filter(z => !usedZoneIds.has(z.id));
 
   const addMutation = useMutation({
     mutationFn: (d: any) => apiFetch("/zone-costs", { method: "POST", body: JSON.stringify(d) }),
@@ -1225,20 +1232,16 @@ function ZoneCostsTab() {
   function startEdit(z: ZoneCost) {
     setEditId(z.id);
     setEditForm({
-      name:            z.name,
-      fromGovernorate: z.fromGovernorate || "",
-      toGovernorate:   z.toGovernorate   || "",
-      deliveryCost:    String(z.deliveryCost ?? "0"),
+      zoneId:       z.zoneId != null ? String(z.zoneId) : "",
+      deliveryCost: String(z.deliveryCost ?? "0"),
     });
   }
 
   function submitAdd() {
-    if (!form.name || !form.deliveryCost) return;
+    if (!form.zoneId || !form.deliveryCost) return;
     addMutation.mutate({
-      name: form.name,
-      fromGovernorate: form.fromGovernorate || undefined,
-      toGovernorate:   form.toGovernorate   || undefined,
-      deliveryCost:    Number(form.deliveryCost || 0),
+      zoneId:       Number(form.zoneId),
+      deliveryCost: Number(form.deliveryCost || 0),
       isActive: true,
     });
   }
@@ -1246,10 +1249,8 @@ function ZoneCostsTab() {
   function submitEdit(id: number) {
     updateMutation.mutate({
       id,
-      name:            editForm.name,
-      fromGovernorate: editForm.fromGovernorate || undefined,
-      toGovernorate:   editForm.toGovernorate   || undefined,
-      deliveryCost:    Number(editForm.deliveryCost || 0),
+      zoneId:       editForm.zoneId ? Number(editForm.zoneId) : undefined,
+      deliveryCost: Number(editForm.deliveryCost || 0),
     });
   }
 
@@ -1264,52 +1265,64 @@ function ZoneCostsTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* من محافظة - إلى محافظة / اسم المنطقة */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-bold mb-1.5 block">من محافظة</Label>
-              <Input className="text-sm" placeholder="اكتب المحافظة..." value={form.fromGovernorate} onChange={e => setForm(f => ({ ...f, fromGovernorate: e.target.value }))} />
+          {availableZones.length === 0 ? (
+            /* ── مفيش مناطق متاحة للإضافة (إما مفيش مناطق أصلًا أو كلها اتضافلها تكلفة بالفعل) ── */
+            <div className="flex flex-col items-center text-center gap-2 py-6 rounded-lg border border-dashed border-border">
+              <Globe className="w-6 h-6 text-muted-foreground opacity-40" />
+              <p className="text-xs font-bold text-muted-foreground">
+                {zones.length === 0 ? "لا توجد مناطق مضافة بعد" : "كل المناطق الموجودة أُضيفت لها تكلفة بالفعل"}
+              </p>
+              <p className="text-[11px] text-muted-foreground/70">
+                أضف منطقة جديدة أولًا من تاب "المناطق" ثم عد هنا لتحديد تكلفتها
+              </p>
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs mt-1" onClick={onGoToZones}>
+                <Globe className="w-3.5 h-3.5" /> الذهاب لتاب المناطق
+              </Button>
             </div>
-            <div>
-              <Label className="text-xs font-bold mb-1.5 block">إلى محافظة / اسم المنطقة <span className="text-red-500">*</span></Label>
-              <div className="flex rounded-md border border-input overflow-hidden focus-within:ring-1 focus-within:ring-ring">
-                <input
-                  className="w-2/5 bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
-                  placeholder="إلى محافظة..."
-                  value={form.toGovernorate}
-                  onChange={e => setForm(f => ({ ...f, toGovernorate: e.target.value }))}
-                />
-                <div className="w-px bg-border self-stretch" />
-                <input
-                  className="flex-1 bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
-                  placeholder="المنطقة *"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          ) : (
+            <>
+              {/* اختيار المنطقة من تاب المناطق */}
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-500" /> المنطقة <span className="text-red-500">*</span>
+                </Label>
+                <Select value={form.zoneId} onValueChange={(v) => setForm(f => ({ ...f, zoneId: v }))}>
+                  <SelectTrigger className="text-sm h-10">
+                    <SelectValue placeholder="اختر المنطقة..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableZones.map(z => (
+                      <SelectItem key={z.id} value={String(z.id)}>
+                        {z.name}
+                        {(z.fromGovernorate || z.toGovernorate) ? ` (${z.fromGovernorate ?? "—"} ← ${z.toGovernorate ?? "—"})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* سعر التوصيل — سعر واحد بدون تصنيفات */}
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-emerald-500" /> تكلفة التوصيل <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="number" min={0} step="0.5"
+                  className="text-sm h-10 border border-emerald-600/40 focus:border-emerald-500"
+                  placeholder="0"
+                  value={form.deliveryCost}
+                  onChange={e => setForm(f => ({ ...f, deliveryCost: e.target.value }))}
                 />
               </div>
-            </div>
-          </div>
 
-          {/* سعر التوصيل — سعر واحد بدون تصنيفات */}
-          <div>
-            <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1.5">
-              <Truck className="w-3.5 h-3.5 text-emerald-500" /> تكلفة التوصيل <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              type="number" min={0} step="0.5"
-              className="text-sm h-10 border border-emerald-600/40 focus:border-emerald-500"
-              placeholder="0"
-              value={form.deliveryCost}
-              onChange={e => setForm(f => ({ ...f, deliveryCost: e.target.value }))}
-            />
-          </div>
-
-          <Button className="gap-2 text-xs" size="sm"
-            disabled={!form.name || !form.deliveryCost || addMutation.isPending}
-            onClick={submitAdd}>
-            {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            إضافة المنطقة
-          </Button>
+              <Button className="gap-2 text-xs" size="sm"
+                disabled={!form.zoneId || !form.deliveryCost || addMutation.isPending}
+                onClick={submitAdd}>
+                {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                إضافة المنطقة
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -1332,18 +1345,24 @@ function ZoneCostsTab() {
                     /* ── وضع التعديل ── */
                     <div className="p-3 space-y-3">
                       <div>
-                        <Label className="text-[10px] font-bold mb-1 block">الاسم</Label>
-                        <Input className="text-xs h-8" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-[10px] font-bold mb-1 block">من محافظة</Label>
-                          <Input className="text-xs h-8" placeholder="اكتب المحافظة..." value={editForm.fromGovernorate} onChange={e => setEditForm(f => ({ ...f, fromGovernorate: e.target.value }))} />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] font-bold mb-1 block">إلى محافظة</Label>
-                          <Input className="text-xs h-8" placeholder="اكتب المحافظة..." value={editForm.toGovernorate} onChange={e => setEditForm(f => ({ ...f, toGovernorate: e.target.value }))} />
-                        </div>
+                        <Label className="text-[10px] font-bold mb-1 block">المنطقة</Label>
+                        <Select value={editForm.zoneId} onValueChange={(v) => setEditForm(f => ({ ...f, zoneId: v }))}>
+                          <SelectTrigger className="text-xs h-8">
+                            <SelectValue placeholder="اختر المنطقة..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {/* المنطقة الحالية + المتاحة (بدون تكرار) */}
+                            {(z.zoneId != null && !availableZones.some(az => az.id === z.zoneId)
+                              ? [...(zones as ShipmentZone[]).filter(zn => zn.id === z.zoneId), ...availableZones]
+                              : availableZones
+                            ).map(zn => (
+                              <SelectItem key={zn.id} value={String(zn.id)}>
+                                {zn.name}
+                                {(zn.fromGovernorate || zn.toGovernorate) ? ` (${zn.fromGovernorate ?? "—"} ← ${zn.toGovernorate ?? "—"})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label className="text-[10px] font-bold mb-1 block text-emerald-500">تكلفة التوصيل</Label>
@@ -1468,7 +1487,7 @@ export default function ShipmentsPage() {
         </button>
       </div>
 
-      {tab === "zones" ? <ZonesTab /> : <ZoneCostsTab />}
+      {tab === "zones" ? <ZonesTab /> : <ZoneCostsTab onGoToZones={() => setTab("zones")} />}
     </div>
   );
 }
