@@ -1277,10 +1277,6 @@ export default function ShippingCompanies() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
-    if (form.zoneCostIds.length === 0) {
-      toast({ title: "خطأ", description: "اختر منطقة واحدة على الأقل.", variant: "destructive" });
-      return;
-    }
     if (form.zoneIds.length === 0) {
       toast({ title: "خطأ", description: "اختر منطقة تغطية واحدة على الأقل (المناطق اللي المندوب بيغطيها).", variant: "destructive" });
       return;
