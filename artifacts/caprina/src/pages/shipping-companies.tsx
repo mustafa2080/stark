@@ -1108,12 +1108,12 @@ export default function ShippingCompanies() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
-    if (form.costMode === "rep" && !form.zoneCostId) {
+    if (form.costMode === "zone" && !form.zoneCostId) {
       toast({ title: "خطأ", description: "اختر منطقة من قائمة تكاليف المناطق.", variant: "destructive" });
       return;
     }
-    // في وضع "سعر المندوب" السعر بييجي من المنطقة المختارة، في وضع "سعر الزون" بييجي من الـ input
-    const resolvedCost = form.costMode === "rep"
+    // في وضع "سعر الزون" السعر بييجي من المنطقة المختارة تلقائي، في وضع "سعر المندوب" بييجي يدوي من الـ input
+    const resolvedCost = form.costMode === "zone"
       ? Number(zoneCosts.find(z => String(z.id) === form.zoneCostId)?.deliveryCost ?? 0)
       : (form.shippingCost !== "" ? Number(form.shippingCost) : null);
     const data = {
@@ -1124,7 +1124,7 @@ export default function ShippingCompanies() {
       zoneId: form.zoneIds[0] ?? null,
       shippingCost: resolvedCost,
       costMode: form.costMode,
-      zoneCostId: form.costMode === "rep" && form.zoneCostId ? Number(form.zoneCostId) : null,
+      zoneCostId: form.costMode === "zone" && form.zoneCostId ? Number(form.zoneCostId) : null,
       notes: form.notes || null,
       logo: form.logo || null,
     };
@@ -1411,12 +1411,12 @@ export default function ShippingCompanies() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="rep">سعر المندوب (حسب المنطقة)</SelectItem>
-                    <SelectItem value="zone">سعر الزون (يدوي)</SelectItem>
+                    <SelectItem value="zone">سعر الزون (حسب المنطقة)</SelectItem>
+                    <SelectItem value="rep">سعر المندوب (يدوي)</SelectItem>
                   </SelectContent>
                 </Select>
 
-                {form.costMode === "rep" ? (
+                {form.costMode === "zone" ? (
                   <div className="mt-2">
                     <Select
                       value={form.zoneCostId}
