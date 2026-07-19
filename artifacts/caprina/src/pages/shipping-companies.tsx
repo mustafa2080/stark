@@ -1412,7 +1412,8 @@ export default function ShippingCompanies() {
                   </p>
                 )}
                 {(() => {
-                  // استخراج zoneCostIds من الشركة (مناطق التكلفة عند وضع "سعر الزون")
+                  // استخراج zoneCostIds من الشركة (مناطق التكلفة عند وضع "سعر الزون" فقط)
+                  if ((company as any).costMode === "rep") return null;
                   let zcIds: number[] = [];
                   if ((company as any).zoneCostIds) {
                     try { zcIds = JSON.parse((company as any).zoneCostIds); } catch {}
