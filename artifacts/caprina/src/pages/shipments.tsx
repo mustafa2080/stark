@@ -9,7 +9,7 @@ import {
   ChevronDown, ChevronUp, X, RefreshCw, Eye, Edit, Trash2,
   ArrowUpDown, Building2, DollarSign, FileText, Boxes, Tag,
   Settings, Globe, Layers, Image as ImageIcon,
-  Megaphone, Warehouse, UserCheck,
+  Megaphone, Warehouse, UserCheck, ChevronsUpDown, Check,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
@@ -1184,6 +1185,102 @@ type ZoneCostFormState = {
 };
 const emptyZoneCostForm = (): ZoneCostFormState => ({ zoneId: "", deliveryCost: "" });
 
+// ─── Single-Select قابل للبحث للمنطقة (Combobox) ──────────────────────────────
+function ZoneSingleSelect({
+  value,
+  onChange,
+  zones,
+  placeholder = "اختر المنطقة...",
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  zones: { id: number; name: string; fromGovernorate?: string; toGovernorate?: string }[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() =>
+    zones.filter(z =>
+      !search.trim() ||
+      z.name.toLowerCase().includes(search.toLowerCase()) ||
+      (z.fromGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      (z.toGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false)
+    ), [zones, search]);
+
+  const selected = zones.find(z => String(z.id) === value);
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch(""); }}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          className="h-10 w-full justify-between bg-background border-input text-sm font-normal"
+          type="button"
+        >
+          {selected ? (
+            <span className="truncate">
+              {selected.name}
+              {(selected.fromGovernorate || selected.toGovernorate) && (
+                <span className="text-muted-foreground text-xs"> ({selected.fromGovernorate ?? "—"} ← {selected.toGovernorate ?? "—"})</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
+          <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-50 mr-2" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+        dir="rtl"
+        onOpenAutoFocus={e => e.preventDefault()}
+      >
+        <div className="p-2 border-b border-border">
+          <div className="relative">
+            <Search className="absolute right-2 top-2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              autoFocus
+              placeholder="بحث بالمحافظة أو اسم المنطقة..."
+              className="h-8 text-xs pr-7 bg-background"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="max-h-60 overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">لا توجد نتائج</p>
+          ) : (
+            filtered.map(zone => {
+              const isSelected = String(zone.id) === value;
+              return (
+                <div
+                  key={zone.id}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                  onClick={() => { onChange(String(zone.id)); setOpen(false); setSearch(""); }}
+                >
+                  <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                    {isSelected && <Check className="w-3.5 h-3.5 text-primary" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{zone.name}</p>
+                    {(zone.fromGovernorate || zone.toGovernorate) && (
+                      <p className="text-[10px] text-muted-foreground">{zone.fromGovernorate ?? "؟"} → {zone.toGovernorate ?? "؟"}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -1286,19 +1383,11 @@ function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
                 <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-emerald-500" /> المنطقة <span className="text-red-500">*</span>
                 </Label>
-                <Select value={form.zoneId} onValueChange={(v) => setForm(f => ({ ...f, zoneId: v }))}>
-                  <SelectTrigger className="text-sm h-10">
-                    <SelectValue placeholder="اختر المنطقة..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableZones.map(z => (
-                      <SelectItem key={z.id} value={String(z.id)}>
-                        {z.name}
-                        {(z.fromGovernorate || z.toGovernorate) ? ` (${z.fromGovernorate ?? "—"} ← ${z.toGovernorate ?? "—"})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ZoneSingleSelect
+                  value={form.zoneId}
+                  onChange={(v) => setForm(f => ({ ...f, zoneId: v }))}
+                  zones={availableZones}
+                />
               </div>
 
               {/* سعر التوصيل — سعر واحد بدون تصنيفات */}
@@ -1346,23 +1435,15 @@ function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
                     <div className="p-3 space-y-3">
                       <div>
                         <Label className="text-[10px] font-bold mb-1 block">المنطقة</Label>
-                        <Select value={editForm.zoneId} onValueChange={(v) => setEditForm(f => ({ ...f, zoneId: v }))}>
-                          <SelectTrigger className="text-xs h-8">
-                            <SelectValue placeholder="اختر المنطقة..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {/* المنطقة الحالية + المتاحة (بدون تكرار) */}
-                            {(z.zoneId != null && !availableZones.some(az => az.id === z.zoneId)
+                        <ZoneSingleSelect
+                          value={editForm.zoneId}
+                          onChange={(v) => setEditForm(f => ({ ...f, zoneId: v }))}
+                          zones={
+                            z.zoneId != null && !availableZones.some(az => az.id === z.zoneId)
                               ? [...(zones as ShipmentZone[]).filter(zn => zn.id === z.zoneId), ...availableZones]
                               : availableZones
-                            ).map(zn => (
-                              <SelectItem key={zn.id} value={String(zn.id)}>
-                                {zn.name}
-                                {(zn.fromGovernorate || zn.toGovernorate) ? ` (${zn.fromGovernorate ?? "—"} ← ${zn.toGovernorate ?? "—"})` : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          }
+                        />
                       </div>
                       <div>
                         <Label className="text-[10px] font-bold mb-1 block text-emerald-500">تكلفة التوصيل</Label>
