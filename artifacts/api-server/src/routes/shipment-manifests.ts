@@ -408,8 +408,8 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         // اللي اتسجلت وقت تسجيل المرتجع تفضل زي ما هي ومتتصفرش بمجرد "تم الاستلام".
         ...(body.returnReason !== undefined ? { returnReason: body.returnReason ?? null } : {}),
         returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
-        ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived ?? null } : {}),
-        ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived ?? null } : {}),
+        ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived == null ? null : String(body.returnValueReceived) } : {}),
+        ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived == null ? null : String(body.deliveredValueReceived) } : {}),
         deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
       })
       .where(and(
