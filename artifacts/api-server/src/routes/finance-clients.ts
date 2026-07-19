@@ -25,6 +25,8 @@ const ClientSchema = z.object({
   warehouseId:   z.number().nullish(),
   defaultAdSource: z.string().nullish(),
   whatsappGroupLink: z.string().nullish(),
+  zoneCostId:            z.number().nullish(),
+  zoneCostDeliveryPrice: z.number().nullish(),
 });
 
 // ── حساب نوع العميل تلقائياً بناءً على عدد الشحنات الشهرية ────────────
@@ -399,7 +401,7 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
 
     const now = new Date();
     // warehouseId و region و defaultAdSource و whatsappGroupLink يتفصلان لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفهم — نضيفهم بـ raw SQL بعد الإنشاء
-    const { warehouseId, region, defaultAdSource, whatsappGroupLink, ...restData } = parsed.data;
+    const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, ...restData } = parsed.data;
     const [result] = await db.insert(clientsTable).values({
       ...restData,
       creditLimit:  String(parsed.data.creditLimit ?? 0),
@@ -423,10 +425,16 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
     if (whatsappGroupLink !== undefined) {
       await db.execute(sql`UPDATE clients SET whatsapp_group_link = ${whatsappGroupLink ?? null} WHERE id = ${id}`);
     }
+    if (zoneCostId !== undefined) {
+      await db.execute(sql`UPDATE clients SET zone_cost_id = ${zoneCostId ?? null} WHERE id = ${id}`);
+    }
+    if (zoneCostDeliveryPrice !== undefined) {
+      await db.execute(sql`UPDATE clients SET zone_cost_delivery_price = ${zoneCostDeliveryPrice ?? null} WHERE id = ${id}`);
+    }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
-    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link FROM clients WHERE id = ${id}`) as any;
-    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null });
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link, zone_cost_id, zone_cost_delivery_price FROM clients WHERE id = ${id}`) as any;
+    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -442,8 +450,8 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     const updates: any = { ...parsed.data, updatedAt: new Date() };
     if (parsed.data.creditLimit !== undefined) updates.creditLimit = String(parsed.data.creditLimit);
 
-    // warehouseId و region و defaultAdSource و whatsappGroupLink يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
-    const { warehouseId, region, defaultAdSource, whatsappGroupLink, ...rest } = updates;
+    // warehouseId و region و defaultAdSource و whatsappGroupLink و zoneCostId/zoneCostDeliveryPrice يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
+    const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, ...rest } = updates;
     await db.update(clientsTable).set(rest).where(eq(clientsTable.id, id));
     if (warehouseId !== undefined) {
       await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
@@ -457,13 +465,19 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     if (whatsappGroupLink !== undefined) {
       await db.execute(sql`UPDATE clients SET whatsapp_group_link = ${whatsappGroupLink ?? null} WHERE id = ${id}`);
     }
+    if (zoneCostId !== undefined) {
+      await db.execute(sql`UPDATE clients SET zone_cost_id = ${zoneCostId ?? null} WHERE id = ${id}`);
+    }
+    if (zoneCostDeliveryPrice !== undefined) {
+      await db.execute(sql`UPDATE clients SET zone_cost_delivery_price = ${zoneCostDeliveryPrice ?? null} WHERE id = ${id}`);
+    }
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
-    // جلب warehouse_id و default_ad_source و whatsapp_group_link بـ raw SQL عشان نضمن رجوعهم في الـ response مهما كانت حالة الـ compiled schema
-    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link FROM clients WHERE id = ${id}`) as any;
-    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null });
+    // جلب warehouse_id و default_ad_source و whatsapp_group_link و zone_cost_id/zone_cost_delivery_price بـ raw SQL عشان نضمن رجوعهم في الـ response مهما كانت حالة الـ compiled schema
+    const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link, zone_cost_id, zone_cost_delivery_price FROM clients WHERE id = ${id}`) as any;
+    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

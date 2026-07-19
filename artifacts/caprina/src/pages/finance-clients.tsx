@@ -97,6 +97,7 @@ const emptyForm = {
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
   creditLimit: "0", notes: "", isActive: true, avatar: "", clientType: "normal" as ClientType,
   warehouseId: "" as string, defaultAdSource: "" as string, whatsappGroupLink: "",
+  zoneCostId: "" as string, zoneCostDeliveryPrice: "" as string,
 };
 
 // ── Column Filter Dropdown ────────────────────────────────────────────────
@@ -207,6 +208,13 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
+
+  // جلب مناطق التكلفة (سعر توصيل واحد لكل منطقة)
+  const { data: zoneCosts = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string; deliveryCost: string | number; isActive?: boolean }[]>({
+    queryKey: ["zone-costs"],
+    queryFn: () => apiFetch("/zone-costs"),
+  });
+  const activeZoneCosts = useMemo(() => zoneCosts.filter(z => z.isActive !== false), [zoneCosts]);
   // محافظات التوصيل (to) بدون تكرار — من جدول المناطق والأسعار
   const zoneGovernorates = useMemo(() => {
     const seen = new Set<string>();
@@ -233,6 +241,8 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
     defaultAdSource: editClient.defaultAdSource ?? "",
     whatsappGroupLink: editClient.whatsappGroupLink ?? "",
+    zoneCostId: (editClient as any).zoneCostId ? String((editClient as any).zoneCostId) : "",
+    zoneCostDeliveryPrice: (editClient as any).zoneCostDeliveryPrice != null ? String((editClient as any).zoneCostDeliveryPrice) : "",
   } : { ...emptyForm });
 
   // إعادة تعبئة الـ form لما editClient يتغير (مهم لو الـ Dialog مش بيتـunmount)
@@ -251,6 +261,8 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
         defaultAdSource: editClient.defaultAdSource ?? "",
         whatsappGroupLink: editClient.whatsappGroupLink ?? "",
+        zoneCostId: (editClient as any).zoneCostId ? String((editClient as any).zoneCostId) : "",
+        zoneCostDeliveryPrice: (editClient as any).zoneCostDeliveryPrice != null ? String((editClient as any).zoneCostDeliveryPrice) : "",
       });
     } else {
       setForm({ ...emptyForm });
@@ -271,6 +283,8 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         warehouseId: form.warehouseId ? parseInt(form.warehouseId) : null,
         defaultAdSource: form.defaultAdSource || null,
         whatsappGroupLink: form.whatsappGroupLink || null,
+        zoneCostId: form.zoneCostId ? parseInt(form.zoneCostId) : null,
+        zoneCostDeliveryPrice: form.zoneCostDeliveryPrice !== "" ? parseFloat(form.zoneCostDeliveryPrice) || 0 : null,
       };
       if (isEdit) return apiFetch<any>(`/finance/clients/${editClient!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       return apiFetch<any>("/finance/clients", { method: "POST", body: JSON.stringify(body) });
@@ -349,6 +363,44 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
             <div><Label className="text-xs mb-1.5 block">العنوان التفصيلي</Label>
               <Input placeholder="الشارع والحي والمبنى" className="h-9 text-sm bg-background" value={form.address} onChange={e => f("address", e.target.value)} /></div>
           </div>
+
+          {/* ── منطقة التكلفة + تكلفة التوصيل ── */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs mb-1.5 block">منطقة التكلفة</Label>
+              <Select
+                value={form.zoneCostId || "none"}
+                onValueChange={v => {
+                  if (v === "none") { f("zoneCostId", ""); return; }
+                  f("zoneCostId", v);
+                  const z = activeZoneCosts.find(zc => String(zc.id) === v);
+                  if (z) f("zoneCostDeliveryPrice", String(z.deliveryCost ?? "0"));
+                }}
+              >
+                <SelectTrigger className="h-9 text-sm bg-background"><SelectValue placeholder="اختر المنطقة..." /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false} className="max-h-[220px] overflow-y-auto w-[var(--radix-select-trigger-width)]">
+                  <SelectItem value="none">— بدون —</SelectItem>
+                  {activeZoneCosts.map(z => (
+                    <SelectItem key={z.id} value={String(z.id)}>
+                      {z.toGovernorate ? `${z.toGovernorate} — ${z.name}` : z.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs mb-1.5 block">تكلفة التوصيل</Label>
+              <Input
+                type="number" min={0} step="0.5"
+                placeholder="0"
+                className="h-9 text-sm bg-background"
+                value={form.zoneCostDeliveryPrice}
+                onChange={e => f("zoneCostDeliveryPrice", e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground -mt-1.5 px-0.5">اختيار المنطقة يملأ تكلفة التوصيل تلقائياً — ويمكن تعديلها يدوياً بعد ذلك</p>
+
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs mb-1.5 block">شروط الدفع</Label>
               <Select value={form.paymentTerms} onValueChange={v => f("paymentTerms", v)}>

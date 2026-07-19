@@ -35,6 +35,10 @@ export const clientsTable = mysqlTable("clients", {
   // ── مخزن مرتبط ────────────────────────────────────────────────────────
   warehouseId:    int("warehouse_id"),                                      // المخزن المرتبط بالعميل (اختياري)
 
+  // ── منطقة التكلفة المرتبطة بالعميل (تكلفة التوصيل) ───────────────────
+  zoneCostId:            int("zone_cost_id"),                                              // ربط بجدول zone_costs
+  zoneCostDeliveryPrice: decimal("zone_cost_delivery_price", { precision: 10, scale: 2 }),  // السعر الفعلي (قابل للتعديل يدوياً وقت الإضافة)
+
   // ── مصدر الطلب الافتراضي للعميل (يُستخدم تلقائياً عند اختيار العميل كراسل في الشحنة) ──
   defaultAdSource: varchar("default_ad_source", { length: 50 }),
 

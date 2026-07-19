@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull, gte } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -1230,6 +1230,67 @@ router.delete("/shipment-zones/:id", async (req, res): Promise<void> => {
     await db.delete(shipmentZonesTable).where(eq(shipmentZonesTable.id, id));
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: "خطأ" }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ─── تكاليف المناطق (Zone Costs) — سعر توصيل واحد لكل منطقة، بدون تصنيف عميل ──
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── GET /zone-costs ──────────────────────────────────────────────────────────
+router.get("/zone-costs", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cond = tenantId !== null ? eq(zoneCostsTable.tenantId, tenantId) : undefined;
+    const rows = await db.select().from(zoneCostsTable).where(cond).orderBy(zoneCostsTable.name);
+    res.json(rows);
+  } catch (e) { console.error("[GET /zone-costs]", e); res.status(500).json({ error: "خطأ في استرجاع تكاليف المناطق" }); }
+});
+
+// ─── POST /zone-costs ─────────────────────────────────────────────────────────
+router.post("/zone-costs", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const { name, fromGovernorate, toGovernorate, deliveryCost, isActive = true } = req.body;
+    if (!name) { res.status(400).json({ error: "اسم المنطقة مطلوب" }); return; }
+    const result = await db.insert(zoneCostsTable).values({
+      ...(tenantId !== null ? { tenantId } : {}),
+      name,
+      fromGovernorate: fromGovernorate ?? null,
+      toGovernorate:   toGovernorate ?? null,
+      deliveryCost:    String(deliveryCost ?? 0),
+      isActive,
+      createdAt: new Date(), updatedAt: new Date(),
+    });
+    const id = (result as any)[0]?.insertId ?? (result as any).insertId;
+    const rows = await db.select().from(zoneCostsTable).where(eq(zoneCostsTable.id, id)).limit(1);
+    res.status(201).json(rows[0]);
+  } catch (e) { console.error("[POST /zone-costs]", e); res.status(500).json({ error: "خطأ في إضافة منطقة التكلفة" }); }
+});
+
+// ─── PUT /zone-costs/:id ──────────────────────────────────────────────────────
+router.put("/zone-costs/:id", async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, fromGovernorate, toGovernorate, deliveryCost, isActive } = req.body;
+    const upd: any = { updatedAt: new Date() };
+    if (name            !== undefined) upd.name            = name;
+    if (fromGovernorate !== undefined) upd.fromGovernorate = fromGovernorate;
+    if (toGovernorate   !== undefined) upd.toGovernorate   = toGovernorate;
+    if (deliveryCost    !== undefined) upd.deliveryCost    = String(deliveryCost);
+    if (isActive        !== undefined) upd.isActive        = isActive;
+    await db.update(zoneCostsTable).set(upd).where(eq(zoneCostsTable.id, id));
+    const rows = await db.select().from(zoneCostsTable).where(eq(zoneCostsTable.id, id)).limit(1);
+    res.json(rows[0]);
+  } catch (e) { console.error("[PUT /zone-costs/:id]", e); res.status(500).json({ error: "خطأ" }); }
+});
+
+// ─── DELETE /zone-costs/:id ───────────────────────────────────────────────────
+router.delete("/zone-costs/:id", async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(zoneCostsTable).where(eq(zoneCostsTable.id, id));
+    res.json({ success: true });
+  } catch (e) { console.error("[DELETE /zone-costs/:id]", e); res.status(500).json({ error: "خطأ" }); }
 });
 
 // ─── GET /parcel-type-pricing ─────────────────────────────────────────────────

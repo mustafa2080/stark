@@ -35,6 +35,7 @@ export * from "./tenants";
 // ─── Shipments Module ─────────────────────────────────────────────────────────
 export * from "./shipments";
 export * from "./shipment_zones";
+export * from "./zone_costs";
 export * from "./parcel_type_pricing";
 export * from "./shipment_manifests";
 export * from "./client_account_manifests";
