@@ -1608,21 +1608,7 @@ export default function ShippingCompanies() {
                   )}
                 </div>
 
-                {form.costMode === "zone" ? (
-                  <div className="mt-2">
-                    <ZoneCostsMultiSelect
-                      value={form.zoneCostIds}
-                      onChange={ids => setForm(f => ({ ...f, zoneCostIds: ids }))}
-                      zoneCosts={zoneCosts}
-                      formatCurrency={formatCurrency}
-                    />
-                    {form.zoneCostIds.length > 0 && (
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        {form.zoneCostIds.length} منطقة محددة — كل منطقة بتتسجل بتكلفتها الخاصة
-                      </p>
-                    )}
-                  </div>
-                ) : (
+                {form.costMode !== "zone" && (
                   <div className="mt-2 space-y-2">
                     <Input
                       type="number"
@@ -1633,23 +1619,6 @@ export default function ShippingCompanies() {
                       value={form.shippingCost}
                       onChange={e => setForm(f => ({ ...f, shippingCost: e.target.value }))}
                     />
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground mb-1 block flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        مناطق التكلفة (لحساب سعر الشحنة)
-                      </Label>
-                      <ZoneCostsMultiSelect
-                        value={form.zoneCostIds}
-                        onChange={ids => setForm(f => ({ ...f, zoneCostIds: ids }))}
-                        zoneCosts={zoneCosts}
-                        formatCurrency={formatCurrency}
-                      />
-                      {form.zoneCostIds.length > 0 && (
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          {form.zoneCostIds.length} منطقة محددة
-                        </p>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>
