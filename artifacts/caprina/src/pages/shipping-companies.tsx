@@ -731,8 +731,11 @@ export function CreateManifestDialog({
 
   const availableShipments = useMemo(() => {
     if (!companyZoneIds || companyZoneIds.size === 0) return availableShipmentsAllZones;
+    // الشحنات اللي معاها zoneId بنفلترها على مناطق المندوب.
+    // الشحنات اللي مفيش zoneId مسجل ليها (قديمة أو اتعملت من غير تحديد منطقة)
+    // بنسيبها تظهر برضو مؤقتاً — عشان ما تختفيش شحنات فعلية من البيان.
     return availableShipmentsAllZones.filter(
-      (s) => s.zoneId != null && companyZoneIds.has(Number(s.zoneId))
+      (s) => s.zoneId == null || companyZoneIds.has(Number(s.zoneId))
     );
   }, [availableShipmentsAllZones, companyZoneIds]);
 
