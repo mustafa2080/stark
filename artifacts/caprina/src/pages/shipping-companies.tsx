@@ -709,9 +709,32 @@ export function CreateManifestDialog({
   // فلتر صارم على المستوى ده: الباك إند بيوسّع "warehouse_ready" ليشمل "picked_up" برضه
   // (alias قديم لأغراض تانية)، فلازم نتأكد إننا بنعرض فقط الشحنات اللي لسه فعلياً
   // "قيد الشحن في المخزن" ولسه ماتسلمتش من شركة الشحن.
-  const availableShipments = (allCompanyShipments as Shipment[]).filter(
+  const availableShipmentsAllZones = (allCompanyShipments as Shipment[]).filter(
     (s) => s.status === "warehouse_ready"
   );
+
+  // فلترة على مناطق المندوب (zoneIds) — لو المندوب محدد له مناطق تغطية،
+  // بنعرض بس الشحنات اللي منطقتها ضمن المناطق دي. لو مفيش مناطق محددة للمندوب،
+  // بنعرض كل الشحنات المتاحة زي ما كان (بدون فلتر) عشان مايتقفلش الفلو على مناديب قدامى.
+  const companyZoneIds = useMemo(() => {
+    const raw = company.zoneIds;
+    if (!raw) return null;
+    if (Array.isArray(raw)) return new Set(raw.map((z) => Number(z)));
+    try {
+      const parsed = JSON.parse(raw as string);
+      if (Array.isArray(parsed)) return new Set(parsed.map((z) => Number(z)));
+    } catch {
+      // raw مش JSON — تجاهل
+    }
+    return null;
+  }, [company.zoneIds]);
+
+  const availableShipments = useMemo(() => {
+    if (!companyZoneIds || companyZoneIds.size === 0) return availableShipmentsAllZones;
+    return availableShipmentsAllZones.filter(
+      (s) => s.zoneId != null && companyZoneIds.has(Number(s.zoneId))
+    );
+  }, [availableShipmentsAllZones, companyZoneIds]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return availableShipments;
@@ -853,7 +876,9 @@ export function CreateManifestDialog({
                   {availableShipments.length === 0
                     ? allCompanyShipments.length === 0
                       ? "لا توجد شحنات حالياً — يمكنك إضافة شحنات جديدة من قسم الشحنات"
-                      : "لا توجد شحنات قيد الشحن في المخزن جاهزة للبيان — باقي الشحنات في حالات أخرى (مؤكدة / تم الاستلام / قيد الشحن / تم التسليم...)"
+                      : availableShipmentsAllZones.length === 0
+                        ? "لا توجد شحنات قيد الشحن في المخزن جاهزة للبيان — باقي الشحنات في حالات أخرى (مؤكدة / تم الاستلام / قيد الشحن / تم التسليم...)"
+                        : "لا توجد شحنات في مناطق تغطية هذا المندوب حالياً"
                     : "لا توجد نتائج تطابق البحث"}
                 </p>
               </div>
