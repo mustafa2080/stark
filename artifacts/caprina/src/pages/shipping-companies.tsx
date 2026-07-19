@@ -1128,7 +1128,7 @@ export default function ShippingCompanies() {
       notes: form.notes || null,
       logo: form.logo || null,
     };
-    if (editingCompany) updateMutation.mutate({ id: editingCompany.id, data });
+    if (editingCompany) updateMutation.mutate({ id: editingCompany.id, data: data as any });
     else createMutation.mutate(data as any);
   };
 
@@ -1383,11 +1383,11 @@ export default function ShippingCompanies() {
 
       {/* Add/Edit Company Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-md" dir="rtl">
-          <DialogHeader>
+        <DialogContent className="bg-card border-border w-[calc(100%-2rem)] sm:w-full max-w-md max-h-[90vh] p-0 flex flex-col gap-0" dir="rtl">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle className="text-right">{editingCompany ? "تعديل بيانات المندوب" : "إضافة مندوب شحن"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 mt-2">
+          <div className="space-y-3 px-6 pb-4 overflow-y-auto flex-1 min-h-0">
             <LogoUploader value={form.logo} onChange={v => setForm(f => ({ ...f, logo: v }))} />
             <div>
               <Label className="text-xs mb-1.5 block">اسم المندوب *</Label>
@@ -1546,12 +1546,12 @@ export default function ShippingCompanies() {
                 )}
               </div>
             )}
-            <div className="flex gap-2 pt-1">
-              <Button className="flex-1 h-9 text-sm font-bold bg-primary text-primary-foreground" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
-                {createMutation.isPending || updateMutation.isPending ? "جاري الحفظ..." : editingCompany ? "حفظ" : "إضافة"}
-              </Button>
-              <Button variant="outline" className="h-9 text-sm border-border" onClick={() => setDialogOpen(false)}>إلغاء</Button>
-            </div>
+          </div>
+          <div className="flex gap-2 px-6 py-4 border-t border-border shrink-0 bg-card">
+            <Button className="flex-1 h-9 text-sm font-bold bg-primary text-primary-foreground" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
+              {createMutation.isPending || updateMutation.isPending ? "جاري الحفظ..." : editingCompany ? "حفظ" : "إضافة"}
+            </Button>
+            <Button variant="outline" className="h-9 text-sm border-border" onClick={() => setDialogOpen(false)}>إلغاء</Button>
           </div>
         </DialogContent>
       </Dialog>

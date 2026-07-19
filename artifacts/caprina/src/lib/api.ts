@@ -143,13 +143,15 @@ export interface ShippingCompany {
   phone: string | null;
   website: string | null;
   zoneId: number | null;
-  zoneIds: string | null;
+  zoneIds: string | number[] | null;
   shippingCost: string | number | null;
   costMode: "rep" | "zone" | null;
-  zoneCostId: number | null;
+  zoneCostId: string | number | null;
   notes: string | null;
   logo: string | null;
   isActive: boolean;
+  repUsername?: string;
+  repPassword?: string;
   createdAt: string;
 }
 
