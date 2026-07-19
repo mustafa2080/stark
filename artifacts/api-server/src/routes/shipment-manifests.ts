@@ -1024,6 +1024,14 @@ router.post("/shipment-manifests/:id/add-shipments", async (req, res): Promise<v
 router.delete("/shipment-manifests/:id", async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
+
+    // المندوب ممنوع يحذف البيان بالكامل — الحذف مسموح للأدمن بس
+    const reqUser = (req as any).user;
+    if (reqUser?.role === "representative") {
+      res.status(403).json({ error: "غير مسموح — المندوب لا يمكنه حذف البيان بالكامل" });
+      return;
+    }
+
     // أرجع حالة الشحنات → waiting
     const items = await db.select({ shipmentId: shipmentManifestItemsTable.shipmentId })
       .from(shipmentManifestItemsTable)
