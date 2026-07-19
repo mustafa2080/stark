@@ -11,6 +11,13 @@ export const shippingCompaniesTable = mysqlTable("shipping_companies", {
   zoneId: int("zone_id"),
   zoneIds: text("zone_ids"),
   shippingCost: decimal("shipping_cost", { precision: 10, scale: 2 }), // تكلفة الشحن لكل شحنة/طلب
+
+  // ── طريقة تحديد تكلفة الشحنة ─────────────────────────────────────────
+  // "rep"  = سعر المندوب — مأخوذ من منطقة تكلفة محددة (zone_costs)
+  // "zone" = سعر الزون — قيمة يدوية حرة (shippingCost أعلاه)
+  costMode:   varchar("cost_mode", { length: 10 }).default("zone"),  // "rep" | "zone"
+  zoneCostId: int("zone_cost_id"),                                  // مرجع منطقة التكلفة عند اختيار "سعر المندوب"
+
   notes: text("notes"),
   logo: longtext("logo"),
   isActive: boolean("is_active").notNull().default(true),

@@ -142,6 +142,11 @@ export interface ShippingCompany {
   name: string;
   phone: string | null;
   website: string | null;
+  zoneId: number | null;
+  zoneIds: string | null;
+  shippingCost: string | number | null;
+  costMode: "rep" | "zone" | null;
+  zoneCostId: number | null;
   notes: string | null;
   logo: string | null;
   isActive: boolean;

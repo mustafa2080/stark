@@ -17,6 +17,8 @@ const CreateSchema = z.object({
   zoneId: z.number().int().nullish(),
   zoneIds: z.array(z.number().int()).nullish(),
   shippingCost: z.number().min(0).nullish(), // تكلفة الشحن لكل شحنة
+  costMode:   z.enum(["rep", "zone"]).nullish(),  // "rep" = سعر المندوب (من منطقة تكلفة) | "zone" = سعر يدوي حر
+  zoneCostId: z.number().int().nullish(),         // مرجع منطقة التكلفة عند اختيار "سعر المندوب"
   notes: z.string().nullish(),
   logo: z.string().nullish(),
   isActive: z.boolean().default(true),
@@ -52,6 +54,8 @@ router.post("/shipping-companies", async (req, res): Promise<void> => {
       zoneId: parsed.data.zoneId ?? (parsed.data.zoneIds?.[0] ?? null),
       zoneIds: parsed.data.zoneIds?.length ? JSON.stringify(parsed.data.zoneIds) : null,
       shippingCost: parsed.data.shippingCost != null ? String(parsed.data.shippingCost) : null,
+      costMode:   parsed.data.costMode ?? "zone",
+      zoneCostId: parsed.data.zoneCostId ?? null,
       notes: parsed.data.notes ?? null,
       logo: parsed.data.logo ?? null,
       isActive: parsed.data.isActive ?? true,

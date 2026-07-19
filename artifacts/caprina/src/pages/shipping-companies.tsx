@@ -11,10 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -27,7 +28,7 @@ const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   warehouse_ready: "🏠 قيد الشحن في المخزن",
 };
 
-const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], shippingCost: "", notes: "", logo: "", isActive: true, repUsername: "", repPassword: "" };
+const emptyForm = { name: "", phone: "", website: "", zoneIds: [] as number[], shippingCost: "", costMode: "zone" as "rep" | "zone", zoneCostId: "" as string, notes: "", logo: "", isActive: true, repUsername: "", repPassword: "" };
 const formatCurrency = (n: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
 // ─── Multi-Select للزونات ────────────────────────────────────────────────────
@@ -1033,6 +1034,10 @@ export default function ShippingCompanies() {
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
+  const { data: zoneCosts = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string; deliveryCost: string; isActive?: boolean }[]>({
+    queryKey: ["zone-costs"],
+    queryFn: () => apiFetch("/zone-costs"),
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: typeof emptyForm) => shippingApi.create(data),
@@ -1090,22 +1095,36 @@ export default function ShippingCompanies() {
       website: c.website ?? "",
       zoneIds: parsedZoneIds,
       shippingCost: (c as any).shippingCost != null ? String((c as any).shippingCost) : "",
+      costMode: ((c as any).costMode === "rep" ? "rep" : "zone") as "rep" | "zone",
+      zoneCostId: (c as any).zoneCostId != null ? String((c as any).zoneCostId) : "",
       notes: c.notes ?? "",
       logo: c.logo ?? "",
       isActive: c.isActive,
+      repUsername: "",
+      repPassword: "",
     });
     setDialogOpen(true);
   };
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "خطأ", description: "اسم المندوب مطلوب.", variant: "destructive" }); return; }
+    if (form.costMode === "rep" && !form.zoneCostId) {
+      toast({ title: "خطأ", description: "اختر منطقة من قائمة تكاليف المناطق.", variant: "destructive" });
+      return;
+    }
+    // في وضع "سعر المندوب" السعر بييجي من المنطقة المختارة، في وضع "سعر الزون" بييجي من الـ input
+    const resolvedCost = form.costMode === "rep"
+      ? Number(zoneCosts.find(z => String(z.id) === form.zoneCostId)?.deliveryCost ?? 0)
+      : (form.shippingCost !== "" ? Number(form.shippingCost) : null);
     const data = {
       ...form,
       phone: form.phone || null,
       website: form.website || null,
       zoneIds: form.zoneIds.length > 0 ? form.zoneIds : null,
       zoneId: form.zoneIds[0] ?? null,
-      shippingCost: form.shippingCost !== "" ? Number(form.shippingCost) : null,
+      shippingCost: resolvedCost,
+      costMode: form.costMode,
+      zoneCostId: form.costMode === "rep" && form.zoneCostId ? Number(form.zoneCostId) : null,
       notes: form.notes || null,
       logo: form.logo || null,
     };
@@ -1379,20 +1398,63 @@ export default function ShippingCompanies() {
                 <Label className="text-xs mb-1.5 block flex items-center gap-1"><Phone className="w-3 h-3" />الهاتف</Label>
                 <Input placeholder="05xxxxxxxx" className="h-9 text-sm bg-background" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
               </div>
-              <div>
+              <div className="col-span-2">
                 <Label className="text-xs mb-1.5 block flex items-center gap-1">
-                  <span className="text-[10px] font-bold text-primary">ج.م</span>
+                  <DollarSign className="w-3 h-3" />
                   تكلفة الشحنة
                 </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  placeholder="0.00"
-                  className="h-9 text-sm bg-background"
-                  value={form.shippingCost}
-                  onChange={e => setForm(f => ({ ...f, shippingCost: e.target.value }))}
-                />
+                <Select
+                  value={form.costMode}
+                  onValueChange={(v: "rep" | "zone") => setForm(f => ({ ...f, costMode: v, shippingCost: "", zoneCostId: "" }))}
+                >
+                  <SelectTrigger className="h-9 text-sm bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rep">سعر المندوب (حسب المنطقة)</SelectItem>
+                    <SelectItem value="zone">سعر الزون (يدوي)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {form.costMode === "rep" ? (
+                  <div className="mt-2">
+                    <Select
+                      value={form.zoneCostId}
+                      onValueChange={(v: string) => setForm(f => ({ ...f, zoneCostId: v }))}
+                    >
+                      <SelectTrigger className="h-9 text-sm bg-background">
+                        <SelectValue placeholder="اختر المنطقة..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {zoneCosts.filter(z => z.isActive !== false).length === 0 && (
+                          <div className="px-3 py-2 text-xs text-muted-foreground">لا توجد مناطق تكلفة مضافة بعد</div>
+                        )}
+                        {zoneCosts.filter(z => z.isActive !== false).map(z => (
+                          <SelectItem key={z.id} value={String(z.id)}>
+                            {z.name}
+                            {z.fromGovernorate || z.toGovernorate ? ` (${z.fromGovernorate ?? "—"} ← ${z.toGovernorate ?? "—"})` : ""}
+                            {" — "}{formatCurrency(Number(z.deliveryCost))}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.zoneCostId && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        التكلفة: {formatCurrency(Number(zoneCosts.find(z => String(z.id) === form.zoneCostId)?.deliveryCost ?? 0))}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="0.00"
+                    className="h-9 text-sm bg-background mt-2"
+                    value={form.shippingCost}
+                    onChange={e => setForm(f => ({ ...f, shippingCost: e.target.value }))}
+                  />
+                )}
               </div>
               <div className="col-span-2">
                 <Label className="text-xs mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" />الزونات (يمكن اختيار أكثر من زون)</Label>
