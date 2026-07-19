@@ -16,7 +16,7 @@ import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
 import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
-import { broadcastUrgentToCompany } from "./representative.js";
+// ملحوظة: broadcastUrgentToCompany كانت من routes/representative.ts اللي اتمسح — الاستدعاء معطّل مؤقتًا تحت
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -601,15 +601,15 @@ router.patch("/shipment-manifests/:id/items/:shipmentId/urgent", async (req, res
           .from(shipmentsTable)
           .where(eq(shipmentsTable.id, shipmentId))
           .limit(1);
-        broadcastUrgentToCompany(manifest.shippingCompanyId, {
-          type: "urgent",
-          manifestId,
-          manifestNumber: manifest.manifestNumber,
-          shipmentId,
-          urgentNote: urgentNote ?? null,
-          urgentAt: new Date().toISOString(),
-          ...(shipmentItem ?? {}),
-        });
+        // broadcastUrgentToCompany(manifest.shippingCompanyId, {
+        //   type: "urgent",
+        //   manifestId,
+        //   manifestNumber: manifest.manifestNumber,
+        //   shipmentId,
+        //   urgentNote: urgentNote ?? null,
+        //   urgentAt: new Date().toISOString(),
+        //   ...(shipmentItem ?? {}),
+        // });
       }
     }
 

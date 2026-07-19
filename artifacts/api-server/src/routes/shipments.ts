@@ -1480,20 +1480,21 @@ router.patch("/shipments/:id/urgent", async (req, res): Promise<void> => {
         .where(eq(shipmentManifestsTable.id, item.manifestId))
         .limit(1);
       if (manifest?.shippingCompanyId) {
-        const { broadcastUrgentToCompany } = await import("./representative.js");
-        broadcastUrgentToCompany(manifest.shippingCompanyId, {
-          type: "urgent",
-          manifestId:     item.manifestId,
-          manifestNumber: manifest.manifestNumber,
-          shipmentId,
-          urgentNote:     urgentNote ?? null,
-          urgentAt:       new Date().toISOString(),
-          customerName:   item.customerName,
-          phone:          item.phone,
-          city:           item.city,
-          invoiceNumber:  item.invoiceNumber,
-          totalPrice:     item.totalPrice,
-        });
+        // ملحوظة: broadcastUrgentToCompany كانت من routes/representative.ts اللي اتمسح — معطّلة مؤقتًا
+        // const { broadcastUrgentToCompany } = await import("./representative.js");
+        // broadcastUrgentToCompany(manifest.shippingCompanyId, {
+        //   type: "urgent",
+        //   manifestId:     item.manifestId,
+        //   manifestNumber: manifest.manifestNumber,
+        //   shipmentId,
+        //   urgentNote:     urgentNote ?? null,
+        //   urgentAt:       new Date().toISOString(),
+        //   customerName:   item.customerName,
+        //   phone:          item.phone,
+        //   city:           item.city,
+        //   invoiceNumber:  item.invoiceNumber,
+        //   totalPrice:     item.totalPrice,
+        // });
       }
     }
 
