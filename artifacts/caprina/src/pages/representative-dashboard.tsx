@@ -1559,8 +1559,34 @@ function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: Ta
 // ─── HOME TAB — النظرة العامة (تصميم الداشبورد الجديد) ───────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ─── هيدر بطاقة قابل للطي (زرار سهم للطي/الفتح + زرار "الكل" اختياري) ────────
+function CollapsibleCardHeader({
+  icon: Icon, iconColor, title, collapsed, onToggleCollapse, actionLabel, onAction,
+}: {
+  icon: React.ElementType; iconColor: string; title: string;
+  collapsed: boolean; onToggleCollapse: () => void;
+  actionLabel?: string; onAction?: () => void;
+}) {
+  return (
+    <div className="px-4 pt-3 pb-2 border-b border-border/50 flex items-center justify-between gap-2">
+      <button onClick={onToggleCollapse} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+        <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${collapsed ? "-rotate-90" : "rotate-90"}`} />
+      </button>
+      <p className="text-xs font-bold flex items-center gap-1.5 flex-1">
+        <Icon className={`w-3.5 h-3.5 ${iconColor}`} /> {title}
+      </p>
+      {actionLabel && (
+        <button onClick={onAction} className="text-[10px] text-muted-foreground hover:text-primary transition-colors shrink-0">
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── 1) بطاقة ملخص المهام اليومية ─────────────────────────────────────────────
 function TasksSummaryCard({ allShipments, onNavigate }: { allShipments: any[]; onNavigate: (t: TabId) => void }) {
+  const [collapsed, setCollapsed] = useState(false);
   const today = new Date().toDateString();
   const todayShipments = allShipments.filter(s => s.createdAt && new Date(s.createdAt).toDateString() === today);
   const delivered = todayShipments.filter(s => s.status === "delivered" || s.status === "partial_received").length;
@@ -1582,57 +1608,59 @@ function TasksSummaryCard({ allShipments, onNavigate }: { allShipments: any[]; o
 
   return (
     <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
-      <div className="px-4 pt-3 pb-2 border-b border-border/50 flex items-center justify-between">
-        <p className="text-xs font-bold flex items-center gap-1.5">
-          <ListChecks className="w-3.5 h-3.5 text-primary" /> ملخص المهام اليومية
-        </p>
-        <button onClick={() => onNavigate("tasks")} className="text-[10px] text-muted-foreground hover:text-primary transition-colors">
-          الكل
-        </button>
-      </div>
+      <CollapsibleCardHeader
+        icon={ListChecks} iconColor="text-primary" title="ملخص المهام اليومية"
+        collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)}
+        actionLabel="الكل" onAction={() => onNavigate("tasks")}
+      />
 
-      <div className="p-4 pb-2">
-        <p className="text-[11px] text-muted-foreground mb-1">شحنات اليوم</p>
-        <p className="text-4xl font-black text-foreground leading-none">{total}</p>
-      </div>
-
-      {/* KPI pills */}
-      <div className="px-4 grid grid-cols-3 gap-2 mb-3">
-        <div className="rounded-xl border border-blue-500/25 bg-blue-500/10 px-2 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground">تم التسليم</p>
-          <p className="text-base font-black text-blue-400">{delivered}</p>
-        </div>
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground">قيد التوصيل</p>
-          <p className="text-base font-black text-emerald-400">{inProgress}</p>
-        </div>
-        <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-2 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground">مرتجعة</p>
-          <p className="text-base font-black text-red-400">{returned}</p>
-        </div>
-      </div>
-
-      {/* قائمة شحنات اليوم */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1.5 max-h-72">
-        {recent.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات اليوم</p>
-        )}
-        {recent.map((s, i) => (
-          <div key={s.id ?? i} className="flex items-center gap-2 text-[11px] py-1">
-            <span className="w-4 h-4 rounded-full bg-muted/40 flex items-center justify-center shrink-0 text-[9px] font-bold text-muted-foreground">
-              {i + 1}
-            </span>
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(s.status)}`} />
-            <span className="truncate flex-1 text-foreground/90">{s.receiverCity || s.receiverName || "—"}</span>
+      {!collapsed && (
+        <>
+          <div className="p-4 pb-2">
+            <p className="text-[11px] text-muted-foreground mb-1">شحنات اليوم</p>
+            <p className="text-4xl font-black text-foreground leading-none">{total}</p>
           </div>
-        ))}
-      </div>
+
+          {/* KPI pills */}
+          <div className="px-4 grid grid-cols-3 gap-2 mb-3">
+            <div className="rounded-xl border border-blue-500/25 bg-blue-500/10 px-2 py-2 text-center">
+              <p className="text-[10px] text-muted-foreground">تم التسليم</p>
+              <p className="text-base font-black text-blue-400">{delivered}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2 py-2 text-center">
+              <p className="text-[10px] text-muted-foreground">قيد التوصيل</p>
+              <p className="text-base font-black text-emerald-400">{inProgress}</p>
+            </div>
+            <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-2 py-2 text-center">
+              <p className="text-[10px] text-muted-foreground">مرتجعة</p>
+              <p className="text-base font-black text-red-400">{returned}</p>
+            </div>
+          </div>
+
+          {/* قائمة شحنات اليوم */}
+          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1.5 max-h-72">
+            {recent.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات اليوم</p>
+            )}
+            {recent.map((s, i) => (
+              <div key={s.id ?? i} className="flex items-center gap-2 text-[11px] py-1">
+                <span className="w-4 h-4 rounded-full bg-muted/40 flex items-center justify-center shrink-0 text-[9px] font-bold text-muted-foreground">
+                  {i + 1}
+                </span>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(s.status)}`} />
+                <span className="truncate flex-1 text-foreground/90">{s.receiverCity || s.receiverName || "—"}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ─── 2) بطاقة التحصيل المالي (COD) ────────────────────────────────────────────
 function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments: any[]; onNavigate: (t: TabId) => void }) {
+  const [collapsed, setCollapsed] = useState(false);
   const totalCollected = d?.totalCollected ?? 0;
   // المطلوب المتبقي = COD بتاع الشحنات الغير متحصلة بعد (قيد التوصيل / مؤجلة)
   const pendingCod = allShipments
@@ -1647,50 +1675,53 @@ function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments:
 
   return (
     <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
-      <div className="px-4 pt-3 pb-2 border-b border-border/50 flex items-center justify-between">
-        <p className="text-xs font-bold flex items-center gap-1.5">
-          <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> التحصيل والمالية (COD)
-        </p>
-      </div>
+      <CollapsibleCardHeader
+        icon={DollarSign} iconColor="text-emerald-400" title="التحصيل والمالية (COD)"
+        collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)}
+      />
 
-      <div className="p-4 pb-2 grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1">إجمالي المحصل اليوم</p>
-          <p className="text-lg font-black text-emerald-400 leading-tight">{formatCurrency(totalCollected)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1">المطلوب المتبقي</p>
-          <p className="text-lg font-black text-amber-400 leading-tight">{formatCurrency(pendingCod)}</p>
-        </div>
-      </div>
-
-      {/* تاريخ التحصيل الأخير */}
-      <div className="px-4 py-2">
-        <p className="text-[10px] text-muted-foreground mb-2">تاريخ التحصيل الأخير</p>
-        <div className="space-y-1.5">
-          {lastCollected.length === 0 && (
-            <p className="text-[11px] text-muted-foreground/70 text-center py-2">لا يوجد تحصيل بعد</p>
-          )}
-          {lastCollected.map((s, i) => (
-            <div key={s.id ?? i} className="flex items-center justify-between text-[11px] border-b border-border/30 pb-1.5 last:border-0">
-              <span className="font-mono text-primary/70 shrink-0">{s.shipmentNumber ?? s.id}</span>
-              <span className="text-muted-foreground truncate mx-2 flex-1 text-center">
-                {s.createdAt ? format(new Date(s.createdAt), "dd/MM/yyyy", { locale: ar }) : "—"}
-              </span>
-              <span className="font-bold text-emerald-400 shrink-0">{formatCurrency(Number(s.codAmount ?? 0))}</span>
+      {!collapsed && (
+        <>
+          <div className="p-4 pb-2 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">إجمالي المحصل اليوم</p>
+              <p className="text-lg font-black text-emerald-400 leading-tight">{formatCurrency(totalCollected)}</p>
             </div>
-          ))}
-        </div>
-      </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">المطلوب المتبقي</p>
+              <p className="text-lg font-black text-amber-400 leading-tight">{formatCurrency(pendingCod)}</p>
+            </div>
+          </div>
 
-      <div className="px-4 pb-4 mt-auto">
-        <button
-          onClick={() => onNavigate("shipments")}
-          className="w-full h-9 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
-        >
-          تاريخ التحصيل
-        </button>
-      </div>
+          {/* تاريخ التحصيل الأخير */}
+          <div className="px-4 py-2">
+            <p className="text-[10px] text-muted-foreground mb-2">تاريخ التحصيل الأخير</p>
+            <div className="space-y-1.5">
+              {lastCollected.length === 0 && (
+                <p className="text-[11px] text-muted-foreground/70 text-center py-2">لا يوجد تحصيل بعد</p>
+              )}
+              {lastCollected.map((s, i) => (
+                <div key={s.id ?? i} className="flex items-center justify-between text-[11px] border-b border-border/30 pb-1.5 last:border-0">
+                  <span className="font-mono text-primary/70 shrink-0">{s.shipmentNumber ?? s.id}</span>
+                  <span className="text-muted-foreground truncate mx-2 flex-1 text-center">
+                    {s.createdAt ? format(new Date(s.createdAt), "dd/MM/yyyy", { locale: ar }) : "—"}
+                  </span>
+                  <span className="font-bold text-emerald-400 shrink-0">{formatCurrency(Number(s.codAmount ?? 0))}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-4 pb-4 mt-auto">
+            <button
+              onClick={() => onNavigate("shipments")}
+              className="w-full h-9 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
+            >
+              تاريخ التحصيل
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1709,7 +1740,49 @@ function StarRating({ value }: { value: number }) {
   );
 }
 
+// ─── رسم موجي بسيط (Area Chart) بدون مكتبات خارجية ────────────────────────────
+function MiniAreaChart({ data }: { data: { label: string; rate: number }[] }) {
+  const w = 140; const h = 56; const pad = 4;
+  const maxVal = Math.max(...data.map(d => d.rate), 10);
+  const stepX = (w - pad * 2) / (data.length - 1 || 1);
+
+  const points = data.map((d, i) => ({
+    x: pad + i * stepX,
+    y: h - pad - (d.rate / maxVal) * (h - pad * 2),
+  }));
+
+  // مسار منحني ناعم باستخدام نقاط تحكم بسيطة (Catmull-Rom-ish)
+  const linePath = points.reduce((acc, p, i) => {
+    if (i === 0) return `M ${p.x} ${p.y}`;
+    const prev = points[i - 1];
+    const midX = (prev.x + p.x) / 2;
+    return `${acc} Q ${midX} ${prev.y} ${midX} ${(prev.y + p.y) / 2} T ${p.x} ${p.y}`;
+  }, "");
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${h} L ${points[0].x} ${h} Z`;
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
+        <defs>
+          <linearGradient id="miniAreaGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#miniAreaGradient)" />
+        <path d={linePath} fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+      <div className="flex justify-between w-full mt-1" style={{ maxWidth: w }}>
+        {data.map((d, i) => (
+          <span key={i} className="text-[8px] text-muted-foreground flex-1 text-center">{d.label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MyPerformanceCard({ d, allShipments, onNavigate }: { d: any; allShipments: any[]; onNavigate: (t: TabId) => void }) {
+  const [collapsed, setCollapsed] = useState(false);
   const overallRate = d?.deliveryRate ?? 0;
 
   // معدل يومي لآخر 7 أيام: نسبة تسليم كل يوم
@@ -1722,7 +1795,6 @@ function MyPerformanceCard({ d, allShipments, onNavigate }: { d: any; allShipmen
     const rate = dayShipments.length > 0 ? Math.round((delivered / dayShipments.length) * 100) : 0;
     return { label: format(day, "EEEEEE", { locale: ar }), rate };
   });
-  const maxRate = Math.max(...dailyRates.map(x => x.rate), 1);
 
   const ratingsAvg = d?.ratingsAvg ?? null;
   const recentRatings: any[] = d?.recentRatings ?? [];
@@ -1733,85 +1805,82 @@ function MyPerformanceCard({ d, allShipments, onNavigate }: { d: any; allShipmen
 
   return (
     <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
-      <div className="px-4 pt-3 pb-2 border-b border-border/50">
-        <p className="text-xs font-bold flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5 text-primary" /> أدائي
-        </p>
-      </div>
+      <CollapsibleCardHeader
+        icon={Activity} iconColor="text-primary" title="أدائي"
+        collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)}
+      />
 
-      <div className="p-4 grid grid-cols-2 gap-3">
-        {/* معدل النجاح الإجمالي */}
-        <div className="flex flex-col items-center justify-center">
-          <p className="text-[10px] text-muted-foreground mb-2">معدل النجاح الإجمالي</p>
-          <div className="relative w-20 h-20">
-            <svg width="80" height="80" viewBox="0 0 80 80" className="-rotate-90">
-              <circle cx="40" cy="40" r={r} fill="none" stroke="hsl(var(--muted))" strokeOpacity="0.25" strokeWidth="7" />
-              <circle cx="40" cy="40" r={r} fill="none" stroke={ringColor} strokeWidth="7"
-                strokeLinecap="round" strokeDasharray={`${fill} ${c}`} style={{ transition: "stroke-dasharray 1s ease" }} />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-black" style={{ color: ringColor }}>{overallRate}%</span>
-            </div>
-          </div>
-        </div>
-
-        {/* معدل النجاح اليومي — mini bar chart */}
-        <div className="flex flex-col">
-          <p className="text-[10px] text-muted-foreground mb-2 text-center">معدل النجاح اليومي</p>
-          <div className="flex-1 flex items-end justify-between gap-1 px-1" style={{ minHeight: 64 }}>
-            {dailyRates.map((d2, i) => (
-              <div key={i} className="flex flex-col items-center gap-1 flex-1">
-                <div className="w-full rounded-t-sm bg-primary/70" style={{ height: `${Math.max(6, (d2.rate / maxRate) * 56)}px` }} />
-                <span className="text-[8px] text-muted-foreground">{d2.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* تقييم العملاء */}
-      <div className="px-4 pb-2">
-        <p className="text-[10px] text-muted-foreground mb-2 flex items-center gap-1">
-          <Star className="w-3 h-3 text-amber-400" /> تقييم العملاء
-          {ratingsAvg != null && <span className="font-bold text-foreground/80">({ratingsAvg})</span>}
-        </p>
-        <div className="space-y-2 max-h-28 overflow-y-auto">
-          {recentRatings.length === 0 && (
-            <p className="text-[11px] text-muted-foreground/70 text-center py-2">لا توجد تقييمات بعد</p>
-          )}
-          {recentRatings.slice(0, 2).map((rt: any, i: number) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="w-6 h-6 rounded-full bg-muted/40 flex items-center justify-center shrink-0 text-[10px] font-bold text-muted-foreground">
-                {rt.receiverName?.[0] ?? "?"}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold truncate">{rt.receiverName ?? "العميل"}</p>
-                  <StarRating value={rt.rating} />
+      {!collapsed && (
+        <>
+          <div className="p-4 grid grid-cols-2 gap-3">
+            {/* معدل النجاح الإجمالي */}
+            <div className="flex flex-col items-center justify-center">
+              <p className="text-[10px] text-muted-foreground mb-2">معدل النجاح الإجمالي</p>
+              <div className="relative w-20 h-20">
+                <svg width="80" height="80" viewBox="0 0 80 80" className="-rotate-90">
+                  <circle cx="40" cy="40" r={r} fill="none" stroke="hsl(var(--muted))" strokeOpacity="0.25" strokeWidth="7" />
+                  <circle cx="40" cy="40" r={r} fill="none" stroke={ringColor} strokeWidth="7"
+                    strokeLinecap="round" strokeDasharray={`${fill} ${c}`} style={{ transition: "stroke-dasharray 1s ease" }} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-lg font-black" style={{ color: ringColor }}>{overallRate}%</span>
                 </div>
-                {rt.comment && <p className="text-[10px] text-muted-foreground truncate">{rt.comment}</p>}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* سجل الحوافز والمكافآت */}
-      <div className="px-4 pb-4 mt-auto pt-2 border-t border-border/40">
-        <button
-          onClick={() => onNavigate("performance")}
-          className="w-full flex items-center justify-between text-[11px] text-muted-foreground hover:text-primary transition-colors"
-        >
-          <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5" /> سجل الحوافز والمكافآت</span>
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
-      </div>
+            {/* معدل النجاح اليومي — area chart موجي */}
+            <div className="flex flex-col">
+              <p className="text-[10px] text-muted-foreground mb-2 text-center">معدل النجاح اليومي</p>
+              <MiniAreaChart data={dailyRates} />
+            </div>
+          </div>
+
+          {/* تقييم العملاء */}
+          <div className="px-4 pb-2">
+            <p className="text-[10px] text-muted-foreground mb-2 flex items-center gap-1">
+              <Star className="w-3 h-3 text-amber-400" /> تقييم العملاء
+              {ratingsAvg != null && <span className="font-bold text-foreground/80">({ratingsAvg})</span>}
+            </p>
+            <div className="space-y-2 max-h-28 overflow-y-auto">
+              {recentRatings.length === 0 && (
+                <p className="text-[11px] text-muted-foreground/70 text-center py-2">لا توجد تقييمات بعد</p>
+              )}
+              {recentRatings.slice(0, 2).map((rt: any, i: number) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="w-6 h-6 rounded-full bg-muted/40 flex items-center justify-center shrink-0 text-[10px] font-bold text-muted-foreground">
+                    {rt.receiverName?.[0] ?? "?"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-bold truncate">{rt.receiverName ?? "العميل"}</p>
+                      <StarRating value={rt.rating} />
+                    </div>
+                    {rt.comment && <p className="text-[10px] text-muted-foreground truncate">{rt.comment}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* سجل الحوافز والمكافآت */}
+          <div className="px-4 pb-4 mt-auto pt-2 border-t border-border/40">
+            <button
+              onClick={() => onNavigate("performance")}
+              className="w-full flex items-center justify-between text-[11px] text-muted-foreground hover:text-primary transition-colors"
+            >
+              <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5" /> سجل الحوافز والمكافآت</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ─── 5) بطاقة إدارة المرتجعات المتقدمة ────────────────────────────────────────
 function ReturnsManagementCard({ allShipments, onNavigate }: { allShipments: any[]; onNavigate: (t: TabId) => void }) {
+  const [collapsed, setCollapsed] = useState(false);
   const returns = allShipments
     .filter(s => s.status === "returned" || s.status === "partial_received")
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
@@ -1824,55 +1893,56 @@ function ReturnsManagementCard({ allShipments, onNavigate }: { allShipments: any
 
   return (
     <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
-      <div className="px-4 pt-3 pb-2 border-b border-border/50 flex items-center justify-between">
-        <p className="text-xs font-bold flex items-center gap-1.5">
-          <RotateCcw className="w-3.5 h-3.5 text-red-400" /> إدارة المرتجعات المتقدمة
-        </p>
-        <button onClick={() => onNavigate("shipments")} className="text-[10px] text-muted-foreground hover:text-primary transition-colors">
-          الكل
-        </button>
-      </div>
+      <CollapsibleCardHeader
+        icon={RotateCcw} iconColor="text-red-400" title="إدارة المرتجعات المتقدمة"
+        collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)}
+        actionLabel="الكل" onAction={() => onNavigate("shipments")}
+      />
 
-      <div className="flex-1 overflow-y-auto max-h-80">
-        <table className="w-full text-[11px]">
-          <thead className="sticky top-0 bg-card">
-            <tr className="text-muted-foreground border-b border-border/40">
-              <th className="text-right font-medium px-3 py-2">العميل</th>
-              <th className="text-right font-medium px-2 py-2">الحالة</th>
-              <th className="text-right font-medium px-2 py-2">السبب</th>
-              <th className="text-right font-medium px-3 py-2">الإجراء</th>
-            </tr>
-          </thead>
-          <tbody>
-            {returns.length === 0 && (
-              <tr><td colSpan={4} className="text-center text-muted-foreground py-6">لا توجد مرتجعات</td></tr>
-            )}
-            {returns.map((s, i) => {
-              const badge = stateBadge(s.status);
-              return (
-                <tr key={s.id ?? i} className="border-b border-border/20 last:border-0">
-                  <td className="px-3 py-2 font-mono text-primary/80">{s.shipmentNumber ?? s.id}</td>
-                  <td className="px-2 py-2">
-                    <span className={`inline-block px-2 py-0.5 rounded-full border text-[9px] font-bold ${badge.cls}`}>{badge.label}</span>
-                  </td>
-                  <td className="px-2 py-2 text-muted-foreground truncate max-w-[90px]">{s.returnReason ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <span className="inline-flex items-center gap-1 text-primary/80">
-                      <Phone className="w-3 h-3" /> {s.receiverPhone ?? "اتصال"}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {!collapsed && (
+        <div className="flex-1 overflow-y-auto max-h-80">
+          <table className="w-full text-[11px]">
+            <thead className="sticky top-0 bg-card">
+              <tr className="text-muted-foreground border-b border-border/40">
+                <th className="text-right font-medium px-3 py-2">العميل</th>
+                <th className="text-right font-medium px-2 py-2">الحالة</th>
+                <th className="text-right font-medium px-2 py-2">السبب</th>
+                <th className="text-right font-medium px-3 py-2">الإجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {returns.length === 0 && (
+                <tr><td colSpan={4} className="text-center text-muted-foreground py-6">لا توجد مرتجعات</td></tr>
+              )}
+              {returns.map((s, i) => {
+                const badge = stateBadge(s.status);
+                return (
+                  <tr key={s.id ?? i} className="border-b border-border/20 last:border-0">
+                    <td className="px-3 py-2 font-mono text-primary/80">{s.shipmentNumber ?? s.id}</td>
+                    <td className="px-2 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded-full border text-[9px] font-bold ${badge.cls}`}>{badge.label}</span>
+                    </td>
+                    <td className="px-2 py-2 text-muted-foreground truncate max-w-[90px]">{s.returnReason ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex items-center gap-1 text-primary/80">
+                        <Phone className="w-3 h-3" /> {s.receiverPhone ?? "اتصال"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── 6) بطاقة مركز الدعم والتواصل + التنبيهات العاجلة ─────────────────────────
 function SupportAndAlertsCard({ tasksSummary }: { tasksSummary?: { urgent: number; outForDelivery: number; pending: number; total: number } }) {
+  const [collapsedSupport, setCollapsedSupport] = useState(false);
+  const [collapsedAlerts, setCollapsedAlerts] = useState(false);
   const contacts = [
     { label: "Supervisor Call", Icon: PhoneCall, color: "text-emerald-400" },
     { label: "Live Chat Support", Icon: Phone, color: "text-blue-400" },
@@ -1890,46 +1960,92 @@ function SupportAndAlertsCard({ tasksSummary }: { tasksSummary?: { urgent: numbe
     <div className="flex flex-col gap-4 h-full">
       {/* مركز الدعم والتواصل */}
       <div className="rounded-2xl border bg-card/60 overflow-hidden">
-        <div className="px-4 pt-3 pb-2 border-b border-border/50">
-          <p className="text-xs font-bold flex items-center gap-1.5">
-            <PhoneCall className="w-3.5 h-3.5 text-primary" /> مركز الدعم والتواصل
-          </p>
-        </div>
-        <div className="p-4 grid grid-cols-2 gap-2">
-          {contacts.map((c, i) => (
-            <button key={i} className="flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/10 px-2.5 py-2 text-[10px] font-bold hover:bg-muted/20 transition-colors">
-              <c.Icon className={`w-3.5 h-3.5 shrink-0 ${c.color}`} />
-              <span className="truncate">{c.label}</span>
-            </button>
-          ))}
-          {quickActions.map((a, i) => (
-            <button key={`qa-${i}`} className="flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/10 px-2.5 py-2 text-[10px] font-bold hover:bg-muted/20 transition-colors">
-              <span className={`truncate ${a.color}`}>{a.label}</span>
-            </button>
-          ))}
-        </div>
+        <CollapsibleCardHeader
+          icon={PhoneCall} iconColor="text-primary" title="مركز الدعم والتواصل"
+          collapsed={collapsedSupport} onToggleCollapse={() => setCollapsedSupport(c => !c)}
+        />
+        {!collapsedSupport && (
+          <div className="p-4 grid grid-cols-2 gap-2">
+            {contacts.map((c, i) => (
+              <button key={i} className="flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/10 px-2.5 py-2 text-[10px] font-bold hover:bg-muted/20 transition-colors">
+                <c.Icon className={`w-3.5 h-3.5 shrink-0 ${c.color}`} />
+                <span className="truncate">{c.label}</span>
+              </button>
+            ))}
+            {quickActions.map((a, i) => (
+              <button key={`qa-${i}`} className="flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/10 px-2.5 py-2 text-[10px] font-bold hover:bg-muted/20 transition-colors">
+                <span className={`truncate ${a.color}`}>{a.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* التنبيهات العاجلة */}
       <div className="rounded-2xl border bg-card/60 overflow-hidden flex-1">
-        <div className="px-4 pt-3 pb-2 border-b border-border/50">
-          <p className="text-xs font-bold flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> التنبيهات العاجلة
-          </p>
+        <CollapsibleCardHeader
+          icon={AlertTriangle} iconColor="text-amber-400" title="التنبيهات العاجلة"
+          collapsed={collapsedAlerts} onToggleCollapse={() => setCollapsedAlerts(c => !c)}
+        />
+        {!collapsedAlerts && (
+          <div className="p-3 space-y-2">
+            {(!tasksSummary || tasksSummary.urgent === 0) && (
+              <p className="text-[11px] text-muted-foreground text-center py-4">لا توجد تنبيهات عاجلة الآن</p>
+            )}
+            {tasksSummary && tasksSummary.urgent > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                <p className="text-[11px] text-red-400 font-bold flex-1">
+                  لديك {tasksSummary.urgent} شحنة مستعجلة تحتاج متابعة فورية
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── شريط علوي خاص بالنظرة العامة (يطابق تصميم الموك أب) ─────────────────────
+function HomeHeader({ company, user }: { company: any; user: any }) {
+  return (
+    <div className="rounded-2xl border bg-card/60 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+      {/* يمين: بروفايل + إشعارات */}
+      <div className="flex items-center gap-2 order-2 md:order-1">
+        <button className="w-9 h-9 rounded-xl border border-border/50 bg-muted/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
+          <Lock className="w-4 h-4" style={{ display: "none" }} />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+          </svg>
+        </button>
+        <button className="relative w-9 h-9 rounded-xl border border-border/50 bg-muted/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
+          <AlertCircle className="w-4 h-4" style={{ display: "none" }} />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">0</span>
+        </button>
+      </div>
+
+      {/* وسط: عنوان الصفحة */}
+      <h1 className="order-1 md:order-2 text-sm md:text-base font-black text-primary flex-1 md:flex-none text-center md:text-right">
+        بوابة إدارة التوصيل
+      </h1>
+
+      {/* شمال: لوجو الشركة + اسم المندوب */}
+      <div className="flex items-center gap-2.5 order-3">
+        <div className="text-left">
+          <p className="text-xs font-black leading-tight">{user?.displayName ?? "المندوب"}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">{company?.name ?? "بوابة المندوب"}</p>
         </div>
-        <div className="p-3 space-y-2">
-          {(!tasksSummary || tasksSummary.urgent === 0) && (
-            <p className="text-[11px] text-muted-foreground text-center py-4">لا توجد تنبيهات عاجلة الآن</p>
-          )}
-          {tasksSummary && tasksSummary.urgent > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2">
-              <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-              <p className="text-[11px] text-red-400 font-bold flex-1">
-                لديك {tasksSummary.urgent} شحنة مستعجلة تحتاج متابعة فورية
-              </p>
+        {company?.logo
+          ? <img src={company.logo} className="w-9 h-9 rounded-xl object-cover border border-border shadow" alt="" />
+          : (
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
+              <Truck className="w-4 h-4 text-primary" />
             </div>
           )}
-        </div>
       </div>
     </div>
   );
@@ -1940,18 +2056,22 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
   d: any; company: any; user: any; allShipments: any[]; onNavigate: (t: TabId) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* الصف الأول */}
-      <TasksSummaryCard allShipments={allShipments} onNavigate={onNavigate} />
-      <CodSummaryCard d={d} allShipments={allShipments} onNavigate={onNavigate} />
-      <MyPerformanceCard d={d} allShipments={allShipments} onNavigate={onNavigate} />
+    <div className="space-y-4">
+      <HomeHeader company={company} user={user} />
 
-      {/* الصف الثاني */}
-      <div className="rounded-2xl border bg-card/60 overflow-hidden">
-        <RepRouteMap enabled={true} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* الصف الأول */}
+        <TasksSummaryCard allShipments={allShipments} onNavigate={onNavigate} />
+        <CodSummaryCard d={d} allShipments={allShipments} onNavigate={onNavigate} />
+        <MyPerformanceCard d={d} allShipments={allShipments} onNavigate={onNavigate} />
+
+        {/* الصف الثاني */}
+        <div className="rounded-2xl border bg-card/60 overflow-hidden">
+          <RepRouteMap enabled={true} />
+        </div>
+        <ReturnsManagementCard allShipments={allShipments} onNavigate={onNavigate} />
+        <SupportAndAlertsCard />
       </div>
-      <ReturnsManagementCard allShipments={allShipments} onNavigate={onNavigate} />
-      <SupportAndAlertsCard />
     </div>
   );
 }
