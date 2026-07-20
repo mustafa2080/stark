@@ -4765,7 +4765,7 @@ export default function ShippingManifestPage() {
                           : `كمية مرتجعة: ${order.quantity}`}
                       </p>
                     </div>
-                    {!isDelayed && (
+                    {!isDelayed && isAdmin && (
                       <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
                         <ReturnReceivedButton
                           manifestId={id}
