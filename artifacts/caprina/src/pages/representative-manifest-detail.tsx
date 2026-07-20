@@ -1878,6 +1878,8 @@ function InvoiceGroupDeliveryRow({
                 {bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "" && (
                   <p className="text-[10px] text-destructive font-medium">⚠ يجب إدخال القيمة المستلمة فعليًا قبل الحفظ</p>
                 )}
+                {isAdmin && (
+                <>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل تم استلام المرتجع؟</p>
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setBulkReturnReceived(true)}
@@ -1933,6 +1935,8 @@ function InvoiceGroupDeliveryRow({
                   {bulkReturnReceived === false && "⏳ مرتجع مازال في شركة الشحن — لن يؤثر على المخزن"}
                   {bulkReturnReceived === null && "⚠ يجب اختيار حالة استلام المرتجع قبل الحفظ"}
                 </p>
+                </>
+                )}
               </div>
             )}
 
@@ -1969,7 +1973,7 @@ function InvoiceGroupDeliveryRow({
                 disabled={
                   bulkMutation.isPending ||
                   (needsBulkNote && !bulkNote.trim()) ||
-                  (bulkStatus === "returned" && bulkReturnReceived === null) ||
+                  (isAdmin && bulkStatus === "returned" && bulkReturnReceived === null) ||
                   (bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "") ||
                   (bulkStatus === "partial_received" && partialReturnReceived === null) ||
                   (!isPerItemMode && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
