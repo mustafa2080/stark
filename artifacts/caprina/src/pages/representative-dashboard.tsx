@@ -39,15 +39,15 @@ function KpiCard({ label, value, sub, color, icon: Icon }: {
 }) {
   return (
     <div className="rounded-2xl p-4 border relative overflow-hidden"
-      style={{ background: `linear-gradient(135deg, rgba(${color},0.15) 0%, rgba(${color},0.05) 100%)`,
-               border: `1px solid rgba(${color},0.3)`, boxShadow: `0 0 20px rgba(${color},0.1)` }}>
-      <span className="absolute -top-4 -right-4 w-16 h-16 rounded-full opacity-10"
-        style={{ background: `radial-gradient(circle, rgba(${color},1) 0%, transparent 70%)` }} />
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <Icon className="w-4 h-4" style={{ color: `rgba(${color},1)` }} />
+      style={{ background: `linear-gradient(135deg, rgba(${color},0.09) 0%, hsl(var(--card)) 65%)`,
+               border: `1px solid rgba(${color},0.22)` }}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] text-muted-foreground font-medium">{label}</p>
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `rgba(${color},0.12)` }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: `rgba(${color},1)` }} />
+        </span>
       </div>
-      <p className="text-2xl font-black" style={{ color: `rgba(${color},1)` }}>{value}</p>
+      <p className="text-2xl font-black tracking-tight" style={{ color: `rgba(${color},1)` }}>{value}</p>
       {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
@@ -87,53 +87,53 @@ function PerformanceScore({ deliveryRate, returnRate, total }: { deliveryRate: n
   const fill = (score / 100) * c;
 
   return (
-    <div className="rounded-2xl p-4 border relative overflow-hidden"
-      style={{ background: `linear-gradient(135deg, rgba(${grade.glow},0.12) 0%, rgba(${grade.glow},0.04) 100%)`,
-               border: `1px solid rgba(${grade.glow},0.3)`, boxShadow: `0 0 30px rgba(${grade.glow},0.12)` }}>
-      <p className="text-xs font-bold mb-3 flex items-center gap-1.5">
-        <Award className="w-3.5 h-3.5" style={{ color: grade.color }} /> نقطة الأداء الشهرية
+    <div className="rounded-2xl p-5 border relative overflow-hidden"
+      style={{ background: `linear-gradient(135deg, rgba(${grade.glow},0.10) 0%, hsl(var(--card)) 60%)`,
+               border: `1px solid rgba(${grade.glow},0.25)`, boxShadow: `0 1px 0 rgba(255,255,255,0.03) inset, 0 0 24px rgba(${grade.glow},0.08)` }}>
+      <p className="text-xs font-bold mb-4 flex items-center gap-1.5 text-foreground/90">
+        <Award className="w-4 h-4" style={{ color: grade.color }} /> نقطة الأداء الشهرية
       </p>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-5">
         {/* Ring */}
         <div className="relative w-28 h-28 shrink-0">
           <svg width="112" height="112" viewBox="0 0 112 112" className="-rotate-90">
-            <circle cx="56" cy="56" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
-            <circle cx="56" cy="56" r={r} fill="none" stroke={grade.color} strokeWidth="10"
+            <circle cx="56" cy="56" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
+            <circle cx="56" cy="56" r={r} fill="none" stroke={grade.color} strokeWidth="9"
               strokeLinecap="round" strokeDasharray={`${fill} ${c}`}
-              style={{ filter: `drop-shadow(0 0 8px ${grade.color})`, transition: "stroke-dasharray 1s ease" }} />
+              style={{ filter: `drop-shadow(0 0 6px ${grade.color})`, transition: "stroke-dasharray 1s ease" }} />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl font-black" style={{ color: grade.color }}>{score}</span>
-            <span className="text-[10px] text-muted-foreground font-bold">{grade.label}</span>
+            <span className="text-3xl font-black tracking-tight" style={{ color: grade.color }}>{score}</span>
+            <span className="text-[10px] text-muted-foreground font-bold mt-0.5">{grade.label}</span>
           </div>
         </div>
         {/* breakdown */}
-        <div className="flex-1 space-y-2.5">
+        <div className="flex-1 space-y-3">
           <div>
-            <div className="flex justify-between text-[11px] mb-1">
+            <div className="flex justify-between text-[11px] mb-1.5">
               <span className="text-muted-foreground">نسبة التسليم</span>
               <span className="font-bold text-emerald-400">{deliveryRate}%</span>
             </div>
-            <div className="w-full bg-muted/20 rounded-full h-1.5">
-              <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${deliveryRate}%` }} />
+            <div className="w-full bg-muted/15 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${deliveryRate}%` }} />
             </div>
           </div>
           <div>
-            <div className="flex justify-between text-[11px] mb-1">
+            <div className="flex justify-between text-[11px] mb-1.5">
               <span className="text-muted-foreground">معدل الإرجاع</span>
               <span className={`font-bold ${returnRate > 30 ? "text-red-400" : "text-emerald-400"}`}>{returnRate}%</span>
             </div>
-            <div className="w-full bg-muted/20 rounded-full h-1.5">
-              <div className="h-1.5 rounded-full bg-red-500" style={{ width: `${returnRate}%` }} />
+            <div className="w-full bg-muted/15 rounded-full h-1.5">
+              <div className={`h-1.5 rounded-full transition-all duration-700 ${returnRate > 30 ? "bg-red-500" : "bg-emerald-500/60"}`} style={{ width: `${returnRate}%` }} />
             </div>
           </div>
           <div>
-            <div className="flex justify-between text-[11px] mb-1">
+            <div className="flex justify-between text-[11px] mb-1.5">
               <span className="text-muted-foreground">نشاط الشحنات</span>
-              <span className="font-bold text-blue-400">{total} شحنة</span>
+              <span className="font-bold text-foreground/80">{total} شحنة</span>
             </div>
-            <div className="w-full bg-muted/20 rounded-full h-1.5">
-              <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${Math.min(100, activityScore)}%` }} />
+            <div className="w-full bg-muted/15 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-primary/70 transition-all duration-700" style={{ width: `${Math.min(100, activityScore)}%` }} />
             </div>
           </div>
         </div>
