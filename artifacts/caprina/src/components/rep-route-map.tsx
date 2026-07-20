@@ -65,6 +65,41 @@ function useLocationBroadcast(enabled: boolean) {
   return { lastCoords, permissionDenied };
 }
 
+// ─── Hook: يحوّل الإحداثيات لاسم مكان مقروء (Reverse Geocoding عبر Nominatim) ──
+function useReverseGeocode(lat: number | null | undefined, lng: number | null | undefined) {
+  const [placeName, setPlaceName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (lat == null || lng == null) { setPlaceName(null); return; }
+    let cancelled = false;
+
+    const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    const cached = geocodeCache.get(key);
+    if (cached) { setPlaceName(cached); return; }
+
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ar&zoom=14`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const addr = data?.address || {};
+        const parts = [
+          addr.suburb || addr.neighbourhood || addr.quarter,
+          addr.city || addr.town || addr.village || addr.county,
+        ].filter(Boolean);
+        const name = parts.length ? parts.join("، ") : (data?.display_name ?? null);
+        geocodeCache.set(key, name);
+        setPlaceName(name);
+      })
+      .catch(() => { if (!cancelled) setPlaceName(null); });
+
+    return () => { cancelled = true; };
+  }, [lat, lng]);
+
+  return placeName;
+}
+
+const geocodeCache = new Map<string, string | null>();
+
 export function RepRouteMap({ enabled = true }: { enabled?: boolean }) {
   const { theme } = useTheme();
   const { lastCoords, permissionDenied } = useLocationBroadcast(enabled);
@@ -100,6 +135,7 @@ export function RepRouteMap({ enabled = true }: { enabled?: boolean }) {
 
   const mapStyle = theme === "dark" ? STYLE_DARK : STYLE_LIGHT;
   const updatedAt = serverLocation?.updatedAt;
+  const placeName = useReverseGeocode(point?.lat, point?.lng);
 
 
   return (
@@ -140,6 +176,11 @@ export function RepRouteMap({ enabled = true }: { enabled?: boolean }) {
           {point && (
             <Marker longitude={point.lng} latitude={point.lat} anchor="bottom">
               <div className="relative flex flex-col items-center">
+                {placeName && (
+                  <div className="absolute -top-8 whitespace-nowrap px-2 py-1 rounded-lg bg-card border border-border/60 shadow-md text-[10px] font-medium text-foreground">
+                    {placeName}
+                  </div>
+                )}
                 <span className="absolute -top-1 w-8 h-8 rounded-full bg-primary/25 animate-ping" />
                 <div className="relative w-7 h-7 rounded-full bg-primary border-2 border-white shadow-lg flex items-center justify-center">
                   <MapPin className="w-3.5 h-3.5 text-primary-foreground" fill="currentColor" />
