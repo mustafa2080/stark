@@ -1365,7 +1365,7 @@ function DesktopSidebar({
               ? <img src={company.logo} className="w-9 h-9 rounded-xl object-cover border border-border shadow" alt="" />
               : (
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
-                  <Truck className="w-4.5 h-4.5 text-primary" />
+                  <Truck className="w-[18px] h-[18px] text-primary" />
                 </div>
               )}
           </div>
@@ -1398,7 +1398,7 @@ function DesktopSidebar({
             className="w-11 h-9 rounded-xl border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all"
             title="فتح القائمة"
           >
-            <ChevronLeft className="w-4.5 h-4.5" />
+            <ChevronLeft className="w-[18px] h-[18px]" />
           </button>
         </div>
       )}
@@ -1534,8 +1534,7 @@ function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: Ta
               isActive ? item.activeBg : ""
             }`}
               style={isActive ? { boxShadow: `0 0 10px ${item.glowColor}` } : {}}>
-              <item.Icon className={`w-4.5 h-4.5 transition-all duration-200 ${isActive ? item.activeColor : "text-muted-foreground"}`}
-                style={{ width: "18px", height: "18px" }} />
+              <item.Icon className={`w-[18px] h-[18px] transition-all duration-200 ${isActive ? item.activeColor : "text-muted-foreground"}`} />
             </span>
             <span className={`text-[10px] font-bold transition-colors duration-200 ${isActive ? item.activeColor : "text-muted-foreground"}`}>
               {item.label}
@@ -1676,7 +1675,7 @@ export default function RepresentativeDashboard() {
       />
 
       {/* ─── Main Content ─── */}
-      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarOpen ? "md:mr-56" : "md:mr-0"}`}>
+      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarOpen ? "md:mr-56" : "md:mr-16"}`}>
         {/* Mobile header */}
         <div className="md:hidden sticky top-0 z-40 border-b border-border/50"
           style={{ background: "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)", backdropFilter: "blur(12px)" }}>
