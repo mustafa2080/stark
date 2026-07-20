@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import Map, { Marker } from "react-map-gl/maplibre";
+import MapGL, { Marker } from "react-map-gl/maplibre";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -161,7 +161,7 @@ export function RepRouteMap({ enabled = true }: { enabled?: boolean }) {
       )}
 
       <div style={{ height: 260 }} className="relative">
-        <Map
+        <MapGL
           ref={mapRef}
           mapStyle={mapStyle}
           mapLib={maplibregl}
@@ -188,7 +188,7 @@ export function RepRouteMap({ enabled = true }: { enabled?: boolean }) {
               </div>
             </Marker>
           )}
-        </Map>
+        </MapGL>
 
         {!point && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/60">
