@@ -4727,8 +4727,7 @@ export default function ShippingManifestPage() {
       {(() => {
         const pendingReturnOrders = (manifest.orders ?? []).filter(o => isStillAtShipping(o));
         if (pendingReturnOrders.length === 0) return null;
-        const repNameForBanner =
-          (pendingReturnOrders.find(o => (o as any).manifestRepName) as any)?.manifestRepName ?? "المندوب";
+        const repNameForBanner = manifest.companyName || "المندوب";
         return (
           <div
             className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4 print:hidden"
