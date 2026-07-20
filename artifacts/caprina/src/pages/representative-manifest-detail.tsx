@@ -127,6 +127,7 @@ function OrderDeliveryRow({
   isShipmentManifest?: boolean;
 }) {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<DeliveryStatus>(order.deliveryStatus);
   const [note, setNote] = useState(order.deliveryNote ?? "");
@@ -810,16 +811,18 @@ function OrderDeliveryRow({
             />
           </div>
           <div className="flex gap-2 justify-between items-center">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
-              onClick={() => setConfirmCancel(true)}
-              disabled={cancelMutation.isPending}
-            >
-              <Trash2 className="w-3 h-3" />
-              إلغاء من البيان
-            </Button>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+                onClick={() => setConfirmCancel(true)}
+                disabled={cancelMutation.isPending}
+              >
+                <Trash2 className="w-3 h-3" />
+                إلغاء من البيان
+              </Button>
+            )}
             <Button
               size="sm"
               className="h-7 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
@@ -1957,16 +1960,18 @@ function InvoiceGroupDeliveryRow({
               />
             </div>
             <div className="flex gap-2 justify-between items-center">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
-                onClick={() => setConfirmCancel(true)}
-                disabled={cancelGroupMutation.isPending}
-              >
-                <Trash2 className="w-3 h-3" />
-                إلغاء من البيان
-              </Button>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+                  onClick={() => setConfirmCancel(true)}
+                  disabled={cancelGroupMutation.isPending}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  إلغاء من البيان
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="h-7 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
@@ -4722,6 +4727,8 @@ export default function ShippingManifestPage() {
       {(() => {
         const pendingReturnOrders = (manifest.orders ?? []).filter(o => isStillAtShipping(o));
         if (pendingReturnOrders.length === 0) return null;
+        const repNameForBanner =
+          (pendingReturnOrders.find(o => (o as any).manifestRepName) as any)?.manifestRepName ?? "المندوب";
         return (
           <div
             className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4 print:hidden"
@@ -4730,7 +4737,7 @@ export default function ShippingManifestPage() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-base">🚚</span>
               <h2 className="font-bold text-sm text-red-400">
-                بضاعة لسه مع مندوب الشحن ({pendingReturnOrders.length})
+                بضاعه ليه عندك يا {repNameForBanner} اتاكد من تسليمها للشركه ونزولها من بيانك ({pendingReturnOrders.length})
               </h2>
               <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
             </div>
