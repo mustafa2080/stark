@@ -1006,6 +1006,7 @@ function InvoiceGroupDeliveryRow({
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { isAdmin } = useAuth();
 
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
