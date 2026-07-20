@@ -1426,25 +1426,28 @@ function DesktopSidebar({
       {/* Collapsed rail — يظهر لما الـ sidebar مقفول: أيقونات التابات واضحة + زرار فتح */}
       {!open && (
         <div
-          className="hidden md:flex fixed right-0 top-0 h-screen z-40 flex-col items-center py-5 gap-2 w-16 border-l border-border/60"
+          className="hidden md:flex fixed right-3 top-3 bottom-3 z-40 flex-col items-center py-4 gap-2 w-[64px] rounded-[26px]"
           style={{
-            background: "linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)",
-            boxShadow: "-4px 0 16px rgba(0,0,0,0.15)",
+            background: "rgba(20,20,26,0.68)",
+            backdropFilter: "blur(24px) saturate(180%)",
+            WebkitBackdropFilter: "blur(24px) saturate(180%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset",
           }}
         >
           {/* Logo/Brand mini */}
           <div className="mb-2">
             {company?.logo
-              ? <img src={company.logo} className="w-9 h-9 rounded-xl object-cover border border-border shadow" alt="" />
+              ? <img src={company.logo} className="w-9 h-9 rounded-2xl object-cover border border-white/10 shadow" alt="" />
               : (
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/40 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
                   <Truck className="w-[18px] h-[18px] text-primary" />
                 </div>
               )}
           </div>
 
           {/* Nav icons */}
-          <div className="flex-1 flex flex-col gap-2">
+          <div className="flex-1 flex flex-col gap-1.5">
             {NAV_ITEMS.map(item => {
               const isActive = active === item.id;
               return (
@@ -1452,14 +1455,16 @@ function DesktopSidebar({
                   key={item.id}
                   onClick={() => { onSelect(item.id); onToggle(); }}
                   title={item.label}
-                  className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-all duration-200 ${
-                    isActive
-                      ? `${item.activeBg} ${item.activeColor}`
-                      : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                  }`}
-                  style={isActive ? { boxShadow: `0 0 16px ${item.glowColor}` } : {}}
+                  className="relative w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300"
                 >
-                  <item.Icon className={`w-5 h-5 ${isActive ? "" : "opacity-70"}`} />
+                  {isActive && (
+                    <span className="absolute inset-0 rounded-2xl transition-all duration-300"
+                      style={{
+                        background: item.glowColor.replace("0.35", "0.18"),
+                        boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.28")} inset, 0 0 16px ${item.glowColor}`,
+                      }} />
+                  )}
+                  <item.Icon className={`relative w-5 h-5 transition-all duration-300 ${isActive ? item.activeColor : "text-white/50 hover:text-white/80"}`} />
                 </button>
               );
             })}
@@ -1468,7 +1473,7 @@ function DesktopSidebar({
           {/* Open toggle */}
           <button
             onClick={onToggle}
-            className="w-11 h-9 rounded-xl border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all"
+            className="w-11 h-9 rounded-2xl flex items-center justify-center text-white/50 hover:text-white/90 hover:bg-white/[0.06] transition-all"
             title="فتح القائمة"
           >
             <ChevronLeft className="w-[18px] h-[18px]" />
@@ -1478,21 +1483,23 @@ function DesktopSidebar({
 
     <aside
       dir="rtl"
-      className={`hidden md:flex flex-col w-56 shrink-0 h-screen fixed right-0 top-0 z-40 overflow-y-auto transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
+      className={`hidden md:flex flex-col w-64 shrink-0 h-[calc(100vh-24px)] fixed right-3 top-3 z-40 overflow-y-auto rounded-[26px] transition-all duration-300 ${open ? "translate-x-0 opacity-100" : "translate-x-[calc(100%+12px)] opacity-0"}`}
       style={{
-        background: "linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)",
-        borderLeft: "1px solid hsl(var(--border))",
-        boxShadow: open ? "-8px 0 32px rgba(0,0,0,0.2)" : "none",
+        background: "rgba(20,20,26,0.72)",
+        backdropFilter: "blur(28px) saturate(180%)",
+        WebkitBackdropFilter: "blur(28px) saturate(180%)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 16px 48px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.06) inset",
       }}
       onClick={e => e.stopPropagation()}
     >
       {/* ── Brand ── */}
-      <div className="px-4 pt-5 pb-4 border-b border-border/50">
+      <div className="px-4 pt-5 pb-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
           {company?.logo
-            ? <img src={company.logo} className="w-10 h-10 rounded-xl object-cover border border-border shadow" alt="" />
+            ? <img src={company.logo} className="w-10 h-10 rounded-2xl object-cover border border-white/10 shadow" alt="" />
             : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary/40 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
                 <Truck className="w-5 h-5 text-primary" />
               </div>
             )}
@@ -1504,7 +1511,7 @@ function DesktopSidebar({
 
         {/* delivery rate pill */}
         {d && (
-          <div className="mt-3 flex items-center gap-2 rounded-xl border px-3 py-2"
+          <div className="mt-3 flex items-center gap-2 rounded-2xl border px-3 py-2"
             style={{
               background: d.deliveryRate >= 70 ? "rgba(52,211,153,0.08)" : d.deliveryRate >= 40 ? "rgba(251,191,36,0.08)" : "rgba(248,113,113,0.08)",
               borderColor: d.deliveryRate >= 70 ? "rgba(52,211,153,0.3)" : d.deliveryRate >= 40 ? "rgba(251,191,36,0.3)" : "rgba(248,113,113,0.3)",
@@ -1526,34 +1533,34 @@ function DesktopSidebar({
       </div>
 
       {/* ── Nav ── */}
-      <nav className="flex-1 px-3 py-4 space-y-1.5">
+      <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV_ITEMS.map(item => {
           const isActive = active === item.id;
           return (
             <button
               key={item.id}
               onClick={() => onSelect(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-right transition-all duration-200 group ${
-                isActive
-                  ? `${item.activeBg} ${item.activeColor}`
-                  : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-              }`}
-              style={isActive ? { boxShadow: `0 0 16px ${item.glowColor}` } : {}}
+              className="relative w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-right transition-all duration-300 group"
             >
+              {isActive && (
+                <span className="absolute inset-0 rounded-2xl transition-all duration-300"
+                  style={{
+                    background: item.glowColor.replace("0.35", "0.14"),
+                    boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.24")} inset`,
+                  }} />
+              )}
               {/* Icon bubble */}
-              <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all duration-200 ${
-                isActive
-                  ? "bg-current/10"
-                  : "bg-muted/30 group-hover:bg-muted/60"
+              <span className={`relative w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
+                isActive ? "bg-white/10" : "bg-white/[0.04] group-hover:bg-white/[0.08]"
               }`}>
-                <item.Icon className={`w-4 h-4 ${isActive ? "" : "opacity-60 group-hover:opacity-90"}`} />
+                <item.Icon className={`w-4 h-4 ${isActive ? item.activeColor : "text-white/50 group-hover:text-white/80"}`} />
               </span>
-              <div className="min-w-0 text-right">
-                <p className={`text-sm font-bold leading-tight ${isActive ? "" : "text-foreground/80"}`}>{item.label}</p>
-                <p className="text-[10px] opacity-60 leading-none mt-0.5">{item.sublabel}</p>
+              <div className="relative min-w-0 text-right">
+                <p className={`text-sm font-bold leading-tight ${isActive ? item.activeColor : "text-white/70 group-hover:text-white/90"}`}>{item.label}</p>
+                <p className="relative text-[10px] opacity-50 leading-none mt-0.5">{item.sublabel}</p>
               </div>
               {isActive && (
-                <span className="mr-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "currentColor" }} />
+                <span className="relative mr-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "currentColor" }} />
               )}
             </button>
           );
@@ -1561,10 +1568,10 @@ function DesktopSidebar({
       </nav>
 
       {/* ── Footer ── */}
-      <div className="px-4 pb-4 pt-2 border-t border-border/30">
+      <div className="px-4 pb-4 pt-2 border-t border-white/[0.06]">
         <button
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-all"
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all"
         >
           <ChevronRight className="w-3 h-3" /> إغلاق القائمة
         </button>
@@ -1576,45 +1583,52 @@ function DesktopSidebar({
 
 // ─── Mobile Bottom Nav ────────────────────────────────────────────────────────
 function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
+  const activeIndex = NAV_ITEMS.findIndex(n => n.id === active);
   return (
     <nav
       dir="rtl"
-      className="md:hidden fixed bottom-0 right-0 left-0 z-50 flex items-stretch"
-      style={{
-        background: "hsl(var(--card))",
-        borderTop: "1px solid hsl(var(--border))",
-        paddingBottom: "env(safe-area-inset-bottom)",
-        boxShadow: "0 -4px 20px rgba(0,0,0,0.25)",
-      }}
+      className="md:hidden fixed bottom-0 right-0 left-0 z-50 flex justify-center px-3"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
     >
-      {NAV_ITEMS.map(item => {
-        const isActive = active === item.id;
-        return (
-          <button
-            key={item.id}
-            onClick={() => onSelect(item.id)}
-            className="flex-1 flex flex-col items-center justify-center py-2.5 gap-1 relative transition-all duration-200"
-          >
-            {/* active glow pill */}
-            {isActive && (
-              <span
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 rounded-full"
-                style={{ background: item.glowColor.replace("0.35", "1") }}
-              />
-            )}
-            {/* icon container */}
-            <span className={`w-10 h-7 rounded-xl flex items-center justify-center transition-all duration-200 ${
-              isActive ? item.activeBg : ""
-            }`}
-              style={isActive ? { boxShadow: `0 0 10px ${item.glowColor}` } : {}}>
-              <item.Icon className={`w-[18px] h-[18px] transition-all duration-200 ${isActive ? item.activeColor : "text-muted-foreground"}`} />
-            </span>
-            <span className={`text-[10px] font-bold transition-colors duration-200 ${isActive ? item.activeColor : "text-muted-foreground"}`}>
-              {item.label}
-            </span>
-          </button>
-        );
-      })}
+      <div
+        className="flex items-stretch gap-0.5 rounded-[26px] px-1.5 py-1.5 w-full max-w-md"
+        style={{
+          background: "rgba(20,20,26,0.72)",
+          backdropFilter: "blur(24px) saturate(180%)",
+          WebkitBackdropFilter: "blur(24px) saturate(180%)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset",
+        }}
+      >
+        {NAV_ITEMS.map((item, i) => {
+          const isActive = active === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelect(item.id)}
+              className="relative flex-1 flex flex-col items-center justify-center py-2 gap-1 rounded-[20px] transition-all duration-300"
+            >
+              {isActive && (
+                <span
+                  className="absolute inset-0 rounded-[20px] transition-all duration-300"
+                  style={{
+                    background: item.glowColor.replace("0.35", "0.16"),
+                    boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.25")} inset`,
+                  }}
+                />
+              )}
+              <span className="relative flex items-center justify-center transition-transform duration-300"
+                style={{ transform: isActive ? "translateY(-1px) scale(1.05)" : "none" }}>
+                <item.Icon className={`w-[19px] h-[19px] transition-colors duration-300 ${isActive ? item.activeColor : "text-muted-foreground/70"}`} />
+              </span>
+              <span className={`relative text-[9.5px] font-bold transition-all duration-300 ${isActive ? item.activeColor : "text-muted-foreground/70"}`}
+                style={{ opacity: isActive ? 1 : 0.85 }}>
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
@@ -2550,7 +2564,7 @@ export default function RepresentativeDashboard() {
       />
 
       {/* ─── Main Content ─── */}
-      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarOpen ? "md:mr-56" : "md:mr-16"}`}>
+      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarOpen ? "md:mr-[280px]" : "md:mr-[88px]"}`}>
         {/* Mobile header */}
         <div className="md:hidden sticky top-0 z-40 border-b border-border/50"
           style={{ background: "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)", backdropFilter: "blur(12px)" }}>
