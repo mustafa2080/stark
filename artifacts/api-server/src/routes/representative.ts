@@ -68,10 +68,14 @@ router.get("/sse", (req: Request, res: Response): void => {
 
 router.use(requireAuth);
 
-// ─── Block PATCH/POST/DELETE for representatives ──────────────────────────────
+// ─── Block PATCH/POST/DELETE for representatives (عدا تحديث موقعهم الحالي) ───
 function blockRepresentativeWrites(req: Request, res: Response, next: NextFunction): void {
   const user = (req as any).user;
-  if (user?.role === "representative" && ["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) {
+  if (
+    user?.role === "representative" &&
+    ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) &&
+    req.path !== "/location"
+  ) {
     res.status(403).json({ error: "المندوب لا يملك صلاحية التعديل" });
     return;
   }
