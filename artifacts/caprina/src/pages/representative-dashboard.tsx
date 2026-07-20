@@ -2106,18 +2106,27 @@ function NotificationsPanel({ onClose }: { onClose: () => void }) {
   return (
     <>
       {/* overlay لغلق اللوحة عند الضغط برّه */}
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute top-full mt-2 left-0 z-50 w-80 max-w-[90vw] rounded-2xl border bg-card shadow-2xl overflow-hidden"
-        style={{ boxShadow: "0 12px 32px rgba(0,0,0,0.35)" }}>
+      <div className="fixed inset-0 z-[90]" onClick={onClose} />
+      <div
+        className="fixed z-[100] w-80 max-w-[92vw] rounded-2xl border bg-card shadow-2xl overflow-hidden left-1/2 -translate-x-1/2 top-20 sm:left-auto sm:right-4 sm:translate-x-0"
+        style={{ boxShadow: "0 12px 32px rgba(0,0,0,0.45)" }}
+        onClick={(e) => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
           <p className="text-xs font-bold flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5 text-primary" /> الإشعارات
           </p>
-          {notifs.some(n => !n.isRead) && (
-            <button onClick={() => markAllMutation.mutate()} className="text-[10px] text-primary hover:underline">
-              تعليم الكل كمقروء
+          <div className="flex items-center gap-2">
+            {notifs.some(n => !n.isRead) && (
+              <button onClick={() => markAllMutation.mutate()} className="text-[10px] text-primary hover:underline">
+                تعليم الكل كمقروء
+              </button>
+            )}
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+              </svg>
             </button>
-          )}
+          </div>
         </div>
         <div className="max-h-96 overflow-y-auto">
           {isLoading && (
@@ -2158,8 +2167,8 @@ function NotificationsPanel({ onClose }: { onClose: () => void }) {
 }
 
 // ─── تاب البروفايل ────────────────────────────────────────────────────────────
-function ProfileTab({ user, company, logout, d, allShipments }: {
-  user: any; company: any; logout: () => void; d?: any; allShipments?: any[];
+function ProfileTab({ user, company, logout, d, allShipments, onNavigate }: {
+  user: any; company: any; logout: () => void; d?: any; allShipments?: any[]; onNavigate?: (t: TabId) => void;
 }) {
   const [confirmLogout, setConfirmLogout] = useState(false);
 
@@ -2191,6 +2200,16 @@ function ProfileTab({ user, company, logout, d, allShipments }: {
 
   return (
     <div className="space-y-3">
+      {/* زرار رجوع */}
+      {onNavigate && (
+        <button
+          onClick={() => onNavigate("home")}
+          className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors px-1 py-1 -mb-1">
+          <ChevronRight className="w-4 h-4" />
+          رجوع
+        </button>
+      )}
+
       {/* Hero — بطاقة الهوية الرئيسية بحلقة الأداء */}
       <div className="rounded-2xl p-6 border relative overflow-hidden"
         style={{ background: `linear-gradient(135deg, rgba(${grade.glow},0.14) 0%, hsl(var(--card)) 65%)`,
@@ -2603,7 +2622,7 @@ export default function RepresentativeDashboard() {
           {activeTab === "tasks" && <TodayTasksTab companyId={company?.id ?? null} />}
 
           {/* ─── Profile Tab ─── */}
-          {activeTab === "profile" && <ProfileTab user={user} company={company} logout={logout} d={d} allShipments={allShipments} />}
+          {activeTab === "profile" && <ProfileTab user={user} company={company} logout={logout} d={d} allShipments={allShipments} onNavigate={setActiveTab} />}
 
           {/* ─── Shipments Tab ─── */}
           {activeTab === "shipments" && (
