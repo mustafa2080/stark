@@ -4738,7 +4738,6 @@ export default function ShippingManifestPage() {
               <h2 className="font-bold text-sm text-red-400">
                 بضاعه ليه عندك يا {repNameForBanner} اتاكد من تسليمها للشركه ونزولها من بيانك ({pendingReturnOrders.length})
               </h2>
-              <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
             </div>
             <div className="flex flex-col gap-2">
               {pendingReturnOrders.map(order => {
