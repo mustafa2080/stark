@@ -1606,6 +1606,13 @@ function TasksSummaryCard({ allShipments, onNavigate }: { allShipments: any[]; o
     return "bg-primary";
   };
 
+  const numberBadgeCls = (status: string) => {
+    if (status === "delivered" || status === "partial_received") return "bg-emerald-500/15 text-emerald-400";
+    if (status === "returned") return "bg-red-500/15 text-red-400";
+    if (status === "delayed") return "bg-amber-500/15 text-amber-400";
+    return "bg-primary/15 text-primary";
+  };
+
   return (
     <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
       <CollapsibleCardHeader
@@ -1644,7 +1651,7 @@ function TasksSummaryCard({ allShipments, onNavigate }: { allShipments: any[]; o
             )}
             {recent.map((s, i) => (
               <div key={s.id ?? i} className="flex items-center gap-2 text-[11px] py-1">
-                <span className="w-4 h-4 rounded-full bg-muted/40 flex items-center justify-center shrink-0 text-[9px] font-bold text-muted-foreground">
+                <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold ${numberBadgeCls(s.status)}`}>
                   {i + 1}
                 </span>
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(s.status)}`} />
@@ -1924,9 +1931,9 @@ function ReturnsManagementCard({ allShipments, onNavigate }: { allShipments: any
                     </td>
                     <td className="px-2 py-2 text-muted-foreground truncate max-w-[90px]">{s.returnReason ?? "—"}</td>
                     <td className="px-3 py-2">
-                      <span className="inline-flex items-center gap-1 text-primary/80">
-                        <Phone className="w-3 h-3" /> {s.receiverPhone ?? "اتصال"}
-                      </span>
+                      <button className="w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/25 transition-colors">
+                        <Phone className="w-3 h-3" />
+                      </button>
                     </td>
                   </tr>
                 );
