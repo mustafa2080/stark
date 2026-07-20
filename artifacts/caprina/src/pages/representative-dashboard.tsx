@@ -1350,19 +1350,57 @@ function DesktopSidebar({
         />
       )}
 
-      {/* Collapsed toggle button — يظهر لما الـ sidebar مقفول */}
+      {/* Collapsed rail — يظهر لما الـ sidebar مقفول: أيقونات التابات واضحة + زرار فتح */}
       {!open && (
-        <button
-          onClick={onToggle}
-          className="hidden md:flex fixed right-0 top-1/2 -translate-y-1/2 z-40 flex-col items-center justify-center gap-1 w-8 h-20 rounded-l-xl border border-border/60 border-r-0 transition-all hover:w-10"
+        <div
+          className="hidden md:flex fixed right-0 top-0 h-screen z-40 flex-col items-center py-5 gap-2 w-16 border-l border-border/60"
           style={{
             background: "linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)",
             boxShadow: "-4px 0 16px rgba(0,0,0,0.15)",
           }}
-          title="فتح القائمة"
         >
-          <ChevronLeft className="w-4 h-4 text-muted-foreground" />
-        </button>
+          {/* Logo/Brand mini */}
+          <div className="mb-2">
+            {company?.logo
+              ? <img src={company.logo} className="w-9 h-9 rounded-xl object-cover border border-border shadow" alt="" />
+              : (
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
+                  <Truck className="w-4.5 h-4.5 text-primary" />
+                </div>
+              )}
+          </div>
+
+          {/* Nav icons */}
+          <div className="flex-1 flex flex-col gap-2">
+            {NAV_ITEMS.map(item => {
+              const isActive = active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => { onSelect(item.id); onToggle(); }}
+                  title={item.label}
+                  className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-all duration-200 ${
+                    isActive
+                      ? `${item.activeBg} ${item.activeColor}`
+                      : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                  }`}
+                  style={isActive ? { boxShadow: `0 0 16px ${item.glowColor}` } : {}}
+                >
+                  <item.Icon className={`w-5 h-5 ${isActive ? "" : "opacity-70"}`} />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Open toggle */}
+          <button
+            onClick={onToggle}
+            className="w-11 h-9 rounded-xl border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all"
+            title="فتح القائمة"
+          >
+            <ChevronLeft className="w-4.5 h-4.5" />
+          </button>
+        </div>
       )}
 
     <aside
