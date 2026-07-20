@@ -455,8 +455,20 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
 
   return (
     <div className="space-y-3">
-      {/* خريطة السير — موقعي الحالي */}
-      <RepRouteMap />
+      {/* Hero: عنوان الصفحة + ملخص سريع */}
+      <div className="rounded-2xl p-4 border relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.12) 0%, hsl(var(--card)) 70%)",
+                 border: "1px solid rgba(139,92,246,0.25)" }}>
+        <div className="flex items-center gap-3">
+          <span className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-violet-500/15">
+            <TrendingUp className="w-5 h-5 text-violet-400" />
+          </span>
+          <div>
+            <p className="text-sm font-black text-foreground/90">أدائي وإحصائياتي</p>
+            <p className="text-[11px] text-muted-foreground">نظرة شاملة على أدائك خلال الفترة الحالية</p>
+          </div>
+        </div>
+      </div>
 
       {/* Performance Score */}
       <PerformanceScore
@@ -474,29 +486,81 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
 
       {/* Weekly Trend */}
       <div className="rounded-2xl border bg-card/60 p-4">
-        <p className="text-xs font-bold mb-3 flex items-center gap-1.5">
-          <BarChart3 className="w-3.5 h-3.5 text-blue-400" /> مقارنة الأسبوع
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-background/40 p-3">
-            <p className="text-[10px] text-muted-foreground mb-1">تسليم هذا الأسبوع</p>
-            <p className="text-xl font-black text-emerald-400">{wDelivered}</p>
-            <TrendBadge current={wDelivered} prev={pwDelivered} label="تسليم" />
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-bold flex items-center gap-1.5">
+            <BarChart3 className="w-3.5 h-3.5 text-blue-400" /> مقارنة الأسبوع
+          </p>
+          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary/70" /> هذا الأسبوع</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/30" /> الأسبوع الفائت</span>
           </div>
-          <div className="rounded-xl bg-background/40 p-3">
-            <p className="text-[10px] text-muted-foreground mb-1">مرتجع هذا الأسبوع</p>
-            <p className="text-xl font-black text-red-400">{wReturned}</p>
-            <TrendBadge current={wReturned} prev={pwReturned} label="إرجاع" />
+        </div>
+
+        <div className="space-y-4">
+          {/* إجمالي الشحنات */}
+          <div>
+            <div className="flex justify-between items-center text-[11px] mb-1.5">
+              <span className="text-muted-foreground">إجمالي الشحنات</span>
+              <TrendBadge current={thisWeek.length} prev={prevWeek.length} label="إجمالي" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 rounded-full bg-muted/15 overflow-hidden">
+                <div className="h-2 rounded-full bg-primary transition-all duration-700"
+                  style={{ width: `${Math.min(100, (thisWeek.length / Math.max(1, Math.max(thisWeek.length, prevWeek.length))) * 100)}%` }} />
+              </div>
+              <span className="text-xs font-black w-8 text-left">{thisWeek.length}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-1.5 rounded-full bg-muted/10 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-muted-foreground/30 transition-all duration-700"
+                  style={{ width: `${Math.min(100, (prevWeek.length / Math.max(1, Math.max(thisWeek.length, prevWeek.length))) * 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground w-8 text-left">{prevWeek.length}</span>
+            </div>
           </div>
-          <div className="rounded-xl bg-background/40 p-3">
-            <p className="text-[10px] text-muted-foreground mb-1">الأسبوع الفائت</p>
-            <p className="text-xl font-black">{prevWeek.length}</p>
-            <span className="text-[10px] text-muted-foreground">شحنة</span>
+
+          {/* شحنات تم تسليمها */}
+          <div>
+            <div className="flex justify-between items-center text-[11px] mb-1.5">
+              <span className="text-muted-foreground">تسليم</span>
+              <TrendBadge current={wDelivered} prev={pwDelivered} label="تسليم" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 rounded-full bg-muted/15 overflow-hidden">
+                <div className="h-2 rounded-full bg-emerald-500 transition-all duration-700"
+                  style={{ width: `${Math.min(100, (wDelivered / Math.max(1, Math.max(wDelivered, pwDelivered))) * 100)}%` }} />
+              </div>
+              <span className="text-xs font-black w-8 text-left text-emerald-400">{wDelivered}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-1.5 rounded-full bg-muted/10 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-muted-foreground/30 transition-all duration-700"
+                  style={{ width: `${Math.min(100, (pwDelivered / Math.max(1, Math.max(wDelivered, pwDelivered))) * 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground w-8 text-left">{pwDelivered}</span>
+            </div>
           </div>
-          <div className="rounded-xl bg-background/40 p-3">
-            <p className="text-[10px] text-muted-foreground mb-1">هذا الأسبوع</p>
-            <p className="text-xl font-black text-primary">{thisWeek.length}</p>
-            <TrendBadge current={thisWeek.length} prev={prevWeek.length} label="إجمالي" />
+
+          {/* شحنات مرتجعة */}
+          <div>
+            <div className="flex justify-between items-center text-[11px] mb-1.5">
+              <span className="text-muted-foreground">إرجاع</span>
+              <TrendBadge current={pwReturned} prev={wReturned} label="إرجاع" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 rounded-full bg-muted/15 overflow-hidden">
+                <div className="h-2 rounded-full bg-red-500 transition-all duration-700"
+                  style={{ width: `${Math.min(100, (wReturned / Math.max(1, Math.max(wReturned, pwReturned))) * 100)}%` }} />
+              </div>
+              <span className="text-xs font-black w-8 text-left text-red-400">{wReturned}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-1.5 rounded-full bg-muted/10 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-muted-foreground/30 transition-all duration-700"
+                  style={{ width: `${Math.min(100, (pwReturned / Math.max(1, Math.max(wReturned, pwReturned))) * 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground w-8 text-left">{pwReturned}</span>
+            </div>
           </div>
         </div>
       </div>
