@@ -1355,7 +1355,7 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
 }
 
 // ─── NAV ITEMS definition ─────────────────────────────────────────────────────
-type TabId = "home" | "performance" | "shipments" | "manifests" | "tasks";
+type TabId = "home" | "performance" | "shipments" | "manifests" | "tasks" | "profile";
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: React.ElementType; activeColor: string; activeBg: string; glowColor: string }[] = [
   {
     id: "home",
@@ -2078,25 +2078,280 @@ function SupportAndAlertsCard({ tasksSummary }: { tasksSummary?: { urgent: numbe
   );
 }
 
+// ─── لوحة الإشعارات المنسدلة ──────────────────────────────────────────────────
+function NotificationsPanel({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["rep-notifications"],
+    queryFn: () => apiFetch("/notifications?limit=20"),
+  });
+  const notifs: any[] = (data as any)?.notifications ?? [];
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: number) => apiFetch(`/notifications/${id}/read`, { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rep-notifications"] });
+      qc.invalidateQueries({ queryKey: ["rep-notifications-unread"] });
+    },
+  });
+
+  const markAllMutation = useMutation({
+    mutationFn: () => apiFetch("/notifications/read-all", { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rep-notifications"] });
+      qc.invalidateQueries({ queryKey: ["rep-notifications-unread"] });
+    },
+  });
+
+  return (
+    <>
+      {/* overlay لغلق اللوحة عند الضغط برّه */}
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute top-full mt-2 left-0 z-50 w-80 max-w-[90vw] rounded-2xl border bg-card shadow-2xl overflow-hidden"
+        style={{ boxShadow: "0 12px 32px rgba(0,0,0,0.35)" }}>
+        <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+          <p className="text-xs font-bold flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-primary" /> الإشعارات
+          </p>
+          {notifs.some(n => !n.isRead) && (
+            <button onClick={() => markAllMutation.mutate()} className="text-[10px] text-primary hover:underline">
+              تعليم الكل كمقروء
+            </button>
+          )}
+        </div>
+        <div className="max-h-96 overflow-y-auto">
+          {isLoading && (
+            <p className="text-xs text-muted-foreground text-center py-8">جاري التحميل...</p>
+          )}
+          {!isLoading && notifs.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center px-4">
+              <div className="w-12 h-12 rounded-full bg-muted/20 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <p className="text-xs text-muted-foreground">لا توجد إشعارات حالياً</p>
+            </div>
+          )}
+          {notifs.map((n) => (
+            <button
+              key={n.id}
+              onClick={() => !n.isRead && markReadMutation.mutate(n.id)}
+              className={`w-full text-right px-4 py-3 border-b border-border/30 last:border-0 transition-colors hover:bg-muted/10 ${!n.isRead ? "bg-primary/5" : ""}`}
+            >
+              <div className="flex items-start gap-2">
+                {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-1.5" />}
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[11px] ${!n.isRead ? "font-bold text-foreground" : "text-muted-foreground"}`}>{n.title}</p>
+                  {n.message && <p className="text-[10px] text-muted-foreground/80 mt-0.5 line-clamp-2">{n.message}</p>}
+                  {n.createdAt && (
+                    <p className="text-[9px] text-muted-foreground/60 mt-1">
+                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: ar })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── تاب البروفايل ────────────────────────────────────────────────────────────
+function ProfileTab({ user, company, logout, d, allShipments }: {
+  user: any; company: any; logout: () => void; d?: any; allShipments?: any[];
+}) {
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  const deliveryRate = d?.deliveryRate ?? 0;
+  const totalShipments = d?.total ?? (allShipments?.length ?? 0);
+  const ratingsAvg = d?.ratingsAvg ?? null;
+  const ratingsCount = d?.ratingsCount ?? 0;
+
+  const grade = deliveryRate >= 85 ? { label: "ممتاز", color: "#34d399", glow: "52,211,153" }
+    : deliveryRate >= 70 ? { label: "جيد جداً", color: "#60a5fa", glow: "96,165,250" }
+    : deliveryRate >= 55 ? { label: "جيد", color: "#fbbf24", glow: "251,191,36" }
+    : { label: "بداية الطريق", color: "#a1a1aa", glow: "161,161,170" };
+
+  const r = 40; const c = 2 * Math.PI * r;
+  const fill = (deliveryRate / 100) * c;
+
+  const statCards = [
+    { label: "إجمالي الشحنات", value: totalShipments, Icon: Package, color: "96,165,250" },
+    { label: "نسبة التسليم", value: `${deliveryRate}%`, Icon: CheckCircle2, color: "52,211,153" },
+    { label: "تقييم العملاء", value: ratingsAvg != null ? ratingsAvg.toFixed(1) : "—", Icon: Star, color: "251,191,36" },
+  ];
+
+  const infoRows = [
+    { label: "الاسم الكامل", value: user?.displayName ?? "—", Icon: ShieldCheck },
+    { label: "رقم الهاتف", value: user?.phone ?? "—", Icon: PhoneCall },
+    { label: "اسم المستخدم", value: user?.username ?? "—", Icon: Lock },
+    { label: "شركة الشحن", value: company?.name ?? "—", Icon: Truck },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* Hero — بطاقة الهوية الرئيسية بحلقة الأداء */}
+      <div className="rounded-2xl p-6 border relative overflow-hidden"
+        style={{ background: `linear-gradient(135deg, rgba(${grade.glow},0.14) 0%, hsl(var(--card)) 65%)`,
+                 border: `1px solid rgba(${grade.glow},0.28)`,
+                 boxShadow: `0 1px 0 rgba(255,255,255,0.03) inset, 0 0 32px rgba(${grade.glow},0.10)` }}>
+        {/* زخرفة خلفية */}
+        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl pointer-events-none"
+          style={{ background: `rgba(${grade.glow},0.15)` }} />
+
+        <div className="relative flex flex-col items-center text-center gap-4">
+          {/* Avatar بحلقة تقدم الأداء */}
+          <div className="relative w-24 h-24 shrink-0">
+            <svg width="96" height="96" viewBox="0 0 96 96" className="-rotate-90 absolute inset-0">
+              <circle cx="48" cy="48" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+              <circle cx="48" cy="48" r={r} fill="none" stroke={grade.color} strokeWidth="4"
+                strokeLinecap="round" strokeDasharray={`${fill} ${c}`}
+                style={{ filter: `drop-shadow(0 0 6px ${grade.color})`, transition: "stroke-dasharray 1s ease" }} />
+            </svg>
+            <div className="absolute inset-1.5 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center shadow-lg">
+              <span className="text-3xl font-black text-primary">{(user?.displayName ?? "م")[0]}</span>
+            </div>
+            {/* شارة الشركة الصغيرة */}
+            {company?.logo && (
+              <img src={company.logo} className="absolute -bottom-1 -left-1 w-7 h-7 rounded-lg object-cover border-2 border-card shadow" alt="" />
+            )}
+          </div>
+
+          <div>
+            <p className="text-lg font-black">{user?.displayName ?? "المندوب"}</p>
+            <div className="flex items-center justify-center gap-1.5 mt-1">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: `rgba(${grade.glow},0.15)`, color: grade.color }}>
+                <Award className="w-3 h-3" /> {grade.label}
+              </span>
+              <span className="text-[11px] text-muted-foreground">· مندوب توصيل</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center justify-center gap-1">
+              <Truck className="w-3 h-3 text-primary/60" /> {company?.name ?? "—"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* إحصائيات سريعة */}
+      <div className="grid grid-cols-3 gap-2.5">
+        {statCards.map((s, i) => (
+          <div key={i} className="rounded-2xl p-3 border relative overflow-hidden text-center"
+            style={{ background: `linear-gradient(135deg, rgba(${s.color},0.09) 0%, hsl(var(--card)) 65%)`,
+                     border: `1px solid rgba(${s.color},0.22)` }}>
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center mx-auto mb-1.5" style={{ background: `rgba(${s.color},0.12)` }}>
+              <s.Icon className="w-3.5 h-3.5" style={{ color: `rgba(${s.color},1)` }} />
+            </span>
+            <p className="text-base font-black leading-tight" style={{ color: `rgba(${s.color},1)` }}>{s.value}</p>
+            <p className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* تقييم العملاء التفصيلي */}
+      {ratingsCount > 0 && (
+        <div className="rounded-2xl border bg-card/60 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+            </span>
+            <div>
+              <p className="text-xs font-bold">تقييم العملاء</p>
+              <p className="text-[10px] text-muted-foreground">بناءً على {ratingsCount} تقييم</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map(n => (
+              <Star key={n} className={`w-4 h-4 ${ratingsAvg && n <= Math.round(ratingsAvg) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/25"}`} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* بيانات الحساب */}
+      <div className="rounded-2xl border bg-card/60 overflow-hidden">
+        <div className="px-4 pt-3 pb-2 border-b border-border/50">
+          <p className="text-xs font-bold flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" /> بيانات الحساب
+          </p>
+        </div>
+        <div className="divide-y divide-border/30">
+          {infoRows.map((row, i) => (
+            <div key={i} className="flex items-center justify-between px-4 py-3">
+              <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <row.Icon className="w-3.5 h-3.5 text-primary/70" />
+                </span>
+                {row.label}
+              </span>
+              <span className="text-xs font-bold">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* تسجيل خروج */}
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
+        {!confirmLogout ? (
+          <Button variant="outline" className="w-full gap-2 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-400"
+            onClick={() => setConfirmLogout(true)}>
+            <LogOut className="w-4 h-4" /> تسجيل الخروج
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-[11px] text-red-400 text-center">متأكد إنك عايز تسجل خروج؟</p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 h-8 text-[11px]" onClick={() => setConfirmLogout(false)}>
+                إلغاء
+              </Button>
+              <Button className="flex-1 h-8 text-[11px] bg-red-500 hover:bg-red-600" onClick={logout}>
+                تأكيد الخروج
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── شريط علوي خاص بالنظرة العامة (يطابق تصميم الموك أب) ─────────────────────
-function HomeHeader({ company, user }: { company: any; user: any }) {
+function HomeHeader({ company, user, onNavigate }: { company: any; user: any; onNavigate: (t: TabId) => void }) {
+  const [notifOpen, setNotifOpen] = useState(false);
+  const { data: unreadData } = useQuery({
+    queryKey: ["rep-notifications-unread"],
+    queryFn: () => apiFetch("/notifications/unread-count"),
+    refetchInterval: 30_000,
+  });
+  const unreadCount = (unreadData as any)?.count ?? 0;
+
   return (
     <div className="rounded-2xl border bg-card/60 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
       {/* يمين: بروفايل + إشعارات */}
       <div className="flex items-center gap-2 order-2 md:order-1">
-        <button className="w-9 h-9 rounded-xl border border-border/50 bg-muted/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
-          <Lock className="w-4 h-4" style={{ display: "none" }} />
+        <button
+          onClick={() => onNavigate("profile")}
+          className="w-9 h-9 rounded-xl border border-border/50 bg-muted/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
           </svg>
         </button>
-        <button className="relative w-9 h-9 rounded-xl border border-border/50 bg-muted/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
-          <AlertCircle className="w-4 h-4" style={{ display: "none" }} />
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-          <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">0</span>
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setNotifOpen(o => !o)}
+            className="relative w-9 h-9 rounded-xl border border-border/50 bg-muted/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -left-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+          {notifOpen && <NotificationsPanel onClose={() => setNotifOpen(false)} />}
+        </div>
       </div>
 
       {/* وسط: عنوان الصفحة */}
@@ -2128,7 +2383,7 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
 }) {
   return (
     <div className="space-y-4">
-      <HomeHeader company={company} user={user} />
+      <HomeHeader company={company} user={user} onNavigate={onNavigate} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* الصف الأول */}
@@ -2346,6 +2601,9 @@ export default function RepresentativeDashboard() {
 
           {/* ─── Today Tasks Tab ─── */}
           {activeTab === "tasks" && <TodayTasksTab companyId={company?.id ?? null} />}
+
+          {/* ─── Profile Tab ─── */}
+          {activeTab === "profile" && <ProfileTab user={user} company={company} logout={logout} d={d} allShipments={allShipments} />}
 
           {/* ─── Shipments Tab ─── */}
           {activeTab === "shipments" && (
