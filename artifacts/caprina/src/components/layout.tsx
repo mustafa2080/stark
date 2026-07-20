@@ -516,25 +516,11 @@ export default function Layout({ children }: LayoutProps) {
     );
   }
 
-  // ── بوابة المندوب: layout مبسط بدون sidebar ──────────────────────────────
+  // ── بوابة المندوب: الصفحة بتدير الـ header والـ sidebar بتاعها بالكامل ────
   if (user?.role === "representative") {
     return (
-      <div className="flex flex-col bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
-        {/* Header مبسط */}
-        <header className="shrink-0 flex items-center justify-between px-4 h-12 border-b border-border bg-sidebar">
-          <div className="flex items-center gap-2">
-            <BrandLogoMark size="sm" />
-            <span className="text-xs font-bold text-muted-foreground">بوابة المندوب</span>
-          </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded"
-          >
-            <LogOut className="w-3.5 h-3.5" /> تسجيل خروج
-          </button>
-        </header>
-        {/* محتوى الصفحة */}
-        <main id="main-scroll-area" className="flex-1 overflow-y-auto p-4">
+      <div className="bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
+        <main id="main-scroll-area" className="h-full overflow-y-auto">
           {children}
         </main>
       </div>
