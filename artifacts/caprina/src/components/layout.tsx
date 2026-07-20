@@ -419,9 +419,9 @@ export default function Layout({ children }: LayoutProps) {
                   <Link key={item.href} href={item.href} title={sidebarCollapsed ? item.label : undefined}
                     onClick={(e) => { if (sidebarCollapsed) e.stopPropagation(); }}
                     className={cn("flex items-center gap-3 rounded-xl text-sm font-bold transition-all",
-                      sidebarCollapsed ? "justify-center h-11 w-11 mx-auto" : "px-3 py-2.5",
+                      sidebarCollapsed ? "justify-center h-12 w-12 mx-auto" : "px-3 py-2.5",
                       active ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5 border border-transparent")}>
-                    <Icon className="w-4.5 h-4.5 shrink-0" />
+                    <Icon className={cn("shrink-0", sidebarCollapsed ? "w-6 h-6" : "w-4.5 h-4.5")} />
                     {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
                   </Link>
                 );
