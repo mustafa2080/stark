@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Redirect, useLocation } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -351,6 +351,55 @@ function TodayStrip({ shipments }: { shipments: any[] }) {
 }
 
 // ─── Top Zones Chart ──────────────────────────────────────────────────────────
+// ─── Customer Ratings Card ─────────────────────────────────────────────────
+function StarRow({ rating, size = "w-3.5 h-3.5" }: { rating: number; size?: string }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star
+          key={n}
+          className={`${size} ${n <= Math.round(rating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CustomerRatingsCard({ avg, count, recent }: {
+  avg: number | null; count: number;
+  recent: { rating: number; comment: string | null; createdAt: string; receiverName: string | null }[];
+}) {
+  if (!count) return null;
+  return (
+    <div className="rounded-2xl border bg-card/60 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-bold flex items-center gap-1.5">
+          <Star className="w-3.5 h-3.5 text-amber-400" /> تقييم العملاء
+        </p>
+        {avg != null && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-black text-amber-400">{avg.toFixed(1)}</span>
+            <StarRow rating={avg} />
+          </div>
+        )}
+      </div>
+      <div className="space-y-2.5">
+        {recent.slice(0, 5).map((r, i) => (
+          <div key={i} className="rounded-xl bg-background/40 p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-bold truncate">{r.receiverName || "عميل"}</p>
+              <StarRow rating={r.rating} size="w-3 h-3" />
+            </div>
+            {r.comment && (
+              <p className="text-[11px] text-muted-foreground line-clamp-2">{r.comment}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TopZonesCard({ zones, total }: { zones: { name: string; count: number }[]; total: number }) {
   if (!zones.length) return null;
   const max = zones[0].count;
@@ -410,6 +459,13 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
         deliveryRate={d?.deliveryRate ?? 0}
         returnRate={d?.returnRate ?? 0}
         total={d?.total ?? 0}
+      />
+
+      {/* Customer Ratings */}
+      <CustomerRatingsCard
+        avg={d?.ratingsAvg ?? null}
+        count={d?.ratingsCount ?? 0}
+        recent={d?.recentRatings ?? []}
       />
 
       {/* Weekly Trend */}

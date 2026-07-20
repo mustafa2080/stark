@@ -1440,20 +1440,21 @@ router.patch("/shipments/:id/urgent", async (req, res): Promise<void> => {
 
     // ابحث عن آخر بيان (مفتوح أو أي بيان) يحتوي هذه الشحنة
     const conditions: any[] = [eq(shipmentManifestItemsTable.shipmentId, shipmentId)];
-    if (tenantId !== null) conditions.push(eq(shipmentManifestItemsTable.tenantId, tenantId));
+    if (tenantId !== null) conditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
 
     const [item] = await db
       .select({
-        id:         shipmentManifestItemsTable.id,
-        manifestId: shipmentManifestItemsTable.manifestId,
-        customerName: shipmentManifestItemsTable.customerName,
-        phone:      shipmentManifestItemsTable.phone,
-        city:       shipmentManifestItemsTable.city,
-        invoiceNumber: shipmentManifestItemsTable.invoiceNumber,
-        totalPrice: shipmentManifestItemsTable.totalPrice,
+        id:            shipmentManifestItemsTable.id,
+        manifestId:    shipmentManifestItemsTable.manifestId,
+        customerName:  shipmentsTable.receiverName,
+        phone:         shipmentsTable.receiverPhone,
+        city:          shipmentsTable.receiverCity,
+        invoiceNumber: shipmentsTable.shipmentNumber,
+        totalPrice:    shipmentsTable.totalAmount,
       })
       .from(shipmentManifestItemsTable)
       .innerJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+      .innerJoin(shipmentsTable, eq(shipmentsTable.id, shipmentManifestItemsTable.shipmentId))
       .where(and(...conditions))
       .orderBy(desc(shipmentManifestItemsTable.id))
       .limit(1);
@@ -1480,21 +1481,20 @@ router.patch("/shipments/:id/urgent", async (req, res): Promise<void> => {
         .where(eq(shipmentManifestsTable.id, item.manifestId))
         .limit(1);
       if (manifest?.shippingCompanyId) {
-        // ملحوظة: broadcastUrgentToCompany كانت من routes/representative.ts اللي اتمسح — معطّلة مؤقتًا
-        // const { broadcastUrgentToCompany } = await import("./representative.js");
-        // broadcastUrgentToCompany(manifest.shippingCompanyId, {
-        //   type: "urgent",
-        //   manifestId:     item.manifestId,
-        //   manifestNumber: manifest.manifestNumber,
-        //   shipmentId,
-        //   urgentNote:     urgentNote ?? null,
-        //   urgentAt:       new Date().toISOString(),
-        //   customerName:   item.customerName,
-        //   phone:          item.phone,
-        //   city:           item.city,
-        //   invoiceNumber:  item.invoiceNumber,
-        //   totalPrice:     item.totalPrice,
-        // });
+        const { broadcastUrgentToCompany } = await import("./representative.js");
+        broadcastUrgentToCompany(manifest.shippingCompanyId, {
+          type: "urgent",
+          manifestId:     item.manifestId,
+          manifestNumber: manifest.manifestNumber,
+          shipmentId,
+          urgentNote:     urgentNote ?? null,
+          urgentAt:       new Date().toISOString(),
+          customerName:   item.customerName,
+          phone:          item.phone,
+          city:           item.city,
+          invoiceNumber:  item.invoiceNumber,
+          totalPrice:     item.totalPrice,
+        });
       }
     }
 

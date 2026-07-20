@@ -30,6 +30,7 @@ import financeClientsRouter from "./finance-clients";
 import shipmentsRouter, { publicShipmentsRouter } from "./shipments";
 import clientsShowcaseRouter from "./clients-showcase";
 import shipmentManifestsRouter from "./shipment-manifests";
+import representativeRouter from "./representative";
 import notificationsSseRouter, { notificationsProtectedRouter } from "./notifications";
 import clientAccountSheetRouter from "./client-account-sheet";
 import clientAccountManifestsRouter from "./client-account-manifests";
@@ -49,6 +50,7 @@ router.use(settingsRouter);
 router.use(clientsShowcaseRouter); // GET /clients-showcase — public for landing page
 router.use(publicAdminRouter); // GET /public/plan-prices — بدون auth
 router.use(publicShipmentsRouter); // GET /shipments/track/:number — public for tracking
+router.use("/representative", representativeRouter); // SSE route داخله بيعمل auth يدوياً
 router.use(notificationsSseRouter); // GET /notifications/sse — بيعمل auth يدوياً زي مندوب
 router.use(clientPortalRouter); // /client/register, /client/login (public) + /client-portal/* (auth داخلي)
 
