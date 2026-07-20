@@ -1,4 +1,4 @@
-import { mysqlTable, text, int, boolean, datetime, json, varchar, mediumtext } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, int, boolean, datetime, json, varchar, mediumtext, decimal } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -31,6 +31,10 @@ export const usersTable = mysqlTable("users", {
   defaultAdSource: varchar("default_ad_source", { length: 50 }), // مصدر الإعلان الافتراضي للموظف (يتعبأ تلقائياً عند اختياره في شحنة جديدة)
   avatar: mediumtext("avatar"),  // base64 صورة المستخدم
   showProfileLink: boolean("show_profile_link").notNull().default(true),
+  // ─── موقع المندوب الحالي (لخريطة السير) ─────────────────────────────────
+  lastLat: decimal("last_lat", { precision: 10, scale: 7 }),
+  lastLng: decimal("last_lng", { precision: 10, scale: 7 }),
+  lastLocationAt: datetime("last_location_at"),
   createdAt: datetime("created_at").notNull().default(new Date()),
   updatedAt: datetime("updated_at").notNull().default(new Date()),
 });

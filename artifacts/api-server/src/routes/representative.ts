@@ -166,7 +166,7 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
   const dateTo   = req.query.dateTo as string | undefined;
   const shipmentIds2 = await getShipmentIdsByCompany(companyId);
   if (!shipmentIds2.length) {
-    res.json({ total: 0, delivered: 0, partial: 0, returned: 0, inProgress: 0, deliveryRate: 0, returnRate: 0, totalCollected: 0, zones: [], topZone: null, lastLogin: null, ratingsAvg: null, ratingsCount: 0, recentRatings: [] });
+    res.json({ total: 0, delivered: 0, partial: 0, returned: 0, inProgress: 0, deliveryRate: 0, returnRate: 0, totalCollected: 0, zones: [], topZone: null, lastLogin: null, ratingsAvg: null, ratingsCount: 0, recentRatings: [], highReturnRisk: false });
     return;
   }
   const conditions: any[] = [inArray(shipmentsTable.id, shipmentIds2), isNull(shipmentsTable.deletedAt)];
@@ -221,7 +221,8 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
 
   res.json({ total, delivered, partial, returned, inProgress, deliveryRate, returnRate,
     totalCollected, zones, topZone: zones[0] ?? null, lastLogin: lastLogin?.createdAt ?? null,
-    ratingsAvg, ratingsCount: ratingRows.length, recentRatings: ratingRows });
+    ratingsAvg, ratingsCount: ratingRows.length, recentRatings: ratingRows,
+    highReturnRisk: total >= 5 && returnRate > 30 });
 });
 
 // ─── GET /representative/today-tasks — مهام اليوم للمندوب ───────────────────
@@ -427,6 +428,41 @@ router.get("/admin/representatives/:id/audit", async (req: Request, res: Respons
     db.select({ cnt: count() }).from(auditLogsTable).where(eq(auditLogsTable.userId, repId)).then(r => Number(r[0]?.cnt ?? 0)),
   ]);
   res.json({ data: logs, total, page, limit });
+});
+
+// ─── PATCH /representative/location — تحديث موقع المندوب الحالي (خريطة السير) ─
+router.patch("/location", requireRepresentativeOrAdmin, async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  if (user.role !== "representative") { res.status(403).json({ error: "متاح للمناديب فقط" }); return; }
+
+  const lat = Number(req.body?.lat);
+  const lng = Number(req.body?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    res.status(400).json({ error: "إحداثيات غير صحيحة" });
+    return;
+  }
+
+  await db.update(usersTable)
+    .set({ lastLat: String(lat), lastLng: String(lng), lastLocationAt: new Date() } as any)
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ ok: true });
+});
+
+// ─── GET /representative/location — آخر موقع معروف للمندوب الحالي ────────────
+router.get("/location", requireRepresentativeOrAdmin, async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  if (user.role !== "representative") { res.status(403).json({ error: "متاح للمناديب فقط" }); return; }
+
+  const [row] = await db.select({
+    lastLat: usersTable.lastLat, lastLng: usersTable.lastLng, lastLocationAt: usersTable.lastLocationAt,
+  }).from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+
+  res.json({
+    lat: row?.lastLat != null ? Number(row.lastLat) : null,
+    lng: row?.lastLng != null ? Number(row.lastLng) : null,
+    updatedAt: row?.lastLocationAt ?? null,
+  });
 });
 
 export default router;

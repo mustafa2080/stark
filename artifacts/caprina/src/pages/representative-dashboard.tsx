@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { formatDistanceToNow } from "date-fns";
+import { RepRouteMap } from "@/components/rep-route-map";
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "انتظار", confirmed: "مؤكدة", picked_up: "تم الاستلام",
@@ -454,6 +455,9 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
 
   return (
     <div className="space-y-3">
+      {/* خريطة السير — موقعي الحالي */}
+      <RepRouteMap />
+
       {/* Performance Score */}
       <PerformanceScore
         deliveryRate={d?.deliveryRate ?? 0}
