@@ -2186,6 +2186,7 @@ function ProfileTab({ user, company, logout, d, allShipments, onNavigate }: {
   user: any; company: any; logout: () => void; d?: any; allShipments?: any[]; onNavigate?: (t: TabId) => void;
 }) {
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [, navigate] = useLocation();
 
   const deliveryRate = d?.deliveryRate ?? 0;
   const totalShipments = d?.total ?? (allShipments?.length ?? 0);
@@ -2324,6 +2325,19 @@ function ProfileTab({ user, company, logout, d, allShipments, onNavigate }: {
           ))}
         </div>
       </div>
+
+      {/* بيانات الشحن — إدارة بياناته الخاصة */}
+      <button
+        onClick={() => navigate("/representative/shipping-companies")}
+        className="w-full rounded-2xl border bg-card/60 px-4 py-3.5 flex items-center justify-between hover:bg-card/90 transition-colors">
+        <span className="flex items-center gap-2 text-xs font-bold">
+          <span className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileText className="w-3.5 h-3.5 text-primary/70" />
+          </span>
+          البيانات
+        </span>
+        <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+      </button>
 
       {/* تسجيل خروج */}
       <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
