@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
-import { MobileBottomNav } from "@/pages/representative-dashboard";
+import { MobileBottomNav, NAV_ITEMS, type TabId } from "@/pages/representative-dashboard";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
 const AVAILABLE_SHIPMENT_STATUSES = ["waiting"];
@@ -1184,6 +1184,59 @@ function RepresentativeDialog({
   );
 }
 
+// ─── Desktop Nav Rail — نسخة مبسطة من نفس nav الداشبورد، بس للشاشات الكبيرة ──
+// (صفحة بياناتي بتتفتح كـ route مستقل من غير الـ DesktopSidebar الكامل بتاع
+// representative-dashboard.tsx، فمحتاجين نسخة خفيفة هنا عشان المندوب يقدر
+// يتنقل بين التابات وهو فاتح الصفحة من ديسكتوب/لابتوب)
+function DesktopNavRail({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
+  return (
+    <aside
+      dir="rtl"
+      className="hidden md:flex flex-col w-56 shrink-0 h-[calc(100vh-24px)] fixed right-3 top-3 z-40 overflow-y-auto rounded-[26px]"
+      style={{
+        background: "rgba(20,20,26,0.72)",
+        backdropFilter: "blur(28px) saturate(180%)",
+        WebkitBackdropFilter: "blur(28px) saturate(180%)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 16px 48px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.06) inset",
+      }}
+    >
+      <div className="px-4 pt-5 pb-4 border-b border-white/[0.06]">
+        <p className="text-sm font-black">بوابة المندوب</p>
+      </div>
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {NAV_ITEMS.map(item => {
+          const isActive = active === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelect(item.id)}
+              className="relative w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-right transition-all duration-300 group"
+            >
+              {isActive && (
+                <span className="absolute inset-0 rounded-2xl transition-all duration-300"
+                  style={{
+                    background: item.glowColor.replace("0.35", "0.14"),
+                    boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.24")} inset`,
+                  }} />
+              )}
+              <span className={`relative w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
+                isActive ? "bg-white/10" : "bg-white/[0.04] group-hover:bg-white/[0.08]"
+              }`}>
+                <item.Icon className={`w-4 h-4 ${isActive ? item.activeColor : "text-white/50 group-hover:text-white/80"}`} />
+              </span>
+              <div className="relative min-w-0 text-right">
+                <p className={`text-sm font-bold leading-tight ${isActive ? item.activeColor : "text-white/70 group-hover:text-white/90"}`}>{item.label}</p>
+                <p className="relative text-[10px] opacity-50 leading-none mt-0.5">{item.sublabel}</p>
+              </div>
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
+
 export default function ShippingCompanies() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -1756,7 +1809,12 @@ export default function ShippingCompanies() {
   if (isRepView) {
     return (
       <div className="bg-background" style={{ minHeight: "100dvh" }} dir="rtl">
-        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-border/60 bg-background/95 backdrop-blur-sm">
+        {/* نسخة الديسكتوب من الـ nav — نفس تابات الداشبورد، ظاهرة بس على md+ */}
+        <DesktopNavRail
+          active="manifests"
+          onSelect={(tab) => { if (tab !== "manifests") navigate(`/representative?tab=${tab}`); }}
+        />
+        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-border/60 bg-background/95 backdrop-blur-sm md:mr-[248px]">
           <Link href="/representative">
             <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border shrink-0">
               <ArrowRight className="w-4 h-4" />
@@ -1764,12 +1822,12 @@ export default function ShippingCompanies() {
           </Link>
           <span className="text-sm font-bold">بياناتي</span>
         </div>
-        <div className="p-4 max-w-2xl mx-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)" }}>
+        <div className="p-4 max-w-2xl mx-auto md:mr-[248px]" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)" }}>
           {pageContent}
         </div>
-        {/* نفس الـ bottom nav بتاع داشبورد المندوب — "بياناتي" هو تاب manifests
-            وإحنا فعلاً فيه، فمنعملش حاجة. الأزرار التانية بترجع للداشبورد
-            بنفس التاب المطلوب عن طريق ?tab= (الداشبورد بيقرأها في بدايته) */}
+        {/* نفس الـ bottom nav بتاع داشبورد المندوب — للموبايل بس (md:hidden جواها) —
+            "بياناتي" هو تاب manifests وإحنا فعلاً فيه، فمنعملش حاجة. الأزرار
+            التانية بترجع للداشبورد بنفس التاب المطلوب عن طريق ?tab= */}
         <MobileBottomNav
           active="manifests"
           onSelect={(tab) => { if (tab !== "manifests") navigate(`/representative?tab=${tab}`); }}
