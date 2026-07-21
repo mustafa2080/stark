@@ -541,7 +541,7 @@ function CompanyStats({ companyId, canViewFinancials }: { companyId: number; can
 }
 
 function CompanyManifests({ company, allCompanies, canShipping }: { company: ShippingCompany; allCompanies: ShippingCompany[]; canShipping: boolean }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showBlockedAlert, setShowBlockedAlert] = useState(false);
   const [, navigate] = useLocation();
