@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, ArrowRight } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, ChevronLeft, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { MobileBottomNav, NAV_ITEMS, type TabId } from "@/pages/representative-dashboard";
 
@@ -1184,56 +1184,123 @@ function RepresentativeDialog({
   );
 }
 
-// ─── Desktop Nav Rail — نسخة مبسطة من نفس nav الداشبورد، بس للشاشات الكبيرة ──
-// (صفحة بياناتي بتتفتح كـ route مستقل من غير الـ DesktopSidebar الكامل بتاع
-// representative-dashboard.tsx، فمحتاجين نسخة خفيفة هنا عشان المندوب يقدر
-// يتنقل بين التابات وهو فاتح الصفحة من ديسكتوب/لابتوب)
+// ─── Desktop Nav Rail — نسخة مبسطة من DesktopSidebar بتاع الداشبورد، بس
+// للشاشات الكبيرة في صفحة بياناتي (بتتفتح كـ route مستقل من غير الداشبورد).
+// قابلة للطي/الفتح بنفس أسلوب الداشبورد: rail مقفول بأيقونات + زرار فتح،
+// ولما يفتح يبقى sidebar كامل مع overlay يقفل بالضغط برّه ── مش شريط ثابت.
 function DesktopNavRail({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
+  const [open, setOpen] = useState(false);
   return (
-    <aside
-      dir="rtl"
-      className="hidden md:flex flex-col w-56 shrink-0 h-[calc(100vh-24px)] fixed right-3 top-3 z-40 overflow-y-auto rounded-[26px]"
-      style={{
-        background: "rgba(20,20,26,0.72)",
-        backdropFilter: "blur(28px) saturate(180%)",
-        WebkitBackdropFilter: "blur(28px) saturate(180%)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 16px 48px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.06) inset",
-      }}
-    >
-      <div className="px-4 pt-5 pb-4 border-b border-white/[0.06]">
-        <p className="text-sm font-black">بوابة المندوب</p>
-      </div>
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV_ITEMS.map(item => {
-          const isActive = active === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => onSelect(item.id)}
-              className="relative w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-right transition-all duration-300 group"
-            >
-              {isActive && (
-                <span className="absolute inset-0 rounded-2xl transition-all duration-300"
-                  style={{
-                    background: item.glowColor.replace("0.35", "0.14"),
-                    boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.24")} inset`,
-                  }} />
-              )}
-              <span className={`relative w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
-                isActive ? "bg-white/10" : "bg-white/[0.04] group-hover:bg-white/[0.08]"
-              }`}>
-                <item.Icon className={`w-4 h-4 ${isActive ? item.activeColor : "text-white/50 group-hover:text-white/80"}`} />
-              </span>
-              <div className="relative min-w-0 text-right">
-                <p className={`text-sm font-bold leading-tight ${isActive ? item.activeColor : "text-white/70 group-hover:text-white/90"}`}>{item.label}</p>
-                <p className="relative text-[10px] opacity-50 leading-none mt-0.5">{item.sublabel}</p>
-              </div>
-            </button>
-          );
-        })}
-      </nav>
-    </aside>
+    <>
+      {/* Overlay — يظهر لما الـ sidebar مفتوح */}
+      {open && (
+        <div className="hidden md:block fixed inset-0 z-30" onClick={() => setOpen(false)} />
+      )}
+
+      {/* Collapsed rail — أيقونات بس + زرار فتح */}
+      {!open && (
+        <div
+          className="hidden md:flex fixed right-3 top-3 bottom-3 z-40 flex-col items-center py-4 gap-2 w-[64px] rounded-[26px] cursor-pointer"
+          style={{
+            background: "rgba(20,20,26,0.68)",
+            backdropFilter: "blur(24px) saturate(180%)",
+            WebkitBackdropFilter: "blur(24px) saturate(180%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset",
+          }}
+          onClick={() => setOpen(true)}
+        >
+          <div className="mb-2">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/40 to-primary/10 border border-primary/20 flex items-center justify-center shadow">
+              <Truck className="w-[18px] h-[18px] text-primary" />
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col gap-1.5">
+            {NAV_ITEMS.map(item => {
+              const isActive = active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={(e) => { e.stopPropagation(); onSelect(item.id); }}
+                  title={item.label}
+                  className="relative w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300"
+                >
+                  {isActive && (
+                    <span className="absolute inset-0 rounded-2xl transition-all duration-300"
+                      style={{
+                        background: item.glowColor.replace("0.35", "0.18"),
+                        boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.28")} inset, 0 0 16px ${item.glowColor}`,
+                      }} />
+                  )}
+                  <item.Icon className={`relative w-5 h-5 transition-all duration-300 ${isActive ? item.activeColor : "text-white/50 hover:text-white/80"}`} />
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+            className="w-11 h-9 rounded-2xl flex items-center justify-center text-white/50 hover:text-white/90 hover:bg-white/[0.06] transition-all"
+            title="فتح القائمة"
+          >
+            <ChevronLeft className="w-[18px] h-[18px]" />
+          </button>
+        </div>
+      )}
+
+      {/* Full sidebar — يظهر عند الفتح */}
+      <aside
+        dir="rtl"
+        className={`hidden md:flex flex-col w-64 shrink-0 h-[calc(100vh-24px)] fixed right-3 top-3 z-40 overflow-y-auto rounded-[26px] transition-all duration-300 ${open ? "translate-x-0 opacity-100" : "translate-x-[calc(100%+12px)] opacity-0 pointer-events-none"}`}
+        style={{
+          background: "rgba(20,20,26,0.72)",
+          backdropFilter: "blur(28px) saturate(180%)",
+          WebkitBackdropFilter: "blur(28px) saturate(180%)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.06) inset",
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-4 pt-5 pb-4 border-b border-white/[0.06] flex items-center justify-between">
+          <p className="text-sm font-black">بوابة المندوب</p>
+          <button
+            onClick={() => setOpen(false)}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white/50 hover:text-white/90 hover:bg-white/[0.06] transition-all"
+            title="طي القائمة"
+          >
+            <ChevronDown className="w-4 h-4 rotate-90" />
+          </button>
+        </div>
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {NAV_ITEMS.map(item => {
+            const isActive = active === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onSelect(item.id)}
+                className="relative w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-right transition-all duration-300 group"
+              >
+                {isActive && (
+                  <span className="absolute inset-0 rounded-2xl transition-all duration-300"
+                    style={{
+                      background: item.glowColor.replace("0.35", "0.14"),
+                      boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.24")} inset`,
+                    }} />
+                )}
+                <span className={`relative w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
+                  isActive ? "bg-white/10" : "bg-white/[0.04] group-hover:bg-white/[0.08]"
+                }`}>
+                  <item.Icon className={`w-4 h-4 ${isActive ? item.activeColor : "text-white/50 group-hover:text-white/80"}`} />
+                </span>
+                <div className="relative min-w-0 text-right">
+                  <p className={`text-sm font-bold leading-tight ${isActive ? item.activeColor : "text-white/70 group-hover:text-white/90"}`}>{item.label}</p>
+                  <p className="relative text-[10px] opacity-50 leading-none mt-0.5">{item.sublabel}</p>
+                </div>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }
 
@@ -1814,7 +1881,10 @@ export default function ShippingCompanies() {
           active="manifests"
           onSelect={(tab) => { if (tab !== "manifests") navigate(`/representative?tab=${tab}`); }}
         />
-        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-border/60 bg-background/95 backdrop-blur-sm md:mr-[248px]">
+        {/* ملاحظة: الـ margin هنا بيتماشى مع الـ rail وهو مقفول (64px + مسافات) —
+            لما المندوب يفتح الـ sidebar الكامل، هو بيتحرك فوق المحتوى (overlay)
+            بدل ما يزحزحه، فمفيش داعي لتغيير الـ margin ديناميكياً */}
+        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-border/60 bg-background/95 backdrop-blur-sm md:mr-[88px]">
           <Link href="/representative">
             <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border shrink-0">
               <ArrowRight className="w-4 h-4" />
@@ -1822,7 +1892,7 @@ export default function ShippingCompanies() {
           </Link>
           <span className="text-sm font-bold">بياناتي</span>
         </div>
-        <div className="p-4 max-w-2xl mx-auto md:mr-[248px]" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)" }}>
+        <div className="p-4 max-w-2xl mx-auto md:mr-[88px]" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)" }}>
           {pageContent}
         </div>
         {/* نفس الـ bottom nav بتاع داشبورد المندوب — للموبايل بس (md:hidden جواها) —
