@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany } from "@/lib/api";
+import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -1018,6 +1018,17 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
 }
 
 // ─── تاب البيانات — قائمة بيانات الشحن بتاعة المندوب ─────────────────────────
+// ─── RepManifestsTab: يستخدم CompanyStats و CompanyManifests (نظام الشحنات الجديد) بدل ManifestsTab القديم ───
+function RepManifestsTab({ company }: { company: ShippingCompany | null | undefined }) {
+  if (!company) return null;
+  return (
+    <div className="space-y-4">
+      <CompanyStats companyId={company.id} canViewFinancials={true} />
+      <CompanyManifests company={company} allCompanies={[company]} canShipping={true} />
+    </div>
+  );
+}
+
 function ManifestsTab({ companyId }: { companyId: number | null }) {
   const [, setLocation] = useLocation();
 
@@ -3554,7 +3565,7 @@ export default function RepresentativeDashboard() {
           )}
 
           {/* ─── Manifests Tab ─── */}
-          {activeTab === "manifests" && <ManifestsTab companyId={company?.id ?? null} />}
+          {activeTab === "manifests" && <RepManifestsTab company={company} />}
 
           {/* ─── Today Tasks Tab ─── */}
           {activeTab === "tasks" && <TodayTasksTab companyId={company?.id ?? null} />}
