@@ -548,7 +548,7 @@ function Router() {
           <Route path="/shipping/manifests/:id"          component={() => <ProtectedRoute permission="shipping.view" component={ShippingManifestPage} />} />
           <Route path="/shipping/shipment-manifests/:id" component={() => <ProtectedRoute permission="shipping.view" component={ShipmentManifestDetailPage} />} />
           <Route path="/shipping/company/:id"     component={() => <ProtectedRoute permission="shipping.view" component={ShippingCompanyDetail} />} />
-          <Route path="/shipping/representative/:id" component={() => <ProtectedRoute permission="shipping.view" component={RepresentativeCompanyDetailPage} />} />
+          <Route path="/shipping/representative/:id" component={RepresentativeCompanyDetailPage} />
           <Route path="/invoices"                 component={() => <ProtectedRoute permission="invoices.view" component={Invoices} />} />
           <Route path="/import"                   component={() => <ProtectedRoute permission="import.view" component={Import} />} />
           <Route path="/movements"                component={() => <ProtectedRoute permission="inventory.movements" component={Movements} />} />

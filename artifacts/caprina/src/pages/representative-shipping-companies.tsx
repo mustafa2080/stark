@@ -1406,7 +1406,7 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
                     <CompanyAvatar logo={company.logo} name={company.name} size="md" />
                   </div>
                   <div>
-                    <Link href={`/shipping/company/${company.id}`}>
+                    <Link href={`/shipping/representative/${company.id}`}>
                       <h3 className="font-bold text-sm hover:underline cursor-pointer transition-colors"
                         style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}>
                         {company.name}
