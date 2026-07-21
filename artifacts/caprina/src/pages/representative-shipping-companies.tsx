@@ -545,6 +545,11 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showBlockedAlert, setShowBlockedAlert] = useState(false);
   const [, navigate] = useLocation();
+  // المندوب معندوش صلاحية shipping.view على مسارات الأدمن (/shipping/...)،
+  // فلازم نوديه لصفحة تفاصيل البيان المخصصة للمندوب بدل ما الـ ProtectedRoute
+  // يرفضه ويرجّعه للصفحة الرئيسية.
+  const { user } = useAuth();
+  const isRepView = user?.role === "representative";
 
   const { data: manifests } = useQuery({
     queryKey: ["shipping-manifests", company.id],
@@ -629,7 +634,7 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
             <>
               <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide px-1">بيانات الشحنات</p>
               {shipmentManifests.map(m => (
-                <Link key={`sm-${m.id}`} href={`/shipping/shipment-manifests/${m.id}`}>
+                <Link key={`sm-${m.id}`} href={isRepView ? `/representative/manifests/${m.id}` : `/shipping/shipment-manifests/${m.id}`}>
                   <div className="flex items-center justify-between p-2.5 rounded-md bg-primary/5 hover:bg-primary/10 cursor-pointer transition-colors border border-primary/10">
                     <div>
                       <p className="text-xs font-bold">{m.manifestNumber}</p>
@@ -643,8 +648,10 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
               ))}
             </>
           )}
-          {/* بيانات الطلبات (النظام القديم) */}
-          {manifests && manifests.length > 0 && (
+          {/* بيانات الطلبات (النظام القديم) — مخفية عن المندوب لأن مفيش صفحة
+              تفاصيل مخصصة له بتدعم النظام القديم ده (representative-manifest-detail
+              بتدعم بيانات الشحنات الجديدة بس)، فمكانش هيقدر يفتحها أصلاً */}
+          {!isRepView && manifests && manifests.length > 0 && (
             <>
               <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide px-1 mt-2">بيانات الطلبات</p>
               {manifests.map(m => (
