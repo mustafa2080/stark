@@ -3364,6 +3364,7 @@ export default function RepresentativeDashboard() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [shipmentSearch, setShipmentSearch] = useState("");
   const [page, setPage] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -3462,6 +3463,18 @@ export default function RepresentativeDashboard() {
   const s = ships as any;
   const allShipments: any[] = (allShipsData as any)?.data ?? [];
   const company = (meData as any)?.company;
+
+  const filteredRepShipments = (() => {
+    const list: any[] = s?.data ?? [];
+    const q = shipmentSearch.trim().toLowerCase();
+    if (!q) return list;
+    const qPhone = q.replace(/\s/g, "");
+    return list.filter((sh: any) => {
+      const name  = (sh.receiverName  ?? "").toLowerCase();
+      const phone = (sh.receiverPhone ?? "").replace(/\s/g, "");
+      return name.includes(q) || phone.includes(qPhone);
+    });
+  })();
 
   // Quick filter buttons للحالات الرئيسية
   const QUICK_FILTERS = [
@@ -3601,9 +3614,31 @@ export default function RepresentativeDashboard() {
                 ))}
               </div>
 
+              {/* بحث بالاسم / رقم الهاتف */}
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="search"
+                  inputMode="search"
+                  placeholder="ابحث بالاسم أو رقم الهاتف..."
+                  value={shipmentSearch}
+                  onChange={(e) => setShipmentSearch(e.target.value)}
+                  className="h-10 sm:h-9 text-sm w-full pr-9 pl-8 bg-card/60 border-border focus-visible:ring-primary/40"
+                />
+                {shipmentSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setShipmentSearch("")}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
               {/* Shipments list */}
               <div className="space-y-2">
-                {s?.data?.map((sh: any) => (
+                {filteredRepShipments.map((sh: any) => (
                   <Card key={sh.id} className="p-3 bg-card/60 border-border">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -3631,6 +3666,9 @@ export default function RepresentativeDashboard() {
                 ))}
                 {s?.data?.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
+                )}
+                {s?.data && s.data.length > 0 && filteredRepShipments.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">لا توجد نتائج مطابقة للبحث</p>
                 )}
               </div>
 
