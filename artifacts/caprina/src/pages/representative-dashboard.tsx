@@ -3351,7 +3351,17 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
 
 export default function RepresentativeDashboard() {
   const { user, isRepresentative, logout } = useAuth();
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<TabId>("home");
+  // تاب "البيانات" (manifests) بيوديك مباشرة لصفحة representative-shipping-companies
+  // بدل ما يغيّر التاب جوه نفس الداشبورد
+  const handleNavSelect = (id: TabId) => {
+    if (id === "manifests") {
+      navigate("/representative/shipping-companies");
+      return;
+    }
+    setActiveTab(id);
+  };
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -3468,7 +3478,7 @@ export default function RepresentativeDashboard() {
       {/* ─── Desktop Sidebar ─── */}
       <DesktopSidebar
         active={activeTab}
-        onSelect={(t) => { setActiveTab(t); setSidebarOpen(false); }}
+        onSelect={(t) => { handleNavSelect(t); setSidebarOpen(false); }}
         company={company}
         user={user}
         d={d}
@@ -3644,7 +3654,7 @@ export default function RepresentativeDashboard() {
         </div>{/* end content area */}
 
         {/* ─── Mobile Bottom Nav ─── */}
-        <MobileBottomNav active={activeTab} onSelect={setActiveTab} />
+        <MobileBottomNav active={activeTab} onSelect={handleNavSelect} />
       </div>{/* end main content */}
     </div>
   );
