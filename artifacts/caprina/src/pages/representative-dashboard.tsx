@@ -1426,7 +1426,7 @@ function DesktopSidebar({
       {/* Collapsed rail — يظهر لما الـ sidebar مقفول: أيقونات التابات واضحة + زرار فتح */}
       {!open && (
         <div
-          className="hidden md:flex fixed right-3 top-3 bottom-3 z-40 flex-col items-center py-4 gap-2 w-[64px] rounded-[26px]"
+          className="hidden md:flex fixed right-3 top-3 bottom-3 z-40 flex-col items-center py-4 gap-2 w-[64px] rounded-[26px] cursor-pointer"
           style={{
             background: "rgba(20,20,26,0.68)",
             backdropFilter: "blur(24px) saturate(180%)",
@@ -1434,6 +1434,7 @@ function DesktopSidebar({
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset",
           }}
+          onClick={onToggle}
         >
           {/* Logo/Brand mini */}
           <div className="mb-2">
@@ -1453,7 +1454,7 @@ function DesktopSidebar({
               return (
                 <button
                   key={item.id}
-                  onClick={() => { onSelect(item.id); onToggle(); }}
+                  onClick={(e) => { e.stopPropagation(); onSelect(item.id); }}
                   title={item.label}
                   className="relative w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300"
                 >
@@ -1472,7 +1473,7 @@ function DesktopSidebar({
 
           {/* Open toggle */}
           <button
-            onClick={onToggle}
+            onClick={(e) => { e.stopPropagation(); onToggle(); }}
             className="w-11 h-9 rounded-2xl flex items-center justify-center text-white/50 hover:text-white/90 hover:bg-white/[0.06] transition-all"
             title="فتح القائمة"
           >
