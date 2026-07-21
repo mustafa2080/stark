@@ -1543,9 +1543,14 @@ export default function ShippingCompanies() {
       ) : (
         <Card className="border-border p-12 text-center">
           <Truck className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
-          <p className="font-bold">لا يوجد مناديب شحن</p>
-          <p className="text-sm text-muted-foreground mt-1">أضف مناديب الشحن الذين تتعامل معهم.</p>
-          {canEdit && <Button onClick={openAdd} className="mt-4 gap-2 text-sm"><Plus className="w-4 h-4" />إضافة مندوب</Button>}
+          <p className="font-bold">لا يوجد بيانات مرتبطة بحسابك</p>
+          <p className="text-sm text-muted-foreground mt-1">تواصل مع الإدارة لربط حسابك ببيانات الشحن.</p>
+          {/* debug مؤقت — هنشيله بعد التأكد */}
+          <div className="mt-4 p-3 rounded-lg bg-muted/30 text-[10px] text-left ltr:text-left rtl:text-right inline-block">
+            <p>user.username: <b>{JSON.stringify(user?.username)}</b></p>
+            <p>allCompanies count: <b>{allCompanies?.length ?? "loading"}</b></p>
+            <p>repUsernames: <b>{JSON.stringify(allCompanies?.map(c => c.repUsername))}</b></p>
+          </div>
         </Card>
       )}
 
