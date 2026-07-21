@@ -11,7 +11,7 @@ import {
   ArrowRight, Truck, FileText, Lock,
   CheckCircle2, RotateCcw, Clock, TrendingUp, TrendingDown,
   ChevronRight, Calendar, Package, Phone, Globe, X, Send,
-  MapPin, User,
+  MapPin, User, Search,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -114,6 +114,7 @@ export default function RepresentativeCompanyDetailPage() {
   const companyId = Number(params.id);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo]     = useState("");
+  const [shipmentSearch, setShipmentSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"manifests" | "shipments">("manifests");
   const { can, isAdmin } = useAuth();
   const canFinancials = isAdmin || can("shipping.financials");
@@ -133,6 +134,16 @@ export default function RepresentativeCompanyDetailPage() {
     enabled: !isNaN(companyId) && activeTab === "shipments",
   });
   const shipments = shipmentsData?.data ?? [];
+
+  const filteredShipments = (() => {
+    const q = shipmentSearch.trim().toLowerCase();
+    if (!q) return shipments;
+    return shipments.filter((s: any) => {
+      const name  = (s.receiverName  ?? "").toLowerCase();
+      const phone = (s.receiverPhone ?? "").replace(/\s/g, "");
+      return name.includes(q) || phone.includes(q.replace(/\s/g, ""));
+    });
+  })();
 
   const { data: shipmentManifests } = useQuery({
     queryKey: ["shipment-manifests", companyId],
@@ -328,6 +339,28 @@ export default function RepresentativeCompanyDetailPage() {
       {/* ─── Tab: Shipments ─── */}
       {activeTab === "shipments" && (
         <div className="pt-3 space-y-4">
+          {/* ── بحث بالاسم / رقم الهاتف ── */}
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              type="search"
+              inputMode="search"
+              placeholder="ابحث بالاسم أو رقم الهاتف..."
+              value={shipmentSearch}
+              onChange={(e) => setShipmentSearch(e.target.value)}
+              className="h-10 sm:h-9 text-sm w-full pr-9 pl-8 bg-card/60 border-border focus-visible:ring-primary/40"
+            />
+            {shipmentSearch && (
+              <button
+                type="button"
+                onClick={() => setShipmentSearch("")}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
           {shipmentsLoading ? (
             <div className="py-12 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</div>
           ) : shipments.length === 0 ? (
@@ -335,9 +368,14 @@ export default function RepresentativeCompanyDetailPage() {
               <Send className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
               <p className="text-muted-foreground text-sm">لا توجد شحنات مرتبطة بهذه الشركة</p>
             </div>
+          ) : filteredShipments.length === 0 ? (
+            <div className="py-16 text-center">
+              <Search className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+              <p className="text-muted-foreground text-sm">لا توجد نتائج مطابقة للبحث</p>
+            </div>
           ) : (
             <div className="space-y-2">
-              {shipments.map((s: any) => {
+              {filteredShipments.map((s: any) => {
                 const statusColors: Record<string, string> = {
                   waiting:           "border-amber-700 bg-amber-900/20 text-amber-400",
                   confirmed:         "border-blue-700 bg-blue-900/20 text-blue-400",
