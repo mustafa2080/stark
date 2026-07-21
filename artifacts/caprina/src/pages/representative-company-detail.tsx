@@ -30,7 +30,7 @@ function ShipmentManifestCard({ m, isLatest }: { m: ShipmentManifestListItem; is
   const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
 
   return (
-    <a href={`/shipping/shipment-manifests/${m.id}`}>
+    <a href={`/representative/manifests/${m.id}`}>
       <div className={`group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border ${
         m.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"
       }`}>
