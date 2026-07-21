@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -1312,7 +1312,13 @@ export default function ShippingCompanies() {
 
   const toggleActive = (c: ShippingCompany) => updateMutation.mutate({ id: c.id, data: { isActive: !c.isActive } });
 
-  return (
+  // ── المندوب: الصفحة دي بتتفتح خارج داشبورد المندوب (route منفصل) وملهاش
+  // sidebar/header خاص بيها زي باقي صفحات المندوب، فبنبني هيدر بسيط متسق
+  // مع باقي صفحات المندوب (نفس أسلوب representative-manifest-detail.tsx)
+  // بدل ما تفضل الصفحة عارية بدون أي header أو زرار رجوع.
+  const isRepView = user?.role === "representative";
+
+  const pageContent = (
     <div className="space-y-5 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
@@ -1735,4 +1741,26 @@ export default function ShippingCompanies() {
       )}
     </div>
   );
+
+  // ── عرض المندوب: هيدر ثابت فيه زرار رجوع للداشبورد + محتوى الصفحة داخل
+  // padding مناسب، لأن الصفحة دي بتتفتح بدون Layout (بدون sidebar/header) ──
+  if (isRepView) {
+    return (
+      <div className="bg-background" style={{ minHeight: "100dvh" }} dir="rtl">
+        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-border/60 bg-background/95 backdrop-blur-sm">
+          <Link href="/representative">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border shrink-0">
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
+          <span className="text-sm font-bold">بياناتي</span>
+        </div>
+        <div className="p-4 pb-8 max-w-2xl mx-auto">
+          {pageContent}
+        </div>
+      </div>
+    );
+  }
+
+  return pageContent;
 }
