@@ -238,7 +238,6 @@ const TrackClientPage       = lazy(() => import("@/pages/track-client"));
 const ClientsShowcasePage   = lazy(() => import("@/pages/clients-showcase"));
 const RepresentativePage    = lazy(() => import("@/pages/representative-dashboard"));
 const RepresentativeManifestDetailPage = lazy(() => import("@/pages/representative-manifest-detail"));
-const RepresentativeShippingCompaniesPage = lazy(() => import("@/pages/representative-shipping-companies"));
 
 // ─── Global QueryClient with smart caching defaults ──────────────────────────
 // MutationCache: أي mutation تنجح على الطلبات → invalidate الـ analytics فوراً
@@ -533,7 +532,6 @@ function Router() {
           <Route path="/client-pickup-requests"   component={ClientPickupRequestsPage} />
           <Route path="/representative"           component={RepresentativePage} />
           <Route path="/representative/manifests/:id" component={RepresentativeManifestDetailPage} />
-          <Route path="/representative/shipping-companies" component={RepresentativeShippingCompaniesPage} />
           <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
           <Route path="/operations-center"        component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />

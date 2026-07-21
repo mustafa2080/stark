@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
+import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
 import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1017,17 +1018,10 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
   );
 }
 
-// ─── تاب البيانات — قائمة بيانات الشحن بتاعة المندوب ─────────────────────────
-// ─── RepManifestsTab: يستخدم CompanyStats و CompanyManifests (نظام الشحنات الجديد) بدل ManifestsTab القديم ───
-function RepManifestsTab({ company }: { company: ShippingCompany | null | undefined }) {
-  if (!company) return null;
-  return (
-    <div className="space-y-4">
-      <CompanyStats companyId={company.id} canViewFinancials={true} />
-      <CompanyManifests company={company} allCompanies={[company]} canShipping={true} />
-    </div>
-  );
-}
+// ─── تاب البيانات (manifests) ─── اتشال RepManifestsTab المختصر القديم من
+// هنا؛ التاب دلوقتي بيستخدم ShippingCompaniesPage (embedded) اللي مستوردة
+// فوق من representative-shipping-companies.tsx، وفيها نفس CompanyStats/
+// CompanyManifests بالإضافة لكارت بيانات المندوب الكامل (اسم/صورة/هاتف).
 
 function ManifestsTab({ companyId }: { companyId: number | null }) {
   const [, setLocation] = useLocation();
@@ -3096,7 +3090,6 @@ function ProfileTab({ user, company, logout, d, allShipments, onNavigate }: {
   user: any; company: any; logout: () => void; d?: any; allShipments?: any[]; onNavigate?: (t: TabId) => void;
 }) {
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [, navigate] = useLocation();
 
   const deliveryRate = d?.deliveryRate ?? 0;
   const totalShipments = d?.total ?? (allShipments?.length ?? 0);
@@ -3236,9 +3229,9 @@ function ProfileTab({ user, company, logout, d, allShipments, onNavigate }: {
         </div>
       </div>
 
-      {/* بيانات الشحن — إدارة بياناته الخاصة */}
+      {/* بيانات الشحن — إدارة بياناته الخاصة (نفس تاب manifests، بدون navigation/reload) */}
       <button
-        onClick={() => navigate("/representative/shipping-companies")}
+        onClick={() => onNavigate?.("manifests")}
         className="w-full rounded-2xl border bg-card/60 px-4 py-3.5 flex items-center justify-between hover:bg-card/90 transition-colors">
         <span className="flex items-center gap-2 text-xs font-bold">
           <span className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -3363,24 +3356,11 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
 export default function RepresentativeDashboard() {
   const { user, isRepresentative, logout } = useAuth();
   const [, navigate] = useLocation();
-  // بيقرا ?tab=xxx من الـ URL (لو موجود) عشان الصفحات الخارجية زي
-  // representative-shipping-companies تقدر ترجّع لتاب معيّن في الداشبورد
-  const initialTab = (() => {
-    if (typeof window === "undefined") return "home" as TabId;
-    const t = new URLSearchParams(window.location.search).get("tab") as TabId | null;
-    const valid: TabId[] = ["home", "performance", "shipments", "manifests", "tasks", "profile"];
-    return (t && valid.includes(t)) ? t : ("home" as TabId);
-  })();
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
-  // تاب "البيانات" (manifests) بيوديك مباشرة لصفحة representative-shipping-companies
-  // بدل ما يغيّر التاب جوه نفس الداشبورد
-  const handleNavSelect = (id: TabId) => {
-    if (id === "manifests") {
-      navigate("/representative/shipping-companies");
-      return;
-    }
-    setActiveTab(id);
-  };
+  const [activeTab, setActiveTab] = useState<TabId>("home");
+  // كل التابات بما فيهم "manifests" (بياناتي) بتتغيّر جوه نفس الداشبورد —
+  // مفيش أي navigate/route change، عشان الصفحة تفضل single-page state
+  // ومتفضلش الـ sidebar/header يعملوا reload أو remount كل ما نغيّر تاب
+  const handleNavSelect = (id: TabId) => setActiveTab(id);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -3572,8 +3552,11 @@ export default function RepresentativeDashboard() {
             <PerformanceTab d={d} allShipments={allShipments} />
           )}
 
-          {/* ─── Manifests Tab ─── */}
-          {activeTab === "manifests" && <RepManifestsTab company={company} />}
+          {/* ─── Manifests Tab (بياناتي) ───
+              بيستخدم نفس صفحة representative-shipping-companies.tsx كاملة
+              (بدل RepManifestsTab المختصر القديم)، بس embedded جوه الداشبورد
+              نفسه بدون أي route/navigate — نفس الـ single-page state تمامًا ── */}
+          {activeTab === "manifests" && <ShippingCompaniesPage embedded />}
 
           {/* ─── Today Tasks Tab ─── */}
           {activeTab === "tasks" && <TodayTasksTab companyId={company?.id ?? null} />}
