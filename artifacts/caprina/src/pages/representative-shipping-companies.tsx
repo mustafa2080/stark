@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { MobileBottomNav } from "@/pages/representative-dashboard";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
 const AVAILABLE_SHIPMENT_STATUSES = ["waiting"];
@@ -1185,6 +1186,7 @@ function RepresentativeDialog({
 
 export default function ShippingCompanies() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const { can, isAdmin, canViewFinancials, user } = useAuth();
   // ── المندوب: مسموح له يشوف بياناته بس، ومعندوش صلاحيات إدارية على غيره ────
   const canEdit       = false;
@@ -1762,9 +1764,16 @@ export default function ShippingCompanies() {
           </Link>
           <span className="text-sm font-bold">بياناتي</span>
         </div>
-        <div className="p-4 pb-8 max-w-2xl mx-auto">
+        <div className="p-4 max-w-2xl mx-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)" }}>
           {pageContent}
         </div>
+        {/* نفس الـ bottom nav بتاع داشبورد المندوب — "بياناتي" هو تاب manifests
+            وإحنا فعلاً فيه، فمنعملش حاجة. الأزرار التانية بترجع للداشبورد
+            بنفس التاب المطلوب عن طريق ?tab= (الداشبورد بيقرأها في بدايته) */}
+        <MobileBottomNav
+          active="manifests"
+          onSelect={(tab) => { if (tab !== "manifests") navigate(`/representative?tab=${tab}`); }}
+        />
       </div>
     );
   }

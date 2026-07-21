@@ -2265,8 +2265,8 @@ function RepresentativeDialog({
 
 
 // ─── NAV ITEMS definition ─────────────────────────────────────────────────────
-type TabId = "home" | "performance" | "shipments" | "manifests" | "tasks" | "profile";
-const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: React.ElementType; activeColor: string; activeBg: string; glowColor: string }[] = [
+export type TabId = "home" | "performance" | "shipments" | "manifests" | "tasks" | "profile";
+export const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: React.ElementType; activeColor: string; activeBg: string; glowColor: string }[] = [
   {
     id: "home",
     label: "الرئيسية",
@@ -2493,7 +2493,7 @@ function DesktopSidebar({
 }
 
 // ─── Mobile Bottom Nav ────────────────────────────────────────────────────────
-function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
+export function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
   const activeIndex = NAV_ITEMS.findIndex(n => n.id === active);
   return (
     <nav
@@ -3363,7 +3363,15 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
 export default function RepresentativeDashboard() {
   const { user, isRepresentative, logout } = useAuth();
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<TabId>("home");
+  // بيقرا ?tab=xxx من الـ URL (لو موجود) عشان الصفحات الخارجية زي
+  // representative-shipping-companies تقدر ترجّع لتاب معيّن في الداشبورد
+  const initialTab = (() => {
+    if (typeof window === "undefined") return "home" as TabId;
+    const t = new URLSearchParams(window.location.search).get("tab") as TabId | null;
+    const valid: TabId[] = ["home", "performance", "shipments", "manifests", "tasks", "profile"];
+    return (t && valid.includes(t)) ? t : ("home" as TabId);
+  })();
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   // تاب "البيانات" (manifests) بيوديك مباشرة لصفحة representative-shipping-companies
   // بدل ما يغيّر التاب جوه نفس الداشبورد
   const handleNavSelect = (id: TabId) => {
