@@ -4803,7 +4803,8 @@ export default function ShippingManifestPage() {
       })()}
 
       {/* ─── P&L Summary for shipment manifests ─── */}
-      {canViewFinancials && (() => {
+      {/* ملحوظة: كانت مخفية عن المندوب بشرط canViewFinancials — اتظهرت له بالتحديد بناءً على طلبه */}
+      {true && (() => {
         // returned: يستبعد بالكامل من الحسابات المالية دايمًا — سواء لسه عند الشحن أو اتأكد استلامه
         // (كان لازم يتصرف في البيان القديم المغلق، مايرجعش فلوسه هنا بعد الترحيل).
         // partial_delivered/partial_received: الجزء المُسلَّم فعلي وحقيقي فيتحسب ماليًا عادي؛
