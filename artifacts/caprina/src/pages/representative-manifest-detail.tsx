@@ -4910,6 +4910,7 @@ export default function ShippingManifestPage() {
               <p className="text-lg font-black text-sky-400">{formatCurrency(totalDueToCourier)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
+            {isAdmin && (
             <Card className={`col-span-2 border overflow-hidden transition-all duration-300 ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
               <button
                 type="button"
@@ -4938,6 +4939,7 @@ export default function ShippingManifestPage() {
                 </div>
               </div>
             </Card>
+            )}
           </div>
         );
       })()}
