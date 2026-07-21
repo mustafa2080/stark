@@ -1178,10 +1178,10 @@ function RepresentativeDialog({
 
 export default function ShippingCompanies() {
   const { toast } = useToast();
-  const { can, isAdmin, canViewFinancials } = useAuth();
-  // ── Shipping permission shortcuts ──────────────────────────────────────────
-  const canEdit       = isAdmin || can("shipping.edit");
-  const canFinancials = isAdmin || can("shipping.financials");
+  const { can, isAdmin, canViewFinancials, user } = useAuth();
+  // ── المندوب: مسموح له يشوف بياناته بس، ومعندوش صلاحيات إدارية على غيره ────
+  const canEdit       = false;
+  const canFinancials = true;
   const canManifests  = isAdmin || can("shipping.manifests");
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1191,7 +1191,9 @@ export default function ShippingCompanies() {
   const [repDialogMode, setRepDialogMode] = useState<"account" | "password">("account");
   const [form, setForm] = useState(emptyForm);
 
-  const { data: companies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
+  const { data: allCompanies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
+  // ── المندوب يشوف بياناته هو بس (اللي عنده repUsername = اسم المستخدم بتاعه) ──
+  const companies = allCompanies?.filter(c => c.repUsername === user?.username);
   const { data: zones = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
@@ -1309,14 +1311,9 @@ export default function ShippingCompanies() {
     <div className="space-y-5 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">إدارة مناديب الشحن</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">إدارة مناديب الشحن وبيانات التسليم</p>
+          <h1 className="text-2xl font-bold">بياناتي</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">بيانات حسابك وإحصائيات التسليم الخاصة بك</p>
         </div>
-        {can("shipping.edit") && (
-          <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
-            <Plus className="w-4 h-4" />إضافة مندوب
-          </Button>
-        )}
       </div>
 
       {/* Stats */}
@@ -1346,7 +1343,7 @@ export default function ShippingCompanies() {
       {isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
       ) : companies?.length ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 max-w-xl">
           {companies.map((company, idx) => {
             // ألوان متنوعة لكل شركة
             const palettes = [
