@@ -628,10 +628,21 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
           </div>
 
           {sh.receiverCity && (
-            <p className="text-[10px] text-red-300 flex items-center gap-1 mb-1.5">
+            <p className="text-[10px] text-red-300 flex items-center gap-1 mb-1">
               <MapPin className="w-3 h-3" /> {sh.receiverCity}
             </p>
           )}
+
+          {sh.receiverAddress && (
+            <p className="text-[10px] text-red-200/80 flex items-start gap-1 mb-1.5">
+              <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-red-300/50" />
+              <span>{sh.receiverAddress}</span>
+            </p>
+          )}
+
+          <p className="text-[10px] text-red-300/70 mb-1.5">
+            {sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : ""}
+          </p>
 
           <div className="flex items-center justify-between gap-2 mb-2">
             <span className="text-sm font-black text-emerald-300">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
