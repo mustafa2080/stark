@@ -247,3 +247,31 @@ export const MANIFEST_DELIVERY_TEMPLATE_VARIABLES = [
   { var: "{totalPrice}",        label: "إجمالي سعر الشحنة" },
   { var: "{representativeName}", label: "اسم المندوب" },
 ];
+
+// ─── قالب "طلب استعداد للاستلام" — يُرسل من المندوب للعميل من تاب "مهامي" ──
+export interface WhatsAppDeliveryReadyData {
+  customerName: string;
+  representativeName?: string | null;
+  shipmentNumber?: string | null;
+  codAmount?: number | string | null;
+  receiverCity?: string | null;
+}
+
+export function applyDeliveryReadyTemplate(templateBody: string, d: WhatsAppDeliveryReadyData): string {
+  const formatCurr = (n: number | string | null | undefined) =>
+    new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
+  return templateBody
+    .replace(/\{customerName\}/g,       d.customerName)
+    .replace(/\{representativeName\}/g, d.representativeName ?? "المندوب")
+    .replace(/\{shipmentNumber\}/g,      d.shipmentNumber ?? "—")
+    .replace(/\{codAmount\}/g,           formatCurr(d.codAmount))
+    .replace(/\{receiverCity\}/g,        d.receiverCity ?? "—");
+}
+
+export const DELIVERY_READY_TEMPLATE_VARIABLES = [
+  { var: "{customerName}",      label: "اسم العميل" },
+  { var: "{representativeName}", label: "اسم المندوب" },
+  { var: "{shipmentNumber}",    label: "رقم الشحنة" },
+  { var: "{codAmount}",         label: "مبلغ COD" },
+  { var: "{receiverCity}",      label: "محافظة العميل" },
+];

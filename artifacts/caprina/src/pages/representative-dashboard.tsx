@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
 import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ import { ar } from "date-fns/locale";
 import { formatDistanceToNow } from "date-fns";
 import { RepRouteMap } from "@/components/rep-route-map";
 import { RETURN_REASONS } from "@/lib/order-constants";
+import { applyDeliveryReadyTemplate } from "@/lib/whatsapp";
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "انتظار", confirmed: "مؤكدة", picked_up: "تم الاستلام",
@@ -1307,8 +1308,28 @@ const TASK_STATUS_PRIORITY: Record<string, { label: string; color: string; dot: 
 };
 
 function TaskCard({ task }: { task: any }) {
+  const { user } = useAuth();
   const statusKey = task.isUrgent ? "urgent" : (task.deliveryStatus ?? task.status ?? "pending");
   const info = TASK_STATUS_PRIORITY[statusKey] ?? TASK_STATUS_PRIORITY["waiting"];
+
+  const { data: waSettings } = useQuery({
+    queryKey: ["whatsapp-settings"],
+    queryFn: () => apiFetch("/whatsapp/settings"),
+    staleTime: 5 * 60_000,
+  });
+  const deliveryReadyTpl = (waSettings as any)?.templates?.find((t: any) => t.name === "طلب استعداد للاستلام");
+  const whatsappMessage = deliveryReadyTpl
+    ? applyDeliveryReadyTemplate(deliveryReadyTpl.body, {
+        customerName: task.receiverName,
+        representativeName: (user as any)?.name ?? "",
+        shipmentNumber: task.shipmentNumber,
+        codAmount: task.codAmount,
+      })
+    : "";
+  const waPhone = (task.receiverPhone ?? "").replace(/\D/g, "");
+  const waHref = whatsappMessage
+    ? `https://wa.me/${waPhone.startsWith("0") ? "2" + waPhone : waPhone}?text=${encodeURIComponent(whatsappMessage)}`
+    : undefined;
 
   return (
     <div className={`rounded-2xl border p-3 space-y-2.5 transition-all ${task.isUrgent ? "border-red-500/50 bg-red-950/30" : "border-border/60 bg-card/60"}`}>
@@ -1353,12 +1374,21 @@ function TaskCard({ task }: { task: any }) {
         </p>
       )}
 
-      {/* Call button */}
+      {/* Call + WhatsApp buttons */}
       {task.receiverPhone && (
-        <a href={`tel:${task.receiverPhone}`}
-          className="flex items-center justify-center gap-1.5 w-full h-8 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors">
-          <PhoneCall className="w-3.5 h-3.5" /> {task.receiverPhone}
-        </a>
+        <div className="flex items-center gap-1.5">
+          <a href={`tel:${task.receiverPhone}`}
+            className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors">
+            <PhoneCall className="w-3.5 h-3.5" /> {task.receiverPhone}
+          </a>
+          {waHref && (
+            <a href={waHref} target="_blank" rel="noopener noreferrer"
+              title="ابعت رسالة واتساب للعميل"
+              className="flex items-center justify-center w-8 h-8 shrink-0 rounded-xl border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
+              <MessageCircle className="w-4 h-4" />
+            </a>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1367,32 +1397,12 @@ function TaskCard({ task }: { task: any }) {
 function TodayTasksTab({ companyId }: { companyId: number | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [confirmed, setConfirmed] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["rep-today-tasks", companyId],
     queryFn: () => apiFetch(`/representative/today-tasks${companyId ? `?companyId=${companyId}` : ""}`),
     enabled: true,
     refetchInterval: 60_000, // تحديث تلقائي كل دقيقة
-  });
-
-  const bulkMutation = useMutation({
-    mutationFn: () => apiFetch("/representative/shipments/bulk-start-day", {
-      method: "PATCH",
-      body: JSON.stringify({ companyId }),
-    }),
-    onSuccess: (res: any) => {
-      const updated = res?.updated ?? 0;
-      toast({ title: `🚀 تم تحديث ${updated} شحنة إلى "خرجت للتسليم"` });
-      setConfirmed(false);
-      refetch();
-      qc.invalidateQueries({ queryKey: ["rep-shipments"] });
-      qc.invalidateQueries({ queryKey: ["rep-dashboard"] });
-      qc.invalidateQueries({ queryKey: ["rep-all-shipments"] });
-      qc.invalidateQueries({ queryKey: ["shipments-list"] });
-      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
-    },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const d = data as any;
@@ -1446,37 +1456,16 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
 
       {/* ── زر بدأت اليوم ── */}
       {canStartDay && (
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 space-y-1.5">
           <div className="flex items-center gap-2">
             <PlayCircle className="w-4 h-4 text-primary" />
             <p className="text-xs font-bold">
               {outTasks.length} شحنة جاهزة للتسليم — ابدأ يومك دلوقتي
             </p>
           </div>
-          {!confirmed ? (
-            <button onClick={() => setConfirmed(true)}
-              className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-black flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg"
-              style={{ boxShadow: "0 0 20px rgba(var(--primary-rgb, 99,102,241),0.3)" }}>
-              <PlayCircle className="w-4 h-4" /> 🚀 بدأت اليوم — حوّل الكل للتسليم
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-[11px] text-amber-400 text-center font-bold">
-                ⚠️ هيغيّر {outTasks.length} شحنة لـ "خرجت للتسليم" — متأكد؟
-              </p>
-              <div className="flex gap-2">
-                <button onClick={() => bulkMutation.mutate()}
-                  disabled={bulkMutation.isPending}
-                  className="flex-1 h-9 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-500 disabled:opacity-60 transition-all">
-                  {bulkMutation.isPending ? "بيحدّث..." : "✅ أيوه، ابدأ"}
-                </button>
-                <button onClick={() => setConfirmed(false)}
-                  className="flex-1 h-9 rounded-xl border border-border bg-muted/30 text-xs text-muted-foreground hover:bg-muted/60">
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          )}
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            💡 نصيحة: رتّب شحناتك حسب المنطقة قبل ما تنزل، وابعت لوكيشن لكل عميل قبل الوصول عشان توفّر وقتك وتقلل المكالمات.
+          </p>
         </div>
       )}
 

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
-import { type WaSettings, type WaTemplate, TEMPLATE_VARIABLES, SHIPPING_TEMPLATE_VARIABLES, SENDER_ISSUE_TEMPLATE_VARIABLES, MANIFEST_DELIVERY_TEMPLATE_VARIABLES } from "@/lib/whatsapp";
+import { type WaSettings, type WaTemplate, TEMPLATE_VARIABLES, SHIPPING_TEMPLATE_VARIABLES, SENDER_ISSUE_TEMPLATE_VARIABLES, MANIFEST_DELIVERY_TEMPLATE_VARIABLES, DELIVERY_READY_TEMPLATE_VARIABLES } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -96,11 +96,22 @@ export default function WhatsAppSettingsPage() {
     `ياريت التأكد من استلام الشحنة والمبلغ بشكل سليم 🙏\n\n` +
     `شكراً لثقتك 🌹`;
 
+  // ─── قالب طلب استعداد للاستلام (يُرسل من المندوب للعميل من تاب "مهامي") ─
+  const DELIVERY_READY_TEMPLATE_NAME = "طلب استعداد للاستلام";
+  const DEFAULT_DELIVERY_READY_BODY =
+    `السلام عليكم يا {customerName} 👋\n\n` +
+    `معاك المندوب *{representativeName}*.\n\n` +
+    `الرجاء إرسال اللوكيشن والاستعداد لتسليم الشحنة الخاصة بك 📍\n\n` +
+    `📦 رقم الشحنة: *{shipmentNumber}*\n` +
+    `💰 المبلغ المطلوب: *{codAmount}*\n\n` +
+    `شكراً لتعاونك 🌹`;
+
   const templates = settings?.templates ?? [];
   const notifyTpl = templates.find(t => t.name === NOTIFY_TEMPLATE_NAME) ?? null;
   const shippingTpl = templates.find(t => t.name === SHIPPING_TEMPLATE_NAME) ?? null;
   const senderIssueTpl = templates.find(t => t.name === SENDER_ISSUE_TEMPLATE_NAME) ?? null;
   const manifestDeliveryTpl = templates.find(t => t.name === MANIFEST_DELIVERY_TEMPLATE_NAME) ?? null;
+  const deliveryReadyTpl = templates.find(t => t.name === DELIVERY_READY_TEMPLATE_NAME) ?? null;
 
   const [notifyBody, setNotifyBody] = useState(DEFAULT_NOTIFY_BODY);
   const [savingNotify, setSavingNotify] = useState(false);
@@ -118,6 +129,10 @@ export default function WhatsAppSettingsPage() {
   const [savingManifestDelivery, setSavingManifestDelivery] = useState(false);
   const [editingManifestDelivery, setEditingManifestDelivery] = useState(false);
 
+  const [deliveryReadyBody, setDeliveryReadyBody] = useState(DEFAULT_DELIVERY_READY_BODY);
+  const [savingDeliveryReady, setSavingDeliveryReady] = useState(false);
+  const [editingDeliveryReady, setEditingDeliveryReady] = useState(false);
+
   useEffect(() => {
     if (notifyTpl) setNotifyBody(notifyTpl.body);
   }, [notifyTpl?.id]);
@@ -133,6 +148,10 @@ export default function WhatsAppSettingsPage() {
   useEffect(() => {
     if (manifestDeliveryTpl) setManifestDeliveryBody(manifestDeliveryTpl.body);
   }, [manifestDeliveryTpl?.id]);
+
+  useEffect(() => {
+    if (deliveryReadyTpl) setDeliveryReadyBody(deliveryReadyTpl.body);
+  }, [deliveryReadyTpl?.id]);
 
   const handleSaveNotifyTemplate = async () => {
     setSavingNotify(true);
@@ -231,6 +250,30 @@ export default function WhatsAppSettingsPage() {
       toast({ title: "خطأ", description: "فشل حفظ القالب", variant: "destructive" });
     } finally {
       setSavingManifestDelivery(false);
+    }
+  };
+
+  const handleSaveDeliveryReadyTemplate = async () => {
+    setSavingDeliveryReady(true);
+    try {
+      if (deliveryReadyTpl) {
+        await apiFetch(`/whatsapp/templates/${deliveryReadyTpl.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: DELIVERY_READY_TEMPLATE_NAME, body: deliveryReadyBody }),
+        });
+      } else {
+        await apiFetch("/whatsapp/templates", {
+          method: "POST",
+          body: JSON.stringify({ name: DELIVERY_READY_TEMPLATE_NAME, body: deliveryReadyBody }),
+        });
+      }
+      refresh();
+      setEditingDeliveryReady(false);
+      toast({ title: "تم حفظ قالب طلب استعداد الاستلام ✅" });
+    } catch {
+      toast({ title: "خطأ", description: "فشل حفظ القالب", variant: "destructive" });
+    } finally {
+      setSavingDeliveryReady(false);
     }
   };
 
@@ -794,6 +837,97 @@ export default function WhatsAppSettingsPage() {
                   variant="outline"
                   onClick={() => { setEditingManifestDelivery(true); setManifestDeliveryBody(manifestDeliveryTpl.body); }}
                   className="h-8 gap-1 text-xs border-teal-500/40 text-teal-400 hover:bg-teal-500/10"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  تعديل القالب
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── قالب طلب استعداد للاستلام (يُرسل من المندوب للعميل من تاب "مهامي") ─ */}
+      <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MessageCircle className="w-4 h-4 text-emerald-500" />
+            قالب طلب استعداد للاستلام — يُرسل من المندوب
+            {deliveryReadyTpl && (
+              <Badge className="text-[10px] bg-emerald-600/20 text-emerald-400 border-emerald-600/30 font-bold mr-auto">
+                محفوظ ✓
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            هذه الرسالة تُستخدم عند ضغط المندوب على أيقونة واتساب بجانب رقم الهاتف في صفحة <strong>«مهامي»</strong>.
+            تُرسل للعميل لطلب اللوكيشن والاستعداد لاستلام الشحنة.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {DELIVERY_READY_TEMPLATE_VARIABLES.map(v => (
+              <button
+                key={v.var}
+                onClick={() => copyVar(v.var)}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500 text-xs transition-all"
+                title="انقر للنسخ"
+              >
+                <code className="text-emerald-500 font-mono text-[10px]">{v.var}</code>
+                {copiedVar === v.var
+                  ? <Check className="w-2.5 h-2.5 text-green-500" />
+                  : <Copy className="w-2.5 h-2.5 text-muted-foreground" />
+                }
+              </button>
+            ))}
+          </div>
+          {editingDeliveryReady || !deliveryReadyTpl ? (
+            <div className="space-y-3">
+              <Textarea
+                value={deliveryReadyBody}
+                onChange={e => setDeliveryReadyBody(e.target.value)}
+                className="bg-muted/20 text-sm min-h-[200px] resize-none font-[Cairo] leading-relaxed"
+                dir="rtl"
+                disabled={!isAdmin}
+              />
+              {isAdmin && (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSaveDeliveryReadyTemplate}
+                    disabled={savingDeliveryReady}
+                    className="gap-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {savingDeliveryReady ? "جاري الحفظ..." : "حفظ القالب"}
+                  </Button>
+                  {deliveryReadyTpl && (
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingDeliveryReady(false); setDeliveryReadyBody(deliveryReadyTpl.body); }} className="h-8 gap-1">
+                      <X className="w-3.5 h-3.5" />إلغاء
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDeliveryReadyBody(DEFAULT_DELIVERY_READY_BODY)}
+                    className="h-8 text-xs text-muted-foreground"
+                  >
+                    استعادة الافتراضي
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-[Cairo] leading-relaxed bg-muted/20 rounded-md p-3 border border-emerald-500/20">
+                {deliveryReadyTpl.body}
+              </pre>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setEditingDeliveryReady(true); setDeliveryReadyBody(deliveryReadyTpl.body); }}
+                  className="h-8 gap-1 text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   تعديل القالب
