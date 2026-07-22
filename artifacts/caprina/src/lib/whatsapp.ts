@@ -263,6 +263,7 @@ export interface WhatsAppDeliveryReadyData {
   senderGovernorate?: string | null;
   pieces?: number | string | null;
   weight?: string | null;
+  receiverAddress?: string | null;
 }
 
 export function applyDeliveryReadyTemplate(templateBody: string, d: WhatsAppDeliveryReadyData): string {
@@ -281,7 +282,8 @@ export function applyDeliveryReadyTemplate(templateBody: string, d: WhatsAppDeli
     .replace(/\{senderCity\}/g,          d.senderCity ?? "—")
     .replace(/\{senderGovernorate\}/g,   d.senderGovernorate ?? "—")
     .replace(/\{pieces\}/g,              String(d.pieces ?? "—"))
-    .replace(/\{weight\}/g,              d.weight ? `${d.weight} كجم` : "—");
+    .replace(/\{weight\}/g,              d.weight ? `${d.weight} كجم` : "—")
+    .replace(/\{receiverAddress\}/g,     d.receiverAddress ?? "—");
 }
 
 export const DELIVERY_READY_TEMPLATE_VARIABLES = [
@@ -298,4 +300,5 @@ export const DELIVERY_READY_TEMPLATE_VARIABLES = [
   { var: "{senderGovernorate}", label: "محافظة الراسل" },
   { var: "{pieces}",            label: "عدد القطع" },
   { var: "{weight}",            label: "الوزن" },
+  { var: "{receiverAddress}",   label: "عنوان العميل" },
 ];

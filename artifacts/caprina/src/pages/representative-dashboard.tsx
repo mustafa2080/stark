@@ -1595,6 +1595,7 @@ function TaskCard({ task }: { task: any }) {
         senderGovernorate: (task as any).senderGovernorate,
         pieces: (task as any).pieces,
         weight: (task as any).weight,
+        receiverAddress: (task as any).receiverAddress,
       })
     : "";
   const waPhone = (task.receiverPhone ?? "").replace(/\D/g, "");
@@ -3929,6 +3930,7 @@ export default function RepresentativeDashboard() {
           senderGovernorate: sh.senderGovernorate,
           pieces: sh.pieces,
           weight: sh.weight,
+          receiverAddress: sh.receiverAddress,
         })
       : "";
     return `https://wa.me/${phone.startsWith("0") ? "2" + phone : phone}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
