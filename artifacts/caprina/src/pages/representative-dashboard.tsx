@@ -1567,9 +1567,8 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
 const AVAILABLE_SHIPMENT_STATUSES = ["waiting"];
 
 const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
+  ...STATUS_LABELS,
   waiting: "قيد الشحن في المخزن",
-  confirmed: "مؤكدة",
-  delayed: "متأخرة",
   warehouse_ready: "قيد الشحن في المخزن",
 };
 
