@@ -17,6 +17,7 @@ import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
 import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
 import { broadcastUrgentToCompany } from "./representative.js";
+import { pushNotification } from "../lib/notifications.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -956,6 +957,23 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           // ترحيل الشحنات المعلّقة لبيان جديد: مؤجل (صف جديد) + استلام جزئي (الباقي كصف جديد)
           // + مرتجع/جزئي لسه عند الشحن (يترحّل زي ما هو بدون تغيير لحد ما يُستلم)
           rolledOverManifest = await rolloverPartialShipments(manifest, items);
+
+          // ── إشعار الأدمن لما المندوب هو اللي قفل البيان ──────────────────
+          if (reqUser?.role === "representative") {
+            const closedAt = manifest.closedAt ?? now;
+            const dateStr = closedAt.toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" });
+            const timeStr = closedAt.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", hour12: true });
+            await pushNotification({
+              tenantId: manifest.tenantId ?? null,
+              type: "manifest_closed",
+              severity: "info",
+              title: `تم إغلاق البيان ${manifest.manifestNumber}`,
+              message: `تم إغلاق البيان ${manifest.manifestNumber} بواسطة المندوب ${userName ?? "غير معروف"} بتاريخ ${dateStr} الساعة ${timeStr}`,
+              entityType: "shipment_manifest",
+              entityId: manifest.id,
+              link: `/shipping/shipment-manifests/${manifest.id}`,
+            });
+          }
         }
       } catch (err) {
         console.error("[PATCH /shipment-manifests/:id] treasury entry error:", err);

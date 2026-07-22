@@ -9,6 +9,7 @@ export const NOTIFICATION_TYPES = [
   "inventory_low",
   "invoice_created",
   "invoice_overdue",
+  "manifest_closed",
   "system",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

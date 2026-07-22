@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, CheckCheck, Package, AlertTriangle, Undo2, PackageCheck, Receipt, Boxes, Info } from "lucide-react";
+import { Bell, CheckCheck, Package, AlertTriangle, Undo2, PackageCheck, Receipt, Boxes, Info, Lock } from "lucide-react";
 import { useNotifications, type AppNotification } from "@/hooks/useNotifications";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ const TYPE_ICON: Record<string, any> = {
   shipment_delivered: PackageCheck,
   invoice: Receipt,
   inventory: Boxes,
+  manifest_closed: Lock,
 };
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string }> = {
