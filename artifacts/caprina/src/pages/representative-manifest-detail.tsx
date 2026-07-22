@@ -4331,9 +4331,9 @@ export default function ShippingManifestPage() {
               <PackagePlus className="w-3 h-3" />إضافة شحنات
             </Button>
           )}
-          {/* إغلاق / فتح البيان — أدمن فقط */}
-          {isAdmin && (
-            isLocked ? (
+          {/* فتح البيان — أدمن فقط. إغلاق البيان — متاح للمندوب والأدمن */}
+          {isLocked ? (
+            isAdmin && (
               <Button
                 variant="outline"
                 size="sm"
@@ -4342,16 +4342,16 @@ export default function ShippingManifestPage() {
               >
                 <Unlock className="w-3 h-3" />فتح
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs gap-1 border-emerald-800 text-emerald-400 hover:bg-emerald-900/20"
-                onClick={() => setShowCloseDialog(true)}
-              >
-                <Lock className="w-3 h-3" />إغلاق البيان
-              </Button>
             )
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 border-emerald-800 text-emerald-400 hover:bg-emerald-900/20"
+              onClick={() => setShowCloseDialog(true)}
+            >
+              <Lock className="w-3 h-3" />إغلاق البيان
+            </Button>
           )}
           {/* حذف البيان — أدمن فقط */}
           {isAdmin && (
