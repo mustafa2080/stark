@@ -2337,6 +2337,13 @@ function CloseConfirmDialog({
         </DialogHeader>
 
         <div className="space-y-3 mt-2">
+          <div className="flex items-start gap-2 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700">
+            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-red-700 dark:text-red-400 font-semibold">
+              تنبيه: إذا أغلقت البيان لن تستطيع فتحه مرة أخرى بنفسك — الأدمن فقط هو من يستطيع إعادة فتحه.
+            </p>
+          </div>
+
           {pendingCount > 0 && (
             <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />

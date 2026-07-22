@@ -908,13 +908,24 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
     let body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null };
     const now  = new Date();
 
-    // المندوب يقدر يقفل/يفتح بيانه بس — مش يعدّل ملاحظات أو سعر فاتورة
+    // المندوب يقدر يقفل بيانه بس — مش يعيد فتحه بعد الإغلاق (ده حصريًا للأدمن)، ومش يعدّل ملاحظات أو سعر فاتورة
     const reqUser = (req as any).user;
     if (reqUser?.role === "representative") {
-      const [existingManifest] = await db.select({ shippingCompanyId: shipmentManifestsTable.shippingCompanyId })
+      const [existingManifest] = await db.select({
+        shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
+        status: shipmentManifestsTable.status,
+      })
         .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
       if (!existingManifest || existingManifest.shippingCompanyId !== reqUser.shippingCompanyId) {
         res.status(403).json({ error: "غير مصرح بتعديل هذا البيان" });
+        return;
+      }
+      if (body.status === "open") {
+        res.status(403).json({ error: "لا يمكن إعادة فتح بيان مُغلق — يرجى التواصل مع الأدمن" });
+        return;
+      }
+      if (existingManifest.status === "closed") {
+        res.status(403).json({ error: "هذا البيان مُغلق بالفعل ولا يمكن تعديله" });
         return;
       }
       body = { status: body.status };
