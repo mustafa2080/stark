@@ -1586,6 +1586,9 @@ function TaskCard({ task }: { task: any }) {
         representativeName: (user as any)?.name ?? "",
         shipmentNumber: task.shipmentNumber,
         codAmount: task.codAmount,
+        receiverCity: task.receiverCity,
+        senderName: (task as any).senderName,
+        totalPrice: (task as any).totalPrice,
       })
     : "";
   const waPhone = (task.receiverPhone ?? "").replace(/\D/g, "");
@@ -3911,6 +3914,9 @@ export default function RepresentativeDashboard() {
           representativeName: (user as any)?.name ?? "",
           shipmentNumber: sh.shipmentNumber,
           codAmount: sh.codAmount,
+          receiverCity: sh.receiverCity,
+          senderName: sh.senderName,
+          totalPrice: sh.totalPrice,
         })
       : "";
     return `https://wa.me/${phone.startsWith("0") ? "2" + phone : phone}${message ? `?text=${encodeURIComponent(message)}` : ""}`;

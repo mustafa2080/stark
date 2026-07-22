@@ -255,6 +255,8 @@ export interface WhatsAppDeliveryReadyData {
   shipmentNumber?: string | null;
   codAmount?: number | string | null;
   receiverCity?: string | null;
+  senderName?: string | null;
+  totalPrice?: number | string | null;
 }
 
 export function applyDeliveryReadyTemplate(templateBody: string, d: WhatsAppDeliveryReadyData): string {
@@ -265,7 +267,9 @@ export function applyDeliveryReadyTemplate(templateBody: string, d: WhatsAppDeli
     .replace(/\{representativeName\}/g, d.representativeName ?? "المندوب")
     .replace(/\{shipmentNumber\}/g,      d.shipmentNumber ?? "—")
     .replace(/\{codAmount\}/g,           formatCurr(d.codAmount))
-    .replace(/\{receiverCity\}/g,        d.receiverCity ?? "—");
+    .replace(/\{receiverCity\}/g,        d.receiverCity ?? "—")
+    .replace(/\{senderName\}/g,          d.senderName ?? "—")
+    .replace(/\{totalPrice\}/g,          formatCurr(d.totalPrice ?? d.codAmount));
 }
 
 export const DELIVERY_READY_TEMPLATE_VARIABLES = [
@@ -274,4 +278,6 @@ export const DELIVERY_READY_TEMPLATE_VARIABLES = [
   { var: "{shipmentNumber}",    label: "رقم الشحنة" },
   { var: "{codAmount}",         label: "مبلغ COD" },
   { var: "{receiverCity}",      label: "محافظة العميل" },
+  { var: "{senderName}",        label: "اسم الراسل/المتجر" },
+  { var: "{totalPrice}",        label: "الإجمالي المطلوب" },
 ];
