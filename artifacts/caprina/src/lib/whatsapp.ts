@@ -257,6 +257,12 @@ export interface WhatsAppDeliveryReadyData {
   receiverCity?: string | null;
   senderName?: string | null;
   totalPrice?: number | string | null;
+  parcelType?: string | null;
+  senderPhone?: string | null;
+  senderCity?: string | null;
+  senderGovernorate?: string | null;
+  pieces?: number | string | null;
+  weight?: string | null;
 }
 
 export function applyDeliveryReadyTemplate(templateBody: string, d: WhatsAppDeliveryReadyData): string {
@@ -269,7 +275,13 @@ export function applyDeliveryReadyTemplate(templateBody: string, d: WhatsAppDeli
     .replace(/\{codAmount\}/g,           formatCurr(d.codAmount))
     .replace(/\{receiverCity\}/g,        d.receiverCity ?? "—")
     .replace(/\{senderName\}/g,          d.senderName ?? "—")
-    .replace(/\{totalPrice\}/g,          formatCurr(d.totalPrice ?? d.codAmount));
+    .replace(/\{totalPrice\}/g,          formatCurr(d.totalPrice ?? d.codAmount))
+    .replace(/\{parcelType\}/g,          d.parcelType ?? "—")
+    .replace(/\{senderPhone\}/g,         d.senderPhone ?? "—")
+    .replace(/\{senderCity\}/g,          d.senderCity ?? "—")
+    .replace(/\{senderGovernorate\}/g,   d.senderGovernorate ?? "—")
+    .replace(/\{pieces\}/g,              String(d.pieces ?? "—"))
+    .replace(/\{weight\}/g,              d.weight ? `${d.weight} كجم` : "—");
 }
 
 export const DELIVERY_READY_TEMPLATE_VARIABLES = [
@@ -280,4 +292,10 @@ export const DELIVERY_READY_TEMPLATE_VARIABLES = [
   { var: "{receiverCity}",      label: "محافظة العميل" },
   { var: "{senderName}",        label: "اسم الراسل/المتجر" },
   { var: "{totalPrice}",        label: "الإجمالي المطلوب" },
+  { var: "{parcelType}",        label: "نوع الشحنة" },
+  { var: "{senderPhone}",       label: "رقم الراسل" },
+  { var: "{senderCity}",        label: "مدينة الراسل" },
+  { var: "{senderGovernorate}", label: "محافظة الراسل" },
+  { var: "{pieces}",            label: "عدد القطع" },
+  { var: "{weight}",            label: "الوزن" },
 ];

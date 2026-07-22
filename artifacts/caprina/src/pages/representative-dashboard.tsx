@@ -1589,6 +1589,12 @@ function TaskCard({ task }: { task: any }) {
         receiverCity: task.receiverCity,
         senderName: (task as any).senderName,
         totalPrice: (task as any).totalPrice,
+        parcelType: (task as any).parcelType,
+        senderPhone: (task as any).senderPhone,
+        senderCity: (task as any).senderCity,
+        senderGovernorate: (task as any).senderGovernorate,
+        pieces: (task as any).pieces,
+        weight: (task as any).weight,
       })
     : "";
   const waPhone = (task.receiverPhone ?? "").replace(/\D/g, "");
@@ -3917,6 +3923,12 @@ export default function RepresentativeDashboard() {
           receiverCity: sh.receiverCity,
           senderName: sh.senderName,
           totalPrice: sh.totalPrice,
+          parcelType: sh.parcelType,
+          senderPhone: sh.senderPhone,
+          senderCity: sh.senderCity,
+          senderGovernorate: sh.senderGovernorate,
+          pieces: sh.pieces,
+          weight: sh.weight,
         })
       : "";
     return `https://wa.me/${phone.startsWith("0") ? "2" + phone : phone}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
