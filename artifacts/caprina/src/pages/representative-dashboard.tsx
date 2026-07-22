@@ -1327,8 +1327,8 @@ function TaskCard({ task }: { task: any }) {
       })
     : "";
   const waPhone = (task.receiverPhone ?? "").replace(/\D/g, "");
-  const waHref = whatsappMessage
-    ? `https://wa.me/${waPhone.startsWith("0") ? "2" + waPhone : waPhone}?text=${encodeURIComponent(whatsappMessage)}`
+  const waHref = waPhone
+    ? `https://wa.me/${waPhone.startsWith("0") ? "2" + waPhone : waPhone}${whatsappMessage ? `?text=${encodeURIComponent(whatsappMessage)}` : ""}`
     : undefined;
 
   return (
