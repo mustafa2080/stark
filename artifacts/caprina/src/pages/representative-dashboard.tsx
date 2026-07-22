@@ -3796,6 +3796,12 @@ export default function RepresentativeDashboard() {
                           {sh.receiverPhone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{sh.receiverPhone}</span>}
                           {sh.receiverCity && <span>· {sh.receiverCity}</span>}
                         </p>
+                        {sh.receiverAddress && (
+                          <p className="text-[10px] text-muted-foreground/70 flex items-start gap-1 mt-0.5">
+                            <MapPin className="w-2.5 h-2.5 mt-0.5 shrink-0 text-primary/40" />
+                            <span className="truncate">{sh.receiverAddress}</span>
+                          </p>
+                        )}
                       </div>
                       <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
                         {STATUS_LABELS[sh.status] ?? sh.status}
