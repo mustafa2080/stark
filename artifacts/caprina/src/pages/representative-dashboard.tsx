@@ -374,6 +374,37 @@ function TrendBadge({ current, prev, label }: { current: number; prev: number; l
   );
 }
 
+// ─── لمبة بوليس دوارة (تُستخدم في كل مكان فيه استعجال) ──────────────────────
+function PoliceLight({ size = "sm" }: { size?: "sm" | "md" }) {
+  const dims = size === "md" ? "w-3.5 h-3.5" : "w-2.5 h-2.5";
+  return (
+    <>
+      <style>{`
+        @keyframes policeSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes policeGlow {
+          0%,100% { box-shadow: 0 0 6px 2px rgba(239,68,68,0.9), 0 0 14px 4px rgba(239,68,68,0.5); background-color: #ef4444; }
+          50% { box-shadow: 0 0 12px 5px rgba(239,68,68,1), 0 0 28px 10px rgba(239,68,68,0.7); background-color: #fca5a5; }
+        }
+        .police-light { position: relative; border-radius: 9999px; animation: policeGlow 0.5s ease-in-out infinite; }
+        .police-light::before {
+          content: "";
+          position: absolute;
+          inset: -6px;
+          border-radius: 9999px;
+          border: 2px solid transparent;
+          border-top-color: rgba(255,255,255,0.9);
+          border-bottom-color: rgba(239,68,68,0.9);
+          animation: policeSpin 0.7s linear infinite;
+        }
+      `}</style>
+      <span className={`police-light ${dims} shrink-0`} />
+    </>
+  );
+}
+
 // ─── Urgent Banner Component ──────────────────────────────────────────────────
 function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
   const [soundMuted, setSoundMuted] = useState(false);
@@ -392,6 +423,11 @@ function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
           audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
         const ctx = audioCtxRef.current;
+        // بعض المتصفحات (خصوصًا الموبايل) بتبدأ الـ AudioContext في وضع suspended
+        // لحد ما يحصل تفاعل مباشر من المستخدم — لازم نعمل resume في كل مرة قبل التشغيل
+        if (ctx.state === "suspended") {
+          ctx.resume().catch(() => {});
+        }
         const playBeep = (freq: number, start: number, duration: number, gain: number) => {
           const osc = ctx.createOscillator();
           const gainNode = ctx.createGain();
@@ -415,13 +451,25 @@ function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
     // نغمة فورية عند ظهور البانر
     if (!soundMuted) playAlert();
 
-    // تكرار الصوت كل 5 ثواني لحد ما يتم إيقافه يدويًا
+    // تكرار الصوت كل 4 ثواني لحد ما يتم إيقافه يدويًا
     intervalRef.current = setInterval(() => {
       if (!soundMuted) playAlert();
-    }, 5000);
+    }, 4000);
+
+    // فتح/تفعيل الصوت عند أول تفاعل من المستخدم (المتصفحات بتمنع الصوت التلقائي
+    // قبل أي تفاعل مباشر — لو حصل tap/click في الصفحة، نتأكد إن الـ AudioContext شغال)
+    const unlockAudio = () => {
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+    };
+    document.addEventListener("click", unlockAudio);
+    document.addEventListener("touchstart", unlockAudio);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("click", unlockAudio);
+      document.removeEventListener("touchstart", unlockAudio);
     };
   }, [soundMuted]);
 
@@ -478,12 +526,7 @@ function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
             >
               {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
-            {!soundMuted && (
-              <span className="urgent-dot relative flex h-3 w-3 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-              </span>
-            )}
+            <PoliceLight size="md" />
           </div>
           <div className="space-y-2">
             {urgentItems.map((i: any) => (
@@ -917,8 +960,8 @@ function ManifestItemRow({ item, manifestId, locked, onSaved }: {
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-xs font-bold truncate">{item.customerName}</p>
             {(item.isUrgent === 1 || item.isUrgent === true) && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-red-400 bg-red-500/15 border border-red-500/40 rounded-full px-1.5 py-0.5 animate-pulse">
-                <Zap className="w-2.5 h-2.5 fill-red-400" /> مستعجل
+              <span className="inline-flex items-center gap-1 text-[9px] font-black text-red-400 bg-red-500/15 border border-red-500/40 rounded-full px-1.5 py-0.5">
+                <PoliceLight /> مستعجل
               </span>
             )}
           </div>
@@ -1419,8 +1462,8 @@ function TaskCard({ task }: { task: any }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             {task.isUrgent && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-red-400 bg-red-500/15 border border-red-500/40 rounded-full px-1.5 py-0.5 animate-pulse shrink-0">
-                <Zap className="w-2.5 h-2.5 fill-red-400" /> مستعجل
+              <span className="inline-flex items-center gap-1 text-[9px] font-black text-red-400 bg-red-500/15 border border-red-500/40 rounded-full px-1.5 py-0.5 shrink-0">
+                <PoliceLight /> مستعجل
               </span>
             )}
             <p className="text-xs font-black truncate">{task.receiverName}</p>
@@ -3889,8 +3932,8 @@ export default function RepresentativeDashboard() {
                   <Card key={sh.id} className={`p-3 bg-card/60 ${sh.isUrgent ? "border-red-500/50 bg-red-950/20" : "border-border"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-xs font-bold truncate flex items-center gap-1">
-                          {sh.isUrgent && <Zap className="w-3 h-3 text-red-400 fill-red-400 shrink-0" />}
+                        <p className="text-xs font-bold truncate flex items-center gap-1.5">
+                          {sh.isUrgent && <PoliceLight />}
                           {sh.receiverName}
                         </p>
                         <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
