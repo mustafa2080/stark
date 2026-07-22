@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
 import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle, Volume2, VolumeX } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -376,44 +376,59 @@ function TrendBadge({ current, prev, label }: { current: number; prev: number; l
 
 // ─── Urgent Banner Component ──────────────────────────────────────────────────
 function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
-  const alertedRef = useRef(false);
+  const [soundMuted, setSoundMuted] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    if (alertedRef.current) return;
-    alertedRef.current = true;
-
-    // اهتزاز الموبايل (3 نبضات قوية)
-    if (navigator.vibrate) {
-      navigator.vibrate([300, 100, 300, 100, 500]);
-    }
-
-    // صوت تنبيه قوي بالـ Web Audio API
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const playBeep = (freq: number, start: number, duration: number, gain: number) => {
-        const osc = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-        osc.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        osc.type = "square";
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
-        gainNode.gain.setValueAtTime(0, ctx.currentTime + start);
-        gainNode.gain.linearRampToValueAtTime(gain, ctx.currentTime + start + 0.01);
-        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + start + duration);
-        osc.start(ctx.currentTime + start);
-        osc.stop(ctx.currentTime + start + duration + 0.05);
-      };
-      // 3 نغمات تصاعدية حادة
-      playBeep(880, 0,    0.18, 0.6);
-      playBeep(1100, 0.22, 0.18, 0.6);
-      playBeep(1320, 0.44, 0.30, 0.7);
-      // تكرار بعد 1.5 ثانية
-      setTimeout(() => {
+    const playAlert = () => {
+      // اهتزاز الموبايل (3 نبضات قوية)
+      if (navigator.vibrate) {
+        navigator.vibrate([300, 100, 300, 100, 500]);
+      }
+      // صوت تنبيه قوي بالـ Web Audio API
+      try {
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const ctx = audioCtxRef.current;
+        const playBeep = (freq: number, start: number, duration: number, gain: number) => {
+          const osc = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          osc.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          osc.type = "square";
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+          gainNode.gain.setValueAtTime(0, ctx.currentTime + start);
+          gainNode.gain.linearRampToValueAtTime(gain, ctx.currentTime + start + 0.01);
+          gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + start + duration);
+          osc.start(ctx.currentTime + start);
+          osc.stop(ctx.currentTime + start + duration + 0.05);
+        };
+        // 3 نغمات تصاعدية حادة
         playBeep(880, 0,    0.18, 0.6);
         playBeep(1100, 0.22, 0.18, 0.6);
         playBeep(1320, 0.44, 0.30, 0.7);
-      }, 1500);
-    } catch (_) {}
+      } catch (_) {}
+    };
+
+    // نغمة فورية عند ظهور البانر
+    if (!soundMuted) playAlert();
+
+    // تكرار الصوت كل 5 ثواني لحد ما يتم إيقافه يدويًا
+    intervalRef.current = setInterval(() => {
+      if (!soundMuted) playAlert();
+    }, 5000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [soundMuted]);
+
+  useEffect(() => {
+    return () => {
+      audioCtxRef.current?.close().catch(() => {});
+    };
   }, []);
 
   return (
@@ -451,10 +466,24 @@ function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
               </p>
               <p className="text-[11px] text-red-400 font-bold">سلّمها فوراً — أولوية قصوى</p>
             </div>
-            <span className="urgent-dot relative flex h-3 w-3 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-            </span>
+            <button
+              type="button"
+              onClick={() => setSoundMuted(m => !m)}
+              title={soundMuted ? "تشغيل صوت التنبيه" : "إيقاف صوت التنبيه"}
+              className={`flex items-center justify-center w-8 h-8 shrink-0 rounded-full border transition-colors ${
+                soundMuted
+                  ? "border-zinc-500/40 bg-zinc-800/60 text-zinc-400"
+                  : "border-red-400/50 bg-red-500/20 text-red-200 hover:bg-red-500/30"
+              }`}
+            >
+              {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+            {!soundMuted && (
+              <span className="urgent-dot relative flex h-3 w-3 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+              </span>
+            )}
           </div>
           <div className="space-y-2">
             {urgentItems.map((i: any) => (
