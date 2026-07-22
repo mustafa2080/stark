@@ -3913,6 +3913,7 @@ export default function RepresentativeDashboard() {
   });
   const repDeliveryReadyTpl = (repWaSettings as any)?.templates?.find((t: any) => t.name === "طلب استعداد للاستلام");
   const buildShipmentWaHref = (sh: any) => {
+    console.log("[WA_DEBUG] repWaSettings:", repWaSettings, "repDeliveryReadyTpl:", repDeliveryReadyTpl);
     const phone = (sh.receiverPhone ?? "").replace(/\D/g, "");
     if (!phone) return undefined;
     const message = repDeliveryReadyTpl
