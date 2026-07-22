@@ -3609,11 +3609,23 @@ export default function RepresentativeDashboard() {
   const { user, isRepresentative, logout } = useAuth();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabId>("home");
+  // نقرأ آخر تاب كان مفتوح من sessionStorage عشان لو المندوب عمل refresh
+  // (F5) الصفحة تفضل واقفة في نفس المكان بدل ما ترجعله للرئيسية كل مرة
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    try {
+      const saved = sessionStorage.getItem("rep_dashboard_tab") as TabId | null;
+      const valid: TabId[] = ["home", "performance", "shipments", "manifests", "tasks", "profile"];
+      if (saved && valid.includes(saved)) return saved;
+    } catch {}
+    return "home";
+  });
   // كل التابات بما فيهم "manifests" (بياناتي) بتتغيّر جوه نفس الداشبورد —
   // مفيش أي navigate/route change، عشان الصفحة تفضل single-page state
   // ومتفضلش الـ sidebar/header يعملوا reload أو remount كل ما نغيّر تاب
-  const handleNavSelect = (id: TabId) => setActiveTab(id);
+  const handleNavSelect = (id: TabId) => {
+    setActiveTab(id);
+    try { sessionStorage.setItem("rep_dashboard_tab", id); } catch {}
+  };
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -3830,7 +3842,7 @@ export default function RepresentativeDashboard() {
               company={company}
               user={user}
               allShipments={allShipments}
-              onNavigate={setActiveTab}
+              onNavigate={handleNavSelect}
             />
           )}
 
@@ -3849,7 +3861,7 @@ export default function RepresentativeDashboard() {
           {activeTab === "tasks" && <TodayTasksTab companyId={company?.id ?? null} />}
 
           {/* ─── Profile Tab ─── */}
-          {activeTab === "profile" && <ProfileTab user={user} company={company} logout={logout} d={d} allShipments={allShipments} onNavigate={setActiveTab} />}
+          {activeTab === "profile" && <ProfileTab user={user} company={company} logout={logout} d={d} allShipments={allShipments} onNavigate={handleNavSelect} />}
 
           {/* ─── Shipments Tab ─── */}
           {activeTab === "shipments" && (
