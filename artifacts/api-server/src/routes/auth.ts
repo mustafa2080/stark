@@ -170,7 +170,7 @@ router.post("/login", loginLimiter, async (req, res): Promise<void> => {
 
   const { passwordHash: _, ...safeUser } = user;
   let loginPlanStatus: string | null = null;
-  if (user.tenantId) {
+  if (user.tenantId && user.role !== "client" && user.role !== "representative") {
     const [tenant] = await db.select({ planStatus: tenantsTable.planStatus }).from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
     loginPlanStatus = tenant?.planStatus ?? null;
   }
@@ -186,9 +186,9 @@ router.get("/me", requireAuth, async (req, res): Promise<void> => {
   if (!user) { res.status(404).json({ error: "المستخدم غير موجود" }); return; }
   const finalPerms = parsePermissions(user.permissions);
   const { passwordHash: _, ...safeUser } = user;
-  // أضف planStatus من الـ tenant
+  // أضف planStatus من الـ tenant — بس للأدمن/الموظفين، مش للعميل/المندوب (مش تبع اشتراك الشركة)
   let planStatus: string | null = null;
-  if (user.tenantId) {
+  if (user.tenantId && user.role !== "client" && user.role !== "representative") {
     const [tenant] = await db.select({ planStatus: tenantsTable.planStatus }).from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
     planStatus = tenant?.planStatus ?? null;
   }

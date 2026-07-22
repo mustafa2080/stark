@@ -194,7 +194,8 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
 
     res.status(201).json({
       token,
-      user: { ...safeUser, permissions: finalPerms, planStatus: tenant.planStatus },
+      // ملحوظة: العميل (role=client) مش تابع لنظام اشتراك الشركة — ما بنبعتش planStatus بتاع الـ tenant هنا
+      user: { ...safeUser, permissions: finalPerms },
       message: "تم إنشاء حسابك بنجاح 🎉",
     });
   } catch (err: any) {
@@ -231,14 +232,9 @@ router.post("/client/login", clientLoginLimiter, async (req, res): Promise<void>
       entityName: user.displayName, userId: user.id, userName: user.displayName,
     }).catch(() => {});
 
-    let planStatus: string | null = null;
-    if (user.tenantId) {
-      const [tenant] = await db.select({ planStatus: tenantsTable.planStatus }).from(tenantsTable)
-        .where(eq(tenantsTable.id, user.tenantId)).limit(1);
-      planStatus = tenant?.planStatus ?? null;
-    }
+    // ملحوظة: العميل (role=client) مش تابع لنظام اشتراك الشركة — ما بنبعتش planStatus بتاع الـ tenant هنا
     const { passwordHash: _, ...safeUser } = user;
-    res.json({ token, user: { ...safeUser, permissions: finalPerms, planStatus } });
+    res.json({ token, user: { ...safeUser, permissions: finalPerms } });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
