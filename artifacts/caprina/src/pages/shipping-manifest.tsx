@@ -1491,8 +1491,8 @@ function InvoiceGroupDeliveryRow({
                     <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
                   </Button>
                 )}
-                {/* ── زرار الاستعجال جنب التقفيل ── */}
-                {false && isShipmentManifest && (
+                {/* ── زرار الاستعجال جنب التقفيل — للأدمن فقط ── */}
+                {isShipmentManifest && (
                   <div onClick={e => e.stopPropagation()}>
                     <UrgentButton
                       manifestId={manifestId}
@@ -1507,7 +1507,7 @@ function InvoiceGroupDeliveryRow({
               </div>
             )}
             {/* لو البيان مغلق وعايزين نعرض الاستعجال بس */}
-            {false && locked && isShipmentManifest && (
+            {locked && isShipmentManifest && (
               <div className="mt-1" onClick={e => e.stopPropagation()}>
                 <UrgentButton
                   manifestId={manifestId}

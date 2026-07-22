@@ -3858,10 +3858,13 @@ export default function RepresentativeDashboard() {
               {/* Shipments list */}
               <div className="space-y-2">
                 {filteredRepShipments.map((sh: any) => (
-                  <Card key={sh.id} className="p-3 bg-card/60 border-border">
+                  <Card key={sh.id} className={`p-3 bg-card/60 ${sh.isUrgent ? "border-red-500/50 bg-red-950/20" : "border-border"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-xs font-bold truncate">{sh.receiverName}</p>
+                        <p className="text-xs font-bold truncate flex items-center gap-1">
+                          {sh.isUrgent && <Zap className="w-3 h-3 text-red-400 fill-red-400 shrink-0" />}
+                          {sh.receiverName}
+                        </p>
                         <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
                           <span className="font-mono text-primary/70">{sh.shipmentNumber}</span>
                           {sh.receiverPhone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{sh.receiverPhone}</span>}
@@ -3872,6 +3875,9 @@ export default function RepresentativeDashboard() {
                             <MapPin className="w-2.5 h-2.5 mt-0.5 shrink-0 text-primary/40" />
                             <span className="truncate">{sh.receiverAddress}</span>
                           </p>
+                        )}
+                        {sh.isUrgent && sh.urgentNote && (
+                          <p className="text-[10px] text-red-300/80 mt-0.5">⚡ {sh.urgentNote}</p>
                         )}
                       </div>
                       <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>

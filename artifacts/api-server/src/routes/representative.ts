@@ -153,10 +153,36 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
     db.select({ cnt: count() }).from(shipmentsTable).where(where).then(r => r[0]?.cnt ?? 0),
   ]);
 
+  // ─── جلب حالة الاستعجال (isUrgent/urgentNote) من آخر manifest item لكل شحنة ───
+  const rowIds = rows.map(r => r.id);
+  const urgentMap = new Map<number, { isUrgent: boolean; urgentNote: string | null }>();
+  if (rowIds.length) {
+    const urgentItems = await db.select({
+      shipmentId: shipmentManifestItemsTable.shipmentId,
+      isUrgent:   shipmentManifestItemsTable.isUrgent,
+      urgentNote: shipmentManifestItemsTable.urgentNote,
+      id:         shipmentManifestItemsTable.id,
+    })
+      .from(shipmentManifestItemsTable)
+      .where(inArray(shipmentManifestItemsTable.shipmentId, rowIds))
+      .orderBy(desc(shipmentManifestItemsTable.id));
+    // خد أحدث item بس لكل shipmentId (الصفوف جاية مرتبة desc)
+    for (const it of urgentItems) {
+      if (!urgentMap.has(it.shipmentId)) {
+        urgentMap.set(it.shipmentId, { isUrgent: it.isUrgent === 1, urgentNote: it.urgentNote ?? null });
+      }
+    }
+  }
+  const rowsWithUrgent = rows.map(r => ({
+    ...r,
+    isUrgent:   urgentMap.get(r.id)?.isUrgent ?? false,
+    urgentNote: urgentMap.get(r.id)?.urgentNote ?? null,
+  }));
+
   await logAudit({ action: "login", entityType: "representative_view", entityId: companyId,
     entityName: `shipments-page=${page}`, userId: user.id, userName: user.displayName });
 
-  res.json({ data: rows, total: Number(totalRows), page, limit });
+  res.json({ data: rowsWithUrgent, total: Number(totalRows), page, limit });
 });
 
 // ─── GET /representative/dashboard ───────────────────────────────────────────
