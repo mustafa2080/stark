@@ -1,18 +1,49 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
   Package, CheckCircle2, Clock, RotateCcw, Truck, Ban,
   Search, Wallet, TrendingUp, MapPin, Phone, User,
   ChevronRight, RefreshCcw, ShieldCheck, AlertCircle, PackagePlus,
+  Camera, Edit2, X, Check, Loader2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, authApi } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fc = (n: number | string) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
+
+// ── Avatar ──────────────────────────────────────────────────────────────
+const AVATAR_COLORS = [
+  ["#f59e0b","#78350f"],["#10b981","#064e3b"],["#3b82f6","#1e3a8a"],
+  ["#8b5cf6","#4c1d95"],["#ef4444","#7f1d1d"],["#ec4899","#831843"],
+  ["#06b6d4","#164e63"],["#f97316","#7c2d12"],
+];
+function avatarColor(name: string) {
+  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function initials(name: string) {
+  const p = name.trim().split(/\s+/);
+  return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+}
+function ClientAvatar({ avatar, name, size = 64 }: { avatar?: string | null; name: string; size?: number }) {
+  if (avatar?.startsWith("data:"))
+    return <img src={avatar} className="rounded-full object-cover border-2 border-primary/30" style={{ width: size, height: size }} />;
+  const [bg, fg] = avatarColor(name || "?");
+  return (
+    <div className="rounded-full flex items-center justify-center font-black border-2 border-primary/30"
+      style={{ width: size, height: size, background: bg, color: fg, fontSize: size * 0.34 }}>
+      {name ? initials(name) : "؟"}
+    </div>
+  );
+}
 
 interface StatsResponse {
   total: number;
@@ -125,11 +156,17 @@ function WalletCard({ icon: Icon, label, value, color }: { icon: any; label: str
 // Main Page
 // ══════════════════════════════════════════════════════════════════════════
 export default function ClientDashboardPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editAvatar, setEditAvatar] = useState<string | null | undefined>(undefined);
 
   const { data: profileData } = useQuery<{ client: any }>({
     queryKey: ["client-portal-profile"],
@@ -137,6 +174,43 @@ export default function ClientDashboardPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
+
+  const profileMutation = useMutation({
+    mutationFn: (data: { avatar?: string | null; displayName?: string }) => authApi.updateProfile(data),
+    onSuccess: () => {
+      toast({ title: "✅ تم تحديث البيانات بنجاح" });
+      refreshUser();
+      qc.invalidateQueries({ queryKey: ["client-portal-profile"] });
+      setIsProfileOpen(false);
+      setEditAvatar(undefined);
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  function openProfileEdit() {
+    setEditName(client?.name || user?.displayName || "");
+    setEditAvatar(user?.avatar ?? null);
+    setIsProfileOpen(true);
+  }
+
+  function handleAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "الصورة كبيرة جداً", description: "الحد الأقصى 2 ميجابايت", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setEditAvatar(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function saveProfile() {
+    const payload: { avatar?: string | null; displayName?: string } = {};
+    if (editName.trim()) payload.displayName = editName.trim();
+    if (editAvatar !== undefined) payload.avatar = editAvatar;
+    profileMutation.mutate(payload);
+  }
 
   const { data: stats, isLoading: statsLoading } = useQuery<StatsResponse>({
     queryKey: ["client-portal-stats"],
@@ -197,11 +271,21 @@ export default function ClientDashboardPage() {
           {/* ── Left column (account + wallet mini) ── */}
           <div className="space-y-4">
             <div className="rounded-2xl p-4 bg-muted/25 border border-border">
-              <p className="text-xs text-muted-foreground mb-3 font-bold">بيانات الحساب</p>
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-2 text-sm text-foreground/70">
-                  <User size={14} className="text-muted-foreground/60" /> {client?.name || "—"}
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-muted-foreground font-bold">بيانات الحساب</p>
+                <button onClick={openProfileEdit}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-primary hover:bg-primary/10 transition-colors">
+                  <Edit2 size={12} /> تعديل
+                </button>
+              </div>
+              <div className="flex items-center gap-3 mb-3">
+                <ClientAvatar avatar={user?.avatar} name={client?.name || user?.displayName || "؟"} size={56} />
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-foreground truncate">{client?.name || user?.displayName || "—"}</p>
+                  <p className="text-[11px] text-muted-foreground">عميل</p>
                 </div>
+              </div>
+              <div className="space-y-2.5">
                 <div className="flex items-center gap-2 text-sm text-foreground/70">
                   <Phone size={14} className="text-muted-foreground/60" /> {client?.phone || "—"}
                 </div>
@@ -337,6 +421,53 @@ export default function ClientDashboardPage() {
         </div>
 
       </div>
+
+      {/* ── Profile Edit Dialog ── */}
+      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-right">تعديل بيانات الحساب</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-3 py-2">
+            <div className="relative">
+              <ClientAvatar avatar={editAvatar} name={editName || "؟"} size={88} />
+              <button onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 left-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-background shadow-md hover:opacity-90 transition-opacity">
+                <Camera size={14} />
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarPick} />
+            </div>
+            {editAvatar && (
+              <button onClick={() => setEditAvatar(null)} className="flex items-center gap-1 text-[11px] text-red-500 font-bold">
+                <X size={12} /> إزالة الصورة
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground/70">الاسم</label>
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="اسمك"
+              className="w-full px-3 py-2.5 rounded-xl text-sm bg-muted/40 border border-border outline-none focus:border-primary/50 transition-colors"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <button onClick={() => setIsProfileOpen(false)} disabled={profileMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-foreground/70 bg-muted/50 disabled:opacity-50">
+              <X size={14} /> إلغاء
+            </button>
+            <button onClick={saveProfile} disabled={profileMutation.isPending || !editName.trim()}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-foreground text-background disabled:opacity-50">
+              {profileMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              حفظ
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

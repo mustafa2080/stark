@@ -20,6 +20,7 @@ export interface AuthUser {
   receiverClientId?: number | null;
   phone?: string | null;
   email?: string | null;
+  avatar?: string | null;
 }
 
 interface AuthContextValue {
