@@ -61,12 +61,8 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
   const [status, setStatus] = useState<string>(shipment.status);
   const [note, setNote] = useState<string>(shipment.notes ?? "");
   const [returnReason, setReturnReason] = useState<string>(shipment.returnReason ?? "");
-  const [returnReceived, setReturnReceived] = useState<boolean | null>(
-    shipment.returnReceived === 1 ? true : shipment.returnReceived === 0 ? false : null
-  );
   const [partialQty, setPartialQty] = useState<string>(shipment.partialQuantity?.toString() ?? "");
 
-  const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE_TAB.includes(returnReason);
   const needsNote = status === "delayed" || status === "returned";
 
   const mutation = useMutation({
@@ -75,11 +71,9 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
       if (note.trim()) body.notes = note.trim();
       if (status === "returned") {
         body.returnReason = returnReason || null;
-        body.returnReceived = returnReceived === true ? 1 : returnReceived === false ? 0 : null;
       }
       if (status === "partial_received") {
         body.partialQuantity = partialQty.trim() !== "" ? parseInt(partialQty) : null;
-        body.returnReceived = returnReceived === true ? 1 : returnReceived === false ? 0 : null;
       }
       return apiFetch(`/shipments/${shipment.id}`, { method: "PATCH", body: JSON.stringify(body) });
     },
@@ -96,9 +90,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
   const disabled =
     mutation.isPending ||
     (needsNote && !note.trim()) ||
-    (status === "returned" && needsReturnValue === false && false) ||
-    (status === "returned" && returnReceived === null) ||
-    (status === "partial_received" && (partialQty.trim() === "" || returnReceived === null));
+    (status === "partial_received" && partialQty.trim() === "");
 
   return (
     <>
@@ -111,7 +103,6 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
           setStatus(shipment.status);
           setNote(shipment.notes ?? "");
           setReturnReason(shipment.returnReason ?? "");
-          setReturnReceived(shipment.returnReceived === 1 ? true : shipment.returnReceived === 0 ? false : null);
           setPartialQty(shipment.partialQuantity?.toString() ?? "");
           setOpen(true);
         }}
@@ -151,18 +142,6 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                   className="h-8 w-full rounded border border-teal-700/50 bg-background px-2 text-xs"
                   placeholder="مطلوب"
                 />
-                <p className="text-[10px] font-semibold text-muted-foreground">الباقي عند شركة الشحن؟</p>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setReturnReceived(false)}
-                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === false ? "border-amber-500 bg-amber-900/30 text-amber-300" : "border-border text-muted-foreground"}`}>
-                    مازال عند الشحن
-                  </button>
-                  <button type="button" onClick={() => setReturnReceived(true)}
-                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === true ? "border-emerald-500 bg-emerald-900/30 text-emerald-300" : "border-border text-muted-foreground"}`}>
-                    تم استلامه بالمخزن
-                  </button>
-                </div>
-                {returnReceived === null && <p className="text-[10px] text-destructive">⚠ يجب اختيار حالة الباقي</p>}
               </div>
             )}
 
@@ -179,18 +158,6 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] font-semibold text-muted-foreground">هل تم استلام المرتجع بالمخزن؟</p>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setReturnReceived(false)}
-                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === false ? "border-amber-500 bg-amber-900/30 text-amber-300" : "border-border text-muted-foreground"}`}>
-                    مازال عند الشحن
-                  </button>
-                  <button type="button" onClick={() => setReturnReceived(true)}
-                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === true ? "border-emerald-500 bg-emerald-900/30 text-emerald-300" : "border-border text-muted-foreground"}`}>
-                    تم استلامه
-                  </button>
-                </div>
-                {returnReceived === null && <p className="text-[10px] text-destructive">⚠ يجب اختيار حالة الاستلام</p>}
               </div>
             )}
 
