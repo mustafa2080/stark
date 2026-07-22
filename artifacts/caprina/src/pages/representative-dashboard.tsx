@@ -25,10 +25,11 @@ import { RETURN_REASONS } from "@/lib/order-constants";
 import { applyDeliveryReadyTemplate } from "@/lib/whatsapp";
 
 const STATUS_LABELS: Record<string, string> = {
-  waiting: "انتظار", confirmed: "مؤكدة", picked_up: "تم الاستلام",
-  in_transit: "في الطريق", out_for_delivery: "خرجت للتسليم",
-  delivered: "تم التسليم", partial_received: "استلام جزئي",
-  delayed: "متأخرة", returned: "مرتجع", cancelled: "ملغية",
+  waiting: "قيد الانتظار", warehouse_ready: "قيد الشحن في المخزن",
+  confirmed: "قيد الشحن", picked_up: "قيد الشحن",
+  in_transit: "قيد الشحن", out_for_delivery: "قيد الشحن",
+  delivered: "مسلم", partial_received: "مسلم جزئي",
+  delayed: "مؤجل", returned: "مرتجع", cancelled: "مرتجع",
 };
 const STATUS_COLOR: Record<string, string> = {
   delivered: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
@@ -1568,8 +1569,6 @@ const AVAILABLE_SHIPMENT_STATUSES = ["waiting"];
 
 const SHIPMENT_STATUS_LABELS_LOCAL: Record<string, string> = {
   ...STATUS_LABELS,
-  waiting: "قيد الشحن في المخزن",
-  warehouse_ready: "قيد الشحن في المخزن",
 };
 
 function CompanyAvatar({ logo, name, size = "md" }: { logo?: string | null; name: string; size?: "sm" | "md" | "lg" }) {
