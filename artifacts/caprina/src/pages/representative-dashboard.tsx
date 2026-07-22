@@ -63,6 +63,15 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
   const [note, setNote] = useState<string>(shipment.notes ?? "");
   const [returnReason, setReturnReason] = useState<string>(shipment.returnReason ?? "");
   const [partialQty, setPartialQty] = useState<string>(shipment.partialQuantity?.toString() ?? "");
+  const [deliveredValueReceived, setDeliveredValueReceived] = useState<string>(
+    shipment.collectedAmount != null ? String(shipment.collectedAmount) : ""
+  );
+  const [returnValueReceived, setReturnValueReceived] = useState<string>(
+    shipment.collectedAmount != null ? String(shipment.collectedAmount) : ""
+  );
+
+  const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "quality"];
+  const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE.includes(returnReason);
 
   const needsNote = status === "delayed" || status === "returned";
 
@@ -72,9 +81,15 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
       if (note.trim()) body.notes = note.trim();
       if (status === "returned") {
         body.returnReason = returnReason || null;
+        if (needsReturnValue && returnValueReceived.trim() !== "" && !isNaN(Number(returnValueReceived))) {
+          body.collectedAmount = Number(returnValueReceived);
+        }
       }
       if (status === "partial_received") {
         body.partialQuantity = partialQty.trim() !== "" ? parseInt(partialQty) : null;
+      }
+      if (status === "delivered" && deliveredValueReceived.trim() !== "" && !isNaN(Number(deliveredValueReceived))) {
+        body.collectedAmount = Number(deliveredValueReceived);
       }
       return apiFetch(`/shipments/${shipment.id}`, { method: "PATCH", body: JSON.stringify(body) });
     },
@@ -91,7 +106,8 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
   const disabled =
     mutation.isPending ||
     (needsNote && !note.trim()) ||
-    (status === "partial_received" && partialQty.trim() === "");
+    (status === "partial_received" && partialQty.trim() === "") ||
+    (needsReturnValue && returnValueReceived.trim() === "");
 
   return (
     <>
@@ -105,6 +121,8 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
           setNote(shipment.notes ?? "");
           setReturnReason(shipment.returnReason ?? "");
           setPartialQty(shipment.partialQuantity?.toString() ?? "");
+          setDeliveredValueReceived(shipment.collectedAmount != null ? String(shipment.collectedAmount) : "");
+          setReturnValueReceived(shipment.collectedAmount != null ? String(shipment.collectedAmount) : "");
           setOpen(true);
         }}
       >
@@ -146,6 +164,22 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
               </div>
             )}
 
+            {status === "delivered" && (
+              <div className="space-y-2 border border-emerald-700/40 rounded-md p-2.5 bg-emerald-900/10">
+                <Label className="text-[10px] font-bold text-emerald-400">
+                  القيمة المستلمة فعليًا (اختياري)
+                </Label>
+                <input
+                  type="number"
+                  min={0}
+                  value={deliveredValueReceived}
+                  onChange={(e) => setDeliveredValueReceived(e.target.value)}
+                  className="h-8 w-full rounded border border-emerald-700/50 bg-background px-2 text-xs"
+                  placeholder={shipment.totalAmount != null ? `الإجمالي: ${shipment.totalAmount}` : "المبلغ المستلم"}
+                />
+              </div>
+            )}
+
             {status === "returned" && (
               <div className="space-y-2 border border-red-700/40 rounded-md p-2.5 bg-red-900/10">
                 <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
@@ -159,6 +193,22 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                     ))}
                   </SelectContent>
                 </Select>
+
+                {needsReturnValue && (
+                  <div className="pt-1">
+                    <Label className="text-[10px] font-bold text-red-400">
+                      القيمة المستلمة (مطلوب)
+                    </Label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={returnValueReceived}
+                      onChange={(e) => setReturnValueReceived(e.target.value)}
+                      className="h-8 w-full rounded border border-red-700/50 bg-background px-2 text-xs mt-1"
+                      placeholder={shipment.totalAmount != null ? `الإجمالي: ${shipment.totalAmount}` : "المبلغ المستلم"}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
