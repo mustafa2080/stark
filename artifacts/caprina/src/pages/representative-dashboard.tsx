@@ -1252,6 +1252,7 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
   const { toast } = useToast();
   const qc = useQueryClient();
   const [confirmClose, setConfirmClose] = useState(false);
+  const [showClosedSummary, setShowClosedSummary] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["rep-manifest", manifestId],
@@ -1265,13 +1266,13 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
       method: "PATCH", body: JSON.stringify({ status: "closed" }),
     }),
     onSuccess: () => {
-      toast({ title: "✅ تم قفل البيان بنجاح" });
       qc.invalidateQueries({ queryKey: ["rep-manifest", manifestId] });
       qc.invalidateQueries({ queryKey: ["rep-manifests"] });
       // تزامن مع صفحة الشحنات — الحالات بتتغير جوه البيان لازم تنعكس فورًا
       qc.invalidateQueries({ queryKey: ["shipments-list"] });
       qc.invalidateQueries({ queryKey: ["shipments-stats"] });
       setConfirmClose(false);
+      setShowClosedSummary(true);
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -1409,11 +1410,43 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
         </Card>
       </div>
 
+      {/* ── رسالة ملخص ما بعد الإغلاق — تظهر مرة واحدة فور تأكيد القفل ── */}
+      {showClosedSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-md p-6 border-emerald-500/40 bg-gradient-to-b from-emerald-500/10 to-card space-y-4 text-center">
+            <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center">
+              <PackageCheck className="w-7 h-7 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-base font-black text-emerald-400">تم قفل البيان بنجاح</p>
+              <p className="text-xs text-muted-foreground mt-1">راجع البيانات التالية قبل توريد المبالغ والمرتجعات</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-right">
+                <p className="text-[11px] text-amber-300/90">💰 الرصيد المستحق عليك</p>
+                <p className="text-xl font-black text-amber-400 mt-0.5">
+                  {netDueToCompany != null ? formatCurrency(netDueToCompany) : "—"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">برجاء توريد المبلغ للشركة في أقرب وقت</p>
+              </div>
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-right">
+                <p className="text-[11px] text-red-300/90">↩ عدد المرتجعات</p>
+                <p className="text-xl font-black text-red-400 mt-0.5">{returned} شحنة</p>
+                <p className="text-[10px] text-muted-foreground mt-1">برجاء ردهم للشركة في أقرب وقت</p>
+              </div>
+            </div>
+            <Button className="w-full gap-2" onClick={() => setShowClosedSummary(false)}>
+              <CheckCircle2 className="w-4 h-4" /> تمام، هوريها
+            </Button>
+          </Card>
+        </div>
+      )}
+
       {!locked && (
-        <div className="pt-2">
+        <div className="fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
           {!confirmClose ? (
-            <Button className="w-full gap-2" onClick={() => setConfirmClose(true)}>
-              <Lock className="w-4 h-4" /> قفل البيان
+            <Button size="lg" className="w-full gap-2 h-14 text-base font-black bg-primary hover:bg-primary/90" onClick={() => setConfirmClose(true)}>
+              <Lock className="w-5 h-5" /> قفل البيان
             </Button>
           ) : (
             <Card className="p-3 border-amber-500/30 bg-amber-500/5 space-y-2">
@@ -1435,6 +1468,7 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
           )}
         </div>
       )}
+      {!locked && <div className="h-20" />}
     </div>
   );
 }
