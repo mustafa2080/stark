@@ -2766,6 +2766,8 @@ function DesktopSidebar({
   company: any; user: any; d: any;
   open: boolean; onToggle: () => void; onClose: () => void;
 }) {
+  const { logout } = useAuth();
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
   const activeItem = NAV_ITEMS.find(n => n.id === active)!;
   return (
     <>
@@ -2832,6 +2834,15 @@ function DesktopSidebar({
             title="فتح القائمة"
           >
             <ChevronLeft className="w-[18px] h-[18px]" />
+          </button>
+
+          {/* Logout */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggle(); setConfirmingLogout(true); }}
+            className="w-11 h-9 rounded-2xl flex items-center justify-center text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            title="تسجيل خروج"
+          >
+            <LogOut className="w-[17px] h-[17px]" />
           </button>
         </div>
       )}
@@ -2923,10 +2934,40 @@ function DesktopSidebar({
       </nav>
 
       {/* ── Footer ── */}
-      <div className="px-4 pb-4 pt-2 border-t border-white/[0.06]">
+      <div className="px-3 pb-3 pt-2 border-t border-white/[0.06] space-y-1.5">
+        {confirmingLogout ? (
+          <div className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] p-3 space-y-2.5">
+            <p className="text-[11px] text-red-300/90 text-center font-bold">متأكد إنك عايز تسجل خروج؟</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingLogout(false)}
+                className="flex-1 py-2 rounded-xl text-[11px] font-bold text-white/60 hover:text-white/90 bg-white/[0.04] hover:bg-white/[0.08] transition-all"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => logout()}
+                className="flex-1 py-2 rounded-xl text-[11px] font-black text-white bg-red-500/90 hover:bg-red-500 transition-all shadow-lg shadow-red-950/30"
+              >
+                تأكيد الخروج
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmingLogout(true)}
+            className="group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-right overflow-hidden border border-red-500/[0.14] bg-red-500/[0.04] hover:bg-red-500/[0.09] hover:border-red-500/25 transition-all duration-300"
+          >
+            <span className="relative w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-red-500/10 border border-red-500/20 group-hover:bg-red-500/15 transition-all duration-300">
+              <LogOut className="w-4 h-4 text-red-400" />
+            </span>
+            <span className="text-[13px] font-bold text-red-400/90 group-hover:text-red-400">تسجيل خروج</span>
+          </button>
+        )}
+
         <button
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all"
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all"
         >
           <ChevronRight className="w-3 h-3" /> إغلاق القائمة
         </button>
