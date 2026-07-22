@@ -3829,9 +3829,10 @@ export default function ShippingManifestPage() {
   const updateMutation = useMutation({
     mutationFn: (data: { status: "open" | "closed" }) =>
       shipmentManifestsApi.update(id, data),
-    onSuccess: (result: any) => {
+    onSuccess: (result: any, variables: { status: "open" | "closed" }) => {
       // نحسب صافي المستحق + عدد المرتجعات من آخر نسخة معروفة للبيان قبل التحديث
-      if (manifest) {
+      // الـ overlay ده خاص بعملية الإغلاق فقط — مش هيظهر لما نعمل "إعادة فتح"
+      if (manifest && variables?.status === "closed") {
         const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
         const due = (manifest.stats?.deliveredGross ?? 0) - effectiveShipping;
         setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
