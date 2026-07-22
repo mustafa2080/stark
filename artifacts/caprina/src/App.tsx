@@ -412,14 +412,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <Redirect to="/login" />;
   }
 
-  // ── Subscription expired check ──
-  if (user && user.role !== "super_admin" && location !== "/subscription-expired") {
+  // ── Subscription expired check ── (العملاء representative/client مش تبع نظام اشتراك الشركة، بيستثنوا)
+  const exemptFromSubCheck = user?.role === "super_admin" || user?.role === "client" || user?.role === "representative";
+  if (user && !exemptFromSubCheck && location !== "/subscription-expired") {
     const subStatus = user.planStatus;
     if (subStatus === "expired" || subStatus === "suspended") {
       return <Redirect to="/subscription-expired" />;
     }
   }
-  if (user && user.role !== "super_admin" && location === "/subscription-expired") {
+  if (user && !exemptFromSubCheck && location === "/subscription-expired") {
     const subStatus = user.planStatus;
     if (subStatus !== "expired" && subStatus !== "suspended") {
       return <Redirect to="/" />;
