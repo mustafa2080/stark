@@ -3506,6 +3506,7 @@ export default function ShippingManifestPage() {
   const [netDueOpen, setNetDueOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [closedSummary, setClosedSummary] = useState<{ due: number; returned: number } | null>(null);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [showAddOrdersDialog, setShowAddOrdersDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -3829,6 +3830,12 @@ export default function ShippingManifestPage() {
     mutationFn: (data: { status: "open" | "closed" }) =>
       shipmentManifestsApi.update(id, data),
     onSuccess: (result: any) => {
+      // نحسب صافي المستحق + عدد المرتجعات من آخر نسخة معروفة للبيان قبل التحديث
+      if (manifest) {
+        const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+        const due = (manifest.stats?.deliveredGross ?? 0) - effectiveShipping;
+        setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
+      }
       refetch();
       setShowCloseDialog(false);
       if (result?.rolledOverManifest) {
@@ -4959,6 +4966,36 @@ export default function ShippingManifestPage() {
           onConfirm={() => updateMutation.mutate({ status: "closed" })}
           loading={updateMutation.isPending}
         />
+      )}
+
+      {/* ─── ملخص ما بعد الإغلاق — الرصيد المستحق + عدد المرتجعات ─── */}
+      {closedSummary && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-600/40 bg-gradient-to-b from-emerald-900/20 to-card p-6 space-y-4 text-center" dir="rtl">
+            <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center">
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-base font-black text-emerald-400">تم إغلاق البيان بنجاح</p>
+              <p className="text-xs text-muted-foreground mt-1">راجع البيانات التالية قبل توريد المبالغ والمرتجعات للشركة</p>
+            </div>
+            <div className="space-y-3">
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-right">
+                <p className="text-[11px] text-amber-300/90">💰 الرصيد المستحق عليك</p>
+                <p className="text-xl font-black text-amber-400 mt-0.5">{formatCurrency(closedSummary.due)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">برجاء توريد المبلغ للشركة في أقرب وقت</p>
+              </div>
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-right">
+                <p className="text-[11px] text-red-300/90">↩ عدد المرتجعات</p>
+                <p className="text-xl font-black text-red-400 mt-0.5">{closedSummary.returned} طلبية</p>
+                <p className="text-[10px] text-muted-foreground mt-1">برجاء ردهم للشركة في أقرب وقت</p>
+              </div>
+            </div>
+            <Button className="w-full gap-2 bg-emerald-700 hover:bg-emerald-600" onClick={() => setClosedSummary(null)}>
+              <CheckCircle2 className="w-4 h-4" /> تمام، هوريها
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* ─── Rollover Dialog — بيان جديد اتنشأ ─── */}
