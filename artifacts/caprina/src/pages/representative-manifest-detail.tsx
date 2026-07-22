@@ -4948,16 +4948,30 @@ export default function ShippingManifestPage() {
         );
       })()}
 
-      {/* ─── إغلاق البيان — زرار كبير احترافي بعرض الشاشة، آخر الصفحة ─── */}
+      {/* ─── إغلاق البيان — كارت احترافي بعرض الشاشة، آخر الصفحة ─── */}
       {!isLocked && (
-        <Button
-          size="lg"
+        <button
+          type="button"
           onClick={() => setShowCloseDialog(true)}
-          className="w-full h-14 gap-2 text-base font-black bg-gradient-to-l from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white shadow-lg shadow-emerald-900/30 print:hidden"
+          className="group relative w-full overflow-hidden rounded-2xl border border-emerald-800/40 bg-gradient-to-l from-emerald-950/60 via-emerald-900/30 to-emerald-950/60 p-5 text-right transition-all duration-300 hover:border-emerald-600/60 hover:shadow-xl hover:shadow-emerald-950/40 print:hidden"
         >
-          <Lock className="w-5 h-5" />
-          إغلاق البيان
-        </Button>
+          {/* توهج خلفي زخرفي */}
+          <div className="pointer-events-none absolute -left-10 -top-10 w-40 h-40 rounded-full bg-emerald-500/10 blur-3xl transition-opacity duration-300 group-hover:opacity-70" />
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 shrink-0 transition-transform duration-300 group-hover:scale-105">
+                <Lock className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-[15px] font-black text-emerald-300">إغلاق البيان</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">إنهاء البيان الحالي وعرض الرصيد المستحق والمرتجعات</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-500/10 border border-emerald-500/25 shrink-0 transition-all duration-300 group-hover:bg-emerald-500/20 group-hover:-translate-x-0.5">
+              <ArrowRight className="w-4 h-4 text-emerald-400 rotate-180" />
+            </div>
+          </div>
+        </button>
       )}
 
       {/* ─── Close Confirm Dialog ─── */}
