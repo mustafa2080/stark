@@ -3893,6 +3893,13 @@ export default function RepresentativeDashboard() {
                       </p>
                     )}
                     <div className="flex items-center justify-end gap-1.5 mt-1.5 pt-1.5 border-t border-border/20">
+                      {sh.receiverPhone && (
+                        <a href={`tel:${sh.receiverPhone}`}
+                          title="اتصال بالعميل"
+                          className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+                          <Phone className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                       {buildShipmentWaHref(sh) && (
                         <a href={buildShipmentWaHref(sh)} target="_blank" rel="noopener noreferrer"
                           title="ابعت رسالة واتساب للعميل"
