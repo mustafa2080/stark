@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
 import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { formatDistanceToNow } from "date-fns";
 import { RepRouteMap } from "@/components/rep-route-map";
+import { RETURN_REASONS } from "@/lib/order-constants";
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "انتظار", confirmed: "مؤكدة", picked_up: "تم الاستلام",
@@ -39,6 +40,196 @@ const STATUS_COLOR: Record<string, string> = {
 };
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
+
+// ─── خيارات حالة التسليم لكارت الشحنة في تاب "الشحنات" ───────────────────────
+// نفس الأربع حالات المتاحة للمندوب جوه البيان (مسلَّم/استلام جزئي/مؤجل/مرتجع)،
+// بس بيحدّثوا shipmentsTable.status مباشرة عن طريق PATCH /shipments/:id.
+// الباك إند بيعمل sync تلقائي (syncShipmentStatusToManifests) فيحدّث deliveryStatus
+// جوه أي بيان مرتبط بنفس الشحنة، فمفيش حاجة إضافية مطلوبة هنا غير التحديث المباشر.
+const SHIPMENT_TAB_STATUS_OPTIONS: { value: string; label: string; color: string; bg: string }[] = [
+  { value: "delivered",         label: "مسلَّم ✓",   color: "text-emerald-400", bg: "border-emerald-500/40 bg-emerald-900/10" },
+  { value: "partial_received",  label: "استلام جزئي", color: "text-teal-400",    bg: "border-teal-500/40 bg-teal-900/10" },
+  { value: "delayed",           label: "مؤجل",        color: "text-orange-400",  bg: "border-orange-500/40 bg-orange-900/10" },
+  { value: "returned",          label: "مرتجع",       color: "text-red-400",     bg: "border-red-500/40 bg-red-900/10" },
+];
+
+const RETURN_REASONS_NEED_VALUE_TAB = ["refused_paid", "quality"];
+
+function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<string>(shipment.status);
+  const [note, setNote] = useState<string>(shipment.notes ?? "");
+  const [returnReason, setReturnReason] = useState<string>(shipment.returnReason ?? "");
+  const [returnReceived, setReturnReceived] = useState<boolean | null>(
+    shipment.returnReceived === 1 ? true : shipment.returnReceived === 0 ? false : null
+  );
+  const [partialQty, setPartialQty] = useState<string>(shipment.partialQuantity?.toString() ?? "");
+
+  const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE_TAB.includes(returnReason);
+  const needsNote = status === "delayed" || status === "returned";
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const body: any = { status };
+      if (note.trim()) body.notes = note.trim();
+      if (status === "returned") {
+        body.returnReason = returnReason || null;
+        body.returnReceived = returnReceived === true ? 1 : returnReceived === false ? 0 : null;
+      }
+      if (status === "partial_received") {
+        body.partialQuantity = partialQty.trim() !== "" ? parseInt(partialQty) : null;
+        body.returnReceived = returnReceived === true ? 1 : returnReceived === false ? 0 : null;
+      }
+      return apiFetch(`/shipments/${shipment.id}`, { method: "PATCH", body: JSON.stringify(body) });
+    },
+    onSuccess: () => {
+      toast({ title: "تم تحديث حالة الشحنة" });
+      setOpen(false);
+      onSaved();
+    },
+    onError: (e: any) => {
+      toast({ title: "خطأ", description: e?.message ?? "تعذر تحديث الحالة", variant: "destructive" });
+    },
+  });
+
+  const disabled =
+    mutation.isPending ||
+    (needsNote && !note.trim()) ||
+    (status === "returned" && needsReturnValue === false && false) ||
+    (status === "returned" && returnReceived === null) ||
+    (status === "partial_received" && (partialQty.trim() === "" || returnReceived === null));
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 text-[10px] px-1.5 text-primary hover:text-primary gap-1"
+        onClick={(e) => {
+          e.stopPropagation();
+          setStatus(shipment.status);
+          setNote(shipment.notes ?? "");
+          setReturnReason(shipment.returnReason ?? "");
+          setReturnReceived(shipment.returnReceived === 1 ? true : shipment.returnReceived === 0 ? false : null);
+          setPartialQty(shipment.partialQuantity?.toString() ?? "");
+          setOpen(true);
+        }}
+      >
+        <Edit2 className="w-3 h-3" />تقفيل
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm">تحديث حالة الشحنة</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-[10px] mb-1 block text-muted-foreground">حالة التسليم</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="h-9 text-xs w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SHIPMENT_TAB_STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value} className="text-xs">
+                      <span className={o.color}>{o.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {status === "partial_received" && (
+              <div className="space-y-2 border border-teal-700/40 rounded-md p-2.5 bg-teal-900/10">
+                <Label className="text-[10px] font-bold text-teal-400">الكمية المستلمة</Label>
+                <input
+                  type="number"
+                  min={0}
+                  value={partialQty}
+                  onChange={(e) => setPartialQty(e.target.value)}
+                  className="h-8 w-full rounded border border-teal-700/50 bg-background px-2 text-xs"
+                  placeholder="مطلوب"
+                />
+                <p className="text-[10px] font-semibold text-muted-foreground">الباقي عند شركة الشحن؟</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setReturnReceived(false)}
+                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === false ? "border-amber-500 bg-amber-900/30 text-amber-300" : "border-border text-muted-foreground"}`}>
+                    مازال عند الشحن
+                  </button>
+                  <button type="button" onClick={() => setReturnReceived(true)}
+                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === true ? "border-emerald-500 bg-emerald-900/30 text-emerald-300" : "border-border text-muted-foreground"}`}>
+                    تم استلامه بالمخزن
+                  </button>
+                </div>
+                {returnReceived === null && <p className="text-[10px] text-destructive">⚠ يجب اختيار حالة الباقي</p>}
+              </div>
+            )}
+
+            {status === "returned" && (
+              <div className="space-y-2 border border-red-700/40 rounded-md p-2.5 bg-red-900/10">
+                <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
+                <Select value={returnReason} onValueChange={setReturnReason}>
+                  <SelectTrigger className="h-8 text-xs w-full bg-background border-red-800/60">
+                    <SelectValue placeholder="اختر السبب..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETURN_REASONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] font-semibold text-muted-foreground">هل تم استلام المرتجع بالمخزن؟</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setReturnReceived(false)}
+                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === false ? "border-amber-500 bg-amber-900/30 text-amber-300" : "border-border text-muted-foreground"}`}>
+                    مازال عند الشحن
+                  </button>
+                  <button type="button" onClick={() => setReturnReceived(true)}
+                    className={`flex-1 h-8 rounded-md border text-[11px] font-bold transition-all ${returnReceived === true ? "border-emerald-500 bg-emerald-900/30 text-emerald-300" : "border-border text-muted-foreground"}`}>
+                    تم استلامه
+                  </button>
+                </div>
+                {returnReceived === null && <p className="text-[10px] text-destructive">⚠ يجب اختيار حالة الاستلام</p>}
+              </div>
+            )}
+
+            <div>
+              <Label className="text-[10px] mb-1 block text-muted-foreground">
+                {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
+              </Label>
+              <Input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="h-8 text-xs bg-background"
+                placeholder={
+                  status === "delayed" ? "مثال: العميل طلب التأجيل..."
+                  : status === "returned" ? "مثال: العميل رفض الاستلام..."
+                  : "ملاحظة (اختياري)..."
+                }
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setOpen(false)}>
+                إلغاء
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1"
+                onClick={() => mutation.mutate()}
+                disabled={disabled}
+              >
+                <Save className="w-3 h-3" />
+                {mutation.isPending ? "جاري الحفظ..." : "حفظ"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 function KpiCard({ label, value, sub, color, icon: Icon }: {
   label: string; value: string | number; sub?: string;
@@ -3356,6 +3547,7 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
 export default function RepresentativeDashboard() {
   const { user, isRepresentative, logout } = useAuth();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>("home");
   // كل التابات بما فيهم "manifests" (بياناتي) بتتغيّر جوه نفس الداشبورد —
   // مفيش أي navigate/route change، عشان الصفحة تفضل single-page state
@@ -3662,6 +3854,9 @@ export default function RepresentativeDashboard() {
                         ↩ {sh.returnReason}
                       </p>
                     )}
+                    <div className="flex justify-end mt-1.5 pt-1.5 border-t border-border/20">
+                      <ShipmentStatusEditor shipment={sh} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })} />
+                    </div>
                   </Card>
                 ))}
                 {s?.data?.length === 0 && (
