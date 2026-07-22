@@ -374,34 +374,18 @@ function TrendBadge({ current, prev, label }: { current: number; prev: number; l
   );
 }
 
-// ─── لمبة بوليس دوارة (تُستخدم في كل مكان فيه استعجال) ──────────────────────
+// ─── علامة استعجال (إيموجي وامض بتوهج أحمر، تُستخدم في كل مكان فيه استعجال) ──
 function PoliceLight({ size = "sm" }: { size?: "sm" | "md" }) {
-  const dims = size === "md" ? "w-3.5 h-3.5" : "w-2.5 h-2.5";
+  const textSize = size === "md" ? "text-sm" : "text-xs";
   return (
-    <>
-      <style>{`
-        @keyframes policeSpin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes policeGlow {
-          0%,100% { box-shadow: 0 0 6px 2px rgba(239,68,68,0.9), 0 0 14px 4px rgba(239,68,68,0.5); background-color: #ef4444; }
-          50% { box-shadow: 0 0 12px 5px rgba(239,68,68,1), 0 0 28px 10px rgba(239,68,68,0.7); background-color: #fca5a5; }
-        }
-        .police-light { position: relative; border-radius: 9999px; animation: policeGlow 0.5s ease-in-out infinite; }
-        .police-light::before {
-          content: "";
-          position: absolute;
-          inset: -6px;
-          border-radius: 9999px;
-          border: 2px solid transparent;
-          border-top-color: rgba(255,255,255,0.9);
-          border-bottom-color: rgba(239,68,68,0.9);
-          animation: policeSpin 0.7s linear infinite;
-        }
-      `}</style>
-      <span className={`police-light ${dims} shrink-0`} />
-    </>
+    <span
+      className={`animate-pulse ${textSize} shrink-0 leading-none`}
+      style={{
+        filter: "drop-shadow(rgb(239, 68, 68) 0px 0px 6px) drop-shadow(rgb(239, 68, 68) 0px 0px 12px)",
+      }}
+    >
+      🚨
+    </span>
   );
 }
 
