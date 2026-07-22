@@ -3674,6 +3674,27 @@ export default function RepresentativeDashboard() {
     });
   })();
 
+  // ─── واتساب لكارت الشحنة في تاب "الشحنات" (نفس رسالة "طلب استعداد للاستلام" في مهامي) ───
+  const { data: repWaSettings } = useQuery({
+    queryKey: ["whatsapp-settings"],
+    queryFn: () => apiFetch("/whatsapp/settings"),
+    staleTime: 5 * 60_000,
+  });
+  const repDeliveryReadyTpl = (repWaSettings as any)?.templates?.find((t: any) => t.name === "طلب استعداد للاستلام");
+  const buildShipmentWaHref = (sh: any) => {
+    const phone = (sh.receiverPhone ?? "").replace(/\D/g, "");
+    if (!phone) return undefined;
+    const message = repDeliveryReadyTpl
+      ? applyDeliveryReadyTemplate(repDeliveryReadyTpl.body, {
+          customerName: sh.receiverName,
+          representativeName: (user as any)?.name ?? "",
+          shipmentNumber: sh.shipmentNumber,
+          codAmount: sh.codAmount,
+        })
+      : "";
+    return `https://wa.me/${phone.startsWith("0") ? "2" + phone : phone}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
+  };
+
   // Quick filter buttons للحالات الرئيسية
   const QUICK_FILTERS = [
     { value: "", label: "الكل", color: "border-border text-muted-foreground" },
@@ -3866,7 +3887,14 @@ export default function RepresentativeDashboard() {
                         ↩ {sh.returnReason}
                       </p>
                     )}
-                    <div className="flex justify-end mt-1.5 pt-1.5 border-t border-border/20">
+                    <div className="flex items-center justify-end gap-1.5 mt-1.5 pt-1.5 border-t border-border/20">
+                      {buildShipmentWaHref(sh) && (
+                        <a href={buildShipmentWaHref(sh)} target="_blank" rel="noopener noreferrer"
+                          title="ابعت رسالة واتساب للعميل"
+                          className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                       <ShipmentStatusEditor shipment={sh} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })} />
                     </div>
                   </Card>
