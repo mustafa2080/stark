@@ -389,13 +389,14 @@ function PoliceLight({ size = "sm" }: { size?: "sm" | "md" }) {
   );
 }
 
-// ─── Urgent Banner Component ──────────────────────────────────────────────────
-function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
-  const [soundMuted, setSoundMuted] = useState(false);
+// ─── صوت واهتزاز تنبيه الاستعجال (مشترك بين البانر وكروت الشحنات) ─────────────
+function useUrgentAlertSound(active: boolean, soundMuted: boolean) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
+    if (!active) return;
+
     const playAlert = () => {
       // اهتزاز الموبايل (3 نبضات قوية)
       if (navigator.vibrate) {
@@ -455,13 +456,19 @@ function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
       document.removeEventListener("click", unlockAudio);
       document.removeEventListener("touchstart", unlockAudio);
     };
-  }, [soundMuted]);
+  }, [active, soundMuted]);
 
   useEffect(() => {
     return () => {
       audioCtxRef.current?.close().catch(() => {});
     };
   }, []);
+}
+
+// ─── Urgent Banner Component ──────────────────────────────────────────────────
+function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
+  const [soundMuted, setSoundMuted] = useState(false);
+  useUrgentAlertSound(urgentItems.length > 0, soundMuted);
 
   return (
     <>
@@ -538,6 +545,142 @@ function UrgentBanner({ urgentItems }: { urgentItems: any[] }) {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── كارت شحنة مستعجلة في تاب "الشحنات" — نفس ستايل بانر الاستعجال ───────────
+function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => void; waHref?: string }) {
+  const [soundMuted, setSoundMuted] = useState(false);
+  useUrgentAlertSound(!!sh.isUrgent, soundMuted);
+
+  if (!sh.isUrgent) {
+    return (
+      <Card className="p-3 bg-card/60 border-border">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-bold truncate">{sh.receiverName}</p>
+            <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
+              <span className="font-mono text-primary/70">{sh.shipmentNumber}</span>
+              {sh.receiverPhone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{sh.receiverPhone}</span>}
+              {sh.receiverCity && <span>· {sh.receiverCity}</span>}
+            </p>
+            {sh.receiverAddress && (
+              <p className="text-[10px] text-muted-foreground/70 flex items-start gap-1 mt-0.5">
+                <MapPin className="w-2.5 h-2.5 mt-0.5 shrink-0 text-primary/40" />
+                <span className="truncate">{sh.receiverAddress}</span>
+              </p>
+            )}
+          </div>
+          <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
+            {STATUS_LABELS[sh.status] ?? sh.status}
+          </Badge>
+        </div>
+        <div className="flex justify-between text-[11px] mt-2">
+          <span className="text-muted-foreground">{sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : ""}</span>
+          <span className="font-bold text-emerald-400">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
+        </div>
+        {sh.returnReason && sh.status === "returned" && (
+          <p className="text-[10px] text-red-400/80 mt-1 border-t border-border/30 pt-1">↩ {sh.returnReason}</p>
+        )}
+        <div className="flex items-center justify-end gap-1.5 mt-1.5 pt-1.5 border-t border-border/20">
+          {sh.receiverPhone && (
+            <a href={`tel:${sh.receiverPhone}`} title="اتصال بالعميل"
+              className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+              <Phone className="w-3.5 h-3.5" />
+            </a>
+          )}
+          {waHref && (
+            <a href={waHref} target="_blank" rel="noopener noreferrer" title="ابعت رسالة واتساب للعميل"
+              className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
+              <MessageCircle className="w-3.5 h-3.5" />
+            </a>
+          )}
+          <ShipmentStatusEditor shipment={sh} onSaved={onSaved} />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes urgentGlowCard {
+          0%,100% { box-shadow: 0 0 14px rgba(239,68,68,0.4), 0 0 30px rgba(239,68,68,0.15); }
+          50% { box-shadow: 0 0 26px rgba(239,68,68,0.75), 0 0 55px rgba(239,68,68,0.3), inset 0 0 16px rgba(239,68,68,0.1); }
+        }
+        .urgent-card-glow { animation: urgentGlowCard 1.2s ease-in-out infinite; }
+      `}</style>
+      <div className="urgent-card-glow relative overflow-hidden rounded-2xl border-2 border-red-500 bg-red-950/60 p-3">
+        <div className="absolute inset-0 bg-gradient-to-br from-red-500/20 via-transparent to-red-900/20 pointer-events-none" />
+        <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full bg-red-500/30 blur-2xl pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <span className="inline-flex items-center gap-1 text-[10px] font-black text-red-100 bg-red-600 rounded-full px-2.5 py-1 shrink-0">
+              <PoliceLight /> مستعجل
+            </span>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-sm font-black text-white truncate">{sh.receiverName}</p>
+              <p className="text-[10px] text-red-300 font-mono">{sh.shipmentNumber}</p>
+            </div>
+          </div>
+
+          {sh.receiverCity && (
+            <p className="text-[10px] text-red-300 flex items-center gap-1 mb-1.5">
+              <MapPin className="w-3 h-3" /> {sh.receiverCity}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-sm font-black text-emerald-300">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
+            <button
+              type="button"
+              onClick={() => setSoundMuted(m => !m)}
+              title={soundMuted ? "تشغيل صوت التنبيه" : "إيقاف صوت التنبيه"}
+              className={`flex items-center justify-center w-7 h-7 shrink-0 rounded-full border transition-colors ${
+                soundMuted
+                  ? "border-zinc-500/40 bg-zinc-800/60 text-zinc-400"
+                  : "border-red-400/50 bg-red-500/20 text-red-200 hover:bg-red-500/30"
+              }`}
+            >
+              {soundMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {sh.urgentNote && (
+            <div className="rounded-lg bg-red-500/25 border border-red-400/40 px-3 py-1.5 mb-2">
+              <p className="text-[11px] text-red-100 font-bold flex items-center gap-1">
+                <Zap className="w-3 h-3 fill-red-200 text-red-200 shrink-0" /> {sh.urgentNote}
+              </p>
+            </div>
+          )}
+
+          {sh.receiverPhone && (
+            <a href={`tel:${sh.receiverPhone}`}
+              className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-600 transition-colors py-2 text-white font-bold text-sm mb-2">
+              <Phone className="w-4 h-4" /> {sh.receiverPhone}
+            </a>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
+              {STATUS_LABELS[sh.status] ?? sh.status}
+            </Badge>
+            <div className="flex items-center gap-1.5">
+              {waHref && (
+                <a href={waHref} target="_blank" rel="noopener noreferrer" title="ابعت رسالة واتساب للعميل"
+                  className="flex items-center justify-center w-7 h-7 shrink-0 rounded-lg border border-green-400/40 bg-green-500/15 text-green-300 hover:bg-green-500/25 transition-colors">
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </a>
+              )}
+              <ShipmentStatusEditor shipment={sh} onSaved={onSaved} />
+            </div>
+          </div>
+          {sh.returnReason && sh.status === "returned" && (
+            <p className="text-[10px] text-red-200/80 mt-1.5 border-t border-red-400/20 pt-1.5">↩ {sh.returnReason}</p>
+          )}
         </div>
       </div>
     </>
@@ -3925,59 +4068,12 @@ export default function RepresentativeDashboard() {
               {/* Shipments list */}
               <div className="space-y-2">
                 {filteredRepShipments.map((sh: any) => (
-                  <Card key={sh.id} className={`p-3 bg-card/60 ${sh.isUrgent ? "border-red-500/50 bg-red-950/20" : "border-border"}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold truncate flex items-center gap-1.5">
-                          {sh.isUrgent && <PoliceLight />}
-                          {sh.receiverName}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground flex gap-1 flex-wrap mt-0.5">
-                          <span className="font-mono text-primary/70">{sh.shipmentNumber}</span>
-                          {sh.receiverPhone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{sh.receiverPhone}</span>}
-                          {sh.receiverCity && <span>· {sh.receiverCity}</span>}
-                        </p>
-                        {sh.receiverAddress && (
-                          <p className="text-[10px] text-muted-foreground/70 flex items-start gap-1 mt-0.5">
-                            <MapPin className="w-2.5 h-2.5 mt-0.5 shrink-0 text-primary/40" />
-                            <span className="truncate">{sh.receiverAddress}</span>
-                          </p>
-                        )}
-                        {sh.isUrgent && sh.urgentNote && (
-                          <p className="text-[10px] text-red-300/80 mt-0.5">⚡ {sh.urgentNote}</p>
-                        )}
-                      </div>
-                      <Badge variant="outline" className={`text-[9px] shrink-0 border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
-                        {STATUS_LABELS[sh.status] ?? sh.status}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between text-[11px] mt-2">
-                      <span className="text-muted-foreground">{sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : ""}</span>
-                      <span className="font-bold text-emerald-400">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
-                    </div>
-                    {sh.returnReason && sh.status === "returned" && (
-                      <p className="text-[10px] text-red-400/80 mt-1 border-t border-border/30 pt-1">
-                        ↩ {sh.returnReason}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-end gap-1.5 mt-1.5 pt-1.5 border-t border-border/20">
-                      {sh.receiverPhone && (
-                        <a href={`tel:${sh.receiverPhone}`}
-                          title="اتصال بالعميل"
-                          className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
-                          <Phone className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                      {buildShipmentWaHref(sh) && (
-                        <a href={buildShipmentWaHref(sh)} target="_blank" rel="noopener noreferrer"
-                          title="ابعت رسالة واتساب للعميل"
-                          className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
-                          <MessageCircle className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                      <ShipmentStatusEditor shipment={sh} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })} />
-                    </div>
-                  </Card>
+                  <UrgentShipmentCard
+                    key={sh.id}
+                    sh={sh}
+                    waHref={buildShipmentWaHref(sh)}
+                    onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })}
+                  />
                 ))}
                 {s?.data?.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
