@@ -25,10 +25,11 @@ import { RETURN_REASONS } from "@/lib/order-constants";
 import { applyDeliveryReadyTemplate } from "@/lib/whatsapp";
 
 const STATUS_LABELS: Record<string, string> = {
-  waiting: "قيد الانتظار", warehouse_ready: "قيد الشحن في المخزن",
-  confirmed: "قيد الشحن", picked_up: "قيد الشحن",
-  in_transit: "قيد الشحن", out_for_delivery: "قيد الشحن",
-  delivered: "مسلم", partial_received: "مسلم جزئي",
+  waiting: "قيد الانتظار", pending: "قيد الانتظار",
+  warehouse_ready: "قيد الشحن في المخزن", confirmed: "قيد الشحن في المخزن", picked_up: "قيد الشحن في المخزن",
+  in_shipping: "قيد الشحن", in_transit: "قيد الشحن", out_for_delivery: "قيد الشحن",
+  delivered: "استلم", received: "استلم",
+  partial_received: "استلام جزئي",
   delayed: "مؤجل", returned: "مرتجع", cancelled: "مرتجع",
 };
 const STATUS_COLOR: Record<string, string> = {
