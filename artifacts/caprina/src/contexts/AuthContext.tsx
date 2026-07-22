@@ -299,7 +299,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const planChanged    = prev.planStatus !== updated.planStatus;
         const permsChanged   = permissionsChanged(prev.permissions, updated.permissions);
         const profileLinkChanged = (prev as any).showProfileLink !== (updated as any).showProfileLink;
-        if (!roleChanged && !activeChanged && !planChanged && !permsChanged && !profileLinkChanged) return prev;
+        const avatarChanged  = prev.avatar !== updated.avatar;
+        const nameChanged    = prev.displayName !== updated.displayName;
+        if (!roleChanged && !activeChanged && !planChanged && !permsChanged && !profileLinkChanged && !avatarChanged && !nameChanged) return prev;
         const fresh = normalizeUser(updated);
         localStorage.setItem(USER_KEY, JSON.stringify(fresh));
         return { ...fresh };
@@ -323,7 +325,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const planChanged    = prev.planStatus !== updated.planStatus;
           const permsChanged   = permissionsChanged(prev.permissions, updated.permissions);
           const profileLinkChanged = (prev as any).showProfileLink !== (updated as any).showProfileLink;
-          if (!roleChanged && !activeChanged && !planChanged && !permsChanged && !profileLinkChanged) return prev;
+          const avatarChanged  = prev.avatar !== updated.avatar;
+          const nameChanged    = prev.displayName !== updated.displayName;
+          if (!roleChanged && !activeChanged && !planChanged && !permsChanged && !profileLinkChanged && !avatarChanged && !nameChanged) return prev;
           const fresh = normalizeUser(updated);
           localStorage.setItem(USER_KEY, JSON.stringify(fresh));
           return { ...fresh };
