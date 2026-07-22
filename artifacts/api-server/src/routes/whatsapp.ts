@@ -57,7 +57,12 @@ const DEFAULT_TEMPLATES: WaTemplate[] = [
 ];
 
 async function getTemplates(tenantId: number | null): Promise<WaTemplate[]> {
-  const raw = await getSetting(templatesKey(tenantId));
+  // لو التينانت الحالي معندوش قوالب متحفوظة خاصة بيه، نرجع للقوالب العامة
+  // (المحفوظة بمفتاح واحد بدون رقم تينانت) بدل القوالب الافتراضية الفارغة —
+  // عشان لو الأدمن حفظ قالب وهو مش مربوط بتينانت (أو تينانت مختلف)، يفضل
+  // ظاهر لكل الموظفين/المندوبين بدل ما يختفي.
+  let raw = await getSetting(templatesKey(tenantId));
+  if (!raw && tenantId !== null) raw = await getSetting(templatesKey(null));
   if (!raw) return DEFAULT_TEMPLATES;
   let saved: WaTemplate[];
   try { saved = JSON.parse(raw); }
