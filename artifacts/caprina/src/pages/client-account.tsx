@@ -6,7 +6,7 @@ import { ar } from "date-fns/locale";
 import {
   ArrowRight, User, Phone, Mail, MapPin, Edit2, X, Check, Loader2,
   Camera, Package, CheckCircle2, Clock, Truck, ShieldCheck, AlertTriangle,
-  Trash2, Building2, ChevronLeft, Ban, PackageCheck, PackageX, Wallet,
+  Trash2, Building2, ChevronLeft, Ban, PackageCheck, PackageX, Wallet, Search,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
@@ -225,6 +225,8 @@ export default function ClientAccountPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState<"received" | "pending">("pending");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", city: "", address: "" });
   const [avatarDraft, setAvatarDraft] = useState<string | null | undefined>(undefined);
@@ -320,7 +322,17 @@ export default function ClientAccountPage() {
     onError: (e: any) => toast({ title: "لا يمكن الإلغاء", description: e.message, variant: "destructive" }),
   });
 
-  const shownShipments = tab === "received" ? receivedShipments : pendingShipments;
+  const shownShipments = useMemo(() => {
+    const base = tab === "received" ? receivedShipments : pendingShipments;
+    const q = searchQuery.trim().toLowerCase();
+    return base.filter((s: any) => {
+      if (statusFilter !== "all" && s.status !== statusFilter) return false;
+      if (!q) return true;
+      const haystack = [s.shipmentNumber, s.trackingNumber, s.receiverName, s.receiverCity, s.receiverAddress]
+        .filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [tab, receivedShipments, pendingShipments, searchQuery, statusFilter]);
 
   if (isLoading) {
     return (
@@ -532,6 +544,29 @@ export default function ClientAccountPage() {
                     tab === "received" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
                   تم استلامها ({fn(summary.received)})
                 </button>
+              </div>
+
+              {/* Search + status filter */}
+              <div className="flex flex-col sm:flex-row gap-2 p-3 border-b border-border">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="بحث بالكود، اسم المستلم، أو المدينة..."
+                    className="w-full pr-9 pl-3 py-2 rounded-lg text-sm bg-muted/40 border border-border outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg text-sm bg-muted/40 border border-border outline-none focus:border-primary/50 transition-colors sm:w-44">
+                  <option value="all">كل الحالات</option>
+                  {Object.entries(STATUS_META).map(([status, meta]) => (
+                    <option key={status} value={status}>{meta.label}</option>
+                  ))}
+                </select>
               </div>
 
               <ShipmentsTable shipments={shownShipments} onRowClick={(s) => navigate(`/client-shipment/${s.id}`)} />
