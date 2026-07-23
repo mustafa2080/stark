@@ -6,7 +6,7 @@ import { ar } from "date-fns/locale";
 import {
   ArrowRight, User, Phone, Mail, MapPin, Edit2, X, Check, Loader2,
   Camera, Package, CheckCircle2, Clock, Truck, ShieldCheck, AlertTriangle,
-  Trash2, Building2, ChevronLeft, Ban, PackageCheck, PackageX, Wallet, Search,
+  Trash2, Building2, ChevronLeft, Ban, PackageCheck, PackageX, Wallet, Search, MessageCircle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
@@ -502,10 +502,18 @@ export default function ClientAccountPage() {
                     </div>
                   </div>
                   {(representative.phone || representative.companyPhone) && (
-                    <a href={`tel:${representative.phone || representative.companyPhone}`}
-                      className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-muted/40 border border-border text-sm font-bold hover:bg-muted/60 transition-colors">
-                      <Phone size={13} /> {representative.phone || representative.companyPhone}
-                    </a>
+                    <div className="grid grid-cols-2 gap-2">
+                      <a href={`tel:${representative.phone || representative.companyPhone}`}
+                        className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-muted/40 border border-border text-sm font-bold hover:bg-muted/60 transition-colors">
+                        <Phone size={13} /> اتصال
+                      </a>
+                      <a
+                        href={`https://wa.me/2${(representative.phone || representative.companyPhone || "").replace(/\D/g, "").replace(/^0+/, "")}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-sm font-bold hover:bg-emerald-500/20 transition-colors">
+                        <MessageCircle size={13} /> واتساب
+                      </a>
+                    </div>
                   )}
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <div className="rounded-lg p-2.5 bg-muted/25 text-center">
