@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, decimal, text, datetime } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, decimal, text, datetime, mediumtext } from "drizzle-orm/mysql-core";
 
 // ─── حالة حساب العميل المستلم ────────────────────────────────────────────────
 export const RECEIVER_ACCOUNT_STATUSES = ["active", "suspended"] as const;
@@ -25,6 +25,7 @@ export const receiverClientsTable = mysqlTable("receiver_clients", {
   email:     varchar("email", { length: 255 }),
   city:      varchar("city", { length: 100 }),
   address:   text("address"),
+  avatar:    mediumtext("avatar"), // base64 صورة العميل
 
   accountNumber:  varchar("account_number", { length: 50 }),
   creditLimit:    decimal("credit_limit", { precision: 14, scale: 2 }).default("0"),

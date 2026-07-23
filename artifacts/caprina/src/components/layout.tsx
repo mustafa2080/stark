@@ -367,6 +367,7 @@ export default function Layout({ children }: LayoutProps) {
   if (user?.role === "client") {
     const CLIENT_NAV = [
       { href: "/client-dashboard",       label: "الرئيسية",        icon: LayoutDashboard, exact: true },
+      { href: "/client-account",         label: "بروفايلي",         icon: User },
       { href: "/client-wallet",          label: "التسويات المالية", icon: Wallet },
       { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
     ];

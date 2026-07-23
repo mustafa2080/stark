@@ -227,6 +227,7 @@ const SubscriptionExpired   = lazy(() => import("@/pages/subscription-expired"))
 const ProfilePage           = lazy(() => import("@/pages/profile"));
 const ClientProfilePage     = lazy(() => import("@/pages/client-profile"));
 const ClientDashboardPage   = lazy(() => import("@/pages/client-dashboard"));
+const ClientAccountPage     = lazy(() => import("@/pages/client-account"));
 const ClientShipmentPage    = lazy(() => import("@/pages/client-shipment"));
 const ClientPickupRequestsPage = lazy(() => import("@/pages/client-pickup-requests"));
 const ClientWalletPage      = lazy(() => import("@/pages/client-wallet"));
@@ -529,6 +530,7 @@ function Router() {
           <Route path="/my-dashboard"             component={ProfilePage} />
           <Route path="/client-profile"           component={ClientProfilePage} />
           <Route path="/client-dashboard"         component={ClientDashboardPage} />
+          <Route path="/client-account"           component={ClientAccountPage} />
           <Route path="/client-shipment/:id"      component={ClientShipmentPage} />
           <Route path="/client-wallet"            component={ClientWalletPage} />
           <Route path="/client-pickup-requests"   component={ClientPickupRequestsPage} />

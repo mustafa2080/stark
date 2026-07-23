@@ -11,6 +11,7 @@ import {
   clientPaymentsTable,
   clientInvoicesTable,
   pickupRequestsTable,
+  shippingCompaniesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
@@ -267,6 +268,7 @@ const updateProfileSchema = z.object({
   email: z.string().trim().email().optional().or(z.literal("")),
   city: z.string().trim().optional(),
   address: z.string().trim().optional(),
+  avatar: z.string().nullable().optional(),
 });
 router.patch("/client-portal/profile", async (req, res): Promise<void> => {
   try {
@@ -280,10 +282,53 @@ router.patch("/client-portal/profile", async (req, res): Promise<void> => {
     if (parsed.data.email !== undefined) updates.email = parsed.data.email || null;
     if (parsed.data.city !== undefined) updates.city = parsed.data.city;
     if (parsed.data.address !== undefined) updates.address = parsed.data.address;
+    if (parsed.data.avatar !== undefined) updates.avatar = parsed.data.avatar ?? null;
+
+    if (Object.keys(updates).length === 1) { // فقط updatedAt
+      res.status(400).json({ error: "لا توجد بيانات للتحديث" });
+      return;
+    }
 
     await db.update(receiverClientsTable).set(updates).where(eq(receiverClientsTable.id, user.receiverClientId));
+
+    // مزامنة الاسم مع حساب المستخدم لو اتغير (يخلي اسم اليوزر متسق مع اسم العميل)
+    if (parsed.data.name !== undefined) {
+      await db.update(usersTable).set({ displayName: parsed.data.name, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    }
+
     const [updated] = await db.select().from(receiverClientsTable).where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
     res.json({ client: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── DELETE /client-portal/account — العميل يحذف/يعطّل حسابه بنفسه ─────────
+router.delete("/client-portal/account", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    const { password } = req.body as { password?: string };
+    if (!password) { res.status(400).json({ error: "كلمة المرور مطلوبة لتأكيد الحذف" }); return; }
+
+    const [fullUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+    if (!fullUser) { res.status(404).json({ error: "المستخدم غير موجود" }); return; }
+
+    const valid = await comparePassword(password, fullUser.passwordHash);
+    if (!valid) { res.status(401).json({ error: "كلمة المرور غير صحيحة" }); return; }
+
+    // تعطيل الحساب بدلاً من الحذف الفعلي (حفاظاً على سجل الشحنات وسلامة البيانات المالية)
+    await db.update(usersTable).set({ isActive: false, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    if (user.receiverClientId) {
+      await db.update(receiverClientsTable).set({ accountStatus: "suspended", updatedAt: new Date() })
+        .where(eq(receiverClientsTable.id, user.receiverClientId));
+    }
+
+    await logAudit({
+      action: "delete", entityType: "user", entityId: user.id,
+      entityName: fullUser.displayName, userId: user.id, userName: fullUser.displayName,
+    }).catch(() => {});
+
+    res.json({ success: true, message: "تم حذف حسابك بنجاح" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -424,6 +469,115 @@ router.get("/client-portal/shipments/:id", async (req, res): Promise<void> => {
 
     const items = await db.select().from(shipmentItemsTable).where(eq(shipmentItemsTable.shipmentId, id));
     res.json({ shipment, items });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PATCH /client-portal/shipments/:id/cancel — إلغاء شحنة (لو لسه في مرحلة مبكرة) ─
+const CANCELLABLE_STATUSES = new Set(["waiting", "confirmed"]);
+router.patch("/client-portal/shipments/:id/cancel", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    const id = Number(req.params.id);
+    if (!user.receiverClientId || !id) { res.status(404).json({ error: "غير موجود" }); return; }
+
+    const [client] = await db.select().from(receiverClientsTable)
+      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    if (!client) { res.status(404).json({ error: "غير موجود" }); return; }
+
+    const conds: any[] = [eq(shipmentsTable.id, id), isNull(shipmentsTable.deletedAt)];
+    if (user.tenantId !== null && user.tenantId !== undefined) conds.push(eq(shipmentsTable.tenantId, user.tenantId));
+    const [shipment] = await db.select().from(shipmentsTable).where(and(...conds)).limit(1);
+    if (!shipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+
+    const shipmentNormalized = normalizePhone(shipment.receiverPhone ?? "");
+    if (shipmentNormalized !== client.normalizedPhone) {
+      res.status(403).json({ error: "غير مصرح لك بإلغاء هذه الشحنة" });
+      return;
+    }
+
+    if (!CANCELLABLE_STATUSES.has(shipment.status)) {
+      res.status(400).json({ error: "لا يمكن إلغاء الشحنة بعد بدء إجراءات الشحن الفعلية" });
+      return;
+    }
+
+    await db.update(shipmentsTable).set({ status: "cancelled", updatedAt: new Date() }).where(eq(shipmentsTable.id, id));
+
+    await logAudit({
+      action: "update", entityType: "shipment", entityId: id,
+      entityName: shipment.shipmentNumber ?? String(id), userId: user.id, userName: client.name,
+    }).catch(() => {});
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /client-portal/profile-full — بروفايل احترافي كامل: بيانات + مندوب + ملخص شحنات ─
+router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.receiverClientId) { res.json({ client: null }); return; }
+
+    const [client] = await db.select().from(receiverClientsTable)
+      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    if (!client) { res.json({ client: null }); return; }
+
+    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone);
+
+    // ── تقسيم الشحنات: مستلمة (delivered/partial_received) و غير مستلمة (الباقي عدا الملغية/المرتجعة) ──
+    const receivedStatuses = new Set(["delivered", "partial_received"]);
+    const closedStatuses   = new Set(["delivered", "partial_received", "cancelled", "returned"]);
+    const received    = shipments.filter(s => receivedStatuses.has(s.status));
+    const notReceived  = shipments.filter(s => !closedStatuses.has(s.status));
+
+    // ── تحديد المندوب الأكثر تعاملاً مع العميل (assignedUserId على شحناته) ──
+    const repCounts: Record<number, number> = {};
+    for (const s of shipments) {
+      if (s.assignedUserId) repCounts[s.assignedUserId] = (repCounts[s.assignedUserId] ?? 0) + 1;
+    }
+    let representative: any = null;
+    const topRepId = Object.entries(repCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (topRepId) {
+      const [rep] = await db.select({
+        id: usersTable.id, displayName: usersTable.displayName, phone: usersTable.phone,
+        avatar: usersTable.avatar, shippingCompanyId: usersTable.shippingCompanyId,
+      }).from(usersTable).where(eq(usersTable.id, Number(topRepId))).limit(1);
+      if (rep) {
+        let companyName: string | null = null, companyPhone: string | null = null;
+        if (rep.shippingCompanyId) {
+          const [company] = await db.select({ name: shippingCompaniesTable.name, phone: shippingCompaniesTable.phone })
+            .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, rep.shippingCompanyId)).limit(1);
+          companyName = company?.name ?? null;
+          companyPhone = company?.phone ?? null;
+        }
+        representative = {
+          id: rep.id, name: rep.displayName, phone: rep.phone, avatar: rep.avatar,
+          companyName, companyPhone,
+          shipmentsCount: repCounts[Number(topRepId)],
+          deliveredCount: shipments.filter(s => s.assignedUserId === Number(topRepId) && receivedStatuses.has(s.status)).length,
+        };
+      }
+    } else if (shipments[0]?.shippingCompanyId) {
+      // fallback: لو مفيش مندوب معين، اعرض بيانات شركة الشحن بس
+      const [company] = await db.select({ name: shippingCompaniesTable.name, phone: shippingCompaniesTable.phone })
+        .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, shipments[0].shippingCompanyId)).limit(1);
+      if (company) representative = { id: null, name: company.name, phone: company.phone, avatar: null, companyName: company.name, companyPhone: company.phone, shipmentsCount: shipments.length, deliveredCount: received.length };
+    }
+
+    res.json({
+      client,
+      representative,
+      shipmentsSummary: {
+        total: shipments.length,
+        received: received.length,
+        notReceived: notReceived.length,
+      },
+      receivedShipments: received.slice(0, 50),
+      pendingShipments: notReceived.slice(0, 50),
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
