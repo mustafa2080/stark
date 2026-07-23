@@ -12,11 +12,14 @@ import {
   clientInvoicesTable,
   pickupRequestsTable,
   shippingCompaniesTable,
+  shipmentZonesTable,
+  parcelTypePricingTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
+import { generateShipmentNumber, syncShipmentInventory } from "./shipments.js";
 
 const router: IRouter = Router();
 
@@ -438,6 +441,151 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
     const paged = shipments.slice(startIdx, startIdx + pageSize);
 
     res.json({ data: paged, total, page, pageSize });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /client-portal/shipments — إنشاء شحنة من بوابة العميل (مقفولة على العميل نفسه) ─
+const clientCreateShipmentSchema = z.object({
+  receiverName:    z.string().min(1),
+  receiverPhone:   z.string().nullish(),
+  receiverPhone2:  z.string().nullish(),
+  receiverAddress: z.string().nullish(),
+  receiverCity:    z.string().nullish(),
+  zoneId:          z.number().int().positive().nullish(),
+  zonePrice:       z.coerce.number().default(0),
+  parcelType:      z.string().nullish(),
+  parcelTypePrice: z.coerce.number().default(0),
+  weight:          z.coerce.number().nullish(),
+  pieces:          z.coerce.number().int().default(1),
+  description:     z.string().nullish(),
+  declaredValue:   z.coerce.number().default(0),
+  canOpen:         z.union([z.boolean(), z.literal(0), z.literal(1)]).nullish(),
+  isDivisible:     z.union([z.boolean(), z.literal(0), z.literal(1)]).nullish(),
+  rejectionPolicy: z.enum(["full_fee", "free"]).nullish(),
+  paymentMethod:   z.enum(["cod", "prepaid", "deferred"]).default("cod"),
+  codAmount:       z.coerce.number().default(0),
+  shippingFee:     z.coerce.number().default(0),
+  insuranceFee:    z.coerce.number().default(0),
+  totalAmount:     z.coerce.number().default(0),
+  shippingCompanyId: z.number().int().positive().nullish(),
+  notes:           z.string().nullish(),
+  productId:       z.number().int().positive().nullish(),
+  variantId:       z.number().int().positive().nullish(),
+  items: z.array(z.object({
+    productId:   z.number().int().positive().nullish(),
+    variantId:   z.number().int().positive().nullish(),
+    product:     z.string().nullish(),
+    color:       z.string().nullish(),
+    size:        z.string().nullish(),
+    quantity:    z.coerce.number().int().min(1).default(1),
+    unitPrice:   z.coerce.number().min(0).default(0),
+    costPrice:   z.coerce.number().min(0).default(0),
+  })).nullish(),
+});
+
+router.post("/client-portal/shipments", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.receiverClientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const [client] = await db.select().from(receiverClientsTable)
+      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    if (!client) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    if (client.accountStatus === "suspended") {
+      res.status(403).json({ error: "الحساب موقوف — يرجى التواصل مع الدعم" });
+      return;
+    }
+
+    const parsed = clientCreateShipmentSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+    const d = parsed.data;
+
+    const tenantId = user.tenantId ?? null;
+    const shipmentNumber = await generateShipmentNumber(tenantId);
+    const now = new Date();
+
+    let resolvedReceiverCity = d.receiverCity ?? undefined;
+    if (!resolvedReceiverCity && d.zoneId) {
+      const zone = await db.select({ toGovernorate: shipmentZonesTable.toGovernorate })
+        .from(shipmentZonesTable)
+        .where(eq(shipmentZonesTable.id, d.zoneId))
+        .limit(1);
+      resolvedReceiverCity = zone[0]?.toGovernorate ?? undefined;
+    }
+
+    const result = await db.insert(shipmentsTable).values({
+      ...(tenantId !== null ? { tenantId } : {}),
+      shipmentNumber,
+      // العميل هو صاحب الشحنة — بياناته الخاصة تتحدد من حسابه مش من الطلب
+      senderName:      client.name,
+      senderPhone:     client.phone ?? undefined,
+      senderCity:      client.city ?? undefined,
+      receiverName:    d.receiverName,
+      receiverPhone:   d.receiverPhone  ?? undefined,
+      receiverPhone2:  d.receiverPhone2 ?? undefined,
+      receiverAddress: d.receiverAddress ?? undefined,
+      receiverCity:    resolvedReceiverCity,
+      zoneId:          d.zoneId      ?? undefined,
+      zonePrice:       String(d.zonePrice),
+      parcelType:      d.parcelType  ?? undefined,
+      parcelTypePrice: String(d.parcelTypePrice),
+      weight:          d.weight      ? String(d.weight) : undefined,
+      pieces:          d.pieces,
+      description:     d.description ?? undefined,
+      productId:       d.productId   ?? undefined,
+      variantId:       d.variantId   ?? undefined,
+      declaredValue:   String(d.declaredValue),
+      canOpen:         d.canOpen === undefined || d.canOpen === null ? null : Number(d.canOpen),
+      isDivisible:     d.isDivisible === undefined || d.isDivisible === null ? null : Number(d.isDivisible),
+      rejectionPolicy: d.rejectionPolicy ?? null,
+      paymentMethod:   d.paymentMethod,
+      codAmount:       String(d.codAmount),
+      shippingFee:     String(d.shippingFee),
+      insuranceFee:    String(d.insuranceFee),
+      totalAmount:     String(d.totalAmount),
+      collectedAmount: "0",
+      // الحالة دايمًا "waiting" — الأدمن هو اللي يقرر يقبلها ويحولها warehouse_ready
+      status:          "waiting",
+      notes:           d.notes ?? undefined,
+      shippingCompanyId: d.shippingCompanyId ?? undefined,
+      createdByUserId: user.id,
+      createdByName:   client.name,
+      createdAt:       now,
+      updatedAt:       now,
+    });
+
+    const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
+    let newShipment = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, insertId)).limit(1);
+
+    if (d.items && d.items.length > 0) {
+      await db.insert(shipmentItemsTable).values(
+        d.items.map((it) => ({
+          shipmentId:  insertId,
+          tenantId:    tenantId ?? null,
+          productId:   it.productId ?? null,
+          variantId:   it.variantId ?? null,
+          product:     it.product ?? null,
+          color:       it.color ?? null,
+          size:        it.size ?? null,
+          quantity:    it.quantity,
+          unitPrice:   String(it.unitPrice),
+          costPrice:   String(it.costPrice),
+          totalPrice:  String(it.quantity * it.unitPrice),
+          createdAt:   now,
+          updatedAt:   now,
+        }))
+      );
+    }
+
+    await logAudit({
+      action: "create", entityType: "shipment", entityId: insertId,
+      entityName: shipmentNumber, userId: user.id, userName: client.name,
+    }).catch(() => {});
+
+    res.status(201).json(newShipment[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

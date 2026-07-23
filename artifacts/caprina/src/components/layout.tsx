@@ -371,8 +371,16 @@ export default function Layout({ children }: LayoutProps) {
       { href: "/client-wallet",          label: "التسويات المالية", icon: Wallet },
       { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
     ];
+    const CLIENT_SHIPMENTS_SUBNAV = [
+      { href: "/client-shipments",        label: "قائمة الشحنات",  icon: Package },
+      { href: "/client-shipments/new",    label: "إنشاء شحنة",     icon: Plus },
+      { href: "/client-shipments/import", label: "تحميل من إكسيل", icon: Upload },
+    ];
     const isClientActive = (href: string, exact?: boolean) =>
       exact ? location === href : location === href || location.startsWith(href + "/");
+    const shipmentsGroupActive = CLIENT_SHIPMENTS_SUBNAV.some(item => isClientActive(item.href));
+    const [clientShipmentsOpen, setClientShipmentsOpen] = useState(shipmentsGroupActive);
+    const [mobileShipmentsSheetOpen, setMobileShipmentsSheetOpen] = useState(false);
 
     return (
       <div className="flex bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
@@ -413,7 +421,60 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* روابط التنقل */}
             <nav className="flex-1 overflow-y-auto py-3 px-2 flex flex-col gap-1">
-              {CLIENT_NAV.map(item => {
+              {/* الرئيسية */}
+              {(() => {
+                const item = CLIENT_NAV[0];
+                const active = isClientActive(item.href, item.exact);
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href} title={sidebarCollapsed ? item.label : undefined}
+                    onClick={(e) => { if (sidebarCollapsed) e.stopPropagation(); }}
+                    className={cn("flex items-center gap-3 rounded-xl text-sm font-bold transition-all",
+                      sidebarCollapsed ? "justify-center h-12 w-12 mx-auto" : "px-3 py-2.5",
+                      active ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5 border border-transparent")}>
+                    <Icon className={cn("shrink-0", sidebarCollapsed ? "w-6 h-6" : "w-4.5 h-4.5")} />
+                    {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                );
+              })()}
+
+              {/* ── الشحنات: dropdown ── */}
+              {sidebarCollapsed ? (
+                <Link href="/client-shipments" title="الشحنات"
+                  className={cn("flex items-center justify-center h-12 w-12 mx-auto rounded-xl transition-all",
+                    shipmentsGroupActive ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5 border border-transparent")}>
+                  <Package className="w-6 h-6 shrink-0" />
+                </Link>
+              ) : (
+                <div>
+                  <button type="button" onClick={() => setClientShipmentsOpen(v => !v)}
+                    className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
+                      shipmentsGroupActive ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5 border border-transparent")}>
+                    <Package className="w-4.5 h-4.5 shrink-0" />
+                    <span className="flex-1 text-right truncate">الشحنات</span>
+                    <ChevronLeft className={cn("w-3.5 h-3.5 shrink-0 transition-transform", clientShipmentsOpen ? "-rotate-90" : "")} />
+                  </button>
+                  {clientShipmentsOpen && (
+                    <div className="mt-0.5 mr-2 pr-2 space-y-0.5 border-r border-white/10">
+                      {CLIENT_SHIPMENTS_SUBNAV.map(sub => {
+                        const subActive = isClientActive(sub.href);
+                        const SubIcon = sub.icon;
+                        return (
+                          <Link key={sub.href} href={sub.href}
+                            className={cn("flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all",
+                              subActive ? "text-white bg-white/10" : "text-sidebar-foreground/50 hover:text-sidebar-foreground/80 hover:bg-white/5")}>
+                            <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{sub.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* باقي الروابط */}
+              {CLIENT_NAV.slice(1).map(item => {
                 const active = isClientActive(item.href, item.exact);
                 const Icon = item.icon;
                 return (
@@ -485,7 +546,43 @@ export default function Layout({ children }: LayoutProps) {
             borderTop: "1px solid rgba(255,255,255,0.06)",
             boxShadow: "0 -4px 24px rgba(0,0,0,0.6)",
           }}>
-          {CLIENT_NAV.map(item => {
+          {/* الرئيسية */}
+          {(() => {
+            const item = CLIENT_NAV[0];
+            const active = isClientActive(item.href, item.exact);
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
+                    style={{
+                      background: active ? "linear-gradient(145deg, rgba(96,165,250,0.9) 0%, rgba(96,165,250,0.5) 100%)" : "linear-gradient(145deg, rgba(96,165,250,0.15) 0%, rgba(96,165,250,0.07) 100%)",
+                      border: active ? "1px solid rgba(96,165,250,0.6)" : "1px solid rgba(96,165,250,0.12)",
+                    }}>
+                    <Icon style={{ width: "20px", height: "20px", color: active ? "rgba(255,255,255,0.95)" : "rgba(96,165,250,0.65)" }} />
+                  </div>
+                  <span style={{ fontSize: "9px", fontWeight: active ? 700 : 500, color: active ? "rgba(96,165,250,0.9)" : "rgba(255,255,255,0.35)" }}>{item.label}</span>
+                </div>
+              </Link>
+            );
+          })()}
+
+          {/* الشحنات — يفتح bottom sheet بالخيارات الثلاثة */}
+          <button type="button" onClick={() => setMobileShipmentsSheetOpen(true)}>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
+                style={{
+                  background: shipmentsGroupActive ? "linear-gradient(145deg, rgba(96,165,250,0.9) 0%, rgba(96,165,250,0.5) 100%)" : "linear-gradient(145deg, rgba(96,165,250,0.15) 0%, rgba(96,165,250,0.07) 100%)",
+                  border: shipmentsGroupActive ? "1px solid rgba(96,165,250,0.6)" : "1px solid rgba(96,165,250,0.12)",
+                }}>
+                <Package style={{ width: "20px", height: "20px", color: shipmentsGroupActive ? "rgba(255,255,255,0.95)" : "rgba(96,165,250,0.65)" }} />
+              </div>
+              <span style={{ fontSize: "9px", fontWeight: shipmentsGroupActive ? 700 : 500, color: shipmentsGroupActive ? "rgba(96,165,250,0.9)" : "rgba(255,255,255,0.35)" }}>الشحنات</span>
+            </div>
+          </button>
+
+          {/* باقي الروابط (بروفايلي / التسويات / الالتقاط) */}
+          {CLIENT_NAV.slice(1).map(item => {
             const active = isClientActive(item.href, item.exact);
             const Icon = item.icon;
             return (
@@ -513,6 +610,37 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </button>
         </nav>
+
+        {/* Bottom sheet — خيارات الشحنات (موبايل فقط) */}
+        {mobileShipmentsSheetOpen && (
+          <div className="md:hidden fixed inset-0 z-[60]" onClick={() => setMobileShipmentsSheetOpen(false)}>
+            <div className="absolute inset-0 bg-black/60" />
+            <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl p-3 pb-6"
+              style={{ background: "linear-gradient(180deg, rgba(15,15,15,0.98) 0%, rgba(5,5,5,1) 100%)", borderTop: "1px solid rgba(255,255,255,0.08)" }}
+              onClick={(e) => e.stopPropagation()}>
+              <div className="w-10 h-1 rounded-full bg-white/15 mx-auto mb-3" />
+              <p className="text-xs font-bold text-white/50 px-2 mb-2">الشحنات</p>
+              <div className="flex flex-col gap-1">
+                {CLIENT_SHIPMENTS_SUBNAV.map(sub => {
+                  const SubIcon = sub.icon;
+                  const subActive = isClientActive(sub.href);
+                  return (
+                    <Link key={sub.href} href={sub.href} onClick={() => setMobileShipmentsSheetOpen(false)}>
+                      <div className={cn("flex items-center gap-3 px-3 py-3 rounded-xl transition-all",
+                        subActive ? "bg-white/10" : "hover:bg-white/5")}>
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.25)" }}>
+                          <SubIcon style={{ width: "18px", height: "18px", color: "rgba(96,165,250,0.9)" }} />
+                        </div>
+                        <span className="text-sm font-semibold text-white/85">{sub.label}</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
