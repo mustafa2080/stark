@@ -56,15 +56,30 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   returned:         { label: "مرتجع",         color: "#ec4899" },
   cancelled:        { label: "ملغية",         color: "#ef4444" },
 };
-function ShipmentsDonutChart({ breakdown }: { breakdown: Record<string, number> }) {
+function ShipmentsDonutChart({ breakdown, days, onDaysChange }: {
+  breakdown: Record<string, number>; days: number | "all"; onDaysChange: (d: number | "all") => void;
+}) {
   const entries = Object.entries(breakdown).filter(([, v]) => v > 0);
   const total = entries.reduce((sum, [, v]) => sum + v, 0);
 
+  const DAYS_OPTIONS: { value: number | "all"; label: string }[] = [
+    { value: 7, label: "7 أيام" }, { value: 30, label: "30 يوم" }, { value: 90, label: "90 يوم" }, { value: "all", label: "الكل" },
+  ];
+
   if (total === 0) {
     return (
-      <div className="rounded-2xl p-6 bg-card border border-border flex flex-col items-center justify-center gap-2 text-center min-h-[220px]">
-        <Package className="w-8 h-8 text-muted-foreground/30" />
-        <p className="text-sm text-muted-foreground">لا توجد شحنات بعد</p>
+      <div className="rounded-2xl p-5 bg-card border border-border">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs text-muted-foreground font-bold">إحصائيات الشحنات</p>
+          <select value={String(days)} onChange={(e) => onDaysChange(e.target.value === "all" ? "all" : Number(e.target.value))}
+            className="px-2 py-1 rounded-lg text-[11px] font-bold bg-muted/40 border border-border outline-none">
+            {DAYS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col items-center justify-center gap-2 text-center min-h-[160px]">
+          <Package className="w-8 h-8 text-muted-foreground/30" />
+          <p className="text-sm text-muted-foreground">لا توجد شحنات في هذه المدة</p>
+        </div>
       </div>
     );
   }
@@ -84,7 +99,13 @@ function ShipmentsDonutChart({ breakdown }: { breakdown: Record<string, number> 
 
   return (
     <div className="rounded-2xl p-5 bg-card border border-border">
-      <p className="text-xs text-muted-foreground font-bold mb-4">إحصائيات الشحنات</p>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs text-muted-foreground font-bold">إحصائيات الشحنات</p>
+        <select value={String(days)} onChange={(e) => onDaysChange(e.target.value === "all" ? "all" : Number(e.target.value))}
+          className="px-2 py-1 rounded-lg text-[11px] font-bold bg-muted/40 border border-border outline-none">
+          {DAYS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+      </div>
       <div className="flex flex-col sm:flex-row items-center gap-5">
         <div className="relative flex-shrink-0" style={{ width: CX * 2, height: CY * 2 }}>
           <svg viewBox={`0 0 ${CX * 2} ${CY * 2}`} width={CX * 2} height={CY * 2} style={{ transform: "rotate(-90deg)" }}>
@@ -225,6 +246,7 @@ export default function ClientAccountPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState<"received" | "pending">("pending");
+  const [chartDays, setChartDays] = useState<number | "all">(30);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isEditing, setIsEditing] = useState(false);
@@ -241,10 +263,17 @@ export default function ClientAccountPage() {
     staleTime: 15_000,
   });
 
+  const { data: chartData } = useQuery<any>({
+    queryKey: ["client-portal-profile-full-chart", chartDays],
+    queryFn: () => apiFetch(`/client-portal/profile-full${chartDays !== "all" ? `?days=${chartDays}` : ""}`),
+    enabled: !!user,
+    staleTime: 15_000,
+  });
+
   const client = data?.client;
   const representative = data?.representative;
   const summary = data?.shipmentsSummary ?? { total: 0, received: 0, notReceived: 0 };
-  const statusBreakdown = data?.statusBreakdown ?? {};
+  const statusBreakdown = chartData?.statusBreakdown ?? {};
   const pendingApprovals = data?.pendingApprovals ?? { pickupRequests: 0 };
   const outstandingBalance = data?.outstandingBalance ?? 0;
   const receivedShipments = data?.receivedShipments ?? [];
@@ -510,7 +539,7 @@ export default function ClientAccountPage() {
           <div className="lg:col-span-2 space-y-4">
 
             {/* Shipments donut chart */}
-            <ShipmentsDonutChart breakdown={statusBreakdown} />
+            <ShipmentsDonutChart breakdown={statusBreakdown} days={chartDays} onDaysChange={setChartDays} />
 
             {/* Summary cards */}
             <div className="grid grid-cols-3 gap-3">

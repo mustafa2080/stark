@@ -567,9 +567,14 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
       if (company) representative = { id: null, name: company.name, phone: company.phone, avatar: null, companyName: company.name, companyPhone: company.phone, shipmentsCount: shipments.length, deliveredCount: received.length };
     }
 
-    // ── توزيع الشحنات حسب الحالة (لدائرة الإحصائيات) ──
+    // ── توزيع الشحنات حسب الحالة (لدائرة الإحصائيات) — قابل للفلترة بمدة زمنية عبر ?days=7|30|90 ──
+    const daysParam = Number(req.query.days);
+    const days = [7, 30, 90].includes(daysParam) ? daysParam : null;
+    const breakdownSource = days
+      ? shipments.filter(s => s.createdAt && (Date.now() - new Date(s.createdAt).getTime()) <= days * 24 * 60 * 60 * 1000)
+      : shipments;
     const statusBreakdown: Record<string, number> = {};
-    for (const s of shipments) {
+    for (const s of breakdownSource) {
       statusBreakdown[s.status] = (statusBreakdown[s.status] ?? 0) + 1;
     }
 
