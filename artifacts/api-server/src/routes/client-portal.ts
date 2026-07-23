@@ -573,6 +573,24 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
       statusBreakdown[s.status] = (statusBreakdown[s.status] ?? 0) + 1;
     }
 
+    // ── طلبات الالتقاط بانتظار الموافقة ──
+    const pickupConds: any[] = [
+      eq(pickupRequestsTable.receiverClientId, user.receiverClientId),
+      eq(pickupRequestsTable.status, "pending"),
+      isNull(pickupRequestsTable.deletedAt),
+    ];
+    const pendingPickups = await db.select({ id: pickupRequestsTable.id }).from(pickupRequestsTable).where(and(...pickupConds));
+
+    // ── المستحق للسداد (مجموع الفواتير غير المسددة بالكامل) ──
+    const invConds: any[] = [eq(clientInvoicesTable.normalizedPhone, client.normalizedPhone)];
+    if (user.tenantId !== null && user.tenantId !== undefined) invConds.push(eq(clientInvoicesTable.tenantId, user.tenantId));
+    const unpaidInvoices = await db.select({
+      totalAmount: clientInvoicesTable.totalAmount, paidAmount: clientInvoicesTable.paidAmount,
+    }).from(clientInvoicesTable).where(and(...invConds));
+    const outstandingBalance = unpaidInvoices.reduce(
+      (sum, inv) => sum + (Number(inv.totalAmount) - Number(inv.paidAmount)), 0
+    );
+
     res.json({
       client,
       representative,
@@ -582,6 +600,8 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
         notReceived: notReceived.length,
       },
       statusBreakdown,
+      pendingApprovals: { pickupRequests: pendingPickups.length },
+      outstandingBalance,
       receivedShipments: received.slice(0, 50),
       pendingShipments: notReceived.slice(0, 50),
     });

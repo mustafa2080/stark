@@ -6,7 +6,7 @@ import { ar } from "date-fns/locale";
 import {
   ArrowRight, User, Phone, Mail, MapPin, Edit2, X, Check, Loader2,
   Camera, Package, CheckCircle2, Clock, Truck, ShieldCheck, AlertTriangle,
-  Trash2, Building2, ChevronLeft, Ban, PackageCheck, PackageX,
+  Trash2, Building2, ChevronLeft, Ban, PackageCheck, PackageX, Wallet,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
@@ -202,6 +202,8 @@ export default function ClientAccountPage() {
   const representative = data?.representative;
   const summary = data?.shipmentsSummary ?? { total: 0, received: 0, notReceived: 0 };
   const statusBreakdown = data?.statusBreakdown ?? {};
+  const pendingApprovals = data?.pendingApprovals ?? { pickupRequests: 0 };
+  const outstandingBalance = data?.outstandingBalance ?? 0;
   const receivedShipments = data?.receivedShipments ?? [];
   const pendingShipments = data?.pendingShipments ?? [];
 
@@ -316,6 +318,21 @@ export default function ClientAccountPage() {
 
           {/* ── Left column: profile card ── */}
           <div className="lg:col-span-1 space-y-4">
+
+            {/* Top summary cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => navigate("/client-pickup-requests")}
+                className="rounded-2xl p-4 bg-card border border-border text-center hover:bg-muted/20 transition-colors">
+                <Clock className="w-5 h-5 mx-auto mb-1.5 text-amber-500" />
+                <p className="text-xl font-black text-amber-500">{fn(pendingApprovals.pickupRequests)}</p>
+                <p className="text-[11px] text-muted-foreground">بانتظار الموافقة</p>
+              </button>
+              <div className="rounded-2xl p-4 bg-card border border-border text-center">
+                <Wallet className="w-5 h-5 mx-auto mb-1.5 text-primary" />
+                <p className="text-xl font-black text-primary">{fn(outstandingBalance)} ج.م</p>
+                <p className="text-[11px] text-muted-foreground">المستحق للسداد</p>
+              </div>
+            </div>
 
             {/* Profile Card */}
             <div className="rounded-2xl p-5 bg-card border border-border">
