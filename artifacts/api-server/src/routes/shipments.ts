@@ -536,7 +536,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
 router.get("/shipments/zones", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cond = tenantId !== null ? eq(shipmentZonesTable.tenantId, tenantId) : undefined;
+    // لو المنطقة tenant_id فاضي (NULL) → دي منطقة عامة مشتركة تظهر لكل الـ tenants
+    const cond = tenantId !== null
+      ? or(eq(shipmentZonesTable.tenantId, tenantId), isNull(shipmentZonesTable.tenantId))
+      : undefined;
     const rows = await db.select().from(shipmentZonesTable).where(cond).orderBy(shipmentZonesTable.name);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: "خطأ في استرجاع المناطق" }); }
@@ -1221,7 +1224,10 @@ router.delete("/shipments/:id", async (req, res): Promise<void> => {
 router.get("/shipment-zones", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cond = tenantId !== null ? eq(shipmentZonesTable.tenantId, tenantId) : undefined;
+    // لو المنطقة tenant_id فاضي (NULL) → دي منطقة عامة مشتركة تظهر لكل الـ tenants
+    const cond = tenantId !== null
+      ? or(eq(shipmentZonesTable.tenantId, tenantId), isNull(shipmentZonesTable.tenantId))
+      : undefined;
     const rows = await db.select().from(shipmentZonesTable).where(cond).orderBy(shipmentZonesTable.name);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: "خطأ" }); }
