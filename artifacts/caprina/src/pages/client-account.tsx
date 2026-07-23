@@ -158,7 +158,7 @@ function EditableField({ icon: Icon, label, value, editing, onChange, type = "te
 function ShipmentRow({ s, onClick }: { s: any; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-muted/25 border border-border hover:bg-muted/40 transition-colors text-right">
+      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-muted/25 border border-border hover:bg-muted/40 transition-colors text-right md:hidden">
       <div className="w-9 h-9 rounded-lg bg-muted/50 flex items-center justify-center flex-shrink-0">
         <Package size={15} className="text-muted-foreground" />
       </div>
@@ -172,6 +172,47 @@ function ShipmentRow({ s, onClick }: { s: any; onClick: () => void }) {
       <StatusBadge status={s.status} />
       <ChevronLeft size={16} className="text-muted-foreground/50 flex-shrink-0" />
     </button>
+  );
+}
+
+function ShipmentsTable({ shipments, onRowClick }: { shipments: any[]; onRowClick: (s: any) => void }) {
+  if (shipments.length === 0) {
+    return <div className="hidden md:block py-10 text-center text-sm text-muted-foreground">لا توجد شحنات هنا</div>;
+  }
+  return (
+    <div className="hidden md:block overflow-auto max-h-[520px]">
+      <table className="w-full text-right">
+        <thead className="sticky top-0 bg-card z-10">
+          <tr className="border-b border-border">
+            <th className="px-3 py-2.5 text-[11px] font-bold text-muted-foreground whitespace-nowrap">الكود</th>
+            <th className="px-3 py-2.5 text-[11px] font-bold text-muted-foreground whitespace-nowrap">التاريخ</th>
+            <th className="px-3 py-2.5 text-[11px] font-bold text-muted-foreground whitespace-nowrap">المستلم</th>
+            <th className="px-3 py-2.5 text-[11px] font-bold text-muted-foreground whitespace-nowrap">الوجهة</th>
+            <th className="px-3 py-2.5 text-[11px] font-bold text-muted-foreground whitespace-nowrap">قيمة الطرد</th>
+            <th className="px-3 py-2.5 text-[11px] font-bold text-muted-foreground whitespace-nowrap">حالة الطلب</th>
+            <th className="px-3 py-2.5 w-8"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {shipments.map((s: any) => (
+            <tr key={s.id} onClick={() => onRowClick(s)}
+              className="border-b border-border/60 last:border-0 hover:bg-muted/25 cursor-pointer transition-colors">
+              <td className="px-3 py-3 text-sm font-bold text-primary whitespace-nowrap">{s.shipmentNumber || `#${s.id}`}</td>
+              <td className="px-3 py-3 text-[12px] text-muted-foreground whitespace-nowrap">
+                {s.createdAt ? format(new Date(s.createdAt), "dd MMM yyyy", { locale: ar }) : "—"}
+              </td>
+              <td className="px-3 py-3 text-sm font-bold truncate max-w-[160px]">{s.receiverName || "—"}</td>
+              <td className="px-3 py-3 text-[12px] text-muted-foreground truncate max-w-[160px]">
+                {[s.receiverCity, s.receiverAddress].filter(Boolean).join(" - ") || "—"}
+              </td>
+              <td className="px-3 py-3 text-sm font-bold whitespace-nowrap">{fn(Number(s.totalAmount || s.codAmount || 0))}</td>
+              <td className="px-3 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
+              <td className="px-3 py-3"><ChevronLeft size={15} className="text-muted-foreground/50" /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -493,7 +534,9 @@ export default function ClientAccountPage() {
                 </button>
               </div>
 
-              <div className="p-3 space-y-2 max-h-[520px] overflow-y-auto">
+              <ShipmentsTable shipments={shownShipments} onRowClick={(s) => navigate(`/client-shipment/${s.id}`)} />
+
+              <div className="p-3 space-y-2 max-h-[520px] overflow-y-auto md:hidden">
                 {shownShipments.length === 0 ? (
                   <div className="py-10 text-center text-sm text-muted-foreground">لا توجد شحنات هنا</div>
                 ) : (
