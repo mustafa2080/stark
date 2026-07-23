@@ -6,6 +6,7 @@ export const NOTIFICATION_TYPES = [
   "shipment_returned",
   "shipment_delivered",
   "shipment_received",
+  "shipment_updated",
   "client_followup",
   "inventory_low",
   "invoice_created",

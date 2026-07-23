@@ -1131,6 +1131,28 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
         link: `/client-portal/shipments/${updated[0].id}`,
       });
     }
+
+    // إشعار موجّه للعميل نفسه — أول مرة يتحدد فيها العميل التجاري (الأدمن كمّل البيانات الناقصة)
+    // بيتفعّل بس لو الشحنة أصلها من عميل (client-portal) وكانت من غير عميل تجاري قبل كده
+    if (
+      d.clientId !== undefined &&
+      d.clientId !== null &&
+      existingShipment.clientId == null &&
+      existingShipment.createdByUserId != null &&
+      updated[0]
+    ) {
+      pushNotification({
+        tenantId,
+        targetUserId: existingShipment.createdByUserId,
+        type: "shipment_updated",
+        severity: "success",
+        title: "تم استكمال بيانات شحنتك",
+        message: `تم ربط شحنتك ${updated[0].trackingNumber ?? `#${updated[0].id}`} ببيانات العميل التجاري`,
+        entityType: "shipment",
+        entityId: updated[0].id,
+        link: `/client-portal/shipments/${updated[0].id}`,
+      });
+    }
   } catch (e) {
     console.error("[PATCH /shipments/:id]", e);
     res.status(500).json({ error: "خطأ في تحديث الشحنة" });
