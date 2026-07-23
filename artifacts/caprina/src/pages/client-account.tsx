@@ -56,6 +56,69 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   returned:         { label: "مرتجع",         color: "#ec4899" },
   cancelled:        { label: "ملغية",         color: "#ef4444" },
 };
+function ShipmentsDonutChart({ breakdown }: { breakdown: Record<string, number> }) {
+  const entries = Object.entries(breakdown).filter(([, v]) => v > 0);
+  const total = entries.reduce((sum, [, v]) => sum + v, 0);
+
+  if (total === 0) {
+    return (
+      <div className="rounded-2xl p-6 bg-card border border-border flex flex-col items-center justify-center gap-2 text-center min-h-[220px]">
+        <Package className="w-8 h-8 text-muted-foreground/30" />
+        <p className="text-sm text-muted-foreground">لا توجد شحنات بعد</p>
+      </div>
+    );
+  }
+
+  const R = 70, CX = 90, CY = 90, STROKE = 26;
+  const circumference = 2 * Math.PI * R;
+  let cumulative = 0;
+  const segments = entries.map(([status, count]) => {
+    const meta = STATUS_META[status] ?? { label: status, color: "#94a3b8" };
+    const fraction = count / total;
+    const dash = fraction * circumference;
+    const gap = circumference - dash;
+    const offset = -cumulative * circumference;
+    cumulative += fraction;
+    return { status, count, meta, dash, gap, offset, pct: Math.round(fraction * 100) };
+  });
+
+  return (
+    <div className="rounded-2xl p-5 bg-card border border-border">
+      <p className="text-xs text-muted-foreground font-bold mb-4">إحصائيات الشحنات</p>
+      <div className="flex flex-col sm:flex-row items-center gap-5">
+        <div className="relative flex-shrink-0" style={{ width: CX * 2, height: CY * 2 }}>
+          <svg viewBox={`0 0 ${CX * 2} ${CY * 2}`} width={CX * 2} height={CY * 2} style={{ transform: "rotate(-90deg)" }}>
+            {segments.map((seg) => (
+              <circle
+                key={seg.status}
+                cx={CX} cy={CY} r={R}
+                fill="none"
+                stroke={seg.meta.color}
+                strokeWidth={STROKE}
+                strokeDasharray={`${seg.dash} ${seg.gap}`}
+                strokeDashoffset={seg.offset}
+              />
+            ))}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <p className="text-2xl font-black text-foreground">{fn(total)}</p>
+            <p className="text-[10px] text-muted-foreground">الإجمالي</p>
+          </div>
+        </div>
+        <div className="flex-1 w-full grid grid-cols-2 gap-x-3 gap-y-2">
+          {segments.map((seg) => (
+            <div key={seg.status} className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: seg.meta.color }} />
+              <span className="text-[11px] text-muted-foreground truncate flex-1">{seg.meta.label}</span>
+              <span className="text-[11px] font-bold text-foreground flex-shrink-0">{fn(seg.count)} ({seg.pct}%)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status] ?? { label: status, color: "#94a3b8" };
   return (
@@ -138,6 +201,7 @@ export default function ClientAccountPage() {
   const client = data?.client;
   const representative = data?.representative;
   const summary = data?.shipmentsSummary ?? { total: 0, received: 0, notReceived: 0 };
+  const statusBreakdown = data?.statusBreakdown ?? {};
   const receivedShipments = data?.receivedShipments ?? [];
   const pendingShipments = data?.pendingShipments ?? [];
 
@@ -374,6 +438,9 @@ export default function ClientAccountPage() {
 
           {/* ── Right column: shipments ── */}
           <div className="lg:col-span-2 space-y-4">
+
+            {/* Shipments donut chart */}
+            <ShipmentsDonutChart breakdown={statusBreakdown} />
 
             {/* Summary cards */}
             <div className="grid grid-cols-3 gap-3">

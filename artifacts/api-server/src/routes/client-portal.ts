@@ -567,6 +567,12 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
       if (company) representative = { id: null, name: company.name, phone: company.phone, avatar: null, companyName: company.name, companyPhone: company.phone, shipmentsCount: shipments.length, deliveredCount: received.length };
     }
 
+    // ── توزيع الشحنات حسب الحالة (لدائرة الإحصائيات) ──
+    const statusBreakdown: Record<string, number> = {};
+    for (const s of shipments) {
+      statusBreakdown[s.status] = (statusBreakdown[s.status] ?? 0) + 1;
+    }
+
     res.json({
       client,
       representative,
@@ -575,6 +581,7 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
         received: received.length,
         notReceived: notReceived.length,
       },
+      statusBreakdown,
       receivedShipments: received.slice(0, 50),
       pendingShipments: notReceived.slice(0, 50),
     });
