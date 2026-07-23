@@ -870,6 +870,115 @@ router.get("/client-portal/pickup-requests", async (req, res): Promise<void> => 
   }
 });
 
+// ─── GET /client-portal/invoiceable-shipments — شحنات العميل اللي لسه من غير فاتورة ─
+router.get("/client-portal/invoiceable-shipments", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.receiverClientId) { res.json({ data: [] }); return; }
+
+    const [client] = await db.select().from(receiverClientsTable)
+      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    if (!client) { res.json({ data: [] }); return; }
+
+    const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone);
+
+    // ── اجمع كل shipmentIds اللي دخلت فاتورة قبل كده ────────────────────────
+    const invConds: any[] = [eq(clientInvoicesTable.normalizedPhone, client.normalizedPhone)];
+    if (user.tenantId !== null && user.tenantId !== undefined) invConds.push(eq(clientInvoicesTable.tenantId, user.tenantId));
+    const existingInvoices = await db.select({ shipmentIds: clientInvoicesTable.shipmentIds })
+      .from(clientInvoicesTable).where(and(...invConds));
+    const alreadyInvoiced = new Set<number>();
+    for (const inv of existingInvoices) {
+      for (const id of (inv.shipmentIds ?? [])) alreadyInvoiced.add(id);
+    }
+
+    const invoiceable = allShipments.filter(s => !alreadyInvoiced.has(s.id));
+    res.json({ data: invoiceable });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /client-portal/invoices — العميل ينشئ فاتورة على شحنات مختارة بنفسه ─
+const createClientInvoiceSchema = z.object({
+  shipmentIds: z.array(z.number().int().positive()).min(1, "اختر شحنة واحدة على الأقل"),
+});
+
+router.post("/client-portal/invoices", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.receiverClientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const [client] = await db.select().from(receiverClientsTable)
+      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    if (!client) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const parsed = createClientInvoiceSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" }); return; }
+    const { shipmentIds } = parsed.data;
+
+    const tenantId = user.tenantId ?? null;
+
+    // ── تأكد إن كل الشحنات دي فعلاً بتاعة العميل نفسه (أمان) ────────────────
+    const allShipments = await getClientShipments(tenantId, client.normalizedPhone);
+    const ownedIds = new Set(allShipments.map(s => s.id));
+    const invalidIds = shipmentIds.filter(id => !ownedIds.has(id));
+    if (invalidIds.length > 0) {
+      res.status(403).json({ error: "بعض الشحنات المختارة غير تابعة لحسابك" });
+      return;
+    }
+
+    // ── تأكد إن ولا شحنة منهم داخلة في فاتورة سابقة ─────────────────────────
+    const invConds: any[] = [eq(clientInvoicesTable.normalizedPhone, client.normalizedPhone)];
+    if (tenantId !== null && tenantId !== undefined) invConds.push(eq(clientInvoicesTable.tenantId, tenantId));
+    const existingInvoices = await db.select({ shipmentIds: clientInvoicesTable.shipmentIds })
+      .from(clientInvoicesTable).where(and(...invConds));
+    const alreadyInvoiced = new Set<number>();
+    for (const inv of existingInvoices) {
+      for (const id of (inv.shipmentIds ?? [])) alreadyInvoiced.add(id);
+    }
+    const duplicateIds = shipmentIds.filter(id => alreadyInvoiced.has(id));
+    if (duplicateIds.length > 0) {
+      res.status(409).json({ error: "بعض الشحنات المختارة دخلت فاتورة قبل كده" });
+      return;
+    }
+
+    // ── احسب إجمالي الفاتورة = مجموع رسوم الشحن للشحنات المختارة ──────────
+    const selectedShipments = allShipments.filter(s => shipmentIds.includes(s.id));
+    const totalAmount = selectedShipments.reduce((sum, s) => sum + Number(s.shippingFee ?? 0), 0);
+
+    const now = new Date();
+    const invoiceNumber = `CINV-${Date.now().toString().slice(-8)}`;
+
+    const insertResult = await db.insert(clientInvoicesTable).values({
+      tenantId,
+      invoiceNumber,
+      clientPhone: client.phone,
+      normalizedPhone: client.normalizedPhone,
+      shipmentIds,
+      totalAmount: String(totalAmount),
+      paidAmount: "0",
+      status: "unpaid",
+      createdByUserId: user.id,
+      createdByName: client.name,
+      createdAt: now,
+      updatedAt: now,
+    } as any);
+    const insertId = (insertResult as any).insertId ?? (insertResult as any)[0]?.insertId;
+
+    const [created] = await db.select().from(clientInvoicesTable).where(eq(clientInvoicesTable.id, insertId)).limit(1);
+
+    await logAudit({
+      action: "create", entityType: "client_invoice", entityId: insertId,
+      entityName: invoiceNumber, userId: user.id, userName: client.name,
+    }).catch(() => {});
+
+    res.status(201).json({ invoice: created });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── PATCH /client-portal/pickup-requests/:id/cancel — إلغاء طلب (لو لسه pending) ─
 router.patch("/client-portal/pickup-requests/:id/cancel", async (req, res): Promise<void> => {
   try {
