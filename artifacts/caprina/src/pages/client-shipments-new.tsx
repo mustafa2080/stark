@@ -327,6 +327,42 @@ export default function ClientShipmentsNewPage() {
                   />
                 </div>
                 <div>
+                  <Label className="text-xs font-bold mb-1.5 block">المخزن</Label>
+                  <Select value="none" disabled>
+                    <SelectTrigger className="text-sm bg-muted/50 cursor-not-allowed opacity-70">
+                      <SelectValue placeholder="يتم تحديده من الأدمن تلقائياً" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">يتم تحديده من الأدمن تلقائياً</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs font-bold mb-1.5 block">ملاحظات</Label>
+                  <Input
+                    className="text-sm"
+                    placeholder="يُحدده الأدمن"
+                    value={form.notes}
+                    onChange={(e) => set("notes", e.target.value)}
+                    disabled
+                  />
+                </div>
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
+                  <Label className="text-xs font-bold block">تتبع الإعلان والفريق</Label>
+                  <div>
+                    <Label className="text-[11px] font-semibold mb-1.5 block text-muted-foreground">مصدر الطلب</Label>
+                    <Input className="text-sm bg-background" value="يتم تحديده من الأدمن" disabled />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold mb-1.5 block text-muted-foreground">اسم الحملة</Label>
+                    <Input className="text-sm bg-background" value="يتم تحديده من الأدمن" disabled />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold mb-1.5 block text-muted-foreground">الراسل</Label>
+                    <Input className="text-sm bg-background" value="يتم تحديده من الأدمن" disabled />
+                  </div>
+                </div>
+                <div>
                   <Label className="text-xs font-bold mb-1.5 block">مصاريف الشحن</Label>
                   <Input
                     type="number"
