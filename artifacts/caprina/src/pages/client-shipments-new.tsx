@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Plus, Package, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Warehouse, Check, ChevronsUpDown } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -137,6 +137,24 @@ export default function NewShipmentPage() {
 
           {/* ── يمين: الفورم ── */}
           <div className="lg:col-span-2 space-y-8">
+
+        {/* العميل التجاري — للعرض فقط، الأدمن هو اللي يربطها */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
+            <User className="w-3.5 h-3.5" /> العميل التجاري
+          </h3>
+          <div>
+            <Label className="text-xs font-bold mb-1.5 block">العميل التجاري</Label>
+            <button
+              type="button"
+              disabled
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-muted/40 px-3 py-2 text-sm shadow-sm opacity-60 cursor-not-allowed"
+            >
+              <span className="flex items-center gap-2 text-muted-foreground"><User className="w-3.5 h-3.5" />يحدده الأدمن</span>
+              <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+            </button>
+          </div>
+        </section>
 
         {/* بيانات المستلم */}
         <section className="space-y-4">
@@ -314,6 +332,24 @@ export default function NewShipmentPage() {
                 <Input type="number" className="text-sm" placeholder="0" value={form.codAmount} onChange={e => set("codAmount", e.target.value)} />
               </div>
             )}
+          </div>
+        </section>
+
+        {/* المخزن — للعرض فقط، الأدمن هو اللي يحدده */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
+            <Warehouse className="w-3.5 h-3.5" /> المخزن
+          </h3>
+          <div>
+            <Label className="text-xs font-bold mb-1.5 block">المخزن</Label>
+            <Select value="pending" disabled>
+              <SelectTrigger className="text-sm opacity-60 cursor-not-allowed">
+                <SelectValue placeholder="هيتحدد من الأدمن" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">هيتحدد من الأدمن</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </section>
 
