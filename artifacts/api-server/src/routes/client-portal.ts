@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, sql, or } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import {
   db,
@@ -338,11 +338,16 @@ router.delete("/client-portal/account", async (req, res): Promise<void> => {
   }
 });
 
-// ─── Helper: شحنات العميل بحسب رقم الهاتف (matching زي client-account-pro) ──
-async function getClientShipments(tenantId: number | null, normalizedPhone: string) {
+// ─── Helper: شحنات العميل — بيتحدد بمن أنشأها (createdByUserId) أو برقم هاتف المستلم (توافقاً مع شحنات قديمة أُدخلت يدويًا للأدمن) ──
+async function getClientShipments(tenantId: number | null, normalizedPhone: string, userId?: number | null) {
   const conds: any[] = [
     isNull(shipmentsTable.deletedAt),
-    sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`,
+    userId != null
+      ? or(
+          eq(shipmentsTable.createdByUserId, userId),
+          sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`,
+        )
+      : sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`,
   ];
   if (tenantId !== null) conds.push(eq(shipmentsTable.tenantId, tenantId));
   return db.select().from(shipmentsTable).where(and(...conds)).orderBy(desc(shipmentsTable.createdAt));
@@ -358,7 +363,7 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
       .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
     if (!client) { res.json({ total: 0, breakdown: [] }); return; }
 
-    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone);
+    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
 
     const total = shipments.length;
     const counts: Record<string, number> = {};
@@ -422,7 +427,7 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
 
-    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone);
+    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
 
     if (status && status !== "all") {
       shipments = shipments.filter(s => s.status === status);
@@ -686,7 +691,7 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
       .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
     if (!client) { res.json({ client: null }); return; }
 
-    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone);
+    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
 
     // ── تقسيم الشحنات: مستلمة (delivered/partial_received) و غير مستلمة (الباقي عدا الملغية/المرتجعة) ──
     const receivedStatuses = new Set(["delivered", "partial_received"]);
@@ -880,7 +885,7 @@ router.get("/client-portal/invoiceable-shipments", async (req, res): Promise<voi
       .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
     if (!client) { res.json({ data: [] }); return; }
 
-    const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone);
+    const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
 
     // ── اجمع كل shipmentIds اللي دخلت فاتورة قبل كده ────────────────────────
     const invConds: any[] = [eq(clientInvoicesTable.normalizedPhone, client.normalizedPhone)];
