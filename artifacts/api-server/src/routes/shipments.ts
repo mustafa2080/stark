@@ -1109,6 +1109,28 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
         });
       }
     }
+
+    // إشعار موجّه للعميل نفسه — أول مرة يتحدد فيها المخزن (يعني الأدمن استلم شحنته)
+    // بيتفعّل بس لو الشحنة أصلها من عميل (client-portal) وكانت من غير مخزن قبل كده
+    if (
+      d.warehouseId !== undefined &&
+      d.warehouseId !== null &&
+      existingShipment.warehouseId == null &&
+      existingShipment.createdByUserId != null &&
+      updated[0]
+    ) {
+      pushNotification({
+        tenantId,
+        targetUserId: existingShipment.createdByUserId,
+        type: "shipment_received",
+        severity: "success",
+        title: "تم استلام شحنتك",
+        message: `تم استلام شحنتك ${updated[0].trackingNumber ?? `#${updated[0].id}`} في المخزن`,
+        entityType: "shipment",
+        entityId: updated[0].id,
+        link: `/client-portal/shipments/${updated[0].id}`,
+      });
+    }
   } catch (e) {
     console.error("[PATCH /shipments/:id]", e);
     res.status(500).json({ error: "خطأ في تحديث الشحنة" });

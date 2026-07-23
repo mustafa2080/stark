@@ -19,7 +19,7 @@ router.get("/notifications/sse", (req: Request, res: Response): void => {
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
-  const unregister = registerNotifSseClient(user.tenantId ?? null, res);
+  const unregister = registerNotifSseClient(user.tenantId ?? null, res, user.id ?? null);
 
   const heartbeat = setInterval(() => {
     try { res.write(": ping\n\n"); } catch (_) { cleanup(); }
@@ -39,14 +39,19 @@ export default router;
 // ─── Protected routes (need requireAuth applied by caller router group) ──────
 export const notificationsProtectedRouter: IRouter = Router();
 
-// GET /notifications — آخر الإشعارات (افتراضي 30)
+// GET /notifications — آخر الإشعارات (افتراضي 30) — تجيب العامة (بالـ tenant) + الموجّهة للمستخدم نفسه
 notificationsProtectedRouter.get("/notifications", async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const tenantId = user?.tenantId ?? null;
+  const userId = user?.id ?? null;
   const limit = Math.min(Number(req.query.limit) || 30, 100);
-  const rows = tenantId == null
-    ? await db.select().from(notificationsTable).where(sql`${notificationsTable.tenantId} IS NULL`).orderBy(desc(notificationsTable.createdAt)).limit(limit)
-    : await db.select().from(notificationsTable).where(eq(notificationsTable.tenantId, tenantId)).orderBy(desc(notificationsTable.createdAt)).limit(limit);
+
+  const tenantCond = tenantId == null ? sql`${notificationsTable.tenantId} IS NULL` : eq(notificationsTable.tenantId, tenantId);
+  const scopeCond = userId != null
+    ? and(tenantCond, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
+    : and(tenantCond, sql`${notificationsTable.targetUserId} IS NULL`);
+
+  const rows = await db.select().from(notificationsTable).where(scopeCond).orderBy(desc(notificationsTable.createdAt)).limit(limit);
   res.json({ notifications: rows });
 });
 
@@ -54,10 +59,15 @@ notificationsProtectedRouter.get("/notifications", async (req: Request, res: Res
 notificationsProtectedRouter.get("/notifications/unread-count", async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const tenantId = user?.tenantId ?? null;
-  const cond = tenantId == null
-    ? and(sql`${notificationsTable.tenantId} IS NULL`, eq(notificationsTable.isRead, false))
-    : and(eq(notificationsTable.tenantId, tenantId), eq(notificationsTable.isRead, false));
-  const [row] = await db.select({ count: sql<number>`count(*)` }).from(notificationsTable).where(cond);
+  const userId = user?.id ?? null;
+
+  const tenantCond = tenantId == null ? sql`${notificationsTable.tenantId} IS NULL` : eq(notificationsTable.tenantId, tenantId);
+  const scopeCond = userId != null
+    ? and(tenantCond, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
+    : and(tenantCond, sql`${notificationsTable.targetUserId} IS NULL`);
+
+  const [row] = await db.select({ count: sql<number>`count(*)` }).from(notificationsTable)
+    .where(and(scopeCond, eq(notificationsTable.isRead, false)));
   res.json({ count: Number(row?.count ?? 0) });
 });
 

@@ -5,6 +5,7 @@ export const NOTIFICATION_TYPES = [
   "shipment_delayed",
   "shipment_returned",
   "shipment_delivered",
+  "shipment_received",
   "client_followup",
   "inventory_low",
   "invoice_created",
@@ -20,6 +21,8 @@ export type NotificationSeverity = (typeof NOTIFICATION_SEVERITIES)[number];
 export const notificationsTable = mysqlTable("notifications", {
   id: int("id").primaryKey().autoincrement(),
   tenantId: int("tenant_id"),
+  // لو محدد، الإشعار موجّه لهذا المستخدم بالذات (مثلاً إشعار للعميل نفسه) — غير كده بيبث لكل الـ tenant
+  targetUserId: int("target_user_id"),
   type: varchar("type", { length: 50 }).notNull(),
   severity: varchar("severity", { length: 20 }).notNull().default("info"),
   title: varchar("title", { length: 255 }).notNull(),

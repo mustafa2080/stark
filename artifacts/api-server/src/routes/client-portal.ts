@@ -20,6 +20,7 @@ import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
 import { generateShipmentNumber, syncShipmentInventory } from "./shipments.js";
+import { pushNotification } from "../lib/notifications.js";
 
 const router: IRouter = Router();
 
@@ -586,6 +587,18 @@ router.post("/client-portal/shipments", async (req, res): Promise<void> => {
     }).catch(() => {});
 
     res.status(201).json(newShipment[0]);
+
+    // إشعار فوري للأدمن (بث على مستوى الـ tenant) بشحنة جديدة من بوابة العميل
+    pushNotification({
+      tenantId,
+      type: "shipment_new",
+      severity: "info",
+      title: "شحنة جديدة من العميل",
+      message: `${client.name} — ${d.receiverName} — ${resolvedReceiverCity ?? "بدون محافظة"}`,
+      entityType: "shipment",
+      entityId: insertId,
+      link: `/shipments/${insertId}`,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
