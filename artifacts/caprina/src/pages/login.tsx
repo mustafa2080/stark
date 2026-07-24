@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const [showRegisterChoice, setShowRegisterChoice] = useState(false);
   const { login } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
