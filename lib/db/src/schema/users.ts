@@ -25,7 +25,8 @@ export const usersTable = mysqlTable("users", {
   permissions: json("permissions").$type<string[]>().default([]),
   isActive: boolean("is_active").notNull().default(true),
   shippingCompanyId: int("shipping_company_id"),  // للـ representative فقط
-  receiverClientId: int("receiver_client_id"),    // للـ client فقط — رابط حساب العميل في receiver_clients
+  receiverClientId: int("receiver_client_id"),    // [قديم/متروك للتوافق] رابط حساب العميل في receiver_clients
+  clientId: int("client_id"),                     // للـ client فقط — رابط حساب العميل في جدول clients (التجاري)
   phone: varchar("phone", { length: 50 }),        // رقم هاتف العميل (يُستخدم في التسجيل)
   email: varchar("email", { length: 255 }),
   defaultAdSource: varchar("default_ad_source", { length: 50 }), // مصدر الإعلان الافتراضي للموظف (يتعبأ تلقائياً عند اختياره في شحنة جديدة)

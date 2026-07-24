@@ -5,7 +5,7 @@ import {
   db,
   usersTable,
   tenantsTable,
-  receiverClientsTable,
+  clientsTable,
   shipmentsTable,
   shipmentItemsTable,
   clientPaymentsTable,
@@ -134,31 +134,31 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
 
     const now = new Date();
 
-    // ── إيجاد/إنشاء سجل receiver_clients لنفس التاجر ─────────────────────
-    const [existingClient] = await db.select().from(receiverClientsTable)
-      .where(and(eq(receiverClientsTable.tenantId, tenant.id), eq(receiverClientsTable.normalizedPhone, normalizedPhone)))
+    // ── إيجاد/إنشاء سجل clients لنفس التاجر ──────────────────────────────
+    const [existingClient] = await db.select().from(clientsTable)
+      .where(and(eq(clientsTable.tenantId, tenant.id), eq(clientsTable.normalizedPhone, normalizedPhone)))
       .limit(1);
 
-    let receiverClientId: number;
+    let clientId: number;
     if (existingClient) {
       // لو موجود بالفعل — تأكد إنه مش مرتبط بحساب تاني
       const [linkedUser] = await db.select({ id: usersTable.id }).from(usersTable)
-        .where(eq(usersTable.receiverClientId, existingClient.id)).limit(1);
+        .where(eq(usersTable.clientId, existingClient.id)).limit(1);
       if (linkedUser) {
         res.status(409).json({ error: "يوجد حساب مسجل بالفعل بهذا الرقم، يرجى تسجيل الدخول" });
         return;
       }
-      receiverClientId = existingClient.id;
+      clientId = existingClient.id;
       // حدّث بياناته الأساسية لو ناقصة
-      await db.update(receiverClientsTable).set({
+      await db.update(clientsTable).set({
         name: existingClient.name || displayName,
         email: existingClient.email || (email || null),
         city: existingClient.city || (city ?? null),
         address: existingClient.address || (address ?? null),
         updatedAt: now,
-      }).where(eq(receiverClientsTable.id, existingClient.id));
+      }).where(eq(clientsTable.id, existingClient.id));
     } else {
-      const insertResult = await db.insert(receiverClientsTable).values({
+      const insertResult = await db.insert(clientsTable).values({
         tenantId: tenant.id,
         normalizedPhone,
         name: displayName,
@@ -173,7 +173,7 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
         updatedAt: now,
       });
       const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
-      receiverClientId = insertId;
+      clientId = insertId;
     }
 
     // ── إنشاء حساب المستخدم (role = client) ──────────────────────────────
@@ -187,7 +187,7 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
       permissions: JSON.stringify(["client.view"]),
       phone,
       email: email || null,
-      receiverClientId,
+      clientId,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -265,10 +265,10 @@ router.use("/client-portal", requireAuth, requireClientRole);
 router.get("/client-portal/profile", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.json({ client: null }); return; }
+    if (!user.clientId) { res.json({ client: null }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.json({ client: null }); return; }
 
     res.json({ client });
@@ -288,7 +288,7 @@ const updateProfileSchema = z.object({
 router.patch("/client-portal/profile", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.status(404).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    if (!user.clientId) { res.status(404).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
     const parsed = updateProfileSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
 
@@ -304,14 +304,14 @@ router.patch("/client-portal/profile", async (req, res): Promise<void> => {
       return;
     }
 
-    await db.update(receiverClientsTable).set(updates).where(eq(receiverClientsTable.id, user.receiverClientId));
+    await db.update(clientsTable).set(updates).where(eq(clientsTable.id, user.clientId));
 
     // مزامنة الاسم مع حساب المستخدم لو اتغير (يخلي اسم اليوزر متسق مع اسم العميل)
     if (parsed.data.name !== undefined) {
       await db.update(usersTable).set({ displayName: parsed.data.name, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
     }
 
-    const [updated] = await db.select().from(receiverClientsTable).where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [updated] = await db.select().from(clientsTable).where(eq(clientsTable.id, user.clientId)).limit(1);
     res.json({ client: updated });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -333,9 +333,9 @@ router.delete("/client-portal/account", async (req, res): Promise<void> => {
 
     // تعطيل الحساب بدلاً من الحذف الفعلي (حفاظاً على سجل الشحنات وسلامة البيانات المالية)
     await db.update(usersTable).set({ isActive: false, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-    if (user.receiverClientId) {
-      await db.update(receiverClientsTable).set({ accountStatus: "suspended", updatedAt: new Date() })
-        .where(eq(receiverClientsTable.id, user.receiverClientId));
+    if (user.clientId) {
+      await db.update(clientsTable).set({ accountStatus: "suspended", updatedAt: new Date() })
+        .where(eq(clientsTable.id, user.clientId));
     }
 
     await logAudit({
@@ -368,10 +368,10 @@ async function getClientShipments(tenantId: number | null, normalizedPhone: stri
 router.get("/client-portal/stats", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.json({ total: 0, breakdown: [] }); return; }
+    if (!user.clientId) { res.json({ total: 0, breakdown: [] }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.json({ total: 0, breakdown: [] }); return; }
 
     const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
@@ -427,10 +427,10 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
 router.get("/client-portal/shipments", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.json({ data: [], total: 0 }); return; }
+    if (!user.clientId) { res.json({ data: [], total: 0 }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.json({ data: [], total: 0 }); return; }
 
     const status = (req.query.status as string | undefined)?.trim();
@@ -505,10 +505,10 @@ const clientCreateShipmentSchema = z.object({
 router.post("/client-portal/shipments", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
 
     if (client.accountStatus === "suspended") {
@@ -627,10 +627,10 @@ router.get("/client-portal/shipments/:id", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
     const id = Number(req.params.id);
-    if (!user.receiverClientId || !id) { res.status(404).json({ error: "غير موجود" }); return; }
+    if (!user.clientId || !id) { res.status(404).json({ error: "غير موجود" }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.status(404).json({ error: "غير موجود" }); return; }
 
     const conds: any[] = [eq(shipmentsTable.id, id), isNull(shipmentsTable.deletedAt)];
@@ -659,10 +659,10 @@ router.patch("/client-portal/shipments/:id/cancel", async (req, res): Promise<vo
   try {
     const user = (req as any).user;
     const id = Number(req.params.id);
-    if (!user.receiverClientId || !id) { res.status(404).json({ error: "غير موجود" }); return; }
+    if (!user.clientId || !id) { res.status(404).json({ error: "غير موجود" }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.status(404).json({ error: "غير موجود" }); return; }
 
     const conds: any[] = [eq(shipmentsTable.id, id), isNull(shipmentsTable.deletedAt)];
@@ -698,10 +698,10 @@ router.patch("/client-portal/shipments/:id/cancel", async (req, res): Promise<vo
 router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.json({ client: null }); return; }
+    if (!user.clientId) { res.json({ client: null }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.json({ client: null }); return; }
 
     const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
@@ -759,7 +759,7 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
 
     // ── طلبات الالتقاط بانتظار الموافقة ──
     const pickupConds: any[] = [
-      eq(pickupRequestsTable.receiverClientId, user.receiverClientId),
+      eq(pickupRequestsTable.portalClientId, user.clientId),
       eq(pickupRequestsTable.status, "pending"),
       isNull(pickupRequestsTable.deletedAt),
     ];
@@ -798,10 +798,10 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
 router.get("/client-portal/wallet", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.json({ payments: [], invoices: [] }); return; }
+    if (!user.clientId) { res.json({ payments: [], invoices: [] }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.json({ payments: [], invoices: [] }); return; }
 
     const payConds: any[] = [eq(clientPaymentsTable.normalizedPhone, client.normalizedPhone)];
@@ -834,7 +834,7 @@ const createPickupSchema = z.object({
 router.post("/client-portal/pickup-requests", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.status(404).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    if (!user.clientId) { res.status(404).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
 
     const parsed = createPickupSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
@@ -844,7 +844,7 @@ router.post("/client-portal/pickup-requests", async (req, res): Promise<void> =>
 
     const insertResult = await db.insert(pickupRequestsTable).values({
       tenantId: user.tenantId ?? null,
-      receiverClientId: user.receiverClientId,
+      portalClientId: user.clientId,
       requestNumber,
       pickupContactName: d.pickupContactName,
       pickupPhone: d.pickupPhone,
@@ -873,10 +873,10 @@ router.post("/client-portal/pickup-requests", async (req, res): Promise<void> =>
 router.get("/client-portal/pickup-requests", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.json({ data: [], total: 0 }); return; }
+    if (!user.clientId) { res.json({ data: [], total: 0 }); return; }
 
     const conds: any[] = [
-      eq(pickupRequestsTable.receiverClientId, user.receiverClientId),
+      eq(pickupRequestsTable.portalClientId, user.clientId),
       isNull(pickupRequestsTable.deletedAt),
     ];
     const rows = await db.select().from(pickupRequestsTable)
@@ -892,10 +892,10 @@ router.get("/client-portal/pickup-requests", async (req, res): Promise<void> => 
 router.get("/client-portal/invoiceable-shipments", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.json({ data: [] }); return; }
+    if (!user.clientId) { res.json({ data: [] }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.json({ data: [] }); return; }
 
     const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
@@ -925,10 +925,10 @@ const createClientInvoiceSchema = z.object({
 router.post("/client-portal/invoices", async (req, res): Promise<void> => {
   try {
     const user = (req as any).user;
-    if (!user.receiverClientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
 
-    const [client] = await db.select().from(receiverClientsTable)
-      .where(eq(receiverClientsTable.id, user.receiverClientId)).limit(1);
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
 
     const parsed = createClientInvoiceSchema.safeParse(req.body);
@@ -1002,10 +1002,10 @@ router.patch("/client-portal/pickup-requests/:id/cancel", async (req, res): Prom
   try {
     const user = (req as any).user;
     const id = Number(req.params.id);
-    if (!user.receiverClientId || !id) { res.status(404).json({ error: "غير موجود" }); return; }
+    if (!user.clientId || !id) { res.status(404).json({ error: "غير موجود" }); return; }
 
     const [existing] = await db.select().from(pickupRequestsTable)
-      .where(and(eq(pickupRequestsTable.id, id), eq(pickupRequestsTable.receiverClientId, user.receiverClientId)))
+      .where(and(eq(pickupRequestsTable.id, id), eq(pickupRequestsTable.portalClientId, user.clientId)))
       .limit(1);
     if (!existing) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
     if (existing.status !== "pending") {

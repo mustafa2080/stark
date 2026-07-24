@@ -11,10 +11,21 @@ export const clientsTable = mysqlTable("clients", {
   name:           varchar("name",    { length: 255 }).notNull(),       // اسم العميل / الشركة
   phone:          varchar("phone",   { length: 100 }),
   phone2:         varchar("phone2",  { length: 100 }),
+  normalizedPhone: varchar("normalized_phone", { length: 20 }),        // آخر 9 أرقام من التليفون — للبحث والربط بالشحنات
   email:          varchar("email",   { length: 255 }),
   address:        text("address"),
   city:           varchar("city",    { length: 100 }),
   region:         varchar("region",  { length: 100 }),
+
+  // ── حساب بوابة العميل (منقولة من receiver_clients) ──────────────────
+  accountNumber:      varchar("account_number", { length: 50 }),
+  paymentMethod:      varchar("payment_method", { length: 30 }).default("cod"),   // cod | prepaid | deferred
+  accountStatus:      varchar("account_status", { length: 20 }).notNull().default("active"), // active | suspended
+  lastClosedPeriodTo: datetime("last_closed_period_to"),
+  suspendedAt:        datetime("suspended_at"),
+  suspendedByUserId:  int("suspended_by_user_id"),
+  suspendedByName:    varchar("suspended_by_name", { length: 255 }),
+  suspendReason:      text("suspend_reason"),
 
   // ── تجاري ─────────────────────────────────────────────────────────────
   taxNumber:      varchar("tax_number",    { length: 100 }),           // الرقم الضريبي

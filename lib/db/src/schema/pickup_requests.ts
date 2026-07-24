@@ -29,7 +29,8 @@ export const pickupRequestsTable = mysqlTable("pickup_requests", {
 
   // ── مصدر الطلب ─────────────────────────────────────────────────────────
   clientId:         int("client_id"),                 // من جدول clients (تاجر أدمن)
-  receiverClientId: int("receiver_client_id"),         // من جدول receiver_clients (عميل بوابة الشحن)
+  receiverClientId: int("receiver_client_id"),         // [قديم/متروك للتوافق] من جدول receiver_clients
+  portalClientId:   int("portal_client_id"),           // من جدول clients — عميل بوابة الشحن (بعد توحيد الجداول)
 
   // ── بيانات الالتقاط ────────────────────────────────────────────────────
   pickupContactName:  varchar("pickup_contact_name", { length: 255 }).notNull(),
