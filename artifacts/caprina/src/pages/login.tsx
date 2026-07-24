@@ -26,8 +26,15 @@ export default function LoginPage() {
     try {
       const data = await authApi.login(username.trim(), password);
       login(data.token, data.user);
-      const redirectTo = sessionStorage.getItem("redirect_after_login") || "/";
+      // لا نستخدم redirect_after_login لو كان محفوظ من صفحة خاصة بدور مختلف (زي
+      // /client-dashboard أو /representative) — لأن ده ممكن يوديك لصفحة غلط لو
+      // غيّرت الدور (role) للحساب. بنسيب "/" فقط عشان App.tsx يوجّه حسب الدور
+      // الحالي الفعلي القادم من التوكن الجديد.
+      const savedRedirect = sessionStorage.getItem("redirect_after_login");
       sessionStorage.removeItem("redirect_after_login");
+      const roleSpecificPrefixes = ["/client-dashboard", "/representative", "/my-dashboard", "/dashboard"];
+      const isRoleSpecific = savedRedirect && roleSpecificPrefixes.some((p) => savedRedirect.startsWith(p));
+      const redirectTo = savedRedirect && !isRoleSpecific ? savedRedirect : "/";
       navigate(redirectTo);
     } catch {
       toast({ title: "خطأ في تسجيل الدخول", description: "اسم المستخدم أو كلمة المرور غير صحيحة", variant: "destructive" });
