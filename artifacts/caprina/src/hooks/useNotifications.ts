@@ -92,7 +92,7 @@ export function useNotifications() {
     if (!user) return;
     loadInitial();
 
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    const token = localStorage.getItem("caprina_token") || sessionStorage.getItem("caprina_token");
     if (!token) return;
 
     const base = import.meta.env.VITE_API_URL || "";

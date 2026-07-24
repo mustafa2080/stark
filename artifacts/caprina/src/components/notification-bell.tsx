@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Bell, CheckCheck, Package, AlertTriangle, Undo2, PackageCheck, Receipt, Boxes, Info, Lock } from "lucide-react";
 import { useNotifications, type AppNotification } from "@/hooks/useNotifications";
 import { useLocation } from "wouter";
@@ -68,12 +69,33 @@ export function NotificationBell({ className }: { className?: string }) {
   const { notifications, unreadCount, isLoading, markRead, markAllRead } = useNotifications();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const [, navigate] = useLocation();
 
   useEffect(() => {
     if (!open) return;
+    const updateCoords = () => {
+      const rect = btnRef.current?.getBoundingClientRect();
+      if (rect) setCoords({ top: rect.bottom + 8, left: rect.left });
+    };
+    updateCoords();
+    window.addEventListener("resize", updateCoords);
+    window.addEventListener("scroll", updateCoords, true);
+    return () => {
+      window.removeEventListener("resize", updateCoords);
+      window.removeEventListener("scroll", updateCoords, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (wrapRef.current && wrapRef.current.contains(target)) return;
+      const dropdownEl = document.getElementById("notification-bell-portal");
+      if (dropdownEl && dropdownEl.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
@@ -88,6 +110,7 @@ export function NotificationBell({ className }: { className?: string }) {
   return (
     <div ref={wrapRef} className={cn("relative", className)}>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="relative w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 active:scale-90 hover:bg-foreground/10"
@@ -104,11 +127,18 @@ export function NotificationBell({ className }: { className?: string }) {
         )}
       </button>
 
-      {open && (
+      {open && coords && createPortal(
         <div
+          id="notification-bell-portal"
           dir="rtl"
-          className="absolute left-0 top-full mt-2 w-80 max-w-[90vw] rounded-xl border shadow-2xl z-[1000] overflow-hidden"
-          style={{ background: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
+          className="fixed w-80 max-w-[90vw] rounded-xl border shadow-2xl overflow-hidden"
+          style={{
+            top: coords.top,
+            left: coords.left,
+            zIndex: 9999,
+            background: "hsl(var(--card))",
+            borderColor: "hsl(var(--border))",
+          }}
         >
           <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: "hsl(var(--border))" }}>
             <p className="text-xs font-black text-foreground">الإشعارات</p>
@@ -137,7 +167,8 @@ export function NotificationBell({ className }: { className?: string }) {
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
