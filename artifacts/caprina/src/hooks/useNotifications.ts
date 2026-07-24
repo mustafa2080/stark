@@ -95,7 +95,7 @@ export function useNotifications() {
     const token = localStorage.getItem("caprina_token") || sessionStorage.getItem("caprina_token");
     if (!token) return;
 
-    const base = import.meta.env.VITE_API_URL || "";
+    const base = import.meta.env.VITE_API_URL || "/api";
     const url = `${base}/notifications/sse?token=${encodeURIComponent(token)}`;
     const es = new EventSource(url);
     esRef.current = es;

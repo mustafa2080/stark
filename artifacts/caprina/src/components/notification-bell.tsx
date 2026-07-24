@@ -70,14 +70,14 @@ export function NotificationBell({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
   const [, navigate] = useLocation();
 
   useEffect(() => {
     if (!open) return;
     const updateCoords = () => {
       const rect = btnRef.current?.getBoundingClientRect();
-      if (rect) setCoords({ top: rect.bottom + 8, left: rect.left });
+      if (rect) setCoords({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
     };
     updateCoords();
     window.addEventListener("resize", updateCoords);
@@ -134,7 +134,7 @@ export function NotificationBell({ className }: { className?: string }) {
           className="fixed w-80 max-w-[90vw] rounded-xl border shadow-2xl overflow-hidden"
           style={{
             top: coords.top,
-            left: coords.left,
+            right: Math.max(8, coords.right),
             zIndex: 9999,
             background: "hsl(var(--card))",
             borderColor: "hsl(var(--border))",
