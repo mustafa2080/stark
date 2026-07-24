@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Lock, MapPin } from "lucide-react";
+import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Lock, MapPin, Building2, FileText, CreditCard, Wallet } from "lucide-react";
 import { Navbar, Footer, SocialFloat } from "@/pages/home";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -21,6 +21,10 @@ export default function ClientRegisterPage() {
     email: "",
     city: "",
     address: "",
+    taxNumber: "",
+    commercialReg: "",
+    paymentTerms: "",
+    creditLimit: "",
     password: "",
     confirmPassword: "",
   });
@@ -55,6 +59,10 @@ export default function ClientRegisterPage() {
           email: form.email,
           city: form.city,
           address: form.address,
+          taxNumber: form.taxNumber,
+          commercialReg: form.commercialReg,
+          paymentTerms: form.paymentTerms,
+          creditLimit: form.creditLimit,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -226,6 +234,53 @@ export default function ClientRegisterPage() {
                   </div>
                 </div>
 
+                {/* Row: Tax Number + Commercial Reg */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>الرقم الضريبي</label>
+                    <div className="relative">
+                      <input type="text" value={form.taxNumber} onChange={set("taxNumber")}
+                        placeholder="الرقم الضريبي للشركة"
+                        className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
+                        style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                      <FileText size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>السجل التجاري</label>
+                    <div className="relative">
+                      <input type="text" value={form.commercialReg} onChange={set("commercialReg")}
+                        placeholder="رقم السجل التجاري"
+                        className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
+                        style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                      <Building2 size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row: Payment Terms + Credit Limit */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>شروط الدفع</label>
+                    <div className="relative">
+                      <input type="text" value={form.paymentTerms} onChange={set("paymentTerms")}
+                        placeholder="مثال: آجل 30 يوم"
+                        className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
+                        style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                      <CreditCard size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>حد الائتمان</label>
+                    <div className="relative">
+                      <input type="number" value={form.creditLimit} onChange={set("creditLimit")}
+                        placeholder="0"
+                        className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
+                        style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                      <Wallet size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
+                    </div>
+                  </div>
+                </div>
 
                 {/* Row: Password + Confirm */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

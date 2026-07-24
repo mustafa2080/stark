@@ -92,6 +92,11 @@ const clientRegisterSchema = z.object({
   email: z.string().trim().email().optional().or(z.literal("")),
   city: z.string().trim().optional(),
   address: z.string().trim().optional(),
+  // ── بيانات العميل التجاري ─────────────────────────────────────────────
+  taxNumber: z.string().trim().optional(),
+  commercialReg: z.string().trim().optional(),
+  paymentTerms: z.string().trim().optional(),
+  creditLimit: z.string().trim().optional(),
 });
 
 router.post("/client/register", clientRegisterLimiter, async (req, res): Promise<void> => {
@@ -101,7 +106,7 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
       res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
       return;
     }
-    const { displayName, username, password, phone, email, city, address } = parsed.data;
+    const { displayName, username, password, phone, email, city, address, taxNumber, commercialReg, paymentTerms, creditLimit } = parsed.data;
 
     // ── الشركة الوحيدة الحالية (STARK) — تُحدَّد تلقائياً بدون كود ────────
     const [tenant] = await db.select().from(tenantsTable)
@@ -155,6 +160,11 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
         email: existingClient.email || (email || null),
         city: existingClient.city || (city ?? null),
         address: existingClient.address || (address ?? null),
+        taxNumber: existingClient.taxNumber || (taxNumber || null),
+        commercialReg: existingClient.commercialReg || (commercialReg || null),
+        paymentTerms: existingClient.paymentTerms || (paymentTerms || null),
+        creditLimit: existingClient.creditLimit || (creditLimit || "0"),
+        clientType: existingClient.clientType === "normal" ? "commercial" : existingClient.clientType,
         updatedAt: now,
       }).where(eq(clientsTable.id, existingClient.id));
     } else {
@@ -168,7 +178,11 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
         address: address ?? null,
         accountStatus: "active",
         paymentMethod: "cod",
-        creditLimit: "0",
+        clientType: "commercial",
+        taxNumber: taxNumber || null,
+        commercialReg: commercialReg || null,
+        paymentTerms: paymentTerms || null,
+        creditLimit: creditLimit || "0",
         createdAt: now,
         updatedAt: now,
       });
