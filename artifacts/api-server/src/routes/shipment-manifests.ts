@@ -34,6 +34,16 @@ async function generateManifestNumber(companyId: number): Promise<string> {
   return `SMF-${companyId}-${seq}`;
 }
 
+// ─── توليد رقم البيان لعميل تجاري (نمط مختلف عشان يتميز عن بيانات المناديب) ──
+async function generateClientManifestNumber(clientId: number): Promise<string> {
+  const [row] = await db
+    .select({ cnt: count() })
+    .from(shipmentManifestsTable)
+    .where(eq(shipmentManifestsTable.clientId, clientId));
+  const seq = (Number(row?.cnt ?? 0) + 1).toString().padStart(3, "0");
+  return `SMC-${clientId}-${seq}`;
+}
+
 // ─── GET /shipment-manifests?companyId=X ─────────────────────────────────────
 router.get("/shipment-manifests", async (req, res): Promise<void> => {
   try {
@@ -43,6 +53,9 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
     const companyId = reqUser?.role === "representative"
       ? reqUser.shippingCompanyId
       : (req.query.companyId ? Number(req.query.companyId) : undefined);
+    // العميل التجاري يشوف بياناته هو بس — بدون أي إمكانية لتمرير clientId
+    // من الـ query (أمان: منع عميل من رؤية بيانات عميل آخر)
+    const clientId = reqUser?.role === "client" ? reqUser.clientId : undefined;
 
     // tenantId === null يعني super_admin → بدون فلتر tenant
     const tenantCondition = tenantId !== null
@@ -52,6 +65,7 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
     const where = and(
       tenantCondition,
       companyId ? eq(shipmentManifestsTable.shippingCompanyId, companyId) : undefined,
+      clientId ? eq(shipmentManifestsTable.clientId, clientId) : undefined,
     );
 
     const manifests = await db
@@ -95,12 +109,23 @@ router.get("/shipment-manifests", async (req, res): Promise<void> => {
     const coMap: Record<number, { name: string; logo: string | null }> = {};
     companies.forEach(c => { coMap[c.id] = { name: c.name, logo: c.logo }; });
 
+    // جيب اسم العميل (لبيانات العملاء التجاريين — shippingCompanyId يكون null هنا)
+    const manifestClientIds = [...new Set(manifests.map(m => m.clientId).filter((v): v is number => !!v))];
+    let clientMap: Record<number, { name: string; avatar: string | null }> = {};
+    if (manifestClientIds.length) {
+      const clientRows = await db.select({ id: clientsTable.id, name: clientsTable.name, avatar: clientsTable.avatar })
+        .from(clientsTable).where(inArray(clientsTable.id, manifestClientIds));
+      clientMap = Object.fromEntries(clientRows.map(c => [c.id, { name: c.name, avatar: c.avatar }]));
+    }
+
     const result = manifests.map(m => ({
       ...m,
       shipmentCount: countMap[m.id] ?? 0,
       statusCounts: statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
-      companyName: coMap[m.shippingCompanyId]?.name ?? "",
-      companyLogo: coMap[m.shippingCompanyId]?.logo ?? null,
+      companyName: m.shippingCompanyId ? (coMap[m.shippingCompanyId]?.name ?? "") : "",
+      companyLogo: m.shippingCompanyId ? (coMap[m.shippingCompanyId]?.logo ?? null) : null,
+      clientName: m.clientId ? (clientMap[m.clientId]?.name ?? "") : "",
+      clientAvatar: m.clientId ? (clientMap[m.clientId]?.avatar ?? null) : null,
     }));
 
     res.json(result);
@@ -128,9 +153,13 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       manifestRepName = company?.name ?? null;
     }
 
-    // المندوب يشوف بيانات شركته فقط
+    // المندوب يشوف بيانات شركته فقط، والعميل التجاري يشوف بياناته هو فقط
     const reqUser = (req as any).user;
     if (reqUser?.role === "representative" && manifest.shippingCompanyId !== reqUser.shippingCompanyId) {
+      res.status(403).json({ error: "غير مصرح بعرض هذا البيان" });
+      return;
+    }
+    if (reqUser?.role === "client" && manifest.clientId !== reqUser.clientId) {
       res.status(403).json({ error: "غير مصرح بعرض هذا البيان" });
       return;
     }
@@ -285,8 +314,11 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
 });
 
 // ─── POST /shipment-manifests ─────────────────────────────────────────────────
+// shippingCompanyId اختيارية دلوقتي — لو الطالب عميل تجاري (role=client) بيتجاهل
+// أي shippingCompanyId جاي في الـ body، وبيتحدد clientId من التوكن مباشرةً (أمان:
+// العميل مايقدرش ينشئ بيان باسم عميل تاني حتى لو عدّل الـ body يدوياً).
 const CreateSchema = z.object({
-  shippingCompanyId: z.number().int().positive(),
+  shippingCompanyId: z.number().int().positive().nullish(),
   shipmentIds:       z.array(z.number().int().positive()).min(1),
   notes:             z.string().nullish(),
 });
@@ -294,31 +326,66 @@ const CreateSchema = z.object({
 router.post("/shipment-manifests", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
+    const reqUser = (req as any).user;
     const body = CreateSchema.parse(req.body);
 
-    // تأكد مفيش بيان مفتوح لنفس الشركة
+    const isClientRequest = reqUser?.role === "client";
+    const clientId = isClientRequest ? reqUser.clientId : undefined;
+
+    if (isClientRequest && !clientId) {
+      res.status(403).json({ error: "لا يوجد حساب عميل مرتبط بهذا الحساب" });
+      return;
+    }
+    if (!isClientRequest && !body.shippingCompanyId) {
+      res.status(400).json({ error: "shippingCompanyId مطلوب" });
+      return;
+    }
+
+    // لو عميل: تأكد إن كل الشحنات المختارة بتاعته هو فعلاً (سيرفر-سايد،
+    // بغض النظر عن الشحنات اللي عرضها الفرونت إند) — منع أي محاولة لضم
+    // شحنة بتاعة عميل تاني بتعديل الـ request يدوياً.
+    if (isClientRequest) {
+      const ownedShipments = await db
+        .select({ id: shipmentsTable.id })
+        .from(shipmentsTable)
+        .where(and(
+          inArray(shipmentsTable.id, body.shipmentIds),
+          eq(shipmentsTable.clientId, clientId!),
+        ));
+      if (ownedShipments.length !== body.shipmentIds.length) {
+        res.status(403).json({ error: "بعض الشحنات المختارة لا تخص هذا العميل" });
+        return;
+      }
+    }
+
+    // تأكد مفيش بيان مفتوح لنفس الشركة/العميل
     const [existing] = await db
       .select({ id: shipmentManifestsTable.id })
       .from(shipmentManifestsTable)
       .where(and(
-        eq(shipmentManifestsTable.shippingCompanyId, body.shippingCompanyId),
+        isClientRequest
+          ? eq(shipmentManifestsTable.clientId, clientId!)
+          : eq(shipmentManifestsTable.shippingCompanyId, body.shippingCompanyId!),
         eq(shipmentManifestsTable.status, "open"),
         tenantId !== null
           ? or(eq(shipmentManifestsTable.tenantId, tenantId), isNull(shipmentManifestsTable.tenantId))
           : undefined,
       ));
     if (existing) {
-      res.status(409).json({ error: "يوجد بيان مفتوح بالفعل لهذه الشركة" });
+      res.status(409).json({ error: isClientRequest ? "يوجد بيان مفتوح بالفعل لحسابك" : "يوجد بيان مفتوح بالفعل لهذه الشركة" });
       return;
     }
 
-    const manifestNumber = await generateManifestNumber(body.shippingCompanyId);
+    const manifestNumber = isClientRequest
+      ? await generateClientManifestNumber(clientId!)
+      : await generateManifestNumber(body.shippingCompanyId!);
     const now = new Date();
 
     const [result] = await db.insert(shipmentManifestsTable).values({
       tenantId:          tenantId ?? null,
       manifestNumber,
-      shippingCompanyId: body.shippingCompanyId,
+      shippingCompanyId: isClientRequest ? null : body.shippingCompanyId!,
+      clientId:          isClientRequest ? clientId! : null,
       status:            "open",
       notes:             body.notes ?? null,
       createdAt:         now,
@@ -335,9 +402,13 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
       }))
     );
 
-    // حدّث حالة الشحنات → in_shipping + احفظ اسم المندوب (shippingCompanyId)
+    // حدّث حالة الشحنات → in_shipping. لو الشركة (مندوب) هي اللي بتنشئ البيان
+    // بنسجل shippingCompanyId على الشحنة كمان؛ لو عميل، ما نلمسش shippingCompanyId
+    // بتاع الشحنة خالص (مالوش علاقة ببيان العميل).
     await db.update(shipmentsTable)
-      .set({ status: "in_shipping", shippingCompanyId: body.shippingCompanyId, updatedAt: now })
+      .set(isClientRequest
+        ? { status: "in_shipping", updatedAt: now }
+        : { status: "in_shipping", shippingCompanyId: body.shippingCompanyId!, updatedAt: now })
       .where(inArray(shipmentsTable.id, body.shipmentIds));
 
     res.status(201).json({
@@ -975,6 +1046,29 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
       body = { status: body.status };
     }
 
+    // العميل التجاري يقدر يعدّل ملاحظات بيانه هو بس، ويقفله (مش يعيد فتحه بعد
+    // الإغلاق، ومش يلمس invoicePrice — ده حصريًا للأدمن)
+    if (reqUser?.role === "client") {
+      const [existingManifest] = await db.select({
+        clientId: shipmentManifestsTable.clientId,
+        status: shipmentManifestsTable.status,
+      })
+        .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
+      if (!existingManifest || existingManifest.clientId !== reqUser.clientId) {
+        res.status(403).json({ error: "غير مصرح بتعديل هذا البيان" });
+        return;
+      }
+      if (body.status === "open") {
+        res.status(403).json({ error: "لا يمكن إعادة فتح بيان مُغلق" });
+        return;
+      }
+      if (existingManifest.status === "closed") {
+        res.status(403).json({ error: "هذا البيان مُغلق بالفعل ولا يمكن تعديله" });
+        return;
+      }
+      body = { status: body.status, notes: body.notes };
+    }
+
     await db.update(shipmentManifestsTable)
       .set({
         ...(body.status ? { status: body.status } : {}),
@@ -1102,6 +1196,24 @@ router.delete("/shipment-manifests/:id", async (req, res): Promise<void> => {
     if (reqUser?.role === "representative") {
       res.status(403).json({ error: "غير مسموح — المندوب لا يمكنه حذف البيان بالكامل" });
       return;
+    }
+
+    // العميل التجاري يقدر يحذف بيانه هو بس — وبس لو لسه مفتوح (بعد الإغلاق
+    // الحذف بيبقى حصريًا للأدمن عشان البيان يبقى فيه سجل تاريخي)
+    if (reqUser?.role === "client") {
+      const [existingManifest] = await db.select({
+        clientId: shipmentManifestsTable.clientId,
+        status: shipmentManifestsTable.status,
+      })
+        .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
+      if (!existingManifest || existingManifest.clientId !== reqUser.clientId) {
+        res.status(403).json({ error: "غير مصرح بحذف هذا البيان" });
+        return;
+      }
+      if (existingManifest.status === "closed") {
+        res.status(403).json({ error: "لا يمكن حذف بيان مُغلق — يرجى التواصل مع الأدمن" });
+        return;
+      }
     }
 
     // أرجع حالة الشحنات → waiting

@@ -1,13 +1,19 @@
 import { mysqlTable, int, varchar, decimal, text, datetime } from "drizzle-orm/mysql-core";
 import { shippingCompaniesTable } from "./shipping_companies";
 import { shipmentsTable } from "./shipments";
+import { clientsTable } from "./clients";
 
 // ─── بيان شحن الشحنات (مختلف عن بيان الطلبات) ────────────────────────────────
+// ملحوظة: البيان إما بيتبع شركة شحن (shippingCompanyId) وإما بيتبع عميل تجاري
+// (clientId) — الاتنين nullable، وبيتفرضوا mutually exclusive على مستوى الـ
+// application logic في الراوت (مش DB constraint). القديم (بيانات المناديب)
+// شغّال زي ما هو بدون أي تغيير — clientId هتفضل null ليه دايمًا.
 export const shipmentManifestsTable = mysqlTable("shipment_manifests", {
   id:               int("id").primaryKey().autoincrement(),
   tenantId:         int("tenant_id"),
   manifestNumber:   varchar("manifest_number", { length: 100 }).notNull(),
-  shippingCompanyId: int("shipping_company_id").notNull().references(() => shippingCompaniesTable.id),
+  shippingCompanyId: int("shipping_company_id").references(() => shippingCompaniesTable.id),
+  clientId:         int("client_id").references(() => clientsTable.id),
   status:           varchar("status", { length: 50 }).notNull().default("open"),
   notes:            text("notes"),
   invoicePrice:     decimal("invoice_price", { precision: 10, scale: 2 }),
