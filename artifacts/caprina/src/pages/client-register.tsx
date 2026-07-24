@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Lock, MapPin, Building2, FileText, CreditCard, Wallet, Camera, X, MessageCircle, Warehouse, Target } from "lucide-react";
+import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Lock, MapPin, Building2, FileText, CreditCard, Wallet, Camera, X, MessageCircle, Target } from "lucide-react";
 import { Navbar, Footer, SocialFloat } from "@/pages/home";
 import { useAuth } from "@/contexts/AuthContext";
 
-type WarehouseOpt = { id: number; name: string };
 type ZoneOpt = { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; isActive?: boolean };
 
 const AD_SOURCES = [
@@ -28,11 +27,9 @@ export default function ClientRegisterPage() {
   const { toast } = useToast();
   const { login } = useAuth();
 
-  const [warehouses, setWarehouses] = useState<WarehouseOpt[]>([]);
   const [zones, setZones] = useState<ZoneOpt[]>([]);
 
   useEffect(() => {
-    fetch("/api/client/register/warehouses").then(r => r.json()).then(setWarehouses).catch(() => {});
     fetch("/api/client/register/zones").then(r => r.json()).then(setZones).catch(() => {});
   }, []);
 
@@ -62,7 +59,6 @@ export default function ClientRegisterPage() {
     paymentTerms: "فوري",
     creditLimit: "",
     whatsappGroupLink: "",
-    warehouseId: "",
     defaultAdSource: "",
     avatar: "",
     notes: "",
@@ -119,7 +115,6 @@ export default function ClientRegisterPage() {
           paymentTerms: form.paymentTerms,
           creditLimit: form.creditLimit,
           whatsappGroupLink: form.whatsappGroupLink,
-          warehouseId: form.warehouseId,
           defaultAdSource: form.defaultAdSource,
           avatar: form.avatar,
           notes: form.notes,
@@ -410,19 +405,6 @@ export default function ClientRegisterPage() {
                   <p className="text-[10px] mt-1" style={{ color: dm ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)" }}>
                     يُستخدم تلقائياً عند اختيار هذا العميل كـ"الراسل" في نموذج إنشاء شحنة جديدة
                   </p>
-                </div>
-
-                {/* Warehouse */}
-                <div>
-                  <label className="flex items-center gap-1.5 text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>
-                    <Warehouse size={12} /> المخزن المرتبط
-                  </label>
-                  <select value={form.warehouseId} onChange={set("warehouseId") as any}
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200"
-                    style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
-                    <option value="">— بدون مخزن —</option>
-                    {warehouses.map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
-                  </select>
                 </div>
 
                 {/* Notes */}

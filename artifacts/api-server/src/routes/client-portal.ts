@@ -14,7 +14,6 @@ import {
   shippingCompaniesTable,
   shipmentZonesTable,
   parcelTypePricingTable,
-  warehousesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
@@ -84,7 +83,7 @@ const clientLoginLimiter = rateLimit({
 
 // ══════════════════════════════════════════════════════════════════════════
 // بيانات مساعدة عامة (بدون auth) لصفحة إنشاء حساب عميل — نفس بيانات فورم
-// "إضافة عميل تجاري" في الداشبورد (مخازن / محافظات / مناطق تكلفة)
+// "إضافة عميل تجاري" في الداشبورد (محافظات)
 // ══════════════════════════════════════════════════════════════════════════
 async function getRegisterTenant() {
   const [tenant] = await db.select().from(tenantsTable)
@@ -93,19 +92,6 @@ async function getRegisterTenant() {
     .limit(1);
   return tenant;
 }
-
-router.get("/client/register/warehouses", async (_req, res): Promise<void> => {
-  try {
-    const tenant = await getRegisterTenant();
-    if (!tenant) { res.json([]); return; }
-    const rows = await db.select({ id: warehousesTable.id, name: warehousesTable.name })
-      .from(warehousesTable)
-      .where(eq(warehousesTable.tenantId, tenant.id));
-    res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 router.get("/client/register/zones", async (_req, res): Promise<void> => {
   try {
@@ -138,7 +124,6 @@ const clientRegisterSchema = z.object({
   paymentTerms: z.string().trim().optional(),
   creditLimit: z.string().trim().optional(),
   whatsappGroupLink: z.string().trim().optional(),
-  warehouseId: z.string().trim().optional(),
   defaultAdSource: z.string().trim().optional(),
   avatar: z.string().optional(),
   notes: z.string().trim().optional(),
@@ -154,7 +139,7 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
     const {
       displayName, username, password, phone, phone2, email, city, region, address,
       taxNumber, commercialReg, paymentTerms, creditLimit,
-      whatsappGroupLink, warehouseId, defaultAdSource,
+      whatsappGroupLink, defaultAdSource,
       avatar, notes,
     } = parsed.data;
 
@@ -217,7 +202,6 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
         paymentTerms: existingClient.paymentTerms || (paymentTerms || null),
         creditLimit: existingClient.creditLimit || (creditLimit || "0"),
         whatsappGroupLink: existingClient.whatsappGroupLink || (whatsappGroupLink || null),
-        warehouseId: existingClient.warehouseId ?? (warehouseId ? parseInt(warehouseId) : null),
         defaultAdSource: existingClient.defaultAdSource || (defaultAdSource || null),
         avatar: existingClient.avatar || (avatar || null),
         notes: existingClient.notes || (notes || null),
@@ -243,7 +227,6 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
         paymentTerms: paymentTerms || null,
         creditLimit: creditLimit || "0",
         whatsappGroupLink: whatsappGroupLink || null,
-        warehouseId: warehouseId ? parseInt(warehouseId) : null,
         defaultAdSource: defaultAdSource || null,
         avatar: avatar || null,
         notes: notes || null,
