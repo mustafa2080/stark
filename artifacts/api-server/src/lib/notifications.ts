@@ -46,7 +46,7 @@ function broadcastToAllAdmins(payload: object, excludeUserId?: number | null): v
   console.log(`[broadcastToAllAdmins] connectedAdmins=${notifSseAdminClients.size}`);
   if (notifSseAdminClients.size === 0) return;
   const excludeClients = excludeUserId != null ? notifSseClientsByUser.get(excludeUserId) : undefined;
-  const data = `data: ${JSON.stringify(payload)}\n\n`;
+  const data = `event: notification\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const res of notifSseAdminClients) {
     if (excludeClients && excludeClients.has(res)) continue; // ما تبعتش للشخص اللي عمل الفعل نفسه
     try { res.write(data); } catch (_) { /* cleaned up on close */ }
@@ -56,7 +56,7 @@ function broadcastToAllAdmins(payload: object, excludeUserId?: number | null): v
 function sendToUser(userId: number, payload: object): void {
   const clients = notifSseClientsByUser.get(userId);
   if (!clients || clients.size === 0) return;
-  const data = `data: ${JSON.stringify(payload)}\n\n`;
+  const data = `event: notification\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const res of clients) {
     try { res.write(data); } catch (_) { /* cleaned up on close */ }
   }
