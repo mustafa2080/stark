@@ -34,6 +34,7 @@ export function registerNotifSseClient(
 function broadcastToTenant(tenantId: number | null | undefined, payload: object): void {
   const key = tenantKey(tenantId);
   const clients = notifSseClients.get(key);
+  console.log(`[broadcastToTenant] key=${key} connectedClients=${clients?.size ?? 0} allKeys=${JSON.stringify([...notifSseClients.keys()])}`);
   if (!clients || clients.size === 0) return;
   const data = `data: ${JSON.stringify(payload)}\n\n`;
   for (const res of clients) {
@@ -66,6 +67,7 @@ interface CreateNotificationOptions {
 // ─── إنشاء إشعار + بثه فورًا لكل المتصلين على نفس الـ tenant ──────────────────
 export async function pushNotification(opts: CreateNotificationOptions): Promise<void> {
   try {
+    console.log("[pushNotification] creating:", { tenantId: opts.tenantId, targetUserId: opts.targetUserId, type: opts.type });
     const [result] = await db.insert(notificationsTable).values({
       tenantId: opts.tenantId ?? null,
       targetUserId: opts.targetUserId ?? null,
