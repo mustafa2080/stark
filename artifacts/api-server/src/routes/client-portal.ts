@@ -605,8 +605,10 @@ router.post("/client-portal/shipments", async (req, res): Promise<void> => {
     res.status(201).json(newShipment[0]);
 
     // إشعار فوري للأدمن (بث على مستوى الـ tenant) بشحنة جديدة من بوابة العميل
+    // مع استثناء حساب العميل نفسه اللي أنشأ الشحنة من استقبال الإشعار
     pushNotification({
       tenantId,
+      excludeUserId: user.id,
       type: "shipment_new",
       severity: "info",
       title: "شحنة جديدة من العميل",
