@@ -264,6 +264,20 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
       userName: displayName,
     }).catch(() => {});
 
+    // ── إشعار فوري للأدمن بتسجيل عميل تجاري جديد من صفحة التسجيل العامة ──
+    if (!existingClient) {
+      pushNotification({
+        tenantId: tenant.id,
+        type: "system",
+        severity: "info",
+        title: "عميل تجاري جديد",
+        message: `${displayName} — ${phone} سجّل حساب عميل تجاري جديد من صفحة التسجيل العامة`,
+        entityType: "client",
+        entityId: clientId,
+        link: `/finance/clients`,
+      }).catch(() => {});
+    }
+
     const [newUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     const finalPerms = parsePermissions(newUser.permissions);
     const token = signToken({ ...newUser, permissions: finalPerms } as any);
