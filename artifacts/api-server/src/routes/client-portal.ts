@@ -372,7 +372,7 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable)
       .where(eq(clientsTable.id, user.clientId)).limit(1);
-    if (!client) { res.json({ total: 0, breakdown: [] }); return; }
+    if (!client || !client.normalizedPhone) { res.json({ total: 0, breakdown: [] }); return; }
 
     const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
 
@@ -431,7 +431,7 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable)
       .where(eq(clientsTable.id, user.clientId)).limit(1);
-    if (!client) { res.json({ data: [], total: 0 }); return; }
+    if (!client || !client.normalizedPhone) { res.json({ data: [], total: 0 }); return; }
 
     const status = (req.query.status as string | undefined)?.trim();
     const search = (req.query.search as string | undefined)?.trim();
@@ -702,7 +702,7 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable)
       .where(eq(clientsTable.id, user.clientId)).limit(1);
-    if (!client) { res.json({ client: null }); return; }
+    if (!client || !client.normalizedPhone) { res.json({ client: null }); return; }
 
     const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
 
@@ -802,7 +802,7 @@ router.get("/client-portal/wallet", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable)
       .where(eq(clientsTable.id, user.clientId)).limit(1);
-    if (!client) { res.json({ payments: [], invoices: [] }); return; }
+    if (!client || !client.normalizedPhone) { res.json({ payments: [], invoices: [] }); return; }
 
     const payConds: any[] = [eq(clientPaymentsTable.normalizedPhone, client.normalizedPhone)];
     if (user.tenantId !== null && user.tenantId !== undefined) payConds.push(eq(clientPaymentsTable.tenantId, user.tenantId));
@@ -896,7 +896,7 @@ router.get("/client-portal/invoiceable-shipments", async (req, res): Promise<voi
 
     const [client] = await db.select().from(clientsTable)
       .where(eq(clientsTable.id, user.clientId)).limit(1);
-    if (!client) { res.json({ data: [] }); return; }
+    if (!client || !client.normalizedPhone) { res.json({ data: [] }); return; }
 
     const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
 
@@ -929,7 +929,7 @@ router.post("/client-portal/invoices", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable)
       .where(eq(clientsTable.id, user.clientId)).limit(1);
-    if (!client) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    if (!client || !client.normalizedPhone) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
 
     const parsed = createClientInvoiceSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" }); return; }
