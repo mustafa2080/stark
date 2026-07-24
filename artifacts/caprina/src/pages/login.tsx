@@ -302,7 +302,7 @@ export default function LoginPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => navigate("/register")}
+                    onClick={() => setShowRegisterChoice(true)}
                     className="flex items-center gap-1.5 text-sm font-bold transition-all duration-200"
                     style={{ color: dm ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)" }}
                     onMouseEnter={e => {
@@ -324,6 +324,76 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* ── نافذة اختيار نوع الحساب قبل التسجيل ── */}
+      {showRegisterChoice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: "rgba(0,0,0,0.65)" }}
+          onClick={() => setShowRegisterChoice(false)}
+        >
+          <div
+            className="relative w-full rounded-2xl p-6"
+            style={{
+              maxWidth: 420,
+              background: dm ? "#0c0c0c" : "#ffffff",
+              border: dm ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.10)",
+            }}
+            dir="rtl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-black mb-1" style={{ color: dm ? "#fff" : "#111" }}>
+              نوع الحساب
+            </h3>
+            <p className="text-sm mb-5" style={{ color: dm ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)" }}>
+              اختر نوع الحساب المناسب لك عشان تدخل على الصفحة الصحيحة
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate("/client-register")}
+              className="w-full text-right rounded-xl px-4 py-3.5 mb-3 transition-all duration-200"
+              style={{
+                background: dm ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.04)",
+                border: dm ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+              }}
+            >
+              <div className="font-bold text-sm mb-0.5" style={{ color: dm ? "#fff" : "#111" }}>
+                عميل — عايز أرسل شحنات
+              </div>
+              <div className="text-xs" style={{ color: dm ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.42)" }}>
+                لمتابعة شحناتك وطلباتك وفواتيرك
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/register")}
+              className="w-full text-right rounded-xl px-4 py-3.5 transition-all duration-200"
+              style={{
+                background: dm ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.04)",
+                border: dm ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+              }}
+            >
+              <div className="font-bold text-sm mb-0.5" style={{ color: dm ? "#fff" : "#111" }}>
+                شركة شحن — عايز أدير عمليات الشحن
+              </div>
+              <div className="text-xs" style={{ color: dm ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.42)" }}>
+                إنشاء حساب إدارة كامل لشركتك
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowRegisterChoice(false)}
+              className="w-full text-center mt-4 text-xs"
+              style={{ color: dm ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.4)" }}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── نفس الـ Footer بتاع الصفحة الرئيسية ── */}
       <Footer />

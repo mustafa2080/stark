@@ -46,7 +46,18 @@ function parsePermissions(permissions: any): string[] {
 
 function requireClientRole(req: any, res: any, next: any) {
   if (req.user?.role !== "client") {
-    res.status(403).json({ error: "هذا المسار مخصص لحسابات العملاء فقط" });
+    const roleLabels: Record<string, string> = {
+      representative: "مندوب",
+      admin: "أدمن",
+      employee: "موظف",
+      super_admin: "أدمن رئيسي",
+    };
+    const currentRoleLabel = roleLabels[req.user?.role] ?? req.user?.role ?? "غير معروف";
+    res.status(403).json({
+      error: `هذا المسار مخصص لحسابات العملاء فقط. حسابك الحالي مسجل كـ "${currentRoleLabel}" — لو عايز تستخدم بوابة العميل، سجّل حساب عميل منفصل من صفحة "إنشاء حساب عميل".`,
+      currentRole: req.user?.role ?? null,
+      requiredRole: "client",
+    });
     return;
   }
   next();
