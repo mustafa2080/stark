@@ -302,7 +302,7 @@ export default function LoginPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => navigate("/client-register")}
+                    onClick={() => navigate("/register")}
                     className="flex items-center gap-1.5 text-sm font-bold transition-all duration-200"
                     style={{ color: dm ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)" }}
                     onMouseEnter={e => {
