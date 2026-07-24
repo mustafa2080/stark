@@ -1131,7 +1131,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
         message: `تم استلام شحنتك ${updated[0].trackingNumber ?? `#${updated[0].id}`} في المخزن`,
         entityType: "shipment",
         entityId: updated[0].id,
-        link: `/client-portal/shipments/${updated[0].id}`,
+        link: `/client-shipment-detail/${updated[0].id}`,
       });
     }
 
@@ -1153,7 +1153,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
         message: `تم ربط شحنتك ${updated[0].trackingNumber ?? `#${updated[0].id}`} ببيانات العميل التجاري`,
         entityType: "shipment",
         entityId: updated[0].id,
-        link: `/client-portal/shipments/${updated[0].id}`,
+        link: `/client-shipment-detail/${updated[0].id}`,
       });
     }
   } catch (e) {

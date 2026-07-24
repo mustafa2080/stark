@@ -16,10 +16,13 @@ function timeAgo(dateStr: string): string {
 }
 
 const TYPE_ICON: Record<string, any> = {
+  shipment_new: Package,
   shipment_created: Package,
   shipment_delayed: AlertTriangle,
   shipment_returned: Undo2,
   shipment_delivered: PackageCheck,
+  shipment_received: PackageCheck,
+  shipment_updated: Package,
   invoice: Receipt,
   inventory: Boxes,
   manifest_closed: Lock,
