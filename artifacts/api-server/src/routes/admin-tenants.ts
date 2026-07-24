@@ -46,16 +46,19 @@ function requireSuperAdmin(req: any, res: any, next: any) {
   }
   next();
 }
-router.use(requireSuperAdmin);
+// NOTE: requireSuperAdmin is applied per-route below, not via router.use(),
+// because this router is mounted with no path prefix in routes/index.ts.
+// A path-less router.use() here would run for every request that reaches
+// any router mounted after it (e.g. /notifications), not just /admin/*.
 
 // ── GET /api/admin/plan-prices ────────────────────────────────────────────────
-router.get("/admin/plan-prices", async (_req, res): Promise<void> => {
+router.get("/admin/plan-prices", requireSuperAdmin, async (_req, res): Promise<void> => {
   const prices = await getStoredPrices();
   res.json(prices);
 });
 
 // ── PATCH /api/admin/plan-prices ──────────────────────────────────────────────
-router.patch("/admin/plan-prices", async (req, res): Promise<void> => {
+router.patch("/admin/plan-prices", requireSuperAdmin, async (req, res): Promise<void> => {
   try {
     const incoming = req.body as Record<string, any>;
     const existing = await getStoredPrices();
@@ -102,7 +105,7 @@ router.patch("/admin/plan-prices", async (req, res): Promise<void> => {
 });
 
 // ── GET /api/admin/tenants ────────────────────────────────────────────────────
-router.get("/admin/tenants", async (_req, res): Promise<void> => {
+router.get("/admin/tenants", requireSuperAdmin, async (_req, res): Promise<void> => {
   const tenants = await db.select().from(tenantsTable)
     .where(eq(tenantsTable.isActive, true))
     .orderBy(desc(tenantsTable.createdAt));
@@ -110,14 +113,14 @@ router.get("/admin/tenants", async (_req, res): Promise<void> => {
 });
 
 // ── GET /api/admin/tenants/:id ────────────────────────────────────────────────
-router.get("/admin/tenants/:id", async (req, res): Promise<void> => {
+router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<void> => {
   const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, parseInt(req.params.id)));
   if (!tenant) { res.status(404).json({ error: "غير موجود" }); return; }
   res.json(tenant);
 });
 
 // ── POST /api/admin/tenants ───────────────────────────────────────────────────
-router.post("/admin/tenants", async (req, res): Promise<void> => {
+router.post("/admin/tenants", requireSuperAdmin, async (req, res): Promise<void> => {
   const { name, slug, plan, contactEmail, contactPhone, notes, durationDays, adminUsername, adminPassword, adminDisplayName } = req.body;
   if (!name || !slug || !plan || !durationDays || !adminUsername || !adminPassword) {
     res.status(400).json({ error: "name, slug, plan, durationDays, adminUsername, adminPassword مطلوبة" });
@@ -154,7 +157,7 @@ router.post("/admin/tenants", async (req, res): Promise<void> => {
 });
 
 // ── PATCH /api/admin/tenants/:id/activate ─────────────────────────────────────
-router.patch("/admin/tenants/:id/activate", async (req, res): Promise<void> => {
+router.patch("/admin/tenants/:id/activate", requireSuperAdmin, async (req, res): Promise<void> => {
   const { plan, durationDays } = req.body;
   if (!durationDays) { res.status(400).json({ error: "durationDays مطلوب" }); return; }
 
@@ -173,21 +176,21 @@ router.patch("/admin/tenants/:id/activate", async (req, res): Promise<void> => {
 });
 
 // ── PATCH /api/admin/tenants/:id/suspend ─────────────────────────────────────
-router.patch("/admin/tenants/:id/suspend", async (req, res): Promise<void> => {
+router.patch("/admin/tenants/:id/suspend", requireSuperAdmin, async (req, res): Promise<void> => {
   await db.update(tenantsTable).set({ planStatus: "suspended", updatedAt: sql`NOW()` })
     .where(eq(tenantsTable.id, parseInt(req.params.id)));
   res.json({ message: "تم إيقاف الاشتراك" });
 });
 
 // ── PATCH /api/admin/tenants/:id/expire ──────────────────────────────────────
-router.patch("/admin/tenants/:id/expire", async (req, res): Promise<void> => {
+router.patch("/admin/tenants/:id/expire", requireSuperAdmin, async (req, res): Promise<void> => {
   await db.update(tenantsTable).set({ planStatus: "expired", expiresAt: sql`NOW()`, updatedAt: sql`NOW()` })
     .where(eq(tenantsTable.id, parseInt(req.params.id)));
   res.json({ message: "تم إنهاء الاشتراك" });
 });
 
 // ── DELETE /api/admin/tenants/:id ────────────────────────────────────────────
-router.delete("/admin/tenants/:id", async (req, res): Promise<void> => {
+router.delete("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<void> => {
   const tenantId = parseInt(req.params.id);
   await db.delete(usersTable).where(eq(usersTable.tenantId, tenantId));
   await db.delete(tenantsTable).where(eq(tenantsTable.id, tenantId));

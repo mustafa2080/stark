@@ -86,7 +86,7 @@ router.use(clientAccountSheetRouter);
 router.use(clientAccountManifestsRouter);
 router.use(saleOrderManifestsRouter);
 router.use(clientAccountProRouter);
-router.use(adminTenantsRouter); // /admin/* — بعد requireAuth عشان req.user يكون موجود
+router.use(adminTenantsRouter); // /admin/* — requireSuperAdmin is scoped per-route inside admin-tenants.ts
 router.use(notificationsProtectedRouter);
 
 export default router;
