@@ -11,12 +11,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Plus, Edit2, Trash2, Phone, ToggleLeft, ToggleRight,
   Users, MapPin, Target, ShoppingBag, FileText, TrendingUp,
   Eye, BarChart2, Search, Filter, ChevronLeft, ChevronRight, ChevronDown,
-  ShoppingCart, Receipt, ListFilter, X, Camera, Printer,
+  ShoppingCart, Receipt, ListFilter, X, Camera, Printer, KeyRound,
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
@@ -97,6 +98,7 @@ const emptyForm = {
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
   creditLimit: "0", notes: "", isActive: true, avatar: "", clientType: "normal" as ClientType,
   warehouseId: "" as string, defaultAdSource: "" as string, whatsappGroupLink: "",
+  createAccount: false, username: "", password: "",
 };
 
 // ── Column Filter Dropdown ────────────────────────────────────────────────
@@ -234,6 +236,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
     defaultAdSource: editClient.defaultAdSource ?? "",
     whatsappGroupLink: editClient.whatsappGroupLink ?? "",
+    createAccount: false, username: "", password: "",
   } : { ...emptyForm });
 
   // إعادة تعبئة الـ form لما editClient يتغير (مهم لو الـ Dialog مش بيتـunmount)
@@ -252,6 +255,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         warehouseId: editClient.warehouseId ? String(editClient.warehouseId) : "",
         defaultAdSource: editClient.defaultAdSource ?? "",
         whatsappGroupLink: editClient.whatsappGroupLink ?? "",
+        createAccount: false, username: "", password: "",
       });
     } else {
       setForm({ ...emptyForm });
@@ -260,7 +264,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const body = {
+      const body: any = {
         name: form.name, phone: form.phone || null, phone2: form.phone2 || null,
         email: form.email || null, address: form.address || null,
         city: form.city || null, region: form.region || null,
@@ -273,14 +277,28 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         defaultAdSource: form.defaultAdSource || null,
         whatsappGroupLink: form.whatsappGroupLink || null,
       };
+      // ── حساب دخول اختياري — بس وقت الإضافة (مش التعديل)، ولو الأدمن فعّل الخيار وملأ البيانات ──
+      if (!isEdit && form.createAccount && form.username.trim() && form.password) {
+        body.username = form.username.trim();
+        body.password = form.password;
+      }
       if (isEdit) return apiFetch<any>(`/finance/clients/${editClient!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       return apiFetch<any>("/finance/clients", { method: "POST", body: JSON.stringify(body) });
     },
-    onSuccess: () => { toast({ title: isEdit ? "تم تحديث العميل" : "تمت إضافة العميل" }); onSuccess(); onClose(); },
+    onSuccess: (data: any) => {
+      toast({
+        title: isEdit ? "تم تحديث العميل" : "تمت إضافة العميل",
+        description: !isEdit && data?.createdAccount ? "تم إنشاء حساب الدخول للعميل بنجاح" : undefined,
+      });
+      onSuccess(); onClose();
+    },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const f = (k: keyof typeof form, v: any) => setForm(p => ({ ...p, [k]: v }));
+
+  const accountInvalid = !isEdit && form.createAccount &&
+    (form.username.trim().length < 3 || form.password.length < 6);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -439,6 +457,29 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
               </SelectContent>
             </Select>
           </div>
+          {/* ── إنشاء حساب دخول للعميل (اختياري، وقت الإضافة فقط) ── */}
+          {!isEdit && (
+            <div className="p-3 bg-muted/20 rounded-md space-y-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-xs font-bold flex-1">إنشاء حساب دخول للعميل</span>
+                <Switch checked={form.createAccount} onCheckedChange={v => f("createAccount", v)} />
+              </div>
+              {form.createAccount && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs mb-1.5 block">اسم المستخدم</Label>
+                    <Input dir="ltr" placeholder="username" className="h-9 text-sm bg-background"
+                      value={form.username} onChange={e => f("username", e.target.value)} /></div>
+                  <div><Label className="text-xs mb-1.5 block">كلمة المرور</Label>
+                    <Input dir="ltr" type="text" placeholder="6 أحرف على الأقل" className="h-9 text-sm bg-background"
+                      value={form.password} onChange={e => f("password", e.target.value)} /></div>
+                  <p className="text-[10px] text-muted-foreground col-span-2 px-0.5">
+                    العميل هيقدر يدخل بورتال العميل مباشرة بنفس بيانات الدخول دي، من غير ما يعمل تسجيل بنفسه.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-md">
             <span className="text-xs font-medium">حالة العميل</span>
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 mr-auto" onClick={() => f("isActive", !form.isActive)}>
@@ -446,7 +487,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
             </Button>
           </div>
           <div className="flex gap-2 pt-1">
-            <Button className="flex-1 h-9 text-sm font-bold bg-primary text-primary-foreground" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.name.trim()}>
+            <Button className="flex-1 h-9 text-sm font-bold bg-primary text-primary-foreground" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.name.trim() || accountInvalid}>
               {mutation.isPending ? "جارٍ الحفظ…" : isEdit ? "حفظ التعديلات" : "إضافة العميل"}
             </Button>
             <Button variant="outline" className="h-9 text-sm border-border" onClick={onClose}>إلغاء</Button>

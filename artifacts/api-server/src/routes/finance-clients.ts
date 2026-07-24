@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { hashPassword } from "../lib/auth.js";
 import { z } from "zod";
 
 const router = Router();
@@ -27,6 +28,9 @@ const ClientSchema = z.object({
   whatsappGroupLink: z.string().nullish(),
   zoneCostId:            z.number().nullish(),
   zoneCostDeliveryPrice: z.number().nullish(),
+  // ── حساب دخول اختياري للعميل (username/password) — لو الأدمن حاب يكريت له حساب من هنا مباشرة ──
+  username: z.string().trim().min(3).nullish(),
+  password: z.string().min(6).nullish(),
 });
 
 // ── حساب نوع العميل تلقائياً بناءً على عدد الشحنات الشهرية ────────────
@@ -401,7 +405,28 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
 
     const now = new Date();
     // warehouseId و region و defaultAdSource و whatsappGroupLink يتفصلان لأن الـ compiled Drizzle schema على السيرفر ممكن مش يعرفهم — نضيفهم بـ raw SQL بعد الإنشاء
-    const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, ...restData } = parsed.data;
+    const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, username, password, ...restData } = parsed.data;
+
+    // ── لو الأدمن حدد username/password، تحقق منهم الأول قبل إنشاء العميل ──
+    let cleanUsername: string | null = null;
+    if (username) {
+      cleanUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, "");
+      if (cleanUsername.length < 3) {
+        res.status(400).json({ error: "اسم المستخدم يجب أن يكون 3 أحرف إنجليزية/أرقام على الأقل" });
+        return;
+      }
+      if (!password || password.length < 6) {
+        res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+        return;
+      }
+      const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.username, cleanUsername)).limit(1);
+      if (existingUser) {
+        res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل، يرجى اختيار اسم آخر" });
+        return;
+      }
+    }
+
     const [result] = await db.insert(clientsTable).values({
       ...restData,
       creditLimit:  String(parsed.data.creditLimit ?? 0),
@@ -432,9 +457,30 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
       await db.execute(sql`UPDATE clients SET zone_cost_delivery_price = ${zoneCostDeliveryPrice ?? null} WHERE id = ${id}`);
     }
 
+    // ── لو الأدمن حدد بيانات حساب دخول، أنشئ يوزر (role=client) مرتبط بالعميل ──
+    let createdAccount = false;
+    if (cleanUsername && password) {
+      const passwordHash = await hashPassword(password);
+      await db.insert(usersTable).values({
+        ...(tenantId !== null ? { tenantId } : {}),
+        username: cleanUsername,
+        displayName: parsed.data.name,
+        passwordHash,
+        role: "client",
+        permissions: JSON.stringify(["client.view"]),
+        phone: parsed.data.phone || null,
+        email: parsed.data.email || null,
+        clientId: id,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      } as any);
+      createdAccount = true;
+    }
+
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link, zone_cost_id, zone_cost_delivery_price FROM clients WHERE id = ${id}`) as any;
-    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null });
+    res.status(201).json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null, createdAccount });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
