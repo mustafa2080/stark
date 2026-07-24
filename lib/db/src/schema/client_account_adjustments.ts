@@ -9,6 +9,7 @@ export const ADJUSTMENT_TYPES = [
   "manual_credit",
   "manual_debit",
   "correction",
+  "shipping_fee",
 ] as const;
 export type AdjustmentType = (typeof ADJUSTMENT_TYPES)[number];
 
@@ -20,6 +21,7 @@ export const ADJUSTMENT_TYPE_LABELS: Record<AdjustmentType, string> = {
   manual_credit: "إضافة لصالح العميل",
   manual_debit: "إضافة على العميل",
   correction: "تصحيح محاسبي",
+  shipping_fee: "أجرة شحن",
 };
 
 export const ADJUSTMENT_DIRECTIONS = ["credit", "debit"] as const;

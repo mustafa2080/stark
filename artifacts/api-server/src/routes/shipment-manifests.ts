@@ -9,6 +9,8 @@ import {
   cashRegistersTable,
   cashTransactionsTable,
   warehousesTable,
+  clientsTable,
+  clientAccountAdjustmentsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -673,6 +675,47 @@ async function createTreasuryEntryOnClose(
       deliveredCount += 1;
     }
     // delayed / pending / مرتجع بأسباب أخرى → مش بيتحسب
+  }
+
+  // ─── خصم أجرة الشحن على حساب كل عميل، لكل شحنة "مُسلَّمة" فعلاً في البيان ──
+  // (مصروف منفصل لكل عميل — مش مصروف إجمالي واحد على مستوى البيان)
+  {
+    const deliveredWithClient = items.filter(item => {
+      const shipment = shipmentMap.get(item.shipmentId);
+      return item.deliveryStatus === "delivered" && shipment?.clientId != null;
+    });
+
+    if (deliveredWithClient.length > 0) {
+      const clientIds = [...new Set(
+        deliveredWithClient.map(item => shipmentMap.get(item.shipmentId)!.clientId as number)
+      )];
+      const clientsRows = await db.select().from(clientsTable).where(inArray(clientsTable.id, clientIds));
+      const clientMap = new Map(clientsRows.map(c => [c.id, c]));
+
+      for (const item of deliveredWithClient) {
+        const shipment = shipmentMap.get(item.shipmentId)!;
+        const client = clientMap.get(shipment.clientId as number);
+        if (!client?.normalizedPhone) continue;
+
+        const shippingFee = Number(shipment.shippingFee ?? 0);
+        if (shippingFee <= 0) continue;
+
+        await db.insert(clientAccountAdjustmentsTable).values({
+          tenantId: manifest.tenantId ?? null,
+          clientPhone: client.phone,
+          normalizedPhone: client.normalizedPhone,
+          type: "shipping_fee",
+          direction: "debit",
+          amount: String(shippingFee),
+          linkedShipmentId: shipment.id,
+          reason: `أجرة شحن — بيان ${manifest.manifestNumber} — شحنة #${shipment.shipmentNumber ?? shipment.id}`,
+          createdByUserId: userId,
+          createdByName: userName,
+          adjustedAt: now,
+          createdAt: now,
+        }).catch((e) => console.error("[createTreasuryEntryOnClose] client adjustment error", e));
+      }
+    }
   }
 
   // الرصيد المُرحَّل للخزنة = صافي المستحق من المندوب (COD المسلَّم − تكلفة شحن المندوب)

@@ -2307,7 +2307,7 @@ export interface ClientAnalyticsResponse {
 
 export type AdjustmentType =
   | "damage_deduction" | "return_deduction" | "discount" | "penalty"
-  | "manual_credit" | "manual_debit" | "correction";
+  | "manual_credit" | "manual_debit" | "correction" | "shipping_fee";
 export type AdjustmentDirection = "credit" | "debit";
 
 export const ADJUSTMENT_TYPE_LABELS: Record<AdjustmentType, string> = {
@@ -2318,6 +2318,7 @@ export const ADJUSTMENT_TYPE_LABELS: Record<AdjustmentType, string> = {
   manual_credit: "إضافة لصالح العميل",
   manual_debit: "إضافة على العميل",
   correction: "تصحيح محاسبي",
+  shipping_fee: "أجرة شحن",
 };
 
 export interface ClientAdjustmentDTO {
