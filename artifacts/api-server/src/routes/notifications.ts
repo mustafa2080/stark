@@ -43,7 +43,8 @@ const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
 // GET /notifications — آخر الإشعارات (افتراضي 30)
 // الأدمن (admin/super_admin) يشوف كل الإشعارات العامة في النظام كله بغض النظر عن الـ tenant
-// أي دور تاني يشوف بس إشعارات تينانته + الموجّهة له شخصياً
+// أي دور تاني (عميل، مندوب، إلخ) يشوف بس الإشعارات الموجّهة له شخصياً — مش إشعارات التينانت العامة
+// (الإشعارات العامة زي "شحنة جديدة"/"عميل جديد" مُخصَّصة للأدمن فقط، حتى لو كانت tenantId نفسه)
 notificationsProtectedRouter.get("/notifications", async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const tenantId = user?.tenantId ?? null;
@@ -53,9 +54,7 @@ notificationsProtectedRouter.get("/notifications", async (req: Request, res: Res
 
   const tenantCond = isAdmin
     ? sql`${notificationsTable.targetUserId} IS NULL`
-    : (tenantId == null
-        ? sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} IS NULL AND ${notificationsTable.targetUserId} IS NULL))`
-        : sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} = ${tenantId} AND ${notificationsTable.targetUserId} IS NULL))`);
+    : sql`${notificationsTable.targetUserId} = ${userId}`;
 
   const rows = await db.select().from(notificationsTable).where(tenantCond).orderBy(desc(notificationsTable.createdAt)).limit(limit);
   res.json({ notifications: rows });
@@ -70,9 +69,7 @@ notificationsProtectedRouter.get("/notifications/unread-count", async (req: Requ
 
   const tenantCond = isAdmin
     ? sql`${notificationsTable.targetUserId} IS NULL`
-    : (tenantId == null
-        ? sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} IS NULL AND ${notificationsTable.targetUserId} IS NULL))`
-        : sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} = ${tenantId} AND ${notificationsTable.targetUserId} IS NULL))`);
+    : sql`${notificationsTable.targetUserId} = ${userId}`;
 
   const [row] = await db.select({ count: sql<number>`count(*)` }).from(notificationsTable)
     .where(and(tenantCond, eq(notificationsTable.isRead, false)));
@@ -89,11 +86,11 @@ notificationsProtectedRouter.patch("/notifications/:id/read", async (req: Reques
 // PATCH /notifications/read-all
 notificationsProtectedRouter.patch("/notifications/read-all", async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
-  const tenantId = user?.tenantId ?? null;
+  const userId = user?.id ?? null;
   const isAdmin = ADMIN_ROLES.has(user?.role);
   const cond = isAdmin
     ? sql`${notificationsTable.targetUserId} IS NULL`
-    : (tenantId == null ? sql`${notificationsTable.tenantId} IS NULL` : eq(notificationsTable.tenantId, tenantId));
+    : sql`${notificationsTable.targetUserId} = ${userId}`;
   await db.update(notificationsTable).set({ isRead: true }).where(cond);
   res.json({ success: true });
 });
