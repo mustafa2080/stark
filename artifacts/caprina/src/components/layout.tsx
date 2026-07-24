@@ -493,6 +493,7 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* أسفل الـ sidebar: الثيم + خروج */}
             <div className={cn("shrink-0 border-t border-sidebar-border/60 p-2 flex gap-2", sidebarCollapsed ? "flex-col items-center" : "flex-row items-center justify-between")}>
+              <NotificationBell />
               <button type="button" onClick={(e) => { e.stopPropagation(); toggleTheme(); }}
                 title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
                 className="w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0"
@@ -523,14 +524,17 @@ export default function Layout({ children }: LayoutProps) {
                   <p className="text-[10px] text-sidebar-foreground/40">بوابة العميل</p>
                 </div>
               </div>
-              <button type="button" onClick={toggleTheme} title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0"
-                style={{
-                  background: theme === "dark" ? "linear-gradient(135deg,#1e293b,#0f172a)" : "linear-gradient(135deg,#fef3c7,#fde68a)",
-                  border: theme === "dark" ? "1px solid rgba(148,163,184,0.25)" : "1px solid rgba(251,191,36,0.6)",
-                }}>
-                {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <NotificationBell />
+                <button type="button" onClick={toggleTheme} title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0"
+                  style={{
+                    background: theme === "dark" ? "linear-gradient(135deg,#1e293b,#0f172a)" : "linear-gradient(135deg,#fef3c7,#fde68a)",
+                    border: theme === "dark" ? "1px solid rgba(148,163,184,0.25)" : "1px solid rgba(251,191,36,0.6)",
+                  }}>
+                  {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
+                </button>
+              </div>
             </div>
           </header>
 
