@@ -215,7 +215,6 @@ export default function ClientDashboardPage() {
             </button>
 
             <StatPill value={fn(stats?.total ?? 0)} label="إجمالي الشحنات" />
-            <StatPill value={fn(shipments.filter(s => s.status === "delayed").length)} label="شحنات متأخرة" />
           </div>
 
           {/* ── Right column: Donut + Legend ── */}
@@ -241,13 +240,6 @@ export default function ClientDashboardPage() {
           </div>
         </div>
 
-        {/* ── Wallet / Finance cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <WalletCard icon={Wallet} label="إجمالي COD" value={fc(finance?.totalCod ?? 0)} color="#3b82f6" />
-          <WalletCard icon={CheckCircle2} label="تم التحصيل" value={fc(finance?.totalCollected ?? 0)} color="#22c55e" />
-          <WalletCard icon={AlertCircle} label="المستحق" value={fc(finance?.outstanding ?? 0)} color="#f59e0b" />
-          <WalletCard icon={TrendingUp} label="مصاريف الشحن" value={fc(finance?.totalShippingFee ?? 0)} color="#a855f7" />
-        </div>
 
         {/* ── Shipments Table ── */}
         <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">

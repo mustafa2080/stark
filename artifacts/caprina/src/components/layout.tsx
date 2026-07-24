@@ -373,13 +373,13 @@ export default function Layout({ children }: LayoutProps) {
       { href: "/client-dashboard",       label: "الرئيسية",        icon: LayoutDashboard, exact: true },
       { href: "/client-account",         label: "بروفايلي",         icon: User },
       { href: "/client-wallet",          label: "التسويات المالية", icon: Wallet },
-      { href: "/client-shipping-invoices", label: "فواتير الشحن",   icon: Receipt },
       { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
       { href: "/client-data",            label: "البيانات",         icon: FileText },
     ];
     const CLIENT_SHIPMENTS_SUBNAV = [
       { href: "/client-shipments",        label: "قائمة الشحنات",  icon: Package },
       { href: "/client-shipments/new",    label: "إنشاء شحنة",     icon: Plus },
+      { href: "/client-shipping-invoices", label: "فواتير الشحن",  icon: Receipt },
       { href: "/client-shipments/import", label: "تحميل من إكسيل", icon: Upload },
     ];
     const isClientActive = (href: string, exact?: boolean) =>
