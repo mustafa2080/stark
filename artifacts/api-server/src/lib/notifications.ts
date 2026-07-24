@@ -6,6 +6,11 @@ import { desc, eq, and, sql } from "drizzle-orm";
 const notifSseClients = new Map<string, Set<Response>>();
 // ─── SSE: مخزن اتصالات مرتبة بـ userId — للإشعارات الموجّهة لمستخدم بعينه (زي العميل) ──
 const notifSseClientsByUser = new Map<number, Set<Response>>();
+// ─── SSE: مخزن اتصالات كل الأدمنز (admin/super_admin) بغض النظر عن الـ tenant ──
+// الإشعارات العامة (زي "شحنة جديدة من العميل") المفروض توصل لأي أدمن في النظام كله
+const notifSseAdminClients = new Set<Response>();
+
+const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
 function tenantKey(tenantId: number | null | undefined): string {
   return tenantId == null ? "global" : String(tenantId);
@@ -15,6 +20,7 @@ export function registerNotifSseClient(
   tenantId: number | null | undefined,
   res: Response,
   userId?: number | null,
+  role?: string | null,
 ): () => void {
   const key = tenantKey(tenantId);
   if (!notifSseClients.has(key)) notifSseClients.set(key, new Set());
@@ -25,19 +31,22 @@ export function registerNotifSseClient(
     notifSseClientsByUser.get(userId)!.add(res);
   }
 
+  const isAdmin = role != null && ADMIN_ROLES.has(role);
+  if (isAdmin) notifSseAdminClients.add(res);
+
   return () => {
     notifSseClients.get(key)?.delete(res);
     if (userId != null) notifSseClientsByUser.get(userId)?.delete(res);
+    if (isAdmin) notifSseAdminClients.delete(res);
   };
 }
 
-function broadcastToTenant(tenantId: number | null | undefined, payload: object): void {
-  const key = tenantKey(tenantId);
-  const clients = notifSseClients.get(key);
-  console.log(`[broadcastToTenant] key=${key} connectedClients=${clients?.size ?? 0} allKeys=${JSON.stringify([...notifSseClients.keys()])}`);
-  if (!clients || clients.size === 0) return;
+// ─── بث لكل الأدمنز في النظام كله (بغض النظر عن الـ tenant) ────────────────────
+function broadcastToAllAdmins(payload: object): void {
+  console.log(`[broadcastToAllAdmins] connectedAdmins=${notifSseAdminClients.size}`);
+  if (notifSseAdminClients.size === 0) return;
   const data = `data: ${JSON.stringify(payload)}\n\n`;
-  for (const res of clients) {
+  for (const res of notifSseAdminClients) {
     try { res.write(data); } catch (_) { /* cleaned up on close */ }
   }
 }
@@ -64,7 +73,7 @@ interface CreateNotificationOptions {
   link?: string;
 }
 
-// ─── إنشاء إشعار + بثه فورًا لكل المتصلين على نفس الـ tenant ──────────────────
+// ─── إنشاء إشعار + بثه فورًا (للعميل الموجّه له، أو لكل الأدمنز في النظام) ──────
 export async function pushNotification(opts: CreateNotificationOptions): Promise<void> {
   try {
     console.log("[pushNotification] creating:", { tenantId: opts.tenantId, targetUserId: opts.targetUserId, type: opts.type });
@@ -97,11 +106,11 @@ export async function pushNotification(opts: CreateNotificationOptions): Promise
       createdAt: new Date().toISOString(),
     };
 
-    // لو الإشعار موجّه لمستخدم بعينه، ابعته له بس (مش لكل الـ tenant)
+    // لو الإشعار موجّه لمستخدم بعينه، ابعته له بس — غير كده يوصل لكل الأدمنز في النظام كله
     if (opts.targetUserId != null) {
       sendToUser(opts.targetUserId, payload);
     } else {
-      broadcastToTenant(opts.tenantId ?? null, payload);
+      broadcastToAllAdmins(payload);
     }
   } catch (err) {
     // فشل الإشعار مايوقفش العملية الأساسية أبداً

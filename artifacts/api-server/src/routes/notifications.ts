@@ -19,7 +19,7 @@ router.get("/notifications/sse", (req: Request, res: Response): void => {
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
-  const unregister = registerNotifSseClient(user.tenantId ?? null, res, user.id ?? null);
+  const unregister = registerNotifSseClient(user.tenantId ?? null, res, user.id ?? null, user.role ?? null);
 
   const heartbeat = setInterval(() => {
     try { res.write(": ping\n\n"); } catch (_) { cleanup(); }
@@ -39,19 +39,25 @@ export default router;
 // ─── Protected routes (need requireAuth applied by caller router group) ──────
 export const notificationsProtectedRouter: IRouter = Router();
 
-// GET /notifications — آخر الإشعارات (افتراضي 30) — تجيب العامة (بالـ tenant) + الموجّهة للمستخدم نفسه
+const ADMIN_ROLES = new Set(["admin", "super_admin"]);
+
+// GET /notifications — آخر الإشعارات (افتراضي 30)
+// الأدمن (admin/super_admin) يشوف كل الإشعارات العامة في النظام كله بغض النظر عن الـ tenant
+// أي دور تاني يشوف بس إشعارات تينانته + الموجّهة له شخصياً
 notificationsProtectedRouter.get("/notifications", async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const tenantId = user?.tenantId ?? null;
   const userId = user?.id ?? null;
+  const isAdmin = ADMIN_ROLES.has(user?.role);
   const limit = Math.min(Number(req.query.limit) || 30, 100);
 
-  const tenantCond = tenantId == null ? sql`${notificationsTable.tenantId} IS NULL` : eq(notificationsTable.tenantId, tenantId);
-  const scopeCond = userId != null
-    ? and(tenantCond, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
-    : and(tenantCond, sql`${notificationsTable.targetUserId} IS NULL`);
+  const tenantCond = isAdmin
+    ? sql`${notificationsTable.targetUserId} IS NULL`
+    : (tenantId == null
+        ? and(sql`${notificationsTable.tenantId} IS NULL`, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
+        : and(eq(notificationsTable.tenantId, tenantId), sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`));
 
-  const rows = await db.select().from(notificationsTable).where(scopeCond).orderBy(desc(notificationsTable.createdAt)).limit(limit);
+  const rows = await db.select().from(notificationsTable).where(tenantCond).orderBy(desc(notificationsTable.createdAt)).limit(limit);
   res.json({ notifications: rows });
 });
 
@@ -60,14 +66,16 @@ notificationsProtectedRouter.get("/notifications/unread-count", async (req: Requ
   const user = (req as any).user;
   const tenantId = user?.tenantId ?? null;
   const userId = user?.id ?? null;
+  const isAdmin = ADMIN_ROLES.has(user?.role);
 
-  const tenantCond = tenantId == null ? sql`${notificationsTable.tenantId} IS NULL` : eq(notificationsTable.tenantId, tenantId);
-  const scopeCond = userId != null
-    ? and(tenantCond, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
-    : and(tenantCond, sql`${notificationsTable.targetUserId} IS NULL`);
+  const tenantCond = isAdmin
+    ? sql`${notificationsTable.targetUserId} IS NULL`
+    : (tenantId == null
+        ? and(sql`${notificationsTable.tenantId} IS NULL`, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
+        : and(eq(notificationsTable.tenantId, tenantId), sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`));
 
   const [row] = await db.select({ count: sql<number>`count(*)` }).from(notificationsTable)
-    .where(and(scopeCond, eq(notificationsTable.isRead, false)));
+    .where(and(tenantCond, eq(notificationsTable.isRead, false)));
   res.json({ count: Number(row?.count ?? 0) });
 });
 
@@ -82,9 +90,10 @@ notificationsProtectedRouter.patch("/notifications/:id/read", async (req: Reques
 notificationsProtectedRouter.patch("/notifications/read-all", async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const tenantId = user?.tenantId ?? null;
-  const cond = tenantId == null
-    ? sql`${notificationsTable.tenantId} IS NULL`
-    : eq(notificationsTable.tenantId, tenantId);
+  const isAdmin = ADMIN_ROLES.has(user?.role);
+  const cond = isAdmin
+    ? sql`${notificationsTable.targetUserId} IS NULL`
+    : (tenantId == null ? sql`${notificationsTable.tenantId} IS NULL` : eq(notificationsTable.tenantId, tenantId));
   await db.update(notificationsTable).set({ isRead: true }).where(cond);
   res.json({ success: true });
 });
