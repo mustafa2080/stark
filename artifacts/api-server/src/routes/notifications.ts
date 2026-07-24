@@ -54,8 +54,8 @@ notificationsProtectedRouter.get("/notifications", async (req: Request, res: Res
   const tenantCond = isAdmin
     ? sql`${notificationsTable.targetUserId} IS NULL`
     : (tenantId == null
-        ? and(sql`${notificationsTable.tenantId} IS NULL`, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
-        : and(eq(notificationsTable.tenantId, tenantId), sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`));
+        ? sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} IS NULL AND ${notificationsTable.targetUserId} IS NULL))`
+        : sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} = ${tenantId} AND ${notificationsTable.targetUserId} IS NULL))`);
 
   const rows = await db.select().from(notificationsTable).where(tenantCond).orderBy(desc(notificationsTable.createdAt)).limit(limit);
   res.json({ notifications: rows });
@@ -71,8 +71,8 @@ notificationsProtectedRouter.get("/notifications/unread-count", async (req: Requ
   const tenantCond = isAdmin
     ? sql`${notificationsTable.targetUserId} IS NULL`
     : (tenantId == null
-        ? and(sql`${notificationsTable.tenantId} IS NULL`, sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`)
-        : and(eq(notificationsTable.tenantId, tenantId), sql`(${notificationsTable.targetUserId} IS NULL OR ${notificationsTable.targetUserId} = ${userId})`));
+        ? sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} IS NULL AND ${notificationsTable.targetUserId} IS NULL))`
+        : sql`(${notificationsTable.targetUserId} = ${userId} OR (${notificationsTable.tenantId} = ${tenantId} AND ${notificationsTable.targetUserId} IS NULL))`);
 
   const [row] = await db.select({ count: sql<number>`count(*)` }).from(notificationsTable)
     .where(and(tenantCond, eq(notificationsTable.isRead, false)));
