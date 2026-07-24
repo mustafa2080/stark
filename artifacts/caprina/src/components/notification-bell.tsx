@@ -144,7 +144,7 @@ export function NotificationBell({ className }: { className?: string }) {
         <div
           id="notification-bell-portal"
           dir="rtl"
-          className="fixed w-80 max-w-[90vw] rounded-xl border shadow-2xl overflow-hidden"
+          className="fixed w-72 max-w-[85vw] rounded-xl border shadow-2xl overflow-hidden"
           style={{
             ...(coords.top !== undefined ? { top: coords.top } : { bottom: coords.bottom }),
             right: Math.max(8, coords.right),

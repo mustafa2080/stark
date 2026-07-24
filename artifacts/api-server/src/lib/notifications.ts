@@ -42,11 +42,13 @@ export function registerNotifSseClient(
 }
 
 // ─── بث لكل الأدمنز في النظام كله (بغض النظر عن الـ tenant) ────────────────────
-function broadcastToAllAdmins(payload: object): void {
+function broadcastToAllAdmins(payload: object, excludeUserId?: number | null): void {
   console.log(`[broadcastToAllAdmins] connectedAdmins=${notifSseAdminClients.size}`);
   if (notifSseAdminClients.size === 0) return;
+  const excludeClients = excludeUserId != null ? notifSseClientsByUser.get(excludeUserId) : undefined;
   const data = `data: ${JSON.stringify(payload)}\n\n`;
   for (const res of notifSseAdminClients) {
+    if (excludeClients && excludeClients.has(res)) continue; // ما تبعتش للشخص اللي عمل الفعل نفسه
     try { res.write(data); } catch (_) { /* cleaned up on close */ }
   }
 }
@@ -64,6 +66,8 @@ interface CreateNotificationOptions {
   tenantId?: number | null;
   // لو محدد، الإشعار موجّه لهذا المستخدم بعينه (مثلاً إشعار للعميل نفسه) — غير كده بيبث لكل الـ tenant
   targetUserId?: number | null;
+  // لو محدد، بيتم استثناء هذا المستخدم من البث الجماعي (زي عدم إشعار الشخص اللي عمل الفعل بنفسه)
+  excludeUserId?: number | null;
   type: NotificationType;
   severity?: NotificationSeverity;
   title: string;
@@ -110,7 +114,7 @@ export async function pushNotification(opts: CreateNotificationOptions): Promise
     if (opts.targetUserId != null) {
       sendToUser(opts.targetUserId, payload);
     } else {
-      broadcastToAllAdmins(payload);
+      broadcastToAllAdmins(payload, opts.excludeUserId);
     }
   } catch (err) {
     // فشل الإشعار مايوقفش العملية الأساسية أبداً

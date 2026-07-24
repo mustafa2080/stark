@@ -823,6 +823,7 @@ router.post("/shipments", async (req, res): Promise<void> => {
     if (newShipment[0]) {
       pushNotification({
         tenantId: tenantId,
+        excludeUserId: user?.id,
         type: "shipment_new",
         severity: "info",
         title: "شحنة جديدة",
