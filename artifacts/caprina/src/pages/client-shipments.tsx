@@ -148,7 +148,7 @@ export default function ClientShipmentsPage() {
                   const meta = statusMeta(s.status);
                   return (
                     <tr key={s.id} className="cursor-pointer hover:bg-muted/30 transition-colors border-t border-border"
-                      onClick={() => navigate(`/client-shipment/${s.id}`)}>
+                      onClick={() => navigate(`/client-shipment-detail/${s.id}`)}>
                       <td className="px-4 py-3 font-mono text-foreground/60">{s.trackingNumber || s.shipmentNumber || s.id}</td>
                       <td className="px-4 py-3 text-foreground/80">{s.receiverName}</td>
                       <td className="px-4 py-3 text-foreground/60">{s.receiverCity || "—"}</td>

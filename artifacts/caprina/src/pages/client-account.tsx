@@ -606,7 +606,7 @@ export default function ClientAccountPage() {
                 </select>
               </div>
 
-              <ShipmentsTable shipments={shownShipments} onRowClick={(s) => navigate(`/client-shipment/${s.id}`)} />
+              <ShipmentsTable shipments={shownShipments} onRowClick={(s) => navigate(`/client-shipment-detail/${s.id}`)} />
 
               <div className="p-3 space-y-2 max-h-[520px] overflow-y-auto md:hidden">
                 {shownShipments.length === 0 ? (
@@ -614,7 +614,7 @@ export default function ClientAccountPage() {
                 ) : (
                   shownShipments.map((s: any) => (
                     <div key={s.id} className="relative">
-                      <ShipmentRow s={s} onClick={() => navigate(`/client-shipment/${s.id}`)} />
+                      <ShipmentRow s={s} onClick={() => navigate(`/client-shipment-detail/${s.id}`)} />
                       {["waiting", "confirmed"].includes(s.status) && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setCancelTarget(s); }}
