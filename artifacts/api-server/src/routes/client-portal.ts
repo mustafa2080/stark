@@ -925,7 +925,7 @@ router.post("/client-portal/invoices", async (req, res): Promise<void> => {
     const tenantId = user.tenantId ?? null;
 
     // ── تأكد إن كل الشحنات دي فعلاً بتاعة العميل نفسه (أمان) ────────────────
-    const allShipments = await getClientShipments(tenantId, client.normalizedPhone);
+    const allShipments = await getClientShipments(tenantId, client.normalizedPhone, user.id);
     const ownedIds = new Set(allShipments.map(s => s.id));
     const invalidIds = shipmentIds.filter(id => !ownedIds.has(id));
     if (invalidIds.length > 0) {
