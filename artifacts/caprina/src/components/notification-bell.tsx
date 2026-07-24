@@ -70,14 +70,27 @@ export function NotificationBell({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const [coords, setCoords] = useState<{ top?: number; bottom?: number; right: number; maxHeight: number } | null>(null);
   const [, navigate] = useLocation();
 
   useEffect(() => {
     if (!open) return;
+    const DROPDOWN_HEIGHT = 420; // تقريبي: هيدر + قائمة بأقصى ارتفاع
+    const GAP = 8;
     const updateCoords = () => {
       const rect = btnRef.current?.getBoundingClientRect();
-      if (rect) setCoords({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+      if (!rect) return;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const right = window.innerWidth - rect.right;
+
+      if (spaceBelow >= DROPDOWN_HEIGHT || spaceBelow >= spaceAbove) {
+        // مساحة كافية تحت (أو أكبر من فوق) → افتح لتحت
+        setCoords({ top: rect.bottom + GAP, right, maxHeight: Math.max(200, spaceBelow - GAP - 16) });
+      } else {
+        // مفيش مساحة كافية تحت → افتح لفوق
+        setCoords({ bottom: window.innerHeight - rect.top + GAP, right, maxHeight: Math.max(200, spaceAbove - GAP - 16) });
+      }
     };
     updateCoords();
     window.addEventListener("resize", updateCoords);
@@ -133,7 +146,7 @@ export function NotificationBell({ className }: { className?: string }) {
           dir="rtl"
           className="fixed w-80 max-w-[90vw] rounded-xl border shadow-2xl overflow-hidden"
           style={{
-            top: coords.top,
+            ...(coords.top !== undefined ? { top: coords.top } : { bottom: coords.bottom }),
             right: Math.max(8, coords.right),
             zIndex: 9999,
             background: "hsl(var(--card))",
@@ -153,7 +166,7 @@ export function NotificationBell({ className }: { className?: string }) {
             )}
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="overflow-y-auto" style={{ maxHeight: coords.maxHeight }}>
             {isLoading ? (
               <p className="text-center text-xs text-muted-foreground py-8">جارِ التحميل...</p>
             ) : notifications.length === 0 ? (
