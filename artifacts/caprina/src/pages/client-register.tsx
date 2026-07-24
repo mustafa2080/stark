@@ -1,9 +1,23 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Lock, MapPin, Building2, FileText, CreditCard, Wallet } from "lucide-react";
+import { Eye, EyeOff, Sparkles, KeyRound, User, Phone, Mail, Lock, MapPin, Building2, FileText, CreditCard, Wallet, Camera, X, MessageCircle, Warehouse, Target } from "lucide-react";
 import { Navbar, Footer, SocialFloat } from "@/pages/home";
 import { useAuth } from "@/contexts/AuthContext";
+
+type WarehouseOpt = { id: number; name: string };
+type ZoneOpt = { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; isActive?: boolean };
+
+const AD_SOURCES = [
+  { value: "facebook", label: "فيسبوك" },
+  { value: "tiktok", label: "تيك توك" },
+  { value: "instagram", label: "إنستجرام" },
+  { value: "whatsapp", label: "واتساب" },
+  { value: "organic", label: "ويبسايت" },
+  { value: "other", label: "أخرى" },
+];
+
+const PAYMENT_TERMS = ["فوري", "آجل 15 يوم", "آجل 30 يوم", "آجل 60 يوم", "آجل 90 يوم"];
 
 export default function ClientRegisterPage() {
   const [darkMode, setDarkMode] = useState(true);
@@ -14,23 +28,62 @@ export default function ClientRegisterPage() {
   const { toast } = useToast();
   const { login } = useAuth();
 
+  const [warehouses, setWarehouses] = useState<WarehouseOpt[]>([]);
+  const [zones, setZones] = useState<ZoneOpt[]>([]);
+
+  useEffect(() => {
+    fetch("/api/client/register/warehouses").then(r => r.json()).then(setWarehouses).catch(() => {});
+    fetch("/api/client/register/zones").then(r => r.json()).then(setZones).catch(() => {});
+  }, []);
+
+  const zoneGovernorates = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    zones.filter(z => z.isActive !== false).forEach(z => {
+      const raw = (z.fromGovernorate || z.name || "").trim();
+      if (!raw) return;
+      const key = raw.replace(/\s+/g, " ").toLowerCase().replace(/ة/g, "ه");
+      if (!seen.has(key)) { seen.add(key); out.push(raw); }
+    });
+    return out;
+  })();
+
   const [form, setForm] = useState({
     displayName: "",
     username: "",
     phone: "",
+    phone2: "",
     email: "",
     city: "",
+    region: "",
     address: "",
     taxNumber: "",
     commercialReg: "",
-    paymentTerms: "",
+    paymentTerms: "فوري",
     creditLimit: "",
+    whatsappGroupLink: "",
+    warehouseId: "",
+    defaultAdSource: "",
+    avatar: "",
+    notes: "",
     password: "",
     confirmPassword: "",
   });
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(v => ({ ...v, [k]: e.target.value }));
+
+  const onAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "خطأ", description: "الصورة كبيرة جداً — الحد الأقصى 2MB", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => setForm(v => ({ ...v, avatar: (ev.target?.result as string) || "" }));
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,13 +109,20 @@ export default function ClientRegisterPage() {
           username: form.username,
           password: form.password,
           phone: form.phone,
+          phone2: form.phone2,
           email: form.email,
           city: form.city,
+          region: form.region,
           address: form.address,
           taxNumber: form.taxNumber,
           commercialReg: form.commercialReg,
           paymentTerms: form.paymentTerms,
           creditLimit: form.creditLimit,
+          whatsappGroupLink: form.whatsappGroupLink,
+          warehouseId: form.warehouseId,
+          defaultAdSource: form.defaultAdSource,
+          avatar: form.avatar,
+          notes: form.notes,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -86,12 +146,13 @@ export default function ClientRegisterPage() {
     color: dm ? "#fff" : "#111",
     caretColor: dm ? "#fff" : "#111",
   };
-  const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+  const selectStyle = { ...inputStyle, appearance: "none" as const };
+  const onFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     e.currentTarget.style.borderColor = dm ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.35)";
     e.currentTarget.style.background   = dm ? "rgba(255,255,255,0.11)" : "rgba(0,0,0,0.07)";
     e.currentTarget.style.boxShadow    = dm ? "0 0 0 3px rgba(255,255,255,0.05)" : "0 0 0 3px rgba(0,0,0,0.04)";
   };
-  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+  const onBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     e.currentTarget.style.borderColor = dm ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
     e.currentTarget.style.background   = dm ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
     e.currentTarget.style.boxShadow    = "none";
@@ -156,11 +217,35 @@ export default function ClientRegisterPage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
 
+                {/* Avatar */}
+                <div>
+                  <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>صورة العميل</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden shrink-0" style={{ background: dm ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }}>
+                      {form.avatar ? <img src={form.avatar} className="w-full h-full object-cover" /> : <User size={20} style={{ color: dm ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)" }} />}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="flex items-center gap-2 cursor-pointer rounded-lg px-3 py-2 text-xs font-medium" style={inputStyle}>
+                        <Camera size={14} />
+                        {form.avatar ? "تغيير الصورة" : "رفع صورة"}
+                        <input type="file" accept="image/*" className="hidden" onChange={onAvatarFile} />
+                      </label>
+                      {form.avatar && (
+                        <button type="button" onClick={() => setForm(v => ({ ...v, avatar: "" }))}
+                          className="flex items-center gap-1 text-[11px]" style={{ color: dm ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)" }}>
+                          <X size={11} /> حذف الصورة
+                        </button>
+                      )}
+                      <p className="text-[10px]" style={{ color: dm ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)" }}>PNG أو JPG — بحد أقصى 2MB</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Row: Name + Username */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>
-                      الاسم الكامل <span style={{ color: "#f87171" }}>*</span>
+                      الاسم الكامل / الشركة <span style={{ color: "#f87171" }}>*</span>
                     </label>
                     <div className="relative">
                       <input type="text" value={form.displayName} onChange={set("displayName")}
@@ -184,7 +269,7 @@ export default function ClientRegisterPage() {
                   </div>
                 </div>
 
-                {/* Row: Phone + Email */}
+                {/* Row: Phone + Phone2 */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>
@@ -199,34 +284,62 @@ export default function ClientRegisterPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>البريد الإلكتروني</label>
+                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>هاتف إضافي</label>
                     <div className="relative">
-                      <input type="email" value={form.email} onChange={set("email")}
-                        placeholder="example@email.com"
+                      <input type="tel" value={form.phone2} onChange={set("phone2")}
+                        placeholder="01xxxxxxxxx"
                         className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
                         style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
-                      <Mail size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
+                      <Phone size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
                     </div>
                   </div>
                 </div>
 
-                {/* Row: City + Address */}
+                {/* Email */}
+                <div>
+                  <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>البريد الإلكتروني</label>
+                  <div className="relative">
+                    <input type="email" value={form.email} onChange={set("email")}
+                      placeholder="example@email.com"
+                      className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
+                      style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                    <Mail size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
+                  </div>
+                </div>
+
+                {/* WhatsApp group link */}
+                <div>
+                  <label className="flex items-center gap-1.5 text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>
+                    <MessageCircle size={12} /> رابط جروب واتساب العميل (اختياري)
+                  </label>
+                  <input dir="ltr" type="text" value={form.whatsappGroupLink} onChange={set("whatsappGroupLink")}
+                    placeholder="https://chat.whatsapp.com/xxxxxxxx"
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200"
+                    style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                  <p className="text-[10px] mt-1" style={{ color: dm ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)" }}>
+                    لو موجود، هيظهر اختيار "فتح جروب واتساب العميل" في صفحة تفاصيل الشحنة
+                  </p>
+                </div>
+
+                {/* Row: Region + Address */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>المدينة</label>
+                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>المحافظة</label>
                     <div className="relative">
-                      <input type="text" value={form.city} onChange={set("city")}
-                        placeholder="القاهرة"
+                      <select value={form.region} onChange={set("region") as any}
                         className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
-                        style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                        style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                        <option value="">اختر المحافظة...</option>
+                        {zoneGovernorates.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
                       <MapPin size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>العنوان</label>
+                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>العنوان التفصيلي</label>
                     <div className="relative">
                       <input type="text" value={form.address} onChange={set("address")}
-                        placeholder="العنوان بالتفصيل"
+                        placeholder="الشارع والحي والمبنى"
                         className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
                         style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
                       <MapPin size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
@@ -258,20 +371,23 @@ export default function ClientRegisterPage() {
                   </div>
                 </div>
 
-                {/* Row: Payment Terms + Credit Limit */}
+                {/* Row: Payment Terms + Credit Limit (target) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>شروط الدفع</label>
                     <div className="relative">
-                      <input type="text" value={form.paymentTerms} onChange={set("paymentTerms")}
-                        placeholder="مثال: آجل 30 يوم"
+                      <select value={form.paymentTerms} onChange={set("paymentTerms") as any}
                         className="w-full rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all duration-200"
-                        style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                        style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                        {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
                       <CreditCard size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>حد الائتمان</label>
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>
+                      <Target size={12} /> الهدف
+                    </label>
                     <div className="relative">
                       <input type="number" value={form.creditLimit} onChange={set("creditLimit")}
                         placeholder="0"
@@ -280,6 +396,42 @@ export default function ClientRegisterPage() {
                       <Wallet size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: dm ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)" }} />
                     </div>
                   </div>
+                </div>
+
+                {/* Ad source */}
+                <div>
+                  <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>مصدر الطلب الافتراضي</label>
+                  <select value={form.defaultAdSource} onChange={set("defaultAdSource") as any}
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200"
+                    style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                    <option value="">— غير محدد —</option>
+                    {AD_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                  <p className="text-[10px] mt-1" style={{ color: dm ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)" }}>
+                    يُستخدم تلقائياً عند اختيار هذا العميل كـ"الراسل" في نموذج إنشاء شحنة جديدة
+                  </p>
+                </div>
+
+                {/* Warehouse */}
+                <div>
+                  <label className="flex items-center gap-1.5 text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>
+                    <Warehouse size={12} /> المخزن المرتبط
+                  </label>
+                  <select value={form.warehouseId} onChange={set("warehouseId") as any}
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200"
+                    style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                    <option value="">— بدون مخزن —</option>
+                    {warehouses.map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
+                  </select>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-[11px] font-bold mb-2 tracking-widest uppercase" style={labelStyle}>ملاحظات</label>
+                  <textarea value={form.notes} onChange={set("notes")} rows={2}
+                    placeholder="أي ملاحظات..."
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 resize-none"
+                    style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
                 </div>
 
                 {/* Row: Password + Confirm */}

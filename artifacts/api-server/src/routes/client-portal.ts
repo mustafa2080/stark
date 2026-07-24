@@ -14,6 +14,7 @@ import {
   shippingCompaniesTable,
   shipmentZonesTable,
   parcelTypePricingTable,
+  warehousesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
@@ -82,6 +83,43 @@ const clientLoginLimiter = rateLimit({
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+// بيانات مساعدة عامة (بدون auth) لصفحة إنشاء حساب عميل — نفس بيانات فورم
+// "إضافة عميل تجاري" في الداشبورد (مخازن / محافظات / مناطق تكلفة)
+// ══════════════════════════════════════════════════════════════════════════
+async function getRegisterTenant() {
+  const [tenant] = await db.select().from(tenantsTable)
+    .where(eq(tenantsTable.isActive, true))
+    .orderBy(tenantsTable.id)
+    .limit(1);
+  return tenant;
+}
+
+router.get("/client/register/warehouses", async (_req, res): Promise<void> => {
+  try {
+    const tenant = await getRegisterTenant();
+    if (!tenant) { res.json([]); return; }
+    const rows = await db.select({ id: warehousesTable.id, name: warehousesTable.name })
+      .from(warehousesTable)
+      .where(eq(warehousesTable.tenantId, tenant.id));
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/client/register/zones", async (_req, res): Promise<void> => {
+  try {
+    const tenant = await getRegisterTenant();
+    if (!tenant) { res.json([]); return; }
+    const rows = await db.select().from(shipmentZonesTable)
+      .where(or(eq(shipmentZonesTable.tenantId, tenant.id), isNull(shipmentZonesTable.tenantId)));
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
 // POST /client/register — تسجيل حساب عميل جديد داخل tenant موجود (عن طريق كود الشركة)
 // ══════════════════════════════════════════════════════════════════════════
 const clientRegisterSchema = z.object({
@@ -89,14 +127,21 @@ const clientRegisterSchema = z.object({
   username: z.string().trim().min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل"),
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
   phone: z.string().trim().min(8, "رقم الهاتف مطلوب"),
+  phone2: z.string().trim().optional(),
   email: z.string().trim().email().optional().or(z.literal("")),
   city: z.string().trim().optional(),
+  region: z.string().trim().optional(),
   address: z.string().trim().optional(),
   // ── بيانات العميل التجاري ─────────────────────────────────────────────
   taxNumber: z.string().trim().optional(),
   commercialReg: z.string().trim().optional(),
   paymentTerms: z.string().trim().optional(),
   creditLimit: z.string().trim().optional(),
+  whatsappGroupLink: z.string().trim().optional(),
+  warehouseId: z.string().trim().optional(),
+  defaultAdSource: z.string().trim().optional(),
+  avatar: z.string().optional(),
+  notes: z.string().trim().optional(),
 });
 
 router.post("/client/register", clientRegisterLimiter, async (req, res): Promise<void> => {
@@ -106,7 +151,12 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
       res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
       return;
     }
-    const { displayName, username, password, phone, email, city, address, taxNumber, commercialReg, paymentTerms, creditLimit } = parsed.data;
+    const {
+      displayName, username, password, phone, phone2, email, city, region, address,
+      taxNumber, commercialReg, paymentTerms, creditLimit,
+      whatsappGroupLink, warehouseId, defaultAdSource,
+      avatar, notes,
+    } = parsed.data;
 
     // ── الشركة الوحيدة الحالية (STARK) — تُحدَّد تلقائياً بدون كود ────────
     const [tenant] = await db.select().from(tenantsTable)
@@ -157,13 +207,20 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
       // حدّث بياناته الأساسية لو ناقصة
       await db.update(clientsTable).set({
         name: existingClient.name || displayName,
+        phone2: existingClient.phone2 || (phone2 || null),
         email: existingClient.email || (email || null),
         city: existingClient.city || (city ?? null),
+        region: existingClient.region || (region || null),
         address: existingClient.address || (address ?? null),
         taxNumber: existingClient.taxNumber || (taxNumber || null),
         commercialReg: existingClient.commercialReg || (commercialReg || null),
         paymentTerms: existingClient.paymentTerms || (paymentTerms || null),
         creditLimit: existingClient.creditLimit || (creditLimit || "0"),
+        whatsappGroupLink: existingClient.whatsappGroupLink || (whatsappGroupLink || null),
+        warehouseId: existingClient.warehouseId ?? (warehouseId ? parseInt(warehouseId) : null),
+        defaultAdSource: existingClient.defaultAdSource || (defaultAdSource || null),
+        avatar: existingClient.avatar || (avatar || null),
+        notes: existingClient.notes || (notes || null),
         clientType: existingClient.clientType === "normal" ? "commercial" : existingClient.clientType,
         updatedAt: now,
       }).where(eq(clientsTable.id, existingClient.id));
@@ -173,8 +230,10 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
         normalizedPhone,
         name: displayName,
         phone,
+        phone2: phone2 || null,
         email: email || null,
         city: city ?? null,
+        region: region || null,
         address: address ?? null,
         accountStatus: "active",
         paymentMethod: "cod",
@@ -183,9 +242,14 @@ router.post("/client/register", clientRegisterLimiter, async (req, res): Promise
         commercialReg: commercialReg || null,
         paymentTerms: paymentTerms || null,
         creditLimit: creditLimit || "0",
+        whatsappGroupLink: whatsappGroupLink || null,
+        warehouseId: warehouseId ? parseInt(warehouseId) : null,
+        defaultAdSource: defaultAdSource || null,
+        avatar: avatar || null,
+        notes: notes || null,
         createdAt: now,
         updatedAt: now,
-      });
+      } as any);
       const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
       clientId = insertId;
     }
