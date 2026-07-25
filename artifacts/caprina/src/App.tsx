@@ -235,7 +235,6 @@ const ClientShipmentsNewPage = lazy(() => import("@/pages/client-shipments-new")
 const ClientShipmentsImportPage = lazy(() => import("@/pages/client-shipments-import"));
 const ClientShippingInvoicesPage = lazy(() => import("@/pages/client_shipments_invoices"));
 const ClientPickupRequestsPage = lazy(() => import("@/pages/client-pickup-requests"));
-const ClientDataPage        = lazy(() => import("@/pages/client-data"));
 const ClientManifestsPage   = lazy(() => import("@/pages/client-manifests"));
 const ClientManifestViewPage = lazy(() => import("@/pages/client-manifest-view"));
 const ClientWalletPage      = lazy(() => import("@/pages/client-wallet"));
@@ -549,7 +548,7 @@ function Router() {
           <Route path="/client-wallet"            component={ClientWalletPage} />
           <Route path="/client-returns"           component={ClientReturnsPage} />
           <Route path="/client-pickup-requests"   component={ClientPickupRequestsPage} />
-          <Route path="/client-data"              component={ClientDataPage} />
+          <Route path="/client-data"              component={ClientManifestsPage} />
           <Route path="/client-manifests"         component={ClientManifestsPage} />
           <Route path="/client-manifests/:id"     component={ClientManifestViewPage} />
           <Route path="/representative"           component={RepresentativePage} />

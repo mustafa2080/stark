@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ElementType } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import {
@@ -188,6 +188,133 @@ export default function ClientReturnsPage() {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// StatContainer — كارت إحصائي احترافي بتأثير glow/shadow/gradient
+// ══════════════════════════════════════════════════════════════════════════
+function StatContainer({
+  tone, icon: Icon, value, label, sub,
+}: {
+  tone: keyof typeof GLOW;
+  icon: ElementType;
+  value: number | string;
+  label: string;
+  sub?: string;
+}) {
+  const ICON_COLOR: Record<keyof typeof GLOW, string> = {
+    emerald: "#10b981",
+    orange: "#f59e0b",
+    red: "#dc2626",
+    teal: "#0d9488",
+  };
+  return (
+    <div
+      className="relative rounded-2xl p-4 border border-transparent overflow-hidden"
+      style={GLOW[tone]}
+    >
+      <div className="flex items-start justify-between">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `${ICON_COLOR[tone]}1F` }}
+        >
+          <Icon size={18} style={{ color: ICON_COLOR[tone] }} />
+        </div>
+      </div>
+      <p className="text-2xl font-black text-foreground mt-3">{value}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+      {sub && (
+        <p className="text-xs font-bold mt-1" style={{ color: ICON_COLOR[tone] }}>
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ReturnCard — كارت عرض عنصر مرتجع واحد
+// ══════════════════════════════════════════════════════════════════════════
+const STATUS_META: Record<ReturnItem["deliveryStatus"], { label: string; color: string; bg: string }> = {
+  returned: { label: "مرتجع", color: "#dc2626", bg: "rgba(220,38,38,0.12)" },
+  delayed: { label: "مؤجل", color: "#0d9488", bg: "rgba(13,148,136,0.12)" },
+  partial_delivered: { label: "تسليم جزئي", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+};
+
+function ReturnCard({ item }: { item: ReturnItem }) {
+  const status = STATUS_META[item.deliveryStatus];
+  const isReceived = item.returnReceived === 1;
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 border border-border bg-card/60 overflow-hidden"
+      style={isReceived ? GLOW.emerald : undefined}
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-[200px] space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-black text-foreground">{item.customerName || "—"}</span>
+            <span
+              className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+              style={{ color: status.color, background: status.bg }}
+            >
+              {status.label}
+            </span>
+            {isReceived && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-emerald-300"
+                style={{ background: "rgba(16,185,129,0.12)" }}>
+                <CheckCircle2 size={11} className="inline-block ml-1 -mt-0.5" />
+                تم الاستلام
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+            {item.phone && (
+              <span className="flex items-center gap-1">
+                <Phone size={12} /> {item.phone}
+              </span>
+            )}
+            {item.city && (
+              <span className="flex items-center gap-1">
+                <MapPin size={12} /> {item.city}
+              </span>
+            )}
+            {item.invoiceNumber && (
+              <span className="flex items-center gap-1">
+                <FileText size={12} /> {item.invoiceNumber}
+              </span>
+            )}
+            <span>بيان: {item.manifestNumber}</span>
+          </div>
+
+          {item.returnReason && (
+            <div className="flex items-center gap-1 text-xs text-orange-300">
+              <AlertTriangle size={12} />
+              {RETURN_REASON_LABELS[item.returnReason] ?? item.returnReason}
+            </div>
+          )}
+
+          {item.deliveryStatus === "partial_delivered" && item.partialQuantity != null && (
+            <p className="text-xs text-muted-foreground">
+              الكمية المتبقية عند مندوب الشحن: <span className="font-bold text-foreground">{item.partialQuantity}</span>
+            </p>
+          )}
+
+          {item.deliveryNote && (
+            <p className="text-xs text-muted-foreground/80 italic">"{item.deliveryNote}"</p>
+          )}
+        </div>
+
+        <div className="text-left shrink-0">
+          <p className="text-lg font-black text-foreground">{fc(item.totalPrice)}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {new Date(item.addedAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}
+          </p>
+        </div>
       </div>
     </div>
   );
