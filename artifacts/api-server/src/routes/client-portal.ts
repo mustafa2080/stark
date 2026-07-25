@@ -1135,7 +1135,7 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       .orderBy(desc(clientAccountManifestsTable.createdAt));
 
     const ids = manifests.map(m => m.id);
-    let statusCountMap: Record<number, { pending: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
+    let statusCountMap: Record<number, { pending: number; shipping: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
     let countMap: Record<number, number> = {};
     if (ids.length) {
       const counts = await db
@@ -1151,10 +1151,11 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       counts.forEach(r => {
         const mid = r.manifestId;
         countMap[mid] = (countMap[mid] ?? 0) + Number(r.cnt);
-        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
+        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         const st = r.deliveryStatus ?? "pending";
         const n = Number(r.cnt);
         if (st === "pending") statusCountMap[mid].pending += n;
+        else if (st === "shipping") statusCountMap[mid].shipping += n;
         else if (st === "delayed") statusCountMap[mid].delayed += n;
         else if (st === "returned") statusCountMap[mid].returned += n;
         else if (st === "delivered") statusCountMap[mid].delivered += n;
@@ -1165,7 +1166,7 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
     const result = manifests.map(m => ({
       ...m,
       shipmentCount: countMap[m.id] ?? 0,
-      statusCounts: statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
+      statusCounts: statusCountMap[m.id] ?? { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
     }));
 
     res.json(result);
@@ -1241,13 +1242,14 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     const delivered = items.filter(i => i.deliveryStatus === "delivered").length;
     const returned  = items.filter(i => i.deliveryStatus === "returned").length;
     const pending   = items.filter(i => i.deliveryStatus === "pending").length;
+    const shipping  = items.filter(i => i.deliveryStatus === "shipping").length;
     const delayed   = items.filter(i => i.deliveryStatus === "delayed").length;
     const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     res.json({
       ...manifest,
       items: enrichedItems,
-      stats: { total: items.length, delivered, returned, pending, delayed, partial },
+      stats: { total: items.length, delivered, returned, pending, shipping, delayed, partial },
     });
   } catch (e) {
     console.error("[GET /client-portal/manifests/:id]", e);
