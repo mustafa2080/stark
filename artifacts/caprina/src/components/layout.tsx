@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { firstLogoBase64 } from "@/lib/first-logo";
 import { secondLogoBase64 } from "@/lib/second-logo";
-import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, Receipt, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin, Layers, Navigation } from "lucide-react";
+import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, Receipt, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin, Layers, Navigation, RotateCcw } from "lucide-react";
 import { BrandFull, BrandLogoMark } from "@/components/brand-logo";
 import { BrandSettingsDialog } from "@/components/brand-settings-dialog";
 import { NotificationBell } from "@/components/notification-bell";
@@ -372,9 +372,7 @@ export default function Layout({ children }: LayoutProps) {
     const CLIENT_NAV = [
       { href: "/client-dashboard",       label: "الرئيسية",        icon: LayoutDashboard, exact: true },
       { href: "/client-account",         label: "بروفايلي",         icon: User },
-      { href: "/client-wallet",          label: "التسويات المالية", icon: Wallet },
       { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
-      { href: "/client-manifests",       label: "البيانات",         icon: FileText },
     ];
     const CLIENT_SHIPMENTS_SUBNAV = [
       { href: "/client-shipments",        label: "قائمة الشحنات",  icon: Package },
@@ -382,11 +380,19 @@ export default function Layout({ children }: LayoutProps) {
       { href: "/client-shipping-invoices", label: "فواتير الشحن",  icon: Receipt },
       { href: "/client-shipments/import", label: "تحميل من إكسيل", icon: Upload },
     ];
+    const CLIENT_FINANCE_SUBNAV = [
+      { href: "/client-manifests", label: "البيانات",          icon: FileText },
+      { href: "/client-wallet",    label: "التسويات المالية",  icon: Wallet },
+      { href: "/client-returns",   label: "المرتجعات",         icon: RotateCcw },
+    ];
     const isClientActive = (href: string, exact?: boolean) =>
       exact ? location === href : location === href || location.startsWith(href + "/");
     const shipmentsGroupActive = CLIENT_SHIPMENTS_SUBNAV.some(item => isClientActive(item.href));
+    const financeGroupActive = CLIENT_FINANCE_SUBNAV.some(item => isClientActive(item.href));
     const [clientShipmentsOpen, setClientShipmentsOpen] = useState(shipmentsGroupActive);
+    const [clientFinanceOpen, setClientFinanceOpen] = useState(financeGroupActive);
     const [mobileShipmentsSheetOpen, setMobileShipmentsSheetOpen] = useState(false);
+    const [mobileFinanceSheetOpen, setMobileFinanceSheetOpen] = useState(false);
 
     return (
       <div className="flex bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
@@ -463,6 +469,41 @@ export default function Layout({ children }: LayoutProps) {
                   {clientShipmentsOpen && (
                     <div className="mt-0.5 mr-2 pr-2 space-y-0.5 border-r border-white/10">
                       {CLIENT_SHIPMENTS_SUBNAV.map(sub => {
+                        const subActive = isClientActive(sub.href);
+                        const SubIcon = sub.icon;
+                        return (
+                          <Link key={sub.href} href={sub.href}
+                            className={cn("flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all",
+                              subActive ? "text-white bg-white/10" : "text-sidebar-foreground/50 hover:text-sidebar-foreground/80 hover:bg-white/5")}>
+                            <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{sub.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── التسويات المالية: dropdown ── */}
+              {sidebarCollapsed ? (
+                <Link href="/client-manifests" title="التسويات المالية"
+                  className={cn("flex items-center justify-center h-12 w-12 mx-auto rounded-xl transition-all",
+                    financeGroupActive ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5 border border-transparent")}>
+                  <Wallet className="w-6 h-6 shrink-0" />
+                </Link>
+              ) : (
+                <div>
+                  <button type="button" onClick={() => setClientFinanceOpen(v => !v)}
+                    className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
+                      financeGroupActive ? "text-white bg-white/10 border border-white/15" : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-white/5 border border-transparent")}>
+                    <Wallet className="w-4.5 h-4.5 shrink-0" />
+                    <span className="flex-1 text-right truncate">التسويات المالية</span>
+                    <ChevronLeft className={cn("w-3.5 h-3.5 shrink-0 transition-transform", clientFinanceOpen ? "-rotate-90" : "")} />
+                  </button>
+                  {clientFinanceOpen && (
+                    <div className="mt-0.5 mr-2 pr-2 space-y-0.5 border-r border-white/10">
+                      {CLIENT_FINANCE_SUBNAV.map(sub => {
                         const subActive = isClientActive(sub.href);
                         const SubIcon = sub.icon;
                         return (
@@ -591,7 +632,21 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </button>
 
-          {/* باقي الروابط (بروفايلي / التسويات / الالتقاط) */}
+          {/* التسويات المالية — يفتح bottom sheet بالخيارات الثلاثة */}
+          <button type="button" onClick={() => setMobileFinanceSheetOpen(true)}>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
+                style={{
+                  background: financeGroupActive ? "linear-gradient(145deg, rgba(96,165,250,0.9) 0%, rgba(96,165,250,0.5) 100%)" : "linear-gradient(145deg, rgba(96,165,250,0.15) 0%, rgba(96,165,250,0.07) 100%)",
+                  border: financeGroupActive ? "1px solid rgba(96,165,250,0.6)" : "1px solid rgba(96,165,250,0.12)",
+                }}>
+                <Wallet style={{ width: "20px", height: "20px", color: financeGroupActive ? "rgba(255,255,255,0.95)" : "rgba(96,165,250,0.65)" }} />
+              </div>
+              <span style={{ fontSize: "9px", fontWeight: financeGroupActive ? 700 : 500, color: financeGroupActive ? "rgba(96,165,250,0.9)" : "rgba(255,255,255,0.35)" }}>التسويات</span>
+            </div>
+          </button>
+
+          {/* باقي الروابط (بروفايلي / الالتقاط) */}
           {CLIENT_NAV.slice(1).map(item => {
             const active = isClientActive(item.href, item.exact);
             const Icon = item.icon;
@@ -636,6 +691,37 @@ export default function Layout({ children }: LayoutProps) {
                   const subActive = isClientActive(sub.href);
                   return (
                     <Link key={sub.href} href={sub.href} onClick={() => setMobileShipmentsSheetOpen(false)}>
+                      <div className={cn("flex items-center gap-3 px-3 py-3 rounded-xl transition-all",
+                        subActive ? "bg-white/10" : "hover:bg-white/5")}>
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.25)" }}>
+                          <SubIcon style={{ width: "18px", height: "18px", color: "rgba(96,165,250,0.9)" }} />
+                        </div>
+                        <span className="text-sm font-semibold text-white/85">{sub.label}</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom sheet — خيارات التسويات المالية (موبايل فقط) */}
+        {mobileFinanceSheetOpen && (
+          <div className="md:hidden fixed inset-0 z-[60]" onClick={() => setMobileFinanceSheetOpen(false)}>
+            <div className="absolute inset-0 bg-black/60" />
+            <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl p-3 pb-6"
+              style={{ background: "linear-gradient(180deg, rgba(15,15,15,0.98) 0%, rgba(5,5,5,1) 100%)", borderTop: "1px solid rgba(255,255,255,0.08)" }}
+              onClick={(e) => e.stopPropagation()}>
+              <div className="w-10 h-1 rounded-full bg-white/15 mx-auto mb-3" />
+              <p className="text-xs font-bold text-white/50 px-2 mb-2">التسويات المالية</p>
+              <div className="flex flex-col gap-1">
+                {CLIENT_FINANCE_SUBNAV.map(sub => {
+                  const SubIcon = sub.icon;
+                  const subActive = isClientActive(sub.href);
+                  return (
+                    <Link key={sub.href} href={sub.href} onClick={() => setMobileFinanceSheetOpen(false)}>
                       <div className={cn("flex items-center gap-3 px-3 py-3 rounded-xl transition-all",
                         subActive ? "bg-white/10" : "hover:bg-white/5")}>
                         <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
