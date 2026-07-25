@@ -39,12 +39,15 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   in_transit:        { label: "قيد التوصيل",        color: "#2563eb", bg: "rgba(59,130,246,0.12)" },
   picked_up:         { label: "قيد التوصيل",        color: "#2563eb", bg: "rgba(59,130,246,0.12)" },
   out_for_delivery:  { label: "قيد التوصيل",        color: "#2563eb", bg: "rgba(59,130,246,0.12)" },
+  warehouse_ready:   { label: "قيد الشحن",           color: "#0ea5e9", bg: "rgba(14,165,233,0.12)" },
+  in_shipping:       { label: "قيد الشحن",           color: "#0ea5e9", bg: "rgba(14,165,233,0.12)" },
   waiting:           { label: "في الانتظار",         color: "#64748b", bg: "rgba(100,116,139,0.12)" },
   confirmed:         { label: "في الانتظار",         color: "#64748b", bg: "rgba(100,116,139,0.12)" },
   returned:          { label: "مرتجع",              color: "#db2777", bg: "rgba(236,72,153,0.12)" },
   delayed:           { label: "متأخرة",              color: "#d97706", bg: "rgba(245,158,11,0.12)" },
   cancelled:         { label: "ملغية",               color: "#dc2626", bg: "rgba(239,68,68,0.12)" },
   partial_received:  { label: "استلام جزئي",         color: "#9333ea", bg: "rgba(168,85,247,0.12)" },
+  received:          { label: "تم التسليم بالكامل", color: "#16a34a", bg: "rgba(34,197,94,0.12)" },
   still_in_warehouse:{ label: "في المخزن",           color: "#0891b2", bg: "rgba(6,182,212,0.12)" },
 };
 function statusMeta(status: string) {
