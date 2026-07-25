@@ -546,9 +546,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       </div>
 
       {/* فلتر الحالة */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48 h-9 text-sm border-border">
+          <SelectTrigger className="w-full sm:w-48 h-9 text-sm border-border">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
