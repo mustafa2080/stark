@@ -371,7 +371,6 @@ export default function Layout({ children }: LayoutProps) {
   if (user?.role === "client") {
     const CLIENT_NAV = [
       { href: "/client-dashboard",       label: "الرئيسية",        icon: LayoutDashboard, exact: true },
-      { href: "/client-account",         label: "بروفايلي",         icon: User },
       { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
     ];
     const CLIENT_SHIPMENTS_SUBNAV = [
@@ -421,8 +420,24 @@ export default function Layout({ children }: LayoutProps) {
             onClick={() => { if (sidebarCollapsed) setSidebarCollapsed(false); }}>
 
             {/* Header / Logo */}
-            <div className="shrink-0 border-b border-sidebar-border/60 flex flex-col items-center gap-2 py-4 px-1">
+            <div className="shrink-0 border-b border-sidebar-border/60 flex flex-col items-center gap-2.5 py-4 px-1">
               <BrandLogoMark size={sidebarCollapsed ? "sm" : "md"} />
+
+              {/* ── صورة العميل الدائرية — تودي للبروفايل ── */}
+              <Link href="/client-account" title="بروفايلي"
+                onClick={(e) => { if (sidebarCollapsed) e.stopPropagation(); }}
+                className={cn("relative rounded-full flex items-center justify-center font-black transition-all shrink-0 overflow-hidden",
+                  sidebarCollapsed ? "w-10 h-10" : "w-14 h-14",
+                  isClientActive("/client-account") ? "ring-2 ring-offset-2 ring-offset-sidebar ring-primary" : "hover:opacity-90")}
+                style={{
+                  background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
+                  boxShadow: "0 4px 14px -2px rgba(0,0,0,0.35)",
+                }}>
+                <span className={cn("text-white select-none", sidebarCollapsed ? "text-sm" : "text-lg")}>
+                  {(user?.displayName || "ع").trim().charAt(0)}
+                </span>
+              </Link>
+
               {!sidebarCollapsed && (
                 <div className="text-center min-w-0 px-2">
                   <p className="text-xs font-bold text-sidebar-foreground truncate max-w-[190px]">{user?.displayName}</p>
@@ -580,6 +595,17 @@ export default function Layout({ children }: LayoutProps) {
                   }}>
                   {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
                 </button>
+                <Link href="/client-account" title="بروفايلي"
+                  className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden",
+                    isClientActive("/client-account") ? "ring-2 ring-offset-1 ring-offset-sidebar ring-primary" : "")}
+                  style={{
+                    background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
+                    boxShadow: "0 2px 8px -2px rgba(0,0,0,0.35)",
+                  }}>
+                  <span className="text-white text-xs font-black select-none">
+                    {(user?.displayName || "ع").trim().charAt(0)}
+                  </span>
+                </Link>
               </div>
             </div>
           </header>
