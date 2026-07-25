@@ -486,12 +486,12 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
     const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
 
     const breakdown = [
-      { key: "waiting", label: "قيد الانتظار",   count: waiting, pct: pct(waiting), color: "#eab308" },
-      { key: "in_transit", label: "قيد الشحن", count: inShipping, pct: pct(inShipping), color: "#3b82f6" },
-      { key: "warehouse_ready", label: "قيد الشحن في المخزن", count: inWarehouse, pct: pct(inWarehouse), color: "#14b8a6" },
+      { key: "waiting", label: "قيد الانتظار",   count: waiting, pct: pct(waiting), color: "#f5a623" },
+      { key: "in_transit", label: "قيد الشحن", count: inShipping, pct: pct(inShipping), color: "#4a7cf5" },
+      { key: "warehouse_ready", label: "قيد الشحن في المخزن", count: inWarehouse, pct: pct(inWarehouse), color: "#2dd4bf" },
       { key: "delivered", label: "استلم",  count: delivered, pct: pct(delivered), color: "#22c55e" },
-      { key: "partial_received", label: "استلم جزئى", count: partial, pct: pct(partial), color: "#06b6d4" },
-      { key: "delayed", label: "مؤجل",         count: delayed, pct: pct(delayed), color: "#a855f7" },
+      { key: "partial_received", label: "استلم جزئى", count: partial, pct: pct(partial), color: "#38bdf8" },
+      { key: "delayed", label: "مؤجل",         count: delayed, pct: pct(delayed), color: "#8b5cf6" },
       { key: "returned", label: "مرتجع",         count: returned, pct: pct(returned), color: "#ef4444" },
       { key: "cancelled", label: "ملغية",        count: cancelled, pct: pct(cancelled), color: "#6b7280" },
     ].filter(b => b.count > 0);

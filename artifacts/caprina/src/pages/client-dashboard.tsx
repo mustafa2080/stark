@@ -36,19 +36,19 @@ interface ShipmentRow {
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   delivered:         { label: "استلم",               color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
-  in_transit:        { label: "قيد الشحن",           color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-  picked_up:         { label: "قيد الشحن",           color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-  out_for_delivery:  { label: "قيد الشحن",           color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-  warehouse_ready:   { label: "قيد الشحن في المخزن", color: "#14b8a6", bg: "rgba(20,184,166,0.12)" },
-  in_shipping:       { label: "قيد الشحن في المخزن", color: "#14b8a6", bg: "rgba(20,184,166,0.12)" },
-  waiting:           { label: "قيد الانتظار",         color: "#eab308", bg: "rgba(234,179,8,0.12)" },
-  confirmed:         { label: "قيد الانتظار",         color: "#eab308", bg: "rgba(234,179,8,0.12)" },
+  in_transit:        { label: "قيد الشحن",           color: "#4a7cf5", bg: "rgba(74,124,245,0.12)" },
+  picked_up:         { label: "قيد الشحن",           color: "#4a7cf5", bg: "rgba(74,124,245,0.12)" },
+  out_for_delivery:  { label: "قيد الشحن",           color: "#4a7cf5", bg: "rgba(74,124,245,0.12)" },
+  warehouse_ready:   { label: "قيد الشحن في المخزن", color: "#2dd4bf", bg: "rgba(45,212,191,0.12)" },
+  in_shipping:       { label: "قيد الشحن في المخزن", color: "#2dd4bf", bg: "rgba(45,212,191,0.12)" },
+  waiting:           { label: "قيد الانتظار",         color: "#f5a623", bg: "rgba(245,166,35,0.12)" },
+  confirmed:         { label: "قيد الانتظار",         color: "#f5a623", bg: "rgba(245,166,35,0.12)" },
   returned:          { label: "مرتجع",              color: "#ef4444", bg: "rgba(239,68,68,0.12)" },
-  delayed:           { label: "مؤجل",                color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
+  delayed:           { label: "مؤجل",                color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
   cancelled:         { label: "ملغية",               color: "#6b7280", bg: "rgba(107,114,128,0.12)" },
-  partial_received:  { label: "استلم جزئى",          color: "#06b6d4", bg: "rgba(6,182,212,0.12)" },
+  partial_received:  { label: "استلم جزئى",          color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
   received:          { label: "استلم",               color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
-  still_in_warehouse:{ label: "في المخزن",           color: "#06b6d4", bg: "rgba(6,182,212,0.12)" },
+  still_in_warehouse:{ label: "في المخزن",           color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 function statusMeta(status: string) {
   return STATUS_LABELS[status] ?? { label: status, color: "#64748b", bg: "rgba(100,116,139,0.12)" };
