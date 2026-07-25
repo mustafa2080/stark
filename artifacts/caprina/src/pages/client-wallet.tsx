@@ -187,13 +187,13 @@ export default function ClientWalletPage() {
             <h1 className="text-2xl font-black text-foreground">التسويات المالية</h1>
             <p className="text-sm text-muted-foreground mt-1">سجل مدفوعاتك وفواتيرك ومستحقاتك بالتفصيل</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
             <button onClick={() => setLocation("/client-returns")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
               <RotateCcw size={15} /> المرتجعات
             </button>
             <button onClick={() => refetch()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
               <RefreshCcw size={15} className={isRefetching ? "animate-spin" : ""} /> تحديث
             </button>
           </div>
@@ -216,14 +216,14 @@ export default function ClientWalletPage() {
         </div>
 
         {/* ── Tabs ── */}
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex items-center gap-2">
           <button onClick={() => setTab("payments")}
-            className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors",
+            className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors text-center",
               tab === "payments" ? "bg-foreground text-background" : "bg-muted/40 text-muted-foreground")}>
             <ArrowDownCircle size={14} className="inline-block ml-1.5 -mt-0.5" /> سجل التحصيلات ({payments.length})
           </button>
           <button onClick={() => setTab("invoices")}
-            className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors",
+            className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors text-center",
               tab === "invoices" ? "bg-foreground text-background" : "bg-muted/40 text-muted-foreground")}>
             <FileText size={14} className="inline-block ml-1.5 -mt-0.5" /> الفواتير ({invoices.length})
           </button>
@@ -232,7 +232,41 @@ export default function ClientWalletPage() {
         {/* ── Payments Tab ── */}
         {tab === "payments" && (
           <SectionCard title="سجل التحصيلات" icon={ArrowDownCircle}>
-            <div className="overflow-x-auto">
+            {/* Mobile: stacked cards */}
+            <div className="md:hidden divide-y divide-border">
+              {isLoading ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">جارٍ التحميل...</div>
+              ) : payments.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">لا يوجد تحصيلات مسجلة بعد</div>
+              ) : payments.map(p => (
+                <div key={p.id} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-foreground/60">
+                      <Clock size={12} className="text-muted-foreground/50" /> {fd(p.paidAt)}
+                    </span>
+                    <span className="font-bold text-sm" style={{ color: "#22c55e" }}>{fc(p.amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">طريقة الدفع</span>
+                    <span className="text-foreground/70">{PAYMENT_METHOD_LABELS[p.paymentMethod] ?? p.paymentMethod}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">رقم الإيصال</span>
+                    <span className="font-mono text-muted-foreground">{p.receiptNumber || "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">شحنة مرتبطة</span>
+                    <span className="text-muted-foreground">{p.linkedShipmentId ? `#${p.linkedShipmentId}` : "—"}</span>
+                  </div>
+                  {p.notes && (
+                    <div className="text-xs text-muted-foreground/70 pt-1 border-t border-border/40">{p.notes}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-xs" dir="rtl">
                 <thead>
                   <tr className="bg-muted/40">
@@ -270,7 +304,50 @@ export default function ClientWalletPage() {
         {/* ── Invoices Tab ── */}
         {tab === "invoices" && (
           <SectionCard title="الفواتير" icon={FileText}>
-            <div className="overflow-x-auto">
+            {/* Mobile: stacked cards */}
+            <div className="md:hidden divide-y divide-border">
+              {isLoading ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">جارٍ التحميل...</div>
+              ) : invoices.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">لا يوجد فواتير مسجلة بعد</div>
+              ) : invoices.map(inv => {
+                const meta = INVOICE_STATUS_META[inv.status] ?? { label: inv.status, color: "#64748b", bg: "rgba(100,116,139,0.12)" };
+                return (
+                  <div key={inv.id} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-foreground/70">{inv.invoiceNumber}</span>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
+                        {meta.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">الفترة</span>
+                      <span className="text-muted-foreground">
+                        {inv.periodFrom && inv.periodTo ? `${fd(inv.periodFrom)} — ${fd(inv.periodTo)}` : "—"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">الإجمالي</p>
+                        <p className="text-xs font-bold text-foreground/90">{fc(inv.totalAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">المدفوع</p>
+                        <p className="text-xs font-bold" style={{ color: "#22c55e" }}>{fc(inv.paidAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">عدد الشحنات</p>
+                        <p className="text-xs font-bold text-foreground/60">{inv.shipmentIds?.length ?? 0}</p>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground/70">تاريخ الإصدار: {fd(inv.createdAt)}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-xs" dir="rtl">
                 <thead>
                   <tr className="bg-muted/40">
