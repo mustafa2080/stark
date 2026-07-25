@@ -1080,8 +1080,11 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
       .where(eq(shipmentManifestsTable.id, id));
 
     // ── تحويل الإيراد للخزنة عند الإغلاق ──────────────────────────────────
+    // ملحوظة: ده مش من اختصاص المندوب — لما المندوب هو اللي بيقفل بيانه،
+    // إغلاقه نهائي بدون أي ترحيل مالي للخزنة ولا ترحيل شحنات معلّقة لبيان جديد.
+    // الترحيل بيحصل فقط لما الأدمن هو اللي بيقفل البيان.
     let rolledOverManifest: any = null;
-    if (body.status === "closed") {
+    if (body.status === "closed" && reqUser?.role !== "representative") {
       try {
         const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
         if (manifest) {
@@ -1094,27 +1097,35 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           // ترحيل الشحنات المعلّقة لبيان جديد: مؤجل (صف جديد) + استلام جزئي (الباقي كصف جديد)
           // + مرتجع/جزئي لسه عند الشحن (يترحّل زي ما هو بدون تغيير لحد ما يُستلم)
           rolledOverManifest = await rolloverPartialShipments(manifest, items);
-
-          // ── إشعار الأدمن لما المندوب هو اللي قفل البيان ──────────────────
-          if (reqUser?.role === "representative") {
-            const closedAt = manifest.closedAt ?? now;
-            const dateStr = closedAt.toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" });
-            const timeStr = closedAt.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", hour12: true });
-            await pushNotification({
-              tenantId: manifest.tenantId ?? null,
-              type: "manifest_closed",
-              severity: "info",
-              title: `تم إغلاق البيان ${manifest.manifestNumber}`,
-              message: `تم إغلاق البيان ${manifest.manifestNumber} بواسطة المندوب ${userName ?? "غير معروف"} بتاريخ ${dateStr} الساعة ${timeStr}`,
-              entityType: "shipment_manifest",
-              entityId: manifest.id,
-              link: `/shipping/shipment-manifests/${manifest.id}`,
-            });
-          }
         }
       } catch (err) {
         console.error("[PATCH /shipment-manifests/:id] treasury entry error:", err);
         // لا نوقف الـ response — البيان اتقفل بنجاح حتى لو الخزنة فيها مشكلة
+      }
+    }
+
+    // ── إشعار الأدمن لما المندوب هو اللي قفل البيان (بدون أي ترحيل) ─────────
+    if (body.status === "closed" && reqUser?.role === "representative") {
+      try {
+        const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
+        if (manifest) {
+          const userName = (req as any).user?.name ?? null;
+          const closedAt = manifest.closedAt ?? now;
+          const dateStr = closedAt.toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" });
+          const timeStr = closedAt.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", hour12: true });
+          await pushNotification({
+            tenantId: manifest.tenantId ?? null,
+            type: "manifest_closed",
+            severity: "info",
+            title: `تم إغلاق البيان ${manifest.manifestNumber}`,
+            message: `تم إغلاق البيان ${manifest.manifestNumber} بواسطة المندوب ${userName ?? "غير معروف"} بتاريخ ${dateStr} الساعة ${timeStr}`,
+            entityType: "shipment_manifest",
+            entityId: manifest.id,
+            link: `/shipping/shipment-manifests/${manifest.id}`,
+          });
+        }
+      } catch (err) {
+        console.error("[PATCH /shipment-manifests/:id] notify admin error:", err);
       }
     }
 

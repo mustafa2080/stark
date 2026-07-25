@@ -2340,7 +2340,7 @@ function CloseConfirmDialog({
           <div className="flex items-start gap-2 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700">
             <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <p className="text-xs text-red-700 dark:text-red-400 font-semibold">
-              تنبيه: إذا أغلقت البيان لن تستطيع فتحه مرة أخرى بنفسك — الأدمن فقط هو من يستطيع إعادة فتحه.
+              تنبيه: إذا أغلقت البيان لن تستطيع فتحه مرة أخرى بنفسك — الأدمن فقط هو من يستطيع إعادة فتحه، ولن يتم ترحيل أي طلبيات معلّقة (مؤجل / مرتجع / استلام جزئي) لبيان جديد.
             </p>
           </div>
 
@@ -2456,6 +2456,9 @@ function CloseConfirmDialog({
                       💰 مبلغ متوقع (مؤجل فقط): {formatCurrency((s as any).stillAtShippingAmount ?? 0)}
                     </p>
                   )}
+                  <p className="text-orange-300/70 text-[10px]">
+                    ⚠ هذه الطلبيات لن تُرحَّل تلقائيًا لبيان جديد بعد الإغلاق — للعلم فقط.
+                  </p>
                 </div>
               </div>
             )}
