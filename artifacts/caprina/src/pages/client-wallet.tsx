@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   Wallet, CheckCircle2, AlertCircle, TrendingUp, FileText,
-  RefreshCcw, ArrowDownCircle, ArrowUpCircle, Receipt, Clock,
+  RefreshCcw, ArrowDownCircle, ArrowUpCircle, Receipt, Clock, RotateCcw,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
@@ -91,6 +92,7 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: any
 // ══════════════════════════════════════════════════════════════════════════
 export default function ClientWalletPage() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [tab, setTab] = useState<"payments" | "invoices">("payments");
 
   const { data, isLoading, refetch, isRefetching } = useQuery<WalletResponse>({
@@ -118,10 +120,16 @@ export default function ClientWalletPage() {
             <h1 className="text-2xl font-black text-foreground">التسويات المالية</h1>
             <p className="text-sm text-muted-foreground mt-1">سجل مدفوعاتك وفواتيرك ومستحقاتك بالتفصيل</p>
           </div>
-          <button onClick={() => refetch()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
-            <RefreshCcw size={15} className={isRefetching ? "animate-spin" : ""} /> تحديث
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setLocation("/client-returns")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              <RotateCcw size={15} /> المرتجعات
+            </button>
+            <button onClick={() => refetch()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              <RefreshCcw size={15} className={isRefetching ? "animate-spin" : ""} /> تحديث
+            </button>
+          </div>
         </div>
 
         {/* ── Summary cards ── */}

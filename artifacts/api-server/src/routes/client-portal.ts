@@ -1232,4 +1232,66 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /client-portal/returns — المرتجعات المجمّعة من كل بيانات العميل ────
+// يشمل: مرتجع (returned)، مؤجل (delayed)، ومسلَّم جزئي لسه الباقي عند الشحن
+router.get("/client-portal/returns", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.json([]); return; }
+
+    const manifests = await db
+      .select({ id: clientAccountManifestsTable.id, manifestNumber: clientAccountManifestsTable.manifestNumber })
+      .from(clientAccountManifestsTable)
+      .where(eq(clientAccountManifestsTable.clientId, user.clientId));
+    const manifestIds = manifests.map(m => m.id);
+    const manifestNumberMap = Object.fromEntries(manifests.map(m => [m.id, m.manifestNumber]));
+    if (!manifestIds.length) { res.json([]); return; }
+
+    const items = await db
+      .select()
+      .from(clientAccountManifestItemsTable)
+      .where(and(
+        inArray(clientAccountManifestItemsTable.manifestId, manifestIds),
+        inArray(clientAccountManifestItemsTable.deliveryStatus, ["returned", "delayed", "partial_delivered"]),
+      ));
+
+    const shipmentIds = items.map(i => i.shipmentId);
+    let shipments: any[] = [];
+    if (shipmentIds.length) {
+      shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+    }
+    const shipmentMap: Record<number, any> = {};
+    shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    const result = items
+      // partial_delivered لسه في الشحن فقط (اللي اتسلمت بالكامل بالفعل مستبعدة)
+      .filter(i => i.deliveryStatus !== "partial_delivered" || i.returnReceived !== 1)
+      .map(item => {
+        const sh = shipmentMap[item.shipmentId] ?? null;
+        return {
+          id: item.id,
+          shipmentId: item.shipmentId,
+          manifestId: item.manifestId,
+          manifestNumber: manifestNumberMap[item.manifestId] ?? "",
+          deliveryStatus: item.deliveryStatus,
+          deliveryNote: item.deliveryNote,
+          returnReceived: item.returnReceived,
+          returnReason: item.returnReason,
+          partialQuantity: item.partialQuantity,
+          customerName: sh?.receiverName ?? "",
+          phone: sh?.receiverPhone ?? "",
+          city: sh?.receiverCity ?? "",
+          totalPrice: Number(sh?.codAmount ?? 0) || Number(sh?.totalAmount ?? 0),
+          invoiceNumber: sh?.shipmentNumber ?? "",
+          addedAt: item.addedAt,
+        };
+      });
+
+    res.json(result);
+  } catch (e) {
+    console.error("[GET /client-portal/returns]", e);
+    res.status(500).json({ error: "خطأ في جلب المرتجعات" });
+  }
+});
+
 export default router;
