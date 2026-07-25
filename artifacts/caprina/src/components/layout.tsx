@@ -432,7 +432,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className={cn("shrink-0 border-b border-sidebar-border/60 flex flex-col",
               sidebarCollapsed ? "items-center gap-2 py-3 px-1" : "gap-2 py-3 px-3")}>
               <div className="flex items-center justify-center">
-                <BrandLogoMark size="sm" />
+                <BrandLogoMark size={sidebarCollapsed ? "sm" : "md"} />
               </div>
 
               {/* ── صورة العميل + الاسم — جنب بعض أفقيًا لما الـ sidebar متوسعة ── */}
