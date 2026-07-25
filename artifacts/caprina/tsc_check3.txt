@@ -1,0 +1,531 @@
+﻿src/components/subscription-blocker.tsx(93,13): error TS7030: Not all code paths return a value.
+src/components/ui/calendar.tsx(132,15): error TS2322: Type 'import("C:/Users/musta/Desktop/pro/stark/stark/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react/index").Ref<HTMLDivElement> | undefined' is not assignable to type 'React.Ref<HTMLDivElement> | undefined'.
+  Type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+    Type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'. Two different types with this name exist, but they are unrelated.
+      Type 'void | (() => VoidOrUndefinedOnly)' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'. Two different types with this name exist, but they are unrelated.
+        Type '() => VoidOrUndefinedOnly' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+          Type '() => VoidOrUndefinedOnly' is not assignable to type '() => VoidOrUndefinedOnly'. Two different types with this name exist, but they are unrelated.
+            Type 'VoidOrUndefinedOnly' is not assignable to type 'VoidOrUndefinedOnly'. Two different types with this name exist, but they are unrelated.
+              Type '{ [UNDEFINED_VOID_ONLY]: never; }' is not assignable to type 'VoidOrUndefinedOnly'.
+src/components/ui/spinner.tsx(7,6): error TS2322: Type '{ suppressHydrationWarning?: boolean | undefined; color?: string | undefined; height?: string | number | undefined; id?: string | undefined; lang?: string | undefined; max?: string | number | undefined; ... 481 more ...; className: string; }' is not assignable to type 'RefAttributes<SVGSVGElement>'.
+  Types of property 'ref' are incompatible.
+    Type 'React.Ref<SVGSVGElement> | undefined' is not assignable to type 'import("C:/Users/musta/Desktop/pro/stark/stark/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react/index").Ref<SVGSVGElement> | undefined'.
+      Type '(instance: SVGSVGElement | null) => void | (() => VoidOrUndefinedOnly)' is not assignable to type 'Ref<SVGSVGElement> | undefined'.
+        Type '(instance: SVGSVGElement | null) => void | (() => VoidOrUndefinedOnly)' is not assignable to type '(instance: SVGSVGElement | null) => void | (() => VoidOrUndefinedOnly)'. Two different types with this name exist, but they are unrelated.
+          Type 'void | (() => VoidOrUndefinedOnly)' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'. Two different types with this name exist, but they are unrelated.
+            Type '() => VoidOrUndefinedOnly' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+              Type '() => VoidOrUndefinedOnly' is not assignable to type '() => VoidOrUndefinedOnly'. Two different types with this name exist, but they are unrelated.
+                Type 'VoidOrUndefinedOnly' is not assignable to type 'VoidOrUndefinedOnly'. Two different types with this name exist, but they are unrelated.
+                  Type '{ [UNDEFINED_VOID_ONLY]: never; }' is not assignable to type 'VoidOrUndefinedOnly'.
+src/lib/api.ts(13,5): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Type '{ Authorization: string; "Content-Type": string; } | { Authorization?: undefined; "Content-Type": string; }' is not assignable to type 'HeadersInit | undefined'.
+      Type '{ Authorization?: undefined; "Content-Type": string; }' is not assignable to type 'HeadersInit | undefined'.
+        Type '{ Authorization?: undefined; "Content-Type": string; }' is not assignable to type 'undefined'.
+  Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Type '{ Authorization: string; "Content-Type": string; } | { Authorization?: undefined; "Content-Type": string; }' is not assignable to type 'HeadersInit | undefined'.
+      Type '{ Authorization?: undefined; "Content-Type": string; }' is not assignable to type 'HeadersInit | undefined'.
+        Type '{ Authorization?: undefined; "Content-Type": string; }' is not assignable to type 'undefined'.
+src/lib/api.ts(1122,18): error TS2430: Interface 'ShippingManifestDetail' incorrectly extends interface 'ShippingManifestListItem'.
+  Types of property 'invoiceNotes' are incompatible.
+    Type 'string | null | undefined' is not assignable to type 'string | null'.
+      Type 'undefined' is not assignable to type 'string | null'.
+src/pages/client-account-manifest-detail.tsx(212,19): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(238,11): error TS2561: Object literal may only specify known properties, but 'returnValueReceived' does not exist in type '{ deliveryStatus: string; deliveryNote?: string | null | undefined; partialQuantity?: number | null | undefined; returnReceived?: boolean | null | undefined; returnReason?: string | null | undefined; }'. Did you mean to write 'returnReceived'?
+src/pages/client-account-manifest-detail.tsx(560,88): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(578,21): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-manifest-detail.tsx(584,44): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(590,44): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(593,110): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(600,65): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(612,21): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/client-account-manifest-detail.tsx(787,57): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1024,47): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1410,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/client-account-manifest-detail.tsx(1413,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/client-account-manifest-detail.tsx(1540,42): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(1720,35): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1720,52): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(1720,67): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1742,27): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-manifest-detail.tsx(1750,63): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1783,37): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1783,54): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(1783,69): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1802,27): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-manifest-detail.tsx(1810,63): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(1880,29): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-manifest-detail.tsx(1886,52): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(2108,31): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(2108,52): error TS18048: 'order.totalPrice' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(2108,71): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(2198,5): error TS2322: Type '() => Promise<ManifestCloseResponse> | Promise<{ success: boolean; }>' is not assignable to type 'MutationFunction<ManifestCloseResponse, void>'.
+  Type 'Promise<ManifestCloseResponse> | Promise<{ success: boolean; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+    Type 'Promise<{ success: boolean; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+      Type '{ success: boolean; }' is missing the following properties from type 'ManifestCloseResponse': rolledOverManifest, id, manifestNumber, shippingCompanyId, and 11 more.
+src/pages/client-account-manifest-detail.tsx(2202,13): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/client-account-manifest-detail.tsx(2519,37): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(2685,11): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(2786,9): error TS2339: Property 'pageMargins' does not exist on type 'Worksheet'.
+src/pages/client-account-manifest-detail.tsx(2849,54): error TS18048: 'order.totalPrice' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(3804,68): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(3805,68): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(3964,9): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(3966,31): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(3982,55): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(3992,25): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-manifest-detail.tsx(4185,11): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(4640,33): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-manifest-detail.tsx(4857,15): error TS2322: Type 'string | null' is not assignable to type 'number | null'.
+  Type 'string' is not assignable to type 'number'.
+src/pages/client-account-manifest-detail.tsx(5106,51): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(197,19): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(530,88): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(548,21): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-sheet.tsx(554,44): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(560,44): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(563,110): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(570,65): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(582,21): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/client-account-sheet.tsx(708,57): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(886,47): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1284,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/client-account-sheet.tsx(1287,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/client-account-sheet.tsx(1509,35): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1509,52): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(1509,67): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1531,27): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-sheet.tsx(1539,63): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1572,37): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1572,54): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(1572,69): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1591,27): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-sheet.tsx(1599,63): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1669,29): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/client-account-sheet.tsx(1675,52): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1897,31): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1897,52): error TS18048: 'order.totalPrice' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(1897,71): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(1987,5): error TS2322: Type '() => Promise<ManifestCloseResponse> | Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null; }>' is not assignable to type 'MutationFunction<ManifestCloseResponse, void>'.
+  Type 'Promise<ManifestCloseResponse> | Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+    Type 'Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+      Type '{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }' is missing the following properties from type 'ManifestCloseResponse': id, manifestNumber, shippingCompanyId, companyName, and 10 more.
+src/pages/client-account-sheet.tsx(1991,13): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/client-account-sheet.tsx(2084,43): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2084,65): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2084,70): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2180,17): error TS2339: Property 'invoiceNotes' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2182,39): error TS2339: Property 'invoiceNotes' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2210,30): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2218,16): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2273,45): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2273,59): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2274,46): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2274,60): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2289,48): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2289,62): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2292,68): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2292,73): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2297,57): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2298,58): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2317,53): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2317,75): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2317,80): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2415,62): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2444,31): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2447,13): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2448,14): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2448,19): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2453,13): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2454,14): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2454,19): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2467,56): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2471,64): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2471,69): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(2486,56): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2560,9): error TS2339: Property 'pageMargins' does not exist on type 'Worksheet'.
+src/pages/client-account-sheet.tsx(2586,90): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2623,54): error TS18048: 'order.totalPrice' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(2787,31): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2876,58): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2954,74): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/client-account-sheet.tsx(2954,85): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/client-account-sheet.tsx(3579,68): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(3580,68): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(3743,9): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(3745,31): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(3761,55): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(3771,25): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/client-account-sheet.tsx(3963,11): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(4045,61): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(4298,33): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/client-account-sheet.tsx(4381,15): error TS2322: Type 'string | null' is not assignable to type 'number | null'.
+  Type 'string' is not assignable to type 'number'.
+src/pages/client-account-sheet.tsx(4635,51): error TS18047: 'order.quantity' is possibly 'null'.
+src/pages/client-shipment-detail.tsx(1386,26): error TS2552: Cannot find name 'order'. Did you mean 'orders'?
+src/pages/client-shipment-detail.tsx(1388,37): error TS2552: Cannot find name 'order'. Did you mean 'orders'?
+src/pages/client-shipment-detail.tsx(1390,30): error TS2552: Cannot find name 'order'. Did you mean 'orders'?
+src/pages/client-shipment-detail.tsx(1392,37): error TS2304: Cannot find name 'order'.
+src/pages/client-shipment-detail.tsx(2321,44): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(2323,32): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(2348,73): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(2397,40): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3152,30): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3217,184): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3268,133): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3469,129): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3475,104): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3628,30): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3710,184): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3722,26): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3724,30): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3726,30): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3728,30): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3737,67): error TS2339: Property 'manifestId' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3738,115): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3740,92): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3741,35): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3745,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3746,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3747,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3748,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3751,18): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ delivered: string; returned: string; postponed: string; partial_received: string; pending: string; }'.
+src/pages/client-shipment-detail.tsx(3755,65): error TS2339: Property 'partialQuantity' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3755,103): error TS2339: Property 'partialQuantity' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3757,34): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3757,68): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3762,29): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3764,74): error TS2339: Property 'returnReceived' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3779,29): error TS2339: Property 'deliveryNote' does not exist on type 'never'.
+src/pages/client-shipment-detail.tsx(3780,84): error TS2339: Property 'deliveryNote' does not exist on type 'never'.
+src/pages/dashboard.tsx(591,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<any[], Error, any[], readonly unknown[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<any[], Error>', gave the following error.
+    Type '() => Promise<ProductPerformanceResponse>' is not assignable to type 'QueryFunction<any[], readonly unknown[]>'.
+      Type 'Promise<ProductPerformanceResponse>' is not assignable to type 'any[] | Promise<any[]>'.
+        Type 'Promise<ProductPerformanceResponse>' is not assignable to type 'Promise<any[]>'.
+          Type 'ProductPerformanceResponse' is missing the following properties from type 'any[]': length, pop, push, concat, and 35 more.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<any[], Error, any[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<any[], Error>', gave the following error.
+    Type '() => Promise<ProductPerformanceResponse>' is not assignable to type 'unique symbol | QueryFunction<any[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<ProductPerformanceResponse>' is not assignable to type 'QueryFunction<any[], readonly unknown[], never>'.
+        Type 'Promise<ProductPerformanceResponse>' is not assignable to type 'any[] | Promise<any[]>'.
+          Type 'Promise<ProductPerformanceResponse>' is not assignable to type 'Promise<any[]>'.
+            Type 'ProductPerformanceResponse' is missing the following properties from type 'any[]': length, pop, push, concat, and 35 more.
+  Overload 3 of 3, '(options: UseQueryOptions<any[], Error, any[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<any[], Error>', gave the following error.
+    Type '() => Promise<ProductPerformanceResponse>' is not assignable to type 'unique symbol | QueryFunction<any[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<ProductPerformanceResponse>' is not assignable to type 'QueryFunction<any[], readonly unknown[], never>'.
+        Type 'Promise<ProductPerformanceResponse>' is not assignable to type 'any[] | Promise<any[]>'.
+          Type 'Promise<ProductPerformanceResponse>' is not assignable to type 'Promise<any[]>'.
+            Type 'ProductPerformanceResponse' is missing the following properties from type 'any[]': length, pop, push, concat, and 35 more.
+src/pages/dashboard.tsx(1292,40): error TS2339: Property 'products' does not exist on type 'never[] | NonNullable<NoInfer<TQueryFnData>>'.
+  Property 'products' does not exist on type 'never[]'.
+src/pages/dashboard.tsx(1292,71): error TS2339: Property 'products' does not exist on type 'never[] | NonNullable<NoInfer<TQueryFnData>>'.
+  Property 'products' does not exist on type 'never[]'.
+src/pages/dashboard.tsx(1294,62): error TS2339: Property 'products' does not exist on type 'never[] | NonNullable<NoInfer<TQueryFnData>>'.
+  Property 'products' does not exist on type 'never[]'.
+src/pages/dashboard.tsx(1351,43): error TS2339: Property 'products' does not exist on type 'never[] | NonNullable<NoInfer<TQueryFnData>>'.
+  Property 'products' does not exist on type 'never[]'.
+src/pages/dashboard.tsx(1353,47): error TS2339: Property 'products' does not exist on type 'never[] | NonNullable<NoInfer<TQueryFnData>>'.
+  Property 'products' does not exist on type 'never[]'.
+src/pages/dashboard.tsx(1830,54): error TS2339: Property 'warehouseReadyOrders' does not exist on type 'OrdersSummary'.
+src/pages/finance-expenses.tsx(2,10): error TS2300: Duplicate identifier 'useQuery'.
+src/pages/finance-expenses.tsx(2,20): error TS2300: Duplicate identifier 'useMutation'.
+src/pages/finance-expenses.tsx(2,33): error TS2300: Duplicate identifier 'useQueryClient'.
+src/pages/finance-expenses.tsx(4,10): error TS2300: Duplicate identifier 'useQuery'.
+src/pages/finance-expenses.tsx(4,20): error TS2300: Duplicate identifier 'useMutation'.
+src/pages/finance-expenses.tsx(4,33): error TS2300: Duplicate identifier 'useQueryClient'.
+src/pages/inventory.tsx(2772,10): error TS2367: This comparison appears to be unintentional because the types '"shipments" | "insights" | "parcel-types"' and '"products"' have no overlap.
+src/pages/inventory.tsx(2869,37): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2869,74): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2869,111): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2872,12): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2872,189): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2873,12): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2873,179): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2874,12): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2874,120): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2875,12): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2875,105): error TS18048: 'stockIntel' is possibly 'undefined'.
+src/pages/inventory.tsx(2980,28): error TS18048: 'warehouses' is possibly 'undefined'.
+src/pages/inventory.tsx(2990,20): error TS18048: 'warehouses' is possibly 'undefined'.
+src/pages/inventory.tsx(3200,99): error TS18047: 'editingProduct' is possibly 'null'.
+src/pages/inventory.tsx(3250,56): error TS18047: 'productForm.costPrice' is possibly 'null'.
+src/pages/inventory.tsx(3252,29): error TS18047: 'm' is possibly 'null'.
+src/pages/inventory.tsx(3253,21): error TS18047: 'm' is possibly 'null'.
+src/pages/inventory.tsx(3306,95): error TS18048: 'p' is possibly 'undefined'.
+src/pages/inventory.tsx(3428,29): error TS18047: 'm' is possibly 'null'.
+src/pages/inventory.tsx(3429,21): error TS18047: 'm' is possibly 'null'.
+src/pages/inventory.tsx(3436,75): error TS18047: 'variantForm.costPrice' is possibly 'null'.
+src/pages/inventory.tsx(3462,31): error TS18048: 'warehouses' is possibly 'undefined'.
+src/pages/inventory.tsx(3469,20): error TS18048: 'warehouses' is possibly 'undefined'.
+src/pages/inventory.tsx(3562,103): error TS2345: Argument of type 'ProductVariant | null' is not assignable to parameter of type '{ colorHex?: string | null | undefined; color: string; }'.
+  Type 'null' is not assignable to type '{ colorHex?: string | null | undefined; color: string; }'.
+src/pages/inventory.tsx(3563,58): error TS18047: 'addStockVariant' is possibly 'null'.
+src/pages/inventory.tsx(3563,84): error TS18047: 'addStockVariant' is possibly 'null'.
+src/pages/inventory.tsx(3564,90): error TS18047: 'addStockVariant' is possibly 'null'.
+src/pages/invoice-group.tsx(627,9): error TS18048: 'orders' is possibly 'undefined'.
+src/pages/invoice-group.tsx(836,56): error TS2322: Type '"warehouse_ready"' is not assignable to type 'UpdateOrderBodyStatus | undefined'.
+src/pages/invoices.tsx(87,5): error TS2322: Type '"delayed" | "returned" | "partial_received" | "warehouse_ready" | "in_shipping" | "received" | undefined' is not assignable to type 'ListOrdersStatus | undefined'.
+  Type '"warehouse_ready"' is not assignable to type 'ListOrdersStatus | undefined'.
+src/pages/invoices.tsx(111,37): error TS2367: This comparison appears to be unintentional because the types 'OrderStatus' and '"warehouse_ready"' have no overlap.
+src/pages/movements.tsx(1095,33): error TS2345: Argument of type '{ date: Set<string>; type: Set<string>; product: Set<string>; variant: Set<string>; qty: Set<string>; reason: Set<string>; order: Set<string>; location: Set<...>; notes: Set<...>; }' is not assignable to parameter of type 'SetStateAction<ColFilters>'.
+  Type '{ date: Set<string>; type: Set<string>; product: Set<string>; variant: Set<string>; qty: Set<string>; reason: Set<string>; order: Set<string>; location: Set<...>; notes: Set<...>; }' is missing the following properties from type 'ColFilters': phone, customer
+src/pages/order-detail-current-backup.tsx(1222,16): error TS2367: This comparison appears to be unintentional because the types 'OrderStatus' and '"warehouse_ready"' have no overlap.
+src/pages/order-detail-current-backup.tsx(1227,47): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "partial_received" | "in_shipping" | "received"' and '"warehouse_ready"' have no overlap.
+src/pages/order-detail-current-backup.tsx(1263,38): error TS2367: This comparison appears to be unintentional because the types 'OrderStatus' and '"warehouse_ready"' have no overlap.
+src/pages/order-detail-current-backup.tsx(1472,18): error TS2339: Property 'delayed' does not exist on type '{ delivered: string; returned: string; postponed: string; partial_received: string; pending: string; }'.
+src/pages/order-detail-current-backup.tsx(1472,18): error TS2339: Property 'partial_delivered' does not exist on type '{ delivered: string; returned: string; postponed: string; partial_received: string; pending: string; }'.
+src/pages/order-detail-current-backup.tsx(1508,55): error TS2339: Property 'length' does not exist on type '{ manifestId: number; manifestNumber: string; manifestStatus: "open" | "closed"; deliveryStatus: DeliveryStatus; deliveryNote: string | null; partialQuantity: number | null; deliveredAt: string | null; returnReceived: 0 | ... 1 more ... | null; }'.
+src/pages/order-detail-current-backup.tsx(1516,38): error TS2339: Property 'map' does not exist on type '{ manifestId: number; manifestNumber: string; manifestStatus: "open" | "closed"; deliveryStatus: DeliveryStatus; deliveryNote: string | null; partialQuantity: number | null; deliveredAt: string | null; returnReceived: 0 | ... 1 more ... | null; }'.
+src/pages/order-detail-current-backup.tsx(1516,42): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/pages/order-detail.tsx(2287,23): error TS2339: Property 'invoiceNumber' does not exist on type 'Order'.
+src/pages/order-detail.tsx(2519,40): error TS2339: Property 'invoiceNumber' does not exist on type 'Order'.
+src/pages/order-detail.tsx(2520,84): error TS2339: Property 'invoiceNumber' does not exist on type 'Order'.
+src/pages/order-detail.tsx(2521,23): error TS2339: Property 'invoiceNumber' does not exist on type 'Order'.
+src/pages/order-detail.tsx(2905,43): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "partial_received" | "in_shipping" | "received"' and '"warehouse_ready"' have no overlap.
+src/pages/order-detail.tsx(3152,18): error TS2339: Property 'delayed' does not exist on type '{ delivered: string; returned: string; postponed: string; partial_received: string; pending: string; }'.
+src/pages/order-detail.tsx(3152,18): error TS2339: Property 'partial_delivered' does not exist on type '{ delivered: string; returned: string; postponed: string; partial_received: string; pending: string; }'.
+src/pages/orders.tsx(7,44): error TS2307: Cannot find module '@workspace/api-zod' or its corresponding type declarations.
+src/pages/orders.tsx(263,28): error TS2339: Property 'filter' does not exist on type '{}'.
+src/pages/orders.tsx(263,35): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(285,43): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(286,5): error TS2322: Type 'unknown[]' is not assignable to type 'string[]'.
+  Type 'unknown' is not assignable to type 'string'.
+src/pages/orders.tsx(286,32): error TS18046: 'a' is of type 'unknown'.
+src/pages/orders.tsx(303,28): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(350,40): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(357,51): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(443,82): error TS2339: Property '0' does not exist on type '{}'.
+src/pages/orders.tsx(621,30): error TS2339: Property 'length' does not exist on type '{}'.
+src/pages/orders.tsx(622,43): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(634,50): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/pages/orders.tsx(657,7): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/pages/orders.tsx(659,30): error TS2339: Property 'length' does not exist on type '{}'.
+src/pages/orders.tsx(670,25): error TS2339: Property 'filter' does not exist on type '{}'.
+src/pages/orders.tsx(670,32): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(671,46): error TS2339: Property 'filter' does not exist on type '{}'.
+src/pages/orders.tsx(671,53): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/orders.tsx(843,30): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/pages/orders.tsx(938,33): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/pages/orders.tsx(938,40): error TS7006: Parameter 'rowIndex' implicitly has an 'any' type.
+src/pages/orders.tsx(1108,37): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/pages/orders.tsx(1108,44): error TS7006: Parameter 'rowIndex' implicitly has an 'any' type.
+src/pages/orders.tsx(1237,49): error TS2339: Property 'length' does not exist on type '{}'.
+src/pages/orders.tsx(1237,74): error TS2339: Property 'length' does not exist on type '{}'.
+src/pages/profile.tsx(485,38): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ high: number; medium: number; low: number; }'.
+src/pages/profile.tsx(485,80): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ high: number; medium: number; low: number; }'.
+src/pages/profile.tsx(2407,14): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ high: number; medium: number; low: number; }'.
+src/pages/profile.tsx(2407,30): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ high: number; medium: number; low: number; }'.
+src/pages/representative-manifest-detail.tsx(184,55): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/representative-manifest-detail.tsx(225,60): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/representative-manifest-detail.tsx(656,21): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/representative-manifest-detail.tsx(1016,47): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/representative-manifest-detail.tsx(1157,61): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/representative-manifest-detail.tsx(1237,61): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/representative-manifest-detail.tsx(1452,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/representative-manifest-detail.tsx(1457,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/representative-manifest-detail.tsx(1746,29): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/representative-manifest-detail.tsx(1752,52): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/representative-manifest-detail.tsx(2049,5): error TS2322: Type '() => Promise<ManifestCloseResponse> | Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null; }>' is not assignable to type 'MutationFunction<ManifestCloseResponse, void>'.
+  Type 'Promise<ManifestCloseResponse> | Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+    Type 'Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+      Type '{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }' is missing the following properties from type 'ManifestCloseResponse': id, manifestNumber, shippingCompanyId, companyName, and 10 more.
+src/pages/representative-manifest-detail.tsx(2053,13): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/representative-manifest-detail.tsx(2274,17): error TS2339: Property 'invoiceNotes' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2276,39): error TS2339: Property 'invoiceNotes' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2305,30): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2313,16): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2375,45): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2375,59): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2376,46): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2376,60): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2391,48): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2391,62): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2394,68): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2394,73): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2399,57): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2400,58): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2532,62): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2561,31): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2564,13): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2565,14): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2565,19): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2567,13): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2568,14): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2568,19): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(2597,56): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2671,9): error TS2339: Property 'pageMargins' does not exist on type 'Worksheet'.
+src/pages/representative-manifest-detail.tsx(2697,90): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2734,54): error TS18048: 'order.totalPrice' is possibly 'undefined'.
+src/pages/representative-manifest-detail.tsx(2735,27): error TS2304: Cannot find name 'rawManifest'.
+src/pages/representative-manifest-detail.tsx(2735,79): error TS2304: Cannot find name 'rawManifest'.
+src/pages/representative-manifest-detail.tsx(2897,31): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(2986,58): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(3064,74): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/representative-manifest-detail.tsx(3064,85): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/representative-manifest-detail.tsx(3421,51): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/representative-manifest-detail.tsx(3723,68): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/representative-manifest-detail.tsx(3724,68): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/representative-manifest-detail.tsx(3894,9): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/representative-manifest-detail.tsx(3896,31): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/representative-manifest-detail.tsx(3912,55): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/representative-manifest-detail.tsx(3922,25): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/representative-manifest-detail.tsx(4124,88): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/representative-manifest-detail.tsx(4211,61): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/sessions-report.tsx(244,24): error TS2339: Property 'lastIp' does not exist on type '{ userId: number; displayName: string; username: string; role: string; totalSessions: number; totalDuration: number; lastLogin: string | null; }'.
+src/pages/sessions-report.tsx(246,87): error TS2339: Property 'lastIp' does not exist on type '{ userId: number; displayName: string; username: string; role: string; totalSessions: number; totalDuration: number; lastLogin: string | null; }'.
+src/pages/shipment-detail.tsx(1386,26): error TS2552: Cannot find name 'order'. Did you mean 'orders'?
+src/pages/shipment-detail.tsx(1388,37): error TS2552: Cannot find name 'order'. Did you mean 'orders'?
+src/pages/shipment-detail.tsx(1390,30): error TS2552: Cannot find name 'order'. Did you mean 'orders'?
+src/pages/shipment-detail.tsx(1392,37): error TS2552: Cannot find name 'order'. Did you mean 'orders'?
+src/pages/shipment-detail.tsx(2321,44): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(2323,32): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(2348,73): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(2397,40): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3152,30): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3217,184): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3268,133): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3469,129): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3475,104): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3628,30): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3710,184): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3722,26): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3724,30): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3726,30): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3728,30): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3737,67): error TS2339: Property 'manifestId' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3738,115): error TS2339: Property 'manifestNumber' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3740,92): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3741,35): error TS2339: Property 'manifestStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3745,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3746,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3747,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3748,32): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3751,18): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ delivered: string; returned: string; postponed: string; partial_received: string; pending: string; }'.
+src/pages/shipment-detail.tsx(3755,65): error TS2339: Property 'partialQuantity' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3755,103): error TS2339: Property 'partialQuantity' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3757,34): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3757,68): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3762,29): error TS2339: Property 'deliveryStatus' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3764,74): error TS2339: Property 'returnReceived' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3779,29): error TS2339: Property 'deliveryNote' does not exist on type 'never'.
+src/pages/shipment-detail.tsx(3780,84): error TS2339: Property 'deliveryNote' does not exist on type 'never'.
+src/pages/shipping-manifest-orig.tsx(167,62): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/shipping-manifest-orig.tsx(250,19): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/shipping-manifest-orig.tsx(663,31): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/shipping-manifest-orig.tsx(669,20): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/shipping-manifest-orig.tsx(751,20): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/shipping-manifest-orig.tsx(964,13): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/pages/shipping-manifest.tsx(183,55): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/shipping-manifest.tsx(224,60): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/shipping-manifest.tsx(655,21): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/shipping-manifest.tsx(1012,47): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/shipping-manifest.tsx(1153,61): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/shipping-manifest.tsx(1233,61): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/shipping-manifest.tsx(1448,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/shipping-manifest.tsx(1453,18): error TS2367: This comparison appears to be unintentional because the types '"delayed" | "returned" | "pending" | "delivered" | "postponed"' and '"partial_received"' have no overlap.
+src/pages/shipping-manifest.tsx(1742,29): error TS2322: Type 'number | null' is not assignable to type 'string | number | undefined'.
+  Type 'null' is not assignable to type 'string | number | undefined'.
+src/pages/shipping-manifest.tsx(1748,52): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/shipping-manifest.tsx(2039,5): error TS2322: Type '() => Promise<ManifestCloseResponse> | Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null; }>' is not assignable to type 'MutationFunction<ManifestCloseResponse, void>'.
+  Type 'Promise<ManifestCloseResponse> | Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+    Type 'Promise<{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }>' is not assignable to type 'Promise<ManifestCloseResponse>'.
+      Type '{ success: boolean; rolledOverManifest?: { id: number; manifestNumber: string; orderCount: number; postponedCount: number; returnedInShippingCount: number; partialInShippingCount: number; } | null | undefined; }' is missing the following properties from type 'ManifestCloseResponse': id, manifestNumber, shippingCompanyId, companyName, and 10 more.
+src/pages/shipping-manifest.tsx(2043,13): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/shipping-manifest.tsx(2264,17): error TS2339: Property 'invoiceNotes' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2266,39): error TS2339: Property 'invoiceNotes' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2295,30): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2303,16): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2358,45): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2358,59): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2359,46): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2359,60): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2374,48): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2374,62): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2377,68): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2377,73): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2382,57): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2383,58): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2512,62): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2541,31): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2544,13): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2545,14): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2545,19): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2547,13): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2548,14): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2548,19): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(2577,56): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2651,9): error TS2339: Property 'pageMargins' does not exist on type 'Worksheet'.
+src/pages/shipping-manifest.tsx(2677,90): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2714,54): error TS18048: 'order.totalPrice' is possibly 'undefined'.
+src/pages/shipping-manifest.tsx(2715,27): error TS2552: Cannot find name 'rawManifest'. Did you mean 'manifest'?
+src/pages/shipping-manifest.tsx(2715,79): error TS2552: Cannot find name 'rawManifest'. Did you mean 'manifest'?
+src/pages/shipping-manifest.tsx(2877,31): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(2966,58): error TS2339: Property 'companyName' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(3044,74): error TS2339: Property 'orders' does not exist on type 'ShipmentManifestDetail'.
+src/pages/shipping-manifest.tsx(3044,85): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/shipping-manifest.tsx(3401,51): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/shipping-manifest.tsx(3702,68): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/shipping-manifest.tsx(3703,68): error TS18048: 'o.totalPrice' is possibly 'undefined'.
+src/pages/shipping-manifest.tsx(3866,9): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/shipping-manifest.tsx(3868,31): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/shipping-manifest.tsx(3884,55): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/shipping-manifest.tsx(3894,25): error TS18048: 'manifest' is possibly 'undefined'.
+src/pages/shipping-manifest.tsx(4096,88): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/shipping-manifest.tsx(4183,61): error TS18047: 'o.quantity' is possibly 'null'.
+src/pages/smart-analytics.tsx(585,96): error TS2339: Property 'emoji' does not exist on type '{ label: string; color: string; bg: string; border: string; icon: ElementType<any, keyof IntrinsicElements>; iconColor: string; }'.
+src/pages/super-admin.tsx(57,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<Record<string, PlanPrice>, Error, Record<string, PlanPrice>, readonly unknown[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<...>', gave the following error.
+    Object literal may only specify known properties, and 'onSuccess' does not exist in type 'DefinedInitialDataOptions<Record<string, PlanPrice>, Error, Record<string, PlanPrice>, readonly unknown[]>'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<Record<string, PlanPrice>, Error, Record<string, PlanPrice>, readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Object literal may only specify known properties, and 'onSuccess' does not exist in type 'UndefinedInitialDataOptions<Record<string, PlanPrice>, Error, Record<string, PlanPrice>, readonly unknown[]>'.
+  Overload 3 of 3, '(options: UseQueryOptions<Record<string, PlanPrice>, Error, Record<string, PlanPrice>, readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Object literal may only specify known properties, and 'onSuccess' does not exist in type 'UseQueryOptions<Record<string, PlanPrice>, Error, Record<string, PlanPrice>, readonly unknown[]>'.
+src/pages/super-admin.tsx(57,17): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/pages/super-admin.tsx(58,83): error TS18046: 'v' is of type 'unknown'.
+src/pages/super-admin.tsx(58,112): error TS18046: 'v' is of type 'unknown'.
+src/pages/super-admin.tsx(104,33): error TS7053: Element implicitly has an 'any' type because expression of type '"free_trial"' can't be used to index type '{}'.
+  Property 'free_trial' does not exist on type '{}'.
+src/pages/super-admin.tsx(148,35): error TS7053: Element implicitly has an 'any' type because expression of type '"starter" | "pro"' can't be used to index type '{}'.
+  Property 'starter' does not exist on type '{}'.
+src/pages/super-admin.tsx(202,35): error TS7053: Element implicitly has an 'any' type because expression of type '"enterprise"' can't be used to index type '{}'.
+  Property 'enterprise' does not exist on type '{}'.
+src/pages/team.tsx(1401,59): error TS2353: Object literal may only specify known properties, and 'deduction' does not exist in type '{ profileId: number; date: string; status: AttendanceStatus; checkIn?: string | null | undefined; checkOut?: string | null | undefined; lateMinutes?: number | undefined; notes?: string | ... 1 more ... | undefined; }'.
+src/pages/team.tsx(1995,9): error TS2353: Object literal may only specify known properties, and 'avatar' does not exist in type '{ userId?: number | undefined; displayName?: string | undefined; jobTitle?: string | null | undefined; department?: string | null | undefined; monthlySalary?: number | null | undefined; hireDate?: string | ... 1 more ... | undefined; notes?: string | ... 1 more ... | undefined; }'.
+src/pages/team.tsx(4022,9): error TS2322: Type '{ open: boolean; onClose: () => void; profileId: number; existing: EmployeeKpi | undefined; onSuccess: () => void; }' is not assignable to type 'IntrinsicAttributes & { open: boolean; onClose: () => void; profileId: number; isSystemUser: boolean; existing?: EmployeeKpi | undefined; monthlySalary?: number | undefined; }'.
+  Property 'onSuccess' does not exist on type 'IntrinsicAttributes & { open: boolean; onClose: () => void; profileId: number; isSystemUser: boolean; existing?: EmployeeKpi | undefined; monthlySalary?: number | undefined; }'.
+src/pages/team.tsx(4086,13): error TS2322: Type '{ profileId: number; kpis: EmployeeKpi[]; report: EmployeeReport; fullProfile: (EmployeeProfile & { kpis: EmployeeKpi[]; }) | undefined; ... 10 more ...; displayName: string; }' is not assignable to type 'IntrinsicAttributes & { profileId: number; kpis: EmployeeKpi[]; report: any; fullProfile: any; ratingCfg: any; kpiViewMode: "monthly" | "daily"; kpiSelectedDate: string; ... 6 more ...; displayName: string; }'.
+  Property 'salaryReport' does not exist on type 'IntrinsicAttributes & { profileId: number; kpis: EmployeeKpi[]; report: any; fullProfile: any; ratingCfg: any; kpiViewMode: "monthly" | "daily"; kpiSelectedDate: string; ... 6 more ...; displayName: string; }'.
+src/pages/team.tsx(5887,20): error TS2304: Cannot find name 'teamAnalyticsApi'.
+src/pages/users.tsx(691,36): error TS2367: This comparison appears to be unintentional because the types '"admin" | "employee" | "warehouse"' and '"super_admin"' have no overlap.
+src/pages/users.tsx(695,31): error TS2367: This comparison appears to be unintentional because the types '"admin" | "employee" | "warehouse"' and '"custom"' have no overlap.
+src/pages/users.tsx(783,34): error TS2367: This comparison appears to be unintentional because the types '"admin" | "employee" | "warehouse"' and '"super_admin"' have no overlap.

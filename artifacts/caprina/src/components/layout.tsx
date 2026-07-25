@@ -441,8 +441,36 @@ export default function Layout({ children }: LayoutProps) {
             <div className={cn("shrink-0 border-b border-sidebar-border/60 flex flex-col",
               sidebarCollapsed ? "items-center gap-2 py-3 px-1" : "gap-2 py-3 px-3")}>
               <div className="flex items-center justify-center">
-                <BrandLogoMark size={sidebarCollapsed ? "sm" : "md"} />
+                {/* ── كارت شعار معدني (خلفية غامقة + برواز دهبي + لمعان) ── */}
+                <div
+                  className={cn(
+                    "relative flex flex-col items-center justify-center rounded-2xl overflow-hidden",
+                    sidebarCollapsed ? "w-14 h-14 px-1.5 py-2 gap-0.5" : "w-full px-4 py-3 gap-1"
+                  )}
+                  style={{
+                    background: "linear-gradient(160deg, #1c1c1c 0%, #0a0a0a 55%, #050505 100%)",
+                    border: "1px solid hsl(var(--primary) / 0.35)",
+                    boxShadow: "0 4px 16px -4px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
+                  }}
+                >
+                  <BrandLogoMark size={sidebarCollapsed ? "sm" : "md"} />
+                  {!sidebarCollapsed && (
+                    <>
+                      <div
+                        className="h-px w-10 rounded-full"
+                        style={{ background: "linear-gradient(90deg, transparent, hsl(var(--primary)), transparent)" }}
+                      />
+                      <span
+                        className="text-[8px] font-black tracking-[0.25em] uppercase"
+                        style={{ color: "hsl(var(--primary))" }}
+                      >
+                        Win or Die
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
+
 
               {/* ── صورة العميل + الاسم — جنب بعض أفقيًا لما الـ sidebar متوسعة ── */}
               <Link href="/client-account" title="بروفايلي"
