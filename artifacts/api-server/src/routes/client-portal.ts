@@ -433,18 +433,29 @@ router.delete("/client-portal/account", async (req, res): Promise<void> => {
 // ─── Helper: شحنات العميل — بيتحدد بمن أنشأها (createdByUserId) أو برقم هاتف المستلم (توافقاً مع شحنات قديمة أُدخلت يدويًا للأدمن) ──
 async function getClientShipments(tenantId: number | null, normalizedPhone: string, userId?: number | null, clientId?: number | null) {
   const phoneMatch = sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`;
-  const ownershipConds = [phoneMatch];
-  if (userId != null) ownershipConds.push(eq(shipmentsTable.createdByUserId, userId));
-  // شحنات عملها الأدمن وحدد فيها الراسل = هذا العميل التجاري بالذات (clientId) — تظهر تلقائيًا في حسابه
-  if (clientId != null) ownershipConds.push(eq(shipmentsTable.clientId, clientId));
 
-  const conds: any[] = [
-    isNull(shipmentsTable.deletedAt),
-    ownershipConds.length > 1 ? or(...ownershipConds) : ownershipConds[0],
-  ];
-  if (tenantId !== null) conds.push(eq(shipmentsTable.tenantId, tenantId));
-  return db.select().from(shipmentsTable).where(and(...conds)).orderBy(desc(shipmentsTable.createdAt));
+  // مطابقات الملكية العادية (بيانات المستلم / منشئ الشحنة) — لازم تلتزم بعزل الـ tenant الطبيعي
+  const normalOwnership = [phoneMatch];
+  if (userId != null) normalOwnership.push(eq(shipmentsTable.createdByUserId, userId));
+  const normalCond = normalOwnership.length > 1 ? or(...normalOwnership)! : normalOwnership[0];
+
+  const scopedConds: any[] = [isNull(shipmentsTable.deletedAt)];
+  const orBranches: any[] = [tenantId !== null ? and(normalCond, eq(shipmentsTable.tenantId, tenantId))! : normalCond];
+
+  // شحنات الأدمن اللي حدد فيها clientId = هذا العميل بالذات — تظهر تلقائيًا في حسابه
+  // ملاحظة: شحنات super_admin بتتخزن بـ tenant_id = NULL، فبنقبلها هنا كمان (مش بس تطابق الـ tenant الحالي)
+  if (clientId != null) {
+    orBranches.push(
+      tenantId !== null
+        ? and(eq(shipmentsTable.clientId, clientId), or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId)))!
+        : eq(shipmentsTable.clientId, clientId),
+    );
+  }
+
+  scopedConds.push(or(...orBranches)!);
+  return db.select().from(shipmentsTable).where(and(...scopedConds)).orderBy(desc(shipmentsTable.createdAt));
 }
+
 
 // ─── GET /client-portal/stats — إحصائيات دائرية (زي الصورة) + KPIs ─────────
 router.get("/client-portal/stats", async (req, res): Promise<void> => {
