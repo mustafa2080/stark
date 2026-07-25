@@ -109,13 +109,13 @@ function FinanceHero({ outstanding, totalCollected, totalInvoiced, creditLimit }
       <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <p className="text-xs font-bold text-muted-foreground mb-1.5">
-            {isOwing ? "المستحق عليك حالياً" : "حسابك متوازن تماماً"}
+            {isOwing ? "المستحق لك حالياً" : "حسابك متوازن تماماً"}
           </p>
           <p className="text-4xl font-black tracking-tight" style={{ color: heroColor }}>
             {fc(outstanding)}
           </p>
           <p className="text-[11px] text-muted-foreground/70 mt-2">
-            من إجمالي فواتير {fc(totalInvoiced)} — تم تحصيل {fc(totalCollected)}
+            من إجمالي مستحقات {fc(totalInvoiced)} — تم صرف {fc(totalCollected)} لك بالفعل
           </p>
         </div>
 
@@ -209,9 +209,9 @@ export default function ClientWalletPage() {
 
         {/* ── Summary cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <SummaryCard icon={CheckCircle2} label="إجمالي المحصّل" value={fc(totalCollected)} color="#22c55e" />
-          <SummaryCard icon={Receipt} label="إجمالي الفواتير" value={fc(totalInvoiced)} color="#3b82f6" />
-          <SummaryCard icon={AlertCircle} label="المستحق عليك" value={fc(outstanding)} color="#f59e0b" />
+          <SummaryCard icon={CheckCircle2} label="إجمالي المصروف لك" value={fc(totalCollected)} color="#22c55e" />
+          <SummaryCard icon={Receipt} label="إجمالي المستحقات" value={fc(totalInvoiced)} color="#3b82f6" />
+          <SummaryCard icon={AlertCircle} label="المستحق لك" value={fc(outstanding)} color="#f59e0b" />
           <SummaryCard icon={Wallet} label="الحد الائتماني" value={fc(data?.creditLimit ?? 0)} color="#a855f7" />
         </div>
 
@@ -220,7 +220,7 @@ export default function ClientWalletPage() {
           <button onClick={() => setTab("payments")}
             className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors text-center",
               tab === "payments" ? "bg-foreground text-background" : "bg-muted/40 text-muted-foreground")}>
-            <ArrowDownCircle size={14} className="inline-block ml-1.5 -mt-0.5" /> سجل التحصيلات ({payments.length})
+            <ArrowDownCircle size={14} className="inline-block ml-1.5 -mt-0.5" /> سجل المدفوعات لك ({payments.length})
           </button>
           <button onClick={() => setTab("invoices")}
             className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors text-center",
@@ -231,13 +231,13 @@ export default function ClientWalletPage() {
 
         {/* ── Payments Tab ── */}
         {tab === "payments" && (
-          <SectionCard title="سجل التحصيلات" icon={ArrowDownCircle}>
+          <SectionCard title="سجل المدفوعات لك" icon={ArrowDownCircle}>
             {/* Mobile: stacked cards */}
             <div className="md:hidden divide-y divide-border">
               {isLoading ? (
                 <div className="text-center py-10 text-muted-foreground text-sm">جارٍ التحميل...</div>
               ) : payments.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-sm">لا يوجد تحصيلات مسجلة بعد</div>
+                <div className="text-center py-10 text-muted-foreground text-sm">لا يوجد مدفوعات مسجلة بعد</div>
               ) : payments.map(p => (
                 <div key={p.id} className="p-4 space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -282,7 +282,7 @@ export default function ClientWalletPage() {
                   {isLoading ? (
                     <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                   ) : payments.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">لا يوجد تحصيلات مسجلة بعد</td></tr>
+                    <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">لا يوجد مدفوعات مسجلة بعد</td></tr>
                   ) : payments.map(p => (
                     <tr key={p.id} className="border-t border-border">
                       <td className="px-4 py-3 text-foreground/60">
@@ -328,11 +328,11 @@ export default function ClientWalletPage() {
                     </div>
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40">
                       <div>
-                        <p className="text-[10px] text-muted-foreground">الإجمالي</p>
+                        <p className="text-[10px] text-muted-foreground">إجمالي المستحق</p>
                         <p className="text-xs font-bold text-foreground/90">{fc(inv.totalAmount)}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-muted-foreground">المدفوع</p>
+                        <p className="text-[10px] text-muted-foreground">المصروف لك</p>
                         <p className="text-xs font-bold" style={{ color: "#22c55e" }}>{fc(inv.paidAmount)}</p>
                       </div>
                       <div>
@@ -354,8 +354,8 @@ export default function ClientWalletPage() {
                     <th className="text-right font-bold text-muted-foreground px-4 py-3">رقم الفاتورة</th>
                     <th className="text-right font-bold text-muted-foreground px-4 py-3">الفترة</th>
                     <th className="text-right font-bold text-muted-foreground px-4 py-3">عدد الشحنات</th>
-                    <th className="text-right font-bold text-muted-foreground px-4 py-3">الإجمالي</th>
-                    <th className="text-right font-bold text-muted-foreground px-4 py-3">المدفوع</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">إجمالي المستحق</th>
+                    <th className="text-right font-bold text-muted-foreground px-4 py-3">المصروف لك</th>
                     <th className="text-right font-bold text-muted-foreground px-4 py-3">الحالة</th>
                     <th className="text-right font-bold text-muted-foreground px-4 py-3">تاريخ الإصدار</th>
                   </tr>
