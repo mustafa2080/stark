@@ -9,7 +9,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { authApi, appSettingsApi } from "@/lib/api";
+import { authApi, appSettingsApi, apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -255,6 +255,15 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
+
+  // ── العميل: بيانات الـ client الفعلية (فيها الـ avatar الحقيقي، لأنه بيتخزن في جدول clients مش users) ──
+  const { data: clientProfileData } = useQuery<{ client: { avatar?: string | null } | null }>({
+    queryKey: ["client-portal-profile"],
+    queryFn: () => apiFetch("/client-portal/profile"),
+    enabled: user?.role === "client",
+    staleTime: 30_000,
+  });
+  const clientAvatar = clientProfileData?.client?.avatar ?? null;
   const toggleGroup = (key: string, firstHref?: string) => {
     setOpenGroup(prev => {
       const opening = prev !== key;
@@ -447,8 +456,8 @@ export default function Layout({ children }: LayoutProps) {
                     background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
                     boxShadow: "0 4px 14px -2px rgba(0,0,0,0.35)",
                   }}>
-                  {(user as any)?.avatar ? (
-                    <img src={(user as any).avatar} alt={user?.displayName ?? ""} className="w-full h-full object-cover" />
+                  {clientAvatar ? (
+                    <img src={clientAvatar} alt={user?.displayName ?? ""} className="w-full h-full object-cover" />
                   ) : (
                     <span className={cn("text-white select-none", sidebarCollapsed ? "text-sm" : "text-xs")}>
                       {(user?.displayName || "ع").trim().charAt(0)}
@@ -621,8 +630,8 @@ export default function Layout({ children }: LayoutProps) {
                     background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
                     boxShadow: "0 2px 8px -2px rgba(0,0,0,0.35)",
                   }}>
-                  {(user as any)?.avatar ? (
-                    <img src={(user as any).avatar} alt={user?.displayName ?? ""} className="w-full h-full object-cover" />
+                  {clientAvatar ? (
+                    <img src={clientAvatar} alt={user?.displayName ?? ""} className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-white text-xs font-black select-none">
                       {(user?.displayName || "ع").trim().charAt(0)}
