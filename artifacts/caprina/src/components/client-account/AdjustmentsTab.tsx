@@ -77,12 +77,15 @@ export function AdjustmentsTab({ adjustments, isLoading, onCreate, isCreating, o
                 style={{ background: "hsl(var(--muted)/0.15)" }}>
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: isCredit ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)" }}>
-                    {isCredit ? <ArrowDownCircle className="w-4.5 h-4.5 text-emerald-400" /> : <ArrowUpCircle className="w-4.5 h-4.5 text-red-400" />}
+                    style={{ background: isCredit ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.15)" }}>
+                    {isCredit ? <ArrowDownCircle className="w-4.5 h-4.5 text-red-400" /> : <ArrowUpCircle className="w-4.5 h-4.5 text-emerald-400" />}
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold flex items-center gap-1.5">
                       {ADJUSTMENT_TYPE_LABELS[adj.type]}
+                      <Badge variant="outline" className={`text-[9px] ${isCredit ? "text-red-400 border-red-700" : "text-emerald-400 border-emerald-700"}`}>
+                        {isCredit ? "تقليل المستحق للعميل" : "زيادة المستحق للعميل"}
+                      </Badge>
                       {isVoided && <Badge variant="outline" className="text-[9px] text-muted-foreground">ملغاة</Badge>}
                     </p>
                     <p className="text-[10px] text-muted-foreground truncate max-w-[280px]">{adj.reason}</p>
@@ -90,7 +93,7 @@ export function AdjustmentsTab({ adjustments, isLoading, onCreate, isCreating, o
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <p className={`text-sm font-black ${isCredit ? "text-emerald-400" : "text-red-400"}`}>
+                  <p className={`text-sm font-black ${isCredit ? "text-red-400" : "text-emerald-400"}`}>
                     {isCredit ? "-" : "+"}{fmt(adj.amount)} ج.م
                   </p>
                   {!isVoided && (
@@ -131,8 +134,8 @@ export function AdjustmentsTab({ adjustments, isLoading, onCreate, isCreating, o
               <Select value={form.direction} onValueChange={(v) => setForm(f => ({ ...f, direction: v as AdjustmentDirection }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="credit">لصالح العميل (خصم من رصيده)</SelectItem>
-                  <SelectItem value="debit">على العميل (إضافة لرصيده)</SelectItem>
+                  <SelectItem value="credit">خصم من المستحق للعميل (لصالح الشركة)</SelectItem>
+                  <SelectItem value="debit">إضافة للمستحق للعميل (لصالح العميل)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

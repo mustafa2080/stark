@@ -536,9 +536,11 @@ export default function ClientAccountDetailPage() {
                 <p className="text-sm font-black text-emerald-400">{fmt(statementData?.totalCredit)}</p>
               </div>
               <div className="rounded-xl p-2.5 text-center bg-muted/10">
-                <p className="text-[10px] text-muted-foreground mb-0.5">الرصيد الحالي</p>
+                <p className="text-[10px] text-muted-foreground mb-0.5">
+                  {(statementData?.currentBalance ?? 0) > 0 ? "مستحق للعميل" : (statementData?.currentBalance ?? 0) < 0 ? "مستحق على العميل" : "الرصيد الحالي"}
+                </p>
                 <p className={`text-sm font-black ${(statementData?.currentBalance ?? 0) > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                  {fmt(statementData?.currentBalance)}
+                  {fmt(Math.abs(statementData?.currentBalance ?? 0))}
                 </p>
               </div>
             </div>
