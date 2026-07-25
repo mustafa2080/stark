@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
@@ -35,6 +36,7 @@ export default function NewShipmentPage() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     receiverName: "", receiverPhone: "", receiverPhone2: "", receiverAddress: "", receiverCity: "",
@@ -123,20 +125,20 @@ export default function NewShipmentPage() {
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-card border-b border-border px-6 py-4 flex items-center gap-3">
-        <button onClick={() => navigate("/client-shipments")} className="p-2 rounded-lg hover:bg-muted/60 transition-colors">
+      <div className="sticky top-0 z-10 bg-card border-b border-border px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-3">
+        <button onClick={() => navigate("/client-shipments")} className="p-2 rounded-lg hover:bg-muted/60 transition-colors shrink-0">
           <ArrowRight className="w-4 h-4" />
         </button>
-        <Package className="w-5 h-5 text-primary" />
-        <h1 className="text-base font-black">شحنة جديدة</h1>
+        <Package className="w-5 h-5 text-primary shrink-0" />
+        <h1 className="text-sm sm:text-base font-black truncate">شحنة جديدة</h1>
       </div>
 
       {/* Form + Sidebar */}
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8 items-start">
 
           {/* ── يمين: الفورم ── */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-6 sm:space-y-8">
 
         {/* العميل التجاري — للعرض فقط، الأدمن هو اللي يربطها */}
         <section className="space-y-4">
@@ -150,7 +152,7 @@ export default function NewShipmentPage() {
               disabled
               className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-muted/40 px-3 py-2 text-sm shadow-sm opacity-60 cursor-not-allowed"
             >
-              <span className="flex items-center gap-2 text-muted-foreground"><User className="w-3.5 h-3.5" />يحدده الأدمن</span>
+              <span className="flex items-center gap-2 text-muted-foreground"><User className="w-3.5 h-3.5" />{user?.displayName || "يحدده الأدمن"}</span>
               <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
             </button>
           </div>
@@ -360,16 +362,16 @@ export default function NewShipmentPage() {
 
           {/* ── شمال: sticky card ── */}
           <div className="lg:col-span-1">
-            <div className="sticky top-20 rounded-2xl border border-primary/20 bg-card shadow-lg overflow-hidden">
+            <div className="lg:sticky lg:top-20 rounded-2xl border border-primary/20 bg-card shadow-lg overflow-hidden">
               {/* عنوان الكارت */}
-              <div className="bg-primary/5 border-b border-primary/10 px-5 py-4">
+              <div className="bg-primary/5 border-b border-primary/10 px-4 sm:px-5 py-3 sm:py-4">
                 <h3 className="text-sm font-black text-primary flex items-center gap-2">
                   <CreditCard className="w-4 h-4" /> ملخص التكاليف
                 </h3>
               </div>
 
               {/* التفاصيل */}
-              <div className="px-5 py-4 space-y-3">
+              <div className="px-4 sm:px-5 py-3 sm:py-4 space-y-3">
                 {[
                   { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
                   { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
@@ -388,7 +390,7 @@ export default function NewShipmentPage() {
               </div>
 
               {/* الأزرار */}
-              <div className="px-5 pb-5 space-y-2">
+              <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-2">
                 <Button onClick={handleSubmit} disabled={mutation.isPending} className="w-full gap-2">
                   {mutation.isPending
                     ? <RefreshCw className="w-4 h-4 animate-spin" />
