@@ -53,13 +53,13 @@ function statusMeta(status: string) {
 
 // ── Donut Chart (SVG) ─────────────────────────────────────────────────────
 function DonutChart({ breakdown, total }: { breakdown: StatsResponse["breakdown"]; total: number }) {
-  const size = 260, stroke = 34, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
+  const size = 200, stroke = 26, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
   const circumference = 2 * Math.PI * r;
   let offsetAcc = 0;
 
   return (
-    <div className="relative flex items-center justify-center">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+    <div className="relative flex items-center justify-center shrink-0">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] md:w-[260px] md:h-[260px]" style={{ transform: "rotate(-90deg)" }}>
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--muted-foreground)/0.15)" strokeWidth={stroke} />
         {breakdown.map((b, i) => {
           const dash = (b.pct / 100) * circumference;
@@ -75,8 +75,8 @@ function DonutChart({ breakdown, total }: { breakdown: StatsResponse["breakdown"
         })}
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-3xl font-black text-foreground">{fn(total)}</span>
-        <span className="text-xs text-muted-foreground mt-1">الإجمالي</span>
+        <span className="text-2xl sm:text-3xl font-black text-foreground">{fn(total)}</span>
+        <span className="text-[11px] sm:text-xs text-muted-foreground mt-1">الإجمالي</span>
       </div>
     </div>
   );
@@ -166,27 +166,27 @@ export default function ClientDashboardPage() {
   const finance = stats?.finance;
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
-      <div className="max-w-[1400px] mx-auto space-y-5">
+    <div className="min-h-screen -m-4 md:-m-6 p-3 sm:p-4 md:p-6 bg-background" dir="rtl">
+      <div className="max-w-[1400px] mx-auto space-y-4 md:space-y-5">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex flex-col gap-3">
           <div>
-            <h1 className="text-2xl font-black text-foreground">أهلاً، {client?.name || user?.displayName || "عميلنا العزيز"} 👋</h1>
-            <p className="text-sm text-muted-foreground mt-1">لوحة متابعة شحناتك ومستحقاتك المالية</p>
+            <h1 className="text-lg sm:text-2xl font-black text-foreground">أهلاً، {client?.name || user?.displayName || "عميلنا العزيز"} 👋</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">لوحة متابعة شحناتك ومستحقاتك المالية</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
             <button onClick={() => navigate("/client-wallet")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
-              <Wallet size={15} /> التسويات المالية
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              <Wallet size={14} className="shrink-0" /> <span className="truncate">التسويات المالية</span>
             </button>
             <button onClick={() => navigate("/client-pickup-requests")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-foreground text-background">
-              <PackagePlus size={15} /> طلب التقاط
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-sm font-bold bg-foreground text-background">
+              <PackagePlus size={14} className="shrink-0" /> <span className="truncate">طلب التقاط</span>
             </button>
             <button onClick={() => refetch()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
-              <RefreshCcw size={15} /> تحديث
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              <RefreshCcw size={14} className="shrink-0" /> <span className="truncate">تحديث</span>
             </button>
           </div>
         </div>
@@ -243,17 +243,17 @@ export default function ClientDashboardPage() {
 
         {/* ── Shipments Table ── */}
         <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
-          <div className="flex items-center justify-between flex-wrap gap-3 p-4 border-b border-border">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-border">
             <p className="text-sm font-black text-foreground">شحناتي</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative w-full sm:w-auto">
                 <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                   placeholder="بحث بالكود أو الاسم..."
-                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-52 bg-muted/50 border border-border" />
+                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-full sm:w-52 bg-muted/50 border border-border" />
                 <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
               </div>
               <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="py-2 px-3 rounded-lg text-xs text-foreground outline-none bg-muted/50 border border-border">
+                className="py-2 px-3 rounded-lg text-xs text-foreground outline-none w-full sm:w-auto bg-muted/50 border border-border">
                 <option value="all">كل الحالات</option>
                 <option value="delivered">تم التسليم</option>
                 <option value="in_transit">قيد التوصيل</option>
@@ -265,8 +265,38 @@ export default function ClientDashboardPage() {
             </div>
           </div>
 
-          {/* ── Table body ── */}
-          <div className="overflow-x-auto">
+          {/* ── Mobile: cards ── */}
+          <div className="md:hidden divide-y divide-border">
+            {shipmentsLoading ? (
+              <div className="text-center py-10 text-muted-foreground text-sm">جارٍ التحميل...</div>
+            ) : shipments.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground text-sm">لا توجد شحنات مطابقة</div>
+            ) : shipments.map(s => {
+              const meta = statusMeta(s.status);
+              return (
+                <button key={s.id} onClick={() => navigate(`/client-shipment-detail/${s.id}`)}
+                  className="w-full text-right p-3.5 flex flex-col gap-2 active:bg-muted/40 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-foreground/60 truncate">{s.trackingNumber || s.shipmentNumber || s.id}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0" style={{ background: meta.bg, color: meta.color }}>
+                      {meta.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-foreground/85 truncate">{s.receiverName}</span>
+                    <span className="text-sm font-black text-foreground shrink-0">{fn(Number(s.codAmount ?? 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <span className="truncate">{s.receiverCity || "—"}</span>
+                    <span className="shrink-0">{s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── Table body (desktop) ── */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs" dir="rtl">
               <thead>
                 <tr className="bg-muted/40">
