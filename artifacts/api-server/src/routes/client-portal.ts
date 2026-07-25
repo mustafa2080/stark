@@ -474,8 +474,9 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
     for (const s of shipments) counts[s.status] = (counts[s.status] ?? 0) + 1;
 
     // تجميع الحالات في مجموعات رئيسية مطابقة للصورة
-    const delivered   = counts["delivered"] ?? 0;
-    const inTransit   = (counts["in_transit"] ?? 0) + (counts["picked_up"] ?? 0) + (counts["out_for_delivery"] ?? 0);
+    const delivered    = (counts["delivered"] ?? 0) + (counts["received"] ?? 0);
+    const inShipping   = (counts["in_transit"] ?? 0) + (counts["picked_up"] ?? 0) + (counts["out_for_delivery"] ?? 0);
+    const inWarehouse  = (counts["warehouse_ready"] ?? 0) + (counts["in_shipping"] ?? 0) + (counts["still_in_warehouse"] ?? 0);
     const waiting      = (counts["waiting"] ?? 0) + (counts["confirmed"] ?? 0);
     const returned     = counts["returned"] ?? 0;
     const delayed      = counts["delayed"] ?? 0;
@@ -485,13 +486,14 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
     const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
 
     const breakdown = [
-      { key: "delivered", label: "تم التسليم",  count: delivered, pct: pct(delivered), color: "#22c55e" },
-      { key: "in_transit", label: "قيد التوصيل", count: inTransit, pct: pct(inTransit), color: "#3b82f6" },
-      { key: "waiting", label: "في الانتظار",   count: waiting, pct: pct(waiting), color: "#f1f5f9" },
-      { key: "returned", label: "مرتجع",         count: returned, pct: pct(returned), color: "#ec4899" },
-      { key: "delayed", label: "متأخرة",         count: delayed, pct: pct(delayed), color: "#f59e0b" },
-      { key: "cancelled", label: "ملغية",        count: cancelled, pct: pct(cancelled), color: "#ef4444" },
-      { key: "partial_received", label: "استلام جزئي", count: partial, pct: pct(partial), color: "#a855f7" },
+      { key: "waiting", label: "قيد الانتظار",   count: waiting, pct: pct(waiting), color: "#eab308" },
+      { key: "in_transit", label: "قيد الشحن", count: inShipping, pct: pct(inShipping), color: "#3b82f6" },
+      { key: "warehouse_ready", label: "قيد الشحن في المخزن", count: inWarehouse, pct: pct(inWarehouse), color: "#14b8a6" },
+      { key: "delivered", label: "استلم",  count: delivered, pct: pct(delivered), color: "#22c55e" },
+      { key: "partial_received", label: "استلم جزئى", count: partial, pct: pct(partial), color: "#06b6d4" },
+      { key: "delayed", label: "مؤجل",         count: delayed, pct: pct(delayed), color: "#a855f7" },
+      { key: "returned", label: "مرتجع",         count: returned, pct: pct(returned), color: "#ef4444" },
+      { key: "cancelled", label: "ملغية",        count: cancelled, pct: pct(cancelled), color: "#6b7280" },
     ].filter(b => b.count > 0);
 
     // ماليات سريعة
