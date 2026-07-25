@@ -431,15 +431,16 @@ router.delete("/client-portal/account", async (req, res): Promise<void> => {
 });
 
 // ─── Helper: شحنات العميل — بيتحدد بمن أنشأها (createdByUserId) أو برقم هاتف المستلم (توافقاً مع شحنات قديمة أُدخلت يدويًا للأدمن) ──
-async function getClientShipments(tenantId: number | null, normalizedPhone: string, userId?: number | null) {
+async function getClientShipments(tenantId: number | null, normalizedPhone: string, userId?: number | null, clientId?: number | null) {
+  const phoneMatch = sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`;
+  const ownershipConds = [phoneMatch];
+  if (userId != null) ownershipConds.push(eq(shipmentsTable.createdByUserId, userId));
+  // شحنات عملها الأدمن وحدد فيها الراسل = هذا العميل التجاري بالذات (clientId) — تظهر تلقائيًا في حسابه
+  if (clientId != null) ownershipConds.push(eq(shipmentsTable.clientId, clientId));
+
   const conds: any[] = [
     isNull(shipmentsTable.deletedAt),
-    userId != null
-      ? or(
-          eq(shipmentsTable.createdByUserId, userId),
-          sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`,
-        )
-      : sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`,
+    ownershipConds.length > 1 ? or(...ownershipConds) : ownershipConds[0],
   ];
   if (tenantId !== null) conds.push(eq(shipmentsTable.tenantId, tenantId));
   return db.select().from(shipmentsTable).where(and(...conds)).orderBy(desc(shipmentsTable.createdAt));
@@ -455,7 +456,7 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
       .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client || !client.normalizedPhone) { res.json({ total: 0, breakdown: [] }); return; }
 
-    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
+    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id, client.id);
 
     const total = shipments.length;
     const counts: Record<string, number> = {};
@@ -519,7 +520,7 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
 
-    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
+    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id, client.id);
 
     if (status && status !== "all") {
       shipments = shipments.filter(s => s.status === status);
@@ -785,7 +786,7 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
       .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client || !client.normalizedPhone) { res.json({ client: null }); return; }
 
-    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
+    const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id, client.id);
 
     // ── تقسيم الشحنات: مستلمة (delivered/partial_received) و غير مستلمة (الباقي عدا الملغية/المرتجعة) ──
     const receivedStatuses = new Set(["delivered", "partial_received"]);
@@ -979,7 +980,7 @@ router.get("/client-portal/invoiceable-shipments", async (req, res): Promise<voi
       .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client || !client.normalizedPhone) { res.json({ data: [] }); return; }
 
-    const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id);
+    const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id, client.id);
 
     // ── اجمع كل shipmentIds اللي دخلت فاتورة قبل كده ────────────────────────
     const invConds: any[] = [eq(clientInvoicesTable.normalizedPhone, client.normalizedPhone)];
@@ -1019,7 +1020,7 @@ router.post("/client-portal/invoices", async (req, res): Promise<void> => {
     const tenantId = user.tenantId ?? null;
 
     // ── تأكد إن كل الشحنات دي فعلاً بتاعة العميل نفسه (أمان) ────────────────
-    const allShipments = await getClientShipments(tenantId, client.normalizedPhone, user.id);
+    const allShipments = await getClientShipments(tenantId, client.normalizedPhone, user.id, client.id);
     const ownedIds = new Set(allShipments.map(s => s.id));
     const invalidIds = shipmentIds.filter(id => !ownedIds.has(id));
     if (invalidIds.length > 0) {
