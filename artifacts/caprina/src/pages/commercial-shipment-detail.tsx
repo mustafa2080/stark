@@ -86,16 +86,16 @@ export default function CommercialShipmentDetailPage() {
     <div className="max-w-3xl mx-auto space-y-5 animate-in fade-in duration-500" dir="rtl">
 
       {/* ─── Header ─── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border" onClick={() => window.history.back()}>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border shrink-0" onClick={() => window.history.back()}>
             <ArrowRight className="h-4 w-4" />
           </Button>
           <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 border border-border">
             <Truck className="w-5 h-5 text-muted-foreground" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold font-mono">{shipment.shipmentNumber}</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold font-mono truncate">{shipment.shipmentNumber}</h1>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
               <span className="flex items-center gap-1"><User className="w-3 h-3" />{shipment.receiverName}</span>
               {shipment.receiverPhone && (

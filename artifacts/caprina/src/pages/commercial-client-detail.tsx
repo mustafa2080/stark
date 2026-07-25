@@ -743,12 +743,12 @@ export default function CommercialClientDetailPage() {
     <div className="max-w-3xl mx-auto space-y-5 animate-in fade-in duration-500" dir="rtl">
 
       {/* ─── Header — زي ShippingCompanyDetailPage ─── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8 rounded-full border-border"
+            className="h-8 w-8 rounded-full border-border shrink-0"
             onClick={() => {
               if (window.history.length > 1) window.history.back();
               else navigate("/finance/clients");
@@ -759,8 +759,8 @@ export default function CommercialClientDetailPage() {
           <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden border border-border">
             <ClientAvatar avatar={client?.avatar} name={client?.name ?? "؟"} size="md" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold">{client?.name ?? "…"}</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold truncate">{client?.name ?? "…"}</h1>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
               {client?.phone && (
                 <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>
