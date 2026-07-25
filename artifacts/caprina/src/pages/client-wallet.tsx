@@ -59,16 +59,83 @@ interface WalletResponse {
   accountStatus: string;
 }
 
-// ── Summary card ──────────────────────────────────────────────────────────
-function SummaryCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
+// ── Summary card (glow + shadow + gradient) ────────────────────────────────
+function SummaryCard({ icon: Icon, label, value, color, sub }: { icon: any; label: string; value: string; color: string; sub?: string }) {
   return (
-    <div className="rounded-2xl p-4 flex items-center gap-3 bg-muted/40 border border-border">
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22` }}>
-        <Icon size={20} style={{ color }} />
+    <div className="relative rounded-2xl p-4 overflow-hidden group transition-transform duration-300 hover:-translate-y-0.5"
+      style={{
+        background: `linear-gradient(160deg, ${color}14 0%, hsl(var(--muted)/0.35) 55%)`,
+        border: `1px solid ${color}33`,
+        boxShadow: `0 4px 20px -6px ${color}40, inset 0 1px 0 rgba(255,255,255,0.04)`,
+      }}>
+      {/* glow blob */}
+      <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full blur-2xl opacity-60 pointer-events-none transition-opacity duration-300 group-hover:opacity-90"
+        style={{ background: color }} />
+      <div className="relative flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{
+            background: `linear-gradient(145deg, ${color} 0%, ${color}99 100%)`,
+            boxShadow: `0 3px 12px -2px ${color}80, inset 0 1px 0 rgba(255,255,255,0.25)`,
+          }}>
+          <Icon size={20} className="text-white" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[11px] text-muted-foreground truncate">{label}</p>
+          <p className="text-base font-black text-foreground truncate">{value}</p>
+        </div>
       </div>
-      <div className="min-w-0">
-        <p className="text-[11px] text-muted-foreground truncate">{label}</p>
-        <p className="text-base font-black text-foreground truncate">{value}</p>
+      {sub && <p className="relative text-[10px] text-muted-foreground/70 mt-2 pt-2 border-t border-border/40">{sub}</p>}
+    </div>
+  );
+}
+
+// ── Financial hero banner ──────────────────────────────────────────────────
+function FinanceHero({ outstanding, totalCollected, totalInvoiced, creditLimit }: { outstanding: number; totalCollected: number; totalInvoiced: number; creditLimit: number }) {
+  const isOwing = outstanding > 0;
+  const heroColor = isOwing ? "#f59e0b" : "#22c55e";
+  const usagePct = creditLimit > 0 ? Math.min(100, Math.round((outstanding / creditLimit) * 100)) : 0;
+
+  return (
+    <div className="relative rounded-3xl p-6 overflow-hidden"
+      style={{
+        background: `linear-gradient(135deg, ${heroColor}1f 0%, hsl(var(--muted)/0.4) 45%, hsl(var(--muted)/0.25) 100%)`,
+        border: `1px solid ${heroColor}30`,
+        boxShadow: `0 12px 40px -12px ${heroColor}45, inset 0 1px 0 rgba(255,255,255,0.05)`,
+      }}>
+      {/* ambient glow blobs */}
+      <div className="absolute -top-16 -right-10 w-56 h-56 rounded-full blur-3xl opacity-40 pointer-events-none" style={{ background: heroColor }} />
+      <div className="absolute -bottom-20 -left-16 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none" style={{ background: "#3b82f6" }} />
+
+      <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <p className="text-xs font-bold text-muted-foreground mb-1.5">
+            {isOwing ? "المستحق عليك حالياً" : "حسابك متوازن تماماً"}
+          </p>
+          <p className="text-4xl font-black tracking-tight" style={{ color: heroColor }}>
+            {fc(outstanding)}
+          </p>
+          <p className="text-[11px] text-muted-foreground/70 mt-2">
+            من إجمالي فواتير {fc(totalInvoiced)} — تم تحصيل {fc(totalCollected)}
+          </p>
+        </div>
+
+        {creditLimit > 0 && (
+          <div className="w-full md:w-64 shrink-0">
+            <div className="flex items-center justify-between text-[11px] mb-1.5">
+              <span className="text-muted-foreground">استخدام الحد الائتماني</span>
+              <span className="font-bold" style={{ color: heroColor }}>{usagePct}%</span>
+            </div>
+            <div className="h-2.5 rounded-full overflow-hidden bg-muted/50 border border-border/50">
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${usagePct}%`,
+                  background: `linear-gradient(90deg, ${heroColor}, ${heroColor}cc)`,
+                  boxShadow: `0 0 12px ${heroColor}80`,
+                }} />
+            </div>
+            <p className="text-[10px] text-muted-foreground/60 mt-1.5">الحد الكلي: {fc(creditLimit)}</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -131,6 +198,14 @@ export default function ClientWalletPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Financial hero ── */}
+        <FinanceHero
+          outstanding={outstanding}
+          totalCollected={totalCollected}
+          totalInvoiced={totalInvoiced}
+          creditLimit={Number(data?.creditLimit ?? 0)}
+        />
 
         {/* ── Summary cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
