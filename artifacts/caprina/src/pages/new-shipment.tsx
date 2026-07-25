@@ -81,7 +81,7 @@ export default function NewShipmentPage() {
   const isEditMode = !!editId;
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin } = useAuth();
 
   // ── الشحنة الحالية (وضع التعديل فقط) ──
   const { data: existingShipment, isLoading: isLoadingShipment } = useQuery({
@@ -126,28 +126,6 @@ export default function NewShipmentPage() {
   const { data: clients = [] }       = useQuery<ShipmentClient[]>({ queryKey: ["clients-for-shipment"], queryFn: () => apiFetch<ShipmentClient[]>("/finance/clients/for-shipment") });
   const { data: warehouses }         = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: users }              = useQuery({ queryKey: ["users"],      queryFn: usersApi.list, enabled: isAdmin });
-
-  // ── لو المستخدم الحالي "عميل تجاري" (role=client) → اختار حسابه تلقائياً كعميل تجاري في الشحنة ──
-  const selfClientPrefilledRef = useRef(false);
-  useEffect(() => {
-    if (isEditMode || selfClientPrefilledRef.current) return;
-    if (user?.role !== "client" || !user.clientId) return;
-    if (clients.length === 0) return;
-    const c = clients.find(x => x.id === user.clientId);
-    if (!c) return;
-    selfClientPrefilledRef.current = true;
-    const gov = c.region || c.city || c.governorate || "";
-    setForm(f => ({
-      ...f,
-      clientId: String(c.id),
-      senderName: c.name,
-      senderPhone: c.phone || "",
-      senderPhone2: c.phone2 || "",
-      senderCity: gov,
-      warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId,
-      adSource: c.defaultAdSource || f.adSource,
-    }));
-  }, [isEditMode, user, clients]);
 
   // ── تعبئة الفورم تلقائياً ببيانات الشحنة الحالية (وضع التعديل) ──
   useEffect(() => {

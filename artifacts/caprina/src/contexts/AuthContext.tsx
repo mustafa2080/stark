@@ -18,7 +18,6 @@ export interface AuthUser {
   isActive: boolean;
   planStatus?: "active" | "expired" | "suspended" | "grace";
   receiverClientId?: number | null;
-  clientId?: number | null;
   phone?: string | null;
   email?: string | null;
   avatar?: string | null;
