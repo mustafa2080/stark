@@ -306,6 +306,9 @@ export const importApi = {
   // Shipments
   parseShipments: (file: File) => parseFile(file, "shipments/import/parse"),
   executeShipments: (payload: { headers: string[]; rows: any[][]; mapping: any }) => executeImport("shipments/import/execute", payload),
+  // Client-portal: Shipments (نفس منطق الأدمن، بدون اسم راسل — العميل مقفول على نفسه)
+  parseClientShipments: (file: File) => parseFile(file, "client-portal/shipments/import/parse"),
+  executeClientShipments: (payload: { headers: string[]; rows: any[][]; mapping: any }) => executeImport("client-portal/shipments/import/execute", payload),
   // Inventory bulk update
   uploadInventory: async (file: File): Promise<{ updated: number; failed: number; errors: string[]; items: any[] }> => {
     const form = new FormData();

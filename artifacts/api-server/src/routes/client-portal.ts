@@ -19,6 +19,8 @@ import {
   warehousesTable,
 } from "@workspace/db";
 import { z } from "zod";
+import multer from "multer";
+import ExcelJS from "exceljs";
 import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
@@ -26,6 +28,7 @@ import { generateShipmentNumber, syncShipmentInventory } from "./shipments.js";
 import { pushNotification } from "../lib/notifications.js";
 
 const router: IRouter = Router();
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 function normalizePhone(raw: string): string {
@@ -1299,6 +1302,336 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
   } catch (e) {
     console.error("[GET /client-portal/returns]", e);
     res.status(500).json({ error: "خطأ في جلب المرتجعات" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// ─── استيراد شحنات العميل من إكسيل (client-portal) ─────────────────────────
+// نفس منطق /shipments/import بتاع الأدمن، لكن العميل مقفول على نفسه (client.id
+// و client.name/phone/city بتتحدد من الحساب مش من الإكسيل، ومفيش عمود "اسم راسل")
+// ══════════════════════════════════════════════════════════════════════════
+
+async function parseExcelToRaw(buffer: Buffer, originalname: string): Promise<{ headers: string[]; rows: any[][] }> {
+  const isCSV = /\.csv$/i.test(originalname);
+  const workbook = new ExcelJS.Workbook();
+
+  if (isCSV) {
+    const { Readable } = await import("stream");
+    const stream = Readable.from(buffer.toString("utf-8"));
+    await workbook.csv.read(stream);
+  } else {
+    await workbook.xlsx.load(buffer);
+  }
+
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) return { headers: [], rows: [] };
+
+  const actualColCount = worksheet.columnCount || worksheet.actualColumnCount || 0;
+  let headers: string[] = [];
+  const rows: any[][] = [];
+
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
+    const rawValues = row.values as any[];
+    const values: any[] = [];
+    const maxCol = Math.max(actualColCount, rawValues.length - 1);
+    for (let c = 1; c <= maxCol; c++) {
+      const v = rawValues[c];
+      if (v === null || v === undefined) values.push("");
+      else if (typeof v === "object" && "result" in v) values.push(v.result ?? "");
+      else values.push(v);
+    }
+    if (rowNum === 1) {
+      headers = values.map(v => String(v ?? "").trim());
+    } else {
+      if (values.some(v => String(v ?? "").trim() !== "")) rows.push(values);
+    }
+  });
+
+  return { headers, rows };
+}
+
+// ─── POST /client-portal/shipments/import/parse ────────────────────────────
+router.post("/client-portal/shipments/import/parse", importUpload.single("file"), async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    if (!req.file) { res.status(400).json({ error: "لم يتم رفع ملف" }); return; }
+
+    const { headers, rows } = await parseExcelToRaw(req.file.buffer, req.file.originalname);
+    if (!headers.length) { res.status(400).json({ error: "الملف فارغ أو غير مدعوم" }); return; }
+    res.json({ headers, sample: rows.slice(0, 5), totalRows: rows.length, allRows: rows });
+  } catch (err: any) {
+    res.status(500).json({ error: `فشل قراءة الملف: ${err.message}` });
+  }
+});
+
+// ─── POST /client-portal/shipments/import/execute ──────────────────────────
+router.post("/client-portal/shipments/import/execute", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
+    if (!client) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    if (client.accountStatus === "suspended") {
+      res.status(403).json({ error: "الحساب موقوف — يرجى التواصل مع الدعم" });
+      return;
+    }
+
+    const { headers, rows, mapping } = req.body as {
+      headers: string[];
+      rows: any[][];
+      mapping: {
+        receiverName?: string;
+        receiverPhone?: string;
+        receiverPhone2?: string;
+        receiverAddress?: string;
+        receiverCity?: string;
+        zone?: string;
+        parcelType?: string;
+        weight?: string;
+        pieces?: string;
+        description?: string;
+        paymentMethod?: string;
+        codAmount?: string;
+        notes?: string;
+        canOpen?: string;
+        isDivisible?: string;
+        rejectionPolicy?: string;
+      };
+    };
+
+    if (!headers?.length || !rows?.length || !mapping) {
+      res.status(400).json({ error: "بيانات غير مكتملة" });
+      return;
+    }
+
+    const tenantId = user.tenantId ?? null;
+
+    const headerIdx: Record<string, number> = {};
+    headers.forEach((h, i) => { headerIdx[h] = i; });
+    const getCell = (row: any[], colName: string | undefined): string => {
+      if (!colName) return "";
+      const idx = headerIdx[colName];
+      if (idx === undefined) return "";
+      const v = row[idx];
+      if (v === null || v === undefined) return "";
+      return String(v).trim();
+    };
+
+    const zones = await db.select().from(shipmentZonesTable)
+      .where(tenantId !== null ? eq(shipmentZonesTable.tenantId, tenantId) : undefined as any);
+    const parcelPricing = await db.select().from(parcelTypePricingTable)
+      .where(tenantId !== null ? eq(parcelTypePricingTable.tenantId, tenantId) : undefined as any);
+
+    const norm = (s: string) => s.trim().toLowerCase();
+
+    const findZone = (raw: string) => {
+      if (!raw) return null;
+      const n = norm(raw);
+      return zones.find(z => {
+        const name = norm(z.name || "");
+        const gov = norm(z.toGovernorate || "");
+        const combo = gov && name ? `${gov} - ${name}` : (gov || name);
+        return name === n || combo === n || gov === n;
+      }) ?? zones.find(z => norm(z.name || "").includes(n) || norm(z.toGovernorate || "").includes(n)) ?? null;
+    };
+
+    const PARCEL_TYPE_MAP: Record<string, string> = {
+      "مستندات": "document", "document": "document",
+      "عادي": "normal", "normal": "normal",
+      "قابل للكسر": "fragile", "fragile": "fragile",
+      "ثقيل": "heavy", "heavy": "heavy",
+      "إلكترونيات": "electronics", "electronics": "electronics",
+      "ملابس": "clothing", "clothing": "clothing",
+      "طعام": "food", "food": "food",
+      "أخرى": "other", "other": "other",
+    };
+    const findParcelPricing = (raw: string) => {
+      if (!raw) return null;
+      const n = norm(raw);
+      const mappedType = PARCEL_TYPE_MAP[raw] ?? PARCEL_TYPE_MAP[n] ?? null;
+      return parcelPricing.find(p => p.parcelType === mappedType)
+        ?? parcelPricing.find(p => norm(p.label || "") === n || norm(p.parcelType) === n)
+        ?? null;
+    };
+
+    const PAYMENT_METHOD_MAP: Record<string, string> = {
+      "الدفع عند الاستلام": "cod", "الدفع عند الاستلام (cod)": "cod", "cod": "cod",
+      "مدفوع مسبقا": "prepaid", "مدفوع مسبقاً": "prepaid", "prepaid": "prepaid",
+      "آجل": "deferred", "اجل": "deferred", "deferred": "deferred",
+    };
+
+    const YES_NO_MAP: Record<string, number> = { "نعم": 1, "لا": 0 };
+    const parseYesNo = (raw: string): number | null => {
+      const n = raw.trim();
+      return n in YES_NO_MAP ? YES_NO_MAP[n] : null;
+    };
+
+    const REJECTION_POLICY_MAP: Record<string, string> = {
+      "دفع كامل": "full_fee", "مجاني": "free",
+    };
+
+    const errors: string[] = [];
+    const validShipments: any[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2;
+
+      const receiverName    = getCell(row, mapping.receiverName);
+      const receiverPhone   = getCell(row, mapping.receiverPhone) || null;
+      const receiverPhone2  = getCell(row, mapping.receiverPhone2) || null;
+      const receiverAddress = getCell(row, mapping.receiverAddress) || null;
+      const receiverCityRaw = getCell(row, mapping.receiverCity) || null;
+      const zoneRaw          = getCell(row, mapping.zone);
+      const parcelTypeRaw    = getCell(row, mapping.parcelType);
+      const rawWeight        = getCell(row, mapping.weight);
+      const rawPieces        = getCell(row, mapping.pieces);
+      const description      = getCell(row, mapping.description) || null;
+      const paymentMethodRaw = getCell(row, mapping.paymentMethod);
+      const rawCodAmount     = getCell(row, mapping.codAmount);
+      const notes            = getCell(row, mapping.notes) || null;
+      const canOpenRaw        = getCell(row, mapping.canOpen);
+      const isDivisibleRaw    = getCell(row, mapping.isDivisible);
+      const rejectionPolicyRaw = getCell(row, mapping.rejectionPolicy);
+
+      if (!receiverName) { errors.push(`الصف ${rowNum}: اسم المستلم مطلوب`); continue; }
+
+      let zoneId: number | null = null;
+      let zonePrice = 0;
+      let resolvedReceiverCity = receiverCityRaw;
+      if (zoneRaw) {
+        const zone = findZone(zoneRaw);
+        if (!zone) { errors.push(`الصف ${rowNum}: منطقة التوصيل "${zoneRaw}" غير موجودة في النظام`); continue; }
+        zoneId = zone.id;
+        zonePrice = Number(zone.price) || 0;
+        if (!resolvedReceiverCity) resolvedReceiverCity = zone.toGovernorate ?? null;
+      }
+
+      let parcelType: string | null = null;
+      let parcelTypePrice = 0;
+      if (parcelTypeRaw) {
+        const pricing = findParcelPricing(parcelTypeRaw);
+        if (!pricing) { errors.push(`الصف ${rowNum}: نوع الشحنة "${parcelTypeRaw}" غير موجود في النظام`); continue; }
+        parcelType = pricing.parcelType;
+        parcelTypePrice = Number(pricing.basePrice) || 0;
+      }
+
+      const shippingFee = zonePrice + parcelTypePrice;
+
+      const canOpen = canOpenRaw ? parseYesNo(canOpenRaw) : null;
+      if (canOpenRaw && canOpen === null) { errors.push(`الصف ${rowNum}: حالة الفتح يجب أن تكون "نعم" أو "لا"`); continue; }
+
+      const isDivisible = isDivisibleRaw ? parseYesNo(isDivisibleRaw) : null;
+      if (isDivisibleRaw && isDivisible === null) { errors.push(`الصف ${rowNum}: حالة التجزئة يجب أن تكون "نعم" أو "لا"`); continue; }
+
+      let rejectionPolicy: string | null = null;
+      if (rejectionPolicyRaw) {
+        rejectionPolicy = REJECTION_POLICY_MAP[rejectionPolicyRaw] ?? REJECTION_POLICY_MAP[norm(rejectionPolicyRaw)] ?? null;
+        if (!rejectionPolicy) { errors.push(`الصف ${rowNum}: حالة الرفض يجب أن تكون "دفع كامل" أو "مجاني"`); continue; }
+      }
+
+      let paymentMethod = "cod";
+      if (paymentMethodRaw) {
+        paymentMethod = PAYMENT_METHOD_MAP[paymentMethodRaw] ?? PAYMENT_METHOD_MAP[norm(paymentMethodRaw)] ?? "";
+        if (!paymentMethod) { errors.push(`الصف ${rowNum}: طريقة الدفع "${paymentMethodRaw}" غير معروفة`); continue; }
+      }
+
+      const totalAmount = rawCodAmount ? Number(rawCodAmount) : 0;
+      if (rawCodAmount && Number.isNaN(totalAmount)) { errors.push(`الصف ${rowNum}: سعر الشحنة يجب أن يكون رقماً`); continue; }
+      const codAmount = paymentMethod === "cod" ? (totalAmount - shippingFee) : totalAmount;
+
+      const weight = rawWeight ? Number(rawWeight) : null;
+      if (rawWeight && Number.isNaN(weight)) { errors.push(`الصف ${rowNum}: الوزن يجب أن يكون رقماً`); continue; }
+
+      const pieces = rawPieces ? Number(rawPieces) : 1;
+      if (rawPieces && (Number.isNaN(pieces) || pieces < 1)) { errors.push(`الصف ${rowNum}: عدد القطع غير صحيح`); continue; }
+
+      validShipments.push({
+        receiverName, receiverPhone, receiverPhone2, receiverAddress,
+        receiverCity: resolvedReceiverCity,
+        zoneId, zonePrice, parcelType, parcelTypePrice,
+        weight, pieces, description, paymentMethod,
+        codAmount, shippingFee, totalAmount, notes,
+        canOpen, isDivisible, rejectionPolicy,
+      });
+    }
+
+    if (validShipments.length === 0) {
+      res.status(400).json({ error: "لا توجد صفوف صالحة للاستيراد", errors: errors.slice(0, 50), imported: 0, failed: errors.length });
+      return;
+    }
+
+    let imported = 0;
+    const now = new Date();
+    for (const s of validShipments) {
+      try {
+        const shipmentNumber = await generateShipmentNumber(tenantId);
+        await db.insert(shipmentsTable).values({
+          ...(tenantId !== null ? { tenantId } : {}),
+          shipmentNumber,
+          senderName:      client.name,
+          senderPhone:     client.phone ?? undefined,
+          senderCity:      client.city ?? undefined,
+          receiverName:    s.receiverName,
+          receiverPhone:   s.receiverPhone ?? undefined,
+          receiverPhone2:  s.receiverPhone2 ?? undefined,
+          receiverAddress: s.receiverAddress ?? undefined,
+          receiverCity:    s.receiverCity ?? undefined,
+          zoneId:          s.zoneId ?? undefined,
+          zonePrice:       String(s.zonePrice),
+          parcelType:      s.parcelType ?? undefined,
+          parcelTypePrice: String(s.parcelTypePrice),
+          weight:          s.weight != null ? String(s.weight) : undefined,
+          pieces:          s.pieces,
+          description:     s.description ?? undefined,
+          declaredValue:   "0",
+          canOpen:         s.canOpen === null ? null : Number(s.canOpen),
+          isDivisible:     s.isDivisible === null ? null : Number(s.isDivisible),
+          rejectionPolicy: s.rejectionPolicy ?? null,
+          paymentMethod:   s.paymentMethod,
+          codAmount:       String(s.codAmount),
+          shippingFee:     String(s.shippingFee),
+          insuranceFee:    "0",
+          totalAmount:     String(s.totalAmount),
+          collectedAmount: "0",
+          status:          "waiting",
+          notes:           s.notes ?? undefined,
+          createdByUserId: user.id,
+          createdByName:   client.name,
+          createdAt:       now,
+          updatedAt:       now,
+        });
+        imported++;
+      } catch (e: any) {
+        errors.push(`فشل استيراد شحنة "${s.receiverName}": ${e.message}`);
+      }
+    }
+
+    if (imported > 0) {
+      logAudit({
+        action: "create", entityType: "shipment", entityId: 0,
+        entityName: `استيراد ${imported} شحنة من إكسيل`, userId: user.id, userName: client.name,
+      }).catch(() => {});
+
+      pushNotification({
+        tenantId,
+        excludeUserId: user.id,
+        type: "shipment_new",
+        severity: "info",
+        title: "شحنات جديدة من العميل (استيراد)",
+        message: `${client.name} — تم استيراد ${imported} شحنة`,
+        entityType: "shipment",
+        entityId: 0,
+        link: `/shipments`,
+      });
+    }
+
+    res.json({ imported, failed: errors.length, errors: errors.slice(0, 50) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
