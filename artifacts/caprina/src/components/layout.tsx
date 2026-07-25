@@ -374,7 +374,7 @@ export default function Layout({ children }: LayoutProps) {
       { href: "/client-account",         label: "بروفايلي",         icon: User },
       { href: "/client-wallet",          label: "التسويات المالية", icon: Wallet },
       { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
-      { href: "/client-data",            label: "البيانات",         icon: FileText },
+      { href: "/client-manifests",       label: "البيانات",         icon: FileText },
     ];
     const CLIENT_SHIPMENTS_SUBNAV = [
       { href: "/client-shipments",        label: "قائمة الشحنات",  icon: Package },

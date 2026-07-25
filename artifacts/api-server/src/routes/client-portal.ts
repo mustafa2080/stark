@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, isNull, sql, or } from "drizzle-orm";
+import { eq, and, desc, isNull, sql, or, inArray, count } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import {
   db,
@@ -14,6 +14,9 @@ import {
   shippingCompaniesTable,
   shipmentZonesTable,
   parcelTypePricingTable,
+  clientAccountManifestsTable,
+  clientAccountManifestItemsTable,
+  warehousesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
@@ -1093,6 +1096,139 @@ router.patch("/client-portal/pickup-requests/:id/cancel", async (req, res): Prom
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /client-portal/manifests — قائمة بيانات حساب العميل الحالي ─────────
+router.get("/client-portal/manifests", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.json([]); return; }
+
+    const manifests = await db
+      .select()
+      .from(clientAccountManifestsTable)
+      .where(eq(clientAccountManifestsTable.clientId, user.clientId))
+      .orderBy(desc(clientAccountManifestsTable.createdAt));
+
+    const ids = manifests.map(m => m.id);
+    let statusCountMap: Record<number, { pending: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
+    let countMap: Record<number, number> = {};
+    if (ids.length) {
+      const counts = await db
+        .select({
+          manifestId: clientAccountManifestItemsTable.manifestId,
+          deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+          cnt: count(),
+        })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.manifestId, ids))
+        .groupBy(clientAccountManifestItemsTable.manifestId, clientAccountManifestItemsTable.deliveryStatus);
+
+      counts.forEach(r => {
+        const mid = r.manifestId;
+        countMap[mid] = (countMap[mid] ?? 0) + Number(r.cnt);
+        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
+        const st = r.deliveryStatus ?? "pending";
+        const n = Number(r.cnt);
+        if (st === "pending") statusCountMap[mid].pending += n;
+        else if (st === "delayed") statusCountMap[mid].delayed += n;
+        else if (st === "returned") statusCountMap[mid].returned += n;
+        else if (st === "delivered") statusCountMap[mid].delivered += n;
+        else if (st === "partial_delivered") statusCountMap[mid].partial += n;
+      });
+    }
+
+    const result = manifests.map(m => ({
+      ...m,
+      shipmentCount: countMap[m.id] ?? 0,
+      statusCounts: statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
+    }));
+
+    res.json(result);
+  } catch (e) {
+    console.error("[GET /client-portal/manifests]", e);
+    res.status(500).json({ error: "خطأ في جلب البيانات" });
+  }
+});
+
+// ─── GET /client-portal/manifests/:id — تفاصيل بيان واحد (ملك العميل الحالي فقط) ──
+router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    const id = Number(req.params.id);
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const [manifest] = await db.select().from(clientAccountManifestsTable).where(eq(clientAccountManifestsTable.id, id));
+    if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+    if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك بعرض هذا البيان" }); return; }
+
+    const items = await db
+      .select()
+      .from(clientAccountManifestItemsTable)
+      .where(eq(clientAccountManifestItemsTable.manifestId, id));
+
+    const shipmentIds = items.map(i => i.shipmentId);
+    let shipments: any[] = [];
+    if (shipmentIds.length) {
+      shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+    }
+    const shipmentMap: Record<number, any> = {};
+    shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
+    let repNameMap: Record<number, string> = {};
+    if (repUserIds.length) {
+      const repUsers = await db
+        .select({ id: usersTable.id, displayName: usersTable.displayName })
+        .from(usersTable)
+        .where(inArray(usersTable.id, repUserIds));
+      repNameMap = Object.fromEntries(repUsers.map(u => [u.id, u.displayName]));
+    }
+
+    const warehouseIds = [...new Set(shipments.map(s => s.warehouseId).filter((v): v is number => !!v))];
+    let warehouseNameMap: Record<number, string> = {};
+    if (warehouseIds.length) {
+      const warehouseRows = await db
+        .select({ id: warehousesTable.id, name: warehousesTable.name })
+        .from(warehousesTable)
+        .where(inArray(warehousesTable.id, warehouseIds));
+      warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
+    }
+
+    const enrichedItems = items.map(item => {
+      const sh = shipmentMap[item.shipmentId] ?? null;
+      return {
+        ...item,
+        shipment: sh,
+        customerName:  sh?.receiverName  ?? "",
+        phone:         sh?.receiverPhone ?? "",
+        city:          sh?.receiverCity  ?? "",
+        address:       sh?.receiverAddress ?? "",
+        senderName:    sh?.senderName    ?? "",
+        quantity:      sh?.pieces        ?? 1,
+        totalPrice:    Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
+        shippingCost:  Number(sh?.shippingFee ?? 0),
+        invoiceNumber: sh?.shipmentNumber ?? "",
+        representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
+        warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
+      };
+    });
+
+    const delivered = items.filter(i => i.deliveryStatus === "delivered").length;
+    const returned  = items.filter(i => i.deliveryStatus === "returned").length;
+    const pending   = items.filter(i => i.deliveryStatus === "pending").length;
+    const delayed   = items.filter(i => i.deliveryStatus === "delayed").length;
+    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
+
+    res.json({
+      ...manifest,
+      items: enrichedItems,
+      stats: { total: items.length, delivered, returned, pending, delayed, partial },
+    });
+  } catch (e) {
+    console.error("[GET /client-portal/manifests/:id]", e);
+    res.status(500).json({ error: "خطأ في جلب البيان" });
   }
 });
 
