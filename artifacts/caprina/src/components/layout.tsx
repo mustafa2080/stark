@@ -447,9 +447,13 @@ export default function Layout({ children }: LayoutProps) {
                     background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
                     boxShadow: "0 4px 14px -2px rgba(0,0,0,0.35)",
                   }}>
-                  <span className={cn("text-white select-none", sidebarCollapsed ? "text-sm" : "text-xs")}>
-                    {(user?.displayName || "ع").trim().charAt(0)}
-                  </span>
+                  {(user as any)?.avatar ? (
+                    <img src={(user as any).avatar} alt={user?.displayName ?? ""} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className={cn("text-white select-none", sidebarCollapsed ? "text-sm" : "text-xs")}>
+                      {(user?.displayName || "ع").trim().charAt(0)}
+                    </span>
+                  )}
                 </span>
 
                 {!sidebarCollapsed && (
@@ -617,9 +621,13 @@ export default function Layout({ children }: LayoutProps) {
                     background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
                     boxShadow: "0 2px 8px -2px rgba(0,0,0,0.35)",
                   }}>
-                  <span className="text-white text-xs font-black select-none">
-                    {(user?.displayName || "ع").trim().charAt(0)}
-                  </span>
+                  {(user as any)?.avatar ? (
+                    <img src={(user as any).avatar} alt={user?.displayName ?? ""} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-white text-xs font-black select-none">
+                      {(user?.displayName || "ع").trim().charAt(0)}
+                    </span>
+                  )}
                 </Link>
               </div>
             </div>
