@@ -988,7 +988,7 @@ router.get("/client-portal/invoiceable-shipments", async (req, res): Promise<voi
       for (const id of (inv.shipmentIds ?? [])) alreadyInvoiced.add(id);
     }
 
-    const invoiceable = allShipments.filter(s => !alreadyInvoiced.has(s.id));
+    const invoiceable = allShipments.filter(s => !alreadyInvoiced.has(s.id) && s.status !== "warehouse_ready");
     res.json({ data: invoiceable });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1021,6 +1021,14 @@ router.post("/client-portal/invoices", async (req, res): Promise<void> => {
     const invalidIds = shipmentIds.filter(id => !ownedIds.has(id));
     if (invalidIds.length > 0) {
       res.status(403).json({ error: "بعض الشحنات المختارة غير تابعة لحسابك" });
+      return;
+    }
+
+    // ── تأكد إن ولا شحنة منهم لسه قيد الشحن في المخزن (مترحلتش بعد) ────────
+    const warehouseReadyIds = new Set(allShipments.filter(s => s.status === "warehouse_ready").map(s => s.id));
+    const notShippedIds = shipmentIds.filter(id => warehouseReadyIds.has(id));
+    if (notShippedIds.length > 0) {
+      res.status(409).json({ error: "بعض الشحنات المختارة لسه قيد الشحن في المخزن ولم تُرحّل بعد" });
       return;
     }
 
