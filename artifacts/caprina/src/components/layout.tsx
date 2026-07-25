@@ -394,10 +394,19 @@ export default function Layout({ children }: LayoutProps) {
     const [mobileFinanceSheetOpen, setMobileFinanceSheetOpen] = useState(false);
 
     return (
-      <div className="flex bg-background overflow-hidden" style={{ height: "100dvh" }} dir="rtl">
+      <div
+        className="flex bg-background overflow-hidden"
+        style={{ height: "100dvh" }}
+        dir="rtl"
+        onClick={(e) => {
+          if (!sidebarCollapsed && sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
+            setSidebarCollapsed(true);
+          }
+        }}
+      >
 
         {/* ── Sidebar جانبي قابل للطي (desktop) ── */}
-        <div className="hidden md:flex print:hidden shrink-0 relative"
+        <div ref={sidebarRef} className="hidden md:flex print:hidden shrink-0 relative"
           style={{ width: sidebarCollapsed ? "68px" : "230px", transition: "width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
 
           {/* زر Toggle */}
