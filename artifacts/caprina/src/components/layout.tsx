@@ -429,30 +429,36 @@ export default function Layout({ children }: LayoutProps) {
             onClick={() => { if (sidebarCollapsed) setSidebarCollapsed(false); }}>
 
             {/* Header / Logo */}
-            <div className="shrink-0 border-b border-sidebar-border/60 flex flex-col items-center gap-2.5 py-4 px-1">
-              <BrandLogoMark size={sidebarCollapsed ? "sm" : "md"} />
+            <div className={cn("shrink-0 border-b border-sidebar-border/60 flex flex-col",
+              sidebarCollapsed ? "items-center gap-2 py-3 px-1" : "gap-2 py-3 px-3")}>
+              <div className="flex items-center justify-center">
+                <BrandLogoMark size="sm" />
+              </div>
 
-              {/* ── صورة العميل الدائرية — تودي للبروفايل ── */}
+              {/* ── صورة العميل + الاسم — جنب بعض أفقيًا لما الـ sidebar متوسعة ── */}
               <Link href="/client-account" title="بروفايلي"
                 onClick={(e) => { if (sidebarCollapsed) e.stopPropagation(); }}
-                className={cn("relative rounded-full flex items-center justify-center font-black transition-all shrink-0 overflow-hidden",
-                  sidebarCollapsed ? "w-10 h-10" : "w-14 h-14",
-                  isClientActive("/client-account") ? "ring-2 ring-offset-2 ring-offset-sidebar ring-primary" : "hover:opacity-90")}
-                style={{
-                  background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
-                  boxShadow: "0 4px 14px -2px rgba(0,0,0,0.35)",
-                }}>
-                <span className={cn("text-white select-none", sidebarCollapsed ? "text-sm" : "text-lg")}>
-                  {(user?.displayName || "ع").trim().charAt(0)}
+                className={cn("flex items-center transition-all rounded-xl",
+                  sidebarCollapsed ? "justify-center" : "gap-2.5 w-full px-1.5 py-1.5 hover:bg-white/[0.04]")}>
+                <span className={cn("relative rounded-full flex items-center justify-center font-black shrink-0 overflow-hidden",
+                  sidebarCollapsed ? "w-10 h-10" : "w-9 h-9",
+                  isClientActive("/client-account") ? "ring-2 ring-offset-2 ring-offset-sidebar ring-primary" : "")}
+                  style={{
+                    background: "linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.65) 100%)",
+                    boxShadow: "0 4px 14px -2px rgba(0,0,0,0.35)",
+                  }}>
+                  <span className={cn("text-white select-none", sidebarCollapsed ? "text-sm" : "text-xs")}>
+                    {(user?.displayName || "ع").trim().charAt(0)}
+                  </span>
                 </span>
-              </Link>
 
-              {!sidebarCollapsed && (
-                <div className="text-center min-w-0 px-2">
-                  <p className="text-xs font-bold text-sidebar-foreground truncate max-w-[190px]">{user?.displayName}</p>
-                  <p className="text-[10px] text-sidebar-foreground/40 mt-0.5">بوابة العميل</p>
-                </div>
-              )}
+                {!sidebarCollapsed && (
+                  <div className="text-right min-w-0 flex-1">
+                    <p className="text-xs font-bold text-sidebar-foreground truncate">{user?.displayName}</p>
+                    <p className="text-[10px] text-sidebar-foreground/40">بوابة العميل</p>
+                  </div>
+                )}
+              </Link>
             </div>
 
             {/* روابط التنقل */}
