@@ -40,6 +40,7 @@ type Client = {
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
   clientType: ClientType | null; warehouseId: number | null; defaultAdSource: string | null;
   whatsappGroupLink: string | null;
+  hasAccount?: boolean; accountUsername?: string | null;
 };
 
 // ── Tier config & badge ────────────────────────────────────────────────────
@@ -277,8 +278,8 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
         defaultAdSource: form.defaultAdSource || null,
         whatsappGroupLink: form.whatsappGroupLink || null,
       };
-      // ── حساب دخول اختياري — بس وقت الإضافة (مش التعديل)، ولو الأدمن فعّل الخيار وملأ البيانات ──
-      if (!isEdit && form.createAccount && form.username.trim() && form.password) {
+      // ── حساب دخول اختياري — وقت الإضافة، أو وقت التعديل لو العميل لسه من غير حساب ──
+      if (form.createAccount && form.username.trim() && form.password) {
         body.username = form.username.trim();
         body.password = form.password;
       }
@@ -288,7 +289,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
     onSuccess: (data: any) => {
       toast({
         title: isEdit ? "تم تحديث العميل" : "تمت إضافة العميل",
-        description: !isEdit && data?.createdAccount ? "تم إنشاء حساب الدخول للعميل بنجاح" : undefined,
+        description: data?.createdAccount ? "تم إنشاء حساب الدخول للعميل بنجاح" : undefined,
       });
       onSuccess(); onClose();
     },
@@ -297,7 +298,7 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
 
   const f = (k: keyof typeof form, v: any) => setForm(p => ({ ...p, [k]: v }));
 
-  const accountInvalid = !isEdit && form.createAccount &&
+  const accountInvalid = form.createAccount &&
     (form.username.trim().length < 3 || form.password.length < 6);
 
   return (
@@ -457,8 +458,16 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
               </SelectContent>
             </Select>
           </div>
-          {/* ── إنشاء حساب دخول للعميل (اختياري، وقت الإضافة فقط) ── */}
-          {!isEdit && (
+          {/* ── إنشاء حساب دخول للعميل (اختياري) — وقت الإضافة، أو وقت التعديل لو لسه من غير حساب ── */}
+          {isEdit && editClient?.hasAccount ? (
+            <div className="p-3 bg-emerald-900/15 border border-emerald-700/40 rounded-md flex items-center gap-2">
+              <KeyRound className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-xs">
+                هذا العميل لديه حساب دخول بالفعل
+                {editClient?.accountUsername ? <> — <span dir="ltr" className="font-bold">{editClient.accountUsername}</span></> : null}
+              </span>
+            </div>
+          ) : (
             <div className="p-3 bg-muted/20 rounded-md space-y-3">
               <div className="flex items-center gap-2">
                 <KeyRound className="w-3.5 h-3.5 text-primary shrink-0" />

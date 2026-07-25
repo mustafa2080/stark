@@ -162,6 +162,14 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       statsMap[s.clientId].totalPaid  += p;
     }
 
+    // هل كل عميل مرتبط بحساب دخول (يوزر) بالفعل؟
+    let accountClientIds = new Set<number>();
+    if (ids.length) {
+      const linkedUsers = await db.select({ clientId: usersTable.clientId })
+        .from(usersTable).where(inArray(usersTable.clientId, ids));
+      accountClientIds = new Set(linkedUsers.map(u => u.clientId).filter((v): v is number => v != null));
+    }
+
     const enriched = clients.map(c => {
       const s = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       return {
@@ -172,6 +180,7 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         totalOrders: s.totalOrders,
         totalSales:  String(s.totalSales),
         totalPaid:   String(s.totalPaid),
+        hasAccount:  accountClientIds.has(c.id),
       };
     });
 
@@ -318,6 +327,11 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
     const warehouseId = whRow?.warehouse_id ?? null;
     const whatsappGroupLink = whRow?.whatsapp_group_link ?? null;
 
+    // هل العميل ده مرتبط بحساب دخول (يوزر) بالفعل؟
+    const [linkedUser] = await db.select({ id: usersTable.id, username: usersTable.username })
+      .from(usersTable).where(eq(usersTable.clientId, id)).limit(1);
+    const hasAccount = !!linkedUser;
+
     // جلب أوامر البيع المرتبطة
     const orderConds: any[] = [eq(saleOrdersTable.clientName, client.name)];
     if (tenantId !== null) orderConds.push(eq(saleOrdersTable.tenantId, tenantId));
@@ -351,6 +365,8 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
       totalPaid:    String(totalPaid),
       deliveryRate,
       orders,
+      hasAccount,
+      accountUsername: linkedUser?.username ?? null,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -489,6 +505,7 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
 // ── PATCH /finance/clients/:id ───────────────────────────────────────────────
 router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
   try {
+    const tenantId = getTenantId(req);
     const id = parseInt(req.params.id);
     const parsed = ClientSchema.partial().safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -496,8 +513,8 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     const updates: any = { ...parsed.data, updatedAt: new Date() };
     if (parsed.data.creditLimit !== undefined) updates.creditLimit = String(parsed.data.creditLimit);
 
-    // warehouseId و region و defaultAdSource و whatsappGroupLink و zoneCostId/zoneCostDeliveryPrice يحتاجان raw SQL عشان الـ compiled Drizzle schema ممكن مش فيه الـ columns
-    const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, ...rest } = updates;
+    // warehouseId و region و defaultAdSource و whatsappGroupLink و zoneCostId/zoneCostDeliveryPrice و username/password يحتاجان معالجة خاصة — بره التحديث المباشر لجدول clients
+    const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, username, password, ...rest } = updates;
     await db.update(clientsTable).set(rest).where(eq(clientsTable.id, id));
     if (warehouseId !== undefined) {
       await db.execute(sql`UPDATE clients SET warehouse_id = ${warehouseId ?? null} WHERE id = ${id}`);
@@ -521,9 +538,55 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
+    // ── لو الأدمن بعت username/password أثناء التعديل، وكان العميل ده لسه من غير حساب دخول → أنشئ الحساب دلوقتي ──
+    let createdAccount = false;
+    if (username && password) {
+      const [existingAccount] = await db.select({ id: usersTable.id })
+        .from(usersTable).where(eq(usersTable.clientId, id)).limit(1);
+
+      if (existingAccount) {
+        res.status(409).json({ error: "هذا العميل لديه حساب دخول بالفعل" });
+        return;
+      }
+
+      const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, "");
+      if (cleanUsername.length < 3) {
+        res.status(400).json({ error: "اسم المستخدم يجب أن يكون 3 أحرف إنجليزية/أرقام على الأقل" });
+        return;
+      }
+      if (password.length < 6) {
+        res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+        return;
+      }
+      const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.username, cleanUsername)).limit(1);
+      if (existingUser) {
+        res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل، يرجى اختيار اسم آخر" });
+        return;
+      }
+
+      const now = new Date();
+      const passwordHash = await hashPassword(password);
+      await db.insert(usersTable).values({
+        ...(tenantId !== null ? { tenantId } : {}),
+        username: cleanUsername,
+        displayName: client.name,
+        passwordHash,
+        role: "client",
+        permissions: JSON.stringify(["client.view"]),
+        phone: client.phone || null,
+        email: client.email || null,
+        clientId: id,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      } as any);
+      createdAccount = true;
+    }
+
     // جلب warehouse_id و default_ad_source و whatsapp_group_link و zone_cost_id/zone_cost_delivery_price بـ raw SQL عشان نضمن رجوعهم في الـ response مهما كانت حالة الـ compiled schema
     const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link, zone_cost_id, zone_cost_delivery_price FROM clients WHERE id = ${id}`) as any;
-    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null });
+    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null, createdAccount });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

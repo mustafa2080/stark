@@ -66,46 +66,46 @@ export default function ClientShipmentsPage() {
   const pageSize = 20;
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
-      <div className="max-w-[1400px] mx-auto space-y-5">
+    <div className="min-h-screen -m-4 md:-m-6 p-3 sm:p-4 md:p-6 bg-background" dir="rtl">
+      <div className="max-w-[1400px] mx-auto space-y-4 md:space-y-5">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex flex-col gap-3">
           <div>
-            <h1 className="text-2xl font-black text-foreground">قائمة الشحنات</h1>
-            <p className="text-sm text-muted-foreground mt-1">كل شحناتك المسجلة في حسابك</p>
+            <h1 className="text-lg sm:text-2xl font-black text-foreground">قائمة الشحنات</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">كل شحناتك المسجلة في حسابك</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
             <button onClick={() => navigate("/client-shipments/new")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-foreground text-background">
-              <Plus size={15} /> إنشاء شحنة
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-sm font-bold bg-foreground text-background">
+              <Plus size={14} className="shrink-0" /> <span className="truncate">إنشاء شحنة</span>
             </button>
             <button onClick={() => navigate("/client-shipments/import")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
-              <Upload size={15} /> تحميل من إكسيل
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              <Upload size={14} className="shrink-0" /> <span className="truncate">تحميل إكسيل</span>
             </button>
             <button onClick={() => refetch()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
-              <RefreshCcw size={15} /> تحديث
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-sm font-bold text-foreground/70 bg-muted/40 border border-border">
+              <RefreshCcw size={14} className="shrink-0" /> <span className="truncate">تحديث</span>
             </button>
           </div>
         </div>
 
         {/* ── Shipments Table ── */}
         <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
-          <div className="flex items-center justify-between flex-wrap gap-3 p-4 border-b border-border">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-border">
             <p className="text-sm font-black text-foreground">
               {totalShipments > 0 ? `${fn(totalShipments)} شحنة` : "شحناتي"}
             </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative w-full sm:w-auto">
                 <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                   placeholder="بحث بالكود أو الاسم..."
-                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-52 bg-muted/50 border border-border" />
+                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-full sm:w-52 bg-muted/50 border border-border" />
                 <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
               </div>
               <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="py-2 px-3 rounded-lg text-xs text-foreground outline-none bg-muted/50 border border-border">
+                className="py-2 px-3 rounded-lg text-xs text-foreground outline-none w-full sm:w-auto bg-muted/50 border border-border">
                 <option value="all">كل الحالات</option>
                 <option value="delivered">تم التسليم</option>
                 <option value="in_transit">قيد التوصيل</option>
@@ -118,8 +118,41 @@ export default function ClientShipmentsPage() {
             </div>
           </div>
 
-          {/* ── Table body ── */}
-          <div className="overflow-x-auto">
+          {/* ── Mobile: cards ── */}
+          <div className="md:hidden divide-y divide-border">
+            {isLoading ? (
+              <div className="text-center py-10 text-muted-foreground text-sm">جارٍ التحميل...</div>
+            ) : shipments.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-14 text-muted-foreground">
+                <Package size={40} className="opacity-30" />
+                <p className="text-sm">لا توجد شحنات مطابقة</p>
+              </div>
+            ) : shipments.map(s => {
+              const meta = statusMeta(s.status);
+              return (
+                <button key={s.id} onClick={() => navigate(`/client-shipment-detail/${s.id}`)}
+                  className="w-full text-right p-3.5 flex flex-col gap-2 active:bg-muted/40 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-foreground/60 truncate">{s.trackingNumber || s.shipmentNumber || s.id}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0" style={{ background: meta.bg, color: meta.color }}>
+                      {meta.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-foreground/85 truncate">{s.receiverName}</span>
+                    <span className="text-sm font-black text-foreground shrink-0">{fn(Number(s.codAmount ?? 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <span className="truncate">{s.receiverCity || "—"}</span>
+                    <span className="shrink-0">{s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── Table body (desktop) ── */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs" dir="rtl">
               <thead>
                 <tr className="bg-muted/40">
@@ -171,11 +204,11 @@ export default function ClientShipmentsPage() {
 
           {/* ── Pagination ── */}
           {totalShipments > pageSize && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-              <span className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border gap-2">
+              <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
                 عرض {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalShipments)} من {fn(totalShipments)}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold text-foreground/70 disabled:opacity-30 bg-muted/50">السابق</button>
                 <button disabled={page * pageSize >= totalShipments} onClick={() => setPage(p => p + 1)}
