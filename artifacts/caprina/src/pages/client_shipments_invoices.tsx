@@ -140,12 +140,20 @@ export default function FinanceShippingInvoices() {
       return `
         <div class="inv-card">
           <div class="inv-header">
-            <div>
-              <div class="inv-title">فاتورة شحن</div>
-              <div class="inv-meta">${inv.invoiceNumber} · ${company?.name ?? "—"} · ${dateLabel}</div>
-              <div class="inv-meta">عدد الشحنات: ${shipments.length} · الحالة: ${statusAr}</div>
+            <div class="brand-block">
+              <div class="brand-name">S T A R K</div>
+              <div class="pay-mode">فاتورة شحن</div>
             </div>
-            <img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/>
+            <div class="tt-block">
+              <div class="tt-label">رقم الفاتورة</div>
+              <div class="tt-num">${inv.invoiceNumber}</div>
+            </div>
+          </div>
+          <div class="meta-row">
+            <span>${company?.name ?? "—"}</span>
+            <span>${dateLabel}</span>
+            <span>عدد الشحنات: ${shipments.length}</span>
+            <span>الحالة: ${statusAr}</span>
           </div>
           <table>
             <thead><tr>
@@ -154,9 +162,9 @@ export default function FinanceShippingInvoices() {
             <tbody>${rowsHtml}${shipments.length > 12 ? `<tr><td colspan="6" style="text-align:center;color:#888;font-style:italic">... و${shipments.length - 12} شحنة أخرى</td></tr>` : ""}</tbody>
           </table>
           <div class="summary">
-            <div class="s-row"><span>إجمالي رسوم الشحن</span><span>${fmtEN(totalShippingFees)} ج</span></div>
-            <div class="s-row"><span>إجمالي COD</span><span>${fmtEN(totalCodAmount)} ج</span></div>
-            <div class="s-row total"><span>صافي المستحق</span><span class="green">${fmtEN(netDue)} ج</span></div>
+            <div class="s-row"><span>إجمالي رسوم الشحن</span><span>${fmtEN(totalShippingFees)} ج.م</span></div>
+            <div class="s-row"><span>إجمالي COD</span><span>${fmtEN(totalCodAmount)} ج.م</span></div>
+            <div class="s-row total"><span>صافي المستحق</span><span class="green">${fmtEN(netDue)} ج.م</span></div>
           </div>
         </div>`;
     }).join("");
@@ -198,8 +206,14 @@ html,body{width:100%;height:100%;font-family:'Cairo',Arial,sans-serif;background
   background:#fff;
 }
 
-/* هيدر */
-.inv-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #222;padding-bottom:5px;margin-bottom:4px}
+/* هيدر بستايل STARK */
+.inv-header{display:flex;justify-content:space-between;align-items:center;background:#111;color:#fff;padding:5px 8px;border-radius:4px;margin-bottom:4px}
+.brand-name{font-size:11px;font-weight:900;letter-spacing:1.5px;color:#fff}
+.pay-mode{font-size:6.5px;color:#F59E0B;font-weight:800;margin-top:1px}
+.tt-block{text-align:left}
+.tt-label{font-size:6px;color:#aaa;font-weight:700}
+.tt-num{font-size:8.5px;color:#F59E0B;font-weight:900}
+.meta-row{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:6.8px;color:#555;font-weight:700;margin-bottom:4px;border-bottom:1px dashed #ddd;padding-bottom:4px}
 .inv-title{font-size:11px;font-weight:900;color:#111;margin-bottom:2px}
 .inv-meta{font-size:7.5px;color:#555;font-weight:600;line-height:1.5}
 .logo{width:38px;height:38px;object-fit:contain}
@@ -351,11 +365,24 @@ ${invoiceCards}
 body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;font-size:15px;direction:rtl}
 .page{max-width:900px;margin:24px auto;background:#fff;padding:32px 36px}
 
-/* ── HEADER ── */
+/* ── HEADER (ستايل STARK) ── */
 .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #ddd;margin-bottom:18px}
 .header-left .inv-title{font-size:26px;font-weight:900;color:#111;margin-bottom:6px}
 .header-left .inv-meta{font-size:14px;color:#555;line-height:2;font-weight:600}
 .header-right .logo{width:140px;height:140px;border-radius:12px;object-fit:contain;border:none;background:transparent;margin-top:16px}
+
+.stark-header{background:#111;border-radius:10px;padding:18px 24px;align-items:center;border:none}
+.stark-brand{font-size:22px;font-weight:900;letter-spacing:3px;color:#fff;margin-bottom:4px}
+.stark-header .inv-title{font-size:13px;font-weight:700;color:#F59E0B;margin-bottom:0}
+.tt-box{text-align:left}
+.tt-box .tt-label{font-size:12px;color:#aaa;font-weight:700;margin-bottom:2px}
+.tt-box .tt-num{font-size:20px;color:#F59E0B;font-weight:900}
+
+/* شريط بيانات الفاتورة */
+.meta-strip{display:flex;justify-content:space-between;gap:16px;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px 20px;margin-bottom:18px;flex-wrap:wrap}
+.meta-item{display:flex;flex-direction:column;gap:2px;text-align:center}
+.meta-item .m-label{font-size:11px;color:#888;font-weight:700}
+.meta-item .m-val{font-size:14px;color:#111;font-weight:800}
 
 /* ── INFO BAR ── */
 .info-bar{background:#fafafa;border:1px solid #ddd;color:#111;border-radius:8px;padding:12px 20px;display:flex;justify-content:center;align-items:center;margin-bottom:18px;gap:16px;flex-wrap:wrap}
@@ -407,27 +434,21 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 <div class="page">
 
   <!-- HEADER -->
-  <div class="header">
+  <div class="header stark-header">
     <div class="header-left">
+      <div class="stark-brand">S T A R K</div>
       <div class="inv-title">فاتورة شحن</div>
-      <div class="inv-meta">
-        رقم الفاتورة: ${inv.invoiceNumber}<br>
-        شركة الشحن: ${inv.shippingCompanyName || "—"}<br>
-        التاريخ: ${dateLabel}<br>
-        عدد الشحنات: ${shipments.length}
-      </div>
     </div>
-    <div class="header-right">
-      <img class="logo" src="${logoUrl}" alt="Logo" onerror="this.style.display='none'"/>
+    <div class="header-right tt-box">
+      <div class="tt-label">رقم الفاتورة</div>
+      <div class="tt-num">${inv.invoiceNumber}</div>
     </div>
   </div>
 
-  <!-- INFO BAR -->
-  <div class="info-bar">
-    <div class="info-item">
-      <div class="i-label">عدد الشحنات</div>
-      <div class="i-value highlight">${shipments.length}</div>
-    </div>
+  <div class="meta-strip">
+    <div class="meta-item"><span class="m-label">شركة الشحن</span><span class="m-val">${inv.shippingCompanyName || "—"}</span></div>
+    <div class="meta-item"><span class="m-label">التاريخ</span><span class="m-val">${dateLabel}</span></div>
+    <div class="meta-item"><span class="m-label">عدد الشحنات</span><span class="m-val">${shipments.length}</span></div>
   </div>
 
   <!-- SHIPMENTS TABLE -->
@@ -593,6 +614,13 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(inv.id)}
+                      onChange={(e) => { e.stopPropagation(); toggleSelect(inv.id); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 rounded shrink-0 cursor-pointer accent-indigo-500"
+                    />
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                       style={{ background: st.solid, border: `1px solid ${st.glow.replace("0.25","0.40")}` }}>
                       <Truck className="w-5 h-5" style={{ color: st.color }} />
@@ -615,6 +643,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       style={{ background: st.solid, color: st.color, border: `1px solid ${st.glow}` }}>
                       {st.label}
                     </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }}
+                      className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg font-bold text-[11px] transition-all hover:opacity-80"
+                      style={{
+                        background: "rgba(99,102,241,0.15)",
+                        border: "1.5px solid rgba(99,102,241,0.40)",
+                        color: "#818cf8",
+                      }}>
+                      <Printer className="w-3.5 h-3.5" />
+                      طباعة
+                    </button>
                   </div>
                 </div>
 
