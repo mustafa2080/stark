@@ -1,1 +1,0 @@
-ALTER TABLE shipping_companies ADD COLUMN IF NOT EXISTS logo LONGTEXT NULL;

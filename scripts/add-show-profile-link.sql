@@ -1,1 +1,0 @@
-ALTER TABLE users ADD COLUMN show_profile_link TINYINT(1) NOT NULL DEFAULT 1;

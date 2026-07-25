@@ -34,6 +34,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   cancelled:         { label: "ملغية",               color: "#dc2626", bg: "rgba(239,68,68,0.12)" },
   partial_received:  { label: "استلام جزئي",         color: "#9333ea", bg: "rgba(168,85,247,0.12)" },
   still_in_warehouse:{ label: "في المخزن",           color: "#0891b2", bg: "rgba(6,182,212,0.12)" },
+  warehouse_ready:   { label: "قيد الشحن في المخزن", color: "#7c3aed", bg: "rgba(124,58,237,0.12)" },
 };
 function statusMeta(status: string) {
   return STATUS_LABELS[status] ?? { label: status, color: "#64748b", bg: "rgba(100,116,139,0.12)" };
@@ -114,6 +115,7 @@ export default function ClientShipmentsPage() {
                 <option value="delayed">متأخرة</option>
                 <option value="cancelled">ملغية</option>
                 <option value="partial_received">استلام جزئي</option>
+                <option value="warehouse_ready">قيد الشحن في المخزن</option>
               </select>
             </div>
           </div>
