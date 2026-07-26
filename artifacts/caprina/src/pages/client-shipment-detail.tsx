@@ -3861,14 +3861,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
                 {/* ── Header: اسم المستلم + الـ badges ── */}
                 <div className="px-5 pt-4 pb-3 border-b border-border/50">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
                     <div className="min-w-0">
                       <p className="text-[10px] text-muted-foreground font-semibold mb-1">المستلم</p>
-                      <h2 className="text-xl font-black text-foreground leading-tight">
+                      <h2 className="text-lg sm:text-xl font-black text-foreground leading-tight break-words">
                         {(order as any).receiverName || order.customerName || "—"}
                       </h2>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap sm:justify-end">
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                         {statusLabels[order.status] || order.status}
                       </Badge>
@@ -3930,21 +3930,21 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
                 {/* ── الملخص المالي — 4 خانات ── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border/50">
-                  <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
-                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">حالة الشحنة (الفتح)</p>
-                    <p className="text-sm font-black text-foreground">
-                      {(order as any).canOpen === 1 || (order as any).canOpen === "1" ? "مسموح بفتح الشحنة" : (order as any).canOpen === 0 || (order as any).canOpen === "0" ? "غير مسموح بفتح الشحنة" : "—"}
+                  <div className="px-2.5 sm:px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground mb-1 font-medium leading-tight">حالة الشحنة (الفتح)</p>
+                    <p className="text-xs sm:text-sm font-black text-foreground leading-snug">
+                      {(order as any).canOpen === 1 || (order as any).canOpen === "1" ? "مسموح بالفتح" : (order as any).canOpen === 0 || (order as any).canOpen === "0" ? "غير مسموح" : "—"}
                     </p>
                   </div>
-                  <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
-                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">تجزئة الشحنة</p>
-                    <p className="text-sm font-black text-foreground">
+                  <div className="px-2.5 sm:px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground mb-1 font-medium leading-tight">تجزئة الشحنة</p>
+                    <p className="text-xs sm:text-sm font-black text-foreground leading-snug">
                       {(order as any).isDivisible === 1 || (order as any).isDivisible === "1" ? "قابلة للتجزئة" : (order as any).isDivisible === 0 || (order as any).isDivisible === "0" ? "غير قابلة" : "—"}
                     </p>
                   </div>
-                  <div className="px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
-                    <p className="text-[10px] text-muted-foreground mb-1 font-medium">حالة الرفض</p>
-                    <p className="text-sm font-black text-foreground">
+                  <div className="px-2.5 sm:px-4 py-3.5 text-center" style={{borderLeft:"1px solid hsl(var(--border)/0.5)"}}>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground mb-1 font-medium leading-tight">حالة الرفض</p>
+                    <p className="text-xs sm:text-sm font-black text-foreground leading-snug">
                       {(order as any).rejectionPolicy === "full_fee" ? "دفع الشحن كاملا" : (order as any).rejectionPolicy === "free" ? "الشحن مجانا" : "—"}
                     </p>
                   </div>
