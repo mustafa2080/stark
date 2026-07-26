@@ -112,23 +112,19 @@ export default function ClientManifestViewPage() {
   const totalShippingCost = manifest.items.reduce((s, i) => s + Number(i.shippingCost || 0), 0);
 
   // توزيع الشحنات على المخازن والمندوبين — بيانات موجودة أصلاً من الـ API ومش معروضة سابقًا
-  const warehouseBreakdown = useMemo(() => {
-    const map = new Map<string, number>();
-    manifest.items.forEach((i) => {
-      const name = i.warehouseName || "غير محدد";
-      map.set(name, (map.get(name) || 0) + 1);
-    });
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [manifest.items]);
+  const warehouseMap = new Map<string, number>();
+  manifest.items.forEach((i) => {
+    const name = i.warehouseName || "غير محدد";
+    warehouseMap.set(name, (warehouseMap.get(name) || 0) + 1);
+  });
+  const warehouseBreakdown = Array.from(warehouseMap.entries()).sort((a, b) => b[1] - a[1]);
 
-  const representativeBreakdown = useMemo(() => {
-    const map = new Map<string, number>();
-    manifest.items.forEach((i) => {
-      const name = i.representativeName || "غير محدد";
-      map.set(name, (map.get(name) || 0) + 1);
-    });
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [manifest.items]);
+  const repMap = new Map<string, number>();
+  manifest.items.forEach((i) => {
+    const name = i.representativeName || "غير محدد";
+    repMap.set(name, (repMap.get(name) || 0) + 1);
+  });
+  const representativeBreakdown = Array.from(repMap.entries()).sort((a, b) => b[1] - a[1]);
 
   return (
     <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background print:m-0 print:p-0" dir="rtl">
