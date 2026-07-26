@@ -111,41 +111,69 @@ export default function ClientManifestViewPage() {
   const totalCod = manifest.items.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
   const totalShippingCost = manifest.items.reduce((s, i) => s + Number(i.shippingCost || 0), 0);
 
+  // توزيع الشحنات على المخازن والمندوبين — بيانات موجودة أصلاً من الـ API ومش معروضة سابقًا
+  const warehouseBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    manifest.items.forEach((i) => {
+      const name = i.warehouseName || "غير محدد";
+      map.set(name, (map.get(name) || 0) + 1);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [manifest.items]);
+
+  const representativeBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    manifest.items.forEach((i) => {
+      const name = i.representativeName || "غير محدد";
+      map.set(name, (map.get(name) || 0) + 1);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [manifest.items]);
+
   return (
     <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background print:m-0 print:p-0" dir="rtl">
       <div className="max-w-[1200px] mx-auto space-y-5">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
-          <div className="flex items-center gap-3">
-            <Link href="/client-manifests">
-              <button className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/40 border border-border hover:bg-muted/60 transition-colors">
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black text-foreground">{manifest.manifestNumber}</h1>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                  isOpen
-                    ? "bg-emerald-900/30 text-emerald-400 border border-emerald-800"
-                    : "bg-muted text-muted-foreground border border-border"
-                }`}>
-                  {isOpen ? <LockOpen className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
-                  {isOpen ? "مفتوح" : "مغلق"}
-                </span>
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/40 via-muted/10 to-transparent p-4 sm:p-5 print:hidden">
+          <div className={`absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-40 ${isOpen ? "bg-emerald-500/30" : "bg-slate-400/20"}`} />
+          <div className="relative flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <Link href="/client-manifests">
+                <button className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/40 border border-border hover:bg-muted/60 hover:border-primary/40 transition-all">
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </Link>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">{manifest.manifestNumber}</h1>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm ${
+                    isOpen
+                      ? "bg-emerald-900/30 text-emerald-400 border border-emerald-700/60 shadow-emerald-900/30"
+                      : "bg-muted text-muted-foreground border border-border"
+                  }`}>
+                    {isOpen ? <LockOpen className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
+                    {isOpen ? "مفتوح" : "مغلق"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5">
+                  {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
+                  {manifest.closedAt && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                      أُغلق في {format(new Date(manifest.closedAt), "d MMMM yyyy", { locale: ar })}
+                    </span>
+                  )}
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
-              </p>
             </div>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border hover:bg-muted/60 hover:border-primary/30 transition-all shadow-sm"
+            >
+              <Printer size={15} /> طباعة
+            </button>
           </div>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border hover:bg-muted/60 transition-colors"
-          >
-            <Printer size={15} /> طباعة
-          </button>
         </div>
 
         {/* ── Highlight cards (مؤجل / مرتجع لم يصل / الشحنات الجديدة / الإجمالي) — بس للبيان المفتوح ── */}
@@ -189,6 +217,18 @@ export default function ClientManifestViewPage() {
           </div>
         )}
 
+        {/* ── توزيع المخازن والمندوبين — بس للبيان المفتوح ولو فيه أكتر من مصدر واحد ── */}
+        {isOpen && (warehouseBreakdown.length > 1 || representativeBreakdown.length > 1) && (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {warehouseBreakdown.length > 1 && (
+              <BreakdownCard title="توزيع الشحنات على المخازن" icon={Layers} tone="sky" data={warehouseBreakdown} total={sc.total} />
+            )}
+            {representativeBreakdown.length > 1 && (
+              <BreakdownCard title="توزيع الشحنات على المندوبين" icon={Truck} tone="violet" data={representativeBreakdown} total={sc.total} />
+            )}
+          </div>
+        )}
+
         {/* ── Closed manifest summary — عرض بسيط واحترافي بدون إحصائيات متابعة لحظية ── */}
         {!isOpen && (
           <div className="rounded-2xl border border-border bg-muted/15 p-5">
@@ -219,26 +259,31 @@ export default function ClientManifestViewPage() {
 
         {/* ── Progress bar — بس للبيان المفتوح ── */}
         {isOpen && (
-          <div className="rounded-2xl border border-border bg-muted/20 p-4">
+          <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-md shadow-black/10">
             <div className="flex items-center justify-between text-xs mb-2">
-              <span className="text-muted-foreground">نسبة التسليم</span>
-              <span className="font-black text-emerald-400 text-lg">{deliveryPct}%</span>
+              <span className="text-muted-foreground font-bold">نسبة التسليم</span>
+              <span className="font-black text-emerald-400 text-lg drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">{deliveryPct}%</span>
             </div>
             <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${deliveryPct}%` }} />
+              <div
+                className="h-full bg-gradient-to-l from-emerald-400 to-emerald-600 rounded-full transition-all shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                style={{ width: `${deliveryPct}%` }}
+              />
             </div>
           </div>
         )}
 
         {/* ── Financial summary ── */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-border bg-muted/20 p-4">
-            <p className="text-[11px] text-muted-foreground mb-1">إجمالي قيمة الشحنات</p>
-            <p className="text-lg font-black">{formatCurrency(totalCod)}</p>
+          <div className="relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-emerald-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
+            <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-emerald-500/20" />
+            <p className="relative text-[11px] text-muted-foreground mb-1">إجمالي قيمة الشحنات</p>
+            <p className="relative text-xl font-black text-emerald-300">{formatCurrency(totalCod)}</p>
           </div>
-          <div className="rounded-2xl border border-border bg-muted/20 p-4">
-            <p className="text-[11px] text-muted-foreground mb-1">إجمالي تكلفة الشحن</p>
-            <p className="text-lg font-black">{formatCurrency(totalShippingCost)}</p>
+          <div className="relative overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-sky-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
+            <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-sky-500/20" />
+            <p className="relative text-[11px] text-muted-foreground mb-1">إجمالي تكلفة الشحن</p>
+            <p className="relative text-xl font-black text-sky-300">{formatCurrency(totalShippingCost)}</p>
           </div>
         </div>
 
@@ -249,18 +294,18 @@ export default function ClientManifestViewPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ابحث باسم العميل أو رقم الشحنة أو الهاتف..."
-            className="w-full h-10 rounded-xl bg-muted/30 border border-border pr-10 pl-3 text-sm outline-none focus:border-primary/50"
+            className="w-full h-11 rounded-xl bg-muted/25 border border-border pr-10 pl-3 text-sm outline-none focus:border-primary/50 focus:bg-muted/35 focus:shadow-[0_0_0_3px_rgba(var(--primary-rgb,59,130,246),0.1)] transition-all"
           />
         </div>
 
         {/* ── Table ── */}
-        <div className="rounded-2xl border border-border bg-muted/10 overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <div className="rounded-2xl border border-border bg-muted/10 overflow-hidden shadow-lg shadow-black/10">
+          <div className="px-4 py-3.5 border-b border-border flex items-center justify-between bg-gradient-to-l from-muted/30 to-transparent">
             <p className="text-sm font-black flex items-center gap-2">
               <Package className="w-4 h-4 text-primary" />
               الشحنات في البيان
             </p>
-            <span className="text-[11px] text-muted-foreground">{filteredItems.length} شحنة</span>
+            <span className="text-[11px] text-muted-foreground font-bold px-2.5 py-1 rounded-full bg-muted/40 border border-border/60">{filteredItems.length} شحنة</span>
           </div>
 
           <div className="hidden md:grid grid-cols-[1fr_1fr_1fr_90px_100px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
@@ -283,8 +328,9 @@ export default function ClientManifestViewPage() {
 
         {/* ── بضاعة لسه مع مندوب الشحن ── */}
         {stillAtShipping.length > 0 && (
-          <div className="rounded-2xl border border-orange-800/60 bg-orange-950/20 overflow-hidden print:hidden">
-            <div className="px-4 py-3 border-b border-orange-800/40 flex items-center gap-2">
+          <div className="relative overflow-hidden rounded-2xl border border-orange-700/50 bg-gradient-to-br from-orange-950/30 via-orange-950/10 to-transparent shadow-lg shadow-black/10 print:hidden">
+            <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full blur-3xl opacity-30 bg-orange-500/30" />
+            <div className="relative px-4 py-3 border-b border-orange-800/40 flex items-center gap-2">
               <Truck className="w-4 h-4 text-orange-400" />
               <p className="text-sm font-black text-orange-300">
                 بضاعة لسه مع مندوب الشحن ({stillAtShipping.length})
@@ -357,6 +403,45 @@ function HighlightCard({ icon: Icon, value, label, tone }: {
           <p className={`text-2xl font-black leading-none ${toneStyles.value}`}>{value}</p>
           <p className="text-[11px] text-muted-foreground mt-1 truncate">{label}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function BreakdownCard({ title, icon: Icon, tone, data, total }: {
+  title: string;
+  icon: React.ElementType;
+  tone: "sky" | "violet";
+  data: [string, number][];
+  total: number;
+}) {
+  const toneStyles = {
+    sky: { border: "border-sky-500/25", glow: "bg-sky-500/20", icon: "text-sky-400", bar: "from-sky-400 to-sky-600" },
+    violet: { border: "border-violet-500/25", glow: "bg-violet-500/20", icon: "text-violet-400", bar: "from-violet-400 to-violet-600" },
+  }[tone];
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border ${toneStyles.border} bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-lg shadow-black/10`}>
+      <div className={`absolute -top-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-40 ${toneStyles.glow}`} />
+      <div className="relative flex items-center gap-2 mb-3">
+        <Icon className={`w-4 h-4 ${toneStyles.icon}`} />
+        <p className="text-sm font-black text-foreground">{title}</p>
+      </div>
+      <div className="relative space-y-2">
+        {data.slice(0, 5).map(([name, count]) => {
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          return (
+            <div key={name}>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-foreground/80 font-bold truncate">{name}</span>
+                <span className="text-muted-foreground shrink-0">{count} ({pct}%)</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div className={`h-full bg-gradient-to-l ${toneStyles.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
