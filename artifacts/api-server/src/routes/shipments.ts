@@ -399,17 +399,24 @@ router.get("/shipments", async (req, res): Promise<void> => {
       conditions.push(eq(shipmentsTable.clientId, parseInt(clientId)));
     }
     if (search) {
-      conditions.push(
+      // نقسّم نص البحث على مسافات، وكل كلمة لازم تتطابق مستقلة في أي عمود
+      // ده بيخلي البحث بالاسم يشتغل بغض النظر عن ترتيب الكلمات (مثلا "أنس خالد" أو "خالد أنس")
+      const searchWords = search.trim().split(/\s+/).filter(Boolean);
+      const buildOr = (word: string) =>
         or(
-          like(shipmentsTable.senderName,      `%${search}%`),
-          like(shipmentsTable.receiverName,     `%${search}%`),
-          like(shipmentsTable.receiverPhone,    `%${search}%`),
-          like(shipmentsTable.senderPhone,      `%${search}%`),
-          like(shipmentsTable.shipmentNumber,   `%${search}%`),
-          like(shipmentsTable.trackingNumber,   `%${search}%`),
-          like(shipmentsTable.receiverCity,     `%${search}%`),
-        )
-      );
+          like(shipmentsTable.senderName,      `%${word}%`),
+          like(shipmentsTable.receiverName,     `%${word}%`),
+          like(shipmentsTable.receiverPhone,    `%${word}%`),
+          like(shipmentsTable.senderPhone,      `%${word}%`),
+          like(shipmentsTable.shipmentNumber,   `%${word}%`),
+          like(shipmentsTable.trackingNumber,   `%${word}%`),
+          like(shipmentsTable.receiverCity,     `%${word}%`),
+        );
+      if (searchWords.length > 1) {
+        conditions.push(and(...searchWords.map(buildOr)));
+      } else {
+        conditions.push(buildOr(search));
+      }
     }
 
     const where = conditions.length ? and(...conditions) : undefined;
