@@ -399,24 +399,13 @@ router.get("/shipments", async (req, res): Promise<void> => {
       conditions.push(eq(shipmentsTable.clientId, parseInt(clientId)));
     }
     if (search) {
-      // نقسّم نص البحث على مسافات، وكل كلمة لازم تتطابق مستقلة في أي عمود
-      // ده بيخلي البحث بالاسم يشتغل بغض النظر عن ترتيب الكلمات (مثلا "أنس خالد" أو "خالد أنس")
-      const searchWords = search.trim().split(/\s+/).filter(Boolean);
-      const buildOr = (word: string) =>
+      // مربع البحث ده بيدور برقم الهاتف بس (المستلم أو الراسل)
+      conditions.push(
         or(
-          like(shipmentsTable.senderName,      `%${word}%`),
-          like(shipmentsTable.receiverName,     `%${word}%`),
-          like(shipmentsTable.receiverPhone,    `%${word}%`),
-          like(shipmentsTable.senderPhone,      `%${word}%`),
-          like(shipmentsTable.shipmentNumber,   `%${word}%`),
-          like(shipmentsTable.trackingNumber,   `%${word}%`),
-          like(shipmentsTable.receiverCity,     `%${word}%`),
-        );
-      if (searchWords.length > 1) {
-        conditions.push(and(...searchWords.map(buildOr)));
-      } else {
-        conditions.push(buildOr(search));
-      }
+          like(shipmentsTable.receiverPhone,    `%${search}%`),
+          like(shipmentsTable.senderPhone,      `%${search}%`),
+        )
+      );
     }
 
     const where = conditions.length ? and(...conditions) : undefined;

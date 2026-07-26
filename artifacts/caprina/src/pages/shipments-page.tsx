@@ -1000,8 +1000,12 @@ export default function Orders() {
   const inManifestSet = new Set(inManifestData?.ids ?? []);
 
   const filtered = (Array.isArray(orders) ? orders : []).filter((o: any) => {
-    if (customerSearch && !o.senderName?.toLowerCase().includes(customerSearch.toLowerCase()) &&
-        !o.receiverName?.toLowerCase().includes(customerSearch.toLowerCase())) return false;
+    if (customerSearch) {
+      const words = customerSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      const receiver = (o.receiverName ?? "").toLowerCase();
+      const matchesAll = words.every((w: string) => receiver.includes(w));
+      if (!matchesAll) return false;
+    }
     if (totalSearch && !String(Math.round(Number(o.totalAmount || 0))).includes(totalSearch)) return false;
     return true;
   });
@@ -1643,7 +1647,7 @@ export default function Orders() {
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="ابحث بالمنتج أو الهاتف..." className="pr-9 bg-card text-sm h-9" value={search} onChange={e => setSearch(e.target.value)} />
+              <Input placeholder="ابحث برقم الهاتف..." className="pr-9 bg-card text-sm h-9" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="w-full sm:w-48 bg-card h-9 text-sm">

@@ -457,7 +457,7 @@ function ProtectedRoute({ permission, component: Comp }: { permission: string; c
 
   if (!hasAccess) {
     if (permission === "dashboard.view") {
-      if (can("orders.view"))    return <Redirect to="/orders" />;
+      if (can("orders.view"))    return <Redirect to="/shipments-list" />;
       if (can("inventory.view")) return <Redirect to="/inventory" />;
       if (can("analytics.view")) return <Redirect to="/product-performance" />;
       if (can("finance.view"))   return <Redirect to="/finance" />;
@@ -556,7 +556,7 @@ function Router() {
           <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
           <Route path="/operations-center"        component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
-          <Route path="/orders"                   component={() => <ProtectedRoute permission="orders.view" component={ShipmentsPage} />} />
+          <Route path="/shipments-list"           component={() => <ProtectedRoute permission="orders.view" component={ShipmentsPage} />} />
           <Route path="/shipments/new"            component={() => <ProtectedRoute permission="orders.create" component={NewShipmentPage} />} />
           <Route path="/shipments/:id/edit"       component={() => <ProtectedRoute permission="orders.edit"   component={NewShipmentPage} />} />
           <Route path="/shipments/:id"            component={() => <ProtectedRoute permission="orders.view" component={ShipmentDetailPage} />} />
