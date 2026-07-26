@@ -148,53 +148,87 @@ export default function ClientManifestViewPage() {
           </button>
         </div>
 
-        {/* ── Highlight cards (مؤجل / مرتجع لم يصل / الشحنات الجديدة / الإجمالي) ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <HighlightCard
-            icon={Clock}
-            value={sc.delayed}
-            label="مؤجل"
-            tone="amber"
-          />
-          <HighlightCard
-            icon={PackageX}
-            value={returnedNotArrived}
-            label="مرتجع لم يصل"
-            tone="rose"
-          />
-          <HighlightCard
-            icon={Sparkles}
-            value={newItemsCount}
-            label="الشحنات الجديدة"
-            tone="sky"
-          />
-          <HighlightCard
-            icon={Layers}
-            value={sc.total}
-            label="الإجمالي"
-            tone="violet"
-          />
-        </div>
-
-        {/* ── Stats cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <StatCard icon={Package} value={sc.total} label="إجمالي الشحنات" tone="violet" />
-          <StatCard icon={CheckCircle2} value={sc.delivered} label="مسلَّم" tone="emerald" />
-          <StatCard icon={Clock} value={sc.pending} label="قيد الانتظار" tone="muted" />
-          <StatCard icon={AlertCircle} value={sc.delayed} label="مؤجل" tone="orange" />
-          <StatCard icon={RotateCcw} value={sc.returned} label="مرتجع" tone="red" />
-        </div>
-
-        {/* ── Progress bar ── */}
-        <div className="rounded-2xl border border-border bg-muted/20 p-4">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-muted-foreground">نسبة التسليم</span>
-            <span className="font-black text-emerald-400 text-lg">{deliveryPct}%</span>
+        {/* ── Highlight cards (مؤجل / مرتجع لم يصل / الشحنات الجديدة / الإجمالي) — بس للبيان المفتوح ── */}
+        {isOpen && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <HighlightCard
+              icon={Clock}
+              value={sc.delayed}
+              label="مؤجل"
+              tone="amber"
+            />
+            <HighlightCard
+              icon={PackageX}
+              value={returnedNotArrived}
+              label="مرتجع لم يصل"
+              tone="rose"
+            />
+            <HighlightCard
+              icon={Sparkles}
+              value={newItemsCount}
+              label="الشحنات الجديدة"
+              tone="sky"
+            />
+            <HighlightCard
+              icon={Layers}
+              value={sc.total}
+              label="الإجمالي"
+              tone="violet"
+            />
           </div>
-          <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${deliveryPct}%` }} />
+        )}
+
+        {/* ── Stats cards — بس للبيان المفتوح ── */}
+        {isOpen && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <StatCard icon={Package} value={sc.total} label="إجمالي الشحنات" tone="violet" />
+            <StatCard icon={CheckCircle2} value={sc.delivered} label="مسلَّم" tone="emerald" />
+            <StatCard icon={Clock} value={sc.pending} label="قيد الانتظار" tone="muted" />
+            <StatCard icon={AlertCircle} value={sc.delayed} label="مؤجل" tone="orange" />
+            <StatCard icon={RotateCcw} value={sc.returned} label="مرتجع" tone="red" />
           </div>
-        </div>
+        )}
+
+        {/* ── Closed manifest summary — عرض بسيط واحترافي بدون إحصائيات متابعة لحظية ── */}
+        {!isOpen && (
+          <div className="rounded-2xl border border-border bg-muted/15 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <p className="text-sm font-black text-foreground">ملخص البيان النهائي</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">إجمالي الشحنات</p>
+                <p className="text-lg font-black">{sc.total}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">مسلَّم</p>
+                <p className="text-lg font-black text-emerald-400">{sc.delivered}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">مرتجع</p>
+                <p className="text-lg font-black text-red-400">{sc.returned}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">نسبة التسليم</p>
+                <p className="text-lg font-black text-foreground">{deliveryPct}%</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Progress bar — بس للبيان المفتوح ── */}
+        {isOpen && (
+          <div className="rounded-2xl border border-border bg-muted/20 p-4">
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="text-muted-foreground">نسبة التسليم</span>
+              <span className="font-black text-emerald-400 text-lg">{deliveryPct}%</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${deliveryPct}%` }} />
+            </div>
+          </div>
+        )}
 
         {/* ── Financial summary ── */}
         <div className="grid grid-cols-2 gap-3">
