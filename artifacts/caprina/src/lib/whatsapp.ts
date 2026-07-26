@@ -99,12 +99,14 @@ export function applySenderIssueTemplate(templateBody: string, s: WhatsAppShipme
     .replace(/\{status\}/g,          s.status)
     .replace(/\{shippingFee\}/g,     formatCurr(s.shippingFee))
     .replace(/\{codAmount\}/g,       formatCurr(s.codAmount))
-    .replace(/\{zone\}/g,            s.zoneLabel ?? "—");
+    .replace(/\{zone\}/g,            s.zoneLabel ?? "—")
+    .replace(/\{region\}/g,          s.zoneLabel ?? "—")
+    .replace(/\{receiverCity\}/g,    s.receiverCity ?? s.zoneLabel ?? "—");
 }
 
 export const SENDER_ISSUE_TEMPLATE_VARIABLES = [
   { var: "{senderName}",     label: "اسم الراسل" },
-  { var: "{receiverName}",   label: "اسم المستلم" },
+  { var: "{receiverName}",   label: "اسم المستلم (اسم العميل)" },
   { var: "{receiverPhone}",  label: "هاتف المستلم" },
   { var: "{shipmentNumber}", label: "رقم البوليصة" },
   { var: "{trackingNumber}", label: "رقم التتبع" },
@@ -112,6 +114,8 @@ export const SENDER_ISSUE_TEMPLATE_VARIABLES = [
   { var: "{shippingFee}",    label: "رسوم الشحن" },
   { var: "{codAmount}",      label: "مبلغ COD" },
   { var: "{zone}",           label: "المنطقة" },
+  { var: "{region}",         label: "المنطقة (نفس {zone})" },
+  { var: "{receiverCity}",   label: "المحافظة" },
 ];
 
 
