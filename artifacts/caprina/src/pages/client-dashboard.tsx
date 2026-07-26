@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Package, CheckCircle2, Clock, RotateCcw, Truck, Ban,
   Search, Wallet, TrendingUp, User,
@@ -228,23 +229,48 @@ export default function ClientDashboardPage() {
           {/* ── Right column: Donut + Legend ── */}
           <div className="rounded-2xl p-5 bg-muted/25 border border-border">
             <p className="text-sm font-black text-foreground mb-4">إحصائيات الشحنات</p>
-            {statsLoading ? (
-              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">جارٍ التحميل...</div>
-            ) : !stats || stats.total === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                <Package size={40} className="opacity-30" />
-                <p className="text-sm">لا توجد شحنات مسجلة بعد</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-6">
-                <DonutChart breakdown={stats.breakdown} total={stats.total} />
-                <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {stats.breakdown.map(b => (
-                    <LegendItem key={b.key} color={b.color} label={b.label} count={b.count} pct={b.pct} />
-                  ))}
-                </div>
-              </div>
-            )}
+            <AnimatePresence mode="wait">
+              {statsLoading ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="h-64 flex items-center justify-center text-muted-foreground text-sm"
+                >
+                  جارٍ التحميل...
+                </motion.div>
+              ) : !stats || stats.total === 0 ? (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground"
+                >
+                  <Package size={40} className="opacity-30" />
+                  <p className="text-sm">لا توجد شحنات مسجلة بعد</p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={`stats-${stats.total}-${stats.breakdown.map(b => `${b.key}:${b.count}`).join(",")}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.35, ease: "easeInOut" }}
+                  className="flex flex-col items-center gap-6"
+                >
+                  <DonutChart breakdown={stats.breakdown} total={stats.total} />
+                  <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {stats.breakdown.map(b => (
+                      <LegendItem key={b.key} color={b.color} label={b.label} count={b.count} pct={b.pct} />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
