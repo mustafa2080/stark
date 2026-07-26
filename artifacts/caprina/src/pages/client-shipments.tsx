@@ -3,11 +3,12 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Package, Search, ChevronRight, RefreshCcw, Plus, Upload, MessageCircle, ChevronUp, ChevronDown, X,
+  Package, Search, ChevronRight, RefreshCcw, Plus, Upload, MessageCircle, ChevronUp, ChevronDown, X, Filter, CalendarDays,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
@@ -185,6 +186,8 @@ export default function ClientShipmentsPage() {
   const [search, setSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // ── إحصائيات (نفس شكل قسم الشحنات بتاع الأدمن) ──────────────────────────
   const { data: stats } = useQuery<ClientStatsResponse>({
@@ -263,9 +266,15 @@ export default function ClientShipmentsPage() {
           String(s.id).includes(q);
         if (!hit) return false;
       }
+      if (dateFrom && s.createdAt && new Date(s.createdAt) < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        if (s.createdAt && new Date(s.createdAt) > to) return false;
+      }
       return true;
     });
-  }, [allShipments, statusFilter, search, customerSearch]);
+  }, [allShipments, statusFilter, search, customerSearch, dateFrom, dateTo]);
 
   // ── Col Filter helpers ──────────────────────────────────────────────────
   const getColVal = useCallback((col: ColKey, s: ShipmentRow): string => {
@@ -334,11 +343,13 @@ export default function ClientShipmentsPage() {
   }, [displayRows, page]);
   const totalShipments = displayRows.length;
 
-  const hasActiveFilter = search.trim() !== "" || customerSearch.trim() !== "" || statusFilter !== "all" || colFilterHasActive;
+  const hasActiveFilter = search.trim() !== "" || customerSearch.trim() !== "" || statusFilter !== "all" || dateFrom !== "" || dateTo !== "" || colFilterHasActive;
   const clearAllFilters = () => {
     setSearch("");
     setCustomerSearch("");
     setStatusFilter("all");
+    setDateFrom("");
+    setDateTo("");
     setColFilters({ id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set() });
     setSortCol(null);
     setPage(1);
@@ -448,34 +459,38 @@ export default function ClientShipmentsPage() {
 
         {/* ── Shipments Table ── */}
         <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-border">
-            <p className="text-sm font-black text-foreground">
+          <div className="p-3 border-b border-border bg-muted/10 flex flex-col gap-2">
+            <p className="text-sm font-black text-foreground px-1">
               {totalShipments > 0 ? `${fn(totalShipments)} شحنة` : "شحناتي"}
             </p>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="relative w-full sm:w-52">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
-                <Input
-                  placeholder="ابحث باسم العميل..."
-                  className="pr-9 bg-card text-sm h-10 font-medium border-primary/30 focus-visible:ring-primary/40 placeholder:text-muted-foreground/60"
-                  value={customerSearch}
-                  onChange={e => { setCustomerSearch(e.target.value); setPage(1); }}
-                />
-                {customerSearch && (
-                  <>
-                    <button
-                      className="absolute left-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setCustomerSearch("")}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                      {filtered.length}
-                    </span>
-                  </>
-                )}
-              </div>
-              <div className="relative w-full sm:w-52">
+
+            {/* ── بحث اسم العميل realtime ── */}
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
+              <Input
+                placeholder="ابحث باسم العميل..."
+                className="pr-9 bg-card text-sm h-10 font-medium border-primary/30 focus-visible:ring-primary/40 placeholder:text-muted-foreground/60"
+                value={customerSearch}
+                onChange={e => { setCustomerSearch(e.target.value); setPage(1); }}
+              />
+              {customerSearch && (
+                <>
+                  <button
+                    className="absolute left-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setCustomerSearch("")}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    {filtered.length}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* ── الصف الأول: بحث عام + حالة ── */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="ابحث برقم الهاتف..."
@@ -484,18 +499,35 @@ export default function ClientShipmentsPage() {
                   onChange={e => { setSearch(e.target.value); setPage(1); }}
                 />
               </div>
-              <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="py-2 px-3 rounded-lg text-xs text-foreground outline-none w-full sm:w-auto bg-muted/50 border border-border">
-                <option value="all">كل الحالات</option>
-                <option value="delivered">استلم</option>
-                <option value="in_transit">قيد الشحن</option>
-                <option value="warehouse_ready">قيد الشحن في المخزن</option>
-                <option value="waiting">قيد الانتظار</option>
-                <option value="returned">مرتجع</option>
-                <option value="delayed">مؤجل</option>
-                <option value="cancelled">ملغية</option>
-                <option value="partial_received">استلم جزئى</option>
-              </select>
+              <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
+                <SelectTrigger className="w-full sm:w-48 bg-card h-9 text-sm">
+                  <div className="flex items-center gap-2"><Filter className="w-3.5 h-3.5 text-muted-foreground" /><SelectValue /></div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">جميع الشحنات</SelectItem>
+                  <SelectItem value="waiting">قيد الانتظار</SelectItem>
+                  <SelectItem value="warehouse_ready">قيد الشحن في المخزن</SelectItem>
+                  <SelectItem value="in_transit">قيد الشحن</SelectItem>
+                  <SelectItem value="delivered">استلم</SelectItem>
+                  <SelectItem value="delayed">مؤجل</SelectItem>
+                  <SelectItem value="returned">مرتجع</SelectItem>
+                  <SelectItem value="partial_received">استلم جزئي</SelectItem>
+                  <SelectItem value="cancelled">ملغية</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ── الصف الثاني: تاريخ من + زر فلتر + مسح ── */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <CalendarDays className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Input type="date" className="pr-9 bg-card text-sm h-8 w-40 text-xs" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} title="من تاريخ" />
+              </div>
+              <span className="text-xs text-muted-foreground">←</span>
+              <div className="relative">
+                <CalendarDays className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Input type="date" className="pr-9 bg-card text-sm h-8 w-40 text-xs" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} title="إلى تاريخ" />
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -507,7 +539,7 @@ export default function ClientShipmentsPage() {
                 }}
                 className={`hidden md:flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${showColFilters ? "text-primary bg-primary/10 border-primary/30" : "text-foreground/70 bg-muted/50 border-border"}`}
               >
-                فلاتر الأعمدة
+                <Filter className="w-3.5 h-3.5" /> فلاتر الأعمدة
               </button>
               {hasActiveFilter && (
                 <button type="button" onClick={clearAllFilters}
