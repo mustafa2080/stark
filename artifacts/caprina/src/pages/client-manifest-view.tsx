@@ -127,11 +127,12 @@ export default function ClientManifestViewPage() {
   const representativeBreakdown = Array.from(repMap.entries()).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background print:m-0 print:p-0" dir="rtl">
+    <>
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background print:hidden" dir="rtl">
       <div className="max-w-[1200px] mx-auto space-y-5">
 
         {/* ── Header ── */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/40 via-muted/10 to-transparent p-4 sm:p-5 print:hidden">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/40 via-muted/10 to-transparent p-4 sm:p-5">
           <div className={`absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-40 ${isOpen ? "bg-emerald-500/30" : "bg-slate-400/20"}`} />
           <div className="relative flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
@@ -284,7 +285,7 @@ export default function ClientManifestViewPage() {
         </div>
 
         {/* ── Search ── */}
-        <div className="relative print:hidden">
+        <div className="relative">
           <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
           <input
             value={search}
@@ -324,7 +325,7 @@ export default function ClientManifestViewPage() {
 
         {/* ── بضاعة لسه مع مندوب الشحن ── */}
         {stillAtShipping.length > 0 && (
-          <div className="relative overflow-hidden rounded-2xl border border-orange-700/50 bg-gradient-to-br from-orange-950/30 via-orange-950/10 to-transparent shadow-lg shadow-black/10 print:hidden">
+          <div className="relative overflow-hidden rounded-2xl border border-orange-700/50 bg-gradient-to-br from-orange-950/30 via-orange-950/10 to-transparent shadow-lg shadow-black/10">
             <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full blur-3xl opacity-30 bg-orange-500/30" />
             <div className="relative px-4 py-3 border-b border-orange-800/40 flex items-center gap-2">
               <Truck className="w-4 h-4 text-orange-400" />
@@ -347,6 +348,17 @@ export default function ClientManifestViewPage() {
         )}
       </div>
     </div>
+
+    <PrintDocument
+      manifest={manifest}
+      items={manifest.items}
+      sc={sc}
+      deliveryPct={deliveryPct}
+      totalCod={totalCod}
+      totalShippingCost={totalShippingCost}
+      isOpen={isOpen}
+    />
+    </>
   );
 }
 
@@ -562,5 +574,354 @@ function ItemRow({ item }: { item: ManifestItem }) {
         )}
       </div>
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ── PrintDocument — قالب طباعة رسمي منفصل تمامًا عن عرض الشاشة.
+// أبيض/أسود، بدون ألوان أو ظلال أو gradients، مُخصص للورق A4 مع ترويسة
+// وتذييل وتوقيعات — يظهر فقط أثناء الطباعة (hidden print:block) ---
+// ─────────────────────────────────────────────────────────────────────────
+function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippingCost, isOpen }: {
+  manifest: ManifestDetail;
+  items: ManifestItem[];
+  sc: ManifestDetail["stats"];
+  deliveryPct: number;
+  totalCod: number;
+  totalShippingCost: number;
+  isOpen: boolean;
+}) {
+  const PRINT_STATUS_LABEL: Record<string, string> = {
+    pending: "قيد الانتظار",
+    delivered: "مسلَّم",
+    partial_delivered: "مسلَّم جزئي",
+    delayed: "مؤجل",
+    returned: "مرتجع",
+  };
+
+  return (
+    <div className="hidden print:block" dir="rtl">
+      <div className="print-doc">
+        {/* ── ترويسة رسمية ── */}
+        <div className="print-header">
+          <div className="print-header-brand">
+            <div className="print-logo">STARK</div>
+            <div className="print-brand-text">
+              <p className="print-brand-name">Stark Shipping &amp; Logistics</p>
+              <p className="print-brand-sub">نظام إدارة الشحن والبيانات</p>
+            </div>
+          </div>
+          <div className="print-header-meta">
+            <p className="print-doc-title">بيان شحن</p>
+            <p className="print-doc-number">{manifest.manifestNumber}</p>
+          </div>
+        </div>
+
+        <div className="print-divider" />
+
+        {/* ── معلومات البيان ── */}
+        <div className="print-info-grid">
+          <div className="print-info-item">
+            <span className="print-info-label">تاريخ الإنشاء</span>
+            <span className="print-info-value">{format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}</span>
+          </div>
+          <div className="print-info-item">
+            <span className="print-info-label">الحالة</span>
+            <span className="print-info-value">{isOpen ? "مفتوح" : "مغلق"}</span>
+          </div>
+          {manifest.closedAt && (
+            <div className="print-info-item">
+              <span className="print-info-label">تاريخ الإغلاق</span>
+              <span className="print-info-value">{format(new Date(manifest.closedAt), "d MMMM yyyy", { locale: ar })}</span>
+            </div>
+          )}
+          <div className="print-info-item">
+            <span className="print-info-label">إجمالي الشحنات</span>
+            <span className="print-info-value">{sc.total}</span>
+          </div>
+        </div>
+
+        {/* ── ملخص إحصائي ── */}
+        <table className="print-summary-table">
+          <tbody>
+            <tr>
+              <td className="print-summary-label">مسلَّم</td>
+              <td className="print-summary-value">{sc.delivered}</td>
+              <td className="print-summary-label">قيد الانتظار</td>
+              <td className="print-summary-value">{sc.pending}</td>
+              <td className="print-summary-label">مؤجل</td>
+              <td className="print-summary-value">{sc.delayed}</td>
+              <td className="print-summary-label">مرتجع</td>
+              <td className="print-summary-value">{sc.returned}</td>
+              <td className="print-summary-label">نسبة التسليم</td>
+              <td className="print-summary-value">{deliveryPct}%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── جدول الشحنات ── */}
+        <table className="print-items-table">
+          <thead>
+            <tr>
+              <th style={{ width: "26px" }}>#</th>
+              <th>اسم العميل</th>
+              <th>الهاتف</th>
+              <th>العنوان</th>
+              <th>رقم الشحنة</th>
+              <th style={{ width: "40px" }}>القطع</th>
+              <th style={{ width: "70px" }}>الإجمالي</th>
+              <th style={{ width: "70px" }}>الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, idx) => (
+              <tr key={item.id}>
+                <td className="print-cell-center">{idx + 1}</td>
+                <td>{item.customerName}</td>
+                <td className="print-cell-ltr">{item.phone}</td>
+                <td>{item.city}{item.address ? ` — ${item.address}` : ""}</td>
+                <td className="print-cell-mono">{item.invoiceNumber}</td>
+                <td className="print-cell-center">
+                  {item.deliveryStatus === "partial_delivered" && item.partialQuantity != null
+                    ? `${item.partialQuantity}/${item.quantity}`
+                    : item.quantity}
+                </td>
+                <td className="print-cell-center">{formatCurrency(item.totalPrice)}</td>
+                <td className="print-cell-center">{PRINT_STATUS_LABEL[item.deliveryStatus] ?? item.deliveryStatus}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* ── الملخص المالي النهائي ── */}
+        <table className="print-financial-table">
+          <tbody>
+            <tr>
+              <td className="print-financial-label">إجمالي قيمة الشحنات</td>
+              <td className="print-financial-value">{formatCurrency(totalCod)}</td>
+            </tr>
+            <tr>
+              <td className="print-financial-label">إجمالي تكلفة الشحن</td>
+              <td className="print-financial-value">{formatCurrency(totalShippingCost)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── التوقيعات ── */}
+        <div className="print-signatures">
+          <div className="print-signature-block">
+            <p className="print-signature-label">توقيع المندوب</p>
+            <div className="print-signature-line" />
+          </div>
+          <div className="print-signature-block">
+            <p className="print-signature-label">توقيع العميل</p>
+            <div className="print-signature-line" />
+          </div>
+        </div>
+
+        {/* ── تذييل ── */}
+        <div className="print-footer">
+          <span>تم إنشاء هذا المستند إلكترونيًا بواسطة نظام Stark لإدارة الشحن</span>
+          <span>{format(new Date(), "d MMMM yyyy — HH:mm", { locale: ar })}</span>
+        </div>
+      </div>
+
+      {/* ── أنماط الطباعة ── */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 14mm 12mm;
+          }
+          html, body {
+            background: #ffffff !important;
+          }
+        }
+
+        .print-doc {
+          font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+          color: #111111;
+          background: #ffffff;
+          width: 100%;
+        }
+
+        .print-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-bottom: 10px;
+        }
+        .print-header-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .print-logo {
+          width: 44px;
+          height: 44px;
+          border: 2px solid #111111;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 900;
+          font-size: 12px;
+          letter-spacing: 0.5px;
+        }
+        .print-brand-name {
+          font-weight: 900;
+          font-size: 15px;
+          margin: 0;
+        }
+        .print-brand-sub {
+          font-size: 10px;
+          color: #555555;
+          margin: 2px 0 0;
+        }
+        .print-header-meta {
+          text-align: left;
+        }
+        .print-doc-title {
+          font-size: 11px;
+          color: #555555;
+          margin: 0;
+          font-weight: 700;
+        }
+        .print-doc-number {
+          font-size: 18px;
+          font-weight: 900;
+          margin: 2px 0 0;
+        }
+
+        .print-divider {
+          border-bottom: 2px solid #111111;
+          margin-bottom: 12px;
+        }
+
+        .print-info-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 8px;
+          margin-bottom: 14px;
+          padding: 10px 12px;
+          border: 1px solid #cccccc;
+          border-radius: 6px;
+        }
+        .print-info-item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .print-info-label {
+          font-size: 9px;
+          color: #666666;
+          font-weight: 700;
+        }
+        .print-info-value {
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .print-summary-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 14px;
+          font-size: 10px;
+        }
+        .print-summary-table td {
+          border: 1px solid #cccccc;
+          padding: 6px 4px;
+          text-align: center;
+        }
+        .print-summary-label {
+          background: #f2f2f2;
+          font-weight: 700;
+          color: #333333;
+        }
+        .print-summary-value {
+          font-weight: 900;
+          font-size: 12px;
+        }
+
+        .print-items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 14px;
+          font-size: 10px;
+        }
+        .print-items-table th {
+          background: #111111;
+          color: #ffffff;
+          padding: 6px 5px;
+          font-size: 9.5px;
+          font-weight: 700;
+          text-align: right;
+        }
+        .print-items-table td {
+          border: 1px solid #dddddd;
+          padding: 5px;
+          text-align: right;
+        }
+        .print-items-table tr:nth-child(even) {
+          background: #f7f7f7;
+        }
+        .print-cell-center { text-align: center; }
+        .print-cell-ltr { direction: ltr; text-align: right; }
+        .print-cell-mono { font-family: "Courier New", monospace; font-size: 9.5px; }
+
+        .print-financial-table {
+          width: 50%;
+          margin-inline-start: auto;
+          border-collapse: collapse;
+          margin-bottom: 24px;
+          font-size: 11px;
+        }
+        .print-financial-table td {
+          border: 1px solid #111111;
+          padding: 7px 10px;
+        }
+        .print-financial-label {
+          background: #f2f2f2;
+          font-weight: 700;
+        }
+        .print-financial-value {
+          font-weight: 900;
+          text-align: left;
+        }
+
+        .print-signatures {
+          display: flex;
+          justify-content: space-between;
+          gap: 40px;
+          margin-top: 30px;
+          margin-bottom: 20px;
+        }
+        .print-signature-block {
+          flex: 1;
+        }
+        .print-signature-label {
+          font-size: 10px;
+          font-weight: 700;
+          color: #333333;
+          margin: 0 0 26px;
+        }
+        .print-signature-line {
+          border-top: 1px solid #111111;
+        }
+
+        .print-footer {
+          display: flex;
+          justify-content: space-between;
+          border-top: 1px solid #cccccc;
+          padding-top: 8px;
+          font-size: 8.5px;
+          color: #777777;
+        }
+
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        thead { display: table-header-group; }
+      `}</style>
+    </div>
   );
 }
