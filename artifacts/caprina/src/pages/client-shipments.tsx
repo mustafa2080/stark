@@ -164,12 +164,33 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
   );
 }
 
+interface ClientStatsBreakdown { key: string; label: string; count: number; pct: number; color: string }
+interface ClientStatsResponse {
+  total: number;
+  breakdown: ClientStatsBreakdown[];
+  finance?: { totalCod: string; totalCollected: string; totalShippingFee: string; outstanding: string };
+}
+
+function hexToRgb(hex: string): string {
+  const h = hex.replace("#", "");
+  const bigint = parseInt(h, 16);
+  return `${(bigint >> 16) & 255},${(bigint >> 8) & 255},${bigint & 255}`;
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 export default function ClientShipmentsPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // ── إحصائيات (نفس شكل قسم الشحنات بتاع الأدمن) ──────────────────────────
+  const { data: stats } = useQuery<ClientStatsResponse>({
+    queryKey: ["client-portal-shipments-stats"],
+    queryFn: () => apiFetch("/client-portal/stats"),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
 
   // ── نجيب كل شحنات العميل (بدون تقسيم صفحات سيرفر) عشان الفلاتر تشتغل زي الأدمن ──
   const { data: allShipments = [], isLoading, refetch } = useQuery<ShipmentRow[]>({
@@ -339,6 +360,82 @@ export default function ClientShipmentsPage() {
             </button>
           </div>
         </div>
+
+        {/* ── إحصائيات ── */}
+        {stats && stats.breakdown.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div
+              className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between"
+              style={{
+                background: "linear-gradient(145deg, rgba(251,191,36,0.22) 0%, rgba(251,146,60,0.14) 50%, rgba(251,191,36,0.06) 100%)",
+                border: "1px solid rgba(251,191,36,0.35)",
+                boxShadow: "0 8px 32px rgba(251,191,36,0.15), 0 2px 8px rgba(251,146,60,0.1), inset 0 1px 0 rgba(255,255,255,0.08)",
+                minHeight: "140px",
+              }}
+            >
+              <span className="absolute -top-6 -left-6 w-28 h-28 rounded-full opacity-10"
+                style={{ background: "radial-gradient(circle, rgba(251,191,36,1) 0%, transparent 70%)" }} />
+              <span className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-10"
+                style={{ background: "radial-gradient(circle, rgba(251,146,60,1) 0%, transparent 70%)" }} />
+              <p className="text-xs font-semibold tracking-widest uppercase"
+                style={{ color: "rgba(251,191,36,0.75)", letterSpacing: "0.12em" }}>
+                إجمالي شحناتي
+              </p>
+              <div className="mt-2">
+                <span className="text-5xl font-black" style={{ color: "rgba(251,191,36,1)", lineHeight: 1 }}>
+                  {stats.total}
+                </span>
+              </div>
+              <p className="text-xs mt-2" style={{ color: "rgba(251,191,36,0.5)" }}>إجمالي الشحنات</p>
+            </div>
+
+            <div
+              className="lg:col-span-2 rounded-2xl p-4"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              }}
+            >
+              <p className="text-xs font-bold mb-3 tracking-wide" style={{ color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em" }}>
+                توزيع الحالات
+              </p>
+              <div className="space-y-2">
+                {stats.breakdown.map(b => {
+                  const rgb = hexToRgb(b.color);
+                  return (
+                    <div key={b.key} className="flex items-center gap-3">
+                      <span className="shrink-0 w-2.5 h-2.5 rounded-full"
+                        style={{ background: `rgba(${rgb},0.9)`, boxShadow: `0 0 6px rgba(${rgb},0.6)` }} />
+                      <span className="flex-1 text-xs font-medium text-right" style={{ color: "rgba(255,255,255,0.75)" }}>
+                        {b.label}
+                      </span>
+                      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{
+                            width: `${Math.max(b.pct, 8)}%`,
+                            background: `linear-gradient(90deg, rgba(${rgb},0.9), rgba(${rgb},0.5))`,
+                            boxShadow: `0 0 6px rgba(${rgb},0.4)`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold w-9 text-left" style={{ color: `rgba(${rgb},0.9)` }}>
+                        {b.pct}%
+                      </span>
+                      <span
+                        className="text-xs font-black w-7 text-center rounded-md py-0.5"
+                        style={{ color: `rgba(${rgb},1)`, background: `rgba(${rgb},0.12)` }}
+                      >
+                        {b.count}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Shipments Table ── */}
         <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
