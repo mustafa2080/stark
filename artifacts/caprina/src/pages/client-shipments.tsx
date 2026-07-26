@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { Input } from "@/components/ui/input";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
@@ -452,17 +453,36 @@ export default function ClientShipmentsPage() {
               {totalShipments > 0 ? `${fn(totalShipments)} شحنة` : "شحناتي"}
             </p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="relative w-full sm:w-auto">
-                <input value={customerSearch} onChange={e => { setCustomerSearch(e.target.value); setPage(1); }}
+              <div className="relative w-full sm:w-52">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
+                <Input
                   placeholder="ابحث باسم العميل..."
-                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-full sm:w-52 bg-muted/50 border border-border" />
-                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+                  className="pr-9 bg-card text-sm h-10 font-medium border-primary/30 focus-visible:ring-primary/40 placeholder:text-muted-foreground/60"
+                  value={customerSearch}
+                  onChange={e => { setCustomerSearch(e.target.value); setPage(1); }}
+                />
+                {customerSearch && (
+                  <>
+                    <button
+                      className="absolute left-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setCustomerSearch("")}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                      {filtered.length}
+                    </span>
+                  </>
+                )}
               </div>
-              <div className="relative w-full sm:w-auto">
-                <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  placeholder="بحث بالكود أو رقم الهاتف..."
-                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-full sm:w-52 bg-muted/50 border border-border" />
-                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+              <div className="relative w-full sm:w-52">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="ابحث برقم الهاتف..."
+                  className="pr-9 bg-card text-sm h-9"
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1); }}
+                />
               </div>
               <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
                 className="py-2 px-3 rounded-lg text-xs text-foreground outline-none w-full sm:w-auto bg-muted/50 border border-border">
