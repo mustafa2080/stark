@@ -431,13 +431,19 @@ router.delete("/client-portal/account", async (req, res): Promise<void> => {
 });
 
 // ─── Helper: شحنات العميل — بيتحدد بمن أنشأها (createdByUserId) أو برقم هاتف المستلم (توافقاً مع شحنات قديمة أُدخلت يدويًا للأدمن) ──
-async function getClientShipments(tenantId: number | null, normalizedPhone: string, userId?: number | null, clientId?: number | null) {
-  const phoneMatch = sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`;
-
-  // مطابقات الملكية العادية (بيانات المستلم / منشئ الشحنة) — لازم تلتزم بعزل الـ tenant الطبيعي
-  const normalOwnership = [phoneMatch];
+async function getClientShipments(tenantId: number | null, normalizedPhone: string | null, userId?: number | null, clientId?: number | null) {
+  // لو مفيش رقم هاتف متطبّع (عملاء قدام قبل الحساب التلقائي)، بنتجاهل شرط الفون
+  // ونعتمد بس على createdByUserId/clientId عشان منمنعش الشحنات من الظهور
+  const normalOwnership: any[] = [];
+  if (normalizedPhone) {
+    normalOwnership.push(sql`RIGHT(REGEXP_REPLACE(${shipmentsTable.receiverPhone}, '[^0-9]', ''), 9) = ${normalizedPhone}`);
+  }
   if (userId != null) normalOwnership.push(eq(shipmentsTable.createdByUserId, userId));
-  const normalCond = normalOwnership.length > 1 ? or(...normalOwnership)! : normalOwnership[0];
+  const normalCond = normalOwnership.length > 1
+    ? or(...normalOwnership)!
+    : normalOwnership.length === 1
+      ? normalOwnership[0]
+      : sql`1 = 0`; // مفيش أي معيار ملكية عادي متاح — منرجعش شحنات غلط بالغلط
 
   const scopedConds: any[] = [isNull(shipmentsTable.deletedAt)];
   const orBranches: any[] = [tenantId !== null ? and(normalCond, eq(shipmentsTable.tenantId, tenantId))! : normalCond];
@@ -526,14 +532,16 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable)
       .where(eq(clientsTable.id, user.clientId)).limit(1);
-    if (!client || !client.normalizedPhone) { res.json({ data: [], total: 0 }); return; }
+    if (!client) { res.json({ data: [], total: 0 }); return; }
 
     const status = (req.query.status as string | undefined)?.trim();
     const search = (req.query.search as string | undefined)?.trim();
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
 
-    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id, client.id);
+    // ملاحظة: normalizedPhone ممكن يكون فاضي لبعض العملاء القدام (قبل ما اتحسب تلقائي)،
+    // في الحالة دي getClientShipments هتعتمد على تطابق clientId/createdByUserId بس، مش رقم الهاتف
+    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone ?? null, user.id, client.id);
 
     if (status && status !== "all") {
       shipments = shipments.filter(s => s.status === status);

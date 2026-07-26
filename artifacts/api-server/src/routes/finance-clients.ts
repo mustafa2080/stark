@@ -7,6 +7,14 @@ import { z } from "zod";
 
 const router = Router();
 
+// بيشيل أي حروف غير رقمية (مسافات/شرطات/+20)، وياخد آخر 9 أرقام فقط
+// (نفس منطق client-portal.ts — عشان أي عميل يتضاف من هنا يظهر صح في بوابة العميل لاحقًا)
+function normalizePhone(raw: string | null | undefined): string | null {
+  const digitsOnly = (raw ?? "").replace(/\D/g, "");
+  if (!digitsOnly) return null;
+  return digitsOnly.slice(-9);
+}
+
 const ClientSchema = z.object({
   name:          z.string().min(1),
   phone:         z.string().nullish(),
@@ -445,6 +453,7 @@ router.post("/finance/clients", async (req, res): Promise<void> => {
 
     const [result] = await db.insert(clientsTable).values({
       ...restData,
+      normalizedPhone: normalizePhone(restData.phone),
       creditLimit:  String(parsed.data.creditLimit ?? 0),
       totalOrders:  0,
       totalSales:   "0",
@@ -512,6 +521,8 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
 
     const updates: any = { ...parsed.data, updatedAt: new Date() };
     if (parsed.data.creditLimit !== undefined) updates.creditLimit = String(parsed.data.creditLimit);
+    // لو الأدمن غيّر رقم الهاتف، حدّث normalized_phone معاه عشان بوابة العميل تفضل شغالة صح
+    if (parsed.data.phone !== undefined) updates.normalizedPhone = normalizePhone(parsed.data.phone);
 
     // warehouseId و region و defaultAdSource و whatsappGroupLink و zoneCostId/zoneCostDeliveryPrice و username/password يحتاجان معالجة خاصة — بره التحديث المباشر لجدول clients
     const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, username, password, ...rest } = updates;
