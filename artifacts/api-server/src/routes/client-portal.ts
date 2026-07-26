@@ -572,7 +572,22 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
     const startIdx = (page - 1) * pageSize;
     const paged = shipments.slice(startIdx, startIdx + pageSize);
 
-    res.json({ data: paged, total, page, pageSize });
+    // إثراء الصفحة الحالية باسم المندوب (assignedUserId → displayName) — نفس منطق الأدمن
+    const repUserIds = [...new Set(paged.map(s => s.assignedUserId).filter((v): v is number => !!v))];
+    let repNameMap: Record<number, string> = {};
+    if (repUserIds.length) {
+      const repUsers = await db
+        .select({ id: usersTable.id, displayName: usersTable.displayName })
+        .from(usersTable)
+        .where(inArray(usersTable.id, repUserIds));
+      repNameMap = Object.fromEntries(repUsers.map(u => [u.id, u.displayName]));
+    }
+    const pagedWithRep = paged.map(s => ({
+      ...s,
+      assignedUserName: s.assignedUserId ? (repNameMap[s.assignedUserId] ?? null) : null,
+    }));
+
+    res.json({ data: pagedWithRep, total, page, pageSize });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

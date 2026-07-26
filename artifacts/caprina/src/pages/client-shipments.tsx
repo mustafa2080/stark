@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Package, Search, ChevronRight, RefreshCcw, Plus, Upload,
+  Package, Search, ChevronRight, RefreshCcw, Plus, Upload, MessageCircle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
@@ -14,11 +14,14 @@ interface ShipmentRow {
   id: number;
   trackingNumber: string | null;
   shipmentNumber: string | null;
+  senderName: string | null;
   receiverName: string;
   receiverPhone: string | null;
   receiverCity: string | null;
   status: string;
   codAmount: string | null;
+  shippingFee: string | null;
+  assignedUserName: string | null;
   createdAt: string;
 }
 
@@ -160,21 +163,25 @@ export default function ClientShipmentsPage() {
             <table className="w-full text-xs" dir="rtl">
               <thead>
                 <tr className="bg-muted/40">
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الكود</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المستلم</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الوجهة</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">قيمة الطرد</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">حالة الطلب</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">#</th>
                   <th className="text-right font-bold text-muted-foreground px-4 py-3">التاريخ</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3"></th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الراسل</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المستلم</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الهاتف</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المحافظة</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">سعر الشحنة</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المندوب</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الحالة</th>
+                  <th className="text-center font-bold text-muted-foreground px-4 py-3 w-10"></th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3 w-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
+                  <tr><td colSpan={11} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                 ) : shipments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-14 text-muted-foreground">
+                    <td colSpan={11} className="text-center py-14 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <Package size={40} className="opacity-30" />
                         <p className="text-sm">لا توجد شحنات مطابقة</p>
@@ -187,16 +194,30 @@ export default function ClientShipmentsPage() {
                     <tr key={s.id} className="cursor-pointer hover:bg-muted/30 transition-colors border-t border-border"
                       onClick={() => navigate(`/client-shipment-detail/${s.id}`)}>
                       <td className="px-4 py-3 font-mono text-foreground/60">{s.trackingNumber || s.shipmentNumber || s.id}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/70">{s.senderName || "—"}</td>
                       <td className="px-4 py-3 text-foreground/80">{s.receiverName}</td>
+                      <td className="px-4 py-3 text-foreground/60">{s.receiverPhone || "—"}</td>
                       <td className="px-4 py-3 text-foreground/60">{s.receiverCity || "—"}</td>
                       <td className="px-4 py-3 text-foreground/80 font-bold">{fn(Number(s.codAmount ?? 0))}</td>
+                      <td className="px-4 py-3 text-foreground/60">{s.assignedUserName || "—"}</td>
                       <td className="px-4 py-3">
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
                           {meta.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}
+                      <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                        {s.receiverPhone && (
+                          <a
+                            href={`https://wa.me/${s.receiverPhone.replace(/[^0-9]/g, "")}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-full text-green-500 hover:bg-green-500/10 transition-colors"
+                          >
+                            <MessageCircle size={15} />
+                          </a>
+                        )}
                       </td>
                       <td className="px-4 py-3"><ChevronRight size={14} className="text-muted-foreground/50" /></td>
                     </tr>
