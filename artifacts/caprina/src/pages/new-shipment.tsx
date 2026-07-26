@@ -205,7 +205,7 @@ export default function NewShipmentPage() {
         navigate(`/shipments/${editId}`);
       } else {
         toast({ title: "تم إنشاء الشحنة بنجاح ✅" });
-        navigate("/orders");
+        navigate("/shipments-list");
       }
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
@@ -267,7 +267,7 @@ export default function NewShipmentPage() {
     <div className="min-h-screen bg-background" dir="rtl">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card border-b border-border px-6 py-4 flex items-center gap-3">
-        <button onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/orders")} className="p-2 rounded-lg hover:bg-muted/60 transition-colors">
+        <button onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/shipments-list")} className="p-2 rounded-lg hover:bg-muted/60 transition-colors">
           <ArrowRight className="w-4 h-4" />
         </button>
         <Package className="w-5 h-5 text-primary" />

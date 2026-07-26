@@ -971,13 +971,15 @@ export default function Orders() {
   });
 
   const { data: orders, isLoading } = useQuery({
-    queryKey: ["shipments-list", debouncedSearch, status, dateFrom, dateTo],
+    // customerSearch بيدور client-side على البيانات الراجعة، فلو مفعّل لازم نجيب عدد أكبر
+    // بكتير عشان الفلتر يقدر يوصل لكل الشحنات المطابقة مش أول 200 بس
+    queryKey: ["shipments-list", debouncedSearch, status, dateFrom, dateTo, !!customerSearch],
     queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(status !== "all" ? { status } : {}),
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),
-      limit: "200",
+      limit: customerSearch ? "5000" : "200",
     }).toString()}`).then((res: any) => res.data ?? res),
     staleTime: 15_000,
     gcTime: 60_000,

@@ -1269,7 +1269,7 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
       if (id === currentId) {
         const remaining = orders.filter(o => o.id !== id);
         if (remaining.length > 0) navigate(`/orders/${remaining[0].id}`);
-        else navigate("/orders");
+        else navigate("/shipments-list");
       } else { onRefresh(); }
     } catch (e: any) {
       toast({ title: "خطأ", description: e?.message || "فشل الحذف.", variant: "destructive" });
@@ -2269,7 +2269,7 @@ export default function OrderDetail() {
         ? `تم حذف الطلب وكل منتجاته (${idsToDelete.length} منتج).`
         : "تم حذف الطلب بنجاح.";
       toast({ title: "تم الحذف", description: msg });
-      navigate("/orders");
+      navigate("/shipments-list");
     } catch (err: any) {
       const msg = err?.message || "فشل حذف الطلب.";
       toast({ title: "خطأ", description: msg, variant: "destructive" });
@@ -2586,7 +2586,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
     <div className="p-12 text-center">
       <AlertCircle className="w-12 h-12 mx-auto mb-3 text-destructive opacity-50" />
       <h2 className="text-lg font-bold mb-2">الطلب غير موجود</h2>
-      <Link href="/orders"><Button variant="outline" className="mt-3">العودة للطلبات</Button></Link>
+      <Link href="/shipments-list"><Button variant="outline" className="mt-3">العودة للطلبات</Button></Link>
     </div>
   );
   // لو invoiceNumber موجود ولسه بنجيب الطلبات (أول fetch فقط وما فيش بيانات قديمة) → نستنى
@@ -2746,7 +2746,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             {/* صف العنوان الرئيسي */}
             <div className="bg-card px-4 py-3 flex items-center justify-between gap-3 border-b border-border">
               <div className="flex items-center gap-3 min-w-0">
-                <Link href="/orders">
+                <Link href="/shipments-list">
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0 hover:bg-muted">
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -2874,7 +2874,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       {/* ── وضع الطلب الفردي ── */}
       {!isInvoiceMode && <><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/orders">
+          <Link href="/shipments-list">
             <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border"><ArrowRight className="h-4 w-4" /></Button>
           </Link>
           <div>

@@ -1413,7 +1413,7 @@ export default function Layout({ children }: LayoutProps) {
             permCheck?: string;
           }> = [
             { section: "section_dashboard",         href: "/",               icon: LayoutDashboard, rgb: "96,165,250",  label: "الرئيسية", exact: true },
-            { section: "section_orders",            href: "/orders",         icon: Package,         rgb: "251,146,60",  label: "الطلبات"  },
+            { section: "section_orders",            href: "/shipments-list", icon: Package,         rgb: "251,146,60",  label: "الطلبات"  },
             { section: "section_new_order",         href: "/orders/new",     icon: Plus,            rgb: "52,211,153",  label: "جديد"     },
             { section: "section_inventory",         href: "/inventory",      icon: Boxes,           rgb: "167,139,250", label: "الأنواع" },
             { section: "section_invoices",          href: "/invoices",       icon: FileText,        rgb: "250,204,21",  label: "فواتير الشحن" },

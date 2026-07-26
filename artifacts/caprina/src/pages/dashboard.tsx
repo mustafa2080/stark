@@ -1937,7 +1937,7 @@ export default function Dashboard() {
               pendingShip.length > 0 && {
                 id:"ship", icon: Package, color:"text-amber-400", bg:"bg-amber-400/10",
                 label:`${pendingShip.length} طلب في انتظار الشحن`, count:pendingShip.length,
-                href:"/orders", priority:"high" as const,
+                href:"/shipments-list", priority:"high" as const,
               },
               lowStock.length > 0 && {
                 id:"stock", icon: Archive, color:"text-orange-400", bg:"bg-orange-400/10",

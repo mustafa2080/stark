@@ -3070,7 +3070,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
     <div className="p-12 text-center">
       <AlertCircle className="w-12 h-12 mx-auto mb-3 text-destructive opacity-50" />
       <h2 className="text-lg font-bold mb-2">الطلب غير موجود</h2>
-      <Link href="/orders"><Button variant="outline" className="mt-3">العودة للطلبات</Button></Link>
+      <Link href="/shipments-list"><Button variant="outline" className="mt-3">العودة للطلبات</Button></Link>
     </div>
   );
   // لو invoiceNumber موجود ولسه بنجيب الطلبات (أول fetch فقط وما فيش بيانات قديمة) → نستنى
@@ -3231,7 +3231,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             {/* صف العنوان الرئيسي */}
             <div className="bg-card px-4 py-3 flex items-center justify-between gap-3 border-b border-border">
               <div className="flex items-center gap-3 min-w-0">
-                <Link href="/orders">
+                <Link href="/shipments-list">
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0 hover:bg-muted">
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -3370,7 +3370,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
         {/* صف العنوان */}
         <div className="bg-card px-4 py-3 flex items-center justify-between gap-3 border-b border-border">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/orders">
+            <Link href="/shipments-list">
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0 hover:bg-muted"><ArrowRight className="h-4 w-4" /></Button>
             </Link>
             <div className="min-w-0">
