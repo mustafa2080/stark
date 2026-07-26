@@ -311,9 +311,11 @@ html.login-active #root {
       --border: 0 0% 88%;
     }
 
-    /* ── إخفاء الـ sidebar والـ header عند الطباعة ── */
+    /* ── إخفاء الـ sidebar والـ header والـ bottom nav عند الطباعة ── */
     aside,
     header,
+    nav,
+    .bottom-nav-mobile,
     [data-sidebar],
     [class*="sidebar"],
     [class*="Sidebar"],

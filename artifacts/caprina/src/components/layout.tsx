@@ -1440,7 +1440,7 @@ export default function Layout({ children }: LayoutProps) {
           const visible = allowed.slice(0, 5);
 
           return (
-            <nav className="md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
+            <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
               style={{
                 background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
                 borderTop: "1px solid rgba(255,255,255,0.06)",
