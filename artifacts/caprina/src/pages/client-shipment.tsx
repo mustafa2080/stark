@@ -54,26 +54,27 @@ function StatusTimeline({ status }: { status: string }) {
   }
 
   return (
-    <div className="rounded-2xl p-6 bg-muted/25 border border-border">
-      <div className="flex items-center justify-between relative">
-        <div className="absolute top-5 right-5 left-5 h-0.5 bg-muted-foreground/15" />
-        <div className="absolute top-5 right-5 h-0.5 transition-all duration-700"
+    <div className="rounded-2xl p-3 sm:p-6 bg-muted/25 border border-border overflow-hidden">
+      <div className="flex items-start justify-between relative">
+        <div className="absolute top-4 sm:top-5 right-4 sm:right-5 left-4 sm:left-5 h-0.5 bg-muted-foreground/15" />
+        <div className="absolute top-4 sm:top-5 right-4 sm:right-5 h-0.5 transition-all duration-700"
           style={{
             background: "#22c55e",
-            width: activeIdx <= 0 ? "0%" : `${(activeIdx / (TIMELINE_STEPS.length - 1)) * 100}%`,
+            width: activeIdx <= 0 ? "0%" : `calc(${(activeIdx / (TIMELINE_STEPS.length - 1)) * 100}% - ${activeIdx <= 0 ? 0 : 8}px)`,
             left: "auto",
           }} />
         {TIMELINE_STEPS.map((step, i) => {
           const done = i <= activeIdx;
           const Icon = step.icon;
           return (
-            <div key={step.key} className="relative flex flex-col items-center gap-2 z-10" style={{ flex: 1 }}>
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-500",
+            <div key={step.key} className="relative flex flex-col items-center gap-1.5 sm:gap-2 z-10 px-0.5" style={{ flex: 1 }}>
+              <div className={cn("w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-colors duration-500 shrink-0",
                 done ? "" : "bg-muted border border-border")}
                 style={done ? { background: "#22c55e" } : undefined}>
-                <Icon size={16} color={done ? "#052e13" : "currentColor"} className={done ? "" : "text-muted-foreground/50"} />
+                <Icon size={14} className={cn("sm:hidden", done ? "" : "text-muted-foreground/50")} color={done ? "#052e13" : "currentColor"} />
+                <Icon size={16} className={cn("hidden sm:block", done ? "" : "text-muted-foreground/50")} color={done ? "#052e13" : "currentColor"} />
               </div>
-              <span className={cn("text-[11px] text-center font-bold", done ? "text-foreground" : "text-muted-foreground/60")}>
+              <span className={cn("text-[9px] sm:text-[11px] text-center font-bold leading-tight", done ? "text-foreground" : "text-muted-foreground/60")}>
                 {step.label}
               </span>
             </div>
@@ -87,12 +88,12 @@ function StatusTimeline({ status }: { status: string }) {
 // ── Info Row ──────────────────────────────────────────────────────────────
 function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string | number }) {
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-border">
+    <div className="flex items-start sm:items-center gap-3 py-2.5 border-b border-border last:border-0">
       <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted/50">
         <Icon size={14} className="text-muted-foreground" />
       </div>
-      <span className="text-xs text-muted-foreground flex-shrink-0 w-24">{label}</span>
-      <span className="text-sm text-foreground/90 font-bold truncate">{value || "—"}</span>
+      <span className="text-xs text-muted-foreground flex-shrink-0 w-20 sm:w-24 pt-1.5 sm:pt-0">{label}</span>
+      <span className="text-sm text-foreground/90 font-bold break-words min-w-0 flex-1">{value || "—"}</span>
     </div>
   );
 }
@@ -122,17 +123,17 @@ export default function ClientShipmentPage() {
   };
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
-      <div className="max-w-[900px] mx-auto space-y-5">
+    <div className="min-h-screen -m-4 md:-m-6 p-3 sm:p-4 md:p-6 bg-background" dir="rtl">
+      <div className="max-w-[900px] mx-auto space-y-4 sm:space-y-5">
 
         {/* ── Header ── */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/client-dashboard")}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-foreground/70 bg-muted/40 border border-border">
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-foreground/70 bg-muted/40 border border-border shrink-0">
             <ArrowRight size={16} />
           </button>
-          <div>
-            <h1 className="text-xl font-black text-foreground">تفاصيل الشحنة</h1>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-black text-foreground">تفاصيل الشحنة</h1>
             <p className="text-xs text-muted-foreground">متابعة حالة شحنتك لحظة بلحظة</p>
           </div>
         </div>
@@ -148,13 +149,13 @@ export default function ClientShipmentPage() {
           <>
 
             {/* ── Tracking code header ── */}
-            <div className="flex items-center justify-between flex-wrap gap-3 rounded-2xl p-4 bg-muted/25 border border-border">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">كود التتبع:</span>
-                <span className="font-mono text-foreground font-bold">{shipment.trackingNumber || shipment.shipmentNumber || shipment.id}</span>
+            <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-3 rounded-2xl p-3 sm:p-4 bg-muted/25 border border-border">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-xs text-muted-foreground shrink-0">كود التتبع:</span>
+                <span className="font-mono text-foreground font-bold text-sm break-all">{shipment.trackingNumber || shipment.shipmentNumber || shipment.id}</span>
               </div>
               <button onClick={copyTracking}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-foreground/70 bg-muted/50">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-foreground/70 bg-muted/50 shrink-0">
                 <Copy size={12} /> نسخ
               </button>
             </div>
