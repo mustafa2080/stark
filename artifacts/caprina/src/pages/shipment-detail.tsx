@@ -4098,9 +4098,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         variant="outline"
                         className="gap-1.5 h-9 border-green-600/40 text-green-600 hover:bg-green-600/10 shrink-0"
                         onClick={async () => {
-                          // نفتح النافذة فورًا (أول حاجة) عشان نضمن إنها متعتبرش popup محجوب،
-                          // لأن أي await قبل window.open بيخلي المتصفح يرفض اعتبارها ناتجة عن ضغطة مستخدم مباشرة
-                          const waWindow = window.open("", "_blank", "noopener,noreferrer");
                           const DEFAULT_SENDER_ISSUE_BODY =
                             `مرحباً {senderName} 👋\n\n` +
                             `بخصوص الشحنة رقم *{shipmentNumber}*:\n` +
@@ -4132,36 +4129,48 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             codAmount: (order as any).codAmount ?? 0,
                             zoneLabel: (order as any).receiverCity || (order as any).city || (order as any).zoneLabel || null,
                           });
+
+                          // نسخ الرسالة: نجرب الـ Clipboard API الحديثة الأول، ولو فشلت (غالبًا بسبب فقدان
+                          // الـ user-gesture بعد الـ await) نرجع لطريقة execCommand القديمة اللي بتشتغل sync
+                          // ومش بتحتاج إذن المتصفح.
                           let copied = false;
                           try {
                             await navigator.clipboard.writeText(body);
                             copied = true;
                           } catch {
-                            copied = false;
+                            try {
+                              const textarea = document.createElement("textarea");
+                              textarea.value = body;
+                              textarea.style.position = "fixed";
+                              textarea.style.opacity = "0";
+                              document.body.appendChild(textarea);
+                              textarea.focus();
+                              textarea.select();
+                              copied = document.execCommand("copy");
+                              document.body.removeChild(textarea);
+                            } catch {
+                              copied = false;
+                            }
                           }
-                          if (copied) {
-                            toast({
-                              title: "📋 تم نسخ الرسالة بنجاح",
-                              description: "هيتفتح جروب العميل دلوقتي — اضغط Ctrl+V داخل مربع إرسال الرسالة في واتساب عشان تلزقها.",
-                              duration: 6000,
-                            });
-                          } else {
-                            toast({
-                              title: "⚠️ تعذر نسخ الرسالة تلقائياً",
-                              description: "انسخ الرسالة يدويًا من نافذة التأكيد اللي هتظهر، وألصقها في الجروب.",
-                              variant: "destructive",
-                              duration: 8000,
-                            });
-                            window.prompt("انسخ الرسالة يدويًا (Ctrl+C) عشان تلصقها في الجروب:", body);
-                          }
-                          // النافذة كانت اتفتحت فورًا (فاضية) أول ما دُس الزرار عشان تفلت من حجب المتصفح للـ popups؛
-                          // دلوقتي بعد ما جهزنا كل حاجة، نوجهها فعليًا للينك جروب واتساب
-                          if (waWindow) {
-                            waWindow.location.href = senderInfo.whatsappGroupLink!;
-                          } else {
-                            // لو المتصفح حجب حتى النافذة الفاضية (نادر)، نحاول نفتح مباشرة كـ fallback
-                            window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer");
-                          }
+
+                          toast(
+                            copied
+                              ? {
+                                  title: "📋 تم نسخ الرسالة بنجاح",
+                                  description: "هيتفتح جروب العميل دلوقتي — اضغط Ctrl+V داخل مربع إرسال الرسالة في واتساب عشان تلزقها.",
+                                  duration: 6000,
+                                }
+                              : {
+                                  title: "⚠️ تعذر نسخ الرسالة تلقائياً",
+                                  description: "هتحتاج تنسخ الرسالة يدويًا وتبعتها في الجروب.",
+                                  variant: "destructive",
+                                  duration: 8000,
+                                }
+                          );
+
+                          // فتح جروب الواتساب مباشرة بالرابط النهائي — من غير نافذة فاضية أو prompt
+                          // بينهم، عشان التاب الجديد ميتجمدش أو يفضل فاضي
+                          window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer");
                         }}
                         title="نسخ رسالة مشكلة العميل وفتح جروب واتساب الخاص بالعميل"
                       >
