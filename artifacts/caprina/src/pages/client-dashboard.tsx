@@ -72,6 +72,62 @@ const CLIENT_STATUS_CFG: Record<string, { label: string; color: string; bg: stri
   cancelled:        { label: "ملغية",                color: "#6b7280", bg: "#6b728018" },
 };
 
+// ─── Hover (active) shape — smooth expand with glow ────────────────────────
+function ClientActiveDonutShape(props: any) {
+  const {
+    cx, cy, innerRadius, outerRadius,
+    startAngle, endAngle, fill,
+    payload, percent, value,
+  } = props;
+  const cfg = CLIENT_STATUS_CFG[payload.key] ?? { label: payload.key, color: fill };
+
+  return (
+    <g tabIndex={-1} style={{ outline: "none" }}>
+      {/* Glow ring */}
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={outerRadius + 5}
+        outerRadius={outerRadius + 9}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        opacity={0.2}
+        cornerRadius={6}
+      />
+      {/* Main segment — slightly expanded */}
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={innerRadius - 4}
+        outerRadius={outerRadius + 7}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        cornerRadius={6}
+        tabIndex={-1}
+        style={{ outline: "none" }}
+      />
+      {/* Center text: count */}
+      <text x={cx} y={cy - 14} textAnchor="middle"
+        fill="hsl(var(--foreground))" fontSize={26} fontWeight={900}
+        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
+        {value}
+      </text>
+      {/* Center text: label */}
+      <text x={cx} y={cy + 8} textAnchor="middle"
+        fill="hsl(var(--muted-foreground))" fontSize={11}
+        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
+        {cfg.label}
+      </text>
+      {/* Center text: percent */}
+      <text x={cx} y={cy + 26} textAnchor="middle"
+        fill={fill} fontSize={14} fontWeight={800}
+        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    </g>
+  );
+}
+
 // ─── Client Shipment Filtered List (Popover body) — مفلتر بالعميل تلقائيًا ────
 function ClientShipmentFilteredList({ statusKey, cfg }: { statusKey: string; cfg: { label: string; color: string; bg: string } }) {
   const { data, isLoading, error } = useQuery<any>({
@@ -192,6 +248,7 @@ function ClientShipmentStatusDonut({ breakdown, total }: { breakdown: StatsRespo
               startAngle={90} endAngle={-270}
               labelLine={false}
               activeIndex={activeIndex ?? undefined}
+              activeShape={ClientActiveDonutShape}
               animationBegin={0} animationDuration={600} animationEasing="ease-out"
               onMouseEnter={(_, i) => setActiveIndex(i)}
               onMouseLeave={() => setActiveIndex(null)}
