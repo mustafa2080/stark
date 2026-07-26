@@ -57,30 +57,49 @@ function statusMeta(status: string) {
 
 // ── Donut Chart (SVG) ─────────────────────────────────────────────────────
 function DonutChart({ breakdown, total }: { breakdown: StatsResponse["breakdown"]; total: number }) {
-  const size = 200, stroke = 18, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
+  const size = 200, stroke = 18, hoverStroke = 24, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
   const circumference = 2 * Math.PI * r;
   let offsetAcc = 0;
+  const [hovered, setHovered] = useState<string | null>(null);
+  const hoveredItem = breakdown.find(b => b.key === hovered);
 
   return (
     <div className="relative flex items-center justify-center shrink-0">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] md:w-[260px] md:h-[260px]" style={{ transform: "rotate(-90deg)" }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] md:w-[260px] md:h-[260px]" style={{ transform: "rotate(-90deg)", overflow: "visible" }}>
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--muted-foreground)/0.15)" strokeWidth={stroke} />
         {breakdown.map((b, i) => {
           const dash = (b.pct / 100) * circumference;
+          const isHovered = hovered === b.key;
           const el = (
-            <circle key={b.key} cx={cx} cy={cy} r={r} fill="none" stroke={b.color} strokeWidth={stroke}
+            <circle key={b.key} cx={cx} cy={cy} r={r} fill="none" stroke={b.color}
+              strokeWidth={isHovered ? hoverStroke : stroke}
               strokeDasharray={`${dash} ${circumference - dash}`}
               strokeDashoffset={-offsetAcc}
               strokeLinecap="butt"
-              style={{ transition: "stroke-dasharray 0.6s ease" }} />
+              onMouseEnter={() => setHovered(b.key)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                transition: "stroke-dasharray 0.6s ease, stroke-width 0.2s ease, opacity 0.2s ease",
+                opacity: hovered && !isHovered ? 0.45 : 1,
+                cursor: "pointer",
+              }} />
           );
           offsetAcc += dash;
           return el;
         })}
       </svg>
-      <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-2xl sm:text-3xl font-black text-foreground">{fn(total)}</span>
-        <span className="text-[11px] sm:text-xs text-muted-foreground mt-1">الإجمالي</span>
+      <div className="absolute flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150">
+        {hoveredItem ? (
+          <>
+            <span className="text-2xl sm:text-3xl font-black" style={{ color: hoveredItem.color }}>{hoveredItem.pct}%</span>
+            <span className="text-[11px] sm:text-xs text-muted-foreground mt-1">{hoveredItem.label}</span>
+          </>
+        ) : (
+          <>
+            <span className="text-2xl sm:text-3xl font-black text-foreground">{fn(total)}</span>
+            <span className="text-[11px] sm:text-xs text-muted-foreground mt-1">الإجمالي</span>
+          </>
+        )}
       </div>
     </div>
   );
