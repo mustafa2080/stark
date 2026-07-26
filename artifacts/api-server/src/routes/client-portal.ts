@@ -544,7 +544,19 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
     let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone ?? null, user.id, client.id);
 
     if (status && status !== "all") {
-      shipments = shipments.filter(s => s.status === status);
+      // نفس تجميع الحالات المستخدم في /client-portal/stats — عشان الفلتر يتطابق مع الدونات
+      const STATUS_GROUPS: Record<string, string[]> = {
+        delivered:        ["delivered", "received"],
+        in_transit:       ["in_transit", "picked_up", "out_for_delivery"],
+        warehouse_ready:  ["warehouse_ready", "in_shipping", "still_in_warehouse"],
+        waiting:          ["waiting", "confirmed"],
+        returned:         ["returned"],
+        delayed:          ["delayed"],
+        cancelled:        ["cancelled"],
+        partial_received: ["partial_received"],
+      };
+      const group = STATUS_GROUPS[status] ?? [status];
+      shipments = shipments.filter(s => group.includes(s.status));
     }
     if (search) {
       const q = search.toLowerCase();

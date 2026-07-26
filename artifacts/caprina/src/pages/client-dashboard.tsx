@@ -451,11 +451,13 @@ export default function ClientDashboardPage() {
               <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
                 className="py-2 px-3 rounded-lg text-xs text-foreground outline-none w-full sm:w-auto bg-muted/50 border border-border">
                 <option value="all">كل الحالات</option>
-                <option value="delivered">تم التسليم</option>
-                <option value="in_transit">قيد التوصيل</option>
-                <option value="waiting">في الانتظار</option>
+                <option value="waiting">قيد الانتظار</option>
+                <option value="in_transit">قيد الشحن</option>
+                <option value="warehouse_ready">قيد الشحن في المخزن</option>
+                <option value="delivered">استلم</option>
+                <option value="partial_received">استلم جزئى</option>
+                <option value="delayed">مؤجل</option>
                 <option value="returned">مرتجع</option>
-                <option value="delayed">متأخرة</option>
                 <option value="cancelled">ملغية</option>
               </select>
             </div>
