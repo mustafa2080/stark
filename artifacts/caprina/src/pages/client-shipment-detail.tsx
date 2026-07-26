@@ -4128,6 +4128,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             shippingFee: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
                             codAmount: (order as any).codAmount ?? 0,
                             zoneLabel: (order as any).receiverCity || (order as any).city || (order as any).zoneLabel || null,
+                            receiverCity: (order as any).receiverCity || (order as any).city || null,
+                            receiverAddress: (order as any).receiverAddress || (order as any).address || null,
                           });
 
                           // نسخ الرسالة: نجرب الـ Clipboard API الحديثة الأول، ولو فشلت (غالبًا بسبب فقدان

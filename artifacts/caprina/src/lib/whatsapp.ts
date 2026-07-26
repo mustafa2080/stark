@@ -90,32 +90,40 @@ export const SHIPMENT_TEMPLATE_VARIABLES = [
 export function applySenderIssueTemplate(templateBody: string, s: WhatsAppShipmentData): string {
   const formatCurr = (n: number | string | null | undefined) =>
     new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
+  const totalPrice = (Number(s.shippingFee) || 0) + (Number(s.codAmount) || 0);
   return templateBody
     .replace(/\{senderName\}/g,      s.senderName ?? "—")
     .replace(/\{receiverName\}/g,    s.receiverName)
+    .replace(/\{customerName\}/g,    s.receiverName)
     .replace(/\{receiverPhone\}/g,   s.receiverPhone ?? "—")
+    .replace(/\{customerPhone\}/g,   s.receiverPhone ?? "—")
     .replace(/\{shipmentNumber\}/g,  s.shipmentNumber ?? String(s.id))
     .replace(/\{trackingNumber\}/g,  s.trackingNumber ?? "—")
     .replace(/\{status\}/g,          s.status)
     .replace(/\{shippingFee\}/g,     formatCurr(s.shippingFee))
     .replace(/\{codAmount\}/g,       formatCurr(s.codAmount))
+    .replace(/\{totalPrice\}/g,      formatCurr(totalPrice))
     .replace(/\{zone\}/g,            s.zoneLabel ?? "—")
     .replace(/\{region\}/g,          s.zoneLabel ?? "—")
-    .replace(/\{receiverCity\}/g,    s.receiverCity ?? s.zoneLabel ?? "—");
+    .replace(/\{receiverCity\}/g,    s.receiverCity ?? s.zoneLabel ?? "—")
+    .replace(/\{customerCity\}/g,    s.receiverCity ?? s.zoneLabel ?? "—")
+    .replace(/\{customerAddress\}/g, s.receiverAddress ?? "—");
 }
 
 export const SENDER_ISSUE_TEMPLATE_VARIABLES = [
   { var: "{senderName}",     label: "اسم الراسل" },
   { var: "{receiverName}",   label: "اسم المستلم (اسم العميل)" },
-  { var: "{receiverPhone}",  label: "هاتف المستلم" },
+  { var: "{receiverPhone}",  label: "هاتف المستلم (رقم تليفونه)" },
   { var: "{shipmentNumber}", label: "رقم البوليصة" },
   { var: "{trackingNumber}", label: "رقم التتبع" },
   { var: "{status}",         label: "حالة الشحنة" },
   { var: "{shippingFee}",    label: "رسوم الشحن" },
   { var: "{codAmount}",      label: "مبلغ COD" },
+  { var: "{totalPrice}",     label: "إجمالي سعر الشحنة (رسوم الشحن + COD)" },
   { var: "{zone}",           label: "المنطقة" },
   { var: "{region}",         label: "المنطقة (نفس {zone})" },
   { var: "{receiverCity}",   label: "المحافظة" },
+  { var: "{customerAddress}", label: "عنوان العميل" },
 ];
 
 
