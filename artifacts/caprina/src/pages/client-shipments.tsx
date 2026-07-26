@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Package, Search, ChevronRight, RefreshCcw, Plus, Upload, MessageCircle,
+  Package, Search, ChevronRight, RefreshCcw, Plus, Upload, MessageCircle, ChevronUp, ChevronDown, X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
@@ -45,31 +46,273 @@ function statusMeta(status: string) {
   return STATUS_LABELS[status] ?? { label: status, color: "#64748b", bg: "rgba(100,116,139,0.12)" };
 }
 
+// ── Column Filters (Excel-style) ─────────────────────────────────────────
+type ColKey = "id" | "date" | "sender" | "receiver" | "phone" | "city" | "cod" | "agent" | "status";
+type ColFilters = Record<ColKey, Set<string>>;
+
+function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
+  col: ColKey;
+  colFilters: ColFilters;
+  getColOptions: (col: ColKey) => string[];
+  toggleColFilter: (col: ColKey, val: string) => void;
+  clearColFilter: (col: ColKey) => void;
+  sortCol: ColKey | null;
+  sortDir: "asc" | "desc";
+  onSort: (col: ColKey, dir: "asc" | "desc") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const sort = sortCol === col ? sortDir : "asc";
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const active = colFilters[col].size > 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const panelW = 208;
+      const left = Math.max(4, Math.min(r.left, window.innerWidth - panelW - 4));
+      setPos({ top: r.bottom + 4, left });
+    }
+    setOpen(o => !o);
+    setSearch("");
+  };
+
+  let opts = getColOptions(col);
+  if (search) opts = opts.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+  if (sort === "desc") opts = [...opts].reverse();
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleOpen}
+        title="فلتر"
+        className={`inline-flex items-center justify-center w-5 h-5 rounded transition-all shrink-0 ${active ? "text-primary bg-primary/15" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}
+      >
+        {active ? (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        )}
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-background border border-border rounded-lg shadow-2xl text-[11px] w-52"
+          dir="rtl"
+        >
+          <div className="flex gap-1 p-2 border-b border-border/50">
+            <button type="button" onClick={() => { onSort(col, "asc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "asc" && sortCol === col ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronUp className="w-2.5 h-2.5" />أ→ي
+            </button>
+            <button type="button" onClick={() => { onSort(col, "desc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "desc" && sortCol === col ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronDown className="w-2.5 h-2.5" />ي→أ
+            </button>
+          </div>
+          <div className="px-2 pt-2">
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="بحث في القيم..."
+              className="w-full h-7 text-[10px] px-2 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div className="max-h-52 overflow-y-auto px-1 py-1.5 flex flex-col gap-0.5">
+            {opts.length === 0
+              ? <p className="text-muted-foreground text-center py-3 text-[10px]">لا توجد قيم</p>
+              : opts.map(val => (
+                <label key={val} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer">
+                  <input type="checkbox" checked={colFilters[col].has(val)}
+                    onChange={() => toggleColFilter(col, val)}
+                    className="accent-primary w-3 h-3 shrink-0" />
+                  <span className="truncate">{val}</span>
+                </label>
+              ))
+            }
+          </div>
+          {active && (
+            <div className="border-t border-border/50 px-2 py-1.5">
+              <button type="button" onClick={() => { clearColFilter(col); setOpen(false); }}
+                className="text-destructive text-[10px] hover:underline w-full text-right">
+                مسح الفلتر
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 export default function ClientShipmentsPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
 
-  const { data: shipmentsData, isLoading, refetch } = useQuery<{ data: ShipmentRow[]; total: number }>({
-    queryKey: ["client-portal-shipments-full", statusFilter, search, page],
-    queryFn: () => {
-      const q = new URLSearchParams();
-      if (statusFilter !== "all") q.set("status", statusFilter);
-      if (search.trim()) q.set("search", search.trim());
-      q.set("page", String(page));
-      q.set("pageSize", "20");
-      return apiFetch(`/client-portal/shipments?${q.toString()}`);
+  // ── نجيب كل شحنات العميل (بدون تقسيم صفحات سيرفر) عشان الفلاتر تشتغل زي الأدمن ──
+  const { data: allShipments = [], isLoading, refetch } = useQuery<ShipmentRow[]>({
+    queryKey: ["client-portal-shipments-all"],
+    queryFn: async () => {
+      const pageSize = 100;
+      let page = 1;
+      let all: ShipmentRow[] = [];
+      while (true) {
+        const q = new URLSearchParams();
+        q.set("page", String(page));
+        q.set("pageSize", String(pageSize));
+        const res: { data: ShipmentRow[]; total: number } = await apiFetch(`/client-portal/shipments?${q.toString()}`);
+        all = all.concat(res.data);
+        if (all.length >= res.total || res.data.length === 0) break;
+        page += 1;
+      }
+      return all;
     },
     enabled: !!user,
     staleTime: 15_000,
   });
 
-  const shipments = shipmentsData?.data ?? [];
-  const totalShipments = shipmentsData?.total ?? 0;
+  // ── Column Filters (Excel-style) ────────────────────────────────────────
+  const [colFilters, setColFilters] = useState<ColFilters>({
+    id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(),
+    phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set(),
+  });
+  const colFilterHasActive = Object.values(colFilters).some(s => s.size > 0);
+  const [showColFilters, setShowColFilters] = useState(false);
+  const [sortCol, setSortCol] = useState<ColKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = useCallback((col: ColKey, dir: "asc" | "desc") => {
+    setSortCol(col);
+    setSortDir(dir);
+  }, []);
+
+  // ── فلترة البحث النصي + حالة الطلب (زي القديم، بس محليًا) ──────────────────
+  const filtered = useMemo(() => {
+    return allShipments.filter(s => {
+      if (statusFilter !== "all") {
+        const STATUS_GROUPS: Record<string, string[]> = {
+          delivered:        ["delivered", "received"],
+          in_transit:       ["in_transit", "picked_up", "out_for_delivery"],
+          warehouse_ready:  ["warehouse_ready", "in_shipping", "still_in_warehouse"],
+          waiting:          ["waiting", "confirmed"],
+          returned:         ["returned"],
+          delayed:          ["delayed"],
+          cancelled:        ["cancelled"],
+          partial_received: ["partial_received"],
+        };
+        const group = STATUS_GROUPS[statusFilter] ?? [statusFilter];
+        if (!group.includes(s.status)) return false;
+      }
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const hit =
+          (s.trackingNumber ?? "").toLowerCase().includes(q) ||
+          (s.shipmentNumber ?? "").toLowerCase().includes(q) ||
+          (s.receiverName ?? "").toLowerCase().includes(q) ||
+          String(s.id).includes(q);
+        if (!hit) return false;
+      }
+      return true;
+    });
+  }, [allShipments, statusFilter, search]);
+
+  // ── Col Filter helpers ──────────────────────────────────────────────────
+  const getColVal = useCallback((col: ColKey, s: ShipmentRow): string => {
+    switch (col) {
+      case "id":       return s.trackingNumber ?? s.shipmentNumber ?? `#${s.id.toString().padStart(4,"0")}`;
+      case "date":     return s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "";
+      case "sender":   return s.senderName ?? "";
+      case "receiver": return s.receiverName ?? "";
+      case "phone":    return s.receiverPhone ?? "";
+      case "city":     return s.receiverCity ?? "";
+      case "cod":      return String(Math.round(Number(s.codAmount || 0)));
+      case "agent":    return s.assignedUserName ?? "";
+      case "status":   return statusMeta(s.status).label;
+      default:         return "";
+    }
+  }, []);
+
+  const getColOptions = useCallback((col: ColKey): string[] => {
+    const vals = [...new Set(filtered.map(s => getColVal(col, s)))].filter(Boolean);
+    return vals.sort((a, b) => a.localeCompare(b, "ar"));
+  }, [filtered, getColVal]);
+
+  const toggleColFilter = useCallback((col: ColKey, val: string) => {
+    setColFilters(prev => {
+      const next = new Set(prev[col]);
+      next.has(val) ? next.delete(val) : next.add(val);
+      return { ...prev, [col]: next };
+    });
+  }, []);
+
+  const clearColFilter = useCallback((col: ColKey) => {
+    setColFilters(prev => ({ ...prev, [col]: new Set() }));
+  }, []);
+
+  const colFilteredRows = useMemo(() => {
+    if (!colFilterHasActive) return filtered;
+    return filtered.filter(s =>
+      (Object.keys(colFilters) as ColKey[]).every(col => {
+        const set = colFilters[col];
+        if (set.size === 0) return true;
+        return set.has(getColVal(col, s));
+      })
+    );
+  }, [filtered, colFilters, colFilterHasActive, getColVal]);
+
+  const displayRows = useMemo(() => {
+    if (!sortCol) return colFilteredRows;
+    return [...colFilteredRows].sort((a, b) => {
+      const va = getColVal(sortCol, a);
+      const vb = getColVal(sortCol, b);
+      const cmp = va.localeCompare(vb, "ar", { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [colFilteredRows, sortCol, sortDir, getColVal]);
+
+  // ── Pagination (client-side) ────────────────────────────────────────────
   const pageSize = 20;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(1);
+  }, [totalPages]);
+  const shipments = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return displayRows.slice(start, start + pageSize);
+  }, [displayRows, page]);
+  const totalShipments = displayRows.length;
+
+  const hasActiveFilter = search.trim() !== "" || statusFilter !== "all" || colFilterHasActive;
+  const clearAllFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setColFilters({ id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set() });
+    setSortCol(null);
+    setPage(1);
+  };
 
   return (
     <div className="min-h-screen -m-4 md:-m-6 p-3 sm:p-4 md:p-6 bg-background" dir="rtl">
@@ -122,6 +365,25 @@ export default function ClientShipmentsPage() {
                 <option value="cancelled">ملغية</option>
                 <option value="partial_received">استلم جزئى</option>
               </select>
+              <button
+                type="button"
+                onClick={() => {
+                  if (showColFilters) {
+                    setColFilters({ id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set() });
+                    setSortCol(null);
+                  }
+                  setShowColFilters(v => !v);
+                }}
+                className={`hidden md:flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${showColFilters ? "text-primary bg-primary/10 border-primary/30" : "text-foreground/70 bg-muted/50 border-border"}`}
+              >
+                فلاتر الأعمدة
+              </button>
+              {hasActiveFilter && (
+                <button type="button" onClick={clearAllFilters}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-muted-foreground bg-muted/50 border border-border">
+                  <X size={13} /> مسح الكل
+                </button>
+              )}
             </div>
           </div>
 
@@ -163,15 +425,33 @@ export default function ClientShipmentsPage() {
             <table className="w-full text-xs" dir="rtl">
               <thead>
                 <tr className="bg-muted/40">
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">#</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">التاريخ</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الراسل</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المستلم</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الهاتف</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المحافظة</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">سعر الشحنة</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المندوب</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الحالة</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">#{showColFilters && <ColFilterBtn col="id" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">التاريخ{showColFilters && <ColFilterBtn col="date" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">المستلم{showColFilters && <ColFilterBtn col="receiver" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">المحافظة{showColFilters && <ColFilterBtn col="city" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">سعر الشحنة{showColFilters && <ColFilterBtn col="cod" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">المندوب{showColFilters && <ColFilterBtn col="agent" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
                   <th className="text-center font-bold text-muted-foreground px-4 py-3 w-10"></th>
                   <th className="text-right font-bold text-muted-foreground px-4 py-3 w-8"></th>
                 </tr>
