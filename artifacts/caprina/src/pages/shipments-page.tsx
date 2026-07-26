@@ -1059,6 +1059,22 @@ export default function Orders() {
     });
   }, [colFilteredRows, sortCol, sortDir, getColVal]);
 
+  // ── Pagination (client-side) ─────────────────────────────────────────────
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE));
+  useEffect(() => {
+    if (page > totalPages) setPage(1);
+  }, [totalPages]);
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return displayRows.slice(start, start + PAGE_SIZE);
+  }, [displayRows, page]);
+  // أي تغيير في الفلاتر أو الترتيب يرجّع للصفحة الأولى
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, customerSearch, status, dateFrom, dateTo, colFilters, sortCol, sortDir]);
+
   const hasActiveFilter = search || customerSearch || status !== "all" || dateFrom || dateTo;
 
   const clearFilters = () => {
@@ -1690,7 +1706,7 @@ export default function Orders() {
           <>
             {/* ── Mobile ── */}
             <div className="sm:hidden divide-y divide-border">
-              {filtered.map((order) => {
+              {paginatedRows.map((order) => {
                 const isGroup = !!(order as any)._groupCount && (order as any)._groupCount > 1;
                 const canWhatsApp = canWriteOrders && !bulkSelectMode;
                 const retReason = (order as any).returnReason as string | null;
@@ -1854,7 +1870,7 @@ export default function Orders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayRows.map((order, rowIndex) => {
+                  {paginatedRows.map((order, rowIndex) => {
                     const o = order as any;
                     const senderPhone = o.senderPhone || o.receiverPhone || o.phone || "";
                     const canWhatsApp = canWriteOrders && !bulkSelectMode;
@@ -2015,6 +2031,24 @@ export default function Orders() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* ── Pagination ── */}
+            {displayRows.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border gap-2 flex-wrap">
+                <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                  عرض {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, displayRows.length)} من {displayRows.length}
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" className="h-8 text-xs" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                    السابق
+                  </Button>
+                  <span className="text-xs text-muted-foreground">{page} / {totalPages}</span>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+                    التالي
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="p-12 text-center">
@@ -2025,10 +2059,10 @@ export default function Orders() {
         )}
       </Card>
 
-      {filtered.length > 0 && (
+      {displayRows.length > 0 && (
         <p className="text-xs text-muted-foreground text-left">
-          إجمالي {filtered.length} شحنة
-          {orders && filtered.length !== orders.length && ` (من ${orders.length})`}
+          إجمالي {displayRows.length} شحنة
+          {orders && displayRows.length !== orders.length && ` (من ${orders.length})`}
           {bulkSelectMode && selectedIds.size > 0 && ` — محدد: ${selectedInvoiceCount}`}
         </p>
       )}
