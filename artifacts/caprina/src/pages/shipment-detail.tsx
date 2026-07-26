@@ -4130,14 +4130,20 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             zoneLabel: (order as any).receiverCity || (order as any).city || (order as any).zoneLabel || null,
                           });
 
-                          // نسخ الرسالة: نجرب الـ Clipboard API الحديثة الأول، ولو فشلت (غالبًا بسبب فقدان
-                          // الـ user-gesture بعد الـ await) نرجع لطريقة execCommand القديمة اللي بتشتغل sync
-                          // ومش بتحتاج إذن المتصفح.
+                          // نسخ الرسالة: نجرب الـ Clipboard API الحديثة الأول، ثم نتحقق فعليًا إن
+                          // النسخ نجح (readText) لأن بعض المتصفحات زي Brave بترجع resolved كاذب
+                          // من writeText من غير ما تكتب فعليًا (خصوصًا بعد await async). لو التحقق
+                          // فشل، أو الكتابة نفسها فشلت، نرجع لطريقة execCommand القديمة اللي
+                          // بتشتغل sync ومش محتاجة إذن المتصفح.
                           let copied = false;
                           try {
                             await navigator.clipboard.writeText(body);
-                            copied = true;
+                            const verify = await navigator.clipboard.readText();
+                            copied = verify === body;
                           } catch {
+                            copied = false;
+                          }
+                          if (!copied) {
                             try {
                               const textarea = document.createElement("textarea");
                               textarea.value = body;
