@@ -52,7 +52,7 @@ export default function ClientShippingInvoices() {
 
   const { data: shipmentsData, isLoading } = useQuery({
     queryKey: ["client-shipments-invoices"],
-    queryFn: () => apiFetch<{ data: any[]; total: number }>("/client-portal/shipments?status=warehouse_ready&pageSize=200"),
+    queryFn: () => apiFetch<{ data: any[]; total: number }>("/client-portal/shipments?status=waiting&pageSize=200"),
   });
   const warehouseShipments: any[] = shipmentsData?.data ?? [];
 
@@ -239,7 +239,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
         <div>
           <h1 className="text-2xl font-bold">فواتير الشحنات</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            تظهر الشحنات في مرحلة «قيد الشحن في المخزن»
+            تظهر الشحنات في مرحلة «قيد الانتظار»
           </p>
         </div>
         <Button onClick={() => void handleShipmentPrint()} className="gap-2 font-bold text-sm h-9" disabled={selectedShipmentIds.size === 0}>
@@ -343,7 +343,7 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
         <Card className="border-border p-12 text-center">
           <Truck className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
           <p className="font-bold">لا توجد شحنات</p>
-          <p className="text-sm text-muted-foreground mt-1">سيظهر هنا الشحنات التي حالتها «قيد الشحن في المخزن»</p>
+          <p className="text-sm text-muted-foreground mt-1">سيظهر هنا الشحنات التي حالتها «قيد الانتظار»</p>
         </Card>
       )}
     </div>
