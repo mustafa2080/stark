@@ -632,7 +632,7 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* ── Header علوي بسيط (موبايل) ── */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="md:hidden shrink-0 border-b border-sidebar-border bg-sidebar">
+          <header className="md:hidden print:hidden shrink-0 border-b border-sidebar-border bg-sidebar">
             <div className="flex items-center justify-between px-4 h-14 gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <BrandLogoMark size="sm" />
