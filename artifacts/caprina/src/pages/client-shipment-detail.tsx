@@ -4129,12 +4129,30 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             codAmount: (order as any).codAmount ?? 0,
                             zoneLabel: (order as any).receiverCity || (order as any).city || (order as any).zoneLabel || null,
                           });
+                          let copied = false;
                           try {
                             await navigator.clipboard.writeText(body);
-                            toast({ title: "📋 تم نسخ الرسالة", description: "الصقها (Ctrl+V) داخل مربع إرسال الجروب." });
+                            copied = true;
                           } catch {
-                            toast({ title: "⚠️ تعذر نسخ الرسالة تلقائياً", variant: "destructive" });
+                            copied = false;
                           }
+                          if (copied) {
+                            toast({
+                              title: "📋 تم نسخ الرسالة بنجاح",
+                              description: "هيتفتح جروب العميل دلوقتي — اضغط Ctrl+V داخل مربع إرسال الرسالة في واتساب عشان تلزقها.",
+                              duration: 6000,
+                            });
+                          } else {
+                            toast({
+                              title: "⚠️ تعذر نسخ الرسالة تلقائياً",
+                              description: "انسخ الرسالة يدويًا من نافذة التأكيد اللي هتظهر، وألصقها في الجروب.",
+                              variant: "destructive",
+                              duration: 8000,
+                            });
+                            window.prompt("انسخ الرسالة يدويًا (Ctrl+C) عشان تلصقها في الجروب:", body);
+                          }
+                          // نستنى شوية عشان نضمن إن النسخ خلص فعليًا قبل ما التاب يتفتح ويسحب الـ focus
+                          await new Promise((resolve) => setTimeout(resolve, 150));
                           window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer");
                         }}
                         title="نسخ رسالة مشكلة العميل وفتح جروب واتساب الخاص بالعميل"
