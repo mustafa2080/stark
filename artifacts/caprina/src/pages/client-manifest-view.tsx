@@ -848,6 +848,7 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           border-collapse: collapse;
           margin-bottom: 14px;
           font-size: 10px;
+          border: 1px solid #111111;
         }
         .print-items-table th {
           background: #111111;
@@ -856,6 +857,7 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           font-size: 9.5px;
           font-weight: 700;
           text-align: right;
+          border: 1px solid #111111;
         }
         .print-items-table td {
           border: 1px solid #dddddd;
