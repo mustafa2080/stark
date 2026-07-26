@@ -182,6 +182,7 @@ export default function ClientShipmentsPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   // ── إحصائيات (نفس شكل قسم الشحنات بتاع الأدمن) ──────────────────────────
@@ -246,18 +247,24 @@ export default function ClientShipmentsPage() {
         const group = STATUS_GROUPS[statusFilter] ?? [statusFilter];
         if (!group.includes(s.status)) return false;
       }
+      if (customerSearch.trim()) {
+        const words = customerSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        const receiver = (s.receiverName ?? "").toLowerCase();
+        const matchesAll = words.every(w => receiver.includes(w));
+        if (!matchesAll) return false;
+      }
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         const hit =
           (s.trackingNumber ?? "").toLowerCase().includes(q) ||
           (s.shipmentNumber ?? "").toLowerCase().includes(q) ||
-          (s.receiverName ?? "").toLowerCase().includes(q) ||
+          (s.receiverPhone ?? "").toLowerCase().includes(q) ||
           String(s.id).includes(q);
         if (!hit) return false;
       }
       return true;
     });
-  }, [allShipments, statusFilter, search]);
+  }, [allShipments, statusFilter, search, customerSearch]);
 
   // ── Col Filter helpers ──────────────────────────────────────────────────
   const getColVal = useCallback((col: ColKey, s: ShipmentRow): string => {
@@ -326,9 +333,10 @@ export default function ClientShipmentsPage() {
   }, [displayRows, page]);
   const totalShipments = displayRows.length;
 
-  const hasActiveFilter = search.trim() !== "" || statusFilter !== "all" || colFilterHasActive;
+  const hasActiveFilter = search.trim() !== "" || customerSearch.trim() !== "" || statusFilter !== "all" || colFilterHasActive;
   const clearAllFilters = () => {
     setSearch("");
+    setCustomerSearch("");
     setStatusFilter("all");
     setColFilters({ id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set() });
     setSortCol(null);
@@ -445,8 +453,14 @@ export default function ClientShipmentsPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="relative w-full sm:w-auto">
+                <input value={customerSearch} onChange={e => { setCustomerSearch(e.target.value); setPage(1); }}
+                  placeholder="ابحث باسم العميل..."
+                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-full sm:w-52 bg-muted/50 border border-border" />
+                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+              </div>
+              <div className="relative w-full sm:w-auto">
                 <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  placeholder="بحث بالكود أو الاسم..."
+                  placeholder="بحث بالكود أو رقم الهاتف..."
                   className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-full sm:w-52 bg-muted/50 border border-border" />
                 <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
               </div>
