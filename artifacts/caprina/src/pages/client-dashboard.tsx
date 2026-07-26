@@ -1,12 +1,17 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Package, CheckCircle2, Clock, RotateCcw, Truck, Ban,
   Search, Wallet, TrendingUp, User,
   ChevronRight, RefreshCcw, ShieldCheck, AlertCircle, PackagePlus,
 } from "lucide-react";
+import {
+  PieChart, Pie, Cell, Sector, ResponsiveContainer,
+} from "recharts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 
@@ -55,51 +60,154 @@ function statusMeta(status: string) {
   return STATUS_LABELS[status] ?? { label: status, color: "#64748b", bg: "rgba(100,116,139,0.12)" };
 }
 
-// ── Donut Chart (SVG) ─────────────────────────────────────────────────────
-function DonutChart({ breakdown, total }: { breakdown: StatsResponse["breakdown"]; total: number }) {
-  const size = 200, stroke = 18, hoverStroke = 24, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
-  const circumference = 2 * Math.PI * r;
-  let offsetAcc = 0;
-  const [hovered, setHovered] = useState<string | null>(null);
-  const hoveredItem = breakdown.find(b => b.key === hovered);
+// ── Status color config (نفس ألوان breakdown القادمة من /client-portal/stats) ──
+const CLIENT_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  waiting:          { label: "قيد الانتظار",         color: "#f5a623", bg: "#f5a62318" },
+  in_transit:       { label: "قيد الشحن",            color: "#4a7cf5", bg: "#4a7cf518" },
+  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#2dd4bf", bg: "#2dd4bf18" },
+  delivered:        { label: "استلم",                color: "#22c55e", bg: "#22c55e18" },
+  partial_received: { label: "استلم جزئى",           color: "#38bdf8", bg: "#38bdf818" },
+  delayed:          { label: "مؤجل",                 color: "#8b5cf6", bg: "#8b5cf618" },
+  returned:         { label: "مرتجع",                color: "#ef4444", bg: "#ef444418" },
+  cancelled:        { label: "ملغية",                color: "#6b7280", bg: "#6b728018" },
+};
+
+// ─── Client Shipment Filtered List (Popover body) — مفلتر بالعميل تلقائيًا ────
+function ClientShipmentFilteredList({ statusKey, cfg }: { statusKey: string; cfg: { label: string; color: string; bg: string } }) {
+  const { data, isLoading, error } = useQuery<any>({
+    queryKey: ["client-portal-shipments-by-status", statusKey],
+    queryFn: () => apiFetch<any>(`/client-portal/shipments?status=${statusKey}&pageSize=20`),
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const shipments: any[] = data?.data ?? (Array.isArray(data) ? data : []);
 
   return (
-    <div className="relative flex items-center justify-center shrink-0">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] md:w-[260px] md:h-[260px]" style={{ transform: "rotate(-90deg)", overflow: "visible" }}>
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--muted-foreground)/0.15)" strokeWidth={stroke} />
-        {breakdown.map((b, i) => {
-          const dash = (b.pct / 100) * circumference;
-          const isHovered = hovered === b.key;
-          const el = (
-            <circle key={b.key} cx={cx} cy={cy} r={r} fill="none" stroke={b.color}
-              strokeWidth={isHovered ? hoverStroke : stroke}
-              strokeDasharray={`${dash} ${circumference - dash}`}
-              strokeDashoffset={-offsetAcc}
-              strokeLinecap="butt"
-              onMouseEnter={() => setHovered(b.key)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                transition: "stroke-dasharray 0.6s ease, stroke-width 0.2s ease, opacity 0.2s ease",
-                opacity: hovered && !isHovered ? 0.45 : 1,
-                cursor: "pointer",
-              }} />
-          );
-          offsetAcc += dash;
-          return el;
-        })}
-      </svg>
-      <div className="absolute flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150">
-        {hoveredItem ? (
-          <>
-            <span className="text-2xl sm:text-3xl font-black" style={{ color: hoveredItem.color }}>{hoveredItem.pct}%</span>
-            <span className="text-[11px] sm:text-xs text-muted-foreground mt-1">{hoveredItem.label}</span>
-          </>
-        ) : (
-          <>
-            <span className="text-2xl sm:text-3xl font-black text-foreground">{fn(total)}</span>
-            <span className="text-[11px] sm:text-xs text-muted-foreground mt-1">الإجمالي</span>
-          </>
+    <div className="w-[88vw] max-w-xs max-h-96 overflow-y-auto rounded-xl border" style={{ borderColor: cfg.color + "44", background: cfg.bg }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b sticky top-0 z-10"
+        style={{ borderColor: cfg.color + "33", background: cfg.bg }}>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+          <span className="text-xs font-bold" style={{ color: cfg.color }}>{cfg.label}</span>
+          {!isLoading && shipments.length > 0 && (
+            <span className="text-[10px] text-muted-foreground">({shipments.length})</span>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
+      ) : error ? (
+        <div className="p-4 text-center text-xs text-red-500">خطأ في التحميل</div>
+      ) : shipments.length === 0 ? (
+        <div className="p-4 text-center text-xs text-muted-foreground">لا توجد شحنات بهذه الحالة</div>
+      ) : (
+        <div className="divide-y" style={{ borderColor: cfg.color + "22" }}>
+          {shipments.slice(0, 20).map((s: any) => (
+            <Link
+              key={s.id}
+              href={`/client-shipment-detail/${s.id}`}
+              className="flex items-center justify-between px-3 py-2 hover:bg-black/5 transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-white"
+                  style={{ background: cfg.color }}>
+                  {(s.receiverName ?? "؟").charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">{s.receiverName ?? "—"}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {s.shipmentNumber ?? s.trackingNumber ?? `#${String(s.id).padStart(4, "0")}`}
+                    {s.receiverCity ? ` • ${s.receiverCity}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="text-left shrink-0 mr-1">
+                {s.codAmount != null && Number(s.codAmount) > 0 && (
+                  <p className="text-[10px] font-black" style={{ color: cfg.color }}>
+                    {fc(s.codAmount)}
+                  </p>
+                )}
+                <p className="text-[9px] text-muted-foreground">
+                  {s.createdAt ? format(new Date(s.createdAt), "dd/MM") : ""}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Client Status Legend Item (clickable with popover) ───────────────────────
+function ClientStatusLegendItem({ d }: { d: { key: string; count: number; pct: number } }) {
+  const [open, setOpen] = useState(false);
+  const cfg = CLIENT_STATUS_CFG[d.key] ?? { label: d.key, color: "#888", bg: "#88888818" };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold w-full text-right transition hover:opacity-80 hover:ring-1 hover:ring-current cursor-pointer"
+          style={{ background: cfg.bg }}
+          onClick={() => setOpen(v => !v)}
+        >
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+          <span className="text-foreground truncate flex-1">{cfg.label}</span>
+          <span className="font-black" style={{ color: cfg.color }}>{d.count}</span>
+          <span className="text-muted-foreground">{d.pct}%</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="start" avoidCollisions={true} className="p-0 border-0 shadow-2xl w-auto z-50" sideOffset={6}>
+        <ClientShipmentFilteredList statusKey={d.key} cfg={cfg} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Client Shipment Status Donut (Pie chart + قائمة منسدلة زي operations-center) ──
+function ClientShipmentStatusDonut({ breakdown, total }: { breakdown: StatsResponse["breakdown"]; total: number }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const sorted = useMemo(() => [...breakdown].filter(d => d.count > 0).sort((a, b) => b.count - a.count), [breakdown]);
+
+  return (
+    <div className="space-y-4 w-full">
+      <div className="relative" style={{ height: 220 }}>
+        {activeIndex === null && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+            <p className="text-4xl font-black text-foreground leading-none">{fn(total)}</p>
+            <p className="text-xs text-muted-foreground mt-1">إجمالي الشحنات</p>
+          </div>
         )}
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart tabIndex={-1} style={{ outline: "none" }}>
+            <Pie
+              data={sorted}
+              cx="50%" cy="50%"
+              innerRadius="52%" outerRadius="78%"
+              paddingAngle={3} dataKey="count"
+              stroke="none" cornerRadius={5}
+              startAngle={90} endAngle={-270}
+              labelLine={false}
+              activeIndex={activeIndex ?? undefined}
+              animationBegin={0} animationDuration={600} animationEasing="ease-out"
+              onMouseEnter={(_, i) => setActiveIndex(i)}
+              onMouseLeave={() => setActiveIndex(null)}
+            >
+              {sorted.map((d, i) => (
+                <Cell key={i} fill={CLIENT_STATUS_CFG[d.key]?.color ?? d.color ?? "#888"} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5 w-full">
+        {sorted.map((d) => (
+          <ClientStatusLegendItem key={d.key} d={d} />
+        ))}
       </div>
     </div>
   );
@@ -113,22 +221,6 @@ function StatPill({ value, label }: { value: number | string; label: string }) {
       <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black bg-muted text-foreground">
         {value}
       </span>
-    </div>
-  );
-}
-
-// ── Legend item ───────────────────────────────────────────────────────────
-function LegendItem({ color, label, count, pct }: { color: string; label: string; count: number; pct: number }) {
-  return (
-    <div className="flex items-center justify-between py-3 px-1 border-b border-border/40 last:border-b-0">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-black" style={{ color }}>{pct}%</span>
-        <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ color, background: `${color}1A` }}>{fn(count)}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-foreground/80">{label}</span>
-        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-      </div>
     </div>
   );
 }
@@ -278,14 +370,9 @@ export default function ClientDashboardPage() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.35, ease: "easeInOut" }}
-                  className="flex flex-col items-center gap-6"
+                  className="w-full"
                 >
-                  <DonutChart breakdown={stats.breakdown} total={stats.total} />
-                  <div className="w-full flex flex-col">
-                    {stats.breakdown.map(b => (
-                      <LegendItem key={b.key} color={b.color} label={b.label} count={b.count} pct={b.pct} />
-                    ))}
-                  </div>
+                  <ClientShipmentStatusDonut breakdown={stats.breakdown} total={stats.total} />
                 </motion.div>
               )}
             </AnimatePresence>
