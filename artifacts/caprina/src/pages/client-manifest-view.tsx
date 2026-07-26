@@ -178,7 +178,7 @@ export default function ClientManifestViewPage() {
 
         {/* ── Stats cards ── */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <StatCard icon={Package} value={sc.total} label="إجمالي الشحنات" />
+          <StatCard icon={Package} value={sc.total} label="إجمالي الشحنات" tone="violet" />
           <StatCard icon={CheckCircle2} value={sc.delivered} label="مسلَّم" tone="emerald" />
           <StatCard icon={Clock} value={sc.pending} label="قيد الانتظار" tone="muted" />
           <StatCard icon={AlertCircle} value={sc.delayed} label="مؤجل" tone="orange" />
@@ -330,20 +330,62 @@ function HighlightCard({ icon: Icon, value, label, tone }: {
 
 function StatCard({ icon: Icon, value, label, tone = "default" }: {
   icon: React.ElementType; value: number; label: string;
-  tone?: "default" | "emerald" | "orange" | "red" | "muted";
+  tone?: "default" | "emerald" | "orange" | "red" | "muted" | "violet";
 }) {
-  const toneClass = {
-    default: "text-foreground",
-    emerald: "text-emerald-400",
-    orange: "text-orange-400",
-    red: "text-red-400",
-    muted: "text-muted-foreground",
+  const toneStyles = {
+    default: {
+      wrap: "from-slate-500/15 via-slate-500/5 to-transparent border-slate-500/30",
+      glow: "bg-slate-400/25",
+      icon: "text-slate-300",
+      value: "text-foreground",
+      iconBg: "bg-slate-500/15 border-slate-500/30",
+    },
+    emerald: {
+      wrap: "from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/30",
+      glow: "bg-emerald-500/25",
+      icon: "text-emerald-400",
+      value: "text-emerald-300",
+      iconBg: "bg-emerald-500/15 border-emerald-500/30",
+    },
+    orange: {
+      wrap: "from-orange-500/15 via-orange-500/5 to-transparent border-orange-500/30",
+      glow: "bg-orange-500/25",
+      icon: "text-orange-400",
+      value: "text-orange-300",
+      iconBg: "bg-orange-500/15 border-orange-500/30",
+    },
+    red: {
+      wrap: "from-red-500/15 via-red-500/5 to-transparent border-red-500/30",
+      glow: "bg-red-500/25",
+      icon: "text-red-400",
+      value: "text-red-300",
+      iconBg: "bg-red-500/15 border-red-500/30",
+    },
+    muted: {
+      wrap: "from-gray-500/15 via-gray-500/5 to-transparent border-gray-500/30",
+      glow: "bg-gray-400/20",
+      icon: "text-muted-foreground",
+      value: "text-foreground",
+      iconBg: "bg-gray-500/15 border-gray-500/30",
+    },
+    violet: {
+      wrap: "from-violet-500/15 via-violet-500/5 to-transparent border-violet-500/30",
+      glow: "bg-violet-500/25",
+      icon: "text-violet-400",
+      value: "text-violet-300",
+      iconBg: "bg-violet-500/15 border-violet-500/30",
+    },
   }[tone];
   return (
-    <div className="rounded-2xl border border-border bg-muted/20 p-3 flex flex-col items-center gap-1">
-      <Icon className={`w-4 h-4 ${toneClass}`} />
-      <span className={`text-xl font-black ${toneClass}`}>{value}</span>
-      <span className="text-[10px] text-muted-foreground text-center">{label}</span>
+    <div
+      className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${toneStyles.wrap} p-3 flex flex-col items-center gap-1.5 shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5 hover:shadow-xl`}
+    >
+      <div className={`absolute -top-5 -left-5 w-16 h-16 rounded-full blur-2xl opacity-60 ${toneStyles.glow}`} />
+      <div className={`relative w-8 h-8 rounded-lg border flex items-center justify-center ${toneStyles.iconBg}`}>
+        <Icon className={`w-4 h-4 ${toneStyles.icon}`} />
+      </div>
+      <span className={`relative text-xl font-black ${toneStyles.value}`}>{value}</span>
+      <span className="relative text-[10px] text-muted-foreground text-center">{label}</span>
     </div>
   );
 }
