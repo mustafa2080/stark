@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import {
   ArrowRight, FileText, Lock, LockOpen, Package, CheckCircle2,
   Clock, RotateCcw, AlertCircle, Printer, Search, Truck, MapPin, Phone,
+  PackageX, Sparkles, Layers,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -99,6 +100,14 @@ export default function ClientManifestViewPage() {
   const completed = sc.delivered + sc.partial;
   const deliveryPct = sc.total > 0 ? Math.round((completed / sc.total) * 100) : 0;
   const isOpen = manifest.status === "open";
+  const returnedNotArrived = manifest.items.filter(
+    (i) => i.deliveryStatus === "returned" && i.returnReceived !== 1
+  ).length;
+  const newItemsCount = manifest.items.filter((i) => {
+    if (!i.addedAt) return false;
+    const addedTime = new Date(i.addedAt).getTime();
+    return Date.now() - addedTime <= 24 * 60 * 60 * 1000;
+  }).length;
   const totalCod = manifest.items.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
   const totalShippingCost = manifest.items.reduce((s, i) => s + Number(i.shippingCost || 0), 0);
 
@@ -137,6 +146,34 @@ export default function ClientManifestViewPage() {
           >
             <Printer size={15} /> طباعة
           </button>
+        </div>
+
+        {/* ── Highlight cards (مؤجل / مرتجع لم يصل / الشحنات الجديدة / الإجمالي) ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <HighlightCard
+            icon={Clock}
+            value={sc.delayed}
+            label="مؤجل"
+            tone="amber"
+          />
+          <HighlightCard
+            icon={PackageX}
+            value={returnedNotArrived}
+            label="مرتجع لم يصل"
+            tone="rose"
+          />
+          <HighlightCard
+            icon={Sparkles}
+            value={newItemsCount}
+            label="الشحنات الجديدة"
+            tone="sky"
+          />
+          <HighlightCard
+            icon={Layers}
+            value={sc.total}
+            label="الإجمالي"
+            tone="violet"
+          />
         </div>
 
         {/* ── Stats cards ── */}
@@ -232,6 +269,60 @@ export default function ClientManifestViewPage() {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function HighlightCard({ icon: Icon, value, label, tone }: {
+  icon: React.ElementType; value: number; label: string;
+  tone: "amber" | "rose" | "sky" | "violet";
+}) {
+  const toneStyles = {
+    amber: {
+      wrap: "from-amber-500/15 via-amber-500/5 to-transparent border-amber-500/30",
+      glow: "bg-amber-500/25",
+      icon: "text-amber-400",
+      value: "text-amber-300",
+      iconBg: "bg-amber-500/15 border-amber-500/30",
+    },
+    rose: {
+      wrap: "from-rose-500/15 via-rose-500/5 to-transparent border-rose-500/30",
+      glow: "bg-rose-500/25",
+      icon: "text-rose-400",
+      value: "text-rose-300",
+      iconBg: "bg-rose-500/15 border-rose-500/30",
+    },
+    sky: {
+      wrap: "from-sky-500/15 via-sky-500/5 to-transparent border-sky-500/30",
+      glow: "bg-sky-500/25",
+      icon: "text-sky-400",
+      value: "text-sky-300",
+      iconBg: "bg-sky-500/15 border-sky-500/30",
+    },
+    violet: {
+      wrap: "from-violet-500/15 via-violet-500/5 to-transparent border-violet-500/30",
+      glow: "bg-violet-500/25",
+      icon: "text-violet-400",
+      value: "text-violet-300",
+      iconBg: "bg-violet-500/15 border-violet-500/30",
+    },
+  }[tone];
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${toneStyles.wrap} p-4 shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5 hover:shadow-xl`}
+    >
+      {/* glow blob */}
+      <div className={`absolute -top-6 -left-6 w-20 h-20 rounded-full blur-2xl opacity-60 ${toneStyles.glow}`} />
+      <div className="relative flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${toneStyles.iconBg}`}>
+          <Icon className={`w-5 h-5 ${toneStyles.icon}`} />
+        </div>
+        <div className="min-w-0">
+          <p className={`text-2xl font-black leading-none ${toneStyles.value}`}>{value}</p>
+          <p className="text-[11px] text-muted-foreground mt-1 truncate">{label}</p>
+        </div>
       </div>
     </div>
   );
