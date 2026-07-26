@@ -4098,6 +4098,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         variant="outline"
                         className="gap-1.5 h-9 border-green-600/40 text-green-600 hover:bg-green-600/10 shrink-0"
                         onClick={async () => {
+                          // نفتح النافذة فورًا (أول حاجة) عشان نضمن إنها متعتبرش popup محجوب،
+                          // لأن أي await قبل window.open بيخلي المتصفح يرفض اعتبارها ناتجة عن ضغطة مستخدم مباشرة
+                          const waWindow = window.open("", "_blank", "noopener,noreferrer");
                           const DEFAULT_SENDER_ISSUE_BODY =
                             `مرحباً {senderName} 👋\n\n` +
                             `بخصوص الشحنة رقم *{shipmentNumber}*:\n` +
@@ -4151,9 +4154,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                             });
                             window.prompt("انسخ الرسالة يدويًا (Ctrl+C) عشان تلصقها في الجروب:", body);
                           }
-                          // نستنى شوية عشان نضمن إن النسخ خلص فعليًا قبل ما التاب يتفتح ويسحب الـ focus
-                          await new Promise((resolve) => setTimeout(resolve, 150));
-                          window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer");
+                          // النافذة كانت اتفتحت فورًا (فاضية) أول ما دُس الزرار عشان تفلت من حجب المتصفح للـ popups؛
+                          // دلوقتي بعد ما جهزنا كل حاجة، نوجهها فعليًا للينك جروب واتساب
+                          if (waWindow) {
+                            waWindow.location.href = senderInfo.whatsappGroupLink!;
+                          } else {
+                            // لو المتصفح حجب حتى النافذة الفاضية (نادر)، نحاول نفتح مباشرة كـ fallback
+                            window.open(senderInfo.whatsappGroupLink!, "_blank", "noopener,noreferrer");
+                          }
                         }}
                         title="نسخ رسالة مشكلة العميل وفتح جروب واتساب الخاص بالعميل"
                       >
