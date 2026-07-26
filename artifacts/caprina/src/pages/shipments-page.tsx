@@ -1356,7 +1356,16 @@ export default function Orders() {
     <div className="space-y-5 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">الشحنات</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            الشحنات
+            {orders && (
+              <Badge variant="outline" className="text-xs font-bold align-middle">
+                {(hasActiveFilter || Object.values(colFilters).some(s => s.size > 0))
+                  ? `${displayRows.length} من ${orders.length}`
+                  : `${orders.length}`}
+              </Badge>
+            )}
+          </h1>
           <p className="text-muted-foreground text-sm mt-0.5">إدارة وتتبع جميع الشحنات</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
