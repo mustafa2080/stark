@@ -101,14 +101,13 @@ function StatPill({ value, label }: { value: number | string; label: string }) {
 // ── Legend item ───────────────────────────────────────────────────────────
 function LegendItem({ color, label, count, pct }: { color: string; label: string; count: number; pct: number }) {
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border"
-      style={{ background: `${color}14`, borderColor: `${color}30` }}>
-      <div className="flex items-center gap-2 min-w-0">
+    <div className="flex items-center justify-between py-3 px-1 border-b border-border/40 last:border-b-0">
+      <div className="flex items-center gap-2">
         <span className="text-xs font-black" style={{ color }}>{pct}%</span>
-        <span className="text-xs font-bold text-foreground/90">{fn(count)}</span>
+        <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ color, background: `${color}1A` }}>{fn(count)}</span>
       </div>
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="text-xs text-foreground/70 truncate">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-foreground/80">{label}</span>
         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
       </div>
     </div>
@@ -263,7 +262,7 @@ export default function ClientDashboardPage() {
                   className="flex flex-col items-center gap-6"
                 >
                   <DonutChart breakdown={stats.breakdown} total={stats.total} />
-                  <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="w-full flex flex-col">
                     {stats.breakdown.map(b => (
                       <LegendItem key={b.key} color={b.color} label={b.label} count={b.count} pct={b.pct} />
                     ))}
