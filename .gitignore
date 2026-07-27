@@ -102,3 +102,8 @@ search_team2.py
 search_team3.py
 search_team4.py
 verify_count.py
+tsc_out*.txt
+build_out.txt
+*_out.txt
+*_out2.txt
+*_out3.txt
