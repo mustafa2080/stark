@@ -1294,6 +1294,95 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
   }
 });
 
+// ─── POST /client-portal/manifests/:id/request-disbursement — طلب صرف الإيراد ──
+// إشعار بصري + تسجيل وقت الطلب بالباك إند (عشان الحالة تفضل محفوظة عبر الأجهزة/الجلسات).
+// مفيش تحويل فعلي للأموال هنا — مجرد تسجيل نية العميل، وفريق العمل يتابع يدويًا.
+router.post("/client-portal/manifests/:id/request-disbursement", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    const id = Number(req.params.id);
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const [manifest] = await db.select().from(clientAccountManifestsTable).where(eq(clientAccountManifestsTable.id, id));
+    if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+    if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك" }); return; }
+    if (manifest.status !== "closed") { res.status(400).json({ error: "البيان لسه مفتوح — الإيراد بيترحّل بعد الإغلاق فقط" }); return; }
+
+    if (!manifest.revenueDisbursementRequestedAt) {
+      await db.update(clientAccountManifestsTable)
+        .set({ revenueDisbursementRequestedAt: new Date() })
+        .where(eq(clientAccountManifestsTable.id, id));
+    }
+
+    res.json({ success: true, message: "سيتم ترحيل الإيراد خلال 24 ساعة عبر مندوب أو محفظة فودافون كاش، وسيتم التواصل مع سيادتكم من أحد فريق العمل." });
+  } catch (e) {
+    console.error("[POST /client-portal/manifests/:id/request-disbursement]", e);
+    res.status(500).json({ error: "خطأ في تسجيل طلب صرف الإيراد" });
+  }
+});
+
+// ─── GET /client-portal/manifests/:id/benchmark — مقارنة أداء البيان بمتوسط كل العملاء ──
+// بيرجع نسبة تسليم العميل الحالي في البيان ده، مقابل متوسط نسبة التسليم لكل
+// العملاء الآخرين (من كل عناصر البيانات المغلقة+المفتوحة) — لطمأنة العميل وقت
+// ظهور أرقام واطية، أو لتفسيرها بشكل موضوعي.
+router.get("/client-portal/manifests/:id/benchmark", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    const id = Number(req.params.id);
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const [manifest] = await db.select().from(clientAccountManifestsTable).where(eq(clientAccountManifestsTable.id, id));
+    if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+    if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك" }); return; }
+
+    // ── نسبة تسليم البيان الحالي ──────────────────────────────────────────
+    const currentItems = await db.select({ deliveryStatus: clientAccountManifestItemsTable.deliveryStatus })
+      .from(clientAccountManifestItemsTable)
+      .where(eq(clientAccountManifestItemsTable.manifestId, id));
+    const currentTotal = currentItems.length;
+    const currentCompleted = currentItems.filter(
+      i => i.deliveryStatus === "delivered" || i.deliveryStatus === "partial_delivered"
+    ).length;
+    const currentRate = currentTotal > 0 ? Math.round((currentCompleted / currentTotal) * 100) : 0;
+
+    // ── متوسط نسبة التسليم عبر كل عملاء نفس الـ tenant (باستثناء بيانات العميل الحالي) ──
+    const tenantCondition = manifest.tenantId != null
+      ? or(eq(clientAccountManifestsTable.tenantId, manifest.tenantId), isNull(clientAccountManifestsTable.tenantId))
+      : undefined;
+
+    const otherManifests = await db
+      .select({ id: clientAccountManifestsTable.id })
+      .from(clientAccountManifestsTable)
+      .where(and(tenantCondition, sql`${clientAccountManifestsTable.clientId} != ${manifest.clientId}`));
+
+    let avgRate = currentRate; // fallback لو مفيش بيانات كافية للمقارنة
+    if (otherManifests.length > 0) {
+      const otherIds = otherManifests.map(m => m.id);
+      const otherItems = await db
+        .select({ deliveryStatus: clientAccountManifestItemsTable.deliveryStatus })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.manifestId, otherIds));
+      const otherTotal = otherItems.length;
+      const otherCompleted = otherItems.filter(
+        i => i.deliveryStatus === "delivered" || i.deliveryStatus === "partial_delivered"
+      ).length;
+      if (otherTotal > 0) {
+        avgRate = Math.round((otherCompleted / otherTotal) * 100);
+      }
+    }
+
+    res.json({
+      currentRate,
+      averageRate: avgRate,
+      comparedToAverage: currentRate - avgRate, // موجب = أفضل من المتوسط
+      sampleSize: otherManifests.length,
+    });
+  } catch (e) {
+    console.error("[GET /client-portal/manifests/:id/benchmark]", e);
+    res.status(500).json({ error: "خطأ في حساب المقارنة" });
+  }
+});
+
 // ─── GET /client-portal/returns — المرتجعات المجمّعة من كل بيانات العميل ────
 // يشمل: مرتجع (returned)، مؤجل (delayed)، ومسلَّم جزئي لسه الباقي عند الشحن
 router.get("/client-portal/returns", async (req, res): Promise<void> => {
@@ -1353,6 +1442,98 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
   } catch (e) {
     console.error("[GET /client-portal/returns]", e);
     res.status(500).json({ error: "خطأ في جلب المرتجعات" });
+  }
+});
+
+// ─── GET /client-portal/returns/analysis — تحليل المرتجعات: توزيع المناطق + مقارنة بمتوسط العملاء ──
+router.get("/client-portal/returns/analysis", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.json({ zones: [], clientReturnRate: 0, averageReturnRate: 0, comparisonNote: "" }); return; }
+
+    // ── بيانات العميل الحالي ──────────────────────────────────────────────
+    const myManifests = await db
+      .select({ id: clientAccountManifestsTable.id, tenantId: clientAccountManifestsTable.tenantId })
+      .from(clientAccountManifestsTable)
+      .where(eq(clientAccountManifestsTable.clientId, user.clientId));
+    const myManifestIds = myManifests.map(m => m.id);
+    const tenantId = myManifests[0]?.tenantId ?? null;
+
+    let myItems: any[] = [];
+    if (myManifestIds.length) {
+      myItems = await db.select().from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.manifestId, myManifestIds));
+    }
+    const myTotal = myItems.length;
+    const myReturned = myItems.filter(i => i.deliveryStatus === "returned").length;
+    const clientReturnRate = myTotal > 0 ? Math.round((myReturned / myTotal) * 100) : 0;
+
+    // ── توزيع المرتجعات على المناطق (المدن) ──────────────────────────────
+    const returnedItems = myItems.filter(i => i.deliveryStatus === "returned");
+    const returnedShipmentIds = returnedItems.map(i => i.shipmentId);
+    let returnedShipments: any[] = [];
+    if (returnedShipmentIds.length) {
+      returnedShipments = await db.select({ id: shipmentsTable.id, receiverCity: shipmentsTable.receiverCity })
+        .from(shipmentsTable).where(inArray(shipmentsTable.id, returnedShipmentIds));
+    }
+    const cityMap: Record<number, string> = {};
+    returnedShipments.forEach(s => { cityMap[s.id] = s.receiverCity || "غير محدد"; });
+
+    const zoneCounts = new Map<string, number>();
+    returnedItems.forEach(i => {
+      const city = cityMap[i.shipmentId] ?? "غير محدد";
+      zoneCounts.set(city, (zoneCounts.get(city) ?? 0) + 1);
+    });
+    const zones = Array.from(zoneCounts.entries())
+      .map(([city, cnt]) => ({
+        city,
+        count: cnt,
+        percentage: returnedItems.length > 0 ? Math.round((cnt / returnedItems.length) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // ── متوسط نسبة المرتجعات لباقي العملاء (نفس الـ tenant) ───────────────
+    const tenantCondition = tenantId != null
+      ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
+      : undefined;
+    const otherManifests = await db
+      .select({ id: clientAccountManifestsTable.id })
+      .from(clientAccountManifestsTable)
+      .where(and(tenantCondition, sql`${clientAccountManifestsTable.clientId} != ${user.clientId}`));
+
+    let averageReturnRate = clientReturnRate;
+    if (otherManifests.length > 0) {
+      const otherIds = otherManifests.map(m => m.id);
+      const otherItems = await db.select({ deliveryStatus: clientAccountManifestItemsTable.deliveryStatus })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.manifestId, otherIds));
+      const otherTotal = otherItems.length;
+      const otherReturned = otherItems.filter(i => i.deliveryStatus === "returned").length;
+      if (otherTotal > 0) averageReturnRate = Math.round((otherReturned / otherTotal) * 100);
+    }
+
+    const diff = clientReturnRate - averageReturnRate;
+    let comparisonNote = "";
+    if (otherManifests.length === 0) {
+      comparisonNote = "لا توجد بيانات كافية للمقارنة حاليًا";
+    } else if (diff <= 0) {
+      comparisonNote = "الوضع يعتبر كويس إلى حدٍ ما مقارنةً ببعض العملاء الآخرين";
+    } else if (diff <= 5) {
+      comparisonNote = "نسبة المرتجعات قريبة من المتوسط العام";
+    } else {
+      comparisonNote = "نسبة المرتجعات أعلى من المتوسط العام بشكل ملحوظ";
+    }
+
+    res.json({
+      zones,
+      clientReturnRate,
+      averageReturnRate,
+      comparisonNote,
+      sampleSize: otherManifests.length,
+    });
+  } catch (e) {
+    console.error("[GET /client-portal/returns/analysis]", e);
+    res.status(500).json({ error: "خطأ في تحليل المرتجعات" });
   }
 });
 

@@ -15,6 +15,8 @@ export const clientAccountManifestsTable = mysqlTable("client_account_manifests"
   manualShippingCost: decimal("manual_shipping_cost", { precision: 10, scale: 2 }),
   createdAt:        datetime("created_at").notNull(),
   closedAt:         datetime("closed_at"),
+  scheduledCloseAt: datetime("scheduled_close_at"), // أقرب موعد إغلاق متوقع (أحد/أربعاء) — يُحسب وقت فتح البيان
+  revenueDisbursementRequestedAt: datetime("revenue_disbursement_requested_at"), // وقت ما العميل ضغط "صرف الإيراد"
 });
 
 // ─── الشحنات داخل بيان حساب العميل ────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiFetch } from "@/lib/api";
 import {
@@ -24,70 +24,37 @@ interface ClientPortalManifestListItem {
   };
   createdAt: string;
   closedAt: string | null;
+  scheduledCloseAt: string | null;
+  revenueDisbursementRequestedAt: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// حساب أقرب تاريخ إغلاق (أحد أو أربعاء) اعتمادًا على اليوم الحالي
-// الأحد = 0, الأربعاء = 3 في getDay()
+// هل موعد الإغلاق المجدول اليوم أو قبل النهاردة (يعني هيتقفل خلال ساعات)؟
 // ─────────────────────────────────────────────────────────────────────────
-function getNextClosingDate(from: Date = new Date()): Date {
-  const day = from.getDay();
-  const daysUntil = (target: number) => {
-    const diff = (target - day + 7) % 7;
-    return diff === 0 ? 0 : diff;
-  };
-  const untilSunday = daysUntil(0);
-  const untilWednesday = daysUntil(3);
-
-  if (untilSunday === 0 || untilWednesday === 0) {
-    return new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  }
-
-  const nearest = Math.min(untilSunday, untilWednesday);
-  const result = new Date(from);
-  result.setDate(from.getDate() + nearest);
-  return result;
-}
-
-function isClosingToday(from: Date = new Date()): boolean {
-  const day = from.getDay();
-  return day === 0 || day === 3;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// تتبع "تم صرف الإيراد" — محلي فقط (localStorage) لحد ما يتضاف تسجيل فعلي بالباك إند
-// ─────────────────────────────────────────────────────────────────────────
-const DISBURSED_KEY = "client_manifests_disbursed_ids";
-
-function getDisbursedIds(): Set<number> {
-  try {
-    const raw = localStorage.getItem(DISBURSED_KEY);
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw));
-  } catch {
-    return new Set();
-  }
-}
-
-function markDisbursed(id: number) {
-  const current = getDisbursedIds();
-  current.add(id);
-  localStorage.setItem(DISBURSED_KEY, JSON.stringify(Array.from(current)));
+function isClosingSoon(scheduledCloseAt: string | null): boolean {
+  if (!scheduledCloseAt) return false;
+  const target = new Date(scheduledCloseAt);
+  const now = new Date();
+  const startOfTargetDay = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return startOfTargetDay.getTime() <= startOfToday.getTime();
 }
 
 export default function ClientManifestsPage() {
+  const queryClient = useQueryClient();
   const { data: manifests, isLoading } = useQuery<ClientPortalManifestListItem[]>({
     queryKey: ["client-portal-manifests"],
     queryFn: () => apiFetch("/client-portal/manifests"),
     staleTime: 15_000,
   });
 
-  const [disbursedIds, setDisbursedIds] = useState<Set<number>>(() => getDisbursedIds());
-
-  const handleDisburse = (id: number) => {
-    markDisbursed(id);
-    setDisbursedIds(getDisbursedIds());
-  };
+  const disburseMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/client-portal/manifests/${id}/request-disbursement`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-portal-manifests"] });
+    },
+  });
 
   const { openManifest, recentlyClosedManifests, archivedManifests } = useMemo(() => {
     if (!manifests) return { openManifest: null, recentlyClosedManifests: [], archivedManifests: [] };
@@ -95,11 +62,11 @@ export default function ClientManifestsPage() {
     const open = manifests.find((m) => m.status === "open") ?? null;
     const closed = manifests.filter((m) => m.status === "closed");
 
-    const recentlyClosed = closed.filter((m) => !disbursedIds.has(m.id));
-    const archived = closed.filter((m) => disbursedIds.has(m.id));
+    const recentlyClosed = closed.filter((m) => !m.revenueDisbursementRequestedAt);
+    const archived = closed.filter((m) => !!m.revenueDisbursementRequestedAt);
 
     return { openManifest: open, recentlyClosedManifests: recentlyClosed, archivedManifests: archived };
-  }, [manifests, disbursedIds]);
+  }, [manifests]);
 
   return (
     <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
@@ -130,7 +97,12 @@ export default function ClientManifestsPage() {
             {recentlyClosedManifests.length > 0 && (
               <div className="space-y-2.5">
                 {recentlyClosedManifests.map((m) => (
-                  <RecentlyClosedCard key={m.id} manifest={m} onDisburse={() => handleDisburse(m.id)} />
+                  <RecentlyClosedCard
+                    key={m.id}
+                    manifest={m}
+                    onDisburse={() => disburseMutation.mutate(m.id)}
+                    isPending={disburseMutation.isPending && disburseMutation.variables === m.id}
+                  />
                 ))}
               </div>
             )}
@@ -163,9 +135,10 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
   const completed = (sc.delivered ?? 0) + (sc.partial ?? 0);
   const deliveryPct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  const closingToday = isClosingToday();
-  const closingDate = getNextClosingDate();
-  const closingDayLabel = format(closingDate, "EEEE", { locale: ar });
+  const closingSoon = isClosingSoon(manifest.scheduledCloseAt);
+  const closingDayLabel = manifest.scheduledCloseAt
+    ? format(new Date(manifest.scheduledCloseAt), "EEEE", { locale: ar })
+    : null;
 
   return (
     <Link href={`/client-manifests/${manifest.id}`}>
@@ -176,7 +149,7 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
           <div className="flex items-center gap-2">
             <Hourglass className="w-3.5 h-3.5 text-amber-400 animate-[spin_2.5s_linear_infinite]" />
             <span className="text-[11px] font-bold text-amber-300">
-              {closingToday
+              {closingSoon || !closingDayLabel
                 ? "البيان حالياً قيد العمل — سيتم إغلاق البيان خلال ساعات"
                 : `البيان حالياً قيد العمل — سيتم الإغلاق يوم ${closingDayLabel} القادم`}
             </span>
@@ -229,14 +202,18 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
 // ═══════════════════════════════════════════════════════════════════════
 // البيان المغلق حديثًا — كارت مصغر + زرار صرف الإيراد
 // ═══════════════════════════════════════════════════════════════════════
-function RecentlyClosedCard({ manifest, onDisburse }: { manifest: ClientPortalManifestListItem; onDisburse: () => void }) {
-  const [showNotice, setShowNotice] = useState(false);
+function RecentlyClosedCard({ manifest, onDisburse, isPending }: {
+  manifest: ClientPortalManifestListItem; onDisburse: () => void; isPending: boolean;
+}) {
+  const [justRequested, setJustRequested] = useState(false);
+  const showNotice = justRequested || !!manifest.revenueDisbursementRequestedAt;
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (manifest.revenueDisbursementRequestedAt || isPending) return;
     onDisburse();
-    setShowNotice(true);
+    setJustRequested(true);
   };
 
   return (
@@ -262,9 +239,10 @@ function RecentlyClosedCard({ manifest, onDisburse }: { manifest: ClientPortalMa
       {!showNotice ? (
         <button
           onClick={handleClick}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-sky-600 hover:bg-sky-500 transition-colors"
+          disabled={isPending}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-60 transition-colors"
         >
-          <Wallet className="w-3.5 h-3.5" /> صرف الإيراد
+          <Wallet className="w-3.5 h-3.5" /> {isPending ? "جارِ الإرسال..." : "صرف الإيراد"}
         </button>
       ) : (
         <div className="shrink-0 max-w-[260px] text-[10px] text-sky-300 bg-sky-950/30 border border-sky-800/50 rounded-lg px-3 py-2 leading-relaxed">

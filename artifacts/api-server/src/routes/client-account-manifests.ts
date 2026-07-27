@@ -19,6 +19,21 @@ import { syncShipmentItemsInventory } from "../lib/inventory.js";
 const router: IRouter = Router();
 router.use(requireAuth);
 
+// ─── حساب أقرب موعد إغلاق متوقع (أحد أو أربعاء) من تاريخ إنشاء البيان ─────────
+// الأحد = 0, الأربعاء = 3 في getDay(). لو اليوم نفسه يوم إغلاق، الموعد بيبقى
+// نفس اليوم (يعني "خلال ساعات" في عرض الفرونت).
+function computeNextClosingDate(from: Date): Date {
+  const day = from.getDay();
+  const daysUntil = (target: number) => (target - day + 7) % 7;
+  const untilSunday = daysUntil(0);
+  const untilWednesday = daysUntil(3);
+  const nearest = Math.min(untilSunday, untilWednesday);
+  const result = new Date(from);
+  result.setDate(from.getDate() + nearest);
+  result.setHours(23, 59, 59, 0);
+  return result;
+}
+
 // ─── توليد رقم البيان ────────────────────────────────────────────────────────
 async function generateManifestNumber(clientId: number): Promise<string> {
   const [row] = await db
@@ -96,6 +111,7 @@ export async function autoAddShipmentToClientAccountManifest(
       status:   "open",
       notes:    null,
       createdAt: now,
+      scheduledCloseAt: computeNextClosingDate(now),
     });
     const manifestId = (result as any).insertId as number;
 
@@ -356,6 +372,7 @@ router.post("/client-account-manifests", async (req, res): Promise<void> => {
       status:   "open",
       notes:    body.notes ?? null,
       createdAt: now,
+      scheduledCloseAt: computeNextClosingDate(now),
     });
     const manifestId = (result as any).insertId as number;
 

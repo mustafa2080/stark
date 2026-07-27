@@ -383,6 +383,24 @@ async function ensureClientAccountClosuresClientId() {
 }
 ensureClientAccountClosuresClientId();
 
+// ─── Ensure client_account_manifests.scheduled_close_at / revenue_disbursement_requested_at columns exist ──
+async function ensureClientAccountManifestsScheduleColumns() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE client_account_manifests ADD COLUMN IF NOT EXISTS scheduled_close_at DATETIME NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE client_account_manifests ADD COLUMN IF NOT EXISTS revenue_disbursement_requested_at DATETIME NULL
+    `);
+    logger.info("client_account_manifests.scheduled_close_at / revenue_disbursement_requested_at columns ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure client_account_manifests schedule columns");
+    }
+  }
+}
+ensureClientAccountManifestsScheduleColumns();
+
 // ─── Ensure client_account_manifests / client_account_manifest_items tables exist ──
 async function ensureClientAccountManifestsTables() {
   try {
@@ -399,6 +417,8 @@ async function ensureClientAccountManifestsTables() {
         manual_shipping_cost DECIMAL(10,2) NULL,
         created_at DATETIME NOT NULL,
         closed_at DATETIME NULL,
+        scheduled_close_at DATETIME NULL,
+        revenue_disbursement_requested_at DATETIME NULL,
         INDEX idx_cam_client (client_id),
         INDEX idx_cam_tenant (tenant_id)
       )
