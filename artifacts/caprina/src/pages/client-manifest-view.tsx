@@ -113,14 +113,7 @@ export default function ClientManifestViewPage() {
   const totalShippingCost = manifest.items.reduce((s, i) => s + Number(i.shippingCost || 0), 0);
   const grandTotal = totalCod + totalShippingCost;
 
-  // توزيع الشحنات على المخازن والمندوبين — بيانات موجودة أصلاً من الـ API ومش معروضة سابقًا
-  const warehouseMap = new Map<string, number>();
-  manifest.items.forEach((i) => {
-    const name = i.warehouseName || "غير محدد";
-    warehouseMap.set(name, (warehouseMap.get(name) || 0) + 1);
-  });
-  const warehouseBreakdown = Array.from(warehouseMap.entries()).sort((a, b) => b[1] - a[1]);
-
+  // توزيع الشحنات على المندوبين — بيانات موجودة أصلاً من الـ API ومش معروضة سابقًا
   const repMap = new Map<string, number>();
   manifest.items.forEach((i) => {
     const name = i.representativeName || "غير محدد";
@@ -216,15 +209,10 @@ export default function ClientManifestViewPage() {
           </div>
         )}
 
-        {/* ── توزيع المخازن والمندوبين — بس للبيان المفتوح ولو فيه أكتر من مصدر واحد ── */}
-        {isOpen && (warehouseBreakdown.length > 1 || representativeBreakdown.length > 1) && (
-          <div className="grid sm:grid-cols-2 gap-3">
-            {warehouseBreakdown.length > 1 && (
-              <BreakdownCard title="توزيع الشحنات على المخازن" icon={Layers} tone="sky" data={warehouseBreakdown} total={sc.total} />
-            )}
-            {representativeBreakdown.length > 1 && (
-              <BreakdownCard title="توزيع الشحنات على المندوبين" icon={Truck} tone="violet" data={representativeBreakdown} total={sc.total} />
-            )}
+        {/* ── توزيع المندوبين — بس للبيان المفتوح ولو فيه أكتر من مندوب واحد ── */}
+        {isOpen && representativeBreakdown.length > 1 && (
+          <div className="grid gap-3">
+            <BreakdownCard title="توزيع الشحنات على المندوبين" icon={Truck} tone="violet" data={representativeBreakdown} total={sc.total} />
           </div>
         )}
 
