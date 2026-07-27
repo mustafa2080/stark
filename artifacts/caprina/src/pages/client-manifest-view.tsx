@@ -663,14 +663,14 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
         <table className="print-items-table">
           <thead>
             <tr>
-              <th style={{ width: "26px" }}>#</th>
-              <th>اسم العميل</th>
-              <th>الهاتف</th>
-              <th>العنوان</th>
-              <th>رقم الشحنة</th>
-              <th style={{ width: "40px" }}>القطع</th>
-              <th style={{ width: "70px" }}>الإجمالي</th>
-              <th style={{ width: "70px" }}>الحالة</th>
+              <th style={{ width: "22px" }}>#</th>
+              <th style={{ width: "15%" }}>اسم العميل</th>
+              <th style={{ width: "13%" }}>الهاتف</th>
+              <th style={{ width: "26%" }}>العنوان</th>
+              <th style={{ width: "13%" }}>رقم الشحنة</th>
+              <th style={{ width: "36px" }}>القطع</th>
+              <th style={{ width: "65px" }}>الإجمالي</th>
+              <th style={{ width: "60px" }}>الحالة</th>
             </tr>
           </thead>
           <tbody>
@@ -849,6 +849,7 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
 
         .print-items-table {
           width: 100%;
+          table-layout: fixed;
           border-collapse: collapse;
           margin-bottom: 14px;
           font-size: 10px;
@@ -863,11 +864,17 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           font-weight: 700;
           text-align: right;
           border: 1px solid #111111;
+          word-break: break-word;
+          overflow-wrap: break-word;
         }
         .print-items-table td {
           border: 1px solid #999999;
           padding: 5px;
           text-align: right;
+          word-break: break-word;
+          overflow-wrap: break-word;
+          vertical-align: top;
+          line-height: 1.4;
         }
         .print-items-table tr {
           page-break-inside: avoid;
