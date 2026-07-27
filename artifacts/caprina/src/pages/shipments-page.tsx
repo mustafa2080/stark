@@ -759,17 +759,42 @@ async function exportToExcel(
 
   const ws = wb.addWorksheet("الشحنات", { views: [{ rightToLeft: true }] });
 
-  // ── Column definitions ─────────────────────────────────────────────────────
+  // ── Column definitions — كل أعمدة الشحنة (مش بس الأساسية المعروضة في الجدول) ──
   const cols: { header: string; key: string; width: number }[] = [
-    { header: "#",           key: "num",        width: 8  },
-    { header: "التاريخ",    key: "date",       width: 14 },
-    { header: "المرسل",     key: "sender",     width: 22 },
-    { header: "المستلم",    key: "receiver",   width: 22 },
-    { header: "الهاتف",     key: "phone",      width: 16 },
-    { header: "المحافظة",   key: "gov",        width: 16 },
-    ...(canFinancials ? [{ header: "سعر الشحنة", key: "price", width: 14 }] : []),
-    { header: "المندوب",    key: "agent",      width: 20 },
-    { header: "الحالة",     key: "status",     width: 16 },
+    { header: "#",              key: "num",         width: 8  },
+    { header: "رقم الشحنة",     key: "shipmentNum", width: 16 },
+    { header: "رقم التتبع",     key: "tracking",    width: 16 },
+    { header: "التاريخ",       key: "date",        width: 14 },
+    { header: "المرسل",        key: "sender",      width: 22 },
+    { header: "هاتف المرسل",   key: "senderPhone",  width: 16 },
+    { header: "محافظة المرسل", key: "senderGov",    width: 16 },
+    { header: "المستلم",       key: "receiver",    width: 22 },
+    { header: "هاتف المستلم",  key: "phone",        width: 16 },
+    { header: "هاتف بديل",     key: "phone2",       width: 16 },
+    { header: "العنوان",       key: "address",      width: 28 },
+    { header: "المحافظة",      key: "gov",         width: 16 },
+    { header: "نوع الطرد",     key: "parcelType",   width: 14 },
+    { header: "الوزن",         key: "weight",       width: 10 },
+    { header: "عدد القطع",     key: "pieces",       width: 10 },
+    { header: "الوصف",         key: "description",  width: 22 },
+    ...(canFinancials ? [
+      { header: "طريقة الدفع",   key: "paymentMethod", width: 14 },
+      { header: "مبلغ التحصيل",  key: "codAmount",     width: 14 },
+      { header: "سعر الشحن",     key: "shippingFee",   width: 14 },
+      { header: "الإجمالي",      key: "total",         width: 14 },
+      { header: "المُحصَّل",     key: "collected",     width: 14 },
+    ] : []),
+    { header: "شركة الشحن",     key: "shippingCo",   width: 18 },
+    { header: "المندوب",       key: "agent",        width: 18 },
+    { header: "أنشأها",        key: "creator",      width: 18 },
+    { header: "المخزن",        key: "warehouse",    width: 16 },
+    { header: "الحالة",        key: "status",       width: 16 },
+    { header: "سبب المرتجع",   key: "returnReason",  width: 18 },
+    { header: "ملاحظة المرتجع", key: "returnNote",    width: 22 },
+    { header: "ملاحظات",       key: "notes",        width: 24 },
+    { header: "تاريخ التسليم المتوقع", key: "estDelivery", width: 16 },
+    { header: "تاريخ التسليم الفعلي",  key: "actualDelivery", width: 16 },
+    { header: "آخر تحديث",     key: "updatedAt",    width: 14 },
   ];
 
   ws.columns = cols;
@@ -789,19 +814,52 @@ async function exportToExcel(
     };
   });
 
+  const fmtDate = (v: any) => {
+    if (!v) return "";
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? "" : d.toLocaleDateString("ar-EG");
+  };
+
+  const PAYMENT_LABELS: Record<string, string> = { cod: "دفع عند الاستلام", prepaid: "مدفوع مقدماً", paid: "مدفوع" };
+
   // ── Data rows ─────────────────────────────────────────────────────────────
   rows.forEach((o, idx) => {
     const status  = o.status as string;
     const rowData: Record<string, any> = {
-      num:      (o.id ?? idx + 1).toString().padStart(4, "0"),
-      date:     new Date(o.createdAt).toLocaleDateString("ar-EG"),
-      sender:   (o as any).senderName   || (o as any).customerName || "",
-      receiver: (o as any).receiverName || "",
-      phone:    (o as any).senderPhone  || (o as any).receiverPhone || (o as any).phone || "",
-      gov:      (o as any).receiverCity || (o as any).receiverGovernorate || "",
-      ...(canFinancials ? { price: Number((o as any).codAmount ?? (o as any).totalAmount ?? 0) } : {}),
-      agent:    (o as any).assignedUserName || (o as any).createdByName || "",
-      status:   statusLabels[status] || status,
+      num:            (o.id ?? idx + 1).toString().padStart(4, "0"),
+      shipmentNum:    o.shipmentNumber || "",
+      tracking:       o.trackingNumber || "",
+      date:           fmtDate(o.createdAt),
+      sender:         o.senderName || "",
+      senderPhone:    o.senderPhone || "",
+      senderGov:      o.senderGovernorate || o.senderCity || "",
+      receiver:       o.receiverName || "",
+      phone:          o.receiverPhone || o.phone || "",
+      phone2:         o.receiverPhone2 || "",
+      address:        o.receiverAddress || "",
+      gov:            o.receiverCity || o.receiverGovernorate || o.zoneGovernorate || "",
+      parcelType:     o.parcelType || "",
+      weight:         o.weight != null ? Number(o.weight) : "",
+      pieces:         o.pieces != null ? Number(o.pieces) : "",
+      description:    o.description || "",
+      ...(canFinancials ? {
+        paymentMethod: PAYMENT_LABELS[o.paymentMethod] || o.paymentMethod || "",
+        codAmount:     Number(o.codAmount ?? 0),
+        shippingFee:   Number(o.shippingFee ?? 0),
+        total:         Number(o.totalAmount ?? 0),
+        collected:     Number(o.collectedAmount ?? 0),
+      } : {}),
+      shippingCo:     o.shippingCompanyName || "",
+      agent:          o.assignedUserName || "",
+      creator:        o.createdByName || "",
+      warehouse:      o.warehouseName || "",
+      status:         statusLabels[status] || status,
+      returnReason:   o.returnReason || "",
+      returnNote:     o.returnNote || "",
+      notes:          o.notes || "",
+      estDelivery:    fmtDate(o.estimatedDelivery),
+      actualDelivery: fmtDate(o.actualDelivery),
+      updatedAt:      fmtDate(o.updatedAt),
     };
 
     const excelRow = ws.addRow(rowData);
@@ -810,6 +868,7 @@ async function exportToExcel(
     // status fill colour
     const fillArgb = EXCEL_STATUS_FILL[status] ?? "FFCCCCCC";
     const statusColIdx = cols.findIndex(c => c.key === "status") + 1;
+    const moneyKeys = new Set(["codAmount", "shippingFee", "total", "collected"]);
 
     excelRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
       cell.font      = { name: "Cairo", size: 11, color: { argb: "FF1F2937" } };
@@ -832,8 +891,8 @@ async function exportToExcel(
         cell.font = { name: "Cairo", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
       }
 
-      // price cell: number format
-      if (cols[colNum - 1]?.key === "price" && typeof cell.value === "number") {
+      // money cells: number format
+      if (moneyKeys.has(cols[colNum - 1]?.key) && typeof cell.value === "number") {
         cell.numFmt = '#,##0.00" ج"';
         cell.font   = { name: "Cairo", size: 11, bold: true, color: { argb: "FF15803D" } };
       }
@@ -859,6 +918,7 @@ async function exportToExcel(
 
 export default function Orders() {
   const [showNewShipment, setShowNewShipment] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [location, navigate] = useLocation();
 
   // لو جاي من الـ sidebar بـ ?new=1 افتح الـ dialog مباشرةً
@@ -1445,13 +1505,42 @@ export default function Orders() {
                 </Button>
               </Link>
               )}
-              {/* زر تصدير — فقط لو عنده orders.export */}
+              {/* زر تصدير — فقط لو عنده orders.export — بيجيب كل الشحنات المطابقة للفلاتر مش بس المعروضة */}
               {canExport && (
-              <Button variant="outline" size="sm" className="gap-1 text-xs h-9" onClick={() => {
-                if (!filtered?.length) return;
-                exportToExcel(filtered, canFinancials, statusLabels);
+              <Button variant="outline" size="sm" className="gap-1 text-xs h-9" disabled={isExporting} onClick={async () => {
+                setIsExporting(true);
+                try {
+                  const res = await apiFetch<any>(`/shipments?${new URLSearchParams({
+                    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+                    ...(status !== "all" ? { status } : {}),
+                    ...(dateFrom ? { dateFrom } : {}),
+                    ...(dateTo ? { dateTo } : {}),
+                    limit: "1000000", // كل الشحنات المطابقة للفلتر — بدون سقف
+                  }).toString()}`);
+                  let allRows: any[] = res.data ?? res ?? [];
+                  // نفس فلاتر البحث المحلي (اسم مستلم / إجمالي) المطبقة على الشاشة
+                  if (customerSearch) {
+                    const words = customerSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+                    allRows = allRows.filter((o: any) => words.every((w: string) => (o.receiverName ?? "").toLowerCase().includes(w)));
+                  }
+                  if (totalSearch) {
+                    allRows = allRows.filter((o: any) => String(Math.round(Number(o.totalAmount || 0))).includes(totalSearch));
+                  }
+                  // فلاتر الأعمدة المطبقة يدويًا من رؤوس الجدول (لو مفعّلة)
+                  const activeColFilters = (Object.keys(colFilters) as ColKey[]).filter(col => colFilters[col].size > 0);
+                  if (activeColFilters.length > 0) {
+                    allRows = allRows.filter((o: any) => activeColFilters.every(col => colFilters[col].has(getColVal(col, o))));
+                  }
+                  if (!allRows.length) { toast({ title: "لا توجد شحنات مطابقة للتصدير" }); return; }
+                  await exportToExcel(allRows, canFinancials, statusLabels);
+                  toast({ title: `تم تصدير ${allRows.length} شحنة بنجاح ✅` });
+                } catch (e: any) {
+                  toast({ title: "فشل التصدير", description: e?.message, variant: "destructive" });
+                } finally {
+                  setIsExporting(false);
+                }
               }}>
-                <Download className="w-3.5 h-3.5" />تصدير Excel
+                <Download className="w-3.5 h-3.5" />{isExporting ? "جاري التصدير..." : "تصدير Excel"}
               </Button>
               )}
               {/* زر شحنة جديدة — فقط لو عنده canCreate */}
