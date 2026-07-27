@@ -938,6 +938,26 @@ function ShipmentWarehouseTab() {
   const [slaOnly,         setSlaOnly]         = useState(false);
   const [warehouseId,     setWarehouseId]     = useState<string>("all");
 
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // ── حذف شحنة من مستودع الشحنات ─────────────────────────────────────────────
+  const deleteShipmentMutation = useMutation({
+    mutationFn: (id: number) => shipmentsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-shipments"] });
+      toast({ title: "تم حذف الطلب ✅" });
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const handleDeleteShipment = (sh: any) => {
+    const label = sh.trackingNumber ?? sh.shipmentNumber ?? `#${sh.id}`;
+    if (window.confirm(`هل أنت متأكد من حذف الطلب ${label}؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+      deleteShipmentMutation.mutate(sh.id);
+    }
+  };
+
   // ── شركات الشحن للفلتر ────────────────────────────────────────────────────
   const { data: companies = [] } = useQuery({
     queryKey: ["shipping-companies-wh"],
@@ -1623,6 +1643,7 @@ function ShipmentWarehouseTab() {
                   {["pending", "warehouse_ready", "in_shipping"].includes(activeTab) && (
                     <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap hidden sm:table-cell">العمر</th>
                   )}
+                  <th className="text-right px-3 py-2.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground whitespace-nowrap print:hidden"></th>
                 </tr>
               </thead>
               <tbody>
@@ -1680,6 +1701,16 @@ function ShipmentWarehouseTab() {
                           </span>
                         </td>
                       )}
+                      <td className="px-3 py-2.5 whitespace-nowrap print:hidden">
+                        <button
+                          onClick={() => handleDeleteShipment(sh)}
+                          disabled={deleteShipmentMutation.isPending}
+                          title="حذف الطلب"
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 hover:text-red-600 disabled:opacity-40 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
