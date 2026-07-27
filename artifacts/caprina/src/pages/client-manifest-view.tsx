@@ -743,9 +743,6 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           color: #111111;
           background: #ffffff;
           width: 100%;
-          border: 1.5px solid #111111;
-          padding: 14px 16px 18px;
-          box-sizing: border-box;
         }
 
         .print-header {
@@ -855,10 +852,11 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           border-collapse: collapse;
           margin-bottom: 14px;
           font-size: 10px;
-          border: 1px solid #111111;
         }
         .print-items-table th {
-          background: #111111;
+          background: #111111 !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
           color: #ffffff;
           padding: 6px 5px;
           font-size: 9.5px;
@@ -867,12 +865,18 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           border: 1px solid #111111;
         }
         .print-items-table td {
-          border: 1px solid #dddddd;
+          border: 1px solid #999999;
           padding: 5px;
           text-align: right;
         }
+        .print-items-table tr {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
         .print-items-table tr:nth-child(even) {
-          background: #f7f7f7;
+          background: #f7f7f7 !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         .print-cell-center { text-align: center; }
         .print-cell-ltr { direction: ltr; text-align: right; }
