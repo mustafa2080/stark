@@ -1703,17 +1703,17 @@ function ShipmentWarehouseTab() {
                       )}
                       <td className="px-3 py-2.5 whitespace-nowrap print:hidden">
                         <Button
-                          variant="destructive"
+                          variant="outline"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-8 w-8 text-red-500 dark:text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 [border-color:theme(colors.red.200)] dark:[border-color:theme(colors.red.900/50)]"
                           onClick={() => handleDeleteShipment(sh)}
                           disabled={deleteShipmentMutation.isPending}
                           title="حذف الطلب"
                         >
                           {deleteShipmentMutation.isPending && deleteShipmentMutation.variables === sh.id ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <RefreshCw className="w-4 h-4 animate-spin" />
                           ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" strokeWidth={2} />
                           )}
                         </Button>
                       </td>
