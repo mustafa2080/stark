@@ -543,19 +543,101 @@ router.get("/client-portal/smart-analytics", async (req, res): Promise<void> => 
       .where(eq(clientsTable.id, user.clientId)).limit(1);
     if (!client) { res.json({ delivered: null, returned: null }); return; }
 
-    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone ?? null, user.id, client.id);
+    const allShipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone ?? null, user.id, client.id);
 
     // ── فلتر فترة زمنية اختياري (from/to بصيغة ISO) ──────────────────────
     const fromStr = (req.query.from as string | undefined)?.trim();
     const toStr = (req.query.to as string | undefined)?.trim();
-    if (fromStr) {
-      const fromDate = new Date(fromStr);
-      if (!isNaN(fromDate.getTime())) shipments = shipments.filter(s => s.createdAt && new Date(s.createdAt) >= fromDate);
+    const fromDate = fromStr ? new Date(fromStr) : null;
+    const toDate = toStr ? new Date(toStr) : null;
+    if (toDate && !isNaN(toDate.getTime())) toDate.setHours(23, 59, 59, 999);
+
+    let shipments = allShipments;
+    if (fromDate && !isNaN(fromDate.getTime())) shipments = shipments.filter(s => s.createdAt && new Date(s.createdAt) >= fromDate);
+    if (toDate && !isNaN(toDate.getTime())) shipments = shipments.filter(s => s.createdAt && new Date(s.createdAt) <= toDate);
+
+    // ── الفترة السابقة (لنفس طول الفترة الحالية) للمقارنة ────────────────
+    let prevShipments: typeof allShipments = [];
+    const hasEffectiveFrom = fromDate && !isNaN(fromDate.getTime());
+    const effectiveTo = (toDate && !isNaN(toDate.getTime())) ? toDate : new Date();
+    if (hasEffectiveFrom) {
+      const spanMs = effectiveTo.getTime() - fromDate!.getTime();
+      const prevTo = new Date(fromDate!.getTime() - 1);
+      const prevFrom = new Date(prevTo.getTime() - spanMs);
+      prevShipments = allShipments.filter(s => s.createdAt && new Date(s.createdAt) >= prevFrom && new Date(s.createdAt) <= prevTo);
+    } else {
+      // من غير فلتر تاريخ: قارن آخر 30 يوم بالـ 30 يوم اللي قبلها
+      const now = new Date();
+      const curFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const prevTo = new Date(curFrom.getTime() - 1);
+      const prevFrom = new Date(prevTo.getTime() - 30 * 24 * 60 * 60 * 1000);
+      prevShipments = allShipments.filter(s => s.createdAt && new Date(s.createdAt) >= prevFrom && new Date(s.createdAt) <= prevTo);
+      shipments = allShipments.filter(s => s.createdAt && new Date(s.createdAt) >= curFrom && new Date(s.createdAt) <= now);
+      // ملاحظة: لو المستخدم فعلاً عايز "كل الوقت" بدون فلتر، الأصل يفضل شامل كل شيء لعرض التوزيع،
+      // بس المقارنة بتاعة آخر 30 يوم مقصودة كـ "نبض" افتراضي. نرجّع shipments لكل الفترة عشان التوزيع الجغرافي يفضل شامل.
+      shipments = allShipments;
     }
-    if (toStr) {
-      const toDate = new Date(toStr);
-      if (!isNaN(toDate.getTime())) { toDate.setHours(23, 59, 59, 999); shipments = shipments.filter(s => s.createdAt && new Date(s.createdAt) <= toDate); }
+
+    const deliveredStatusesSet = new Set(["delivered", "received"]);
+    const kpiOf = (list: typeof allShipments) => {
+      const delivered = list.filter(s => deliveredStatusesSet.has(s.status));
+      const returned = list.filter(s => s.status === "returned");
+      const revenue = delivered.reduce((sum, x) => sum + parseFloat(x.codAmount ?? "0"), 0);
+      const total = list.length;
+      return {
+        total,
+        deliveredCount: delivered.length,
+        returnedCount: returned.length,
+        deliveryRate: total > 0 ? Math.round((delivered.length / total) * 100) : 0,
+        returnRate: total > 0 ? Math.round((returned.length / total) * 100) : 0,
+        totalRevenue: Math.round(revenue),
+        avgOrderValue: delivered.length > 0 ? Math.round(revenue / delivered.length) : 0,
+      };
+    };
+    const currentKpi = kpiOf(shipments);
+    const prevKpi = kpiOf(prevShipments);
+    const pctChange = (cur: number, prev: number) => {
+      if (prev === 0) return cur > 0 ? 100 : 0;
+      return Math.round(((cur - prev) / prev) * 100);
+    };
+    const kpis = {
+      current: currentKpi,
+      previous: prevKpi,
+      changes: {
+        deliveryRate: pctChange(currentKpi.deliveryRate, prevKpi.deliveryRate),
+        returnRate: pctChange(currentKpi.returnRate, prevKpi.returnRate),
+        totalRevenue: pctChange(currentKpi.totalRevenue, prevKpi.totalRevenue),
+        avgOrderValue: pctChange(currentKpi.avgOrderValue, prevKpi.avgOrderValue),
+        total: pctChange(currentKpi.total, prevKpi.total),
+      },
+    };
+
+    // ── اتجاه شهري (Trend) — آخر 6 شهور من ضمن الشحنات المفلترة، أو كل الشحنات لو مفيش فلتر ──
+    const trendSource = hasEffectiveFrom ? shipments : allShipments;
+    const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const monthLabel = (d: Date) => new Intl.DateTimeFormat("ar-EG", { month: "short", year: "2-digit" }).format(d);
+    const monthsBack = 6;
+    const now2 = new Date();
+    const monthBuckets: { key: string; label: string; delivered: number; returned: number; revenue: number }[] = [];
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      const d = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
+      monthBuckets.push({ key: monthKey(d), label: monthLabel(d), delivered: 0, returned: 0, revenue: 0 });
     }
+    const bucketByKey = new Map(monthBuckets.map(b => [b.key, b]));
+    for (const s of trendSource) {
+      if (!s.createdAt) continue;
+      const d = new Date(s.createdAt);
+      const key = monthKey(d);
+      const bucket = bucketByKey.get(key);
+      if (!bucket) continue;
+      if (deliveredStatusesSet.has(s.status)) {
+        bucket.delivered += 1;
+        bucket.revenue += parseFloat(s.codAmount ?? "0");
+      } else if (s.status === "returned") {
+        bucket.returned += 1;
+      }
+    }
+    const trend = monthBuckets.map(b => ({ ...b, revenue: Math.round(b.revenue) }));
 
     const normalizeGov = (city: string | null | undefined) => (city ?? "").trim() || "غير محدد";
 
@@ -611,6 +693,8 @@ router.get("/client-portal/smart-analytics", async (req, res): Promise<void> => 
 
     res.json({
       total: shipments.length,
+      kpis,
+      trend,
       delivered: {
         total: deliveredTotal,
         totalRevenue: Math.round(deliveredShipments.reduce((s, x) => s + parseFloat(x.codAmount ?? "0"), 0)),

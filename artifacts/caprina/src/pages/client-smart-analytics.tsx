@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiFetch } from "@/lib/api";
 import {
-  Brain, ArrowRight, MapPin, TrendingUp, RotateCcw, Package,
-  ChevronLeft, X, Calendar,
+  Brain, ArrowRight, MapPin, TrendingUp, TrendingDown, RotateCcw, Package,
+  ChevronLeft, X, Calendar, Percent, Wallet, Minus,
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Sector, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 interface GovBreakdown {
@@ -16,8 +16,25 @@ interface GovBreakdown {
   revenue?: number;
   reasons?: { reason: string; label: string; count: number; pct: number }[];
 }
+interface KpiBlock {
+  total: number;
+  deliveredCount: number;
+  returnedCount: number;
+  deliveryRate: number;
+  returnRate: number;
+  totalRevenue: number;
+  avgOrderValue: number;
+}
+interface KpiData {
+  current: KpiBlock;
+  previous: KpiBlock;
+  changes: { deliveryRate: number; returnRate: number; totalRevenue: number; avgOrderValue: number; total: number };
+}
+interface TrendPoint { key: string; label: string; delivered: number; returned: number; revenue: number }
 interface SmartAnalyticsResponse {
   total: number;
+  kpis?: KpiData;
+  trend?: TrendPoint[];
   delivered: { total: number; totalRevenue: number; byGovernorate: GovBreakdown[] } | null;
   returned: { total: number; byGovernorate: GovBreakdown[] } | null;
 }
@@ -81,6 +98,91 @@ function DateRangeFilter({ from, to, onChange }: { from: string; to: string; onC
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── KPI change badge ──────────────────────────────────────────────────
+function ChangeBadge({ value, invert }: { value: number; invert?: boolean }) {
+  const isUp = value > 0;
+  const isFlat = Math.abs(value) < 0.05;
+  const good = invert ? !isUp : isUp;
+  const color = isFlat ? "#9ca3af" : good ? "#10b981" : "#f43f5e";
+  const Icon = isFlat ? Minus : isUp ? TrendingUp : TrendingDown;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold" style={{ color }}>
+      <Icon className="w-3 h-3" />
+      {isFlat ? "—" : `${Math.abs(value).toFixed(1)}%`}
+    </span>
+  );
+}
+
+// ─── KPI bar ────────────────────────────────────────────────────────────
+function KpiBar({ kpis }: { kpis: KpiData }) {
+  const { current, changes } = kpis;
+  const cards = [
+    { label: "نسبة التسليم", value: `${current.deliveryRate}%`, change: changes.deliveryRate, icon: Percent, color: "#10b981" },
+    { label: "متوسط قيمة الأوردر", value: fc(current.avgOrderValue), change: changes.avgOrderValue, icon: Wallet, color: "#60a5fa" },
+    { label: "إجمالي الإيرادات", value: fc(current.totalRevenue), change: changes.totalRevenue, icon: TrendingUp, color: "#fbbf24" },
+    { label: "نسبة المرتجعات", value: `${current.returnRate}%`, change: changes.returnRate, invert: true, icon: RotateCcw, color: "#f43f5e" },
+  ];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {cards.map((c) => (
+        <div key={c.label} className="rounded-2xl p-3.5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${c.color}22` }}>
+              <c.icon className="w-3.5 h-3.5" style={{ color: c.color }} />
+            </div>
+            <ChangeBadge value={c.change} invert={c.invert} />
+          </div>
+          <p className="text-lg font-black leading-tight">{c.value}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{c.label}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Trend chart (monthly delivered vs returned) ──────────────────────────
+function TrendChart({ trend }: { trend: TrendPoint[] }) {
+  if (!trend || trend.length === 0) return null;
+  return (
+    <div className="rounded-2xl p-4 sm:p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(96,165,250,0.13)" }}>
+          <TrendingUp className="w-4 h-4" style={{ color: "#60a5fa" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">اتجاه الأداء الشهري</h3>
+          <p className="text-[11px] text-muted-foreground">تسليم مقابل مرتجعات عبر الوقت</p>
+        </div>
+      </div>
+      <div className="h-[220px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={trend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="deliveredGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="returnedGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={{ background: "rgba(15,15,15,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 11 }}
+              labelStyle={{ color: "#fff", fontWeight: 700 }}
+            />
+            <Area type="monotone" dataKey="delivered" name="مسلّم" stroke="#10b981" fill="url(#deliveredGrad)" strokeWidth={2} />
+            <Area type="monotone" dataKey="returned" name="مرتجع" stroke="#f43f5e" fill="url(#returnedGrad)" strokeWidth={2} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -289,6 +391,8 @@ export default function ClientSmartAnalytics() {
         </div>
       ) : (
         <>
+          {data.kpis && <KpiBar kpis={data.kpis} />}
+          {data.trend && data.trend.length > 0 && <TrendChart trend={data.trend} />}
           {data.delivered && (
             <GovDonutSection
               title="المبيعات المحققة" subtitle="توزيع الأوردرات المسلّمة حسب المحافظة"
