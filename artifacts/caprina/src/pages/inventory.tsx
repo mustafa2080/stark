@@ -1702,18 +1702,20 @@ function ShipmentWarehouseTab() {
                         </td>
                       )}
                       <td className="px-3 py-2.5 whitespace-nowrap print:hidden">
-                        <button
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="h-8 w-8"
                           onClick={() => handleDeleteShipment(sh)}
                           disabled={deleteShipmentMutation.isPending}
                           title="حذف الطلب"
-                          className="group inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/20 text-red-500 dark:text-red-400 hover:bg-red-500 hover:border-red-500 hover:text-white hover:shadow-md hover:shadow-red-500/20 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all duration-150"
                         >
                           {deleteShipmentMutation.isPending && deleteShipmentMutation.variables === sh.id ? (
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <Trash2 className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           )}
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   );
