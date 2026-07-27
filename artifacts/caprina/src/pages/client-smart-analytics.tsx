@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import {
   Brain, ArrowRight, MapPin, TrendingUp, TrendingDown, RotateCcw, Package,
   ChevronLeft, X, Calendar, Percent, Wallet, Minus,
+  Sparkles, AlertTriangle, CheckCircle2, Target, ThumbsUp, ShieldAlert, Flame,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
@@ -46,6 +47,121 @@ const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
 
 const PALETTE = ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#a78bfa", "#38bdf8", "#fb923c", "#4ade80", "#f87171", "#c084fc"];
 function colorFor(i: number) { return PALETTE[i % PALETTE.length]; }
+
+// ─── هدف الأوردرات الشهري (ثابت حالياً لكل العملاء) ────────────────────
+const MONTHLY_ORDER_TARGET = 200;
+
+// ─── Insight = رسالة واحدة من كابرينا للعميل ──────────────────────────
+type InsightTone = "success" | "warning" | "danger" | "info";
+interface Insight {
+  tone: InsightTone;
+  icon: any;
+  title: string;
+  body: string;
+}
+
+const TONE_STYLE: Record<InsightTone, { color: string; bg: string }> = {
+  success: { color: "#10b981", bg: "linear-gradient(145deg, rgba(16,185,129,0.14) 0%, rgba(255,255,255,0.02) 60%)" },
+  warning: { color: "#f59e0b", bg: "linear-gradient(145deg, rgba(245,158,11,0.14) 0%, rgba(255,255,255,0.02) 60%)" },
+  danger:  { color: "#f43f5e", bg: "linear-gradient(145deg, rgba(244,63,94,0.14) 0%, rgba(255,255,255,0.02) 60%)" },
+  info:    { color: "#60a5fa", bg: "linear-gradient(145deg, rgba(96,165,250,0.14) 0%, rgba(255,255,255,0.02) 60%)" },
+};
+
+// ─── محرك توليد النصائح — كله مبني على أرقام حقيقية جايه من الـ API، مفيش نص ثابت ─
+function buildInsights(data: SmartAnalyticsResponse): Insight[] {
+  const insights: Insight[] = [];
+  if (!data.kpis) return insights;
+  const { current, changes } = data.kpis;
+
+  // 1) الخلاصة العامة — تحسن ولا تراجع؟ بنحسبها من نسبة التسليم + نسبة المرتجعات مع بعض
+  const overallScore = changes.deliveryRate - changes.returnRate;
+  if (overallScore > 3) {
+    insights.push({
+      tone: "success", icon: ThumbsUp,
+      title: "أداءك بيتحسن 👏",
+      body: `نسبة التسليم عندك اتحسنت والمرتجعات في تراجع مقارنة بالفترة اللي فاتت. كمّل على نفس الوتيرة دي.`,
+    });
+  } else if (overallScore < -3) {
+    insights.push({
+      tone: "danger", icon: ShieldAlert,
+      title: "الأداء محتاج وقفة سريعة",
+      body: `فيه تراجع ملحوظ في مؤشراتك الأساسية مقارنة بالفترة السابقة. خد بالك من الملاحظات اللي تحت دي وابدأ عالجها بسرعة.`,
+    });
+  } else {
+    insights.push({
+      tone: "info", icon: CheckCircle2,
+      title: "أداءك مستقر",
+      body: `مفيش تغيّر كبير في مؤشراتك عن الفترة اللي فاتت. ثبات كويس، بس فيه مساحة تتحسن فيها أكتر — شوف التفاصيل تحت.`,
+    });
+  }
+
+  // 2) تنبيه المرتجعات — لو معدل المرتجع زاد فعلاً (نسبة مئوية حقيقية من التغيير)
+  if (changes.returnRate > 10) {
+    insights.push({
+      tone: "danger", icon: AlertTriangle,
+      title: "المرتجعات في زيادة ⚠️",
+      body: `نسبة المرتجعات ارتفعت بنسبة ${changes.returnRate}% عن الفترة السابقة (وصلت لـ${current.returnRate}% من إجمالي شحناتك). راجع أسباب المرتجعات حسب المحافظة تحت في قسم "المرتجعات" عشان تعرف المشكلة فين بالظبط.`,
+    });
+  } else if (changes.returnRate < -10) {
+    insights.push({
+      tone: "success", icon: TrendingDown,
+      title: "المرتجعات بتقل 🎉",
+      body: `نسبة المرتجعات نزلت ${Math.abs(changes.returnRate)}% عن الفترة السابقة (بقت ${current.returnRate}%). استمر على نفس السياسة في التعامل مع العملاء.`,
+    });
+  }
+
+  // 3) تنبيه الإيرادات
+  if (changes.totalRevenue < -15) {
+    insights.push({
+      tone: "warning", icon: TrendingDown,
+      title: "الإيرادات بتقل",
+      body: `إجمالي إيراداتك قل بنسبة ${Math.abs(changes.totalRevenue)}% عن الفترة السابقة. ممكن يكون بسبب قلة عدد الأوردرات أو زيادة المرتجعات — راجع القسمين تحت.`,
+    });
+  } else if (changes.totalRevenue > 15) {
+    insights.push({
+      tone: "success", icon: Flame,
+      title: "الإيرادات في نمو 🔥",
+      body: `إيراداتك زادت ${changes.totalRevenue}% عن الفترة السابقة. أداء ممتاز، حافظ عليه.`,
+    });
+  }
+
+  // 4) أكتر سبب مرتجع منتشر — مبني على بيانات المحافظات الفعلية
+  if (data.returned && data.returned.byGovernorate.length > 0) {
+    let topReason: { label: string; count: number; gov: string } | null = null;
+    for (const gov of data.returned.byGovernorate) {
+      const r = gov.reasons?.[0];
+      if (r && (!topReason || r.count > topReason.count)) {
+        topReason = { label: r.label, count: r.count, gov: gov.governorate };
+      }
+    }
+    if (topReason && topReason.count >= 2) {
+      insights.push({
+        tone: "warning", icon: AlertTriangle,
+        title: "أكتر سبب لمرتجعاتك",
+        body: `"${topReason.label}" هو السبب الأكتر تكراراً في مرتجعاتك، وبالأخص في ${topReason.gov}. لو عالجت السبب ده هتقلل نسبة المرتجعات بشكل ملحوظ.`,
+      });
+    }
+  }
+
+  // 5) هدف الأوردرات الشهري — تتبع فعلي بناءً على عدد الشحنات الحالي
+  const remaining = MONTHLY_ORDER_TARGET - current.total;
+  if (remaining <= 0) {
+    insights.push({
+      tone: "success", icon: Target,
+      title: "وصلت لهدفك 🎯",
+      body: `حققت ${fn(current.total)} أوردر، وده أكتر من هدف الـ${MONTHLY_ORDER_TARGET} أوردر شهرياً. استمر بنفس الوتيرة أو حاول تزود أكتر.`,
+    });
+  } else {
+    const progressPct = Math.round((current.total / MONTHLY_ORDER_TARGET) * 100);
+    insights.push({
+      tone: progressPct >= 60 ? "info" : "warning", icon: Target,
+      title: "المسافة للهدف الشهري",
+      body: `أنت حالياً عند ${fn(current.total)} أوردر من أصل ${MONTHLY_ORDER_TARGET} (${progressPct}%). محتاج ${fn(remaining)} أوردر كمان عشان توصل للهدف — يلا نكمل مع بعض.`,
+    });
+  }
+
+  return insights;
+}
 
 // ─── Active pie sector (grow on hover) ────────────────────────────────────
 function ActiveShape(props: any) {
@@ -377,6 +493,58 @@ function GovDetailModal({
   );
 }
 
+// ─── لوحة نصائح كابرينا — أول حاجة يشوفها العميل، صوت كابرينا الوحيد ليه ─
+function InsightsPanel({ data }: { data: SmartAnalyticsResponse }) {
+  const insights = useMemo(() => buildInsights(data), [data]);
+  if (insights.length === 0) return null;
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(167,139,250,0.10) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(167,139,250,0.28)",
+        boxShadow: "0 8px 32px -14px rgba(167,139,250,0.35), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-20 blur-3xl" style={{ background: "#a78bfa" }} />
+      <div className="relative flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(167,139,250,0.22)", boxShadow: "0 0 14px rgba(167,139,250,0.55)" }}>
+          <Sparkles className="w-4 h-4" style={{ color: "#a78bfa", filter: "drop-shadow(0 0 4px #a78bfaaa)" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">نصائح كابرينا لك</h3>
+          <p className="text-[11px] text-muted-foreground">قراءة سريعة لأداءك مبنية على أرقامك الفعلية</p>
+        </div>
+      </div>
+
+      <div className="relative space-y-2.5">
+        {insights.map((insight, i) => {
+          const style = TONE_STYLE[insight.tone];
+          return (
+            <div
+              key={i}
+              className="flex items-start gap-3 rounded-xl p-3"
+              style={{ background: style.bg, border: `1px solid ${style.color}30` }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                style={{ background: `${style.color}26`, boxShadow: `0 0 10px ${style.color}44` }}
+              >
+                <insight.icon className="w-3.5 h-3.5" style={{ color: style.color }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold mb-0.5" style={{ color: style.color }}>{insight.title}</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{insight.body}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────
 export default function ClientSmartAnalytics() {
   const [, navigate] = useLocation();
@@ -428,6 +596,7 @@ export default function ClientSmartAnalytics() {
         </div>
       ) : (
         <>
+          <InsightsPanel data={data} />
           {data.kpis && <KpiBar kpis={data.kpis} />}
           {data.trend && data.trend.length > 0 && <TrendChart trend={data.trend} />}
           {data.delivered && (
