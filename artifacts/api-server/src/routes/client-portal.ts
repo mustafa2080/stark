@@ -1231,22 +1231,36 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
       .where(eq(clientsTable.id, manifest.clientId));
     const clientType = clientRow?.clientType ?? "normal";
 
-    const items = await db
+    // ── الحالات اللي لسه معتبرة "لم تستلمها الشركة فعليًا" — بيان العميل ──────
+    // متعرضش شحنات لسه بحالة قيد الانتظار (pending/waiting) أو مؤكدة بس لسه
+    // مش داخلة المخزن (confirmed). البيان يبدأ من "قيد الشحن في المخزن" فصاعدًا.
+    const PRE_WAREHOUSE_STATUSES = ["pending", "waiting", "confirmed"];
+
+    const allItems = await db
       .select()
       .from(clientAccountManifestItemsTable)
       .where(eq(clientAccountManifestItemsTable.manifestId, id));
 
-    const shipmentIds = items.map(i => i.shipmentId);
-    let shipments: any[] = [];
-    if (shipmentIds.length) {
-      shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+    const allShipmentIds = allItems.map(i => i.shipmentId);
+    let allShipments: any[] = [];
+    if (allShipmentIds.length) {
+      allShipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, allShipmentIds));
     }
+    const shipmentStatusMap: Record<number, string> = {};
+    allShipments.forEach(s => { shipmentStatusMap[s.id] = s.status; });
+
+    const items = allItems.filter(i => {
+      const st = shipmentStatusMap[i.shipmentId];
+      return st != null && !PRE_WAREHOUSE_STATUSES.includes(st);
+    });
+
+    const shipmentIds = items.map(i => i.shipmentId);
     const shipmentMap: Record<number, any> = {};
-    shipments.forEach(s => { shipmentMap[s.id] = s; });
+    allShipments.forEach(s => { shipmentMap[s.id] = s; });
 
     // ── سعر المنطقة (zone pricing) حسب تصنيف العميل — نفس منطق شاشة المندوب ──
     // مش تكلفة المندوب (courierCost)، ده سعر التوصيل بتاع منطقة الشحنة (مثلاً أسوان 115، القاهرة 85).
-    const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+    const zoneIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.zoneId).filter((v): v is number => !!v))];
     let zonePriceMap: Record<number, number> = {};
     if (zoneIds.length) {
       const zoneRows = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
@@ -1260,7 +1274,7 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
       }));
     }
 
-    const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
+    const repUserIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.assignedUserId).filter((v): v is number => !!v))];
     let repNameMap: Record<number, string> = {};
     if (repUserIds.length) {
       const repUsers = await db
@@ -1270,7 +1284,7 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
       repNameMap = Object.fromEntries(repUsers.map(u => [u.id, u.displayName]));
     }
 
-    const warehouseIds = [...new Set(shipments.map(s => s.warehouseId).filter((v): v is number => !!v))];
+    const warehouseIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.warehouseId).filter((v): v is number => !!v))];
     let warehouseNameMap: Record<number, string> = {};
     if (warehouseIds.length) {
       const warehouseRows = await db
