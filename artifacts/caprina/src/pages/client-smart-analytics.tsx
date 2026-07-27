@@ -848,6 +848,81 @@ function GovValuePanel({ byGovernorate, totalRevenue }: { byGovernorate: GovBrea
   );
 }
 
+// ─── مقارنة فترة بفترة: current مقابل previous جنب بعض بشكل صريح ────────
+const PERIOD_METRICS: { key: keyof KpiBlock; changeKey: keyof KpiData["changes"]; label: string; format: "count" | "pct" | "currency"; goodDirection: "up" | "down" }[] = [
+  { key: "total", changeKey: "total", label: "إجمالي الأوردرات", format: "count", goodDirection: "up" },
+  { key: "deliveryRate", changeKey: "deliveryRate", label: "نسبة التسليم", format: "pct", goodDirection: "up" },
+  { key: "returnRate", changeKey: "returnRate", label: "نسبة المرتجعات", format: "pct", goodDirection: "down" },
+  { key: "totalRevenue", changeKey: "totalRevenue", label: "إجمالي الإيراد", format: "currency", goodDirection: "up" },
+  { key: "avgOrderValue", changeKey: "avgOrderValue", label: "متوسط قيمة الأوردر", format: "currency", goodDirection: "up" },
+];
+
+function formatMetric(value: number, format: "count" | "pct" | "currency") {
+  if (format === "pct") return `${value}%`;
+  if (format === "currency") return fc(value);
+  return fn(value);
+}
+
+function PeriodComparisonPanel({ kpis, hasDateFilter }: { kpis: KpiData; hasDateFilter: boolean }) {
+  const { current, previous, changes } = kpis;
+  if (previous.total === 0 && current.total === 0) return null;
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(96,165,250,0.08) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(96,165,250,0.22)",
+        boxShadow: "0 8px 32px -14px rgba(96,165,250,0.3), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-15 blur-3xl" style={{ background: "#60a5fa" }} />
+      <div className="relative flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(96,165,250,0.18)", boxShadow: "0 0 14px rgba(96,165,250,0.5)" }}>
+          <Calendar className="w-4 h-4" style={{ color: "#60a5fa", filter: "drop-shadow(0 0 4px #60a5faaa)" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">مقارنة بالفترة السابقة</h3>
+          <p className="text-[11px] text-muted-foreground">
+            {hasDateFilter ? "الفترة المختارة مقابل فترة سابقة بنفس الطول" : "آخر 30 يوم مقابل الـ 30 يوم اللي قبلهم"}
+          </p>
+        </div>
+      </div>
+
+      <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {PERIOD_METRICS.map((m) => {
+          const curVal = current[m.key];
+          const prevVal = previous[m.key];
+          const change = changes[m.changeKey];
+          const isGood = m.goodDirection === "up" ? change >= 0 : change <= 0;
+          const isFlat = change === 0;
+          return (
+            <div key={m.key} className="rounded-xl p-3 bg-white/[0.03] border border-white/10">
+              <p className="text-[11px] text-muted-foreground mb-1.5">{m.label}</p>
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black">{formatMetric(curVal, m.format)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">قبل كده: {formatMetric(prevVal, m.format)}</p>
+                </div>
+                <span
+                  className="text-[11px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0"
+                  style={{
+                    background: isFlat ? "rgba(148,163,184,0.15)" : isGood ? "rgba(16,185,129,0.15)" : "rgba(244,63,94,0.15)",
+                    color: isFlat ? "#94a3b8" : isGood ? "#10b981" : "#f43f5e",
+                  }}
+                >
+                  {isFlat ? <Minus className="w-3 h-3" /> : change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {Math.abs(change)}%
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── لوحة نصائح كابرينا — أول حاجة يشوفها العميل، صوت كابرينا الوحيد ليه ─
 function InsightsPanel({ data }: { data: SmartAnalyticsResponse }) {
   const insights = useMemo(() => buildInsights(data), [data]);
@@ -953,6 +1028,7 @@ export default function ClientSmartAnalytics() {
         <>
           <InsightsPanel data={data} />
           {data.kpis && <KpiBar kpis={data.kpis} />}
+          {data.kpis && <PeriodComparisonPanel kpis={data.kpis} hasDateFilter={!!dateFrom} />}
           {data.trend && data.trend.length > 0 && <TrendChart trend={data.trend} />}
           {data.delivered && data.returned && (
             <GovComparisonTable delivered={data.delivered.byGovernorate} returned={data.returned.byGovernorate} />
