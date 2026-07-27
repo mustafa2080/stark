@@ -67,96 +67,176 @@ const TONE_STYLE: Record<InsightTone, { color: string; bg: string }> = {
   info:    { color: "#60a5fa", bg: "linear-gradient(145deg, rgba(96,165,250,0.14) 0%, rgba(255,255,255,0.02) 60%)" },
 };
 
-// ─── محرك توليد النصائح — كله مبني على أرقام حقيقية جايه من الـ API، مفيش نص ثابت ─
+// ─── اختيار حتمي (مش عشوائي) لصياغة من مجموعة صيغ، بناءً على رقم فعلي ──
+// نفس الرقم = نفس الصياغة دايماً، لكن لو الرقم اتغير (ولو بسيط) ممكن تتغير الصياغة.
+function pickVariant<T>(variants: T[], seed: number): T {
+  const idx = Math.abs(Math.round(seed * 7)) % variants.length;
+  return variants[idx];
+}
+
+// ─── محرك توليد النصائح — كل رسالة بتدمج الأرقام الفعلية جوه نصها، ولكل حالة أكتر من صياغة ─
 function buildInsights(data: SmartAnalyticsResponse): Insight[] {
   const insights: Insight[] = [];
   if (!data.kpis) return insights;
   const { current, changes } = data.kpis;
 
-  // 1) الخلاصة العامة — تحسن ولا تراجع؟ بنحسبها من نسبة التسليم + نسبة المرتجعات مع بعض
+  // 1) الخلاصة العامة — درجات متعددة مبنية على overallScore الفعلي، مش تصنيف ثنائي بسيط
   const overallScore = changes.deliveryRate - changes.returnRate;
-  if (overallScore > 3) {
+  if (overallScore > 15) {
+    insights.push({
+      tone: "success", icon: Flame,
+      title: "أداء قوي جداً 🔥",
+      body: pickVariant([
+        `فرق شاسع لصالحك: التسليم اتحسن والمرتجعات اتقلصت بمجموع فرق ${overallScore}% عن الفترة السابقة. ده أداء من أفضل ما يكون، كمّل عليه.`,
+        `الأرقام بتقولك حاجة واحدة: ماشي صح جداً. تحسن إجمالي ${overallScore}% في التوازن بين التسليم والمرتجعات — نادر يحصل بالمستوى ده.`,
+      ], overallScore),
+    });
+  } else if (overallScore > 3) {
     insights.push({
       tone: "success", icon: ThumbsUp,
       title: "أداءك بيتحسن 👏",
-      body: `نسبة التسليم عندك اتحسنت والمرتجعات في تراجع مقارنة بالفترة اللي فاتت. كمّل على نفس الوتيرة دي.`,
+      body: pickVariant([
+        `نسبة التسليم عندك اتحسنت والمرتجعات في تراجع مقارنة بالفترة اللي فاتت (فرق ${overallScore}%). كمّل على نفس الوتيرة دي.`,
+        `في تحسن واضح في أدائك (${overallScore}% فرق إيجابي) عن الفترة السابقة. الاتجاه صح، خليك مستمر.`,
+      ], overallScore),
+    });
+  } else if (overallScore < -15) {
+    insights.push({
+      tone: "danger", icon: Flame,
+      title: "تراجع حاد محتاج تدخّل فوري",
+      body: pickVariant([
+        `فيه تراجع كبير قوي في مؤشراتك (${Math.abs(overallScore)}% فرق سلبي) عن الفترة السابقة. الموضوع محتاج مراجعة سريعة قبل ما يكبر أكتر.`,
+        `الأرقام بتدق جرس إنذار: تراجع ${Math.abs(overallScore)}% في التوازن بين التسليم والمرتجعات. يلا نشوف مع بعض المشكلة فين بالظبط تحت.`,
+      ], overallScore),
     });
   } else if (overallScore < -3) {
     insights.push({
       tone: "danger", icon: ShieldAlert,
       title: "الأداء محتاج وقفة سريعة",
-      body: `فيه تراجع ملحوظ في مؤشراتك الأساسية مقارنة بالفترة السابقة. خد بالك من الملاحظات اللي تحت دي وابدأ عالجها بسرعة.`,
+      body: pickVariant([
+        `فيه تراجع ملحوظ في مؤشراتك الأساسية (${Math.abs(overallScore)}% فرق) عن الفترة السابقة. خد بالك من الملاحظات اللي تحت دي وابدأ عالجها بسرعة.`,
+        `لاحظنا تراجع بسيط بس واضح (${Math.abs(overallScore)}%) في أدائك عن الفترة اللي فاتت. مفيش داعي للقلق، بس يستاهل تشوف السبب.`,
+      ], overallScore),
     });
   } else {
     insights.push({
       tone: "info", icon: CheckCircle2,
       title: "أداءك مستقر",
-      body: `مفيش تغيّر كبير في مؤشراتك عن الفترة اللي فاتت. ثبات كويس، بس فيه مساحة تتحسن فيها أكتر — شوف التفاصيل تحت.`,
+      body: pickVariant([
+        `مفيش تغيّر كبير في مؤشراتك عن الفترة اللي فاتت (فرق ${overallScore}% بس). ثبات كويس، بس فيه مساحة تتحسن فيها أكتر — شوف التفاصيل تحت.`,
+        `أداءك ثابت تقريباً زي الفترة السابقة. الثبات مش سيء، بس لو عايز تكبر أكتر، ركّز على تقليل المرتجعات وزيادة عدد الأوردرات.`,
+      ], current.total),
     });
   }
 
-  // 2) تنبيه المرتجعات — لو معدل المرتجع زاد فعلاً (نسبة مئوية حقيقية من التغيير)
-  if (changes.returnRate > 10) {
+  // 2) تنبيه المرتجعات — درجات (شديد/متوسط) بدل قطع واحد، والنص بيدمج الأرقام الفعلية
+  if (changes.returnRate > 25) {
     insights.push({
       tone: "danger", icon: AlertTriangle,
-      title: "المرتجعات في زيادة ⚠️",
-      body: `نسبة المرتجعات ارتفعت بنسبة ${changes.returnRate}% عن الفترة السابقة (وصلت لـ${current.returnRate}% من إجمالي شحناتك). راجع أسباب المرتجعات حسب المحافظة تحت في قسم "المرتجعات" عشان تعرف المشكلة فين بالظبط.`,
+      title: "المرتجعات في زيادة كبيرة ⚠️",
+      body: `نسبة المرتجعات قفزت ${changes.returnRate}% عن الفترة السابقة ووصلت لـ${current.returnRate}% من إجمالي شحناتك — ده رقم يستدعي وقفة جدية. راجع أسباب المرتجعات حسب المحافظة تحت فوراً.`,
+    });
+  } else if (changes.returnRate > 10) {
+    insights.push({
+      tone: "warning", icon: AlertTriangle,
+      title: "المرتجعات في زيادة",
+      body: `نسبة المرتجعات ارتفعت ${changes.returnRate}% عن الفترة السابقة (وصلت لـ${current.returnRate}%). راجع أسباب المرتجعات حسب المحافظة تحت في قسم "المرتجعات" عشان تعرف المشكلة فين بالظبط.`,
+    });
+  } else if (changes.returnRate < -25) {
+    insights.push({
+      tone: "success", icon: TrendingDown,
+      title: "تحسن كبير في المرتجعات 🎉",
+      body: `نسبة المرتجعات نزلت بشكل كبير ${Math.abs(changes.returnRate)}% عن الفترة السابقة (بقت ${current.returnRate}% بس). أي حاجة غيّرتها في التعامل مع العملاء شغالة تمام، استمر عليها.`,
     });
   } else if (changes.returnRate < -10) {
     insights.push({
       tone: "success", icon: TrendingDown,
-      title: "المرتجعات بتقل 🎉",
+      title: "المرتجعات بتقل",
       body: `نسبة المرتجعات نزلت ${Math.abs(changes.returnRate)}% عن الفترة السابقة (بقت ${current.returnRate}%). استمر على نفس السياسة في التعامل مع العملاء.`,
     });
   }
 
-  // 3) تنبيه الإيرادات
-  if (changes.totalRevenue < -15) {
+  // 3) تنبيه الإيرادات — درجات + النص بيدمج مصدر محتمل للمشكلة (عدد أوردرات ولا متوسط قيمة)
+  if (changes.totalRevenue < -30) {
+    const likelyCause = changes.total < -10 ? "قلة عدد الأوردرات اللي دخلت الفترة دي" : changes.returnRate > 5 ? "زيادة نسبة المرتجعات" : "قلة متوسط قيمة الأوردر";
+    insights.push({
+      tone: "danger", icon: TrendingDown,
+      title: "انخفاض كبير في الإيرادات",
+      body: `إجمالي إيراداتك قل بنسبة كبيرة ${Math.abs(changes.totalRevenue)}% عن الفترة السابقة. السبب الأقرب ليك حسب أرقامك: ${likelyCause}. يستاهل مراجعة سريعة.`,
+    });
+  } else if (changes.totalRevenue < -15) {
     insights.push({
       tone: "warning", icon: TrendingDown,
       title: "الإيرادات بتقل",
       body: `إجمالي إيراداتك قل بنسبة ${Math.abs(changes.totalRevenue)}% عن الفترة السابقة. ممكن يكون بسبب قلة عدد الأوردرات أو زيادة المرتجعات — راجع القسمين تحت.`,
     });
-  } else if (changes.totalRevenue > 15) {
+  } else if (changes.totalRevenue > 30) {
     insights.push({
       tone: "success", icon: Flame,
-      title: "الإيرادات في نمو 🔥",
-      body: `إيراداتك زادت ${changes.totalRevenue}% عن الفترة السابقة. أداء ممتاز، حافظ عليه.`,
+      title: "نمو قوي في الإيرادات 🔥",
+      body: `إيراداتك قفزت ${changes.totalRevenue}% عن الفترة السابقة — نمو ملحوظ جداً. أياً كان اللي بتعمله دلوقتي، كمّل عليه.`,
+    });
+  } else if (changes.totalRevenue > 15) {
+    insights.push({
+      tone: "success", icon: TrendingUp,
+      title: "الإيرادات في نمو",
+      body: `إيراداتك زادت ${changes.totalRevenue}% عن الفترة السابقة. أداء كويس، حافظ عليه.`,
     });
   }
 
-  // 4) أكتر سبب مرتجع منتشر — مبني على بيانات المحافظات الفعلية
+  // 4) أكتر سبب مرتجع منتشر — مبني على بيانات المحافظات الفعلية، مع درجة خطورة حسب تركّز السبب
   if (data.returned && data.returned.byGovernorate.length > 0) {
-    let topReason: { label: string; count: number; gov: string } | null = null;
+    let topReason: { label: string; count: number; gov: string; pct: number } | null = null;
     for (const gov of data.returned.byGovernorate) {
       const r = gov.reasons?.[0];
       if (r && (!topReason || r.count > topReason.count)) {
-        topReason = { label: r.label, count: r.count, gov: gov.governorate };
+        topReason = { label: r.label, count: r.count, gov: gov.governorate, pct: r.pct };
       }
     }
     if (topReason && topReason.count >= 2) {
+      const isDominant = topReason.pct >= 50;
       insights.push({
-        tone: "warning", icon: AlertTriangle,
-        title: "أكتر سبب لمرتجعاتك",
-        body: `"${topReason.label}" هو السبب الأكتر تكراراً في مرتجعاتك، وبالأخص في ${topReason.gov}. لو عالجت السبب ده هتقلل نسبة المرتجعات بشكل ملحوظ.`,
+        tone: isDominant ? "danger" : "warning", icon: AlertTriangle,
+        title: isDominant ? "سبب واحد وراء معظم مرتجعاتك" : "أكتر سبب لمرتجعاتك",
+        body: isDominant
+          ? `"${topReason.label}" هو السبب في ${topReason.pct}% من مرتجعات ${topReason.gov} — نسبة عالية جداً لسبب واحد. لو عالجته هتشوف فرق كبير وسريع في نسبة مرتجعاتك.`
+          : `"${topReason.label}" هو السبب الأكتر تكراراً في مرتجعاتك (${topReason.count} حالة)، وبالأخص في ${topReason.gov}. لو عالجت السبب ده هتقلل نسبة المرتجعات بشكل ملحوظ.`,
       });
     }
   }
 
-  // 5) هدف الأوردرات الشهري — تتبع فعلي بناءً على عدد الشحنات الحالي
+  // 5) هدف الأوردرات الشهري — درجات تقدّم متعددة، مش رسالة واحدة لكل حد لسه ما وصلش
   const remaining = MONTHLY_ORDER_TARGET - current.total;
+  const progressPct = Math.round((current.total / MONTHLY_ORDER_TARGET) * 100);
   if (remaining <= 0) {
     insights.push({
       tone: "success", icon: Target,
       title: "وصلت لهدفك 🎯",
-      body: `حققت ${fn(current.total)} أوردر، وده أكتر من هدف الـ${MONTHLY_ORDER_TARGET} أوردر شهرياً. استمر بنفس الوتيرة أو حاول تزود أكتر.`,
+      body: `حققت ${fn(current.total)} أوردر، وده أكتر من هدف الـ${MONTHLY_ORDER_TARGET} أوردر شهرياً بـ${fn(Math.abs(remaining))} أوردر. استمر بنفس الوتيرة أو حاول تزود أكتر.`,
+    });
+  } else if (progressPct >= 80) {
+    insights.push({
+      tone: "success", icon: Target,
+      title: "قربت قوي من الهدف 🎯",
+      body: `أنت عند ${fn(current.total)} أوردر من أصل ${MONTHLY_ORDER_TARGET} (${progressPct}%) — باقي ${fn(remaining)} بس وتوصل. دفعة أخيرة وتوصل للهدف.`,
+    });
+  } else if (progressPct >= 60) {
+    insights.push({
+      tone: "info", icon: Target,
+      title: "في المنتصف تقريباً",
+      body: `أنت حالياً عند ${fn(current.total)} أوردر من أصل ${MONTHLY_ORDER_TARGET} (${progressPct}%). محتاج ${fn(remaining)} أوردر كمان عشان توصل للهدف — الطريق واضح، كمّل.`,
+    });
+  } else if (progressPct >= 30) {
+    insights.push({
+      tone: "warning", icon: Target,
+      title: "المسافة للهدف الشهري لسه بعيدة",
+      body: `أنت عند ${fn(current.total)} أوردر بس من أصل ${MONTHLY_ORDER_TARGET} (${progressPct}%). محتاج ${fn(remaining)} أوردر كمان — يلا نكمل مع بعض ونزوّد المعدل.`,
     });
   } else {
-    const progressPct = Math.round((current.total / MONTHLY_ORDER_TARGET) * 100);
     insights.push({
-      tone: progressPct >= 60 ? "info" : "warning", icon: Target,
-      title: "المسافة للهدف الشهري",
-      body: `أنت حالياً عند ${fn(current.total)} أوردر من أصل ${MONTHLY_ORDER_TARGET} (${progressPct}%). محتاج ${fn(remaining)} أوردر كمان عشان توصل للهدف — يلا نكمل مع بعض.`,
+      tone: "danger", icon: Target,
+      title: "بداية الشهر لسه",
+      body: `أنت عند ${fn(current.total)} أوردر بس من أصل ${MONTHLY_ORDER_TARGET} (${progressPct}%). فيه ${fn(remaining)} أوردر متبقّي — وقت كافي لو زودت المعدل بداية من دلوقتي.`,
     });
   }
 
