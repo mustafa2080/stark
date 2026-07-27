@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -6,6 +7,7 @@ import {
   Package, CheckCircle2, Clock, RotateCcw, Truck, Ban,
   Search, Wallet, TrendingUp, User,
   ChevronRight, RefreshCcw, ShieldCheck, AlertCircle, PackagePlus,
+  MessageCircle, ChevronUp, ChevronDown, X, Filter, CalendarDays,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Sector, ResponsiveContainer,
@@ -14,6 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fc = (n: number | string) =>
@@ -32,11 +36,14 @@ interface ShipmentRow {
   id: number;
   trackingNumber: string | null;
   shipmentNumber: string | null;
+  senderName: string | null;
   receiverName: string;
   receiverPhone: string | null;
   receiverCity: string | null;
   status: string;
   codAmount: string | null;
+  shippingFee: string | null;
+  assignedUserName: string | null;
   createdAt: string;
 }
 
@@ -58,6 +65,124 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
 };
 function statusMeta(status: string) {
   return STATUS_LABELS[status] ?? { label: status, color: "#64748b", bg: "rgba(100,116,139,0.12)" };
+}
+
+// ── Column Filters (Excel-style) ─────────────────────────────────────────
+type ColKey = "id" | "date" | "sender" | "receiver" | "phone" | "city" | "cod" | "agent" | "status";
+type ColFilters = Record<ColKey, Set<string>>;
+
+function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
+  col: ColKey;
+  colFilters: ColFilters;
+  getColOptions: (col: ColKey) => string[];
+  toggleColFilter: (col: ColKey, val: string) => void;
+  clearColFilter: (col: ColKey) => void;
+  sortCol: ColKey | null;
+  sortDir: "asc" | "desc";
+  onSort: (col: ColKey, dir: "asc" | "desc") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const sort = sortCol === col ? sortDir : "asc";
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const active = colFilters[col].size > 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const panelW = 208;
+      const left = Math.max(4, Math.min(r.left, window.innerWidth - panelW - 4));
+      setPos({ top: r.bottom + 4, left });
+    }
+    setOpen(o => !o);
+    setSearch("");
+  };
+
+  let opts = getColOptions(col);
+  if (search) opts = opts.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+  if (sort === "desc") opts = [...opts].reverse();
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleOpen}
+        title="فلتر"
+        className={`inline-flex items-center justify-center w-5 h-5 rounded transition-all shrink-0 ${active ? "text-primary bg-primary/15" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}
+      >
+        {active ? (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        )}
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-background border border-border rounded-lg shadow-2xl text-[11px] w-52"
+          dir="rtl"
+        >
+          <div className="flex gap-1 p-2 border-b border-border/50">
+            <button type="button" onClick={() => { onSort(col, "asc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "asc" && sortCol === col ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronUp className="w-2.5 h-2.5" />أ→ي
+            </button>
+            <button type="button" onClick={() => { onSort(col, "desc"); setOpen(false); }}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "desc" && sortCol === col ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronDown className="w-2.5 h-2.5" />ي→أ
+            </button>
+          </div>
+          <div className="px-2 pt-2">
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="بحث في القيم..."
+              className="w-full h-7 text-[10px] px-2 border border-border rounded bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div className="max-h-52 overflow-y-auto px-1 py-1.5 flex flex-col gap-0.5">
+            {opts.length === 0
+              ? <p className="text-muted-foreground text-center py-3 text-[10px]">لا توجد قيم</p>
+              : opts.map(val => (
+                <label key={val} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer">
+                  <input type="checkbox" checked={colFilters[col].has(val)}
+                    onChange={() => toggleColFilter(col, val)}
+                    className="accent-primary w-3 h-3 shrink-0" />
+                  <span className="truncate">{val}</span>
+                </label>
+              ))
+            }
+          </div>
+          {active && (
+            <div className="border-t border-border/50 px-2 py-1.5">
+              <button type="button" onClick={() => { clearColFilter(col); setOpen(false); }}
+                className="text-destructive text-[10px] hover:underline w-full text-right">
+                مسح الفلتر
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }
 
 // ── Status color config (نفس ألوان breakdown القادمة من /client-portal/stats) ──
@@ -304,8 +429,10 @@ export default function ClientDashboardPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const { data: profileData } = useQuery<{ client: any }>({
     queryKey: ["client-portal-profile"],
@@ -321,23 +448,165 @@ export default function ClientDashboardPage() {
     staleTime: 30_000,
   });
 
-  const { data: shipmentsData, isLoading: shipmentsLoading, refetch } = useQuery<{ data: ShipmentRow[]; total: number }>({
-    queryKey: ["client-portal-shipments", statusFilter, search, page],
-    queryFn: () => {
-      const q = new URLSearchParams();
-      if (statusFilter !== "all") q.set("status", statusFilter);
-      if (search.trim()) q.set("search", search.trim());
-      q.set("page", String(page));
-      q.set("pageSize", "10");
-      return apiFetch(`/client-portal/shipments?${q.toString()}`);
+  // ── نجيب كل شحنات العميل (بدون تقسيم صفحات سيرفر) عشان الفلاتر تشتغل زي صفحة قائمة الشحنات ──
+  const { data: allShipments = [], isLoading: shipmentsLoading, refetch } = useQuery<ShipmentRow[]>({
+    queryKey: ["client-portal-shipments-all"],
+    queryFn: async () => {
+      const pageSize = 100;
+      let page = 1;
+      let all: ShipmentRow[] = [];
+      while (true) {
+        const q = new URLSearchParams();
+        q.set("page", String(page));
+        q.set("pageSize", String(pageSize));
+        const res: { data: ShipmentRow[]; total: number } = await apiFetch(`/client-portal/shipments?${q.toString()}`);
+        all = all.concat(res.data);
+        if (all.length >= res.total || res.data.length === 0) break;
+        page += 1;
+      }
+      return all;
     },
     enabled: !!user,
     staleTime: 15_000,
   });
 
+  // ── Column Filters (Excel-style) ────────────────────────────────────────
+  const [colFilters, setColFilters] = useState<ColFilters>({
+    id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(),
+    phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set(),
+  });
+  const colFilterHasActive = Object.values(colFilters).some(s => s.size > 0);
+  const [showColFilters, setShowColFilters] = useState(false);
+  const [sortCol, setSortCol] = useState<ColKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = useCallback((col: ColKey, dir: "asc" | "desc") => {
+    setSortCol(col);
+    setSortDir(dir);
+  }, []);
+
+  // ── فلترة البحث النصي + حالة الطلب (محليًا) ──────────────────
+  const filtered = useMemo(() => {
+    return allShipments.filter(s => {
+      if (statusFilter !== "all") {
+        const STATUS_GROUPS: Record<string, string[]> = {
+          delivered:        ["delivered", "received"],
+          in_transit:       ["in_transit", "picked_up", "out_for_delivery"],
+          warehouse_ready:  ["warehouse_ready", "in_shipping", "still_in_warehouse"],
+          waiting:          ["waiting", "confirmed"],
+          returned:         ["returned"],
+          delayed:          ["delayed"],
+          cancelled:        ["cancelled"],
+          partial_received: ["partial_received"],
+        };
+        const group = STATUS_GROUPS[statusFilter] ?? [statusFilter];
+        if (!group.includes(s.status)) return false;
+      }
+      if (customerSearch.trim()) {
+        const words = customerSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        const receiver = (s.receiverName ?? "").toLowerCase();
+        const matchesAll = words.every(w => receiver.includes(w));
+        if (!matchesAll) return false;
+      }
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const hit =
+          (s.trackingNumber ?? "").toLowerCase().includes(q) ||
+          (s.shipmentNumber ?? "").toLowerCase().includes(q) ||
+          (s.receiverPhone ?? "").toLowerCase().includes(q) ||
+          String(s.id).includes(q);
+        if (!hit) return false;
+      }
+      if (dateFrom && s.createdAt && new Date(s.createdAt) < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        if (s.createdAt && new Date(s.createdAt) > to) return false;
+      }
+      return true;
+    });
+  }, [allShipments, statusFilter, search, customerSearch, dateFrom, dateTo]);
+
+  // ── Col Filter helpers ──────────────────────────────────────────────────
+  const getColVal = useCallback((col: ColKey, s: ShipmentRow): string => {
+    switch (col) {
+      case "id":       return s.trackingNumber ?? s.shipmentNumber ?? `#${s.id.toString().padStart(4,"0")}`;
+      case "date":     return s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "";
+      case "sender":   return s.senderName ?? "";
+      case "receiver": return s.receiverName ?? "";
+      case "phone":    return s.receiverPhone ?? "";
+      case "city":     return s.receiverCity ?? "";
+      case "cod":      return String(Math.round(Number(s.codAmount || 0)));
+      case "agent":    return s.assignedUserName ?? "";
+      case "status":   return statusMeta(s.status).label;
+      default:         return "";
+    }
+  }, []);
+
+  const getColOptions = useCallback((col: ColKey): string[] => {
+    const vals = [...new Set(filtered.map(s => getColVal(col, s)))].filter(Boolean);
+    return vals.sort((a, b) => a.localeCompare(b, "ar"));
+  }, [filtered, getColVal]);
+
+  const toggleColFilter = useCallback((col: ColKey, val: string) => {
+    setColFilters(prev => {
+      const next = new Set(prev[col]);
+      next.has(val) ? next.delete(val) : next.add(val);
+      return { ...prev, [col]: next };
+    });
+  }, []);
+
+  const clearColFilter = useCallback((col: ColKey) => {
+    setColFilters(prev => ({ ...prev, [col]: new Set() }));
+  }, []);
+
+  const colFilteredRows = useMemo(() => {
+    if (!colFilterHasActive) return filtered;
+    return filtered.filter(s =>
+      (Object.keys(colFilters) as ColKey[]).every(col => {
+        const set = colFilters[col];
+        if (set.size === 0) return true;
+        return set.has(getColVal(col, s));
+      })
+    );
+  }, [filtered, colFilters, colFilterHasActive, getColVal]);
+
+  const displayRows = useMemo(() => {
+    if (!sortCol) return colFilteredRows;
+    return [...colFilteredRows].sort((a, b) => {
+      const va = getColVal(sortCol, a);
+      const vb = getColVal(sortCol, b);
+      const cmp = va.localeCompare(vb, "ar", { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [colFilteredRows, sortCol, sortDir, getColVal]);
+
+  // ── Pagination (client-side) ────────────────────────────────────────────
+  const pageSize = 20;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(1);
+  }, [totalPages]);
+  const shipments = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return displayRows.slice(start, start + pageSize);
+  }, [displayRows, page]);
+  const totalShipments = displayRows.length;
+
+  const hasActiveFilter = search.trim() !== "" || customerSearch.trim() !== "" || statusFilter !== "all" || dateFrom !== "" || dateTo !== "" || colFilterHasActive;
+  const clearAllFilters = () => {
+    setSearch("");
+    setCustomerSearch("");
+    setStatusFilter("all");
+    setDateFrom("");
+    setDateTo("");
+    setColFilters({ id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set() });
+    setSortCol(null);
+    setPage(1);
+  };
+
   const client = profileData?.client;
-  const shipments = shipmentsData?.data ?? [];
-  const totalShipments = shipmentsData?.total ?? 0;
 
   const finance = stats?.finance;
 
@@ -439,27 +708,94 @@ export default function ClientDashboardPage() {
 
         {/* ── Shipments Table ── */}
         <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-border">
-            <p className="text-sm font-black text-foreground">شحناتي</p>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="relative w-full sm:w-auto">
-                <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  placeholder="بحث بالكود أو الاسم..."
-                  className="pr-9 pl-3 py-2 rounded-lg text-xs text-foreground outline-none w-full sm:w-52 bg-muted/50 border border-border" />
-                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+          <div className="p-3 border-b border-border bg-muted/10 flex flex-col gap-2">
+            <p className="text-sm font-black text-foreground px-1">
+              {totalShipments > 0 ? `${fn(totalShipments)} شحنة` : "شحناتي"}
+            </p>
+
+            {/* ── بحث اسم العميل realtime ── */}
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
+              <Input
+                placeholder="ابحث باسم العميل..."
+                className="pr-9 bg-card text-sm h-10 font-medium border-primary/30 focus-visible:ring-primary/40 placeholder:text-muted-foreground/60"
+                value={customerSearch}
+                onChange={e => { setCustomerSearch(e.target.value); setPage(1); }}
+              />
+              {customerSearch && (
+                <>
+                  <button
+                    className="absolute left-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setCustomerSearch("")}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    {filtered.length}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* ── الصف الأول: بحث عام + حالة ── */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="ابحث برقم الهاتف..."
+                  className="pr-9 bg-card text-sm h-9"
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1); }}
+                />
               </div>
-              <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="py-2 px-3 rounded-lg text-xs text-foreground outline-none w-full sm:w-auto bg-muted/50 border border-border">
-                <option value="all">كل الحالات</option>
-                <option value="waiting">قيد الانتظار</option>
-                <option value="in_transit">قيد الشحن</option>
-                <option value="warehouse_ready">قيد الشحن في المخزن</option>
-                <option value="delivered">استلم</option>
-                <option value="partial_received">استلم جزئى</option>
-                <option value="delayed">مؤجل</option>
-                <option value="returned">مرتجع</option>
-                <option value="cancelled">ملغية</option>
-              </select>
+              <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
+                <SelectTrigger className="w-full sm:w-48 bg-card h-9 text-sm">
+                  <div className="flex items-center gap-2"><Filter className="w-3.5 h-3.5 text-muted-foreground" /><SelectValue /></div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">جميع الشحنات</SelectItem>
+                  <SelectItem value="waiting">قيد الانتظار</SelectItem>
+                  <SelectItem value="warehouse_ready">قيد الشحن في المخزن</SelectItem>
+                  <SelectItem value="in_transit">قيد الشحن</SelectItem>
+                  <SelectItem value="delivered">استلم</SelectItem>
+                  <SelectItem value="delayed">مؤجل</SelectItem>
+                  <SelectItem value="returned">مرتجع</SelectItem>
+                  <SelectItem value="partial_received">استلم جزئي</SelectItem>
+                  <SelectItem value="cancelled">ملغية</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ── الصف الثاني: تاريخ من + زر فلتر + مسح ── */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <CalendarDays className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Input type="date" className="pr-9 bg-card text-sm h-8 w-40 text-xs" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} title="من تاريخ" />
+              </div>
+              <span className="text-xs text-muted-foreground">←</span>
+              <div className="relative">
+                <CalendarDays className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Input type="date" className="pr-9 bg-card text-sm h-8 w-40 text-xs" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} title="إلى تاريخ" />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (showColFilters) {
+                    setColFilters({ id: new Set(), date: new Set(), sender: new Set(), receiver: new Set(), phone: new Set(), city: new Set(), cod: new Set(), agent: new Set(), status: new Set() });
+                    setSortCol(null);
+                  }
+                  setShowColFilters(v => !v);
+                }}
+                className={`hidden md:flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${showColFilters ? "text-primary bg-primary/10 border-primary/30" : "text-foreground/70 bg-muted/50 border-border"}`}
+              >
+                <Filter className="w-3.5 h-3.5" /> فلاتر الأعمدة
+              </button>
+              {hasActiveFilter && (
+                <button type="button" onClick={clearAllFilters}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-muted-foreground bg-muted/50 border border-border">
+                  <X size={13} /> مسح الكل
+                </button>
+              )}
             </div>
           </div>
 
@@ -468,7 +804,10 @@ export default function ClientDashboardPage() {
             {shipmentsLoading ? (
               <div className="text-center py-10 text-muted-foreground text-sm">جارٍ التحميل...</div>
             ) : shipments.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">لا توجد شحنات مطابقة</div>
+              <div className="flex flex-col items-center gap-2 py-14 text-muted-foreground">
+                <Package size={40} className="opacity-30" />
+                <p className="text-sm">لا توجد شحنات مطابقة</p>
+              </div>
             ) : shipments.map(s => {
               const meta = statusMeta(s.status);
               return (
@@ -498,36 +837,79 @@ export default function ClientDashboardPage() {
             <table className="w-full text-xs" dir="rtl">
               <thead>
                 <tr className="bg-muted/40">
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الكود</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">المستلم</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">الوجهة</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">قيمة الطرد</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">حالة الطلب</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">التاريخ</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3"></th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">#{showColFilters && <ColFilterBtn col="id" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">التاريخ{showColFilters && <ColFilterBtn col="date" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">المستلم{showColFilters && <ColFilterBtn col="receiver" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">المحافظة{showColFilters && <ColFilterBtn col="city" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">سعر الشحنة{showColFilters && <ColFilterBtn col="cod" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">المندوب{showColFilters && <ColFilterBtn col="agent" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
+                    <div className="flex items-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  </th>
+                  <th className="text-center font-bold text-muted-foreground px-4 py-3 w-10"></th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3 w-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {shipmentsLoading ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
+                  <tr><td colSpan={11} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                 ) : shipments.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">لا توجد شحنات مطابقة</td></tr>
+                  <tr>
+                    <td colSpan={11} className="text-center py-14 text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <Package size={40} className="opacity-30" />
+                        <p className="text-sm">لا توجد شحنات مطابقة</p>
+                      </div>
+                    </td>
+                  </tr>
                 ) : shipments.map(s => {
                   const meta = statusMeta(s.status);
                   return (
                     <tr key={s.id} className="cursor-pointer hover:bg-muted/30 transition-colors border-t border-border"
                       onClick={() => navigate(`/client-shipment-detail/${s.id}`)}>
                       <td className="px-4 py-3 font-mono text-foreground/60">{s.trackingNumber || s.shipmentNumber || s.id}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/70">{s.senderName || "—"}</td>
                       <td className="px-4 py-3 text-foreground/80">{s.receiverName}</td>
+                      <td className="px-4 py-3 text-foreground/60">{s.receiverPhone || "—"}</td>
                       <td className="px-4 py-3 text-foreground/60">{s.receiverCity || "—"}</td>
                       <td className="px-4 py-3 text-foreground/80 font-bold">{fn(Number(s.codAmount ?? 0))}</td>
+                      <td className="px-4 py-3 text-foreground/60">{s.assignedUserName || "—"}</td>
                       <td className="px-4 py-3">
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
                           {meta.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : "—"}
+                      <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                        {s.receiverPhone && (
+                          <a
+                            href={`https://wa.me/${s.receiverPhone.replace(/[^0-9]/g, "")}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-full text-green-500 hover:bg-green-500/10 transition-colors"
+                          >
+                            <MessageCircle size={15} />
+                          </a>
+                        )}
                       </td>
                       <td className="px-4 py-3"><ChevronRight size={14} className="text-muted-foreground/50" /></td>
                     </tr>
@@ -538,15 +920,15 @@ export default function ClientDashboardPage() {
           </div>
 
           {/* ── Pagination ── */}
-          {totalShipments > 10 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-              <span className="text-xs text-muted-foreground">
-                عرض {(page - 1) * 10 + 1}–{Math.min(page * 10, totalShipments)} من {fn(totalShipments)}
+          {totalShipments > pageSize && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border gap-2">
+              <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                عرض {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalShipments)} من {fn(totalShipments)}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold text-foreground/70 disabled:opacity-30 bg-muted/50">السابق</button>
-                <button disabled={page * 10 >= totalShipments} onClick={() => setPage(p => p + 1)}
+                <button disabled={page * pageSize >= totalShipments} onClick={() => setPage(p => p + 1)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold text-foreground/70 disabled:opacity-30 bg-muted/50">التالي</button>
               </div>
             </div>
