@@ -111,6 +111,7 @@ export default function ClientManifestViewPage() {
   }).length;
   const totalCod = manifest.items.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
   const totalShippingCost = manifest.items.reduce((s, i) => s + Number(i.shippingCost || 0), 0);
+  const grandTotal = totalCod + totalShippingCost;
 
   // توزيع الشحنات على المخازن والمندوبين — بيانات موجودة أصلاً من الـ API ومش معروضة سابقًا
   const warehouseMap = new Map<string, number>();
@@ -272,7 +273,7 @@ export default function ClientManifestViewPage() {
         )}
 
         {/* ── Financial summary ── */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-emerald-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
             <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-emerald-500/20" />
             <p className="relative text-[11px] text-muted-foreground mb-1">إجمالي قيمة الشحنات</p>
@@ -280,8 +281,13 @@ export default function ClientManifestViewPage() {
           </div>
           <div className="relative overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-sky-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
             <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-sky-500/20" />
-            <p className="relative text-[11px] text-muted-foreground mb-1">إجمالي تكلفة الشحن</p>
+            <p className="relative text-[11px] text-muted-foreground mb-1">إجمالي سعر المنطقة</p>
             <p className="relative text-xl font-black text-sky-300">{formatCurrency(totalShippingCost)}</p>
+          </div>
+          <div className="relative overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-violet-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10 col-span-2 sm:col-span-1">
+            <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-violet-500/20" />
+            <p className="relative text-[11px] text-muted-foreground mb-1">الإجمالي الكلي</p>
+            <p className="relative text-xl font-black text-violet-300">{formatCurrency(grandTotal)}</p>
           </div>
         </div>
 
@@ -718,8 +724,12 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
               <td className="print-financial-value">{formatCurrency(totalCod)}</td>
             </tr>
             <tr>
-              <td className="print-financial-label">إجمالي تكلفة الشحن</td>
+              <td className="print-financial-label">إجمالي سعر المنطقة</td>
               <td className="print-financial-value">{formatCurrency(totalShippingCost)}</td>
+            </tr>
+            <tr>
+              <td className="print-financial-label">الإجمالي الكلي</td>
+              <td className="print-financial-value">{formatCurrency(totalCod + totalShippingCost)}</td>
             </tr>
           </tbody>
         </table>
