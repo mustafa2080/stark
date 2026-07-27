@@ -743,6 +743,9 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           color: #111111;
           background: #ffffff;
           width: 100%;
+          border: 1.5px solid #111111;
+          padding: 14px 16px 18px;
+          box-sizing: border-box;
         }
 
         .print-header {
@@ -750,6 +753,8 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           align-items: center;
           justify-content: space-between;
           padding-bottom: 10px;
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
         .print-header-brand {
           display: flex;
@@ -806,6 +811,8 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
           padding: 10px 12px;
           border: 1px solid #cccccc;
           border-radius: 6px;
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
         .print-info-item {
           display: flex;
@@ -923,6 +930,14 @@ function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippi
         table { page-break-inside: auto; }
         tr { page-break-inside: avoid; page-break-after: auto; }
         thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+
+        .print-financial-table,
+        .print-signatures,
+        .print-footer {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
       `}</style>
     </div>
   );
