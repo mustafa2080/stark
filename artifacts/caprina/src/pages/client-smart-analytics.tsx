@@ -6,7 +6,7 @@ import {
   Brain, ArrowRight, MapPin, TrendingUp, TrendingDown, RotateCcw, Package,
   ChevronLeft, X, Calendar, Percent, Wallet, Minus,
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Sector, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Sector, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 interface GovBreakdown {
@@ -183,16 +183,8 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
       </div>
       <div className="h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={trend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+          <LineChart data={trend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
             <defs>
-              <linearGradient id="deliveredGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.55} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="returnedGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.55} />
-                <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-              </linearGradient>
               <filter id="glowDelivered" x="-50%" y="-50%" width="200%" height="200%">
                 <feGaussianBlur stdDeviation="3.5" result="blur" />
                 <feMerge>
@@ -215,9 +207,9 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
               contentStyle={{ background: "rgba(15,15,15,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 11 }}
               labelStyle={{ color: "#fff", fontWeight: 700 }}
             />
-            <Area type="monotone" dataKey="delivered" name="مسلّم" stroke="#10b981" fill="url(#deliveredGrad)" strokeWidth={2.5} filter="url(#glowDelivered)" />
-            <Area type="monotone" dataKey="returned" name="مرتجع" stroke="#f43f5e" fill="url(#returnedGrad)" strokeWidth={2.5} filter="url(#glowReturned)" />
-          </AreaChart>
+            <Line type="monotone" dataKey="delivered" name="مسلّم" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} filter="url(#glowDelivered)" />
+            <Line type="monotone" dataKey="returned" name="مرتجع" stroke="#f43f5e" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} filter="url(#glowReturned)" />
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
