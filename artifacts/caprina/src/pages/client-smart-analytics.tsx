@@ -129,15 +129,30 @@ function KpiBar({ kpis }: { kpis: KpiData }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {cards.map((c) => (
-        <div key={c.label} className="rounded-2xl p-3.5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${c.color}22` }}>
-              <c.icon className="w-3.5 h-3.5" style={{ color: c.color }} />
+        <div
+          key={c.label}
+          className="group relative rounded-2xl p-3.5 overflow-hidden transition-all duration-300 hover:-translate-y-0.5"
+          style={{
+            background: `linear-gradient(145deg, ${c.color}14 0%, rgba(255,255,255,0.02) 55%)`,
+            border: `1px solid ${c.color}33`,
+            boxShadow: `0 4px 24px -8px ${c.color}40, 0 0 0 1px rgba(255,255,255,0.02) inset`,
+          }}
+        >
+          <div
+            className="pointer-events-none absolute -top-8 -left-8 w-24 h-24 rounded-full opacity-40 blur-2xl transition-opacity duration-300 group-hover:opacity-70"
+            style={{ background: c.color }}
+          />
+          <div className="relative flex items-center justify-between mb-2">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: `${c.color}26`, boxShadow: `0 0 12px ${c.color}55` }}
+            >
+              <c.icon className="w-3.5 h-3.5" style={{ color: c.color, filter: `drop-shadow(0 0 4px ${c.color}aa)` }} />
             </div>
             <ChangeBadge value={c.change} invert={c.invert} />
           </div>
-          <p className="text-lg font-black leading-tight">{c.value}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{c.label}</p>
+          <p className="relative text-lg font-black leading-tight" style={{ textShadow: `0 0 18px ${c.color}55` }}>{c.value}</p>
+          <p className="relative text-[10px] text-muted-foreground mt-0.5">{c.label}</p>
         </div>
       ))}
     </div>
@@ -148,10 +163,18 @@ function KpiBar({ kpis }: { kpis: KpiData }) {
 function TrendChart({ trend }: { trend: TrendPoint[] }) {
   if (!trend || trend.length === 0) return null;
   return (
-    <div className="rounded-2xl p-4 sm:p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(96,165,250,0.13)" }}>
-          <TrendingUp className="w-4 h-4" style={{ color: "#60a5fa" }} />
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(96,165,250,0.06) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(96,165,250,0.18)",
+        boxShadow: "0 8px 32px -12px rgba(96,165,250,0.25), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-25 blur-3xl" style={{ background: "#60a5fa" }} />
+      <div className="relative flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(96,165,250,0.18)", boxShadow: "0 0 14px rgba(96,165,250,0.5)" }}>
+          <TrendingUp className="w-4 h-4" style={{ color: "#60a5fa", filter: "drop-shadow(0 0 4px #60a5faaa)" }} />
         </div>
         <div>
           <h3 className="font-bold text-sm">اتجاه الأداء الشهري</h3>
@@ -163,13 +186,27 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
           <AreaChart data={trend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="deliveredGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.55} />
                 <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="returnedGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
+                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.55} />
                 <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
               </linearGradient>
+              <filter id="glowDelivered" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="glowReturned" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
@@ -178,8 +215,8 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
               contentStyle={{ background: "rgba(15,15,15,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 11 }}
               labelStyle={{ color: "#fff", fontWeight: 700 }}
             />
-            <Area type="monotone" dataKey="delivered" name="مسلّم" stroke="#10b981" fill="url(#deliveredGrad)" strokeWidth={2} />
-            <Area type="monotone" dataKey="returned" name="مرتجع" stroke="#f43f5e" fill="url(#returnedGrad)" strokeWidth={2} />
+            <Area type="monotone" dataKey="delivered" name="مسلّم" stroke="#10b981" fill="url(#deliveredGrad)" strokeWidth={2.5} filter="url(#glowDelivered)" />
+            <Area type="monotone" dataKey="returned" name="مرتجع" stroke="#f43f5e" fill="url(#returnedGrad)" strokeWidth={2.5} filter="url(#glowReturned)" />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -197,10 +234,18 @@ function GovDonutSection({
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
   return (
-    <div className="rounded-2xl p-4 sm:p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color}22` }}>
-          <Icon className="w-4 h-4" style={{ color }} />
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: `linear-gradient(160deg, ${color}10 0%, rgba(255,255,255,0.02) 60%)`,
+        border: `1px solid ${color}2a`,
+        boxShadow: `0 8px 32px -14px ${color}45, 0 0 0 1px rgba(255,255,255,0.02) inset`,
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-20 blur-3xl" style={{ background: color }} />
+      <div className="relative flex items-center gap-2 mb-1">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color}26`, boxShadow: `0 0 14px ${color}55` }}>
+          <Icon className="w-4 h-4" style={{ color, filter: `drop-shadow(0 0 4px ${color}aa)` }} />
         </div>
         <div>
           <h3 className="font-bold text-sm">{title}</h3>
@@ -299,18 +344,18 @@ function GovDetailModal({
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="rounded-xl p-3" style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)" }}>
+          <div className="relative rounded-xl p-3 overflow-hidden" style={{ background: "linear-gradient(150deg, rgba(96,165,250,0.16) 0%, rgba(255,255,255,0.02) 70%)", border: "1px solid rgba(96,165,250,0.35)", boxShadow: "0 6px 20px -8px rgba(96,165,250,0.35)" }}>
             <p className="text-[10px] text-muted-foreground mb-1">{kind === "delivered" ? "أوردرات مسلّمة" : "أوردرات مرتجعة"}</p>
-            <p className="text-xl font-black">{fn(gov.count)}</p>
+            <p className="text-xl font-black" style={{ textShadow: "0 0 16px rgba(96,165,250,0.5)" }}>{fn(gov.count)}</p>
           </div>
-          <div className="rounded-xl p-3" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+          <div className="relative rounded-xl p-3 overflow-hidden" style={{ background: "linear-gradient(150deg, rgba(16,185,129,0.16) 0%, rgba(255,255,255,0.02) 70%)", border: "1px solid rgba(16,185,129,0.35)", boxShadow: "0 6px 20px -8px rgba(16,185,129,0.35)" }}>
             <p className="text-[10px] text-muted-foreground mb-1">النسبة من الإجمالي</p>
-            <p className="text-xl font-black" style={{ color: "#10b981" }}>{gov.pct}%</p>
+            <p className="text-xl font-black" style={{ color: "#10b981", textShadow: "0 0 16px rgba(16,185,129,0.55)" }}>{gov.pct}%</p>
           </div>
           {kind === "delivered" && gov.revenue !== undefined && (
-            <div className="col-span-2 rounded-xl p-3" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <div className="col-span-2 relative rounded-xl p-3 overflow-hidden" style={{ background: "linear-gradient(150deg, rgba(245,158,11,0.16) 0%, rgba(255,255,255,0.02) 70%)", border: "1px solid rgba(245,158,11,0.35)", boxShadow: "0 6px 20px -8px rgba(245,158,11,0.35)" }}>
               <p className="text-[10px] text-muted-foreground mb-1">إجمالي الإيرادات المحققة من {gov.governorate}</p>
-              <p className="text-xl font-black" style={{ color: "#f59e0b" }}>{fc(gov.revenue)}</p>
+              <p className="text-xl font-black" style={{ color: "#f59e0b", textShadow: "0 0 16px rgba(245,158,11,0.55)" }}>{fc(gov.revenue)}</p>
             </div>
           )}
         </div>
