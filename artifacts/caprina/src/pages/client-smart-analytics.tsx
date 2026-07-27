@@ -573,6 +573,281 @@ function GovDetailModal({
   );
 }
 
+// ─── تجميع أسباب المرتجعات من كل المحافظات مع بعض على مستوى الشركة كلها ─
+interface AggregatedReason { reason: string; label: string; count: number; pct: number; topGovs: { governorate: string; count: number }[] }
+function aggregateReturnReasons(byGovernorate: GovBreakdown[]): AggregatedReason[] {
+  const byReason = new Map<string, { count: number; label: string; govs: Map<string, number> }>();
+  let total = 0;
+  for (const gov of byGovernorate) {
+    for (const r of gov.reasons ?? []) {
+      total += r.count;
+      if (!byReason.has(r.reason)) byReason.set(r.reason, { count: 0, label: r.label, govs: new Map() });
+      const entry = byReason.get(r.reason)!;
+      entry.count += r.count;
+      entry.govs.set(gov.governorate, (entry.govs.get(gov.governorate) ?? 0) + r.count);
+    }
+  }
+  return [...byReason.entries()]
+    .map(([reason, v]) => ({
+      reason, label: v.label, count: v.count,
+      pct: total > 0 ? Math.round((v.count / total) * 100) : 0,
+      topGovs: [...v.govs.entries()]
+        .map(([governorate, count]) => ({ governorate, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3),
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function TopReturnReasonsPanel({ byGovernorate }: { byGovernorate: GovBreakdown[] }) {
+  const reasons = useMemo(() => aggregateReturnReasons(byGovernorate), [byGovernorate]);
+  if (reasons.length === 0) return null;
+  const topReason = reasons[0];
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(244,63,94,0.08) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(244,63,94,0.22)",
+        boxShadow: "0 8px 32px -14px rgba(244,63,94,0.3), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-20 blur-3xl" style={{ background: "#f43f5e" }} />
+      <div className="relative flex items-center gap-2 mb-1">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(244,63,94,0.18)", boxShadow: "0 0 14px rgba(244,63,94,0.5)" }}>
+          <AlertTriangle className="w-4 h-4" style={{ color: "#f43f5e", filter: "drop-shadow(0 0 4px #f43f5eaa)" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">أسباب المرتجعات في شركتك كلها</h3>
+          <p className="text-[11px] text-muted-foreground">مش بس داخل كل محافظة — دي كل أسبابك مجمّعة مع بعض</p>
+        </div>
+      </div>
+
+      {topReason.pct >= 30 && (
+        <div className="relative mt-3 mb-1 rounded-xl p-3" style={{ background: "rgba(244,63,94,0.1)", border: "1px solid rgba(244,63,94,0.3)" }}>
+          <p className="text-xs font-semibold leading-relaxed">
+            "{topReason.label}" هو السبب في <span className="font-black" style={{ color: "#f43f5e" }}>{topReason.pct}%</span> من كل مرتجعاتك.
+            لو عالجت السبب ده لوحده، ممكن تقلل مرتجعاتك ككل بنسبة قريبة من كده.
+          </p>
+        </div>
+      )}
+
+      <div className="relative space-y-3 mt-3">
+        {reasons.map((r, i) => (
+          <div key={r.reason}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(i) }} />
+                {r.label}
+              </span>
+              <span className="text-xs font-black">{fn(r.count)} <span className="text-muted-foreground font-semibold">({r.pct}%)</span></span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden mb-1.5">
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${r.pct}%`, background: colorFor(i) }} />
+            </div>
+            {r.topGovs.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-muted-foreground">الأكتر تكراراً في:</span>
+                {r.topGovs.map((g) => (
+                  <span key={g.governorate} className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1"
+                    style={{ background: `${colorFor(i)}1a`, color: colorFor(i) }}>
+                    <MapPin className="w-2.5 h-2.5" />{g.governorate} ({g.count})
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── مقارنة المناطق: دمج المسلّم والمرتجع لكل محافظة في صف واحد ──────────
+interface GovComparison { governorate: string; delivered: number; returned: number; total: number; deliveryRate: number; returnRate: number }
+function buildGovComparison(delivered: GovBreakdown[], returned: GovBreakdown[]): GovComparison[] {
+  const map = new Map<string, { delivered: number; returned: number }>();
+  for (const g of delivered) {
+    if (!map.has(g.governorate)) map.set(g.governorate, { delivered: 0, returned: 0 });
+    map.get(g.governorate)!.delivered += g.count;
+  }
+  for (const g of returned) {
+    if (!map.has(g.governorate)) map.set(g.governorate, { delivered: 0, returned: 0 });
+    map.get(g.governorate)!.returned += g.count;
+  }
+  return [...map.entries()]
+    .map(([governorate, v]) => {
+      const total = v.delivered + v.returned;
+      return {
+        governorate, delivered: v.delivered, returned: v.returned, total,
+        deliveryRate: total > 0 ? Math.round((v.delivered / total) * 100) : 0,
+        returnRate: total > 0 ? Math.round((v.returned / total) * 100) : 0,
+      };
+    })
+    .filter(g => g.total > 0)
+    .sort((a, b) => b.total - a.total);
+}
+
+type GovSortKey = "total" | "deliveryRate" | "returnRate";
+function GovComparisonTable({ delivered, returned }: { delivered: GovBreakdown[]; returned: GovBreakdown[] }) {
+  const rows = useMemo(() => buildGovComparison(delivered, returned), [delivered, returned]);
+  const [sortKey, setSortKey] = useState<GovSortKey>("total");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  if (rows.length < 2) return null; // مقارنة مفيدة بس لو فيه أكتر من محافظة
+
+  const sorted = [...rows].sort((a, b) => (sortDir === "desc" ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]));
+  const bestGov = [...rows].sort((a, b) => b.deliveryRate - a.deliveryRate)[0];
+  const worstGov = [...rows].sort((a, b) => b.returnRate - a.returnRate)[0];
+
+  const toggleSort = (key: GovSortKey) => {
+    if (sortKey === key) setSortDir(d => (d === "desc" ? "asc" : "desc"));
+    else { setSortKey(key); setSortDir("desc"); }
+  };
+
+  const headers: { key: GovSortKey; label: string }[] = [
+    { key: "total", label: "إجمالي" },
+    { key: "deliveryRate", label: "نسبة تسليم" },
+    { key: "returnRate", label: "نسبة مرتجع" },
+  ];
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(52,211,153,0.07) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(52,211,153,0.2)",
+        boxShadow: "0 8px 32px -14px rgba(52,211,153,0.28), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-15 blur-3xl" style={{ background: "#34d399" }} />
+      <div className="relative flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(52,211,153,0.18)", boxShadow: "0 0 14px rgba(52,211,153,0.5)" }}>
+          <MapPin className="w-4 h-4" style={{ color: "#34d399", filter: "drop-shadow(0 0 4px #34d399aa)" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">مقارنة المناطق</h3>
+          <p className="text-[11px] text-muted-foreground">كل محافظاتك جنب بعض — نسبة تسليم مقابل نسبة مرتجع</p>
+        </div>
+      </div>
+
+      <div className="relative flex items-center gap-2 flex-wrap mb-3">
+        <span className="text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
+          <ThumbsUp className="w-3 h-3" />أفضل منطقة: {bestGov.governorate} ({bestGov.deliveryRate}% تسليم)
+        </span>
+        {worstGov.returnRate > 0 && (
+          <span className="text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e" }}>
+            <AlertTriangle className="w-3 h-3" />محتاجة متابعة: {worstGov.governorate} ({worstGov.returnRate}% مرتجع)
+          </span>
+        )}
+      </div>
+
+      <div className="relative overflow-x-auto -mx-1">
+        <table className="w-full text-xs min-w-[420px]">
+          <thead>
+            <tr className="text-muted-foreground border-b border-white/10">
+              <th className="text-right font-bold px-2 py-2">المحافظة</th>
+              {headers.map(h => (
+                <th key={h.key} className="text-center font-bold px-2 py-2 cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => toggleSort(h.key)}>
+                  <span className="inline-flex items-center gap-1">
+                    {h.label}
+                    {sortKey === h.key && <ChevronLeft className={`w-3 h-3 transition-transform ${sortDir === "desc" ? "-rotate-90" : "rotate-90"}`} />}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((g, i) => (
+              <tr key={g.governorate} className="border-b border-white/5 last:border-0">
+                <td className="px-2 py-2 font-semibold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(i) }} />
+                  {g.governorate}
+                  {g.governorate === bestGov.governorate && <ThumbsUp className="w-3 h-3 text-emerald-400" />}
+                  {g.governorate === worstGov.governorate && worstGov.returnRate > 0 && <AlertTriangle className="w-3 h-3 text-rose-400" />}
+                </td>
+                <td className="text-center px-2 py-2 font-bold">{fn(g.total)}</td>
+                <td className="text-center px-2 py-2 font-black" style={{ color: "#10b981" }}>{g.deliveryRate}%</td>
+                <td className="text-center px-2 py-2 font-black" style={{ color: g.returnRate > 0 ? "#f43f5e" : "inherit" }}>{g.returnRate}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── قيمة كل محافظة الحقيقية بالفلوس: مساهمة في الإيراد + متوسط قيمة الأوردر ─
+interface GovValue { governorate: string; count: number; revenue: number; avgOrderValue: number; revenuePct: number }
+function buildGovValues(byGovernorate: GovBreakdown[], totalRevenue: number): GovValue[] {
+  return byGovernorate
+    .filter(g => g.revenue !== undefined)
+    .map(g => ({
+      governorate: g.governorate, count: g.count, revenue: g.revenue ?? 0,
+      avgOrderValue: g.count > 0 ? Math.round((g.revenue ?? 0) / g.count) : 0,
+      revenuePct: totalRevenue > 0 ? Math.round(((g.revenue ?? 0) / totalRevenue) * 100) : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+function GovValuePanel({ byGovernorate, totalRevenue }: { byGovernorate: GovBreakdown[]; totalRevenue: number }) {
+  const rows = useMemo(() => buildGovValues(byGovernorate, totalRevenue), [byGovernorate, totalRevenue]);
+  if (rows.length < 2) return null;
+
+  const overallAvg = rows.reduce((s, r) => s + r.count, 0) > 0
+    ? Math.round(totalRevenue / rows.reduce((s, r) => s + r.count, 0))
+    : 0;
+  // فرص تسعير: محافظات بعدد أوردرات كبير نسبياً بس متوسط قيمة أقل من المتوسط العام
+  const opportunities = rows.filter(r => r.avgOrderValue > 0 && r.avgOrderValue < overallAvg * 0.85 && r.count >= 3);
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(251,191,36,0.08) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(251,191,36,0.22)",
+        boxShadow: "0 8px 32px -14px rgba(251,191,36,0.3), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-18 blur-3xl" style={{ background: "#fbbf24" }} />
+      <div className="relative flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(251,191,36,0.2)", boxShadow: "0 0 14px rgba(251,191,36,0.55)" }}>
+          <Wallet className="w-4 h-4" style={{ color: "#fbbf24", filter: "drop-shadow(0 0 4px #fbbf24aa)" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">قيمة كل منطقة بالفلوس</h3>
+          <p className="text-[11px] text-muted-foreground">مش بس عدد الأوردرات — مين بيجيبلك إيراد أكتر فعلياً</p>
+        </div>
+      </div>
+
+      <div className="relative space-y-1 mb-3">
+        {rows.map((g, i) => (
+          <div key={g.governorate} className="flex items-center gap-2 text-xs rounded-lg px-2.5 py-2" style={{ background: i === 0 ? "rgba(251,191,36,0.08)" : "transparent" }}>
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(i) }} />
+            <span className="font-semibold flex-1 truncate">{g.governorate}</span>
+            <span className="text-[10px] text-muted-foreground">{fn(g.count)} أوردر</span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${colorFor(i)}22`, color: colorFor(i) }}>
+              متوسط {fc(g.avgOrderValue)}
+            </span>
+            <span className="font-black" style={{ color: "#fbbf24" }}>{g.revenuePct}%</span>
+          </div>
+        ))}
+      </div>
+
+      {opportunities.length > 0 && (
+        <div className="relative rounded-xl p-3" style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)" }}>
+          <p className="text-xs font-semibold leading-relaxed">
+            <span className="font-black">{opportunities.map(o => o.governorate).join("، ")}</span> بتجيبلك أوردرات كتير نسبياً بس متوسط قيمتها أقل من متوسطك العام ({fc(overallAvg)}).
+            ممكن تكون فرصة تراجع فيها التسعير أو تعرض عليهم منتجات أعلى قيمة.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── لوحة نصائح كابرينا — أول حاجة يشوفها العميل، صوت كابرينا الوحيد ليه ─
 function InsightsPanel({ data }: { data: SmartAnalyticsResponse }) {
   const insights = useMemo(() => buildInsights(data), [data]);
@@ -679,6 +954,9 @@ export default function ClientSmartAnalytics() {
           <InsightsPanel data={data} />
           {data.kpis && <KpiBar kpis={data.kpis} />}
           {data.trend && data.trend.length > 0 && <TrendChart trend={data.trend} />}
+          {data.delivered && data.returned && (
+            <GovComparisonTable delivered={data.delivered.byGovernorate} returned={data.returned.byGovernorate} />
+          )}
           {data.delivered && (
             <GovDonutSection
               title="المبيعات المحققة" subtitle="توزيع الأوردرات المسلّمة حسب المحافظة"
@@ -687,6 +965,9 @@ export default function ClientSmartAnalytics() {
               showRevenue onSelect={(gov) => setModalGov({ gov, kind: "delivered" })}
             />
           )}
+          {data.delivered && data.delivered.byGovernorate.length > 1 && (
+            <GovValuePanel byGovernorate={data.delivered.byGovernorate} totalRevenue={data.delivered.totalRevenue} />
+          )}
           {data.returned && (
             <GovDonutSection
               title="المرتجعات" subtitle="توزيع الأوردرات المرتجعة حسب المحافظة"
@@ -694,6 +975,9 @@ export default function ClientSmartAnalytics() {
               total={data.returned.total} byGovernorate={data.returned.byGovernorate}
               showRevenue={false} onSelect={(gov) => setModalGov({ gov, kind: "returned" })}
             />
+          )}
+          {data.returned && data.returned.byGovernorate.length > 0 && (
+            <TopReturnReasonsPanel byGovernorate={data.returned.byGovernorate} />
           )}
         </>
       )}
