@@ -312,7 +312,7 @@ export default function ClientManifestViewPage() {
             <span className="text-[11px] text-muted-foreground font-bold px-2.5 py-1 rounded-full bg-muted/40 border border-border/60">{filteredItems.length} شحنة</span>
           </div>
 
-          <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
+          <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_100px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
             <span>الراسل</span>
             <span>العميل</span>
             <span>الهاتف</span>
@@ -321,6 +321,7 @@ export default function ClientManifestViewPage() {
             <span className="text-center">القطع</span>
             <span className="text-left">الإجمالي</span>
             <span className="text-center">سعر المنطقة</span>
+            <span className="text-center">الإجمالي الكلي</span>
             <span className="text-center">الحالة</span>
           </div>
 
@@ -531,7 +532,7 @@ function ItemRow({ item }: { item: ManifestItem }) {
   const meta = STATUS_META[item.deliveryStatus] ?? STATUS_META.pending;
   return (
     <>
-      <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
+      <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_100px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
         <div className="min-w-0 pr-2 text-muted-foreground truncate">
           {item.senderName || <span className="text-muted-foreground/40">—</span>}
         </div>
@@ -555,6 +556,7 @@ function ItemRow({ item }: { item: ManifestItem }) {
         </div>
         <div className="text-left font-bold">{formatCurrency(item.totalPrice)}</div>
         <div className="text-center font-semibold text-sky-400">{formatCurrency(item.shippingCost)}</div>
+        <div className="text-center font-bold text-violet-400">{formatCurrency(Number(item.totalPrice || 0) + Number(item.shippingCost || 0))}</div>
         <div className="text-center">
           <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.bg} ${meta.color}`}>
             {meta.label}
@@ -591,6 +593,10 @@ function ItemRow({ item }: { item: ManifestItem }) {
         <div className="flex items-center justify-between text-[10px]">
           <span className="text-muted-foreground">سعر المنطقة</span>
           <span className="font-bold text-sky-400">{formatCurrency(item.shippingCost)}</span>
+        </div>
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-muted-foreground">الإجمالي الكلي</span>
+          <span className="font-bold text-violet-400">{formatCurrency(Number(item.totalPrice || 0) + Number(item.shippingCost || 0))}</span>
         </div>
         {item.deliveryStatus === "delayed" && item.deliveryNote && (
           <p className="text-[10px] text-orange-400">⏸ {item.deliveryNote}</p>
