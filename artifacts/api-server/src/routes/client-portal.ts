@@ -1224,6 +1224,13 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
     if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك بعرض هذا البيان" }); return; }
 
+    // ── تصنيف العميل (لتحديد أي عمود سعر نستخدمه من جدول مناطق الشحن) ──────
+    const [clientRow] = await db
+      .select({ clientType: clientsTable.clientType })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, manifest.clientId));
+    const clientType = clientRow?.clientType ?? "normal";
+
     const items = await db
       .select()
       .from(clientAccountManifestItemsTable)
@@ -1236,6 +1243,22 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     }
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    // ── سعر المنطقة (zone pricing) حسب تصنيف العميل — نفس منطق شاشة المندوب ──
+    // مش تكلفة المندوب (courierCost)، ده سعر التوصيل بتاع منطقة الشحنة (مثلاً أسوان 115، القاهرة 85).
+    const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+    let zonePriceMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneRows = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+      zonePriceMap = Object.fromEntries(zoneRows.map(z => {
+        const priceByType =
+          clientType === "vip"        ? z.priceVip :
+          clientType === "commercial" ? z.priceCommercial :
+          z.priceNormal;
+        const resolved = (priceByType != null && Number(priceByType) > 0) ? priceByType : z.price;
+        return [z.id, Number(resolved) || 0];
+      }));
+    }
 
     const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
     let repNameMap: Record<number, string> = {};
@@ -1269,7 +1292,7 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
         totalPrice:    Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
-        shippingCost:  Number(sh?.shippingFee ?? 0),
+        shippingCost:  sh?.zoneId ? (zonePriceMap[sh.zoneId] ?? 0) : Number(sh?.shippingFee ?? 0),
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
