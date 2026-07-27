@@ -524,6 +524,108 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /client-portal/smart-analytics — التحليل الذكي: توزيع جغرافي للتسليم والمرتجعات ─
+const CLIENT_RETURN_REASON_LABELS: Record<string, string> = {
+  size_mismatch: "مقاس غير مناسب",
+  quality: "هرب من الاستلام بدون معاينة",
+  customer_refused: "عميل غير جاد",
+  customer_requested_return: "طلب العميل مرتجع",
+  delay: "التأخير على العميل",
+  other: "سبب آخر",
+};
+
+router.get("/client-portal/smart-analytics", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.json({ delivered: null, returned: null }); return; }
+
+    const [client] = await db.select().from(clientsTable)
+      .where(eq(clientsTable.id, user.clientId)).limit(1);
+    if (!client) { res.json({ delivered: null, returned: null }); return; }
+
+    let shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone ?? null, user.id, client.id);
+
+    // ── فلتر فترة زمنية اختياري (from/to بصيغة ISO) ──────────────────────
+    const fromStr = (req.query.from as string | undefined)?.trim();
+    const toStr = (req.query.to as string | undefined)?.trim();
+    if (fromStr) {
+      const fromDate = new Date(fromStr);
+      if (!isNaN(fromDate.getTime())) shipments = shipments.filter(s => s.createdAt && new Date(s.createdAt) >= fromDate);
+    }
+    if (toStr) {
+      const toDate = new Date(toStr);
+      if (!isNaN(toDate.getTime())) { toDate.setHours(23, 59, 59, 999); shipments = shipments.filter(s => s.createdAt && new Date(s.createdAt) <= toDate); }
+    }
+
+    const normalizeGov = (city: string | null | undefined) => (city ?? "").trim() || "غير محدد";
+
+    // ── حاوية المبيعات: الشحنات المسلّمة ─────────────────────────────────
+    const deliveredStatuses = new Set(["delivered", "received"]);
+    const deliveredShipments = shipments.filter(s => deliveredStatuses.has(s.status));
+
+    const deliveredByGov = new Map<string, { count: number; revenue: number; shipments: typeof shipments }>();
+    for (const s of deliveredShipments) {
+      const gov = normalizeGov(s.receiverCity);
+      if (!deliveredByGov.has(gov)) deliveredByGov.set(gov, { count: 0, revenue: 0, shipments: [] });
+      const entry = deliveredByGov.get(gov)!;
+      entry.count += 1;
+      entry.revenue += parseFloat(s.codAmount ?? "0");
+      entry.shipments.push(s);
+    }
+
+    const deliveredTotal = deliveredShipments.length;
+    const deliveredBreakdown = [...deliveredByGov.entries()]
+      .map(([governorate, v]) => ({
+        governorate, count: v.count, revenue: Math.round(v.revenue),
+        pct: deliveredTotal > 0 ? Math.round((v.count / deliveredTotal) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // ── حاوية المرتجعات: الشحنات المرتجعة ────────────────────────────────
+    const returnedShipments = shipments.filter(s => s.status === "returned");
+    const returnedByGov = new Map<string, { count: number; reasons: Record<string, number> }>();
+    for (const s of returnedShipments) {
+      const gov = normalizeGov(s.receiverCity);
+      if (!returnedByGov.has(gov)) returnedByGov.set(gov, { count: 0, reasons: {} });
+      const entry = returnedByGov.get(gov)!;
+      entry.count += 1;
+      const reason = s.returnReason ?? "__none__";
+      entry.reasons[reason] = (entry.reasons[reason] ?? 0) + 1;
+    }
+
+    const returnedTotal = returnedShipments.length;
+    const returnedBreakdown = [...returnedByGov.entries()]
+      .map(([governorate, v]) => ({
+        governorate, count: v.count,
+        pct: returnedTotal > 0 ? Math.round((v.count / returnedTotal) * 100) : 0,
+        reasons: Object.entries(v.reasons)
+          .map(([reason, count]) => ({
+            reason,
+            label: reason === "__none__" ? "غير محدد" : (CLIENT_RETURN_REASON_LABELS[reason] ?? reason),
+            count,
+            pct: v.count > 0 ? Math.round((count / v.count) * 100) : 0,
+          }))
+          .sort((a, b) => b.count - a.count),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({
+      total: shipments.length,
+      delivered: {
+        total: deliveredTotal,
+        totalRevenue: Math.round(deliveredShipments.reduce((s, x) => s + parseFloat(x.codAmount ?? "0"), 0)),
+        byGovernorate: deliveredBreakdown,
+      },
+      returned: {
+        total: returnedTotal,
+        byGovernorate: returnedBreakdown,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /client-portal/shipments — جدول شحنات العميل (فلترة + بحث + صفحات) ─
 router.get("/client-portal/shipments", async (req, res): Promise<void> => {
   try {

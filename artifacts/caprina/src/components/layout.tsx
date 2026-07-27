@@ -313,6 +313,7 @@ export default function Layout({ children }: LayoutProps) {
       "/profile", "/my-dashboard", "/subscription-expired", "/dashboard", "/representative", "/super-admin",
       "/client-dashboard", "/client-profile", "/client-account", "/client-shipment", "/client-shipment-detail",
       "/client-shipments", "/client-shipping-invoices", "/client-wallet", "/client-pickup-requests",
+      "/client-smart-analytics",
     ];
     if (globalPages.some(p => location === p || location.startsWith(p + "/"))) return;
     // أي sub-route تحت nav item متاح → لا redirect
@@ -380,6 +381,7 @@ export default function Layout({ children }: LayoutProps) {
   if (user?.role === "client") {
     const CLIENT_NAV = [
       { href: "/client-dashboard",       label: "الرئيسية",        icon: LayoutDashboard, exact: true },
+      { href: "/client-smart-analytics", label: "التحليل الذكي",   icon: Brain },
       { href: "/client-pickup-requests", label: "طلبات الالتقاط",   icon: Truck },
     ];
     const CLIENT_SHIPMENTS_SUBNAV = [
