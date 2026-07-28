@@ -380,13 +380,30 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     return null;
   };
 
-  // "نعم"/"لا" -> 1/0
+  // "نعم"/"لا" بأي صيغة شائعة -> 1/0
   const YES_NO_MAP: Record<string, number> = {
     "نعم": 1, "لا": 0,
+    "ايوه": 1, "أيوه": 1, "ايوة": 1, "أيوة": 1,
+    "yes": 1, "no": 0, "true": 1, "false": 0, "y": 1, "n": 0,
+    "1": 1, "0": 0,
+    // حالة الفتح
+    "مسموح": 1, "ممنوع": 0, "قابل للفتح": 1, "غير قابل للفتح": 0,
+    "يمكن الفتح": 1, "لا يمكن الفتح": 0,
+    // حالة التجزئة
+    "قابله للتجزئه": 1, "قابلة للتجزئة": 1,
+    "غير قابله للتجزئه": 0, "غير قابلة للتجزئة": 0,
+    "الشحنه قابله للتجزئه": 1, "الشحنة قابلة للتجزئة": 1,
+    "الشحنه غير قابله للتجزئه": 0, "الشحنة غير قابلة للتجزئة": 0,
   };
+  const normalizeYesNoKey = (raw: string): string =>
+    raw.trim().replace(/[إأآا]/g, "ا").replace(/ة/g, "ه").replace(/\s+/g, " ");
   const parseYesNo = (raw: string): number | null => {
-    const n = raw.trim();
-    return n in YES_NO_MAP ? YES_NO_MAP[n] : null;
+    const n = normalizeYesNoKey(raw);
+    if (n in YES_NO_MAP) return YES_NO_MAP[n];
+    // مطابقة مرنة: لو النص فيه "غير" يبقى لأ، غير كده لو فيه "قابل"/"مسموح"/"يمكن" يبقى نعم
+    if (n.includes("غير") || n.includes("ممنوع") || n.includes("لا يمكن")) return 0;
+    if (n.includes("قابل") || n.includes("مسموح") || n.includes("يمكن")) return 1;
+    return null;
   };
 
   // "دفع كامل"/"مجاني" -> full_fee/free
