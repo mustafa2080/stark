@@ -408,7 +408,23 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
 
   // "دفع كامل"/"مجاني" -> full_fee/free
   const REJECTION_POLICY_MAP: Record<string, string> = {
-    "دفع كامل": "full_fee", "مجاني": "free",
+    "دفع كامل": "full_fee",
+    "يدفع كامل": "full_fee",
+    "دفع كامل مصاريف الشحن": "full_fee",
+    "يتم دفع مصاريف الشحن كامله": "full_fee",
+    "يتم دفع مصاريف الشحن كاملة": "full_fee",
+    "دفع مصاريف الشحن كامله": "full_fee",
+    "full_fee": "full_fee", "full fee": "full_fee",
+    "مجاني": "free", "مجانا": "free",
+    "بدون مصاريف": "free", "بدون مصاريف شحن": "free",
+    "free": "free",
+  };
+  const parseRejectionPolicy = (raw: string): string | null => {
+    const n = normalizeYesNoKey(raw);
+    if (n in REJECTION_POLICY_MAP) return REJECTION_POLICY_MAP[n];
+    if (n.includes("مجان") || n.includes("بدون مصاريف") || n.includes("free")) return "free";
+    if (n.includes("دفع") && (n.includes("كامل") || n.includes("مصاريف الشحن"))) return "full_fee";
+    return null;
   };
 
   const errors: string[] = [];
@@ -467,7 +483,7 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
 
     // حالة الرفض (rejectionPolicy) — إجباري، "دفع كامل"/"مجاني"
     if (!rejectionPolicyRaw) { errors.push(`الصف ${rowNum}: حالة الرفض مطلوبة`); continue; }
-    const rejectionPolicy = REJECTION_POLICY_MAP[rejectionPolicyRaw.trim()] ?? null;
+    const rejectionPolicy = parseRejectionPolicy(rejectionPolicyRaw);
     if (!rejectionPolicy) {
       errors.push(`الصف ${rowNum}: حالة الرفض "${rejectionPolicyRaw}" غير معروفة (المتاح: دفع كامل، مجاني)`);
       continue;
