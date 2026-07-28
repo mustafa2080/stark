@@ -4788,10 +4788,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             const parcelTypePrice = Math.abs(Number((order as any).parcelTypePrice ?? 0));
             const shippingRevenue = zonePrice + parcelTypePrice; // إيراد شركتنا من الشحن
 
-            // تكلفة الشحن الفعلية: 1) تكلفة المندوب المرتبط بالشحنة (نفس الرقم في كارد المندوب بقسم المناطق والأسعار)
-            // 2) تكلفة الشحن المخزنة يدويًا على الطلب لو موجودة  3) رسوم الشحن كحل أخير
+            // تكلفة الشحن الفعلية: 1) resolvedShippingCompanyCost القادمة من الباك إند (تاخد المندوب المرتبط
+            // بالشحنة مباشرة، أو المندوب المرتبط ببيان الشحن (manifest) لو الشحنة لسه من غير ربط مباشر — وده الغالب)
+            // 2) لو الباك إند القديم لسه شغال ومحصلش عليها، نرجع نجيبها يدويًا من shippingCompanies بمطابقة shippingCompanyId
+            // 3) تكلفة الشحن المخزنة يدويًا على الطلب لو موجودة  4) رسوم الشحن كحل أخير
             const courierCompany  = (shippingCompanies ?? []).find((sc: any) => String(sc.id) === String((order as any).shippingCompanyId));
-            const shippingCost    = courierCompany?.shippingCost != null
+            const shippingCost    = (order as any).resolvedShippingCompanyCost != null
+              ? Math.abs(Number((order as any).resolvedShippingCompanyCost))
+              : courierCompany?.shippingCost != null
               ? Math.abs(Number(courierCompany.shippingCost))
               : (order as any).shippingCost != null
               ? Math.abs(Number((order as any).shippingCost))

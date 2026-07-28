@@ -625,6 +625,11 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
         ...shipmentsTable,
         assignedUserName: usersTable.displayName,
         shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
+        // ── تكلفة شركة الشحن الفعلية: من الشحنة مباشرة، أو من المندوب المرتبط ببيان الشحن (fallback) ──
+        // بيان الشحن هو المصدر الحقيقي غالبًا لأن shipping_company_id بيفضل فاضي على مستوى الشحنة نفسها
+        // لحد ما تتقفل، والربط الفعلي بيحصل عن طريق shipment_manifest_items → shipment_manifests
+        resolvedShippingCompanyId: sql<number | null>`COALESCE(${shipmentsTable.shippingCompanyId}, ${shipmentManifestsTable.shippingCompanyId})`,
+        resolvedShippingCompanyCost: sql<number | null>`COALESCE(${shippingCompaniesTable.shippingCost}, ${manifestShippingCompanyTable.shippingCost})`,
         zoneLabel: shipmentZonesTable.name,
         zoneGovernorate: shipmentZonesTable.toGovernorate,
       })
