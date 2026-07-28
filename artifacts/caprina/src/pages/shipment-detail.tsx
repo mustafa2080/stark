@@ -2152,8 +2152,8 @@ export default function OrderDetail() {
   });
   const [editClientOpen, setEditClientOpen] = useState(false);
 
-  // إظهار/إخفاء تفاصيل تكلفة الشحن الفعلية في كارد "تحليل الربحية"
-  const [showShippingCostDetails, setShowShippingCostDetails] = useState(false);
+  // إظهار/إخفاء كارد "تحليل الربحية" بالكامل
+  const [showProfitAnalysis, setShowProfitAnalysis] = useState(false);
 
   // الشحنات مش بيها invoiceNumber — نعطل الـ query ده
   const invoiceNumber = null;
@@ -4808,17 +4808,27 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
             return (
               <Card className={`overflow-hidden border ${isPositive ? "border-emerald-900/40" : "border-red-900/40"}`}>
-                <div className={`flex items-center gap-3 px-4 py-3 border-b ${isPositive ? "border-emerald-900/30 bg-emerald-900/10" : "border-red-900/30 bg-red-900/10"}`}>
+                <button
+                  type="button"
+                  onClick={() => setShowProfitAnalysis((v) => !v)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 border-b transition-colors ${isPositive ? "border-emerald-900/30 bg-emerald-900/10 hover:bg-emerald-900/20" : "border-red-900/30 bg-red-900/10 hover:bg-red-900/20"}`}
+                >
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${isPositive ? "bg-emerald-900/20 border-emerald-900/30" : "bg-red-900/20 border-red-900/30"}`}>
                     {isPositive ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
                   </div>
-                  <div>
+                  <div className="flex-1 text-right">
                     <p className="text-sm font-bold text-foreground">تحليل الربحية</p>
                     <p className={`text-[10px] font-semibold ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
                       {isReturned ? "شحنة مرتجعة" : isPositive ? "ربح" : "خسارة"}
                     </p>
                   </div>
-                </div>
+                  {showProfitAnalysis ? (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  )}
+                </button>
+                {showProfitAnalysis && (
                 <CardContent className="p-4 space-y-2.5">
                   {isReturned && (
                     <div className="text-[10px] font-semibold text-red-400 bg-red-900/20 px-3 py-2 rounded-lg border border-red-900/30">
@@ -4850,42 +4860,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </>
                   )}
 
-                  {/* تكاليف الشحن — مخفية افتراضياً، تتفتح بالضغط */}
-                  {(shippingCost > 0 || insuranceFee > 0) && (
-                    <div className="border-t border-border/50">
-                      <button
-                        type="button"
-                        onClick={() => setShowShippingCostDetails((v) => !v)}
-                        className="w-full flex justify-between items-center text-xs py-1.5 hover:bg-muted/30 rounded transition-colors"
-                      >
-                        <span className="text-muted-foreground flex items-center gap-1">
-                          {showShippingCostDetails ? (
-                            <ChevronUp className="w-3 h-3" />
-                          ) : (
-                            <ChevronDown className="w-3 h-3" />
-                          )}
-                          تكاليف الشحن
-                        </span>
-                        <span className="font-semibold text-orange-400">
-                          -{formatCurrency(shippingCost + insuranceFee)}
-                        </span>
-                      </button>
-                      {showShippingCostDetails && (
-                        <div className="pl-2 space-y-1 pb-1">
-                          {shippingCost > 0 && (
-                            <div className="flex justify-between items-center text-xs py-1">
-                              <span className="text-muted-foreground">تكلفة الشحن الفعلية</span>
-                              <span className="font-semibold text-orange-400">-{formatCurrency(shippingCost)}</span>
-                            </div>
-                          )}
-                          {insuranceFee > 0 && (
-                            <div className="flex justify-between items-center text-xs py-1 border-t border-border/30">
-                              <span className="text-muted-foreground">رسوم التأمين</span>
-                              <span className="font-semibold text-orange-400">-{formatCurrency(insuranceFee)}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                  {/* تكاليف الشحن */}
+                  {shippingCost > 0 && (
+                    <div className="flex justify-between items-center text-xs py-1 border-t border-border/50">
+                      <span className="text-muted-foreground">تكلفة الشحن الفعلية</span>
+                      <span className="font-semibold text-orange-400">-{formatCurrency(shippingCost)}</span>
+                    </div>
+                  )}
+                  {insuranceFee > 0 && (
+                    <div className="flex justify-between items-center text-xs py-1 border-t border-border/30">
+                      <span className="text-muted-foreground">رسوم التأمين</span>
+                      <span className="font-semibold text-orange-400">-{formatCurrency(insuranceFee)}</span>
                     </div>
                   )}
 
@@ -4907,6 +4892,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </div>
                   )}
                 </CardContent>
+                )}
               </Card>
             );
           })()}
