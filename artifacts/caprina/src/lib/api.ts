@@ -14,8 +14,10 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   });
   if (res.status === 204) return undefined as unknown as T;
   if (res.status === 401) {
+    // تشخيص مؤقت: نطبع الـ endpoint اللي رجّع 401 فعليًا عشان نمسك مصدر المشكلة
+    console.warn(`[401] ${restOptions.method ?? "GET"} ${BASE}${path}`, { hadToken: !!token });
     // dispatch event — AuthContext هو المسؤول عن الـ logout وليس apiFetch مباشرة
-    window.dispatchEvent(new CustomEvent("caprina:unauthorized"));
+    window.dispatchEvent(new CustomEvent("caprina:unauthorized", { detail: { path } }));
     throw new Error("غير مصرح");
   }
   const data = await res.json();

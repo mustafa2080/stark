@@ -387,20 +387,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // استمع لـ 401 من apiFetch — اعمل logout بس لو التوكن منتهي فعلاً
   useEffect(() => {
-    const handle401 = () => {
+    const handle401 = (e: Event) => {
+      const path = (e as CustomEvent)?.detail?.path;
       const tkn = localStorage.getItem(TOKEN_KEY);
       if (!tkn) {
         // مفيش توكن أصلاً → logout
+        console.warn("[handle401] no token in storage → logout", { path });
         logoutRef.current();
         return;
       }
       // تحقق من /auth/me — لو فشل فعلاً → logout، لو نجح → ignore (كان error مؤقت)
       fetch("/api/auth/me", { headers: { Authorization: `Bearer ${tkn}` }, cache: "no-store" })
         .then((r) => {
-          if (!r.ok) logoutRef.current();
+          if (!r.ok) {
+            console.warn("[handle401] /auth/me also failed → logging out", { path, authMeStatus: r.status });
+            logoutRef.current();
+          } else {
+            console.warn("[handle401] /auth/me OK, ignoring transient 401", { path });
+          }
           // لو ok → ignore — الـ 401 كان في request تاني مش في الـ session
         })
-        .catch(() => {
+        .catch((err) => {
+          console.warn("[handle401] /auth/me network error, ignoring", { path, err });
           // network error → ignore, مش logout
         });
     };
