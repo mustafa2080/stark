@@ -147,6 +147,8 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
       shippingFee: shipmentsTable.shippingFee,
       createdAt: shipmentsTable.createdAt, actualDelivery: shipmentsTable.actualDelivery,
       returnReason: shipmentsTable.returnReason, zoneName: shipmentZonesTable.name,
+      collectedAmount: shipmentsTable.collectedAmount, totalAmount: shipmentsTable.totalAmount,
+      partialQuantity: shipmentsTable.partialQuantity, notes: shipmentsTable.notes,
     })
       .from(shipmentsTable)
       .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))

@@ -1,4 +1,5 @@
-feat: عرض تفاصيل المنتجات (الأصناف والكمية) في كارت الشحنة بتاع المندوب
+fix: إضافة collectedAmount/totalAmount/partialQuantity/notes لـ /representative/shipments
 
-- /representative/shipments: إضافة items لكل شحنة (product, color, size, quantity) من shipmentItemsTable
-- UrgentShipmentCard: عرض قائمة المنتجات جوه الكارت (النسختين العاجل وغير العاجل) عشان المندوب يقدر يقفل الشحنة بمعرفة كاملة بمحتواها
+المشكلة: القيمة المستلمة كانت بتتحفظ صح في الداتابيز عند التقفيل، لكن
+الـ endpoint بتاع قائمة شحنات المندوب كان مش بيرجعها ضمن الـ SELECT،
+فلما المندوب يفتح "تقفيل" تاني كان بيلاقي الحقل فاضي وكأن القيمة ضاعت.
