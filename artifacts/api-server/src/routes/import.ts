@@ -327,8 +327,24 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
 
   const PAYMENT_METHOD_MAP: Record<string, string> = {
     "الدفع عند الاستلام": "cod", "الدفع عند الاستلام (cod)": "cod", "cod": "cod",
+    "دفع عند الاستلام": "cod", "الدفع عند التسليم": "cod", "دفع عند التسليم": "cod",
     "مدفوع مسبقا": "prepaid", "مدفوع مسبقاً": "prepaid", "prepaid": "prepaid",
+    "مدفوع مقدما": "prepaid", "مقدم": "prepaid", "دفع مقدم": "prepaid",
     "آجل": "deferred", "اجل": "deferred", "deferred": "deferred",
+    "دفع آجل": "deferred", "دفع اجل": "deferred",
+  };
+  const PAYMENT_METHOD_MAP_NORM: Record<string, string> = Object.fromEntries(
+    Object.entries(PAYMENT_METHOD_MAP).map(([k, v]) => [normArabic(k), v])
+  );
+  const parsePaymentMethod = (raw: string): string | null => {
+    const n = normArabic(raw);
+    if (n in PAYMENT_METHOD_MAP_NORM) return PAYMENT_METHOD_MAP_NORM[n];
+    const nNoAl = n.replace(/^ال/, "");
+    if (nNoAl in PAYMENT_METHOD_MAP_NORM) return PAYMENT_METHOD_MAP_NORM[nNoAl];
+    if (n.includes("استلام") || n.includes("تسليم") || n === "cod") return "cod";
+    if (n.includes("مسبق") || n.includes("مقدم") || n === "prepaid") return "prepaid";
+    if (n.includes("اجل") || n === "deferred") return "deferred";
+    return null;
   };
 
   const findWarehouse = (raw: string) => {
@@ -536,7 +552,7 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     if (rawPieces && (isNaN(pieces) || pieces < 1)) { errors.push(`الصف ${rowNum}: عدد القطع غير صحيح ("${rawPieces}")`); continue; }
 
     const paymentMethod = paymentMethodRaw
-      ? (PAYMENT_METHOD_MAP[paymentMethodRaw] ?? PAYMENT_METHOD_MAP[norm(paymentMethodRaw)] ?? null)
+      ? parsePaymentMethod(paymentMethodRaw)
       : "cod";
     if (paymentMethodRaw && !paymentMethod) {
       errors.push(`الصف ${rowNum}: طريقة الدفع "${paymentMethodRaw}" غير معروفة (المتاح: الدفع عند الاستلام، مدفوع مسبقاً، آجل)`);
