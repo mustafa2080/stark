@@ -3210,7 +3210,7 @@ function AddOrdersToManifestDialog({
                             {s.receiverPhone ?? ""}
                           </p>
                         </div>
-                        <div className="sm:hidden shrink-0 text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
+                        <div className="sm:hidden shrink-0 text-xs font-bold text-primary">{formatCurrency(Number(s.totalAmount ?? s.codAmount ?? 0))}</div>
                       </div>
                       <div className="min-w-0 pr-2">
                         <p className="text-xs truncate">{s.shipmentNumber}</p>
@@ -3218,7 +3218,7 @@ function AddOrdersToManifestDialog({
                           <p className="text-muted-foreground text-[10px]">{s.receiverCity}</p>
                         )}
                       </div>
-                      <div className="hidden sm:block text-left text-xs font-bold text-primary">{formatCurrency(Number(s.codAmount))}</div>
+                      <div className="hidden sm:block text-left text-xs font-bold text-primary">{formatCurrency(Number(s.totalAmount ?? s.codAmount ?? 0))}</div>
                     </div>
                   );
                 })}
@@ -3535,9 +3535,10 @@ export default function ShippingManifestPage() {
     const orders: ManifestOrder[] = (rawManifest.items ?? []).map((item) => {
       const sh = item.shipment;
       // نقرأ من الـ enriched fields اللي الـ backend بيبعتها مباشرة على الـ item
+      // الإجمالي الحقيقي = totalAmount (نفس المعروض في قسم الشحنات)، مع fallback لـ codAmount للبيانات القديمة فقط
       const codAmt = (item as any).totalPrice != null
         ? Number((item as any).totalPrice)
-        : sh ? parseFloat(sh.codAmount ?? '0') : 0;
+        : sh ? Number(sh.totalAmount ?? sh.codAmount ?? 0) : 0;
       const shippingFeeAmt = (item as any).shippingCost != null
         ? Number((item as any).shippingCost)
         : sh ? parseFloat(sh.shippingFee ?? '0') : 0;
