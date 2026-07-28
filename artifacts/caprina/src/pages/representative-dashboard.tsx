@@ -595,7 +595,7 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
         </div>
         <div className="flex justify-between text-[11px] mt-2">
           <span className="text-muted-foreground">{sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : ""}</span>
-          <span className="font-bold text-emerald-400">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
+          <span className="font-bold text-emerald-400">{formatCurrency(Number(sh.codAmount ?? 0) + Number(sh.shippingFee ?? 0))}</span>
         </div>
         {sh.returnReason && sh.status === "returned" && (
           <p className="text-[10px] text-red-400/80 mt-1 border-t border-border/30 pt-1">↩ {sh.returnReason}</p>
@@ -660,7 +660,7 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
           </p>
 
           <div className="flex items-center justify-between gap-2 mb-2">
-            <span className="text-sm font-black text-emerald-300">{formatCurrency(Number(sh.codAmount ?? 0))}</span>
+            <span className="text-sm font-black text-emerald-300">{formatCurrency(Number(sh.codAmount ?? 0) + Number(sh.shippingFee ?? 0))}</span>
             <button
               type="button"
               onClick={() => setSoundMuted(m => !m)}

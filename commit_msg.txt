@@ -1,0 +1,15 @@
+fix: تصحيح الإجمالي في كارت UrgentShipmentCard (تاب الشحنات الفعلي)
+
+المشكلة الحقيقية: تاب "الشحنات" عند المندوب لا يستخدم الجدول العادي
+(الذي عُدّل سابقًا) بل يستخدم مكون UrgentShipmentCard، وهو المكون
+الفعلي الذي يظهر في الصورة المرفقة من العميل. هذا المكون كان لا يزال
+يعرض codAmount فقط بدون shippingFee في مكانين (الحالة العاجلة وغير
+العاجلة).
+
+التعديل: إضافة + Number(sh.shippingFee ?? 0) في السطرين المسؤولين
+عن عرض الإجمالي داخل UrgentShipmentCard، بحيث يصبح المعروض
+codAmount + shippingFee مطابقًا لصفحة الأدمن.
+
+مصدر البيانات (queryKey rep-shipments -> /representative/shipments)
+يرجع shippingFee فعلاً بعد تعديل representative.ts في commit سابق،
+لذا هذا الإصلاح فقط في طبقة العرض (representative-dashboard.tsx).
