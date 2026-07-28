@@ -4783,13 +4783,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             }
 
             // ── حساب الأرقام ─────────────────────────────────────────────────
-            // إيرادات الشحن = سعر المنطقة + سعر نوع الطرد (ما بيدفعه الراسل لشركتنا)
-            // سعر المنطقة: نجيب السعر الحالي من قسم "المناطق والأسعار" (zone.price) بدل الرقم المخزن وقت إنشاء الشحنة،
-            // عشان لو السعر اتغيّر بعدين في المناطق يبان محدّث هنا. لو المنطقة مش موجودة/محذوفة، نرجع للقيمة المخزنة على الطلب.
-            const matchedZone     = (shipmentZones ?? []).find((z: any) => String(z.id) === String((order as any).zoneId));
-            const zonePrice       = matchedZone?.price != null
-              ? Math.abs(Number(matchedZone.price))
-              : Math.abs(Number((order as any).zonePrice ?? 0));
+            // إيرادات الشحن = سعر الشحن (نفس الحقل المعروض في قائمة الشحنات: order.shippingFee) + سعر نوع الطرد
+            const zonePrice       = Math.abs(Number((order as any).shippingFee ?? 0));
             const parcelTypePrice = Math.abs(Number((order as any).parcelTypePrice ?? 0));
             const shippingRevenue = zonePrice + parcelTypePrice; // إيراد شركتنا من الشحن
 
@@ -4846,7 +4841,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     <>
                       {zonePrice > 0 && (
                         <div className="flex justify-between items-center text-xs py-1">
-                          <span className="text-muted-foreground">سعر المنطقة</span>
+                          <span className="text-muted-foreground">سعر الشحن</span>
                           <span className="font-semibold text-emerald-400">+{formatCurrency(zonePrice)}</span>
                         </div>
                       )}
