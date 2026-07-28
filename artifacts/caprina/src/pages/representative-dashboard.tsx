@@ -90,7 +90,11 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
       if (status === "partial_received") {
         body.partialQuantity = partialQty.trim() !== "" ? parseInt(partialQty) : null;
       }
-      if (status === "delivered" && deliveredValueReceived.trim() !== "" && !isNaN(Number(deliveredValueReceived))) {
+      if (
+        (status === "delivered" || status === "partial_received") &&
+        deliveredValueReceived.trim() !== "" &&
+        !isNaN(Number(deliveredValueReceived))
+      ) {
         body.collectedAmount = Number(deliveredValueReceived);
       }
       return apiFetch(`/shipments/${shipment.id}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -162,6 +166,17 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                   onChange={(e) => setPartialQty(e.target.value)}
                   className="h-8 w-full rounded border border-teal-700/50 bg-background px-2 text-xs"
                   placeholder="مطلوب"
+                />
+                <Label className="text-[10px] font-bold text-teal-400 pt-1 block">
+                  القيمة المستلمة فعليًا (اختياري)
+                </Label>
+                <input
+                  type="number"
+                  min={0}
+                  value={deliveredValueReceived}
+                  onChange={(e) => setDeliveredValueReceived(e.target.value)}
+                  className="h-8 w-full rounded border border-teal-700/50 bg-background px-2 text-xs"
+                  placeholder={shipment.totalAmount != null ? `الإجمالي: ${shipment.totalAmount}` : "المبلغ المستلم"}
                 />
               </div>
             )}
