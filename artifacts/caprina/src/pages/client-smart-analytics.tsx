@@ -6,6 +6,7 @@ import {
   Brain, ArrowRight, MapPin, TrendingUp, TrendingDown, RotateCcw, Package,
   ChevronLeft, X, Calendar, Percent, Wallet, Minus,
   Sparkles, AlertTriangle, CheckCircle2, Target, ThumbsUp, ShieldAlert, Flame,
+  Clock, Activity, Download,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
@@ -32,12 +33,19 @@ interface KpiData {
   changes: { deliveryRate: number; returnRate: number; totalRevenue: number; avgOrderValue: number; total: number };
 }
 interface TrendPoint { key: string; label: string; delivered: number; returned: number; revenue: number }
+interface HealthScoreFactor { label: string; impact: "positive" | "negative" | "neutral"; note: string }
+interface HealthScoreData { score: number; label: string; color: string; factors: HealthScoreFactor[] }
+interface WeekdayPerf { day: string; total: number; delivered: number; returned: number; deliveryRate: number; returnRate: number }
+interface DeliveryTimeRegion { governorate: string; avgDays: number; count: number }
 interface SmartAnalyticsResponse {
   total: number;
   kpis?: KpiData;
   trend?: TrendPoint[];
   delivered: { total: number; totalRevenue: number; byGovernorate: GovBreakdown[] } | null;
   returned: { total: number; byGovernorate: GovBreakdown[] } | null;
+  healthScore?: HealthScoreData;
+  weekdayPerformance?: WeekdayPerf[];
+  deliveryTimeByRegion?: DeliveryTimeRegion[];
 }
 
 // ─── Utils ──────────────────────────────────────────────────────────────
@@ -975,6 +983,187 @@ function InsightsPanel({ data }: { data: SmartAnalyticsResponse }) {
   );
 }
 
+// ─── مؤشر صحة العميل: رقم واحد من 100 يلخّص الأداء العام ─────────────────
+function HealthScoreCard({ data }: { data: HealthScoreData }) {
+  const circumference = 2 * Math.PI * 42;
+  const offset = circumference - (data.score / 100) * circumference;
+  const IMPACT_ICON = { positive: ThumbsUp, negative: AlertTriangle, neutral: Minus };
+  const IMPACT_COLOR = { positive: "#10b981", negative: "#f43f5e", neutral: "#9ca3af" };
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: `linear-gradient(160deg, ${data.color}12 0%, rgba(255,255,255,0.02) 60%)`,
+        border: `1px solid ${data.color}35`,
+        boxShadow: `0 8px 32px -14px ${data.color}45, 0 0 0 1px rgba(255,255,255,0.02) inset`,
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-20 blur-3xl" style={{ background: data.color }} />
+      <div className="relative flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${data.color}26`, boxShadow: `0 0 14px ${data.color}55` }}>
+          <Activity className="w-4 h-4" style={{ color: data.color, filter: `drop-shadow(0 0 4px ${data.color}aa)` }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">مؤشر صحة حسابك</h3>
+          <p className="text-[11px] text-muted-foreground">رقم واحد يلخّص أداءك العام</p>
+        </div>
+      </div>
+
+      <div className="relative grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 items-center">
+        <div className="relative w-28 h-28 mx-auto sm:mx-0 shrink-0">
+          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+            <circle
+              cx="50" cy="50" r="42" fill="none" stroke={data.color} strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={circumference} strokeDashoffset={offset}
+              style={{ transition: "stroke-dashoffset 1s ease-out", filter: `drop-shadow(0 0 6px ${data.color}88)` }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-black" style={{ color: data.color, textShadow: `0 0 16px ${data.color}55` }}>{data.score}</span>
+            <span className="text-[10px] text-muted-foreground font-bold">{data.label}</span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {data.factors.map((f, i) => {
+            const Icon = IMPACT_ICON[f.impact];
+            const color = IMPACT_COLOR[f.impact];
+            return (
+              <div key={i} className="flex items-start gap-2 text-xs">
+                <Icon className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color }} />
+                <div>
+                  <span className="font-bold ml-1">{f.label}:</span>
+                  <span className="text-muted-foreground">{f.note}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── تحليل أداء أيام الأسبوع ─────────────────────────────────────────────
+function WeekdayPerformancePanel({ data }: { data: WeekdayPerf[] }) {
+  const hasData = data.some(d => d.total > 0);
+  if (!hasData) return null;
+  const maxTotal = Math.max(...data.map(d => d.total), 1);
+  const bestDay = [...data].filter(d => d.total > 0).sort((a, b) => b.deliveryRate - a.deliveryRate)[0];
+  const worstDay = [...data].filter(d => d.total > 0).sort((a, b) => b.returnRate - a.returnRate)[0];
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(96,165,250,0.07) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(96,165,250,0.2)",
+        boxShadow: "0 8px 32px -14px rgba(96,165,250,0.28), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-15 blur-3xl" style={{ background: "#60a5fa" }} />
+      <div className="relative flex items-center gap-2 mb-1">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(96,165,250,0.18)", boxShadow: "0 0 14px rgba(96,165,250,0.5)" }}>
+          <Calendar className="w-4 h-4" style={{ color: "#60a5fa", filter: "drop-shadow(0 0 4px #60a5faaa)" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">أداء أيام الأسبوع</h3>
+          <p className="text-[11px] text-muted-foreground">أي يوم بيتسلم فيه أكتر وأي يوم بيترجع فيه أكتر</p>
+        </div>
+      </div>
+
+      {bestDay && (
+        <div className="relative flex items-center gap-2 flex-wrap my-3">
+          <span className="text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
+            <ThumbsUp className="w-3 h-3" />أفضل يوم تسليم: {bestDay.day} ({bestDay.deliveryRate}%)
+          </span>
+          {worstDay && worstDay.returnRate > 0 && (
+            <span className="text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e" }}>
+              <AlertTriangle className="w-3 h-3" />أعلى يوم مرتجع: {worstDay.day} ({worstDay.returnRate}%)
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="relative space-y-2 mt-3">
+        {data.map((d) => (
+          <div key={d.day} className="flex items-center gap-2 text-xs">
+            <span className="w-16 shrink-0 font-semibold">{d.day}</span>
+            <div className="flex-1 h-5 rounded-md bg-white/5 overflow-hidden flex">
+              {d.total > 0 && (
+                <>
+                  <div className="h-full bg-emerald-500/70" style={{ width: `${(d.delivered / maxTotal) * 100}%` }} />
+                  <div className="h-full bg-rose-500/70" style={{ width: `${(d.returned / maxTotal) * 100}%` }} />
+                </>
+              )}
+            </div>
+            <span className="w-10 shrink-0 text-left font-bold text-muted-foreground">{fn(d.total)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="relative flex items-center gap-3 mt-3 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500/70" />مسلّم</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500/70" />مرتجع</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── متوسط وقت التسليم لكل منطقة ────────────────────────────────────────
+function DeliveryTimePanel({ data }: { data: DeliveryTimeRegion[] }) {
+  if (data.length < 2) return null;
+  const maxDays = Math.max(...data.map(d => d.avgDays), 1);
+  const fastest = data[0];
+  const slowest = [...data].sort((a, b) => b.avgDays - a.avgDays)[0];
+
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, rgba(167,139,250,0.08) 0%, rgba(255,255,255,0.02) 60%)",
+        border: "1px solid rgba(167,139,250,0.22)",
+        boxShadow: "0 8px 32px -14px rgba(167,139,250,0.3), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <div className="pointer-events-none absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-18 blur-3xl" style={{ background: "#a78bfa" }} />
+      <div className="relative flex items-center gap-2 mb-1">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(167,139,250,0.2)", boxShadow: "0 0 14px rgba(167,139,250,0.55)" }}>
+          <Clock className="w-4 h-4" style={{ color: "#a78bfa", filter: "drop-shadow(0 0 4px #a78bfaaa)" }} />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">متوسط وقت التسليم لكل منطقة</h3>
+          <p className="text-[11px] text-muted-foreground">من إنشاء الشحنة لحد التسليم الفعلي (بالأيام)</p>
+        </div>
+      </div>
+
+      <div className="relative flex items-center gap-2 flex-wrap my-3">
+        <span className="text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
+          <ThumbsUp className="w-3 h-3" />أسرع منطقة: {fastest.governorate} ({fastest.avgDays} يوم)
+        </span>
+        {slowest.avgDays > fastest.avgDays && (
+          <span className="text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>
+            <Clock className="w-3 h-3" />أبطأ منطقة: {slowest.governorate} ({slowest.avgDays} يوم)
+          </span>
+        )}
+      </div>
+
+      <div className="relative space-y-2 mt-3">
+        {data.map((d, i) => (
+          <div key={d.governorate} className="flex items-center gap-2 text-xs">
+            <span className="w-24 shrink-0 font-semibold truncate">{d.governorate}</span>
+            <div className="flex-1 h-4 rounded-md bg-white/5 overflow-hidden">
+              <div className="h-full rounded-md" style={{ width: `${(d.avgDays / maxDays) * 100}%`, background: colorFor(i) }} />
+            </div>
+            <span className="w-16 shrink-0 text-left font-bold" style={{ color: colorFor(i) }}>{d.avgDays} يوم</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────
 export default function ClientSmartAnalytics() {
   const [, navigate] = useLocation();
@@ -1014,7 +1203,16 @@ export default function ClientSmartAnalytics() {
             <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">توزيع شحناتك جغرافياً — تسليم ومرتجعات</p>
           </div>
         </div>
-        <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.print()}
+            className="hidden sm:flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-colors"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <Download className="w-3.5 h-3.5" />تصدير تقرير
+          </button>
+          <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+        </div>
       </div>
 
       {isLoading ? (
@@ -1027,12 +1225,15 @@ export default function ClientSmartAnalytics() {
       ) : (
         <>
           <InsightsPanel data={data} />
+          {data.healthScore && <HealthScoreCard data={data.healthScore} />}
           {data.kpis && <KpiBar kpis={data.kpis} />}
           {data.kpis && <PeriodComparisonPanel kpis={data.kpis} hasDateFilter={!!dateFrom} />}
           {data.trend && data.trend.length > 0 && <TrendChart trend={data.trend} />}
           {data.delivered && data.returned && (
             <GovComparisonTable delivered={data.delivered.byGovernorate} returned={data.returned.byGovernorate} />
           )}
+          {data.weekdayPerformance && <WeekdayPerformancePanel data={data.weekdayPerformance} />}
+          {data.deliveryTimeByRegion && <DeliveryTimePanel data={data.deliveryTimeByRegion} />}
           {data.delivered && (
             <GovDonutSection
               title="المبيعات المحققة" subtitle="توزيع الأوردرات المسلّمة حسب المحافظة"

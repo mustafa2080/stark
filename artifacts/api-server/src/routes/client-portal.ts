@@ -704,11 +704,106 @@ router.get("/client-portal/smart-analytics", async (req, res): Promise<void> => 
         total: returnedTotal,
         byGovernorate: returnedBreakdown,
       },
+      healthScore: buildHealthScore(currentKpi, kpis.changes, returnedBreakdown),
+      weekdayPerformance: buildWeekdayPerformance(shipments, deliveredStatusesSet),
+      deliveryTimeByRegion: buildDeliveryTimeByRegion(deliveredShipments, normalizeGov),
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── مؤشر صحة العميل: رقم واحد من 100 يلخّص نسبة التسليم + اتجاه الإيراد + تركّز المرتجعات ─
+function buildHealthScore(
+  currentKpi: { deliveryRate: number; returnRate: number },
+  changes: { totalRevenue: number },
+  returnedBreakdown: { pct: number; reasons: { pct: number }[] }[],
+): { score: number; label: string; color: string; factors: { label: string; impact: "positive" | "negative" | "neutral"; note: string }[] } {
+  const deliveryPoints = Math.round((currentKpi.deliveryRate / 100) * 50);
+  const revenueClamped = Math.max(-30, Math.min(30, changes.totalRevenue));
+  const revenuePoints = Math.round(((revenueClamped + 30) / 60) * 30);
+  const maxReasonConcentration = returnedBreakdown.reduce((mx, gov) => {
+    const topReasonPct = gov.reasons?.[0]?.pct ?? 0;
+    return Math.max(mx, topReasonPct);
+  }, 0);
+  const concentrationPoints = Math.round(20 - (maxReasonConcentration / 100) * 20);
+
+  const score = Math.max(0, Math.min(100, deliveryPoints + revenuePoints + concentrationPoints));
+
+  let label: string, color: string;
+  if (score >= 80) { label = "ممتاز"; color = "#10b981"; }
+  else if (score >= 60) { label = "جيد"; color = "#60a5fa"; }
+  else if (score >= 40) { label = "متوسط"; color = "#fbbf24"; }
+  else { label = "محتاج متابعة"; color = "#f43f5e"; }
+
+  const factors: { label: string; impact: "positive" | "negative" | "neutral"; note: string }[] = [
+    {
+      label: "نسبة التسليم",
+      impact: currentKpi.deliveryRate >= 70 ? "positive" : currentKpi.deliveryRate >= 50 ? "neutral" : "negative",
+      note: `${currentKpi.deliveryRate}% من شحناتك بتتسلم بنجاح`,
+    },
+    {
+      label: "اتجاه الإيراد",
+      impact: changes.totalRevenue > 5 ? "positive" : changes.totalRevenue < -5 ? "negative" : "neutral",
+      note: changes.totalRevenue >= 0 ? `إيرادك في نمو ${changes.totalRevenue}%` : `إيرادك في تراجع ${Math.abs(changes.totalRevenue)}%`,
+    },
+    {
+      label: "تركّز أسباب المرتجعات",
+      impact: maxReasonConcentration >= 50 ? "negative" : maxReasonConcentration >= 30 ? "neutral" : "positive",
+      note: maxReasonConcentration > 0 ? `أعلى سبب مرتجع بيمثل ${maxReasonConcentration}% في منطقة واحدة` : "مفيش تركّز واضح لسبب معين",
+    },
+  ];
+
+  return { score, label, color, factors };
+}
+
+// ─── تحليل أداء أيام الأسبوع: أي يوم بيتسلم فيه أكتر وأي يوم بيترجع فيه أكتر ─
+const WEEKDAY_LABELS_AR = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+function buildWeekdayPerformance(
+  shipments: { createdAt: Date | string | null; status: string }[],
+  deliveredStatusesSet: Set<string>,
+): { day: string; total: number; delivered: number; returned: number; deliveryRate: number; returnRate: number }[] {
+  const buckets = WEEKDAY_LABELS_AR.map(day => ({ day, total: 0, delivered: 0, returned: 0 }));
+  for (const s of shipments) {
+    if (!s.createdAt) continue;
+    const d = new Date(s.createdAt);
+    if (isNaN(d.getTime())) continue;
+    const bucket = buckets[d.getDay()];
+    bucket.total += 1;
+    if (deliveredStatusesSet.has(s.status)) bucket.delivered += 1;
+    else if (s.status === "returned") bucket.returned += 1;
+  }
+  return buckets.map(b => ({
+    ...b,
+    deliveryRate: b.total > 0 ? Math.round((b.delivered / b.total) * 100) : 0,
+    returnRate: b.total > 0 ? Math.round((b.returned / b.total) * 100) : 0,
+  }));
+}
+
+// ─── متوسط وقت التسليم لكل منطقة: الفرق بالأيام بين إنشاء الشحنة وتاريخ التسليم الفعلي ─
+function buildDeliveryTimeByRegion(
+  deliveredShipments: { receiverCity: string | null; createdAt: Date | string | null; actualDelivery: Date | string | null }[],
+  normalizeGov: (city: string | null | undefined) => string,
+): { governorate: string; avgDays: number; count: number }[] {
+  const byGov = new Map<string, { totalDays: number; count: number }>();
+  for (const s of deliveredShipments) {
+    if (!s.createdAt || !s.actualDelivery) continue;
+    const created = new Date(s.createdAt);
+    const delivered = new Date(s.actualDelivery);
+    if (isNaN(created.getTime()) || isNaN(delivered.getTime())) continue;
+    const days = (delivered.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+    if (days < 0) continue;
+    const gov = normalizeGov(s.receiverCity);
+    if (!byGov.has(gov)) byGov.set(gov, { totalDays: 0, count: 0 });
+    const entry = byGov.get(gov)!;
+    entry.totalDays += days;
+    entry.count += 1;
+  }
+  return [...byGov.entries()]
+    .map(([governorate, v]) => ({ governorate, avgDays: Math.round((v.totalDays / v.count) * 10) / 10, count: v.count }))
+    .filter(g => g.count >= 1)
+    .sort((a, b) => a.avgDays - b.avgDays);
+}
 
 // ─── GET /client-portal/shipments — جدول شحنات العميل (فلترة + بحث + صفحات) ─
 router.get("/client-portal/shipments", async (req, res): Promise<void> => {
