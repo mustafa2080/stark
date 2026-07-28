@@ -2505,6 +2505,13 @@ const STATUS_LABEL_AR: Record<string, string> = {
 };
 
 function getManifestGroupKey(order: ManifestOrder) {
+  // ملحوظة مهمة: shipmentNumber مش عمود فريد في قاعدة البيانات (لا يوجد عليه unique constraint)،
+  // وبالفعل نفس الرقم بيتكرر عبر مئات الشحنات المختلفة. لو استخدمناه كمفتاح تجميع، شحنات
+  // مختلفة تمامًا بنفس الرقم بتتجمع في صف واحد وتتجمع قيمهم المالية مع بعض بالغلط.
+  // لكل شحنة معرّف فريد حقيقي هو shipmentId (المفتاح الأساسي في قاعدة البيانات) — نستخدمه
+  // كأولوية أولى دايمًا لو متاح، بدل الاعتماد على invoiceNumber غير المضمون.
+  const sid = (order as any).shipmentId;
+  if (sid != null) return `sid-${sid}`;
   return (order as any).invoiceNumber?.trim() || `${order.customerName}__${order.phone ?? ""}__${order.address ?? ""}`;
 }
 
