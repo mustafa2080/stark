@@ -899,7 +899,7 @@ export function CreateManifestDialog({
                   <div className="w-5" />
                   <div className="pr-2">المستلم</div>
                   <div className="pr-2">المدينة</div>
-                  <div className="text-center">قيمة COD</div>
+                  <div className="text-center">إجمالي الشحنة</div>
                   <div className="text-center">الحالة</div>
                 </div>
                 {/* Rows */}
