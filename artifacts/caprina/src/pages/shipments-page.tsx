@@ -773,7 +773,7 @@ async function exportToExcel(
     { header: "هاتف بديل",     key: "phone2",       width: 16 },
     { header: "العنوان",       key: "address",      width: 28 },
     { header: "المحافظة",      key: "gov",         width: 16 },
-    { header: "نوع الطرد",     key: "parcelType",   width: 14 },
+    { header: "نوع الشحنة",     key: "parcelType",   width: 14 },
     { header: "الوزن",         key: "weight",       width: 10 },
     { header: "عدد القطع",     key: "pieces",       width: 10 },
     { header: "الوصف",         key: "description",  width: 22 },
@@ -790,6 +790,7 @@ async function exportToExcel(
     { header: "المخزن",        key: "warehouse",    width: 16 },
     { header: "الحالة",        key: "status",       width: 16 },
     { header: "سبب المرتجع",   key: "returnReason",  width: 18 },
+    { header: "حالة الرفض",    key: "rejectionPolicy", width: 18 },
     { header: "ملاحظة المرتجع", key: "returnNote",    width: 22 },
     { header: "ملاحظات",       key: "notes",        width: 24 },
     { header: "تاريخ التسليم المتوقع", key: "estDelivery", width: 16 },
@@ -821,6 +822,7 @@ async function exportToExcel(
   };
 
   const PAYMENT_LABELS: Record<string, string> = { cod: "دفع عند الاستلام", prepaid: "مدفوع مقدماً", paid: "مدفوع" };
+  const REJECTION_POLICY_LABELS: Record<string, string> = { full_fee: "يتم دفع مبلغ الشحن كاملاً", free: "الشحن مجاناً" };
 
   // ── Data rows ─────────────────────────────────────────────────────────────
   rows.forEach((o, idx) => {
@@ -855,6 +857,7 @@ async function exportToExcel(
       warehouse:      o.warehouseName || "",
       status:         statusLabels[status] || status,
       returnReason:   o.returnReason || "",
+      rejectionPolicy: REJECTION_POLICY_LABELS[o.rejectionPolicy] || o.rejectionPolicy || "",
       returnNote:     o.returnNote || "",
       notes:          o.notes || "",
       estDelivery:    fmtDate(o.estimatedDelivery),
