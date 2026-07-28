@@ -1,0 +1,12 @@
+fix: تصحيح حساب الإجمالي في تاب الشحنات لصفحة المندوب
+
+المشكلة: الإجمالي المعروض للمندوب كان يساوي codAmount فقط (قيمة الشحنة)
+بدون إضافة مصاريف الشحن (shippingFee)، بينما صفحة الأدمن تعرض
+الإجمالي كـ (codAmount + shippingFee) — وهو الرقم الصحيح.
+
+التعديلات:
+- Backend (representative.ts): إضافة shippingFee لاستعلام GET /representative/shipments
+  (كان الحقل غير مُرجَع أصلاً)
+- Frontend (representative-dashboard.tsx): تعديل حساب الإجمالي في عرض
+  الشحنات (Desktop + Mobile) ليصبح Number(codAmount ?? totalAmount ?? 0)
+  + Number(shippingFee ?? 0)، بنفس منطق صفحة الأدمن في shipments-page.tsx

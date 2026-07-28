@@ -2469,7 +2469,7 @@ export function CreateManifestDialog({
                         </div>
                         {/* Total value */}
                         <div className="text-center text-xs font-bold">
-                          {formatCurrency(Number(s.totalAmount ?? s.codAmount ?? 0))}
+                          {formatCurrency(Number(s.codAmount ?? s.totalAmount ?? 0) + Number(s.shippingFee ?? 0))}
                         </div>
                         {/* Status */}
                         <div className="flex justify-center">
@@ -2499,7 +2499,7 @@ export function CreateManifestDialog({
                           </p>
                           <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
                             <span className="text-muted-foreground truncate">{s.receiverCity || "—"}</span>
-                            <span className="font-bold shrink-0">{formatCurrency(Number(s.totalAmount ?? s.codAmount ?? 0))}</span>
+                            <span className="font-bold shrink-0">{formatCurrency(Number(s.codAmount ?? s.totalAmount ?? 0) + Number(s.shippingFee ?? 0))}</span>
                           </div>
                         </div>
                       </div>

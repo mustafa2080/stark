@@ -144,6 +144,7 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
       receiverPhone: shipmentsTable.receiverPhone, receiverCity: shipmentsTable.receiverCity,
       receiverAddress: shipmentsTable.receiverAddress,
       status: shipmentsTable.status, codAmount: shipmentsTable.codAmount,
+      shippingFee: shipmentsTable.shippingFee,
       createdAt: shipmentsTable.createdAt, actualDelivery: shipmentsTable.actualDelivery,
       returnReason: shipmentsTable.returnReason, zoneName: shipmentZonesTable.name,
     })
