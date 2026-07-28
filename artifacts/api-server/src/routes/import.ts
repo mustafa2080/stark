@@ -397,34 +397,8 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
   const errors: string[] = [];
   const validShipments: any[] = [];
 
-  // ── تحقق مبدئي: كل اسم راسل في الملف لازم يكون مربوط بعميل تجاري موجود ──────
-  // لو فيه ولو صف واحد اسم الراسل بتاعه مش متطابق مع عميل، الملف كله يترفض
-  // ومفيش أي إدخال في قاعدة البيانات خالص.
-  {
-    const unmatchedRows: string[] = [];
-    const checkedNames = new Set<string>();
-    for (let i = 0; i < rows.length; i++) {
-      const senderNameRaw = getCell(rows[i], mapping.senderName);
-      const rowNum = i + 2;
-      if (!senderNameRaw) {
-        unmatchedRows.push(`الصف ${rowNum}: اسم الراسل فارغ`);
-        continue;
-      }
-      if (checkedNames.has(senderNameRaw)) continue;
-      checkedNames.add(senderNameRaw);
-      if (!findClient(senderNameRaw)) {
-        unmatchedRows.push(`الصف ${rowNum}: الراسل "${senderNameRaw}" غير مربوط بأي عميل تجاري`);
-      }
-    }
-    if (unmatchedRows.length > 0) {
-      res.status(400).json({
-        error: "الملف يحتوي على أسماء راسلين غير مربوطة بعملاء تجاريين، لم يتم استيراد أي شحنة",
-        errors: unmatchedRows.slice(0, 50),
-        unmatchedCount: unmatchedRows.length,
-      });
-      return;
-    }
-  }
+  // ── ملاحظة: أسماء الراسلين غير المطابقة لعميل تجاري لم تعد تُرفض بالكامل ───
+  // الشحنة بيانات الراسل بتاعتها بتتسجل بدون عميل/مخزن مربوط (يتم ربطها يدويًا لاحقًا من الإدارة)
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -483,25 +457,21 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
     }
 
     // العميل (الراسل) يتحدد بالاسم، وبيانات المرسل (هاتف، هاتف 2، محافظة) والمخزن تُجلب منه تلقائيًا
-    // بنفس منطق فورم "شحنة جديدة" بالظبط (سطر اختيار العميل هناك)
+    // لو الراسل مش مطابق لعميل مسجل، الشحنة بتتسجل بدون عميل/مخزن (يتم ربطها يدويًا لاحقًا من الإدارة)
+    let clientId: number | null = null;
     let warehouseId: number | null = null;
     let senderPhone: string | null = null;
     let senderPhone2: string | null = null;
     let senderCity: string | null = null;
     {
       const clientRow = findClient(senderName);
-      if (!clientRow) {
-        errors.push(`الصف ${rowNum}: العميل "${senderName}" غير موجود في قائمة العملاء`);
-        continue;
+      if (clientRow) {
+        clientId = clientRow.id;
+        warehouseId = clientRow.warehouseId || null;
+        senderPhone = clientRow.phone || null;
+        senderPhone2 = clientRow.phone2 || null;
+        senderCity = clientRow.region || clientRow.city || null;
       }
-      if (!clientRow.warehouseId) {
-        errors.push(`الصف ${rowNum}: العميل "${senderName}" ليس له مخزن مرتبط`);
-        continue;
-      }
-      warehouseId = clientRow.warehouseId;
-      senderPhone = clientRow.phone || null;
-      senderPhone2 = clientRow.phone2 || null;
-      senderCity = clientRow.region || clientRow.city || null;
     }
 
     // المنطقة (اختيارية لكن لو مكتوبة لازم تكون موجودة فعلاً)
@@ -560,6 +530,7 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
       shippingFee,
       totalAmount: total || 0,
       notes,
+      clientId,
       warehouseId,
       canOpen,
       isDivisible,
