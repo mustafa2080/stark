@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users, ChevronsUpDown, Check, Boxes } from "lucide-react";
+import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users, ChevronsUpDown, Check, Boxes, ChevronUp, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useRef, useEffect, useMemo } from "react";
 import React from "react";
@@ -2152,6 +2152,8 @@ export default function OrderDetail() {
   });
   const [editClientOpen, setEditClientOpen] = useState(false);
 
+  // إظهار/إخفاء تفاصيل تكلفة الشحن الفعلية في كارد "تحليل الربحية"
+  const [showShippingCostDetails, setShowShippingCostDetails] = useState(false);
 
   // الشحنات مش بيها invoiceNumber — نعطل الـ query ده
   const invoiceNumber = null;
@@ -4848,17 +4850,42 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     </>
                   )}
 
-                  {/* تكاليف الشحن */}
-                  {shippingCost > 0 && (
-                    <div className="flex justify-between items-center text-xs py-1 border-t border-border/50">
-                      <span className="text-muted-foreground">تكلفة الشحن الفعلية</span>
-                      <span className="font-semibold text-orange-400">-{formatCurrency(shippingCost)}</span>
-                    </div>
-                  )}
-                  {insuranceFee > 0 && (
-                    <div className="flex justify-between items-center text-xs py-1 border-t border-border/30">
-                      <span className="text-muted-foreground">رسوم التأمين</span>
-                      <span className="font-semibold text-orange-400">-{formatCurrency(insuranceFee)}</span>
+                  {/* تكاليف الشحن — مخفية افتراضياً، تتفتح بالضغط */}
+                  {(shippingCost > 0 || insuranceFee > 0) && (
+                    <div className="border-t border-border/50">
+                      <button
+                        type="button"
+                        onClick={() => setShowShippingCostDetails((v) => !v)}
+                        className="w-full flex justify-between items-center text-xs py-1.5 hover:bg-muted/30 rounded transition-colors"
+                      >
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          {showShippingCostDetails ? (
+                            <ChevronUp className="w-3 h-3" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3" />
+                          )}
+                          تكاليف الشحن
+                        </span>
+                        <span className="font-semibold text-orange-400">
+                          -{formatCurrency(shippingCost + insuranceFee)}
+                        </span>
+                      </button>
+                      {showShippingCostDetails && (
+                        <div className="pl-2 space-y-1 pb-1">
+                          {shippingCost > 0 && (
+                            <div className="flex justify-between items-center text-xs py-1">
+                              <span className="text-muted-foreground">تكلفة الشحن الفعلية</span>
+                              <span className="font-semibold text-orange-400">-{formatCurrency(shippingCost)}</span>
+                            </div>
+                          )}
+                          {insuranceFee > 0 && (
+                            <div className="flex justify-between items-center text-xs py-1 border-t border-border/30">
+                              <span className="text-muted-foreground">رسوم التأمين</span>
+                              <span className="font-semibold text-orange-400">-{formatCurrency(insuranceFee)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
