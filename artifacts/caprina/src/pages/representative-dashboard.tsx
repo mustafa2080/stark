@@ -597,6 +597,21 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
           <span className="text-muted-foreground">{sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : ""}</span>
           <span className="font-bold text-emerald-400">{formatCurrency(Number(sh.codAmount ?? 0) + Number(sh.shippingFee ?? 0))}</span>
         </div>
+        {Array.isArray(sh.items) && sh.items.length > 0 && (
+          <div className="mt-1.5 pt-1.5 border-t border-border/20 space-y-0.5">
+            {sh.items.map((it: any, idx: number) => (
+              <p key={idx} className="text-[10px] text-muted-foreground flex items-center gap-1 truncate">
+                <Package className="w-2.5 h-2.5 shrink-0 text-primary/50" />
+                <span className="truncate">
+                  {it.product || "منتج"}
+                  {it.color ? ` · ${it.color}` : ""}
+                  {it.size ? ` · ${it.size}` : ""}
+                </span>
+                <span className="font-bold shrink-0">× {it.quantity}</span>
+              </p>
+            ))}
+          </div>
+        )}
         {sh.returnReason && sh.status === "returned" && (
           <p className="text-[10px] text-red-400/80 mt-1 border-t border-border/30 pt-1">↩ {sh.returnReason}</p>
         )}
@@ -680,6 +695,22 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
               <p className="text-[11px] text-red-100 font-bold flex items-center gap-1">
                 <Zap className="w-3 h-3 fill-red-200 text-red-200 shrink-0" /> {sh.urgentNote}
               </p>
+            </div>
+          )}
+
+          {Array.isArray(sh.items) && sh.items.length > 0 && (
+            <div className="rounded-lg bg-red-950/40 border border-red-400/20 px-2.5 py-1.5 mb-2 space-y-0.5">
+              {sh.items.map((it: any, idx: number) => (
+                <p key={idx} className="text-[10px] text-red-200/90 flex items-center gap-1 truncate">
+                  <Package className="w-2.5 h-2.5 shrink-0 text-red-300/60" />
+                  <span className="truncate">
+                    {it.product || "منتج"}
+                    {it.color ? ` · ${it.color}` : ""}
+                    {it.size ? ` · ${it.size}` : ""}
+                  </span>
+                  <span className="font-bold shrink-0">× {it.quantity}</span>
+                </p>
+              ))}
             </div>
           )}
 

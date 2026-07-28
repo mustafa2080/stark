@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, and, desc, isNull, count, sql, inArray } from "drizzle-orm";
-import { db, shipmentsTable, shippingCompaniesTable, usersTable, shipmentZonesTable, auditLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shippingCompaniesTable, usersTable, shipmentZonesTable, auditLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { verifyToken } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
@@ -174,10 +174,29 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
       }
     }
   }
+  // ─── جلب بنود الشحنة (المنتجات/الأصناف والكمية) لكل الشحنات دفعة واحدة ───
+  const itemsMap = new Map<number, { product: string | null; color: string | null; size: string | null; quantity: number }[]>();
+  if (rowIds.length) {
+    const items = await db.select({
+      shipmentId: shipmentItemsTable.shipmentId,
+      product:    shipmentItemsTable.product,
+      color:      shipmentItemsTable.color,
+      size:       shipmentItemsTable.size,
+      quantity:   shipmentItemsTable.quantity,
+    })
+      .from(shipmentItemsTable)
+      .where(inArray(shipmentItemsTable.shipmentId, rowIds));
+    for (const it of items) {
+      if (!itemsMap.has(it.shipmentId)) itemsMap.set(it.shipmentId, []);
+      itemsMap.get(it.shipmentId)!.push({ product: it.product, color: it.color, size: it.size, quantity: it.quantity });
+    }
+  }
+
   const rowsWithUrgent = rows.map(r => ({
     ...r,
     isUrgent:   urgentMap.get(r.id)?.isUrgent ?? false,
     urgentNote: urgentMap.get(r.id)?.urgentNote ?? null,
+    items:      itemsMap.get(r.id) ?? [],
   }));
 
   await logAudit({ action: "login", entityType: "representative_view", entityId: companyId,
