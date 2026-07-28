@@ -4788,11 +4788,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             const parcelTypePrice = Math.abs(Number((order as any).parcelTypePrice ?? 0));
             const shippingRevenue = zonePrice + parcelTypePrice; // إيراد شركتنا من الشحن
 
-            // تكلفة الشحن الفعلية = تكلفة المندوب (شركة الشحن) المرتبط فعلياً بالشحنة
+            // تكلفة الشحن الفعلية: 1) تكلفة المندوب المرتبط بالشحنة (نفس الرقم في كارد المندوب بقسم المناطق والأسعار)
+            // 2) تكلفة الشحن المخزنة يدويًا على الطلب لو موجودة  3) رسوم الشحن كحل أخير
             const courierCompany  = (shippingCompanies ?? []).find((sc: any) => String(sc.id) === String((order as any).shippingCompanyId));
             const shippingCost    = courierCompany?.shippingCost != null
               ? Math.abs(Number(courierCompany.shippingCost))
-              : Math.abs(Number((order as any).shippingFee ?? (order as any).shippingCost ?? 0));
+              : (order as any).shippingCost != null
+              ? Math.abs(Number((order as any).shippingCost))
+              : Math.abs(Number((order as any).shippingFee ?? 0));
             const insuranceFee    = Math.abs(Number((order as any).insuranceFee ?? 0));
 
             // صافي الشحن = إيراد الشحن - تكلفة الشحن الفعلية
