@@ -4264,7 +4264,7 @@ export default function ShippingManifestPage() {
   }, 0) + ordersForPnlPrint
     .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
     .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
-  // رسوم الشحن = تكلفة الشحن الثابتة على شركة الشحن × عدد الطلبات الداخلة في الحساب (مسلَّم/جزئي/مرتجع بسبب مالي)
+  // رسوم الشحن = سعر منطقة كل شحنة (zoneId) لو موجود، وإلا تكلفة الشحن الثابتة على شركة الشحن (fallback)
   const courierCostPerShipmentPrint = Number((manifest as any)?.company?.shippingCost ?? 0);
   // partial_received: يدخل تكلفة الشحن (طباعة) بس لو اتأكد استلامه فعليًا (نفس منطق printDeliveredOrders فوق)
   const shippingCostOrdersPrint = ordersForPnlPrint.filter(o => {
@@ -4272,7 +4272,12 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
-  const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length;
+  const effectiveShipping = groupManifestOrders(shippingCostOrdersPrint).reduce((s, group) => {
+    const rep = group[0] as any;
+    const zId = rep?.zoneId;
+    const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
+    return s + (zone?.price != null ? Number(zone.price) : courierCostPerShipmentPrint);
+  }, 0);
 
 
   return (
@@ -5001,6 +5006,7 @@ export default function ShippingManifestPage() {
         const companyAnyPnl = (rawManifest as any)?.company;
         // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع مع دفع رسوم الشحن فقط)
         // pending/delayed لا تُحسب أبدًا (صفر) حتى تتغيّر حالتها فعليًا
+        // لو الشحنة ليها zoneId وسعر منطقة محدد، بناخد سعر المنطقة كأولوية (بدل السعر الثابت على الشركة)
         const courierShippingCostForCalc = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
         // أسباب المرتجع اللي بتدخل في الحسابات المالية (شحن فعليًا اتنفذ رغم الرفض/الهروب)
         const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"] as const;
@@ -5027,8 +5033,19 @@ export default function ShippingManifestPage() {
           if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
           return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason);
         });
-        const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
-        const shippingCost    = courierShippingCostForCalc * shippingCostGroupsCount;
+        const shippingCostGroups = groupManifestOrders(shippingCostOrders);
+        const shippingCostGroupsCount = shippingCostGroups.length;
+        // تكلفة الشحن الفعلية لكل مجموعة/شحنة = سعر منطقتها (zoneId) لو موجود ومحدد له سعر،
+        // وإلا نرجع للسعر الثابت على شركة الشحن (courierShippingCostForCalc) كـ fallback.
+        // ده بيحل مشكلة إن الشحنة اللي معاها zoneId بس شركتها من غير shippingCost ثابت
+        // كانت بتطلع تكلفتها صفر وبالتالي متسجّلش في الإجمالي.
+        const shippingCost = shippingCostGroups.reduce((s, group) => {
+          const rep = group[0] as any;
+          const zId = rep?.zoneId;
+          const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
+          const perShipmentCost = zone?.price != null ? Number(zone.price) : courierShippingCostForCalc;
+          return s + perShipmentCost;
+        }, 0);
         // سعر المنطقة الفعلي لكل شحنة = من جدول shipment_zones الحالي حسب zoneId
         // بتاع كل شحنة (مش سعر ثابت للشركة ومش shippingFee المجمَّد وقت الإنشاء).
         // لو الشحنة مالهاش zoneId أو المنطقة مش موجودة في الجدول الحالي → صفر لها.
