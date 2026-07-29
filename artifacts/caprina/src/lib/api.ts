@@ -1119,6 +1119,7 @@ export interface ManifestOrder extends Order {
   size?: string | null;
   representativeName?: string | null;
   warehouseName?: string | null;
+  zonePrice?: number | null;
 }
 
 export interface ShippingManifestDetail extends ShippingManifestListItem {

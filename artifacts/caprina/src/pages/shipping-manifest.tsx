@@ -1359,8 +1359,8 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* سعر المنطقة (المحافظة) — من قسم "المناطق والأسعار" حسب zoneId الشحنة */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
-            {(rep as any).zonePrice != null ? (
-              <span className="text-amber-500 font-semibold truncate">{formatCurrency((rep as any).zonePrice)}</span>
+            {rep.zonePrice != null ? (
+              <span className="text-amber-500 font-semibold truncate">{formatCurrency(rep.zonePrice)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
