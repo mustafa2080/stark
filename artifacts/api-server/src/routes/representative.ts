@@ -336,6 +336,11 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
       receiverCity: shipmentsTable.receiverCity,
       shipmentNumber: shipmentsTable.shipmentNumber,
       codAmount: shipmentsTable.codAmount,
+      status: shipmentsTable.status,
+      notes: shipmentsTable.notes,
+      returnReason: shipmentsTable.returnReason,
+      partialQuantity: shipmentsTable.partialQuantity,
+      collectedAmount: shipmentsTable.collectedAmount,
     })
       .from(shipmentsTable)
       .where(inArray(shipmentsTable.id, shipmentIds));
@@ -356,6 +361,11 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
       receiverCity:   sh?.receiverCity   ?? "",
       shipmentNumber: sh?.shipmentNumber ?? "",
       codAmount:      sh?.codAmount      ?? 0,
+      status:           sh?.status           ?? item.deliveryStatus,
+      notes:            sh?.notes            ?? null,
+      returnReason:     sh?.returnReason      ?? null,
+      partialQuantity:  sh?.partialQuantity   ?? null,
+      collectedAmount:  sh?.collectedAmount   ?? null,
     };
   });
 

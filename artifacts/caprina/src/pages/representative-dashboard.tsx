@@ -1733,7 +1733,7 @@ function TaskCard({ task }: { task: any }) {
         </p>
       )}
 
-      {/* Call + WhatsApp buttons */}
+      {/* Call + WhatsApp + تقفيل buttons */}
       {task.receiverPhone && (
         <div className="flex items-center gap-1.5">
           <a href={`tel:${task.receiverPhone}`}
@@ -1747,6 +1747,7 @@ function TaskCard({ task }: { task: any }) {
               <MessageCircle className="w-4 h-4" />
             </a>
           )}
+          <ShipmentStatusEditor shipment={task} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-today-tasks"] })} />
         </div>
       )}
     </div>
