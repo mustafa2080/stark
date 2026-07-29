@@ -1822,6 +1822,84 @@ export default function Orders() {
                 const isSelected = isGroupSelected(order);
                 const groupCount = (order as any)._groupCount as number | undefined;
                 const navTarget = `/shipments/${order.id}`;
+
+                // ── كارت موبايل مخصص لحساب "custom" — يعرض كل البيانات المطلوبة بشكل منظم ──
+                if (isCustomRole) {
+                  const o = order as any;
+                  const senderGov = (o.clientId && clientGovernorateById.get(o.clientId)) || o.senderCity || o.senderGovernorate;
+                  const cod = Number(o.codAmount ?? o.totalAmount ?? 0);
+                  const shipping = Number(o.shippingFee ?? 0);
+                  return (
+                    <div
+                      key={order.id}
+                      className={`px-4 py-3 hover:bg-muted/10 active:bg-muted/20 cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
+                      onClick={() => canWriteOrders && bulkSelectMode ? toggleSelect(order) : navigate(navTarget)}
+                    >
+                      {/* الصف العلوي: رقم الشحنة + التاريخ + الحالة */}
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {canWriteOrders && bulkSelectMode && (
+                            <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(order)} onClick={e => e.stopPropagation()} className="shrink-0" />
+                          )}
+                          <span className="font-mono text-xs text-primary font-bold shrink-0">#{order.id.toString().padStart(4,"0")}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{format(new Date(order.createdAt), "yyyy/MM/dd")}</span>
+                        </div>
+                        <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${statusClasses[order.status] || ""}`}>
+                          {statusLabels[order.status] || order.status}
+                        </Badge>
+                      </div>
+
+                      {/* الراسل والمستلم */}
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div className="min-w-0">
+                          <p className="text-[9px] text-muted-foreground mb-0.5">الراسل</p>
+                          <p className="text-xs font-semibold truncate">{o.senderName || o.customerName || "—"}</p>
+                          {senderGov && (
+                            <p className="text-[9px] text-muted-foreground flex items-center gap-0.5 mt-0.5 truncate">
+                              <MapPin className="w-2.5 h-2.5 shrink-0" />{senderGov}
+                            </p>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] text-muted-foreground mb-0.5">المستلم</p>
+                          <p className="text-xs font-semibold truncate">{o.receiverName || "—"}</p>
+                          <p className="text-[9px] text-muted-foreground flex items-center gap-0.5 mt-0.5 truncate">
+                            <MapPin className="w-2.5 h-2.5 shrink-0" />{o.receiverCity || o.zoneGovernorate || o.zoneLabel || "—"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* الهاتف */}
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] text-muted-foreground">
+                          📞 {(o.receiverPhone || o.senderPhone || order.phone) || "—"}
+                        </span>
+                        {canWhatsApp && (
+                          <button className="shrink-0 w-8 h-8 rounded-full text-green-500 hover:bg-green-500/10 flex items-center justify-center" onClick={(e) => handleWhatsApp(e, order)}>
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* الأسعار: سعر الشحنة / سعر الشحن / الإجمالي */}
+                      <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-muted/20 p-2">
+                        <div className="text-center">
+                          <p className="text-[9px] text-muted-foreground mb-0.5">سعر الشحنة</p>
+                          <p className="text-xs font-bold">{formatCurrency(cod)}</p>
+                        </div>
+                        <div className="text-center border-x border-border">
+                          <p className="text-[9px] text-muted-foreground mb-0.5">سعر الشحن</p>
+                          <p className="text-xs font-bold text-amber-500">{formatCurrency(shipping)}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[9px] text-muted-foreground mb-0.5">الإجمالي</p>
+                          <p className="text-xs font-bold text-primary">{formatCurrency(cod + shipping)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={order.id}

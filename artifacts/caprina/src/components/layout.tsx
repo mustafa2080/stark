@@ -1408,6 +1408,89 @@ export default function Layout({ children }: LayoutProps) {
         {/* ── Bottom Navigation Bar (mobile only) ── */}
         {/* ── Bottom Navigation Bar (mobile only) — ديناميكي حسب الصلاحيات ── */}
         {(() => {
+          // ── حساب "مخصص" (custom): bottom bar مبسّط بترتيب ثابت — متابعة / طلبات / المزيد / خروج ──
+          if (user?.role === "custom") {
+            const CUSTOM_BOTTOM_ITEMS: Array<{ href: string; icon: any; rgb: string; label: string; exact?: boolean }> = [
+              { href: "/shipping-followup", icon: Clock,   rgb: "34,211,238",  label: "متابعة", exact: false },
+              { href: "/shipments-list",    icon: Package, rgb: "251,146,60", label: "طلبات",  exact: false },
+            ];
+            return (
+              <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
+                style={{
+                  background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
+                  borderTop: "1px solid rgba(255,255,255,0.06)",
+                  boxShadow: "0 -4px 24px rgba(0,0,0,0.6)",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                {CUSTOM_BOTTOM_ITEMS.map(({ href, icon: Icon, rgb, label, exact }) => {
+                  const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
+                  return (
+                    <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)}>
+                      <div className="flex flex-col items-center gap-0.5 relative">
+                        <div
+                          className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
+                          style={{
+                            background: isActive
+                              ? `linear-gradient(145deg, rgba(${rgb},0.9) 0%, rgba(${rgb},0.55) 60%, rgba(${rgb},0.3) 100%)`
+                              : `linear-gradient(145deg, rgba(${rgb},0.15) 0%, rgba(${rgb},0.07) 100%)`,
+                            border: isActive ? `1px solid rgba(${rgb},0.6)` : `1px solid rgba(${rgb},0.12)`,
+                            boxShadow: isActive
+                              ? `0 4px 16px rgba(${rgb},0.5), 0 0 8px rgba(${rgb},0.3), inset 0 1px 0 rgba(255,255,255,0.2)`
+                              : `0 2px 6px rgba(${rgb},0.1)`,
+                          }}
+                        >
+                          <Icon style={{
+                            width: "20px", height: "20px",
+                            color: isActive ? "rgba(255,255,255,0.95)" : `rgba(${rgb},0.65)`,
+                            filter: isActive ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none",
+                          }} />
+                        </div>
+                        <span style={{
+                          fontSize: "9px",
+                          fontWeight: isActive ? "700" : "500",
+                          color: isActive ? `rgba(${rgb},0.9)` : "rgba(255,255,255,0.35)",
+                          letterSpacing: "0.02em",
+                        }}>{label}</span>
+                        {isActive && (
+                          <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                            style={{ background: `rgba(${rgb},0.8)`, boxShadow: `0 0 6px rgba(${rgb},1)` }} />
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+                {/* المزيد */}
+                <button type="button" onClick={() => setMobileMenuOpen(true)}>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
+                      style={{
+                        background: mobileMenuOpen
+                          ? "linear-gradient(145deg, rgba(251,191,36,0.9) 0%, rgba(251,191,36,0.5) 100%)"
+                          : "linear-gradient(145deg, rgba(251,191,36,0.15) 0%, rgba(251,191,36,0.07) 100%)",
+                        border: mobileMenuOpen ? "1px solid rgba(251,191,36,0.6)" : "1px solid rgba(251,191,36,0.12)",
+                      }}
+                    >
+                      <Menu style={{ width: "20px", height: "20px", color: mobileMenuOpen ? "rgba(255,255,255,0.95)" : "rgba(251,191,36,0.65)" }} />
+                    </div>
+                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(251,191,36,0.65)" }}>المزيد</span>
+                  </div>
+                </button>
+                {/* خروج */}
+                <button type="button" onClick={logout}>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center"
+                      style={{ background: "linear-gradient(145deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.07) 100%)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.75)" }} />
+                    </div>
+                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(239,68,68,0.6)" }}>خروج</span>
+                  </div>
+                </button>
+              </nav>
+            );
+          }
+
           // قائمة المرشحين بترتيب الأولوية
           const BOTTOM_CANDIDATES: Array<{
             section: string; href: string; icon: any;
