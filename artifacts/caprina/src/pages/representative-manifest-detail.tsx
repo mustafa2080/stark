@@ -4151,7 +4151,13 @@ export default function ShippingManifestPage() {
   return (
     <>
     {/* ══════════════ PRINT-ONLY ══════════════ */}
-    <div className="manifest-print print:block hidden" dir="rtl">
+    {/* ملحوظة: بنستخدم absolute + isolation بدل "hidden" (display:none) عشان بعض متصفحات
+        الموبايل بترجع innerHTML فاضي/ناقص من عناصر display:none وقت المعاينة (iframe srcDoc) */}
+    <div
+      className="manifest-print print:static print:block absolute -top-[99999px] -left-[99999px] w-[210mm] print:w-auto pointer-events-none print:pointer-events-auto"
+      aria-hidden="true"
+      dir="rtl"
+    >
 
       {/* ─── Header ─── */}
       <div className="mp-header">
