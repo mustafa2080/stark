@@ -15,6 +15,9 @@ export const shipmentManifestsTable = mysqlTable("shipment_manifests", {
   shippingCompanyId: int("shipping_company_id").references(() => shippingCompaniesTable.id),
   clientId:         int("client_id").references(() => clientsTable.id),
   status:           varchar("status", { length: 50 }).notNull().default("open"),
+  // closedByRole: "representative" = قفل مؤقت من المندوب (الأدمن يقدر يفتحه تاني أو يأكد القفل النهائي)
+  //               "admin" = قفل نهائي فعلي (ترحيل مالي + ترحيل شحنات معلّقة)
+  closedByRole:     varchar("closed_by_role", { length: 20 }),
   notes:            text("notes"),
   invoicePrice:     decimal("invoice_price", { precision: 10, scale: 2 }),
   invoiceNotes:     text("invoice_notes"),

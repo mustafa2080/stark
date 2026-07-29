@@ -4428,11 +4428,11 @@ export default function ShippingManifestPage() {
                 variant="outline"
                 className={`text-[10px] font-bold border ${
                   isLocked
-                    ? "border-emerald-700 bg-emerald-900/20 text-emerald-400"
+                    ? "border-red-700 bg-red-900/20 text-red-400"
                     : "border-blue-700 bg-blue-900/20 text-blue-400"
                 }`}
               >
-                {isLocked ? "مغلق" : "مفتوح"}
+                {isLocked ? "مقفول من قبل المندوب" : "مفتوح"}
               </Badge>
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -4517,9 +4517,9 @@ export default function ShippingManifestPage() {
         <div className="flex items-center gap-3 rounded-xl border border-red-800/50 bg-red-900/10 px-4 py-3">
           <Lock className="w-5 h-5 text-red-400 shrink-0" />
           <div>
-            <p className="text-sm font-bold text-red-400">هذا البيان مغلق</p>
+            <p className="text-sm font-bold text-red-400">البيان مقفول من قبل المندوب</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              لا يمكن إجراء أي تعديلات على بيان مغلق. تواصل مع الأدمن لإعادة فتحه.
+              لا يمكن إعادة فتحه بمعرفتك. تواصل مع الأدمن لو محتاج تعديل.
             </p>
           </div>
         </div>
@@ -4527,12 +4527,12 @@ export default function ShippingManifestPage() {
 
       {/* ─── بانر البيان المغلق — للأدمن ─── */}
       {isLocked && isAdmin && (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-800/50 bg-amber-900/10 px-4 py-3">
-          <Lock className="w-5 h-5 text-amber-400 shrink-0" />
+        <div className="flex items-center gap-3 rounded-xl border border-red-800/50 bg-red-900/10 px-4 py-3">
+          <Lock className="w-5 h-5 text-red-400 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-bold text-amber-400">البيان مغلق</p>
+            <p className="text-sm font-bold text-red-400">البيان مقفول من قبل المندوب</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              أُغلق بتاريخ {manifest.closedAt ? format(new Date(manifest.closedAt), "yyyy/MM/dd") : "—"} · لإعادة الفتح اضغط زر "فتح" في الأعلى
+              أُغلق بتاريخ {manifest.closedAt ? format(new Date(manifest.closedAt), "yyyy/MM/dd") : "—"} · المندوب أغلقه من عنده ولا يقدر يفتحه — اضغط "فتح" لإرجاعه له، أو أغلقه نهائيًا من صفحة بيانات الشحن
             </p>
           </div>
           <Button

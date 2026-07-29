@@ -1074,9 +1074,16 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const id   = Number(req.params.id);
     let body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null };
     const now  = new Date();
+    const reqUser = (req as any).user;
+
+    // جيب حالة البيان الحالية عشان نمنع تكرار الترحيل المالي لو كان اتقفل نهائيًا بالفعل
+    const [manifestBeforeUpdate] = await db.select({
+      status: shipmentManifestsTable.status,
+      closedByRole: shipmentManifestsTable.closedByRole,
+    }).from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
+    const alreadyFinalClosed = manifestBeforeUpdate?.status === "closed" && manifestBeforeUpdate?.closedByRole === "admin";
 
     // المندوب يقدر يقفل بيانه بس — مش يعيد فتحه بعد الإغلاق (ده حصريًا للأدمن)، ومش يعدّل ملاحظات أو سعر فاتورة
-    const reqUser = (req as any).user;
     if (reqUser?.role === "representative") {
       const [existingManifest] = await db.select({
         shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
@@ -1127,7 +1134,9 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
         ...(body.notes !== undefined ? { notes: body.notes } : {}),
         ...(body.invoicePrice !== undefined ? { invoicePrice: String(body.invoicePrice) } : {}),
         ...(body.status === "closed" ? { closedAt: now } : {}),
-        ...(body.status === "open"   ? { closedAt: null } : {}),
+        ...(body.status === "open"   ? { closedAt: null, closedByRole: null } : {}),
+        // نسجّل مين قفل البيان: المندوب أو الأدمن — عشان نفرّق بين "قفل مؤقت" و"قفل نهائي"
+        ...(body.status === "closed" ? { closedByRole: reqUser?.role === "representative" ? "representative" : "admin" } : {}),
       })
       .where(eq(shipmentManifestsTable.id, id));
 
@@ -1136,7 +1145,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
     // إغلاقه نهائي بدون أي ترحيل مالي للخزنة ولا ترحيل شحنات معلّقة لبيان جديد.
     // الترحيل بيحصل فقط لما الأدمن هو اللي بيقفل البيان.
     let rolledOverManifest: any = null;
-    if (body.status === "closed" && reqUser?.role !== "representative") {
+    if (body.status === "closed" && reqUser?.role !== "representative" && !alreadyFinalClosed) {
       try {
         const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
         if (manifest) {
