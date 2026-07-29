@@ -1004,6 +1004,7 @@ export default function Orders() {
   const canEdit        = isAdmin || can("orders.edit");
   const canDelete      = isAdmin || can("orders.delete");
   const canFinancials  = isAdmin || can("orders.financials");
+  const isCustomRole   = user?.role === "custom";
   const canExport      = isAdmin || can("orders.export");
   const canInvoices    = isAdmin || can("invoices.view");
   // canWriteOrders: للـ bulk select والواتساب (أي صلاحية تعديل)
@@ -1955,6 +1956,12 @@ export default function Orders() {
                       <div className="flex items-center gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
                     <TableHead className="text-right text-xs">المحافظة</TableHead>
+                    {isCustomRole && (
+                    <TableHead className="text-right text-xs">العنوان تفصيلي</TableHead>
+                    )}
+                    {isCustomRole && (
+                    <TableHead className="text-right text-xs">إجمالي سعر الشحنة</TableHead>
+                    )}
                     {canFinancials && (
                     <TableHead className="text-right text-xs">
                       <div className="flex items-center gap-1">
@@ -2025,6 +2032,16 @@ export default function Orders() {
                             {o.receiverCity || o.zoneGovernorate || o.zoneLabel || "—"}
                           </span>
                         </TableCell>
+                        {isCustomRole && (
+                        <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate">
+                          {o.receiverAddress || "—"}
+                        </TableCell>
+                        )}
+                        {isCustomRole && (
+                        <TableCell className="text-xs font-bold text-primary">
+                          {formatCurrency((Number(o.codAmount ?? o.totalAmount ?? 0)) + Number(o.shippingFee ?? 0))}
+                        </TableCell>
+                        )}
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
                           {o.codAmount != null ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
