@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
 import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle, Volume2, VolumeX } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle, Volume2, VolumeX, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -3258,6 +3258,57 @@ function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments:
   );
 }
 
+// ─── 2.5) بطاقة محفظتي (سجل تصفية البيانات المُقفلة) ─────────────────────────
+// كل بيان يقفله المندوب بنفسه، القيمة المستحقة منه (COD بعد خصم تكلفة الشحن)
+// بتتصفّر فورًا وتتسجل هنا كـ "تصفية". الرصيد الحالي (غير المُقفل) موجود في
+// كارت "التحصيل والمالية" فوق — الكارت ده أرشيف بس لتاريخ التصفيات.
+function WalletHistoryCard() {
+  const [collapsed, setCollapsed] = useState(false);
+  const { data: wallet } = useQuery({
+    queryKey: ["rep-wallet"],
+    queryFn: () => apiFetch(`/representative/wallet`),
+  });
+
+  const transactions = wallet?.transactions ?? [];
+  const totalSettled = wallet?.totalSettled ?? 0;
+
+  return (
+    <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
+      <CollapsibleCardHeader
+        icon={Wallet} iconColor="text-teal-400" title="محفظتي"
+        collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)}
+      />
+
+      {!collapsed && (
+        <>
+          <div className="p-4 pb-2">
+            <p className="text-[10px] text-muted-foreground mb-1">إجمالي المُصفّى (كل الوقت)</p>
+            <p className="text-lg font-black text-teal-400 leading-tight">{formatCurrency(totalSettled)}</p>
+          </div>
+
+          <div className="px-4 py-2">
+            <p className="text-[10px] text-muted-foreground mb-2">آخر التصفيات</p>
+            <div className="space-y-1.5">
+              {transactions.length === 0 && (
+                <p className="text-[11px] text-muted-foreground/70 text-center py-2">لا يوجد بيانات مُقفلة بعد</p>
+              )}
+              {transactions.slice(0, 4).map((t: any, i: number) => (
+                <div key={t.id ?? i} className="flex items-center justify-between text-[11px] border-b border-border/30 pb-1.5 last:border-0">
+                  <span className="font-mono text-primary/70 shrink-0">{t.manifestNumber}</span>
+                  <span className="text-muted-foreground truncate mx-2 flex-1 text-center">
+                    {t.createdAt ? format(new Date(t.createdAt), "dd/MM/yyyy", { locale: ar }) : "—"}
+                  </span>
+                  <span className="font-bold text-teal-400 shrink-0">{formatCurrency(Number(t.amount ?? 0))}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── 3) بطاقة أدائي (معدل النجاح + تقييم العملاء + سجل الحوافز) ──────────────
 function StarRating({ value }: { value: number }) {
   return (
@@ -3890,6 +3941,7 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
         </div>
         <ReturnsManagementCard allShipments={allShipments} onNavigate={onNavigate} />
         <SupportAndAlertsCard />
+        <WalletHistoryCard />
       </div>
     </div>
   );
