@@ -1934,7 +1934,7 @@ function ShipmentUrgentButton({
   onToggled,
   disabled = false,
 }: {
-  manifestId: number;
+  manifestId: number | null;
   shipmentId: number;
   isUrgent: boolean;
   urgentNote?: string | null;
@@ -1947,10 +1947,17 @@ function ShipmentUrgentButton({
 
   const mutation = useMutation({
     mutationFn: (payload: { isUrgent: boolean; urgentNote?: string | null }) =>
-      apiFetch(`/shipment-manifests/${manifestId}/items/${shipmentId}/urgent`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }),
+      // لو الشحنة مربوطة ببيان استخدم endpoint البيان (القديم)، وإلا استخدم
+      // endpoint الشحنة المباشر (الجديد) اللي لا يتطلب وجود بيان أصلًا
+      manifestId != null
+        ? apiFetch(`/shipment-manifests/${manifestId}/items/${shipmentId}/urgent`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+        : apiFetch(`/shipments/${shipmentId}/urgent`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          }),
     onSuccess: (_: any, vars: any) => {
       toast({
         title: vars.isUrgent ? "🔴 تم وضع الاستعجال" : "تم إلغاء الاستعجال",
@@ -3309,10 +3316,11 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
               </>)}
 
-              {/* استعجال — جنب الإغلاق، يظهر بس لو الشحنة في بيان (مش مقتصر على الأدمن) */}
-              {!!((order as any).manifestId ?? (manifestStatus as any)?.manifestId) && (
+              {/* استعجال — جنب الإغلاق، يظهر طالما الشحنة قيد الشحن (بغض النظر عن وجودها في بيان) */}
+              {(["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
+                !!((order as any).manifestId ?? (manifestStatus as any)?.manifestId)) && (
                 <ShipmentUrgentButton
-                  manifestId={(order as any).manifestId ?? (manifestStatus as any).manifestId}
+                  manifestId={(order as any).manifestId ?? (manifestStatus as any)?.manifestId ?? null}
                   shipmentId={id}
                   isUrgent={!!(order as any).isUrgent}
                   urgentNote={(order as any).urgentNote}
@@ -3499,9 +3507,10 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             })()}
 
             {/* استعجال — جنب الإغلاق */}
-            {!!((order as any).manifestId ?? (manifestStatus as any)?.manifestId) && (
+            {(["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
+              !!((order as any).manifestId ?? (manifestStatus as any)?.manifestId)) && (
               <ShipmentUrgentButton
-                manifestId={(order as any).manifestId ?? (manifestStatus as any).manifestId}
+                manifestId={(order as any).manifestId ?? (manifestStatus as any)?.manifestId ?? null}
                 shipmentId={id}
                 isUrgent={!!(order as any).isUrgent}
                 urgentNote={(order as any).urgentNote}

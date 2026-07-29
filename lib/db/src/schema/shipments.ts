@@ -109,6 +109,8 @@ export const shipmentsTable = mysqlTable("shipments", {
   isReplacementRequested: int("is_replacement_requested").default(0), // 1 = العميل طلب استبدال الشحنة
   inventoryDeducted: int("inventory_deducted").default(0),       // 1 = تم خصم المخزون لهذه الشحنة
   inventoryReturned: int("inventory_returned").default(0),       // 1 = تم إرجاع المخزون (مرتجع/جزئي)
+  isUrgent:        int("is_urgent").default(0),                  // 1 = تم استعجال الشحنة (بدون الحاجة لوجودها في بيان)
+  urgentNote:      text("urgent_note"),                          // ملاحظة الاستعجال
   estimatedDelivery: datetime("estimated_delivery"), // تاريخ التسليم المتوقع
   actualDelivery:  datetime("actual_delivery"),  // تاريخ التسليم الفعلي
   deletedAt:       datetime("deleted_at"),

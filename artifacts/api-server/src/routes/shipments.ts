@@ -647,7 +647,9 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
     if (!row.receiverCity && row.zoneGovernorate) {
       (row as any).receiverCity = row.zoneGovernorate;
     }
-    // جيب manifestId + isUrgent + urgentNote بـ subquery مستقل عشان تجنب تعارض الأسماء
+    // جيب manifestId من subquery مستقل عشان تجنب تعارض الأسماء
+    // isUrgent/urgentNote أصبحوا على مستوى الشحنة نفسها (لا يتطلبون وجود بيان) —
+    // مع fallback على بيان قديم (لو كان الاستعجال اتسجل قبل التحديث في shipment_manifest_items)
     const [manifestItem] = await db
       .select({
         manifestId: shipmentManifestItemsTable.manifestId,
@@ -659,8 +661,8 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
       .orderBy(desc(shipmentManifestItemsTable.id))
       .limit(1);
     (row as any).manifestId = manifestItem?.manifestId != null ? Number(manifestItem.manifestId) : null;
-    (row as any).isUrgent   = manifestItem?.isUrgent   != null ? Number(manifestItem.isUrgent)   : 0;
-    (row as any).urgentNote = manifestItem?.urgentNote  ?? null;
+    (row as any).isUrgent   = row.isUrgent === 1 ? 1 : (manifestItem?.isUrgent != null ? Number(manifestItem.isUrgent) : 0);
+    (row as any).urgentNote = row.urgentNote ?? manifestItem?.urgentNote ?? null;
     res.json(row);
   } catch (e) {
     res.status(500).json({ error: "خطأ" });
@@ -1161,6 +1163,60 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
   } catch (e) {
     console.error("[PATCH /shipments/:id]", e);
     res.status(500).json({ error: "خطأ في تحديث الشحنة" });
+  }
+});
+
+// ─── PATCH /shipments/:id/urgent — استعجال الشحنة (لا يتطلب وجودها في بيان) ──
+const UrgentSchema = z.object({
+  isUrgent: z.boolean(),
+  urgentNote: z.string().nullish(),
+});
+router.patch("/shipments/:id/urgent", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = parseInt(req.params.id);
+    const parsed = UrgentSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+    // المندوب لا يملك صلاحية استعجال نفسه (نفس منطق بيان الشحن)
+    const reqUser = (req as any).user;
+    if (reqUser?.role === "representative") {
+      res.status(403).json({ error: "المندوب لا يملك صلاحية هذا الإجراء" });
+      return;
+    }
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
+      : eq(shipmentsTable.id, id);
+    const [existingShipment] = await db.select().from(shipmentsTable).where(cond).limit(1);
+    if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+
+    await db.update(shipmentsTable)
+      .set({
+        isUrgent: parsed.data.isUrgent ? 1 : 0,
+        urgentNote: parsed.data.urgentNote ?? null,
+        updatedAt: new Date(),
+      })
+      .where(cond);
+
+    // إشعار فوري للمندوب المسؤول عن الشحنة
+    if (parsed.data.isUrgent && existingShipment.shippingCompanyId) {
+      pushNotification({
+        tenantId,
+        type: "shipment_updated",
+        severity: "warning",
+        title: "استعجال شحنة",
+        message: `${existingShipment.trackingNumber ?? `#${existingShipment.id}`} — ${existingShipment.receiverName} — ${existingShipment.receiverCity ?? "—"}`,
+        entityType: "shipment",
+        entityId: existingShipment.id,
+        link: `/shipments/${existingShipment.id}`,
+      });
+    }
+
+    res.json({ success: true, isUrgent: parsed.data.isUrgent, urgentNote: parsed.data.urgentNote ?? null });
+  } catch (e) {
+    console.error("[PATCH /shipments/:id/urgent]", e);
+    res.status(500).json({ error: "خطأ في تحديث حالة الاستعجال" });
   }
 });
 
