@@ -1317,6 +1317,11 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
       // تزامن مع صفحة الشحنات — الحالات بتتغير جوه البيان لازم تنعكس فورًا
       qc.invalidateQueries({ queryKey: ["shipments-list"] });
       qc.invalidateQueries({ queryKey: ["shipments-stats"] });
+      // تزامن مع شاشة "الشحنات/المهام" في تطبيق المندوب — البيان اتقفل، زرار "تقفيل" لازم يختفي فورًا
+      qc.invalidateQueries({ queryKey: ["rep-today-tasks"] });
+      qc.invalidateQueries({ queryKey: ["rep-shipments"] });
+      qc.invalidateQueries({ queryKey: ["rep-all-shipments"] });
+      qc.invalidateQueries({ queryKey: ["rep-dashboard"] });
       setConfirmClose(false);
       setShowClosedSummary(true);
     },
