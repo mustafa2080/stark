@@ -4356,7 +4356,7 @@ export default function RepresentativeDashboard() {
                       <TableHead className="text-right text-xs">المستلم</TableHead>
                       <TableHead className="text-right text-xs">الهاتف</TableHead>
                       <TableHead className="text-right text-xs">المحافظة</TableHead>
-                      <TableHead className="text-right text-xs">COD</TableHead>
+                      <TableHead className="text-right text-xs">إجمالي الشحنة</TableHead>
                       <TableHead className="text-center text-xs">الحالة</TableHead>
                       <TableHead className="text-center text-xs w-32">إجراءات</TableHead>
                     </TableRow>
@@ -4461,7 +4461,7 @@ export default function RepresentativeDashboard() {
                         </span>
                       </div>
 
-                      {/* الصف الأخير: COD + إجراءات */}
+                      {/* الصف الأخير: إجمالي الشحنة + إجراءات */}
                       <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/60">
                         <span className="text-sm font-bold text-emerald-400">
                           {formatCurrency(Number(sh.codAmount ?? 0) + Number(sh.shippingFee ?? 0))}
