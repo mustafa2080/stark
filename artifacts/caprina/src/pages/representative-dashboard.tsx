@@ -3201,10 +3201,15 @@ function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments:
     .reduce((sum, s) => sum + Number(s.codAmount ?? 0), 0);
 
   // آخر 4 شحنات تم تحصيلها فعليًا، كسجل "تاريخ التحصيل"
+  // المبلغ المعروض = collectedAmount الفعلي (زي تاب الشحنات)، مع fallback على codAmount لو مش متسجل
   const lastCollected = [...allShipments]
     .filter(s => s.status === "delivered" || s.status === "partial_received")
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
-    .slice(0, 4);
+    .slice(0, 4)
+    .map(s => ({
+      ...s,
+      displayAmount: Number(s.collectedAmount) > 0 ? Number(s.collectedAmount) : Number(s.codAmount ?? 0),
+    }));
 
   return (
     <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
@@ -3239,7 +3244,7 @@ function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments:
                   <span className="text-muted-foreground truncate mx-2 flex-1 text-center">
                     {s.createdAt ? format(new Date(s.createdAt), "dd/MM/yyyy", { locale: ar }) : "—"}
                   </span>
-                  <span className="font-bold text-emerald-400 shrink-0">{formatCurrency(Number(s.codAmount ?? 0))}</span>
+                  <span className="font-bold text-emerald-400 shrink-0">{formatCurrency(s.displayAmount)}</span>
                 </div>
               ))}
             </div>
