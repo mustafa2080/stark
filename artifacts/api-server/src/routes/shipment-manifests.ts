@@ -1092,7 +1092,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           const items = await db.select().from(shipmentManifestItemsTable)
             .where(eq(shipmentManifestItemsTable.manifestId, id));
           const userId   = (req as any).user?.id   ?? null;
-          const userName = (req as any).user?.name ?? null;
+          const userName = (req as any).user?.displayName ?? null;
           await createTreasuryEntryOnClose(manifest, items, userId, userName);
 
           // ترحيل الشحنات المعلّقة لبيان جديد: مؤجل (صف جديد) + استلام جزئي (الباقي كصف جديد)
@@ -1110,7 +1110,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
       try {
         const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
         if (manifest) {
-          const userName = (req as any).user?.name ?? null;
+          const userName = (req as any).user?.displayName ?? null;
           const closedAt = manifest.closedAt ?? now;
           const dateStr = closedAt.toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" });
           const timeStr = closedAt.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", hour12: true });
