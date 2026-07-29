@@ -11,6 +11,7 @@ import {
   warehousesTable,
   clientsTable,
   clientAccountAdjustmentsTable,
+  representativeWalletTransactionsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -695,15 +696,13 @@ router.patch("/shipment-manifests/:id/items/:shipmentId/urgent", async (req, res
   }
 });
 
-// ─── تحويل إيراد البيان للخزنة عند الإغلاق ──────────────────────────────────
-async function createTreasuryEntryOnClose(
+// ─── حساب صافي المستحق من بيان معين (نفس منطق netDueToCompany) ──────────────
+// مستخرجة كدالة مستقلة عشان تُستخدم في تحويل الخزنة (createTreasuryEntryOnClose)
+// وكمان في تصفية محفظة المندوب (recordRepresentativeWalletEntry) بدون تكرار كود.
+async function computeManifestNetDue(
   manifest: typeof shipmentManifestsTable.$inferSelect,
   items: (typeof shipmentManifestItemsTable.$inferSelect)[],
-  userId: number | null,
-  userName: string | null,
-): Promise<void> {
-  const now = new Date();
-
+): Promise<number> {
   // جيب الشحنات لمعرفة سعر كل شحنة
   const shipmentIds = items.map(i => i.shipmentId);
   const shipments = shipmentIds.length > 0
@@ -749,6 +748,32 @@ async function createTreasuryEntryOnClose(
     // delayed / pending / مرتجع بأسباب أخرى → مش بيتحسب
   }
 
+  // الصافي المستحق من المندوب (COD المسلَّم − تكلفة شحن المندوب)
+  const courierCostManual = courierCostPerShipment * deliveredCount;
+  return deliveredGross - courierCostManual;
+}
+
+// ─── تحويل إيراد البيان للخزنة عند الإغلاق ──────────────────────────────────
+async function createTreasuryEntryOnClose(
+  manifest: typeof shipmentManifestsTable.$inferSelect,
+  items: (typeof shipmentManifestItemsTable.$inferSelect)[],
+  userId: number | null,
+  userName: string | null,
+): Promise<void> {
+  const now = new Date();
+  const netDueToCompany = await computeManifestNetDue(manifest, items);
+
+  // جيب شركة الشحن (لاسمها في وصف حركة الخزنة)
+  const [company] = await db.select().from(shippingCompaniesTable)
+    .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
+
+  // جيب الشحنات لخصم أجرة الشحن على حساب كل عميل (مصروف منفصل لكل عميل)
+  const shipmentIds = items.map(i => i.shipmentId);
+  const shipments = shipmentIds.length > 0
+    ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+    : [];
+  const shipmentMap = new Map(shipments.map(s => [s.id, s]));
+
   // ─── خصم أجرة الشحن على حساب كل عميل، لكل شحنة "مُسلَّمة" فعلاً في البيان ──
   // (مصروف منفصل لكل عميل — مش مصروف إجمالي واحد على مستوى البيان)
   {
@@ -790,11 +815,6 @@ async function createTreasuryEntryOnClose(
     }
   }
 
-  // الرصيد المُرحَّل للخزنة = صافي المستحق من المندوب (COD المسلَّم − تكلفة شحن المندوب)
-  // مش إجمالي الإيرادات الخام — نفس منطق netDueToCompany المستخدم في عرض إحصائيات البيان
-  const courierCostManual = courierCostPerShipment * deliveredCount;
-  const netDueToCompany = deliveredGross - courierCostManual;
-
   if (netDueToCompany <= 0) return;
 
   // جيب الخزنة الرئيسية
@@ -826,6 +846,36 @@ async function createTreasuryEntryOnClose(
   await db.update(cashRegistersTable)
     .set({ balance: String(balanceAfter), updatedAt: now })
     .where(eq(cashRegistersTable.id, mainRegister.id));
+}
+
+// ─── تصفية محفظة المندوب عند إغلاقه بيانه بنفسه ──────────────────────────────
+// المندوب هو اللي سلّم الفلوس بمجرد إغلاق البيان، فرصيده المتعلّق بالبيان ده
+// بيتصفّر لحظيًا. بنسجل حركة (سجل تاريخي) بالقيمة المستحقة (netDueToCompany)،
+// بدون تراكم فعلي — الرصيد الحقيقي المعروض في الداشبورد مشتق من الشحنات في
+// بيانات لسه مفتوحة، فبمجرد ما البيان يتقفل، هو أصلًا بيخرج من هذا الحساب.
+async function recordRepresentativeWalletEntry(
+  manifest: typeof shipmentManifestsTable.$inferSelect,
+  items: (typeof shipmentManifestItemsTable.$inferSelect)[],
+  representativeUserId: number,
+  representativeName: string | null,
+): Promise<void> {
+  const now = new Date();
+  const netDue = await computeManifestNetDue(manifest, items);
+  if (netDue <= 0) return;
+
+  await db.insert(representativeWalletTransactionsTable).values({
+    tenantId: manifest.tenantId ?? null,
+    representativeUserId,
+    manifestId: manifest.id,
+    manifestNumber: manifest.manifestNumber,
+    amount: String(netDue),
+    // الرصيد بيتصفر فورًا وقت التصفية — مفيش تراكم بين البيانات
+    balanceBefore: String(netDue),
+    balanceAfter: "0",
+    closedByUserId: representativeUserId,
+    closedByName: representativeName,
+    createdAt: now,
+  }).catch((e) => console.error("[recordRepresentativeWalletEntry] error", e));
 }
 
 // ─── جلب أو إنشاء البيان المفتوح المستهدف لنفس شركة الشحن ────────────────────
@@ -1105,12 +1155,15 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
       }
     }
 
-    // ── إشعار الأدمن لما المندوب هو اللي قفل البيان (بدون أي ترحيل) ─────────
+    // ── تصفية محفظة المندوب + إشعار الأدمن لما المندوب هو اللي قفل البيان ──
     if (body.status === "closed" && reqUser?.role === "representative") {
       try {
         const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
         if (manifest) {
           const userName = (req as any).user?.displayName ?? null;
+          const items = await db.select().from(shipmentManifestItemsTable)
+            .where(eq(shipmentManifestItemsTable.manifestId, id));
+          await recordRepresentativeWalletEntry(manifest, items, reqUser.id, userName);
           const closedAt = manifest.closedAt ?? now;
           const dateStr = closedAt.toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" });
           const timeStr = closedAt.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", hour12: true });

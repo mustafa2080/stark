@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, and, desc, isNull, count, sql, inArray } from "drizzle-orm";
-import { db, shipmentsTable, shipmentItemsTable, shippingCompaniesTable, usersTable, shipmentZonesTable, auditLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shippingCompaniesTable, usersTable, shipmentZonesTable, auditLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, representativeWalletTransactionsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { verifyToken } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
@@ -520,6 +520,31 @@ router.get("/location", requireRepresentativeOrAdmin, async (req: Request, res: 
     lat: row?.lastLat != null ? Number(row.lastLat) : null,
     lng: row?.lastLng != null ? Number(row.lastLng) : null,
     updatedAt: row?.lastLocationAt ?? null,
+  });
+});
+
+// ─── GET /representative/wallet — سجل تصفيات محفظة المندوب ───────────────────
+// كل صف = بيان اتقفل بواسطة المندوب نفسه، بالقيمة اللي اتصفّت وقتها.
+// الرصيد الحالي (المتبقي غير المُقفل) موجود بالفعل في /representative/dashboard
+// كـ totalCollected — ده أرشيف تاريخي بس لما اتقفل وإمتى وبكام.
+router.get("/wallet", requireRepresentativeOrAdmin, async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const targetUserId = user.role === "representative"
+    ? user.id
+    : req.query.userId ? parseInt(req.query.userId as string) : null;
+  if (!targetUserId) { res.status(400).json({ error: "userId مطلوب" }); return; }
+
+  const rows = await db.select()
+    .from(representativeWalletTransactionsTable)
+    .where(eq(representativeWalletTransactionsTable.representativeUserId, targetUserId))
+    .orderBy(desc(representativeWalletTransactionsTable.createdAt))
+    .limit(100);
+
+  const totalSettled = rows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+
+  res.json({
+    transactions: rows.map(r => ({ ...r, amount: Number(r.amount) })),
+    totalSettled,
   });
 });
 

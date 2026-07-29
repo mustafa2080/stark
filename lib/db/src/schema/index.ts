@@ -40,6 +40,7 @@ export * from "./parcel_type_pricing";
 export * from "./shipment_manifests";
 export * from "./client_account_manifests";
 export * from "./shipment_ratings";
+export * from "./representative_wallet_transactions";
 
 // ─── Pickup Requests (طلبات الالتقاط) ────────────────────────────────────────
 export * from "./pickup_requests";
