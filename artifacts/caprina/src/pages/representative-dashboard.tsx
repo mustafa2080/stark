@@ -1730,6 +1730,13 @@ function TaskCard({ task }: { task: any }) {
         </span>
       </div>
 
+      {/* Address row */}
+      {task.receiverAddress && (
+        <p className="text-[10.5px] text-muted-foreground/90 leading-relaxed bg-secondary/30 rounded-lg px-2 py-1">
+          {task.receiverAddress}
+        </p>
+      )}
+
       {/* Urgent note */}
       {task.isUrgent && task.urgentNote && (
         <p className="text-[10px] text-red-300/80 bg-red-500/10 rounded-lg px-2 py-1">
