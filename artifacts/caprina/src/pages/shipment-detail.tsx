@@ -3307,17 +3307,18 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   );
                 })()}
 
-                {/* استعجال — جنب الإغلاق، يظهر بس لو الشحنة في بيان */}
-                {!!(order as any).manifestId && (
-                  <ShipmentUrgentButton
-                    manifestId={(order as any).manifestId}
-                    shipmentId={id}
-                    isUrgent={!!(order as any).isUrgent}
-                    urgentNote={(order as any).urgentNote}
-                    onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
-                  />
-                )}
               </>)}
+
+              {/* استعجال — جنب الإغلاق، يظهر بس لو الشحنة في بيان (مش مقتصر على الأدمن) */}
+              {!!(order as any).manifestId && (
+                <ShipmentUrgentButton
+                  manifestId={(order as any).manifestId}
+                  shipmentId={id}
+                  isUrgent={!!(order as any).isUrgent}
+                  urgentNote={(order as any).urgentNote}
+                  onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
+                />
+              )}
 
               {/* واتساب — للكل */}
               <Button variant="outline" size="sm"
