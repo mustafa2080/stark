@@ -1969,7 +1969,6 @@ export default function Orders() {
                     {canFinancials && (
                     <TableHead className="text-right text-xs">الإجمالي</TableHead>
                     )}
-                    <TableHead className="text-right text-xs">المندوب</TableHead>
                     <TableHead className="text-center text-xs w-36">
                       <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
@@ -2041,11 +2040,6 @@ export default function Orders() {
                           {formatCurrency((Number(o.codAmount ?? o.totalAmount ?? 0)) + Number(o.shippingFee ?? 0))}
                         </TableCell>
                         )}
-                        <TableCell className="text-xs text-muted-foreground">
-                          {o.assignedUserName
-                            ? <span className="inline-flex items-center gap-1 text-[10px] font-medium">👤 {o.assignedUserName}</span>
-                            : <span className="text-muted-foreground/50">—</span>}
-                        </TableCell>
                         <TableCell className="text-center">
                           <div className="flex flex-col items-center gap-0.5">
                             <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
