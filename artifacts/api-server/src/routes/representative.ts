@@ -313,8 +313,10 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
     manifestId:     shipmentManifestItemsTable.manifestId,
     shipmentId:     shipmentManifestItemsTable.shipmentId,
     deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
-    isUrgent:       shipmentManifestItemsTable.isUrgent,
-    urgentNote:     shipmentManifestItemsTable.urgentNote,
+    // isUrgent/urgentNote أصبحوا على مستوى الشحنة نفسها (shipmentsTable) بعد التحديث الأخير
+    // مع fallback على القيمة القديمة في shipment_manifest_items (لو الاستعجال اتسجل قبل التحديث)
+    itemIsUrgent:   shipmentManifestItemsTable.isUrgent,
+    itemUrgentNote: shipmentManifestItemsTable.urgentNote,
     urgentAt:       shipmentManifestItemsTable.urgentAt,
     addedAt:        shipmentManifestItemsTable.addedAt,
   })
@@ -342,6 +344,8 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
       returnReason: shipmentsTable.returnReason,
       partialQuantity: shipmentsTable.partialQuantity,
       collectedAmount: shipmentsTable.collectedAmount,
+      isUrgent: shipmentsTable.isUrgent,
+      urgentNote: shipmentsTable.urgentNote,
     })
       .from(shipmentsTable)
       .where(inArray(shipmentsTable.id, shipmentIds));
@@ -354,8 +358,9 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
       id: item.shipmentId,
       manifestId: item.manifestId,
       deliveryStatus: item.deliveryStatus,
-      isUrgent: item.isUrgent === 1,
-      urgentNote: item.urgentNote ?? null,
+      // أولوية لقيمة الاستعجال على مستوى الشحنة نفسها، مع fallback على القيمة القديمة في البيان
+      isUrgent: sh?.isUrgent === 1 || item.itemIsUrgent === 1,
+      urgentNote: sh?.urgentNote ?? item.itemUrgentNote ?? null,
       urgentAt: item.urgentAt ?? null,
       receiverName:    sh?.receiverName    ?? "",
       receiverPhone:   sh?.receiverPhone   ?? "",
