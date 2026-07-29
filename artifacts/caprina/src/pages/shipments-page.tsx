@@ -1844,9 +1844,16 @@ export default function Orders() {
                           <span className="font-mono text-xs text-primary font-bold shrink-0">#{order.id.toString().padStart(4,"0")}</span>
                           <span className="text-[10px] text-muted-foreground shrink-0">{format(new Date(order.createdAt), "yyyy/MM/dd")}</span>
                         </div>
-                        <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 ${statusClasses[order.status] || ""}`}>
-                          {statusLabels[order.status] || order.status}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <Badge variant="outline" className={`text-[9px] font-bold border ${statusClasses[order.status] || ""}`}>
+                            {statusLabels[order.status] || order.status}
+                          </Badge>
+                          {(order.status === "in_shipping" || order.status === "in_transit") && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
+                              🚚 {o.assignedUserName ? `مع ${o.assignedUserName}` : o.shippingCompanyName ? `مع ${o.shippingCompanyName}` : "عند شركة الشحن"}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* الراسل والمستلم */}
