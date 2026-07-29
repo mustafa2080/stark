@@ -5,6 +5,7 @@ import { Redirect, useLocation, Link } from "wouter";
 import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
 import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle, Volume2, VolumeX, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -4275,7 +4276,85 @@ export default function RepresentativeDashboard() {
               </div>
 
               {/* Shipments list */}
-              <div className="space-y-2">
+              {/* ── Desktop: جدول ── */}
+              <div className="hidden sm:block rounded-2xl border bg-card/60 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-right text-xs">#</TableHead>
+                      <TableHead className="text-right text-xs">التاريخ</TableHead>
+                      <TableHead className="text-right text-xs">المستلم</TableHead>
+                      <TableHead className="text-right text-xs">الهاتف</TableHead>
+                      <TableHead className="text-right text-xs">المحافظة</TableHead>
+                      <TableHead className="text-right text-xs">COD</TableHead>
+                      <TableHead className="text-center text-xs">الحالة</TableHead>
+                      <TableHead className="text-center text-xs w-32">إجراءات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRepShipments.map((sh: any) => {
+                      const waHref = buildShipmentWaHref(sh);
+                      return (
+                        <TableRow key={sh.id} className={`border-border hover:bg-muted/20 ${sh.isUrgent ? "bg-red-500/5" : ""}`}>
+                          <TableCell className="font-mono text-xs text-primary font-bold">
+                            {sh.shipmentNumber}
+                            {sh.isUrgent && (
+                              <span className="mr-1 inline-flex items-center gap-0.5 text-[9px] font-black text-red-400">
+                                <Zap className="w-2.5 h-2.5 fill-red-400" /> مستعجل
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs font-semibold">{sh.receiverName || "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{sh.receiverPhone || "—"}</TableCell>
+                          <TableCell className="text-xs font-medium">
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                              {sh.receiverCity || "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-xs font-bold text-emerald-400">
+                            {formatCurrency(Number(sh.codAmount ?? 0) + Number(sh.shippingFee ?? 0))}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className={`text-[9px] font-bold border ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
+                              {STATUS_LABELS[sh.status] ?? sh.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {sh.receiverPhone && (
+                                <a href={`tel:${sh.receiverPhone}`} title="اتصال بالعميل"
+                                  className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+                                  <Phone className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                              {waHref && (
+                                <a href={waHref} target="_blank" rel="noopener noreferrer" title="ابعت رسالة واتساب للعميل"
+                                  className="flex items-center justify-center w-6 h-6 shrink-0 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
+                                  <MessageCircle className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                              <ShipmentStatusEditor shipment={sh} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })} />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {s?.data?.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
+                )}
+                {s?.data && s.data.length > 0 && filteredRepShipments.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">لا توجد نتائج مطابقة للبحث</p>
+                )}
+              </div>
+
+              {/* ── Mobile: كاردات ── */}
+              <div className="sm:hidden space-y-2">
                 {filteredRepShipments.map((sh: any) => (
                   <UrgentShipmentCard
                     key={sh.id}
