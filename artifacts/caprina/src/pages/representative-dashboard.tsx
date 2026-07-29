@@ -4453,7 +4453,6 @@ export default function RepresentativeDashboard() {
                               <MessageCircle className="w-4 h-4" />
                             </a>
                           )}
-                          <ShipmentStatusEditor shipment={sh} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })} />
                         </div>
                       </div>
                     </div>
