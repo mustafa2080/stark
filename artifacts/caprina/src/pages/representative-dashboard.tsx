@@ -1758,7 +1758,21 @@ function TaskCard({ task }: { task: any }) {
               <MessageCircle className="w-4 h-4" />
             </a>
           )}
-          <ShipmentStatusEditor shipment={task} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-today-tasks"] })} />
+          <ShipmentStatusEditor shipment={task} onSaved={() => {
+            // تزامن مع تاب "مهامي" نفسه
+            queryClient.invalidateQueries({ queryKey: ["rep-today-tasks"] });
+            // تزامن مع تاب "البيانات" — نفس الشحنة ممكن تكون معروضة جوه بيان مفتوح
+            if (task.manifestId) {
+              queryClient.invalidateQueries({ queryKey: ["rep-manifest", task.manifestId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ["rep-manifests"] });
+            // تزامن مع صفحة الشحنات وتطبيق المندوب
+            queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+            queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
+            queryClient.invalidateQueries({ queryKey: ["rep-shipments"] });
+            queryClient.invalidateQueries({ queryKey: ["rep-all-shipments"] });
+            queryClient.invalidateQueries({ queryKey: ["rep-dashboard"] });
+          }} />
         </div>
       )}
     </div>

@@ -1270,6 +1270,11 @@ function InvoiceGroupDeliveryRow({
         // سيُمسح في useEffect لما groupPartialKey يتغير (= server data وصلت فعلاً)
       }
       setBulkEditing(false);
+      // تزامن مع شاشة الشحنات/المهام في تطبيق المندوب — أي تعديل حالة هنا
+      // لازم يظهر فورًا في تاب "مهامي" وتاب "الشحنات" برضو
+      qc.invalidateQueries({ queryKey: ["rep-today-tasks"] });
+      qc.invalidateQueries({ queryKey: ["shipments-list"] });
+      qc.invalidateQueries({ queryKey: ["shipments-stats"] });
       onSaved();
     },
     onError: (e: any) =>
