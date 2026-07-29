@@ -3317,6 +3317,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 )}
               </>)}
 
+              {/* استعجال لاكونت custom (غير أدمن) — يظهر بس لو الشحنة "قيد الشحن" */}
+              {!isAdmin && !!(order as any).manifestId && (order.status === "in_shipping" || order.status === "in_transit") && (
+                <ShipmentUrgentButton
+                  manifestId={(order as any).manifestId}
+                  shipmentId={id}
+                  isUrgent={!!(order as any).isUrgent}
+                  urgentNote={(order as any).urgentNote}
+                  onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
+                />
+              )}
+
               {/* واتساب — للكل */}
               <Button variant="outline" size="sm"
                 onClick={handleWhatsApp}
@@ -3506,6 +3517,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               />
             )}
           </>)}
+
+          {/* استعجال لاكونت custom (غير أدمن) — يظهر بس لو الشحنة "قيد الشحن" */}
+          {!isAdmin && !!(order as any).manifestId && (order.status === "in_shipping" || order.status === "in_transit") && (
+            <ShipmentUrgentButton
+              manifestId={(order as any).manifestId}
+              shipmentId={id}
+              isUrgent={!!(order as any).isUrgent}
+              urgentNote={(order as any).urgentNote}
+              onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
+            />
+          )}
         </div>
       </div>
 
