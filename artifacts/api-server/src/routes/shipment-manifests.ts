@@ -12,6 +12,7 @@ import {
   clientsTable,
   clientAccountAdjustmentsTable,
   representativeWalletTransactionsTable,
+  shipmentZonesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -190,6 +191,17 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
     }
 
+    // ── جلب أسعار المناطق (من قسم "المناطق والأسعار") دفعة واحدة لكل الشحنات في البيان ──
+    const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+    let zonePriceMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneRows = await db
+        .select({ id: shipmentZonesTable.id, price: shipmentZonesTable.price })
+        .from(shipmentZonesTable)
+        .where(inArray(shipmentZonesTable.id, zoneIds));
+      zonePriceMap = Object.fromEntries(zoneRows.map(z => [z.id, Number(z.price ?? 0)]));
+    }
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       return {
@@ -203,6 +215,8 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
         zoneId:        sh?.zoneId ?? null,
+        // سعر المنطقة (المحافظة) من قسم "المناطق والأسعار" — لعرضه في عمود "شحن" بالجدول
+        zonePrice:     sh?.zoneId != null ? (zonePriceMap[sh.zoneId] ?? null) : null,
         // الإجمالي = مبلغ التحصيل (codAmount) + سعر الشحن (shippingFee)، زي قسم "الشحنات" بالظبط
         totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
         unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),

@@ -1357,10 +1357,10 @@ function InvoiceGroupDeliveryRow({
           <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
             <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
-          {/* تكلفة الشحن (المندوب) */}
+          {/* سعر المنطقة (المحافظة) — من قسم "المناطق والأسعار" حسب zoneId الشحنة */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
-            {courierShippingCost != null ? (
-              <span className="text-amber-500 font-semibold truncate">{formatCurrency(courierShippingCost)}</span>
+            {(rep as any).zonePrice != null ? (
+              <span className="text-amber-500 font-semibold truncate">{formatCurrency((rep as any).zonePrice)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
@@ -3563,6 +3563,7 @@ export default function ShippingManifestPage() {
         product: sh ? `${sh.shipmentNumber}${sh.trackingNumber ? ` (${sh.trackingNumber})` : ''}` : '—',
         quantity: sh?.pieces ?? 1,
         zoneId: sh?.zoneId ?? null,
+        zonePrice: (item as any).zonePrice != null ? Number((item as any).zonePrice) : null,
         warehouseName: (item as any).warehouseName ?? null,
         total: codAmt,
         totalPrice: codAmt,
