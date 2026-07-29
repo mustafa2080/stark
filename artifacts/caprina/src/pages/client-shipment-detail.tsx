@@ -3883,14 +3883,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
                 {/* ── Header: اسم المستلم + الـ badges ── */}
                 <div className="px-5 pt-4 pb-3 border-b border-border/50">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3">
                     <div className="min-w-0">
                       <p className="text-[10px] text-muted-foreground font-semibold mb-1">المستلم</p>
                       <h2 className="text-lg sm:text-xl font-black text-foreground leading-tight break-words">
                         {(order as any).receiverName || order.customerName || "—"}
                       </h2>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap sm:justify-end">
+                    <div className="flex items-center gap-2 flex-wrap md:justify-end">
                       <Badge className={`text-xs font-bold px-3 py-1 ${statusClasses[order.status] || ""}`}>
                         {statusLabels[order.status] || order.status}
                       </Badge>
