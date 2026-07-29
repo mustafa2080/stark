@@ -4320,9 +4320,8 @@ export default function RepresentativeDashboard() {
                 )}
               </div>
 
-              {/* Shipments list */}
-              {/* ── Desktop: جدول ── */}
-              <div className="hidden sm:block rounded-2xl border bg-card/60 overflow-x-auto">
+              {/* Shipments list — جدول واحد لكل الشاشات (ديسكتوب وموبايل) مع scroll أفقي */}
+              <div className="rounded-2xl border bg-card/60 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
@@ -4390,24 +4389,6 @@ export default function RepresentativeDashboard() {
                     })}
                   </TableBody>
                 </Table>
-                {s?.data?.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
-                )}
-                {s?.data && s.data.length > 0 && filteredRepShipments.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-6">لا توجد نتائج مطابقة للبحث</p>
-                )}
-              </div>
-
-              {/* ── Mobile: كاردات ── */}
-              <div className="sm:hidden space-y-2">
-                {filteredRepShipments.map((sh: any) => (
-                  <UrgentShipmentCard
-                    key={sh.id}
-                    sh={sh}
-                    waHref={buildShipmentWaHref(sh)}
-                    onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })}
-                  />
-                ))}
                 {s?.data?.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
                 )}
