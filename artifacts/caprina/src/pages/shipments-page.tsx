@@ -1935,7 +1935,7 @@ export default function Orders() {
                             </span>
                           )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-col items-start gap-1 mt-1">
                         {(() => { const SI = STATUS_ICONS[order.status] || Package; return (
                           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusClasses[order.status] || ""}`}>
                             <SI className="w-3 h-3" />
@@ -2151,10 +2151,10 @@ export default function Orders() {
                           {(order.status === "in_shipping" || order.status === "in_transit") && (
                             <div className="flex flex-col items-center gap-0.5 mt-1">
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5 leading-none">
-                                🚚 {(order as any).shippingCompanyName
-                                  ? `مع ${(order as any).shippingCompanyName}`
-                                  : (order as any).assignedUserName
+                                🚚 {(order as any).assignedUserName
                                   ? `مع ${(order as any).assignedUserName}`
+                                  : (order as any).shippingCompanyName
+                                  ? `مع ${(order as any).shippingCompanyName}`
                                   : "عند المندوب"}
                               </span>
                             </div>
