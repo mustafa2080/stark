@@ -1293,10 +1293,10 @@ function InvoiceGroupDeliveryRow({
           animationDelay: `${rowIndex * 45}ms`,
         }}
       >
-        {/* Row */}
+        {/* Row — ديسكتوب فقط */}
         <div
           dir="rtl"
-          className="grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 items-start py-2.5 text-xs"
+          className="hidden sm:grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 items-start py-2.5 text-xs"
         >
           {/* تحديد */}
           <div className="flex items-center justify-center pt-0.5" onClick={e => e.stopPropagation()}>
@@ -1530,6 +1530,128 @@ function InvoiceGroupDeliveryRow({
               <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{rep.deliveryNote}</p>
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
+            )}
+          </div>
+        </div>
+
+        {/* Card — موبايل فقط */}
+        <div dir="rtl" className="sm:hidden px-3 py-3 text-xs" onClick={e => e.stopPropagation()}>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {onToggleSelect && (
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={() => onToggleSelect(groupKey)}
+                  className="shrink-0 mt-0.5"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="font-semibold text-sm truncate">{rep.customerName}</p>
+                <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                  {invoiceNum && (
+                    <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono truncate max-w-full">
+                      {invoiceNum}
+                    </span>
+                  )}
+                  {(rep as any).senderName && (
+                    <span className="text-[9px] text-primary/80 font-semibold truncate">{(rep as any).senderName}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-0.5 shrink-0">
+              <span className="font-bold text-emerald-500">{formatCurrency(totalFullPrice)}</span>
+              {courierShippingCost != null && (
+                <span className="text-[10px] text-amber-500 font-semibold">شحن: {formatCurrency(courierShippingCost)}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground mb-2">
+            {rep.phone && <span className="font-mono">{rep.phone}</span>}
+            {rep.city && <span className="font-semibold">{rep.city}</span>}
+          </div>
+          {(rep as any).address && (
+            <p className="text-[10px] text-foreground/70 leading-relaxed mb-2">{(rep as any).address}</p>
+          )}
+
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              {hasMultipleStatuses && !hasMixedPartial ? (
+                <div className="flex flex-col gap-0.5">
+                  <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground w-fit">
+                    حالات متعددة
+                  </Badge>
+                  {group.map(o => {
+                    const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
+                    const label = (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity
+                      ? `×${o.partialQuantity}/${o.quantity} — ${formatCurrency(o.totalPrice ?? 0)}`
+                      : formatCurrency(o.totalPrice ?? 0);
+                    return (
+                      <p key={o.id} className={`text-[10px] font-medium ${opt.color}`}>
+                        {o.deliveryStatus === "delivered" ? "✓" :
+                         o.deliveryStatus === "returned" ? "✕" :
+                         (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") ? "◑" :
+                         (o.deliveryStatus === "postponed" || o.deliveryStatus === "delayed") ? "⏸" : "○"} {label}
+                      </p>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-0.5">
+                  <Badge variant="outline" className={`text-[9px] font-bold border w-fit ${displayOpt.bg} ${displayOpt.color}`}>
+                    {displayOpt.label}
+                  </Badge>
+                  <span className="text-[10px] text-emerald-500 font-semibold">مستلم: {formatCurrency(receivedAmount)}</span>
+                  {(displayStatus === "delayed" || displayStatus === "postponed") && (
+                    <p className="text-[10px] text-orange-400 font-semibold">⏸ {rep.deliveryNote || "لم يحدد السبب"}</p>
+                  )}
+                  {displayStatus === "returned" && (
+                    <p className="text-[10px] text-red-400">
+                      ↳ {(rep as any).returnReason ? (RETURN_REASONS.find(r => r.value === (rep as any).returnReason)?.label ?? (rep as any).returnReason) : "لم يحدد السبب"}
+                    </p>
+                  )}
+                  {(displayStatus === "partial_received" || displayStatus === "partial_delivered") && (
+                    <p className="text-[10px] text-teal-600 dark:text-teal-400">
+                      {(rep as any).returnReceived === 1 ? `↩ الباقي في مخزن ${(rep as any).warehouseName || "—"}` : "🚚 المرتجع ما زال عند مندوب الشحن"}
+                    </p>
+                  )}
+                </div>
+              )}
+              {rep.deliveryNote && !(displayStatus === "delayed" || displayStatus === "postponed") && (
+                <p className="text-[10px] text-foreground/70">{rep.deliveryNote}</p>
+              )}
+            </div>
+
+            {!locked && (
+              bulkEditing ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-[11px] px-2 text-muted-foreground shrink-0"
+                  onClick={() => setBulkEditing(false)}
+                >
+                  <X className="w-3.5 h-3.5 ml-1" />إلغاء
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[11px] px-2.5 text-primary hover:text-primary shrink-0"
+                  onClick={() => {
+                    setBulkEditing(true);
+                    setBulkStatus(groupStatus);
+                    setBulkNote(rep.deliveryNote ?? "");
+                    setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
+                    setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+                    setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
+                    const existingPartialReturn = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null;
+                    setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn);
+                  }}
+                >
+                  <Edit2 className="w-3.5 h-3.5 ml-1" />تقفيل
+                </Button>
+              )
             )}
           </div>
         </div>
@@ -4639,10 +4761,10 @@ export default function ShippingManifestPage() {
                     )}
                   </div>
                 </div>
-                {/* ══ رأس الجدول المحسَّن ══ */}
-                <div className="w-full overflow-x-auto">
-                <div className="min-w-[900px]">
-                <div dir="rtl" className="grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                {/* ══ رأس الجدول المحسَّن — ديسكتوب فقط ══ */}
+                <div className="w-full sm:overflow-x-auto">
+                <div className="sm:min-w-[900px]">
+                <div dir="rtl" className="hidden sm:grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── تحديد ─── */}
                   <div className="flex items-center justify-center h-9">
