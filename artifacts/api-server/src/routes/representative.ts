@@ -229,6 +229,7 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
   const all = await db.select({
     status: shipmentsTable.status, receiverCity: shipmentsTable.receiverCity,
     zoneName: shipmentZonesTable.name, codAmount: shipmentsTable.codAmount,
+    collectedAmount: shipmentsTable.collectedAmount,
   })
     .from(shipmentsTable)
     .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
@@ -241,7 +242,11 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
   const inProgress = all.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.status)).length;
   const deliveryRate = total > 0 ? Math.round(((delivered + partial) / total) * 100) : 0;
   const returnRate   = total > 0 ? Math.round((returned / total) * 100) : 0;
-  const totalCollected = all.filter(s => s.status === "delivered").reduce((sum, s) => sum + Number(s.codAmount ?? 0), 0);
+  // المحصّل الفعلي: يشمل التسليم الكامل والاستلام الجزئي، ويعتمد على collectedAmount (المبلغ الفعلي)
+  // مع fallback على codAmount لو collectedAmount مش متسجل
+  const totalCollected = all
+    .filter(s => s.status === "delivered" || s.status === "partial_received")
+    .reduce((sum, s) => sum + (Number(s.collectedAmount) > 0 ? Number(s.collectedAmount) : Number(s.codAmount ?? 0)), 0);
 
   const zoneMap = new Map<string, number>();
   for (const s of all) {
