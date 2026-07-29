@@ -1293,10 +1293,10 @@ function InvoiceGroupDeliveryRow({
           animationDelay: `${rowIndex * 45}ms`,
         }}
       >
-        {/* Row (fully responsive, no horizontal scroll) */}
+        {/* Row */}
         <div
           dir="rtl"
-          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 items-start py-2.5 text-xs"
+          className="grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 items-start py-2.5 text-xs"
         >
           {/* تحديد */}
           <div className="flex items-center justify-center pt-0.5" onClick={e => e.stopPropagation()}>
@@ -1309,7 +1309,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* اسم الراسل */}
-          <div className="hidden md:flex min-w-0 px-1.5 items-center overflow-hidden">
+          <div className="flex min-w-0 px-1.5 items-center overflow-hidden">
             {(rep as any).senderName ? (
               <p className="text-[10px] font-semibold text-primary/80 truncate">{(rep as any).senderName}</p>
             ) : (
@@ -1346,7 +1346,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* العنوان التفصيلي */}
-          <div className="hidden md:flex min-w-0 px-1.5 items-start overflow-hidden">
+          <div className="flex min-w-0 px-1.5 items-start overflow-hidden">
             {(rep as any).address ? (
               <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{(rep as any).address}</p>
             ) : (
@@ -1358,7 +1358,7 @@ function InvoiceGroupDeliveryRow({
             <span className="text-emerald-500 truncate">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* القيمة المستلمة (فعليًا) */}
-          <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
+          <div className="flex text-center px-1 items-center justify-center overflow-hidden">
             <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
           {/* تكلفة الشحن (المندوب) */}
@@ -1525,7 +1525,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* ملاحظات */}
-          <div className="hidden md:flex min-w-0 px-1.5 items-start overflow-hidden">
+          <div className="flex min-w-0 px-1.5 items-start overflow-hidden">
             {rep.deliveryNote ? (
               <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{rep.deliveryNote}</p>
             ) : (
@@ -4634,8 +4634,9 @@ export default function ShippingManifestPage() {
                   </div>
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
-                <div className="w-full">
-                <div dir="rtl" className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div className="w-full overflow-x-auto">
+                <div className="min-w-[900px]">
+                <div dir="rtl" className="grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── تحديد ─── */}
                   <div className="flex items-center justify-center h-9">
@@ -4647,7 +4648,7 @@ export default function ShippingManifestPage() {
                     />
                   </div>
                   {/* ─── اسم الراسل ─── */}
-                  <div className="hidden md:flex items-center gap-1 px-1.5 h-9 overflow-hidden">
+                  <div className="flex items-center gap-1 px-1.5 h-9 overflow-hidden">
                     <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
                     <span className="truncate">اسم الراسل</span>
                   </div>
@@ -4671,7 +4672,7 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── العنوان التفصيلي ─── */}
-                  <div className="hidden md:flex items-center gap-1 px-1.5 h-9 overflow-hidden">
+                  <div className="flex items-center gap-1 px-1.5 h-9 overflow-hidden">
                     <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7"/></svg>
                     <span className="truncate">العنوان</span>
                   </div>
@@ -4683,7 +4684,7 @@ export default function ShippingManifestPage() {
                     </div>
                   </div>
                   {/* ─── القيمة المستلمة (= سعر الشحنة) ─── */}
-                  <div className="hidden md:flex items-center justify-center gap-1 px-1 h-9 overflow-hidden">
+                  <div className="flex items-center justify-center gap-1 px-1 h-9 overflow-hidden">
                     <span className="truncate">مستلم</span>
                   </div>
                   {/* ─── تكلفة الشحن (المندوب) ─── */}
@@ -4696,7 +4697,7 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                   {/* ─── ملاحظات ─── */}
-                  <div className="hidden md:flex items-center gap-1 px-1.5 h-9 overflow-hidden">
+                  <div className="flex items-center gap-1 px-1.5 h-9 overflow-hidden">
                     <span className="truncate">ملاحظات</span>
                   </div>
                 </div>
@@ -4730,7 +4731,8 @@ export default function ShippingManifestPage() {
                   ))}
                   </div>
                 )}
-                </div>{/* end table container */}
+                </div>{/* end min-w wrapper */}
+                </div>{/* end overflow-x-auto wrapper */}
               </>
             )}
           </>
