@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
 import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
-import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle, Volume2, VolumeX, Wallet } from "lucide-react";
+import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle, Volume2, VolumeX, Wallet, Sun, Moon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { formatDistanceToNow } from "date-fns";
 import { RepRouteMap } from "@/components/rep-route-map";
+import { useTheme } from "@/contexts/ThemeContext";
 import { RETURN_REASONS } from "@/lib/order-constants";
 import { applyDeliveryReadyTemplate } from "@/lib/whatsapp";
 
@@ -2819,6 +2820,7 @@ function DesktopSidebar({
   open: boolean; onToggle: () => void; onClose: () => void;
 }) {
   const { logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [confirmingLogout, setConfirmingLogout] = useState(false);
   const activeItem = NAV_ITEMS.find(n => n.id === active)!;
   return (
@@ -2888,6 +2890,19 @@ function DesktopSidebar({
             <ChevronLeft className="w-[18px] h-[18px]" />
           </button>
 
+          {/* Theme toggle */}
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleTheme(); }}
+            className="w-11 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90"
+            title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
+            style={{
+              background: theme === "dark" ? "linear-gradient(135deg,#1e3a5f,#0f172a)" : "linear-gradient(135deg,#fbbf24,#f59e0b)",
+              boxShadow: theme === "dark" ? "0 0 8px rgba(96,165,250,0.35)" : "0 0 8px rgba(251,191,36,0.5)",
+            }}
+          >
+            {theme === "dark" ? <Moon className="w-4 h-4 text-blue-300" /> : <Sun className="w-4 h-4 text-white" />}
+          </button>
+
           {/* Logout */}
           <button
             onClick={(e) => { e.stopPropagation(); onToggle(); setConfirmingLogout(true); }}
@@ -2921,10 +2936,22 @@ function DesktopSidebar({
                 <Truck className="w-5 h-5 text-primary" />
               </div>
             )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-black truncate leading-tight">{company?.name ?? u?.displayName ?? "المندوب"}</p>
             <p className="text-[10px] text-muted-foreground">بوابة المندوب</p>
           </div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
+            className="w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0 active:scale-90"
+            style={{
+              background: theme === "dark" ? "linear-gradient(135deg,#1e3a5f,#0f172a)" : "linear-gradient(135deg,#fbbf24,#f59e0b)",
+              boxShadow: theme === "dark" ? "0 0 8px rgba(96,165,250,0.35)" : "0 0 8px rgba(251,191,36,0.5)",
+            }}
+          >
+            {theme === "dark" ? <Moon className="w-4 h-4 text-blue-300" /> : <Sun className="w-4 h-4 text-white" />}
+          </button>
         </div>
 
         {/* delivery rate pill */}
@@ -3955,6 +3982,7 @@ function HomeTab({ d, company, user, allShipments, onNavigate }: {
 
 export default function RepresentativeDashboard() {
   const { user, isRepresentative, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   // نقرأ آخر تاب كان مفتوح من sessionStorage عشان لو المندوب عمل refresh
@@ -4159,6 +4187,18 @@ export default function RepresentativeDashboard() {
               <h1 className="text-base font-black truncate leading-tight">{company?.name ?? user?.displayName}</h1>
               <p className="text-[11px] text-muted-foreground font-medium">بوابة المندوب · {user?.displayName}</p>
             </div>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0 active:scale-90"
+              style={{
+                background: theme === "dark" ? "linear-gradient(135deg,#1e3a5f,#0f172a)" : "linear-gradient(135deg,#fbbf24,#f59e0b)",
+                boxShadow: theme === "dark" ? "0 0 8px rgba(96,165,250,0.35)" : "0 0 8px rgba(251,191,36,0.5)",
+              }}
+            >
+              {theme === "dark" ? <Moon className="w-4 h-4 text-blue-300" /> : <Sun className="w-4 h-4 text-white" />}
+            </button>
             <button onClick={logout}
               className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded-xl hover:bg-destructive/10">
               <LogOut className="w-5 h-5" />
