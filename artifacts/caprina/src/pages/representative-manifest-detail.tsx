@@ -4863,7 +4863,15 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
-                    courierShippingCost={rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null}
+                    courierShippingCost={(() => {
+                      // أولوية لسعر منطقة الشحنة (zoneId) من قسم المناطق والأسعار،
+                      // وإلا نرجع للسعر الثابت على شركة الشحن كـ fallback
+                      const repFirst = group[0] as any;
+                      const zId = repFirst?.zoneId;
+                      const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
+                      if (zone?.price != null) return Number(zone.price);
+                      return rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null;
+                    })()}
                     manifestCompanyName={manifest.companyName}
                   />
                   ))}
