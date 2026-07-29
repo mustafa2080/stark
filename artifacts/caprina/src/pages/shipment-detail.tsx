@@ -3505,19 +3505,19 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 </Button>
               );
             })()}
-
-            {/* استعجال — جنب الإغلاق */}
-            {(["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
-              !!((order as any).manifestId ?? (manifestStatus as any)?.manifestId)) && (
-              <ShipmentUrgentButton
-                manifestId={(order as any).manifestId ?? (manifestStatus as any)?.manifestId ?? null}
-                shipmentId={id}
-                isUrgent={!!(order as any).isUrgent}
-                urgentNote={(order as any).urgentNote}
-                onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
-              />
-            )}
           </>)}
+
+          {/* استعجال — للكل (بما فيهم الأكونت المخصص/custom)، جنب الإغلاق */}
+          {(["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
+            !!((order as any).manifestId ?? (manifestStatus as any)?.manifestId)) && (
+            <ShipmentUrgentButton
+              manifestId={(order as any).manifestId ?? (manifestStatus as any)?.manifestId ?? null}
+              shipmentId={id}
+              isUrgent={!!(order as any).isUrgent}
+              urgentNote={(order as any).urgentNote}
+              onToggled={() => queryClient.invalidateQueries({ queryKey: ["shipment-detail", id] })}
+            />
+          )}
         </div>
       </div>
 
