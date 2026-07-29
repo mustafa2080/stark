@@ -1658,8 +1658,13 @@ const TASK_STATUS_PRIORITY: Record<string, { label: string; color: string; dot: 
 
 function TaskCard({ task }: { task: any }) {
   const { user } = useAuth();
-  const statusKey = task.isUrgent ? "urgent" : (task.deliveryStatus ?? task.status ?? "pending");
-  const info = TASK_STATUS_PRIORITY[statusKey] ?? TASK_STATUS_PRIORITY["waiting"];
+  const queryClient = useQueryClient();
+  const isUrgent = task.isUrgent;
+  const statusKey = task.status ?? task.deliveryStatus ?? "pending";
+  const label = isUrgent ? "مستعجل" : (STATUS_LABELS[statusKey] ?? statusKey);
+  const badgeColor = isUrgent
+    ? "bg-red-500/15 text-red-400 border-red-500/40"
+    : (STATUS_COLOR[statusKey] ?? "bg-zinc-500/15 text-zinc-400 border-zinc-500/30");
 
   const { data: waSettings } = useQuery({
     queryKey: ["whatsapp-settings"],
@@ -1705,9 +1710,8 @@ function TaskCard({ task }: { task: any }) {
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5 font-mono text-primary/60">{task.shipmentNumber}</p>
         </div>
-        <Badge variant="outline" className={`text-[9px] shrink-0 border ${info.color}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${info.dot} ml-1 inline-block`} />
-          {info.label}
+        <Badge variant="outline" className={`text-[9px] shrink-0 border ${badgeColor}`}>
+          {label}
         </Badge>
       </div>
 
