@@ -5146,12 +5146,12 @@ export default function ShippingManifestPage() {
     {/* ══════════════ PREVIEW MODAL ══════════════ */}
     {showPreview && createPortal(
       <div
-        className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/70 overflow-y-auto py-6"
+        className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/70 overflow-y-auto sm:py-6"
         onClick={(e) => { if (e.target === e.currentTarget) setShowPreview(false); }}
       >
-        <div className="bg-white rounded-xl shadow-2xl w-[210mm] max-w-[96vw] relative">
+        <div className="bg-white rounded-none sm:rounded-xl shadow-2xl w-full sm:w-[210mm] max-w-full sm:max-w-[96vw] h-full sm:h-auto relative">
           {/* شريط التحكم */}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-slate-800 rounded-t-xl sticky top-0 z-10">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-slate-800 rounded-t-none sm:rounded-t-xl sticky top-0 z-10">
             <span className="text-white text-sm font-bold">معاينة قبل الطباعة — {manifest.manifestNumber}</span>
             <div className="flex items-center gap-2">
               <button
@@ -5170,8 +5170,7 @@ export default function ShippingManifestPage() {
           </div>
           {/* المحتوى — iframe بيعرض نفس HTML الطباعة */}
           <iframe
-            className="w-full rounded-b-xl border-0"
-            style={{ height: "80vh" }}
+            className="w-full rounded-b-none sm:rounded-b-xl border-0 h-[calc(100vh-46px)] sm:h-[80vh]"
             srcDoc={(() => {
               const el = document.querySelector(".manifest-print") as HTMLElement | null;
               const html = el?.innerHTML ?? "";
@@ -5179,6 +5178,7 @@ export default function ShippingManifestPage() {
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -5231,6 +5231,29 @@ export default function ShippingManifestPage() {
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+
+    /* ── تكيّف مع شاشات الموبايل ── */
+    @media (max-width: 480px) {
+      body { padding: 4mm 3mm; font-size: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .mp-header { flex-direction: column; align-items: flex-start; gap: 3mm; }
+      .mp-header-right { width: 100%; justify-content: space-between; }
+      .mp-stark-name { font-size: 18px; }
+      .mp-title { font-size: 20px; }
+      .mp-meta { font-size: 11px; }
+      .mp-logo { width: 14mm; height: 14mm; }
+      .mp-company-name { font-size: 16px; }
+      .mp-stats { grid-template-columns: repeat(2, 1fr); }
+      .mp-stat { padding: 3mm 2mm; }
+      .mp-stat-lbl { font-size: 10px; }
+      .mp-stat-val { font-size: 18px; }
+      .mp-table { width: max-content; min-width: 100%; overflow-x: visible; }
+      .mp-table th, .mp-table td { font-size: 12px; padding: 2mm 2.5mm; }
+      .mp-totals { grid-template-columns: 1fr; gap: 2mm; }
+      .mp-total-lbl { font-size: 10px; }
+      .mp-total-val { font-size: 16px; }
+      .mp-footer { flex-direction: column; align-items: stretch; gap: 4mm; }
+      .mp-sig { min-width: 0; }
+    }
   </style>
 </head>
 <body>${html}</body>
