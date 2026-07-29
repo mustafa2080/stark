@@ -1945,17 +1945,17 @@ export default function Orders() {
                         {order.status === "warehouse_ready" && (order as any).warehouseName && (
                           <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-teal-500 dark:text-teal-400">📦 {(order as any).warehouseName}</span>
                         )}
-                        {order.status === "in_shipping" && (order as any).assignedUserName && (
+                        {(order.status === "in_shipping" || order.status === "in_transit") && (order as any).assignedUserName && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                             🚚 مع {(order as any).assignedUserName}
                           </span>
                         )}
-                        {order.status === "in_shipping" && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
+                        {(order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && (order as any).shippingCompanyName && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                             🚚 مع {(order as any).shippingCompanyName}
                           </span>
                         )}
-                        {order.status === "in_shipping" && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
+                        {(order.status === "in_shipping" || order.status === "in_transit") && !(order as any).assignedUserName && !(order as any).shippingCompanyName && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5">
                             🚚 عند شركة الشحن
                           </span>
