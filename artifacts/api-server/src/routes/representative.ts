@@ -149,6 +149,7 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
       returnReason: shipmentsTable.returnReason, zoneName: shipmentZonesTable.name,
       collectedAmount: shipmentsTable.collectedAmount, totalAmount: shipmentsTable.totalAmount,
       partialQuantity: shipmentsTable.partialQuantity, notes: shipmentsTable.notes,
+      isUrgent: shipmentsTable.isUrgent, urgentNote: shipmentsTable.urgentNote,
     })
       .from(shipmentsTable)
       .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
@@ -196,8 +197,9 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
 
   const rowsWithUrgent = rows.map(r => ({
     ...r,
-    isUrgent:   urgentMap.get(r.id)?.isUrgent ?? false,
-    urgentNote: urgentMap.get(r.id)?.urgentNote ?? null,
+    // أولوية لقيمة الاستعجال على مستوى الشحنة نفسها، مع fallback على آخر بيان (لو قديمة)
+    isUrgent:   r.isUrgent === 1 || (urgentMap.get(r.id)?.isUrgent ?? false),
+    urgentNote: r.urgentNote ?? urgentMap.get(r.id)?.urgentNote ?? null,
     items:      itemsMap.get(r.id) ?? [],
   }));
 

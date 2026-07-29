@@ -4324,6 +4324,20 @@ export default function RepresentativeDashboard() {
                 ))}
               </div>
 
+              {/* ── بانر الشحنات المستعجلة في تاب "الشحنات" (تنوير أحمر + صوت مستمر + كتم) ── */}
+              {(() => {
+                const urgentShipments = allShipments.filter((sh: any) => sh.isUrgent);
+                if (urgentShipments.length === 0) return null;
+                const bannerItems = urgentShipments.map((sh: any) => ({
+                  shipmentId: sh.id,
+                  customerName: sh.receiverName,
+                  phone: sh.receiverPhone,
+                  city: sh.receiverCity,
+                  urgentNote: sh.urgentNote,
+                }));
+                return <UrgentBanner urgentItems={bannerItems} />;
+              })()}
+
               {/* بحث بالاسم / رقم الهاتف */}
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
