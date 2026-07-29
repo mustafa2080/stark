@@ -4320,8 +4320,8 @@ export default function RepresentativeDashboard() {
                 )}
               </div>
 
-              {/* Shipments list — جدول واحد لكل الشاشات (ديسكتوب وموبايل) مع scroll أفقي */}
-              <div className="rounded-2xl border bg-card/60 overflow-x-auto">
+              {/* Shipments list — جدول للديسكتوب + كروت للموبايل */}
+              <div className="hidden sm:block rounded-2xl border bg-card/60 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
@@ -4389,6 +4389,76 @@ export default function RepresentativeDashboard() {
                     })}
                   </TableBody>
                 </Table>
+                {s?.data?.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
+                )}
+                {s?.data && s.data.length > 0 && filteredRepShipments.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">لا توجد نتائج مطابقة للبحث</p>
+                )}
+              </div>
+
+              {/* Shipments — كروت الموبايل */}
+              <div className="sm:hidden space-y-2.5">
+                {filteredRepShipments.map((sh: any) => {
+                  const waHref = buildShipmentWaHref(sh);
+                  return (
+                    <div key={sh.id} className={`rounded-xl border bg-card/60 p-3.5 ${sh.isUrgent ? "border-red-500/40 bg-red-500/5" : "border-border"}`}>
+                      {/* الصف الأول: رقم الشحنة + الحالة */}
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono text-sm font-bold text-primary truncate">{sh.shipmentNumber}</span>
+                          {sh.isUrgent && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-red-400 shrink-0">
+                              <Zap className="w-3 h-3 fill-red-400" /> مستعجل
+                            </span>
+                          )}
+                        </div>
+                        <Badge variant="outline" className={`text-[10px] font-bold border shrink-0 ${STATUS_COLOR[sh.status] ?? "border-border"}`}>
+                          {STATUS_LABELS[sh.status] ?? sh.status}
+                        </Badge>
+                      </div>
+
+                      {/* اسم المستلم */}
+                      <p className="text-sm font-semibold mb-1">{sh.receiverName || "—"}</p>
+
+                      {/* الهاتف + المحافظة */}
+                      <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground mb-2.5">
+                        {sh.receiverPhone && (
+                          <span className="font-mono">{sh.receiverPhone}</span>
+                        )}
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          {sh.receiverCity || "—"}
+                        </span>
+                        <span>
+                          {sh.createdAt ? format(new Date(sh.createdAt), "dd/MM/yyyy", { locale: ar }) : "—"}
+                        </span>
+                      </div>
+
+                      {/* الصف الأخير: COD + إجراءات */}
+                      <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/60">
+                        <span className="text-sm font-bold text-emerald-400">
+                          {formatCurrency(Number(sh.codAmount ?? 0) + Number(sh.shippingFee ?? 0))}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {sh.receiverPhone && (
+                            <a href={`tel:${sh.receiverPhone}`} title="اتصال بالعميل"
+                              className="flex items-center justify-center w-8 h-8 shrink-0 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+                              <Phone className="w-4 h-4" />
+                            </a>
+                          )}
+                          {waHref && (
+                            <a href={waHref} target="_blank" rel="noopener noreferrer" title="ابعت رسالة واتساب للعميل"
+                              className="flex items-center justify-center w-8 h-8 shrink-0 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
+                              <MessageCircle className="w-4 h-4" />
+                            </a>
+                          )}
+                          <ShipmentStatusEditor shipment={sh} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
                 {s?.data?.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-6">لا توجد شحنات</p>
                 )}
