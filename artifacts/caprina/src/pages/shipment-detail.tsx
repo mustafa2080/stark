@@ -3310,9 +3310,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </>)}
 
               {/* استعجال — جنب الإغلاق، يظهر بس لو الشحنة في بيان (مش مقتصر على الأدمن) */}
-              {!!(order as any).manifestId && (
+              {!!((order as any).manifestId ?? (manifestStatus as any)?.manifestId) && (
                 <ShipmentUrgentButton
-                  manifestId={(order as any).manifestId}
+                  manifestId={(order as any).manifestId ?? (manifestStatus as any).manifestId}
                   shipmentId={id}
                   isUrgent={!!(order as any).isUrgent}
                   urgentNote={(order as any).urgentNote}
@@ -3499,9 +3499,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             })()}
 
             {/* استعجال — جنب الإغلاق */}
-            {!!(order as any).manifestId && (
+            {!!((order as any).manifestId ?? (manifestStatus as any)?.manifestId) && (
               <ShipmentUrgentButton
-                manifestId={(order as any).manifestId}
+                manifestId={(order as any).manifestId ?? (manifestStatus as any).manifestId}
                 shipmentId={id}
                 isUrgent={!!(order as any).isUrgent}
                 urgentNote={(order as any).urgentNote}
