@@ -2783,6 +2783,15 @@ export const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: Reac
     glowColor: "rgba(139,92,246,0.35)",
   },
   {
+    id: "tasks",
+    label: "مهامي",
+    sublabel: "قائمة اليوم",
+    Icon: ListChecks,
+    activeColor: "text-orange-400",
+    activeBg: "bg-orange-500/15 border-orange-500/30",
+    glowColor: "rgba(249,115,22,0.35)",
+  },
+  {
     id: "shipments",
     label: "الشحنات",
     sublabel: "قائمة الطلبات",
@@ -2799,15 +2808,6 @@ export const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: Reac
     activeColor: "text-emerald-400",
     activeBg: "bg-emerald-500/15 border-emerald-500/30",
     glowColor: "rgba(52,211,153,0.35)",
-  },
-  {
-    id: "tasks",
-    label: "مهامي",
-    sublabel: "قائمة اليوم",
-    Icon: ListChecks,
-    activeColor: "text-orange-400",
-    activeBg: "bg-orange-500/15 border-orange-500/30",
-    glowColor: "rgba(249,115,22,0.35)",
   },
 ];
 
