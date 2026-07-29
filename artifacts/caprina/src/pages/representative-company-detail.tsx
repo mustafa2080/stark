@@ -1,7 +1,7 @@
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { shippingApi, shipmentsApi, shipmentManifestsApi, type ShipmentManifestListItem } from "@/lib/api";
+import { shippingApi, shipmentsApi, shipmentManifestsApi, apiFetch, type ShipmentManifestListItem } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   ArrowRight, Truck, FileText, Lock,
   CheckCircle2, RotateCcw, Clock, TrendingUp, TrendingDown,
   ChevronRight, Calendar, Package, Phone, Globe, X, Send,
-  MapPin, User, Search,
+  MapPin, User, Search, Wallet, DollarSign, History,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -115,7 +115,7 @@ export default function RepresentativeCompanyDetailPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo]     = useState("");
   const [shipmentSearch, setShipmentSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"manifests" | "shipments">("manifests");
+  const [activeTab, setActiveTab] = useState<"manifests" | "shipments" | "wallet">("manifests");
   const { can, isAdmin } = useAuth();
   const canFinancials = isAdmin || can("shipping.financials");
 
@@ -127,6 +127,30 @@ export default function RepresentativeCompanyDetailPage() {
     queryFn: () => shipmentManifestsApi.companyStats(companyId),
     enabled: !isNaN(companyId),
   });
+
+  // ── حساب المندوب المرتبط بالشركة (عشان نجيب محفظته) ──
+  const { data: repAccount } = useQuery({
+    queryKey: ["rep-account", companyId],
+    queryFn: () => apiFetch(`/shipping-companies/${companyId}/representative`).catch(() => null),
+    enabled: !isNaN(companyId) && canFinancials,
+    retry: false,
+  });
+  const repUserId = (repAccount as any)?.id;
+
+  // ── محفظة المندوب: الرصيد الحالي (من إحصائيات الشركة) + سجل التصفيات ──
+  const { data: dashForRep } = useQuery({
+    queryKey: ["rep-wallet-dashboard", companyId],
+    queryFn: () => apiFetch(`/representative/dashboard?companyId=${companyId}`),
+    enabled: !isNaN(companyId) && activeTab === "wallet" && canFinancials,
+  });
+  const { data: walletData, isLoading: walletLoading } = useQuery({
+    queryKey: ["rep-wallet", repUserId],
+    queryFn: () => apiFetch(`/representative/wallet?userId=${repUserId}`),
+    enabled: !!repUserId && activeTab === "wallet",
+  });
+  const walletTransactions = (walletData as any)?.transactions ?? [];
+  const totalSettled = (walletData as any)?.totalSettled ?? 0;
+  const currentBalance = (dashForRep as any)?.totalCollected ?? 0;
 
   const { data: shipmentsData, isLoading: shipmentsLoading } = useQuery({
     queryKey: ["company-shipments", companyId],
@@ -261,6 +285,19 @@ export default function RepresentativeCompanyDetailPage() {
           الشحنات
           {shipmentsData && <Badge variant="outline" className="text-[9px] ml-1">{shipmentsData.total}</Badge>}
         </button>
+        {canFinancials && (
+          <button
+            onClick={() => setActiveTab("wallet")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+              activeTab === "wallet"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            المحفظة
+          </button>
+        )}
       </div>
 
       {/* ─── Tab: Manifests ─── */}
@@ -440,6 +477,101 @@ export default function RepresentativeCompanyDetailPage() {
                 );
               })}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Tab: Wallet ─── */}
+      {activeTab === "wallet" && canFinancials && (
+        <div className="pt-3 space-y-4">
+          {!repUserId ? (
+            <div className="py-16 text-center">
+              <Wallet className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+              <p className="text-muted-foreground text-sm">لا يوجد حساب مندوب مرتبط بهذه الشركة</p>
+            </div>
+          ) : (
+            <>
+              {/* ── كارت الرصيد الحالي ── */}
+              <div className="rounded-2xl p-5 relative overflow-hidden"
+                style={{
+                  background: "linear-gradient(145deg, rgba(52,211,153,0.13) 0%, rgba(45,212,191,0.06) 50%, rgba(0,0,0,0.15) 100%)",
+                  border: "1px solid rgba(52,211,153,0.3)",
+                }}>
+                <span className="absolute -top-8 -left-8 w-32 h-32 rounded-full pointer-events-none"
+                  style={{ background: "radial-gradient(circle, rgba(52,211,153,0.14) 0%, transparent 70%)" }} />
+                <div className="flex items-center justify-between relative">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+                      style={{ background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)" }}>
+                      <Wallet className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground font-medium">الرصيد الحالي (غير المُقفل)</p>
+                      <p className="text-2xl font-black text-emerald-400 leading-tight">{formatCurrency(currentBalance)}</p>
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] text-muted-foreground">{repAccount?.displayName ?? "المندوب"}</p>
+                    <Badge variant="outline" className="text-[9px] font-bold border-emerald-800 bg-emerald-900/30 text-emerald-400 mt-1">
+                      نشط
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── إجمالي التصفيات (أرشيف) ── */}
+              <div className="grid grid-cols-2 gap-3">
+                <Card className="border-border bg-card p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+                    <DollarSign className="w-3 h-3" />إجمالي المُصفّى
+                  </p>
+                  <p className="text-xl font-black text-primary">{formatCurrency(totalSettled)}</p>
+                </Card>
+                <Card className="border-border bg-card p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+                    <History className="w-3 h-3" />عدد التصفيات
+                  </p>
+                  <p className="text-xl font-black">{walletTransactions.length}</p>
+                </Card>
+              </div>
+
+              {/* ── سجل التصفيات ── */}
+              <div>
+                <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5" />سجل تصفية البيانات
+                </p>
+                {walletLoading ? (
+                  <div className="py-10 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</div>
+                ) : walletTransactions.length === 0 ? (
+                  <div className="py-14 text-center">
+                    <History className="w-10 h-10 mx-auto mb-2 text-muted-foreground opacity-20" />
+                    <p className="text-muted-foreground text-sm">لا توجد تصفيات مسجّلة بعد</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {walletTransactions.map((t: any) => (
+                      <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/50 px-4 py-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-emerald-900/20 border border-emerald-800/40">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold truncate">
+                              {t.manifestNumber ? `تقفيل بيان ${t.manifestNumber}` : "تصفية رصيد"}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <Calendar className="w-2.5 h-2.5" />
+                              {format(new Date(t.createdAt), "yyyy/MM/dd - HH:mm")}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-sm font-black text-emerald-400 shrink-0">{formatCurrency(Number(t.amount))}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
