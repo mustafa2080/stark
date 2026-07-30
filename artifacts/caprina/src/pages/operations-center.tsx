@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
-import { ShipmentStatusDonut, WeeklyShipmentBars, StatusDistributionBars } from "@/components/charts-section";
+import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
 import {
   Search, Bell, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -1351,7 +1351,7 @@ export default function OperationsCenterPage() {
               <span className="text-xs text-muted-foreground">لا توجد شحنات بعد</span>
             </div>
           ) : (
-            <StatusDistributionBars data={statusDonutData} />
+            <ShipmentStatusDonut data={statusDonutData} total={statusDistTotal} />
           )}
         </div>
 
