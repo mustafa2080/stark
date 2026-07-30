@@ -1481,6 +1481,8 @@ export default function Layout({ children }: LayoutProps) {
             const customItems: BottomNavItem[] = [
               { href: "/shipping-followup", icon: Clock,   rgb: "34,211,238", label: "متابعة" },
               { href: "/shipments-list",    icon: Package, rgb: "251,146,60", label: "طلبات"  },
+              { href: "/orders/new",        icon: Plus,    rgb: "52,211,153", label: "جديد"   },
+              { href: "/shipping",          icon: Truck,   rgb: "56,189,248", label: "الشحن"  },
             ];
             return (
               <MobileBottomNav
