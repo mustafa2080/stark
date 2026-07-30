@@ -1483,14 +1483,40 @@ export default function Layout({ children }: LayoutProps) {
               { href: "/shipments-list",    icon: Package, rgb: "251,146,60", label: "طلبات",  exact: false },
             ];
             return (
-              <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2 rounded-t-3xl"
-                style={{
-                  background: "linear-gradient(180deg, rgba(18,16,10,0.98) 0%, rgba(8,7,4,1) 55%, rgba(3,3,2,1) 100%)",
-                  borderTop: "1px solid rgba(232,185,63,0.35)",
-                  boxShadow: "0 -6px 28px rgba(0,0,0,0.7), 0 -1px 0 rgba(232,185,63,0.25), inset 0 1px 0 rgba(232,185,63,0.2), inset 0 12px 24px -12px rgba(232,185,63,0.06)",
-                  backdropFilter: "blur(14px)",
-                }}
+              <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-end justify-around px-2 pb-2"
+                style={{ height: "72px", paddingTop: "0" }}
               >
+                {/* خلفية الشريط — بها فتحة/جزء مقطوع في النص أعلى الشريط عشان الزر السداسي يظهر بارز منها */}
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  viewBox="0 0 400 72"
+                  preserveAspectRatio="none"
+                  style={{ filter: "drop-shadow(0 -6px 20px rgba(0,0,0,0.7))" }}
+                >
+                  <defs>
+                    <linearGradient id="navBarGradCustom" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(18,16,10,0.98)" />
+                      <stop offset="55%" stopColor="rgba(8,7,4,1)" />
+                      <stop offset="100%" stopColor="rgba(3,3,2,1)" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d="M 0,20
+                       L 0,72 L 400,72 L 400,20
+                       Q 400,0 380,0
+                       L 245,0
+                       Q 232,0 228,10
+                       Q 218,34 200,34
+                       Q 182,34 172,10
+                       Q 168,0 155,0
+                       L 20,0
+                       Q 0,0 0,20 Z"
+                    fill="url(#navBarGradCustom)"
+                    stroke="rgba(232,185,63,0.35)"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+                <div className="relative z-10 flex items-end justify-around w-full pb-1">
                 {CUSTOM_BOTTOM_ITEMS.map(({ href, icon: Icon, label, exact }) => {
                   const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
                   return (
@@ -1565,6 +1591,7 @@ export default function Layout({ children }: LayoutProps) {
                     <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(239,68,68,0.55)" }}>خروج</span>
                   </div>
                 </button>
+                </div>
               </nav>
             );
           }
@@ -1603,14 +1630,40 @@ export default function Layout({ children }: LayoutProps) {
           const visible = allowed.slice(0, 5);
 
           return (
-            <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2 rounded-t-3xl"
-              style={{
-                background: "linear-gradient(180deg, rgba(18,16,10,0.98) 0%, rgba(8,7,4,1) 55%, rgba(3,3,2,1) 100%)",
-                borderTop: "1px solid rgba(232,185,63,0.35)",
-                boxShadow: "0 -6px 28px rgba(0,0,0,0.7), 0 -1px 0 rgba(232,185,63,0.25), inset 0 1px 0 rgba(232,185,63,0.2), inset 0 12px 24px -12px rgba(232,185,63,0.06)",
-                backdropFilter: "blur(14px)",
-              }}
+            <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-end justify-around px-2 pb-2"
+              style={{ height: "72px", paddingTop: "0" }}
             >
+              {/* خلفية الشريط — بها فتحة/جزء مقطوع في النص أعلى الشريط عشان الزر السداسي يظهر بارز منها */}
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox="0 0 400 72"
+                preserveAspectRatio="none"
+                style={{ filter: "drop-shadow(0 -6px 20px rgba(0,0,0,0.7))" }}
+              >
+                <defs>
+                  <linearGradient id="navBarGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(18,16,10,0.98)" />
+                    <stop offset="55%" stopColor="rgba(8,7,4,1)" />
+                    <stop offset="100%" stopColor="rgba(3,3,2,1)" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M 0,20
+                     L 0,72 L 400,72 L 400,20
+                     Q 400,0 380,0
+                     L 245,0
+                     Q 232,0 228,10
+                     Q 218,34 200,34
+                     Q 182,34 172,10
+                     Q 168,0 155,0
+                     L 20,0
+                     Q 0,0 0,20 Z"
+                  fill="url(#navBarGrad)"
+                  stroke="rgba(232,185,63,0.35)"
+                  strokeWidth="1.5"
+                />
+              </svg>
+              <div className="relative z-10 flex items-end justify-around w-full pb-1">
               {visible.map(({ href, icon: Icon, label, exact }) => {
                 const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
                 return (
@@ -1695,6 +1748,7 @@ export default function Layout({ children }: LayoutProps) {
                   <span style={{ fontSize: "9px", fontWeight: "500", color: "rgba(239,68,68,0.55)" }}>خروج</span>
                 </div>
               </button>
+              </div>
             </nav>
           );
         })()}
