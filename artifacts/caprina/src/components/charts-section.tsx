@@ -1574,6 +1574,173 @@ export const ShipmentStatusDonut = memo(function ShipmentStatusDonut({
   );
 });
 
+// ─── Status Distribution — horizontal bars (STARK gold theme) ───────────────
+// أيقونة صغيرة لكل حالة — نفس منطق الألوان بتاع STATUS_CFG
+const STATUS_BAR_ICON: Record<string, string> = {
+  pending: "⏰", waiting: "⏰",
+  warehouse_ready: "🏠", picked_up: "🏠", confirmed: "🏠",
+  in_shipping: "🚚", in_transit: "🚚", shipping: "🚚", out_for_delivery: "🚚",
+  received: "✓", delivered: "✓",
+  partial_received: "◑", partial_delivered: "◑",
+  returned: "✕", cancelled: "✕",
+  delayed: "⏸",
+};
+
+export const StatusDistributionBars = memo(function StatusDistributionBars({
+  data,
+}: {
+  data: { status: string; count: number; pct: number }[];
+}) {
+  const sorted = useMemo(() => {
+    const merged: Record<string, { status: string; count: number; pct: number }> = {};
+    for (const d of data) {
+      const key = d.status ?? "pending";
+      if (merged[key]) merged[key].count += d.count;
+      else merged[key] = { ...d, status: key };
+    }
+    const arr = Object.values(merged);
+    const t = arr.reduce((s, d) => s + d.count, 0);
+    return arr
+      .map(d => ({ ...d, pct: t > 0 ? Math.round((d.count / t) * 100) : 0 }))
+      .sort((a, b) => b.count - a.count);
+  }, [data]);
+
+  return (
+    <div className="rounded-2xl border border-[#2a2210] bg-[#0d0d0d] p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm sm:text-base font-bold text-[#e8c766]">توزيع الحالات</h3>
+        <span className="text-lg">📊</span>
+      </div>
+      <div className="space-y-3">
+        {sorted.map((d) => {
+          const cfg = SHIPMENT_STATUS_CFG[d.status] ?? { label: d.status, color: "#888" };
+          return (
+            <div key={d.status} className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0"
+                style={{ background: `${cfg.color}22`, color: cfg.color }}>
+                {STATUS_BAR_ICON[d.status] ?? "•"}
+              </span>
+              <span className="text-sm font-black w-9 shrink-0" style={{ color: cfg.color }}>{d.count}</span>
+              <span className="text-xs font-bold w-10 shrink-0" style={{ color: cfg.color }}>{d.pct}%</span>
+              <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden min-w-0">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(d.pct, 2)}%`, background: cfg.color, boxShadow: `0 0 8px ${cfg.color}80` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">{cfg.label}</span>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color, boxShadow: `0 0 6px ${cfg.color}` }} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ─── STARK Gold Hero Card — كونتينر ذهبي 3D (SVG/CSS) + عدّاد شحنات الأسبوع ──
+function ContainerGoldIllustration() {
+  return (
+    <svg viewBox="0 0 220 150" className="w-full h-full" style={{ maxHeight: 150 }}>
+      <defs>
+        <linearGradient id="stark-container-body" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#3a3222" />
+          <stop offset="50%" stopColor="#1c1810" />
+          <stop offset="100%" stopColor="#0c0a06" />
+        </linearGradient>
+        <linearGradient id="stark-container-top" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#4a4128" />
+          <stop offset="100%" stopColor="#221d10" />
+        </linearGradient>
+        <linearGradient id="stark-glow" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f0c452" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#f0c452" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* توهج أرضي */}
+      <ellipse cx="110" cy="128" rx="85" ry="10" fill="url(#stark-glow)" />
+
+      {/* قاعدة عائمة */}
+      <g>
+        <rect x="18" y="118" width="184" height="10" rx="5" fill="#151109" stroke="#3a2f14" strokeWidth="1" />
+        <rect x="24" y="121" width="60" height="2.5" rx="1.25" fill="#f0c452" opacity="0.85" />
+        <rect x="136" y="121" width="60" height="2.5" rx="1.25" fill="#f0c452" opacity="0.85" />
+      </g>
+
+      {/* جسم الكونتينر (منظور isometric) */}
+      <g>
+        {/* الوش الأمامي */}
+        <path d="M40 55 L130 40 L130 108 L40 122 Z" fill="url(#stark-container-body)" stroke="#524726" strokeWidth="1" />
+        {/* أضلاع الكونتينر */}
+        {Array.from({ length: 7 }).map((_, i) => (
+          <line key={i} x1={45 + i * 12.5} y1={56 - i * 0.6} x2={45 + i * 12.5} y2={120 - i * 0.6}
+            stroke="#000" strokeOpacity="0.25" strokeWidth="1.5" />
+        ))}
+        {/* الوش العلوي */}
+        <path d="M40 55 L88 32 L178 20 L130 40 Z" fill="url(#stark-container-top)" stroke="#5c4f2a" strokeWidth="1" />
+        {/* الوش الجانبي */}
+        <path d="M130 40 L178 20 L178 90 L130 108 Z" fill="#100d06" stroke="#3a2f14" strokeWidth="1" />
+
+        {/* شعار STARK */}
+        <text x="85" y="90" fontSize="15" fontWeight="900" fill="#f0c452" letterSpacing="1"
+          transform="rotate(-6 85 90)">STARK</text>
+      </g>
+
+      {/* إضاءة neon أسفل الكونتينر */}
+      <ellipse cx="110" cy="120" rx="70" ry="4" fill="#f0c452" opacity="0.5" />
+    </svg>
+  );
+}
+
+export function StarkGoldHeroCard({
+  weeklyTotal,
+  sparkData,
+}: {
+  weeklyTotal: number;
+  sparkData?: number[];
+}) {
+  const spark = sparkData && sparkData.length >= 2 ? sparkData : [3, 5, 4, 7, 6, 9, 8];
+  return (
+    <div className="relative rounded-2xl overflow-hidden border border-[#3a2f14] bg-gradient-to-b from-[#141108] to-[#0a0a0a] p-4 sm:p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+        {/* الكونتينر */}
+        <div className="h-36 sm:h-40 flex items-center justify-center">
+          <ContainerGoldIllustration />
+        </div>
+        {/* الرقم والعنوان */}
+        <div className="text-center sm:text-right">
+          <p className="text-xs sm:text-sm text-[#e8c766] font-bold mb-1">شحنات الأسبوع</p>
+          <p className="text-4xl sm:text-5xl font-black text-[#f0c452] leading-none" style={{ textShadow: "0 0 24px rgba(240,196,82,0.35)" }}>
+            {weeklyTotal.toLocaleString("ar-EG")}
+          </p>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-1.5">إجمالي الشحنات</p>
+          <div className="mt-3">
+            <MiniSparklineGold data={spark} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniSparklineGold({ data }: { data: number[] }) {
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const w = 160, h = 36;
+  const step = w / (data.length - 1);
+  const points = data.map((v, i) => `${i * step},${h - ((v - min) / range) * h}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9" preserveAspectRatio="none">
+      <polyline points={points} fill="none" stroke="#f0c452" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {data.map((v, i) => (
+        <circle key={i} cx={i * step} cy={h - ((v - min) / range) * h} r="2" fill="#f0c452" />
+      ))}
+    </svg>
+  );
+}
+
 // ─── Exported Component ──────────────────────────────────────────────────────
 export function ChartsSection() {
   const { data, isLoading } = useQuery({

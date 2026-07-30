@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
-import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
+import { ShipmentStatusDonut, WeeklyShipmentBars, StarkGoldHeroCard, StatusDistributionBars } from "@/components/charts-section";
 import {
   Search, Bell, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -1341,31 +1341,25 @@ export default function OperationsCenterPage() {
         );
       })()}
 
-      {/* ── توزيع حالات الشحنات + الشحنات الأسبوعية (منقول من لوحة التحكم) ── */}
+      {/* ── STARK Gold Hero: كونتينر ذهبي + شحنات الأسبوع + توزيع الحالات ── */}
+      <StarkGoldHeroCard
+        weeklyTotal={statusDistTotal}
+        sparkData={(shipmentChartsOc as any)?.weeklySpark ?? undefined}
+      />
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card className="oc-card xl:col-span-1 overflow-hidden">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 shrink-0" style={{ boxShadow: "0 0 8px #06b6d4cc, 0 0 20px #06b6d455" }} />
-              توزيع حالات الشحنات
-            </CardTitle>
-            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> مباشر
-            </span>
-          </CardHeader>
-          <CardContent>
-            {statusDistLoading && statusDonutData.length === 0 ? (
-              <div className="h-56 rounded bg-muted animate-pulse" />
-            ) : statusDonutData.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 gap-2">
-                <span className="text-3xl opacity-20">🚚</span>
-                <span className="text-xs text-muted-foreground">لا توجد شحنات بعد</span>
-              </div>
-            ) : (
-              <ShipmentStatusDonut data={statusDonutData} total={statusDistTotal} />
-            )}
-          </CardContent>
-        </Card>
+        <div className="xl:col-span-1">
+          {statusDistLoading && statusDonutData.length === 0 ? (
+            <div className="h-56 rounded-2xl bg-muted animate-pulse" />
+          ) : statusDonutData.length === 0 ? (
+            <div className="rounded-2xl border border-[#2a2210] bg-[#0d0d0d] flex flex-col items-center justify-center h-40 gap-2">
+              <span className="text-3xl opacity-20">🚚</span>
+              <span className="text-xs text-muted-foreground">لا توجد شحنات بعد</span>
+            </div>
+          ) : (
+            <StatusDistributionBars data={statusDonutData} />
+          )}
+        </div>
 
         <Card className="oc-card xl:col-span-2 overflow-hidden">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
