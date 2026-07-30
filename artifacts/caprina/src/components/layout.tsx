@@ -35,30 +35,53 @@ function HexActionButton({ href, label = "شحنة جديدة" }: { href: string
   const hexClip = "polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)";
   return (
     <Link href={href}>
+      <style>{`
+        @keyframes hexGlowPulse {
+          0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); }
+          50%      { opacity: 1;    transform: translateX(-50%) scale(1.25); }
+        }
+        @keyframes hexRimPulse {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(5,5,5,1), 0 3px 10px rgba(0,0,0,0.5), 0 6px 18px rgba(232,185,63,0.55), 0 0 26px rgba(232,185,63,0.4), inset 0 2px 3px rgba(255,255,255,0.55), inset 0 -3px 5px rgba(120,80,10,0.65); }
+          50%      { box-shadow: 0 0 0 3px rgba(5,5,5,1), 0 3px 10px rgba(0,0,0,0.5), 0 8px 26px rgba(232,185,63,0.85), 0 0 42px rgba(232,185,63,0.65), inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -3px 5px rgba(120,80,10,0.65); }
+        }
+      `}</style>
       <div className="flex flex-col items-center -mt-6 relative z-10">
-        {/* الزر السداسي البارز — حواف ذهبية سميكة، خلفية سوداء، توهج تحته */}
+        {/* الزر السداسي البارز — إحساس 3D حقيقي بحواف مشطوفة (bevel) وتوهج نابض */}
         <div
-          className="w-16 h-16 flex items-center justify-center relative transition-all duration-200 active:scale-90"
+          className="w-16 h-16 flex items-center justify-center relative transition-transform duration-200 active:scale-90"
           style={{
             clipPath: hexClip,
-            background: "linear-gradient(145deg, #f9d976 0%, #e8b93f 45%, #b8860b 100%)",
-            boxShadow: "0 0 0 3px rgba(5,5,5,1), 0 6px 20px rgba(232,185,63,0.6), 0 0 30px rgba(232,185,63,0.45)",
+            background: "linear-gradient(155deg, #fef2c4 0%, #f9d976 22%, #e8b93f 48%, #c9962a 72%, #8a6512 100%)",
+            animation: "hexRimPulse 2.4s ease-in-out infinite",
           }}
         >
-          {/* الطبقة السوداء الداخلية */}
+          {/* لمعة علوية (specular highlight) بتدي إحساس السطح المعدني المحدّب */}
           <div
-            className="absolute w-[calc(100%-6px)] h-[calc(100%-6px)] flex items-center justify-center"
+            className="absolute inset-0 pointer-events-none"
             style={{
               clipPath: hexClip,
-              background: "radial-gradient(circle at 50% 40%, rgba(10,10,10,0.95) 0%, rgba(5,5,5,1) 75%)",
+              background: "linear-gradient(160deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.08) 30%, transparent 55%)",
+            }}
+          />
+          {/* الطبقة السوداء الداخلية — غاطسة شوية لإحساس العمق */}
+          <div
+            className="absolute w-[calc(100%-7px)] h-[calc(100%-7px)] flex items-center justify-center"
+            style={{
+              clipPath: hexClip,
+              background: "radial-gradient(circle at 50% 38%, rgba(20,20,20,0.95) 0%, rgba(5,5,5,1) 72%)",
+              boxShadow: "inset 0 3px 6px rgba(0,0,0,0.85), inset 0 -1px 2px rgba(232,185,63,0.15)",
             }}
           >
-            <Plus style={{ width: "24px", height: "24px", color: "#f9d976" }} strokeWidth={2.5} />
+            <Plus style={{ width: "24px", height: "24px", color: "#f9d976", filter: "drop-shadow(0 0 5px rgba(249,217,118,0.7))" }} strokeWidth={2.5} />
           </div>
         </div>
-        {/* توهج ذهبي قوي تحت الزر فقط */}
-        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-10 h-3 pointer-events-none rounded-full"
-          style={{ background: "radial-gradient(ellipse, rgba(232,185,63,0.55) 0%, rgba(232,185,63,0) 75%)", filter: "blur(2px)" }} />
+        {/* توهج ذهبي نابض تحت الزر — بينور ويطفى */}
+        <div className="absolute -bottom-3 left-1/2 w-11 h-3.5 pointer-events-none rounded-full"
+          style={{
+            background: "radial-gradient(ellipse, rgba(249,217,118,0.75) 0%, rgba(232,185,63,0.35) 45%, rgba(232,185,63,0) 75%)",
+            filter: "blur(2.5px)",
+            animation: "hexGlowPulse 2.4s ease-in-out infinite",
+          }} />
         <span className="mt-1.5" style={{ fontSize: "9px", fontWeight: 700, color: "rgba(232,185,63,0.9)", letterSpacing: "0.02em" }}>{label}</span>
       </div>
     </Link>
