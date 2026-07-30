@@ -1073,8 +1073,12 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     await db.update(shipmentsTable).set(updateData).where(cond);
 
     // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها
+    // بنمرر returnReason كمان عشان لو القفل تم من مسار المندوب (representative-dashboard)
+    // اللي بيعدي من هنا، السبب ينزل صح في جدول الـ manifest items مش يفضل فاضي.
     if (updateData.status !== undefined) {
-      await syncShipmentStatusToManifests(id, updateData.status);
+      await syncShipmentStatusToManifests(id, updateData.status, {
+        returnReason: updateData.returnReason,
+      });
     }
 
     // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"

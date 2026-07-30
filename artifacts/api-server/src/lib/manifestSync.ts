@@ -55,19 +55,25 @@ const DELIVERY_TO_SHIPMENT_STATUS: Record<ManifestDeliveryStatus, string> = {
 export async function syncShipmentStatusToManifests(
   shipmentId: number,
   newShipmentStatus: string,
-  options?: { skipShipmentManifestItems?: boolean },
+  options?: { skipShipmentManifestItems?: boolean; returnReason?: string | null },
 ): Promise<void> {
   const mapped = SHIPMENT_STATUS_TO_DELIVERY[newShipmentStatus];
   if (!mapped) return; // حالة مش معروفة → متلمسش البيانات
 
   const now = new Date();
   const deliveredAt = (mapped === "delivered" || mapped === "partial_delivered") ? now : undefined;
+  // نمرر السبب لجدول البيان بس لو الحالة الجديدة فعلاً مرتجعة، عشان منمسحش
+  // أي سبب اتسجل قبل كده لو التحديث ده مالوش علاقة بالإرجاع.
+  const returnReasonPatch = (mapped === "returned" && options?.returnReason !== undefined)
+    ? { returnReason: options.returnReason }
+    : {};
 
   try {
     await db.update(clientAccountManifestItemsTable)
       .set({
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),
+        ...returnReasonPatch,
       })
       .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
   } catch (e) {
@@ -87,6 +93,7 @@ export async function syncShipmentStatusToManifests(
       .set({
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),
+        ...returnReasonPatch,
       })
       .where(eq(shipmentManifestItemsTable.shipmentId, shipmentId));
   } catch (e) {
