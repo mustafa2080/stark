@@ -1577,20 +1577,6 @@ export default function Layout({ children }: LayoutProps) {
                     <span style={{ fontSize: "9px", fontWeight: 500, color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.4)" }}>المزيد</span>
                   </div>
                 </button>
-                {/* خروج */}
-                <button type="button" onClick={logout}>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
-                      style={{
-                        clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
-                        background: "linear-gradient(150deg, rgba(239,68,68,0.10) 0%, rgba(239,68,68,0.03) 100%)",
-                        border: "1px solid rgba(239,68,68,0.15)",
-                      }}>
-                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.75} />
-                    </div>
-                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(239,68,68,0.55)" }}>خروج</span>
-                  </div>
-                </button>
                 </div>
               </nav>
             );
@@ -1626,8 +1612,8 @@ export default function Layout({ children }: LayoutProps) {
             return sectionOk && permOk;
           });
 
-          // خذ أول 5 فقط + زر المزيد
-          const visible = allowed.slice(0, 5);
+          // خذ أول 4 فقط + زر المزيد (عشان الشريط يفضل متجاوب وما يزدحمش على شاشات الموبايل الضيقة)
+          const visible = allowed.slice(0, 4);
 
           return (
             <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-end justify-around px-2 pb-2"
@@ -1663,14 +1649,14 @@ export default function Layout({ children }: LayoutProps) {
                   strokeWidth="1.5"
                 />
               </svg>
-              <div className="relative z-10 flex items-end justify-around w-full pb-1">
+              <div className="relative z-10 flex items-end justify-around w-full pb-1 px-0.5">
               {visible.map(({ href, icon: Icon, label, exact }) => {
                 const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
                 return (
-                  <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)}>
+                  <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="shrink min-w-0">
                     <div className="flex flex-col items-center gap-0.5 relative">
                       <div
-                        className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
+                        className="w-10 h-10 flex items-center justify-center transition-all duration-200 active:scale-90 shrink-0"
                         style={{
                           clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                           background: isActive
@@ -1683,16 +1669,16 @@ export default function Layout({ children }: LayoutProps) {
                         }}
                       >
                         <Icon style={{
-                          width: "20px", height: "20px",
+                          width: "18px", height: "18px",
                           color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
                           filter: isActive ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
                         }} strokeWidth={isActive ? 2 : 1.75} />
                       </div>
-                      <span style={{
-                        fontSize: "9px",
+                      <span className="whitespace-nowrap" style={{
+                        fontSize: "8.5px",
                         fontWeight: isActive ? "700" : "500",
                         color: isActive ? "#f9d976" : "rgba(232,185,63,0.4)",
-                        letterSpacing: "0.02em",
+                        letterSpacing: "0.01em",
                       }}>{label}</span>
                       {isActive && (
                         <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
@@ -1703,11 +1689,11 @@ export default function Layout({ children }: LayoutProps) {
                 );
               })}
               <HexActionButton href="/shipments/new" />
-              {/* زر المزيد — دايماً ظاهر */}
-              <button type="button" onClick={() => setMobileMenuOpen(true)}>
+              {/* زر المزيد — دايماً ظاهر، وفيه تسجيل الخروج جواه */}
+              <button type="button" onClick={() => setMobileMenuOpen(true)} className="shrink min-w-0">
                 <div className="flex flex-col items-center gap-0.5">
                   <div
-                    className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
+                    className="w-10 h-10 flex items-center justify-center transition-all duration-200 active:scale-90 shrink-0"
                     style={{
                       clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                       background: mobileMenuOpen
@@ -1720,32 +1706,15 @@ export default function Layout({ children }: LayoutProps) {
                     }}
                   >
                     <Menu style={{
-                      width: "20px", height: "20px",
+                      width: "18px", height: "18px",
                       color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)",
                       filter: mobileMenuOpen ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
                     }} strokeWidth={mobileMenuOpen ? 2 : 1.75} />
                   </div>
-                  <span style={{
-                    fontSize: "9px", fontWeight: "500",
+                  <span className="whitespace-nowrap" style={{
+                    fontSize: "8.5px", fontWeight: "500",
                     color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.4)",
                   }}>المزيد</span>
-                </div>
-              </button>
-
-              {/* زر تسجيل الخروج — دايماً ظاهر في الـ bottom bar */}
-              <button type="button" onClick={logout}>
-                <div className="flex flex-col items-center gap-0.5">
-                  <div
-                    className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
-                    style={{
-                      clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
-                      background: "linear-gradient(150deg, rgba(239,68,68,0.10) 0%, rgba(239,68,68,0.03) 100%)",
-                      border: "1px solid rgba(239,68,68,0.15)",
-                    }}
-                  >
-                    <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.75} />
-                  </div>
-                  <span style={{ fontSize: "9px", fontWeight: "500", color: "rgba(239,68,68,0.55)" }}>خروج</span>
                 </div>
               </button>
               </div>
