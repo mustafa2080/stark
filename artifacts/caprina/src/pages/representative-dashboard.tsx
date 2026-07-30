@@ -631,7 +631,6 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
               <MessageCircle className="w-3.5 h-3.5" />
             </a>
           )}
-          <ShipmentStatusEditor shipment={sh} onSaved={onSaved} />
         </div>
       </Card>
     );
@@ -735,7 +734,6 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
                   <MessageCircle className="w-3.5 h-3.5" />
                 </a>
               )}
-              <ShipmentStatusEditor shipment={sh} onSaved={onSaved} />
             </div>
           </div>
           {sh.returnReason && sh.status === "returned" && (
@@ -4431,7 +4429,6 @@ export default function RepresentativeDashboard() {
                                   <MessageCircle className="w-3.5 h-3.5" />
                                 </a>
                               )}
-                              <ShipmentStatusEditor shipment={sh} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rep-shipments"] })} />
                             </div>
                           </TableCell>
                         </TableRow>
