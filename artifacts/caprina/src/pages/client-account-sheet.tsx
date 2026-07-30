@@ -73,6 +73,8 @@ import {
   Download,
   Eye,
   Zap,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
@@ -3414,6 +3416,7 @@ export default function ShippingManifestPage() {
     qty: new Set(), total: new Set(), date: new Set(), status: new Set(),
   });
   const [showColFilters, setShowColFilters] = useState(false);
+  const [manifestViewMode, setManifestViewMode] = useState<"list" | "grid">("list");
   const [manifestCustomerSearch, setManifestCustomerSearch] = useState("");
   const [manifestProductSearch, setManifestProductSearch] = useState("");
   const [manifestTotalSearch, setManifestTotalSearch] = useState("");
@@ -4412,6 +4415,27 @@ export default function ShippingManifestPage() {
             )}
           </h2>
           <div className="flex items-center gap-2 shrink-0">
+            <div
+              className="hidden md:flex items-center rounded-lg border border-border overflow-hidden shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setManifestViewMode("grid")}
+                title="عرض شبكي"
+                className={`h-7 w-7 flex items-center justify-center transition-colors ${manifestViewMode === "grid" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setManifestViewMode("list")}
+                title="عرض قائمة"
+                className={`h-7 w-7 flex items-center justify-center border-r border-border transition-colors ${manifestViewMode === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <button
               type="button"
               onClick={(e) => {
@@ -4503,6 +4527,7 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن ══ */}
                 <div className="overflow-x-auto">
+                {manifestViewMode === "list" && (
                 <div dir="rtl" className="hidden md:grid grid-cols-[minmax(130px,1.5fr)_80px_90px_80px_75px_75px_140px] lg:grid-cols-[minmax(140px,1fr)_100px_minmax(160px,1.5fr)_120px_90px_80px_80px_80px_160px] min-w-0 lg:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── عمود العميل ─── */}
@@ -4573,6 +4598,7 @@ export default function ShippingManifestPage() {
                     {showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
                 </div>
+                )}
                 {displayGroups.length === 0 && colFilterHasActive ? (
                   <div className="p-6 text-center text-muted-foreground text-sm">
                     <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -4585,10 +4611,18 @@ export default function ShippingManifestPage() {
                     </button>
                   </div>
                 ) : (
-                  <div key={customerSearch}>
+                  <div
+                    key={customerSearch}
+                    className={manifestViewMode === "grid"
+                      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3"
+                      : undefined}
+                  >
                   {displayGroups.map((group, index) => (
-                  <InvoiceGroupDeliveryRow
+                  <div
                     key={group.map((order) => `${order.id}-${order.deliveryStatus}-${order.partialQuantity ?? 0}-${order.deliveryNote ?? ""}`).join("|")}
+                    className={manifestViewMode === "grid" ? "rounded-lg border border-border overflow-hidden" : undefined}
+                  >
+                  <InvoiceGroupDeliveryRow
                     group={group}
                     manifestId={id}
                     locked={isLocked && !isAdmin}
@@ -4599,6 +4633,7 @@ export default function ShippingManifestPage() {
                     isShipmentManifest={true}
                     courierShippingCost={rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null}
                   />
+                  </div>
                   ))}
                   </div>
                 )}
