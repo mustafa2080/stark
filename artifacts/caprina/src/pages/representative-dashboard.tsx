@@ -2788,7 +2788,7 @@ function RepresentativeDialog({
 // ===== END MERGED BLOCK =====
 
 
-// ─── NAV ITEMS definition ─────────────────────────────────────────────────────
+// ─── NAV ITEMS definition — هوية ذهبية موحّدة (نفس accent باقي الحسابات) ──────
 export type TabId = "home" | "performance" | "shipments" | "manifests" | "tasks" | "profile";
 export const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: React.ElementType; activeColor: string; activeBg: string; glowColor: string }[] = [
   {
@@ -2796,45 +2796,45 @@ export const NAV_ITEMS: { id: TabId; label: string; sublabel: string; Icon: Reac
     label: "الرئيسية",
     sublabel: "نظرة عامة",
     Icon: LayoutDashboard,
-    activeColor: "text-primary",
-    activeBg: "bg-primary/15 border-primary/30",
-    glowColor: "rgba(34,197,94,0.35)",
+    activeColor: "text-amber-400",
+    activeBg: "bg-amber-500/15 border-amber-500/30",
+    glowColor: "rgba(232,185,63,0.35)",
   },
   {
     id: "performance",
     label: "أدائي",
     sublabel: "الإحصائيات",
     Icon: TrendingUp,
-    activeColor: "text-violet-400",
-    activeBg: "bg-violet-500/15 border-violet-500/30",
-    glowColor: "rgba(139,92,246,0.35)",
+    activeColor: "text-amber-400",
+    activeBg: "bg-amber-500/15 border-amber-500/30",
+    glowColor: "rgba(232,185,63,0.35)",
   },
   {
     id: "tasks",
     label: "مهامي",
     sublabel: "قائمة اليوم",
     Icon: ListChecks,
-    activeColor: "text-orange-400",
-    activeBg: "bg-orange-500/15 border-orange-500/30",
-    glowColor: "rgba(249,115,22,0.35)",
+    activeColor: "text-amber-400",
+    activeBg: "bg-amber-500/15 border-amber-500/30",
+    glowColor: "rgba(232,185,63,0.35)",
   },
   {
     id: "shipments",
     label: "الشحنات",
     sublabel: "قائمة الطلبات",
     Icon: Package,
-    activeColor: "text-sky-400",
-    activeBg: "bg-sky-500/15 border-sky-500/30",
-    glowColor: "rgba(14,165,233,0.35)",
+    activeColor: "text-amber-400",
+    activeBg: "bg-amber-500/15 border-amber-500/30",
+    glowColor: "rgba(232,185,63,0.35)",
   },
   {
     id: "manifests",
     label: "البيانات",
     sublabel: "بيانات الشحن",
     Icon: ClipboardList,
-    activeColor: "text-emerald-400",
-    activeBg: "bg-emerald-500/15 border-emerald-500/30",
-    glowColor: "rgba(52,211,153,0.35)",
+    activeColor: "text-amber-400",
+    activeBg: "bg-amber-500/15 border-amber-500/30",
+    glowColor: "rgba(232,185,63,0.35)",
   },
 ];
 

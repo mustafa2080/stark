@@ -1496,8 +1496,8 @@ export default function Layout({ children }: LayoutProps) {
             );
           }
 
-          // ── حساب الأدمن/الفريق: identity أزرق ملكي ──
-          const ADMIN_ACCENT = "59,130,246";
+          // ── حساب الأدمن/الفريق: identity ذهبي (نفس هوية باقي الحسابات) ──
+          const ADMIN_ACCENT = "232,185,63";
 
           // قائمة المرشحين بترتيب الأولوية
           const BOTTOM_CANDIDATES: Array<{
