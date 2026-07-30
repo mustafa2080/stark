@@ -173,9 +173,10 @@ export function MobileBottomNav({
   userRoleLabel,
 }: MobileBottomNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
-  // الشريط: عنصرين شمال، الزر السداسي في النص، عنصرين + المزيد يمين
-  const left = items.slice(0, 2);
-  const right = items.slice(2, 4);
+  // توزيع متوازن حول الـ FAB: نص العناصر شمال والنص التاني يمين (يدعم 1، 2، 3، 4 عناصر)
+  const splitPoint = Math.ceil(items.length / 2);
+  const left = items.slice(0, splitPoint);
+  const right = items.slice(splitPoint);
 
   return (
     <>
