@@ -30,6 +30,27 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+// ── زر سداسي ذهبي بارز في نص الـ bottom nav — "شحنة جديدة" ────────────────────
+function HexActionButton({ href, label = "شحنة جديدة" }: { href: string; label?: string }) {
+  return (
+    <Link href={href}>
+      <div className="flex flex-col items-center -mt-6 relative z-10">
+        <div
+          className="w-14 h-14 flex items-center justify-center transition-all duration-200 active:scale-90"
+          style={{
+            clipPath: "polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)",
+            background: "linear-gradient(145deg, #f9d976 0%, #e8b93f 45%, #b8860b 100%)",
+            boxShadow: "0 0 0 3px rgba(5,5,5,1), 0 4px 18px rgba(232,185,63,0.55), 0 0 24px rgba(232,185,63,0.35)",
+          }}
+        >
+          <Plus style={{ width: "22px", height: "22px", color: "#0a0a0a" }} strokeWidth={3} />
+        </div>
+        <span className="mt-1" style={{ fontSize: "9px", fontWeight: 700, color: "rgba(232,185,63,0.9)" }}>{label}</span>
+      </div>
+    </Link>
+  );
+}
+
 const ALL_NAV = [
   { href: "/my-dashboard",      label: "لوحتي",              icon: LayoutDashboard, exact: true, permission: null, section: null, employeeOnly: true,  iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/operations-center", label: "لوحة التحكم",       icon: Layers,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-emerald-400",    group: "dashboard"    },
@@ -733,6 +754,8 @@ export default function Layout({ children }: LayoutProps) {
               <span style={{ fontSize: "9px", fontWeight: financeGroupActive ? 700 : 500, color: financeGroupActive ? "rgba(96,165,250,0.9)" : "rgba(255,255,255,0.35)" }}>التسويات</span>
             </div>
           </button>
+
+          <HexActionButton href="/client-shipments/new" />
 
           {/* باقي الروابط (بروفايلي / الالتقاط) */}
           {CLIENT_NAV.slice(1).map(item => {
@@ -1460,6 +1483,7 @@ export default function Layout({ children }: LayoutProps) {
                     </Link>
                   );
                 })}
+                <HexActionButton href="/shipments/new" />
                 {/* المزيد */}
                 <button type="button" onClick={() => setMobileMenuOpen(true)}>
                   <div className="flex flex-col items-center gap-0.5">
@@ -1570,6 +1594,7 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 );
               })}
+              <HexActionButton href="/shipments/new" />
               {/* زر المزيد — دايماً ظاهر */}
               <button type="button" onClick={() => setMobileMenuOpen(true)}>
                 <div className="flex flex-col items-center gap-0.5">
