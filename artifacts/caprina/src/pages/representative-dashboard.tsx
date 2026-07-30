@@ -1822,6 +1822,19 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
 
   return (
     <div className="space-y-4">
+      {/* ── بانر الشحنات المستعجلة في تاب "مهامي" (تنوير أحمر + صوت مستمر + كتم) ── */}
+      {urgentTasks.length > 0 && (
+        <UrgentBanner
+          urgentItems={urgentTasks.map((t: any) => ({
+            shipmentId: t.id,
+            customerName: t.receiverName,
+            phone: t.receiverPhone,
+            city: t.receiverCity,
+            urgentNote: t.urgentNote,
+          }))}
+        />
+      )}
+
       {/* ── Summary Strip ── */}
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-center">
