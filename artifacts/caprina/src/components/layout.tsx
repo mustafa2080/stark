@@ -1477,10 +1477,10 @@ export default function Layout({ children }: LayoutProps) {
             return (
               <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2 rounded-t-3xl"
                 style={{
-                  background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
-                  borderTop: "1px solid rgba(232,185,63,0.25)",
-                  boxShadow: "0 -4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,185,63,0.15)",
-                  backdropFilter: "blur(12px)",
+                  background: "linear-gradient(180deg, rgba(18,16,10,0.98) 0%, rgba(8,7,4,1) 55%, rgba(3,3,2,1) 100%)",
+                  borderTop: "1px solid rgba(232,185,63,0.35)",
+                  boxShadow: "0 -6px 28px rgba(0,0,0,0.7), 0 -1px 0 rgba(232,185,63,0.25), inset 0 1px 0 rgba(232,185,63,0.2), inset 0 12px 24px -12px rgba(232,185,63,0.06)",
+                  backdropFilter: "blur(14px)",
                 }}
               >
                 {CUSTOM_BOTTOM_ITEMS.map(({ href, icon: Icon, label, exact }) => {
@@ -1493,15 +1493,18 @@ export default function Layout({ children }: LayoutProps) {
                           style={{
                             clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                             background: isActive
-                              ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
-                              : "transparent",
-                            border: isActive ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
+                              ? "linear-gradient(150deg, rgba(249,217,118,0.35) 0%, rgba(232,185,63,0.22) 45%, rgba(184,134,11,0.15) 100%)"
+                              : "linear-gradient(150deg, rgba(232,185,63,0.05) 0%, rgba(232,185,63,0.02) 100%)",
+                            border: isActive ? "1px solid rgba(249,217,118,0.55)" : "1px solid rgba(232,185,63,0.08)",
+                            boxShadow: isActive
+                              ? "0 3px 12px rgba(232,185,63,0.35), 0 0 20px rgba(232,185,63,0.25), inset 0 1px 1px rgba(255,255,255,0.25)"
+                              : "none",
                           }}
                         >
                           <Icon style={{
                             width: "20px", height: "20px",
                             color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
-                            filter: isActive ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none",
+                            filter: isActive ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
                           }} strokeWidth={1.5} />
                         </div>
                         <span style={{
@@ -1527,12 +1530,15 @@ export default function Layout({ children }: LayoutProps) {
                       style={{
                         clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                         background: mobileMenuOpen
-                          ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
-                          : "transparent",
-                        border: mobileMenuOpen ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
+                          ? "linear-gradient(150deg, rgba(249,217,118,0.35) 0%, rgba(232,185,63,0.22) 45%, rgba(184,134,11,0.15) 100%)"
+                          : "linear-gradient(150deg, rgba(232,185,63,0.05) 0%, rgba(232,185,63,0.02) 100%)",
+                        border: mobileMenuOpen ? "1px solid rgba(249,217,118,0.55)" : "1px solid rgba(232,185,63,0.08)",
+                        boxShadow: mobileMenuOpen
+                          ? "0 3px 12px rgba(232,185,63,0.35), 0 0 20px rgba(232,185,63,0.25), inset 0 1px 1px rgba(255,255,255,0.25)"
+                          : "none",
                       }}
                     >
-                      <Menu style={{ width: "20px", height: "20px", color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)", filter: mobileMenuOpen ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none" }} strokeWidth={1.5} />
+                      <Menu style={{ width: "20px", height: "20px", color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)", filter: mobileMenuOpen ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none" }} strokeWidth={1.5} />
                     </div>
                     <span style={{ fontSize: "9px", fontWeight: 500, color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.4)" }}>المزيد</span>
                   </div>
@@ -1540,11 +1546,15 @@ export default function Layout({ children }: LayoutProps) {
                 {/* خروج */}
                 <button type="button" onClick={logout}>
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-11 h-11 flex items-center justify-center"
-                      style={{ clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)" }}>
-                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(232,185,63,0.55)" }} strokeWidth={1.5} />
+                    <div className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
+                      style={{
+                        clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
+                        background: "linear-gradient(150deg, rgba(239,68,68,0.10) 0%, rgba(239,68,68,0.03) 100%)",
+                        border: "1px solid rgba(239,68,68,0.15)",
+                      }}>
+                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.5} />
                     </div>
-                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(232,185,63,0.4)" }}>خروج</span>
+                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(239,68,68,0.55)" }}>خروج</span>
                   </div>
                 </button>
               </nav>
@@ -1587,10 +1597,10 @@ export default function Layout({ children }: LayoutProps) {
           return (
             <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2 rounded-t-3xl"
               style={{
-                background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
-                borderTop: "1px solid rgba(232,185,63,0.25)",
-                boxShadow: "0 -4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,185,63,0.15)",
-                backdropFilter: "blur(12px)",
+                background: "linear-gradient(180deg, rgba(18,16,10,0.98) 0%, rgba(8,7,4,1) 55%, rgba(3,3,2,1) 100%)",
+                borderTop: "1px solid rgba(232,185,63,0.35)",
+                boxShadow: "0 -6px 28px rgba(0,0,0,0.7), 0 -1px 0 rgba(232,185,63,0.25), inset 0 1px 0 rgba(232,185,63,0.2), inset 0 12px 24px -12px rgba(232,185,63,0.06)",
+                backdropFilter: "blur(14px)",
               }}
             >
               {visible.map(({ href, icon: Icon, label, exact }) => {
@@ -1603,15 +1613,18 @@ export default function Layout({ children }: LayoutProps) {
                         style={{
                           clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                           background: isActive
-                            ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
-                            : "transparent",
-                          border: isActive ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
+                            ? "linear-gradient(150deg, rgba(249,217,118,0.35) 0%, rgba(232,185,63,0.22) 45%, rgba(184,134,11,0.15) 100%)"
+                            : "linear-gradient(150deg, rgba(232,185,63,0.05) 0%, rgba(232,185,63,0.02) 100%)",
+                          border: isActive ? "1px solid rgba(249,217,118,0.55)" : "1px solid rgba(232,185,63,0.08)",
+                          boxShadow: isActive
+                            ? "0 3px 12px rgba(232,185,63,0.35), 0 0 20px rgba(232,185,63,0.25), inset 0 1px 1px rgba(255,255,255,0.25)"
+                            : "none",
                         }}
                       >
                         <Icon style={{
                           width: "20px", height: "20px",
                           color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
-                          filter: isActive ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none",
+                          filter: isActive ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
                         }} strokeWidth={1.5} />
                       </div>
                       <span style={{
@@ -1637,15 +1650,18 @@ export default function Layout({ children }: LayoutProps) {
                     style={{
                       clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                       background: mobileMenuOpen
-                        ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
-                        : "transparent",
-                      border: mobileMenuOpen ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
+                        ? "linear-gradient(150deg, rgba(249,217,118,0.35) 0%, rgba(232,185,63,0.22) 45%, rgba(184,134,11,0.15) 100%)"
+                        : "linear-gradient(150deg, rgba(232,185,63,0.05) 0%, rgba(232,185,63,0.02) 100%)",
+                      border: mobileMenuOpen ? "1px solid rgba(249,217,118,0.55)" : "1px solid rgba(232,185,63,0.08)",
+                      boxShadow: mobileMenuOpen
+                        ? "0 3px 12px rgba(232,185,63,0.35), 0 0 20px rgba(232,185,63,0.25), inset 0 1px 1px rgba(255,255,255,0.25)"
+                        : "none",
                     }}
                   >
                     <Menu style={{
                       width: "20px", height: "20px",
                       color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)",
-                      filter: mobileMenuOpen ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none",
+                      filter: mobileMenuOpen ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
                     }} strokeWidth={1.5} />
                   </div>
                   <span style={{
@@ -1660,11 +1676,15 @@ export default function Layout({ children }: LayoutProps) {
                 <div className="flex flex-col items-center gap-0.5">
                   <div
                     className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
-                    style={{ clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)" }}
+                    style={{
+                      clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
+                      background: "linear-gradient(150deg, rgba(239,68,68,0.10) 0%, rgba(239,68,68,0.03) 100%)",
+                      border: "1px solid rgba(239,68,68,0.15)",
+                    }}
                   >
-                    <LogOut style={{ width: "20px", height: "20px", color: "rgba(232,185,63,0.55)" }} strokeWidth={1.5} />
+                    <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.5} />
                   </div>
-                  <span style={{ fontSize: "9px", fontWeight: "500", color: "rgba(232,185,63,0.4)" }}>خروج</span>
+                  <span style={{ fontSize: "9px", fontWeight: "500", color: "rgba(239,68,68,0.55)" }}>خروج</span>
                 </div>
               </button>
             </nav>
