@@ -1306,7 +1306,9 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
     queryFn: () => apiFetch(`/shipment-manifests/${manifestId}`),
   });
   const manifest = data as any;
-  const locked = manifest?.status === "closed";
+  // البيان بيفضل status="open" فعليًا حتى لو المندوب قفله من عنده (قفل مؤقت) —
+  // اللي بيقفل المندوب فعليًا هو closedByRole، فبنعتمد عليه هنا بدل status
+  const locked = manifest?.status === "closed" || !!manifest?.closedByRole;
 
   const closeMutation = useMutation({
     mutationFn: () => apiFetch(`/shipment-manifests/${manifestId}`, {
@@ -1360,7 +1362,7 @@ function ManifestDetail({ manifestId, onBack }: { manifestId: number; onBack: ()
         </button>
         <Badge variant="outline" className={locked ? "border-red-500/30 text-red-400 bg-red-500/10" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"}>
           {locked ? <Lock className="w-3 h-3 ml-1" /> : <Unlock className="w-3 h-3 ml-1" />}
-          {locked ? "مغلق" : "مفتوح"}
+          {manifest?.status === "closed" ? "مغلق نهائيًا" : locked ? "بانتظار الأدمن" : "مفتوح"}
         </Badge>
       </div>
 
@@ -1562,21 +1564,24 @@ function RepManifestCard({ m, isLatest, onOpen }: { m: any; isLatest: boolean; o
   const returned = sc.returned ?? 0;
   const pending = (sc.pending ?? 0) + (sc.delayed ?? 0);
   const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+  // البيان "مقفول من ناحية المندوب" لو closedByRole مسجّلة، حتى لو status لسه "open"
+  // (قفل المندوب مؤقت وميغيّرش status — يفضل مفتوح عند الأدمن لحد ما يأكّد القفل)
+  const repClosed = m.status === "closed" || !!m.closedByRole;
 
   return (
     <div
       onClick={onOpen}
       className={`group flex items-stretch gap-0 hover:bg-muted/10 transition-colors cursor-pointer rounded-lg border ${
-        m.status === "closed" ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"
+        repClosed ? "border-border bg-card/50" : "border-primary/30 bg-primary/5"
       }`}
     >
-      <div className={`w-1 rounded-r-lg shrink-0 ${m.status === "closed" ? "bg-emerald-500" : "bg-blue-500"}`} />
+      <div className={`w-1 rounded-r-lg shrink-0 ${repClosed ? "bg-emerald-500" : "bg-blue-500"}`} />
       <div className="flex-1 px-4 py-3.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-black text-sm">{m.manifestNumber}</span>
-              {isLatest && m.status === "open" && (
+              {isLatest && !repClosed && (
                 <Badge variant="outline" className="text-[9px] border-primary/50 bg-primary/10 text-primary">الأحدث</Badge>
               )}
             </div>
@@ -1597,13 +1602,15 @@ function RepManifestCard({ m, isLatest, onOpen }: { m: any; isLatest: boolean; o
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Badge variant="outline" className={`text-[9px] font-bold border ${
-              m.status === "closed"
+              repClosed
                 ? "border-emerald-700 bg-emerald-900/20 text-emerald-400"
                 : "border-blue-700 bg-blue-900/20 text-blue-400"
             }`}>
               {m.status === "closed"
                 ? <><Lock className="w-2.5 h-2.5 inline ml-0.5" />مغلق</>
-                : <><Clock className="w-2.5 h-2.5 inline ml-0.5" />مفتوح</>}
+                : m.closedByRole === "representative"
+                  ? <><Lock className="w-2.5 h-2.5 inline ml-0.5" />بانتظار الأدمن</>
+                  : <><Clock className="w-2.5 h-2.5 inline ml-0.5" />مفتوح</>}
             </Badge>
             <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
           </div>

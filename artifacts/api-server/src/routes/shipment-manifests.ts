@@ -472,18 +472,20 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     };
     const now         = new Date();
 
-    // المندوب يقدر يعدّل بيانات شركته بس، وبشرط البيان يكون لسه مفتوح
+    // المندوب يقدر يعدّل بيانات شركته بس، وبشرط البيان يكون لسه مفتوح من ناحيته
+    // (نفحص closedByRole مش status بس — لأن قفل المندوب "مؤقت" وميغيّرش status)
     const reqUser = (req as any).user;
     if (reqUser?.role === "representative") {
       const [manifestRow] = await db.select({
         shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
         status: shipmentManifestsTable.status,
+        closedByRole: shipmentManifestsTable.closedByRole,
       }).from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, manifestId)).limit(1);
       if (!manifestRow || manifestRow.shippingCompanyId !== reqUser.shippingCompanyId) {
         res.status(403).json({ error: "غير مصرح بتعديل هذا البيان" });
         return;
       }
-      if (manifestRow.status === "closed") {
+      if (manifestRow.status === "closed" || manifestRow.closedByRole) {
         res.status(400).json({ error: "البيان مغلق — لا يمكن التعديل" });
         return;
       }
@@ -593,11 +595,12 @@ router.delete("/shipment-manifests/:id/items/:shipmentId", async (req, res): Pro
     const manifestId = Number(req.params.id);
     const shipmentId = Number(req.params.shipmentId);
 
-    // المندوب يقدر يمسح من بيان شركته بس، وبشرط البيان لسه مفتوح
+    // المندوب يقدر يمسح من بيان شركته بس، وبشرط البيان لسه مفتوح من ناحيته
     const reqUser = (req as any).user;
     const [manifestRow] = await db.select({
       shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
       status: shipmentManifestsTable.status,
+      closedByRole: shipmentManifestsTable.closedByRole,
     }).from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, manifestId)).limit(1);
 
     if (!manifestRow) { res.status(404).json({ error: "البيان غير موجود" }); return; }
@@ -607,7 +610,7 @@ router.delete("/shipment-manifests/:id/items/:shipmentId", async (req, res): Pro
         res.status(403).json({ error: "غير مصرح بتعديل هذا البيان" });
         return;
       }
-      if (manifestRow.status === "closed") {
+      if (manifestRow.status === "closed" || manifestRow.closedByRole) {
         res.status(400).json({ error: "البيان مغلق — لا يمكن التعديل" });
         return;
       }
@@ -1099,10 +1102,16 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const alreadyFinalClosed = manifestBeforeUpdate?.status === "closed" && manifestBeforeUpdate?.closedByRole === "admin";
 
     // المندوب يقدر يقفل بيانه بس — مش يعيد فتحه بعد الإغلاق (ده حصريًا للأدمن)، ومش يعدّل ملاحظات أو سعر فاتورة
+    // ملحوظة مهمة: قفل المندوب "قفل مؤقت" — البيان بيفضل status="open" فعليًا عند
+    // الأدمن (عشان يفضل ظاهر في كل الشاشات/الفلاتر اللي بتعرض "مفتوح")، وبس
+    // closedByRole="representative" هو اللي بيتسجل كعلامة "المندوب طلب القفل".
+    // فبنفحص closedByRole هنا مش status، عشان نمنع المندوب من التعديل تاني بعد
+    // ما يقفل، حتى لو الأدمن لسه ما أكّدش القفل النهائي.
     if (reqUser?.role === "representative") {
       const [existingManifest] = await db.select({
         shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
         status: shipmentManifestsTable.status,
+        closedByRole: shipmentManifestsTable.closedByRole,
       })
         .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
       if (!existingManifest || existingManifest.shippingCompanyId !== reqUser.shippingCompanyId) {
@@ -1113,7 +1122,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
         res.status(403).json({ error: "لا يمكن إعادة فتح بيان مُغلق — يرجى التواصل مع الأدمن" });
         return;
       }
-      if (existingManifest.status === "closed") {
+      if (existingManifest.status === "closed" || existingManifest.closedByRole) {
         res.status(403).json({ error: "هذا البيان مُغلق بالفعل ولا يمكن تعديله" });
         return;
       }
@@ -1143,9 +1152,16 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
       body = { status: body.status, notes: body.notes };
     }
 
+    // قفل المندوب "مؤقت" — البيان لازم يفضل status="open" فعليًا عند الأدمن (عشان
+    // يفضل ظاهر في كل شاشات/فلاتر "المفتوح")، وبس closedByRole="representative"
+    // هو اللي بيتسجل كعلامة "طلب قفل من المندوب" لحد ما الأدمن يأكّد القفل الفعلي.
+    // قفل الأدمن يفضل زي ما هو (status="closed" فعليًا + ترحيل مالي).
+    const isRepClose = body.status === "closed" && reqUser?.role === "representative";
+    const effectiveStatus = isRepClose ? "open" : body.status;
+
     await db.update(shipmentManifestsTable)
       .set({
-        ...(body.status ? { status: body.status } : {}),
+        ...(effectiveStatus ? { status: effectiveStatus } : {}),
         ...(body.notes !== undefined ? { notes: body.notes } : {}),
         ...(body.invoicePrice !== undefined ? { invoicePrice: String(body.invoicePrice) } : {}),
         ...(body.status === "closed" ? { closedAt: now } : {}),
@@ -1198,9 +1214,9 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           await pushNotification({
             tenantId: manifest.tenantId ?? null,
             type: "manifest_closed",
-            severity: "info",
-            title: `تم إغلاق البيان ${manifest.manifestNumber}`,
-            message: `تم إغلاق البيان ${manifest.manifestNumber} بواسطة المندوب ${userName ?? "غير معروف"} بتاريخ ${dateStr} الساعة ${timeStr}`,
+            severity: "warning",
+            title: `المندوب قفل البيان ${manifest.manifestNumber} — بانتظار قفلك النهائي`,
+            message: `المندوب ${userName ?? "غير معروف"} قفل البيان ${manifest.manifestNumber} من عنده بتاريخ ${dateStr} الساعة ${timeStr}. البيان لسه مفتوح عندك — راجعه واقفله نهائيًا لما يكون جاهز.`,
             entityType: "shipment_manifest",
             entityId: manifest.id,
             link: `/shipping/shipment-manifests/${manifest.id}`,
