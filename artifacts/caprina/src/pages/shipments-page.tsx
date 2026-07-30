@@ -1034,7 +1034,7 @@ export default function Orders() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: orders, isLoading } = useQuery({
+  const { data: ordersResponse, isLoading } = useQuery({
     // customerSearch بيدور client-side على البيانات الراجعة، فلو مفعّل لازم نجيب عدد أكبر
     // بكتير عشان الفلتر يقدر يوصل لكل الشحنات المطابقة مش أول 200 بس
     queryKey: ["shipments-list", debouncedSearch, status, dateFrom, dateTo, !!customerSearch],
@@ -1044,10 +1044,13 @@ export default function Orders() {
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),
       limit: customerSearch ? "5000" : "200",
-    }).toString()}`).then((res: any) => res.data ?? res),
+    }).toString()}`).then((res: any) => ({ data: res.data ?? res, total: res.total ?? (res.data ?? res).length })),
     staleTime: 15_000,
     gcTime: 60_000,
   });
+  // orders = المصفوفة المجلوبة فعليًا (محدودة بالـ limit)، ordersTotal = العدد الحقيقي الكلي من السيرفر
+  const orders = ordersResponse?.data;
+  const ordersTotal = ordersResponse?.total;
 
   // query منفصلة للإحصائيات — بدون فلتر حالة
   const { data: allOrdersForStats } = useQuery({
@@ -1425,8 +1428,8 @@ export default function Orders() {
             {orders && (
               <Badge variant="outline" className="text-xs font-bold align-middle">
                 {(hasActiveFilter || Object.values(colFilters).some(s => s.size > 0))
-                  ? `${displayRows.length} من ${orders.length}`
-                  : `${orders.length}`}
+                  ? `${displayRows.length} من ${ordersTotal ?? orders.length}`
+                  : `${ordersTotal ?? orders.length}`}
               </Badge>
             )}
           </h1>
