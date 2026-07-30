@@ -85,19 +85,18 @@ function BottomNavIcon({ item, location }: { item: BottomNavItem; location: stri
 // ── الزر السداسي البارز (FAB) ────────────────────────────────────────────
 function BottomNavFab({ href, label }: { href: string; label: string }) {
   return (
-    <Link href={href} className="relative -mt-7 shrink-0 z-10">
-      <div className="flex flex-col items-center">
+    <Link href={href} className="flex-1 min-w-0">
+      <div className="flex flex-col items-center justify-center gap-1 py-1.5">
         <div
-          className="w-14 h-14 rounded-full flex items-center justify-center transition-transform duration-200 active:scale-90"
+          className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
           style={{
             background: "linear-gradient(155deg, hsl(var(--primary)) 0%, hsl(var(--primary)/.75) 100%)",
-            boxShadow:
-              "0 4px 14px hsl(var(--primary)/0.45), 0 0 0 4px hsl(var(--background)), inset 0 1px 1px rgba(255,255,255,0.35)",
+            boxShadow: "0 2px 8px hsl(var(--primary)/0.4)",
           }}
         >
-          <Plus className="w-6 h-6 text-primary-foreground" strokeWidth={2.5} />
+          <Plus className="w-5 h-5 text-primary-foreground" strokeWidth={2.25} />
         </div>
-        <span className="mt-1 text-[10px] font-bold text-primary whitespace-nowrap">{label}</span>
+        <span className="text-[10px] font-semibold text-primary truncate max-w-full px-0.5">{label}</span>
       </div>
     </Link>
   );
