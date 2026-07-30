@@ -1505,7 +1505,7 @@ export default function Layout({ children }: LayoutProps) {
                             width: "20px", height: "20px",
                             color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
                             filter: isActive ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
-                          }} strokeWidth={1.5} />
+                          }} strokeWidth={isActive ? 2 : 1.75} />
                         </div>
                         <span style={{
                           fontSize: "9px",
@@ -1538,7 +1538,7 @@ export default function Layout({ children }: LayoutProps) {
                           : "none",
                       }}
                     >
-                      <Menu style={{ width: "20px", height: "20px", color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)", filter: mobileMenuOpen ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none" }} strokeWidth={1.5} />
+                      <Menu style={{ width: "20px", height: "20px", color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)", filter: mobileMenuOpen ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none" }} strokeWidth={mobileMenuOpen ? 2 : 1.75} />
                     </div>
                     <span style={{ fontSize: "9px", fontWeight: 500, color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.4)" }}>المزيد</span>
                   </div>
@@ -1552,7 +1552,7 @@ export default function Layout({ children }: LayoutProps) {
                         background: "linear-gradient(150deg, rgba(239,68,68,0.10) 0%, rgba(239,68,68,0.03) 100%)",
                         border: "1px solid rgba(239,68,68,0.15)",
                       }}>
-                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.5} />
+                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.75} />
                     </div>
                     <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(239,68,68,0.55)" }}>خروج</span>
                   </div>
@@ -1625,7 +1625,7 @@ export default function Layout({ children }: LayoutProps) {
                           width: "20px", height: "20px",
                           color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
                           filter: isActive ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
-                        }} strokeWidth={1.5} />
+                        }} strokeWidth={isActive ? 2 : 1.75} />
                       </div>
                       <span style={{
                         fontSize: "9px",
@@ -1662,7 +1662,7 @@ export default function Layout({ children }: LayoutProps) {
                       width: "20px", height: "20px",
                       color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)",
                       filter: mobileMenuOpen ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
-                    }} strokeWidth={1.5} />
+                    }} strokeWidth={mobileMenuOpen ? 2 : 1.75} />
                   </div>
                   <span style={{
                     fontSize: "9px", fontWeight: "500",
@@ -1682,7 +1682,7 @@ export default function Layout({ children }: LayoutProps) {
                       border: "1px solid rgba(239,68,68,0.15)",
                     }}
                   >
-                    <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.5} />
+                    <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.65)", filter: "drop-shadow(0 0 4px rgba(239,68,68,0.3))" }} strokeWidth={1.75} />
                   </div>
                   <span style={{ fontSize: "9px", fontWeight: "500", color: "rgba(239,68,68,0.55)" }}>خروج</span>
                 </div>
