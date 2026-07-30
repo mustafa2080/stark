@@ -1,6 +1,0 @@
-feat: عرض اسم المندوب عند قفل البيان + closedByUserId في السكيما
-
-- إضافة closedByUserId في shipment_manifests (مين قفل البيان فعليًا)
-- عرض "تم تقفيل البيان من المندوب [الاسم]" في شاشة الأدمن وشاشة المندوب
-- closedByName مُرجعة من GET /shipment-manifests/:id
-- migration SQL: lib/db/add_closed_by_user_id.sql (يُشغَّل على السيرفر بعد الـ deploy)
