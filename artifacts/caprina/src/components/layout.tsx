@@ -35,39 +35,30 @@ function HexActionButton({ href, label = "شحنة جديدة" }: { href: string
   const hexClip = "polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)";
   return (
     <Link href={href}>
-      <div className="flex flex-col items-center -mt-7 relative z-10">
-        {/* شعاع ضوئي طالع من فوق الزر */}
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-[2px] h-5 pointer-events-none"
-          style={{ background: "linear-gradient(to top, rgba(232,185,63,0.9), rgba(232,185,63,0))", filter: "blur(0.5px)" }} />
-        {/* البئر السداسي الغاطس */}
+      <div className="flex flex-col items-center -mt-6 relative z-10">
+        {/* الزر السداسي البارز — حواف ذهبية سميكة، خلفية سوداء، توهج تحته */}
         <div
-          className="w-16 h-16 flex items-center justify-center relative"
+          className="w-16 h-16 flex items-center justify-center relative transition-all duration-200 active:scale-90"
           style={{
             clipPath: hexClip,
-            background: "radial-gradient(circle at 50% 40%, rgba(0,0,0,0.9) 0%, rgba(5,5,5,1) 70%)",
-            boxShadow: "0 0 0 2px rgba(232,185,63,0.5), inset 0 4px 10px rgba(0,0,0,0.9), inset 0 -1px 2px rgba(232,185,63,0.15)",
+            background: "linear-gradient(145deg, #f9d976 0%, #e8b93f 45%, #b8860b 100%)",
+            boxShadow: "0 0 0 3px rgba(5,5,5,1), 0 6px 20px rgba(232,185,63,0.6), 0 0 30px rgba(232,185,63,0.45)",
           }}
         >
-          {/* نقوش هندسية ذهبية دقيقة داخل البئر */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ clipPath: hexClip }} viewBox="0 0 64 64">
-            <polygon points="32,10 54,22 54,46 32,58 10,46 10,22" fill="none" stroke="rgba(232,185,63,0.25)" strokeWidth="0.6" />
-            <polygon points="32,18 47,26 47,42 32,50 17,42 17,26" fill="none" stroke="rgba(232,185,63,0.15)" strokeWidth="0.5" />
-          </svg>
-          {/* الزر الذهبي المركزي */}
+          {/* الطبقة السوداء الداخلية */}
           <div
-            className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90 relative"
+            className="absolute w-[calc(100%-6px)] h-[calc(100%-6px)] flex items-center justify-center"
             style={{
               clipPath: hexClip,
-              background: "linear-gradient(145deg, #f9d976 0%, #e8b93f 45%, #b8860b 100%)",
-              boxShadow: "0 3px 12px rgba(232,185,63,0.6), 0 0 18px rgba(232,185,63,0.4), inset 0 1px 1px rgba(255,255,255,0.4)",
+              background: "radial-gradient(circle at 50% 40%, rgba(10,10,10,0.95) 0%, rgba(5,5,5,1) 75%)",
             }}
           >
-            <Plus style={{ width: "18px", height: "18px", color: "#0a0a0a" }} strokeWidth={3} />
+            <Plus style={{ width: "24px", height: "24px", color: "#f9d976" }} strokeWidth={2.5} />
           </div>
         </div>
-        {/* شعاع ضوئي نازل تحت الزر */}
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[2px] h-4 pointer-events-none"
-          style={{ background: "linear-gradient(to bottom, rgba(232,185,63,0.7), rgba(232,185,63,0))", filter: "blur(0.5px)" }} />
+        {/* توهج ذهبي قوي تحت الزر فقط */}
+        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-10 h-3 pointer-events-none rounded-full"
+          style={{ background: "radial-gradient(ellipse, rgba(232,185,63,0.55) 0%, rgba(232,185,63,0) 75%)", filter: "blur(2px)" }} />
         <span className="mt-1.5" style={{ fontSize: "9px", fontWeight: 700, color: "rgba(232,185,63,0.9)", letterSpacing: "0.02em" }}>{label}</span>
       </div>
     </Link>
@@ -1461,9 +1452,8 @@ export default function Layout({ children }: LayoutProps) {
               { href: "/shipments-list",    icon: Package, rgb: "251,146,60", label: "طلبات",  exact: false },
             ];
             return (
-              <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2"
+              <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2 rounded-t-3xl"
                 style={{
-                  clipPath: "polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
                   background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
                   borderTop: "1px solid rgba(232,185,63,0.25)",
                   boxShadow: "0 -4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,185,63,0.15)",
@@ -1572,9 +1562,8 @@ export default function Layout({ children }: LayoutProps) {
           const visible = allowed.slice(0, 5);
 
           return (
-            <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2"
+            <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2 rounded-t-3xl"
               style={{
-                clipPath: "polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
                 background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
                 borderTop: "1px solid rgba(232,185,63,0.25)",
                 boxShadow: "0 -4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,185,63,0.15)",
