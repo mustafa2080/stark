@@ -1516,8 +1516,9 @@ export default function Layout({ children }: LayoutProps) {
                     strokeWidth="1.5"
                   />
                 </svg>
-                <div className="relative z-10 flex items-end justify-around w-full pb-1">
-                {CUSTOM_BOTTOM_ITEMS.map(({ href, icon: Icon, label, exact }) => {
+                <div className="relative z-10 flex items-end w-full pb-1">
+                <div className="flex-1 flex items-end justify-around">
+                {CUSTOM_BOTTOM_ITEMS.slice(0, 1).map(({ href, icon: Icon, label, exact }) => {
                   const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
                   return (
                     <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)}>
@@ -1555,7 +1556,49 @@ export default function Layout({ children }: LayoutProps) {
                     </Link>
                   );
                 })}
-                <HexActionButton href="/shipments/new" />
+                </div>
+
+                <div className="w-14 shrink-0" />
+
+                <div className="flex-1 flex items-end justify-around">
+                {CUSTOM_BOTTOM_ITEMS.slice(1).map(({ href, icon: Icon, label, exact }) => {
+                  const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
+                  return (
+                    <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)}>
+                      <div className="flex flex-col items-center gap-0.5 relative">
+                        <div
+                          className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
+                          style={{
+                            clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
+                            background: isActive
+                              ? "linear-gradient(150deg, rgba(249,217,118,0.35) 0%, rgba(232,185,63,0.22) 45%, rgba(184,134,11,0.15) 100%)"
+                              : "linear-gradient(150deg, rgba(232,185,63,0.05) 0%, rgba(232,185,63,0.02) 100%)",
+                            border: isActive ? "1px solid rgba(249,217,118,0.55)" : "1px solid rgba(232,185,63,0.08)",
+                            boxShadow: isActive
+                              ? "0 3px 12px rgba(232,185,63,0.35), 0 0 20px rgba(232,185,63,0.25), inset 0 1px 1px rgba(255,255,255,0.25)"
+                              : "none",
+                          }}
+                        >
+                          <Icon style={{
+                            width: "20px", height: "20px",
+                            color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
+                            filter: isActive ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
+                          }} strokeWidth={isActive ? 2 : 1.75} />
+                        </div>
+                        <span style={{
+                          fontSize: "9px",
+                          fontWeight: isActive ? "700" : "500",
+                          color: isActive ? "#f9d976" : "rgba(232,185,63,0.4)",
+                          letterSpacing: "0.02em",
+                        }}>{label}</span>
+                        {isActive && (
+                          <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                            style={{ background: "rgba(232,185,63,0.9)", boxShadow: "0 0 6px rgba(232,185,63,1)" }} />
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
                 {/* المزيد */}
                 <button type="button" onClick={() => setMobileMenuOpen(true)}>
                   <div className="flex flex-col items-center gap-0.5">
@@ -1577,6 +1620,12 @@ export default function Layout({ children }: LayoutProps) {
                     <span style={{ fontSize: "9px", fontWeight: 500, color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.4)" }}>المزيد</span>
                   </div>
                 </button>
+                </div>
+                </div>
+
+                {/* الزر السداسي — absolute في نص الشريط تماماً */}
+                <div className="absolute z-20" style={{ left: "50%", transform: "translateX(-50%)", bottom: "0" }}>
+                  <HexActionButton href="/shipments/new" />
                 </div>
               </nav>
             );
@@ -1649,8 +1698,10 @@ export default function Layout({ children }: LayoutProps) {
                   strokeWidth="1.5"
                 />
               </svg>
-              <div className="relative z-10 flex items-end justify-around w-full pb-1 px-0.5">
-              {visible.map(({ href, icon: Icon, label, exact }) => {
+              <div className="relative z-10 flex items-end w-full pb-1 px-0.5">
+              {/* نصف الأيقونات الشمال (أول 2 من visible) */}
+              <div className="flex-1 flex items-end justify-around">
+              {visible.slice(0, 2).map(({ href, icon: Icon, label, exact }) => {
                 const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
                 return (
                   <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="shrink min-w-0">
@@ -1688,7 +1739,51 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 );
               })}
-              <HexActionButton href="/shipments/new" />
+              </div>
+
+              {/* فراغ ثابت في المنتصف تحت الزر السداسي (الزر نفسه absolute) */}
+              <div className="w-14 shrink-0" />
+
+              {/* نصف الأيقونات اليمين (باقي visible + المزيد) */}
+              <div className="flex-1 flex items-end justify-around">
+              {visible.slice(2).map(({ href, icon: Icon, label, exact }) => {
+                const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
+                return (
+                  <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="shrink min-w-0">
+                    <div className="flex flex-col items-center gap-0.5 relative">
+                      <div
+                        className="w-10 h-10 flex items-center justify-center transition-all duration-200 active:scale-90 shrink-0"
+                        style={{
+                          clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
+                          background: isActive
+                            ? "linear-gradient(150deg, rgba(249,217,118,0.35) 0%, rgba(232,185,63,0.22) 45%, rgba(184,134,11,0.15) 100%)"
+                            : "linear-gradient(150deg, rgba(232,185,63,0.05) 0%, rgba(232,185,63,0.02) 100%)",
+                          border: isActive ? "1px solid rgba(249,217,118,0.55)" : "1px solid rgba(232,185,63,0.08)",
+                          boxShadow: isActive
+                            ? "0 3px 12px rgba(232,185,63,0.35), 0 0 20px rgba(232,185,63,0.25), inset 0 1px 1px rgba(255,255,255,0.25)"
+                            : "none",
+                        }}
+                      >
+                        <Icon style={{
+                          width: "18px", height: "18px",
+                          color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
+                          filter: isActive ? "drop-shadow(0 0 6px rgba(232,185,63,0.85))" : "none",
+                        }} strokeWidth={isActive ? 2 : 1.75} />
+                      </div>
+                      <span className="whitespace-nowrap" style={{
+                        fontSize: "8.5px",
+                        fontWeight: isActive ? "700" : "500",
+                        color: isActive ? "#f9d976" : "rgba(232,185,63,0.4)",
+                        letterSpacing: "0.01em",
+                      }}>{label}</span>
+                      {isActive && (
+                        <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                          style={{ background: "rgba(232,185,63,0.9)", boxShadow: "0 0 6px rgba(232,185,63,1)" }} />
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
               {/* زر المزيد — دايماً ظاهر، وفيه تسجيل الخروج جواه */}
               <button type="button" onClick={() => setMobileMenuOpen(true)} className="shrink min-w-0">
                 <div className="flex flex-col items-center gap-0.5">
@@ -1717,6 +1812,12 @@ export default function Layout({ children }: LayoutProps) {
                   }}>المزيد</span>
                 </div>
               </button>
+              </div>
+              </div>
+
+              {/* الزر السداسي — absolute في نص الشريط تماماً، مستقل عن عدد العناصر بالجانبين */}
+              <div className="absolute z-20" style={{ left: "50%", transform: "translateX(-50%)", bottom: "0" }}>
+                <HexActionButton href="/shipments/new" />
               </div>
             </nav>
           );
