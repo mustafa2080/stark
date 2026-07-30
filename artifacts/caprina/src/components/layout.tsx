@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MobileBottomNav, type BottomNavItem } from "@/components/mobile-bottom-nav";
+import { ProfessionalBottomNav, type NavItem as BottomNavItem } from "@/components/professional-bottom-nav";
 
 // ── أيقونة واتساب الحقيقية ────────────────────────────────────────────────────
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -1474,20 +1474,21 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
-        {/* ── Bottom Navigation Bar (mobile only) — احترافي، shadcn Sheet للمزيد ── */}
+        {/* ── Bottom Navigation Bar (mobile only) — احترافي، انيميشن spring + shadcn Sheet للمزيد ── */}
         {(() => {
-          // ── حساب "مخصص" (custom): bottom bar مبسّط بترتيب ثابت — متابعة / طلبات / المزيد / خروج ──
+          // ── حساب "مخصص" (custom): identity ذهبي — bottom bar مبسّط بترتيب ثابت ──
+          const CUSTOM_ACCENT = "232,185,63";
           if (user?.role === "custom") {
             const customItems: BottomNavItem[] = [
-              { href: "/shipping-followup", icon: Clock,   rgb: "34,211,238", label: "متابعة" },
-              { href: "/shipments-list",    icon: Package, rgb: "251,146,60", label: "طلبات"  },
+              { id: "followup", href: "/shipping-followup", icon: Clock,   label: "متابعة" },
+              { id: "orders",   href: "/shipments-list",    icon: Package, label: "طلبات"  },
             ];
             return (
-              <MobileBottomNav
+              <ProfessionalBottomNav
                 location={location}
                 items={customItems}
                 moreItems={customItems}
-                fabHref="/shipments/new"
+                accent={CUSTOM_ACCENT}
                 onLogout={logout}
                 userDisplayName={user?.displayName}
                 userRoleLabel={getRoleLabel(user)}
@@ -1495,26 +1496,29 @@ export default function Layout({ children }: LayoutProps) {
             );
           }
 
+          // ── حساب الأدمن/الفريق: identity أزرق ملكي ──
+          const ADMIN_ACCENT = "59,130,246";
+
           // قائمة المرشحين بترتيب الأولوية
           const BOTTOM_CANDIDATES: Array<{
             section: string; href: string; icon: any;
-            rgb: string; label: string; exact?: boolean;
+            label: string; exact?: boolean;
             permCheck?: string;
           }> = [
-            { section: "section_dashboard",         href: "/",               icon: LayoutDashboard, rgb: "96,165,250",  label: "الرئيسية", exact: true },
-            { section: "section_orders",            href: "/shipments-list", icon: Package,         rgb: "251,146,60",  label: "الطلبات"  },
-            { section: "section_new_order",         href: "/orders/new",     icon: Plus,            rgb: "52,211,153",  label: "جديد"     },
-            { section: "section_inventory",         href: "/inventory",      icon: Boxes,           rgb: "167,139,250", label: "الأنواع" },
-            { section: "section_invoices",          href: "/invoices",       icon: FileText,        rgb: "250,204,21",  label: "فواتير الشحن" },
-            { section: "section_finance",           href: "/finance",        icon: DollarSign,      rgb: "52,211,153",  label: "الماليات", permCheck: "finance.view" },
-            { section: "section_smart_analytics",   href: "/smart",          icon: Brain,           rgb: "232,121,249", label: "ذكاء"    },
-            { section: "section_shipping",          href: "/shipping",       icon: Truck,           rgb: "56,189,248",  label: "الشحن"   },
-            { section: "section_shipping_followup", href: "/shipping-followup", icon: Clock,        rgb: "34,211,238",  label: "متابعة"  },
-            { section: "section_team_management",   href: "/team",           icon: UserCog,         rgb: "163,230,53",  label: "الفريق"  },
-            { section: "section_users",             href: "/users",          icon: Users,           rgb: "74,222,128",  label: "المستخدمين" },
-            { section: "section_movements",         href: "/movements",      icon: Activity,        rgb: "192,132,252", label: "الحركات" },
-            { section: "section_import",            href: "/import",         icon: Upload,          rgb: "251,191,36",  label: "استيراد" },
-            { section: "section_ads_analytics",     href: "/ads-analytics",  icon: Megaphone,       rgb: "251,113,133", label: "الإعلانات" },
+            { section: "section_dashboard",         href: "/",               icon: LayoutDashboard, label: "الرئيسية", exact: true },
+            { section: "section_orders",            href: "/shipments-list", icon: Package,         label: "الطلبات"  },
+            { section: "section_new_order",         href: "/orders/new",     icon: Plus,            label: "جديد"     },
+            { section: "section_inventory",         href: "/inventory",      icon: Boxes,           label: "الأنواع" },
+            { section: "section_invoices",          href: "/invoices",       icon: FileText,        label: "فواتير الشحن" },
+            { section: "section_finance",           href: "/finance",        icon: DollarSign,      label: "الماليات", permCheck: "finance.view" },
+            { section: "section_smart_analytics",   href: "/smart",          icon: Brain,           label: "ذكاء"    },
+            { section: "section_shipping",          href: "/shipping",       icon: Truck,           label: "الشحن"   },
+            { section: "section_shipping_followup", href: "/shipping-followup", icon: Clock,        label: "متابعة"  },
+            { section: "section_team_management",   href: "/team",           icon: UserCog,         label: "الفريق"  },
+            { section: "section_users",             href: "/users",          icon: Users,           label: "المستخدمين" },
+            { section: "section_movements",         href: "/movements",      icon: Activity,        label: "الحركات" },
+            { section: "section_import",            href: "/import",         icon: Upload,          label: "استيراد" },
+            { section: "section_ads_analytics",     href: "/ads-analytics",  icon: Megaphone,       label: "الإعلانات" },
           ];
 
           // فلتر حسب الصلاحيات — نفس منطق الـ sidebar
@@ -1523,16 +1527,16 @@ export default function Layout({ children }: LayoutProps) {
             const sectionOk = can(c.section);
             const permOk = c.permCheck ? can(c.permCheck) : true;
             return sectionOk && permOk;
-          });
+          }).map(c => ({ id: c.section, href: c.href, icon: c.icon, label: c.label, exact: c.exact }));
 
           const visible = allowed.slice(0, 4);
 
           return (
-            <MobileBottomNav
+            <ProfessionalBottomNav
               location={location}
               items={visible}
               moreItems={allowed}
-              fabHref="/shipments/new"
+              accent={ADMIN_ACCENT}
               onLogout={logout}
               userDisplayName={user?.displayName}
               userRoleLabel={getRoleLabel(user)}

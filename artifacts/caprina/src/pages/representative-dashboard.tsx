@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, type ShippingCompany, type Shipment } from "@/lib/api";
 import { Redirect, useLocation, Link } from "wouter";
+import { motion } from "framer-motion";
 import ShippingCompaniesPage from "@/pages/representative-shipping-companies";
 import { Truck, Package, CheckCircle2, RotateCcw, Clock, MapPin, AlertCircle, FileText, Lock, CheckCheck, AlertTriangle, Hourglass, ChevronRight, ChevronLeft, Unlock, PackageCheck, Award, BarChart3, Phone, DollarSign, ShieldCheck, Activity, ArrowUp, ArrowDown, Minus, LayoutDashboard, ClipboardList, TrendingUp, Zap, ListChecks, PlayCircle, PhoneCall, LogOut, Calendar, Star, PackagePlus, ChevronDown, ChevronUp, TrendingDown, Search, Check, ChevronsUpDown, X as XIcon, ImagePlus, KeyRound, UserPlus, Edit2, Save, MessageCircle, Volume2, VolumeX, Wallet, Sun, Moon } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -3082,16 +3083,18 @@ function DesktopSidebar({
   );
 }
 
-// ─── Mobile Bottom Nav ────────────────────────────────────────────────────────
+// ─── Mobile Bottom Nav — احترافي، انيميشن spring (liquid pill) بدل fade بسيط ──
 export function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
-  const activeIndex = NAV_ITEMS.findIndex(n => n.id === active);
   return (
     <nav
       dir="rtl"
       className="md:hidden fixed bottom-0 right-0 left-0 z-50 flex justify-center px-3"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
     >
-      <div
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
         className="flex items-stretch gap-0.5 rounded-[26px] px-1.5 py-1.5 w-full max-w-md"
         style={{
           background: "rgba(20,20,26,0.72)",
@@ -3101,35 +3104,42 @@ export function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect:
           boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset",
         }}
       >
-        {NAV_ITEMS.map((item, i) => {
+        {NAV_ITEMS.map((item) => {
           const isActive = active === item.id;
           return (
-            <button
+            <motion.button
               key={item.id}
               onClick={() => onSelect(item.id)}
-              className="relative flex-1 flex flex-col items-center justify-center py-2 gap-1 rounded-[20px] transition-all duration-300"
+              whileTap={{ scale: 0.86 }}
+              transition={{ type: "spring", stiffness: 500, damping: 22 }}
+              className="relative flex-1 flex flex-col items-center justify-center py-2 gap-1 rounded-[20px]"
             >
               {isActive && (
-                <span
-                  className="absolute inset-0 rounded-[20px] transition-all duration-300"
+                <motion.span
+                  layoutId="repNavActivePill"
+                  className="absolute inset-0 rounded-[20px]"
                   style={{
                     background: item.glowColor.replace("0.35", "0.16"),
                     boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.25")} inset`,
                   }}
+                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
                 />
               )}
-              <span className="relative flex items-center justify-center transition-transform duration-300"
-                style={{ transform: isActive ? "translateY(-1px) scale(1.05)" : "none" }}>
-                <item.Icon className={`w-[19px] h-[19px] transition-colors duration-300 ${isActive ? item.activeColor : "text-muted-foreground/70"}`} />
-              </span>
-              <span className={`relative text-[9.5px] font-bold transition-all duration-300 ${isActive ? item.activeColor : "text-muted-foreground/70"}`}
+              <motion.span
+                className="relative flex items-center justify-center"
+                animate={{ y: isActive ? -1 : 0, scale: isActive ? 1.12 : 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 20 }}
+              >
+                <item.Icon className={`w-[19px] h-[19px] transition-colors duration-200 ${isActive ? item.activeColor : "text-muted-foreground/70"}`} />
+              </motion.span>
+              <span className={`relative text-[9.5px] font-bold transition-all duration-200 ${isActive ? item.activeColor : "text-muted-foreground/70"}`}
                 style={{ opacity: isActive ? 1 : 0.85 }}>
                 {item.label}
               </span>
-            </button>
+            </motion.button>
           );
         })}
-      </div>
+      </motion.div>
     </nav>
   );
 }
