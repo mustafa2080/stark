@@ -4416,14 +4416,14 @@ export default function ShippingManifestPage() {
           </h2>
           <div className="flex items-center gap-2 shrink-0">
             <div
-              className="hidden md:flex items-center rounded-lg border border-border overflow-hidden shrink-0"
+              className="flex items-center gap-0.5 rounded-full bg-muted/60 p-1 shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
                 onClick={() => setManifestViewMode("grid")}
                 title="عرض شبكي"
-                className={`h-7 w-7 flex items-center justify-center transition-colors ${manifestViewMode === "grid" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
+                className={`h-7 w-9 flex items-center justify-center rounded-full transition-colors ${manifestViewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
               </button>
@@ -4431,9 +4431,10 @@ export default function ShippingManifestPage() {
                 type="button"
                 onClick={() => setManifestViewMode("list")}
                 title="عرض قائمة"
-                className={`h-7 w-7 flex items-center justify-center border-r border-border transition-colors ${manifestViewMode === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
+                className={`h-7 flex items-center gap-1 px-2.5 rounded-full transition-colors ${manifestViewMode === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
               >
                 <List className="w-3.5 h-3.5" />
+                {manifestViewMode === "list" && <Check className="w-3 h-3" />}
               </button>
             </div>
             <button
