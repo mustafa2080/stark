@@ -1393,7 +1393,7 @@ export default function Layout({ children }: LayoutProps) {
                   </div>
                 )}
               </nav>
-              <div className="border-t border-sidebar-border p-3 space-y-2">
+              <div className="border-t border-sidebar-border p-3 space-y-2 shrink-0 max-h-[45vh] overflow-y-auto" style={{ paddingBottom: "calc(72px + env(safe-area-inset-bottom, 0px) + 12px)" }}>
                 {/* Theme Toggle — أنيق */}
                 <button
                   type="button"
