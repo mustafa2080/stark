@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
-import { ShipmentStatusDonut, WeeklyShipmentBars, StarkGoldHeroCard, StatusDistributionBars } from "@/components/charts-section";
+import { ShipmentStatusDonut, WeeklyShipmentBars, StatusDistributionBars } from "@/components/charts-section";
 import {
   Search, Bell, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
@@ -1340,12 +1340,6 @@ export default function OperationsCenterPage() {
           />
         );
       })()}
-
-      {/* ── STARK Gold Hero: كونتينر ذهبي + شحنات الأسبوع + توزيع الحالات ── */}
-      <StarkGoldHeroCard
-        weeklyTotal={statusDistTotal}
-        sparkData={(shipmentChartsOc as any)?.weeklySpark ?? undefined}
-      />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-1">
