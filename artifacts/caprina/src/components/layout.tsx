@@ -1252,8 +1252,16 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* ── Main content ── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile header */}
-        <header className="border-b border-sidebar-border/40 bg-sidebar md:hidden print:hidden shrink-0">
+        {/* Mobile header — نفس استايل الشريط السفلي: خلفية سودا + برواز ذهبي + زوايا مقطوعة + glow */}
+        <header
+          className="md:hidden print:hidden shrink-0 rounded-b-3xl relative z-10"
+          style={{
+            background: "linear-gradient(180deg, rgba(18,16,10,0.98) 0%, rgba(8,7,4,1) 55%, rgba(3,3,2,1) 100%)",
+            borderBottom: "1px solid rgba(232,185,63,0.35)",
+            boxShadow: "0 6px 28px rgba(0,0,0,0.7), 0 1px 0 rgba(232,185,63,0.25), inset 0 -1px 0 rgba(232,185,63,0.2), inset 0 -12px 24px -12px rgba(232,185,63,0.06)",
+            backdropFilter: "blur(14px)",
+          }}
+        >
           <div className="flex items-center justify-between px-3 h-12 gap-2">
 
             {/* ── وسط: brand logo + name (same style as desktop) ── */}
