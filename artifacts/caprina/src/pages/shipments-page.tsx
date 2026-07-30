@@ -1552,17 +1552,24 @@ export default function Orders() {
               <Button
                 className="gap-2 font-bold text-sm border-0 relative overflow-hidden"
                 style={{
-                  background: "linear-gradient(135deg, #6b7280 0%, #d1d5db 35%, #9ca3af 60%, #6b7280 100%)",
-                  color: "#1a1a1a",
-                  boxShadow: "0 2px 12px rgba(156,163,175,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
-                  textShadow: "0 1px 0 rgba(255,255,255,0.4)",
+                  background: "linear-gradient(135deg, #8a6512 0%, #f9d976 35%, #e8b93f 65%, #b8860b 100%)",
+                  color: "#1a1206",
+                  boxShadow: "0 3px 14px rgba(232,185,63,0.5), 0 0 24px rgba(232,185,63,0.3), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 4px rgba(120,80,10,0.4)",
+                  textShadow: "0 1px 0 rgba(255,255,255,0.35)",
+                  animation: "shipmentBtnGlow 2.4s ease-in-out infinite",
                 }}
                 onClick={() => navigate("/shipments/new")}
               >
+                <style>{`
+                  @keyframes shipmentBtnGlow {
+                    0%, 100% { box-shadow: 0 3px 14px rgba(232,185,63,0.5), 0 0 20px rgba(232,185,63,0.28), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 4px rgba(120,80,10,0.4); }
+                    50%      { box-shadow: 0 4px 20px rgba(232,185,63,0.75), 0 0 36px rgba(232,185,63,0.5), inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -2px 4px rgba(120,80,10,0.4); }
+                  }
+                `}</style>
                 <span
                   className="absolute inset-0 rounded-md pointer-events-none"
                   style={{
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 60%)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.28) 0%, transparent 60%)",
                   }}
                 />
                 <Plus className="w-4 h-4 relative z-10" />
