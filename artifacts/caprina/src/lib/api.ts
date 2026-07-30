@@ -1960,6 +1960,8 @@ export interface ShipmentManifestDetail {
   manifestNumber: string;
   shippingCompanyId: number;
   status: "open" | "closed";
+  closedByRole: "representative" | "admin" | null;
+  closedByName: string | null;
   notes: string | null;
   invoicePrice: string | null;
   createdAt: string;

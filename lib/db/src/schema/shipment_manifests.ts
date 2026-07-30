@@ -18,6 +18,7 @@ export const shipmentManifestsTable = mysqlTable("shipment_manifests", {
   // closedByRole: "representative" = قفل مؤقت من المندوب (الأدمن يقدر يفتحه تاني أو يأكد القفل النهائي)
   //               "admin" = قفل نهائي فعلي (ترحيل مالي + ترحيل شحنات معلّقة)
   closedByRole:     varchar("closed_by_role", { length: 20 }),
+  closedByUserId:   int("closed_by_user_id"), // آيدي اليوزر (مندوب/أدمن) اللي قفل البيان فعليًا
   notes:            text("notes"),
   invoicePrice:     decimal("invoice_price", { precision: 10, scale: 2 }),
   invoiceNotes:     text("invoice_notes"),

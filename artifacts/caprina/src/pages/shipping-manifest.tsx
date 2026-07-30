@@ -4391,7 +4391,7 @@ export default function ShippingManifestPage() {
               manifest.closedByRole === "representative" ? "text-red-400" : "text-amber-400"
             }`}>
               {manifest.closedByRole === "representative"
-                ? "البيان مقفول من قبل المندوب"
+                ? `تم تقفيل البيان من المندوب ${(manifest as any).closedByName ?? ""}`
                 : "البيان مغلق"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">

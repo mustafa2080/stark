@@ -311,6 +311,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
 
     res.json({
       ...manifest,
+      closedByName: manifest.closedByRole === "representative" ? manifestRepName : null, // اسم المندوب اللي قفل البيان مؤقتًا
       company: company ?? null,
       items: enrichedItems,
       stats: {
@@ -1148,9 +1149,12 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
         ...(body.notes !== undefined ? { notes: body.notes } : {}),
         ...(body.invoicePrice !== undefined ? { invoicePrice: String(body.invoicePrice) } : {}),
         ...(body.status === "closed" ? { closedAt: now } : {}),
-        ...(body.status === "open"   ? { closedAt: null, closedByRole: null } : {}),
+        ...(body.status === "open"   ? { closedAt: null, closedByRole: null, closedByUserId: null } : {}),
         // نسجّل مين قفل البيان: المندوب أو الأدمن — عشان نفرّق بين "قفل مؤقت" و"قفل نهائي"
-        ...(body.status === "closed" ? { closedByRole: reqUser?.role === "representative" ? "representative" : "admin" } : {}),
+        ...(body.status === "closed" ? {
+          closedByRole: reqUser?.role === "representative" ? "representative" : "admin",
+          closedByUserId: reqUser?.id ?? null,
+        } : {}),
       })
       .where(eq(shipmentManifestsTable.id, id));
 
