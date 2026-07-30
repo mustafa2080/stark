@@ -30,22 +30,45 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-// ── زر سداسي ذهبي بارز في نص الـ bottom nav — "شحنة جديدة" ────────────────────
+// ── زر سداسي ذهبي غاطس جوه "بئر" — "شحنة جديدة" — Futuristic Tech ────────────────────
 function HexActionButton({ href, label = "شحنة جديدة" }: { href: string; label?: string }) {
+  const hexClip = "polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)";
   return (
     <Link href={href}>
-      <div className="flex flex-col items-center -mt-6 relative z-10">
+      <div className="flex flex-col items-center -mt-7 relative z-10">
+        {/* شعاع ضوئي طالع من فوق الزر */}
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-[2px] h-5 pointer-events-none"
+          style={{ background: "linear-gradient(to top, rgba(232,185,63,0.9), rgba(232,185,63,0))", filter: "blur(0.5px)" }} />
+        {/* البئر السداسي الغاطس */}
         <div
-          className="w-14 h-14 flex items-center justify-center transition-all duration-200 active:scale-90"
+          className="w-16 h-16 flex items-center justify-center relative"
           style={{
-            clipPath: "polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)",
-            background: "linear-gradient(145deg, #f9d976 0%, #e8b93f 45%, #b8860b 100%)",
-            boxShadow: "0 0 0 3px rgba(5,5,5,1), 0 4px 18px rgba(232,185,63,0.55), 0 0 24px rgba(232,185,63,0.35)",
+            clipPath: hexClip,
+            background: "radial-gradient(circle at 50% 40%, rgba(0,0,0,0.9) 0%, rgba(5,5,5,1) 70%)",
+            boxShadow: "0 0 0 2px rgba(232,185,63,0.5), inset 0 4px 10px rgba(0,0,0,0.9), inset 0 -1px 2px rgba(232,185,63,0.15)",
           }}
         >
-          <Plus style={{ width: "22px", height: "22px", color: "#0a0a0a" }} strokeWidth={3} />
+          {/* نقوش هندسية ذهبية دقيقة داخل البئر */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ clipPath: hexClip }} viewBox="0 0 64 64">
+            <polygon points="32,10 54,22 54,46 32,58 10,46 10,22" fill="none" stroke="rgba(232,185,63,0.25)" strokeWidth="0.6" />
+            <polygon points="32,18 47,26 47,42 32,50 17,42 17,26" fill="none" stroke="rgba(232,185,63,0.15)" strokeWidth="0.5" />
+          </svg>
+          {/* الزر الذهبي المركزي */}
+          <div
+            className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90 relative"
+            style={{
+              clipPath: hexClip,
+              background: "linear-gradient(145deg, #f9d976 0%, #e8b93f 45%, #b8860b 100%)",
+              boxShadow: "0 3px 12px rgba(232,185,63,0.6), 0 0 18px rgba(232,185,63,0.4), inset 0 1px 1px rgba(255,255,255,0.4)",
+            }}
+          >
+            <Plus style={{ width: "18px", height: "18px", color: "#0a0a0a" }} strokeWidth={3} />
+          </div>
         </div>
-        <span className="mt-1" style={{ fontSize: "9px", fontWeight: 700, color: "rgba(232,185,63,0.9)" }}>{label}</span>
+        {/* شعاع ضوئي نازل تحت الزر */}
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[2px] h-4 pointer-events-none"
+          style={{ background: "linear-gradient(to bottom, rgba(232,185,63,0.7), rgba(232,185,63,0))", filter: "blur(0.5px)" }} />
+        <span className="mt-1.5" style={{ fontSize: "9px", fontWeight: 700, color: "rgba(232,185,63,0.9)", letterSpacing: "0.02em" }}>{label}</span>
       </div>
     </Link>
   );
@@ -1438,46 +1461,45 @@ export default function Layout({ children }: LayoutProps) {
               { href: "/shipments-list",    icon: Package, rgb: "251,146,60", label: "طلبات",  exact: false },
             ];
             return (
-              <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
+              <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2"
                 style={{
+                  clipPath: "polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
                   background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
-                  borderTop: "1px solid rgba(255,255,255,0.06)",
-                  boxShadow: "0 -4px 24px rgba(0,0,0,0.6)",
+                  borderTop: "1px solid rgba(232,185,63,0.25)",
+                  boxShadow: "0 -4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,185,63,0.15)",
                   backdropFilter: "blur(12px)",
                 }}
               >
-                {CUSTOM_BOTTOM_ITEMS.map(({ href, icon: Icon, rgb, label, exact }) => {
+                {CUSTOM_BOTTOM_ITEMS.map(({ href, icon: Icon, label, exact }) => {
                   const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
                   return (
                     <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)}>
                       <div className="flex flex-col items-center gap-0.5 relative">
                         <div
-                          className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
+                          className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
                           style={{
+                            clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                             background: isActive
-                              ? `linear-gradient(145deg, rgba(${rgb},0.9) 0%, rgba(${rgb},0.55) 60%, rgba(${rgb},0.3) 100%)`
-                              : `linear-gradient(145deg, rgba(${rgb},0.15) 0%, rgba(${rgb},0.07) 100%)`,
-                            border: isActive ? `1px solid rgba(${rgb},0.6)` : `1px solid rgba(${rgb},0.12)`,
-                            boxShadow: isActive
-                              ? `0 4px 16px rgba(${rgb},0.5), 0 0 8px rgba(${rgb},0.3), inset 0 1px 0 rgba(255,255,255,0.2)`
-                              : `0 2px 6px rgba(${rgb},0.1)`,
+                              ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
+                              : "transparent",
+                            border: isActive ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
                           }}
                         >
                           <Icon style={{
                             width: "20px", height: "20px",
-                            color: isActive ? "rgba(255,255,255,0.95)" : `rgba(${rgb},0.65)`,
-                            filter: isActive ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none",
-                          }} />
+                            color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
+                            filter: isActive ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none",
+                          }} strokeWidth={1.5} />
                         </div>
                         <span style={{
                           fontSize: "9px",
                           fontWeight: isActive ? "700" : "500",
-                          color: isActive ? `rgba(${rgb},0.9)` : "rgba(255,255,255,0.35)",
+                          color: isActive ? "#f9d976" : "rgba(232,185,63,0.4)",
                           letterSpacing: "0.02em",
                         }}>{label}</span>
                         {isActive && (
                           <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                            style={{ background: `rgba(${rgb},0.8)`, boxShadow: `0 0 6px rgba(${rgb},1)` }} />
+                            style={{ background: "rgba(232,185,63,0.9)", boxShadow: "0 0 6px rgba(232,185,63,1)" }} />
                         )}
                       </div>
                     </Link>
@@ -1488,27 +1510,28 @@ export default function Layout({ children }: LayoutProps) {
                 <button type="button" onClick={() => setMobileMenuOpen(true)}>
                   <div className="flex flex-col items-center gap-0.5">
                     <div
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
+                      className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
                       style={{
+                        clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                         background: mobileMenuOpen
-                          ? "linear-gradient(145deg, rgba(251,191,36,0.9) 0%, rgba(251,191,36,0.5) 100%)"
-                          : "linear-gradient(145deg, rgba(251,191,36,0.15) 0%, rgba(251,191,36,0.07) 100%)",
-                        border: mobileMenuOpen ? "1px solid rgba(251,191,36,0.6)" : "1px solid rgba(251,191,36,0.12)",
+                          ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
+                          : "transparent",
+                        border: mobileMenuOpen ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
                       }}
                     >
-                      <Menu style={{ width: "20px", height: "20px", color: mobileMenuOpen ? "rgba(255,255,255,0.95)" : "rgba(251,191,36,0.65)" }} />
+                      <Menu style={{ width: "20px", height: "20px", color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)", filter: mobileMenuOpen ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none" }} strokeWidth={1.5} />
                     </div>
-                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(251,191,36,0.65)" }}>المزيد</span>
+                    <span style={{ fontSize: "9px", fontWeight: 500, color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.4)" }}>المزيد</span>
                   </div>
                 </button>
                 {/* خروج */}
                 <button type="button" onClick={logout}>
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center"
-                      style={{ background: "linear-gradient(145deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.07) 100%)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.75)" }} />
+                    <div className="w-11 h-11 flex items-center justify-center"
+                      style={{ clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)" }}>
+                      <LogOut style={{ width: "20px", height: "20px", color: "rgba(232,185,63,0.55)" }} strokeWidth={1.5} />
                     </div>
-                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(239,68,68,0.6)" }}>خروج</span>
+                    <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(232,185,63,0.4)" }}>خروج</span>
                   </div>
                 </button>
               </nav>
@@ -1549,46 +1572,45 @@ export default function Layout({ children }: LayoutProps) {
           const visible = allowed.slice(0, 5);
 
           return (
-            <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
+            <nav className="bottom-nav-mobile md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-3 pb-2"
               style={{
+                clipPath: "polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
                 background: "linear-gradient(180deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,1) 100%)",
-                borderTop: "1px solid rgba(255,255,255,0.06)",
-                boxShadow: "0 -4px 24px rgba(0,0,0,0.6)",
+                borderTop: "1px solid rgba(232,185,63,0.25)",
+                boxShadow: "0 -4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,185,63,0.15)",
                 backdropFilter: "blur(12px)",
               }}
             >
-              {visible.map(({ href, icon: Icon, rgb, label, exact }) => {
+              {visible.map(({ href, icon: Icon, label, exact }) => {
                 const isActive = exact ? location === href : (location === href || location.startsWith(href + "/"));
                 return (
                   <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)}>
                     <div className="flex flex-col items-center gap-0.5 relative">
                       <div
-                        className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
+                        className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
                         style={{
+                          clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                           background: isActive
-                            ? `linear-gradient(145deg, rgba(${rgb},0.9) 0%, rgba(${rgb},0.55) 60%, rgba(${rgb},0.3) 100%)`
-                            : `linear-gradient(145deg, rgba(${rgb},0.15) 0%, rgba(${rgb},0.07) 100%)`,
-                          border: isActive ? `1px solid rgba(${rgb},0.6)` : `1px solid rgba(${rgb},0.12)`,
-                          boxShadow: isActive
-                            ? `0 4px 16px rgba(${rgb},0.5), 0 0 8px rgba(${rgb},0.3), inset 0 1px 0 rgba(255,255,255,0.2)`
-                            : `0 2px 6px rgba(${rgb},0.1)`,
+                            ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
+                            : "transparent",
+                          border: isActive ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
                         }}
                       >
                         <Icon style={{
                           width: "20px", height: "20px",
-                          color: isActive ? "rgba(255,255,255,0.95)" : `rgba(${rgb},0.65)`,
-                          filter: isActive ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none",
-                        }} />
+                          color: isActive ? "#f9d976" : "rgba(232,185,63,0.55)",
+                          filter: isActive ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none",
+                        }} strokeWidth={1.5} />
                       </div>
                       <span style={{
                         fontSize: "9px",
                         fontWeight: isActive ? "700" : "500",
-                        color: isActive ? `rgba(${rgb},0.9)` : "rgba(255,255,255,0.35)",
+                        color: isActive ? "#f9d976" : "rgba(232,185,63,0.4)",
                         letterSpacing: "0.02em",
                       }}>{label}</span>
                       {isActive && (
                         <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                          style={{ background: `rgba(${rgb},0.8)`, boxShadow: `0 0 6px rgba(${rgb},1)` }} />
+                          style={{ background: "rgba(232,185,63,0.9)", boxShadow: "0 0 6px rgba(232,185,63,1)" }} />
                       )}
                     </div>
                   </Link>
@@ -1599,25 +1621,24 @@ export default function Layout({ children }: LayoutProps) {
               <button type="button" onClick={() => setMobileMenuOpen(true)}>
                 <div className="flex flex-col items-center gap-0.5">
                   <div
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
+                    className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
                     style={{
+                      clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)",
                       background: mobileMenuOpen
-                        ? "linear-gradient(145deg, rgba(251,191,36,0.9) 0%, rgba(251,191,36,0.5) 100%)"
-                        : "linear-gradient(145deg, rgba(251,191,36,0.15) 0%, rgba(251,191,36,0.07) 100%)",
-                      border: mobileMenuOpen ? "1px solid rgba(251,191,36,0.6)" : "1px solid rgba(251,191,36,0.12)",
-                      boxShadow: mobileMenuOpen
-                        ? "0 4px 16px rgba(251,191,36,0.5), inset 0 1px 0 rgba(255,255,255,0.2)"
-                        : "0 2px 6px rgba(251,191,36,0.1)",
+                        ? "linear-gradient(145deg, rgba(232,185,63,0.22) 0%, rgba(232,185,63,0.08) 100%)"
+                        : "transparent",
+                      border: mobileMenuOpen ? "1px solid rgba(232,185,63,0.45)" : "1px solid transparent",
                     }}
                   >
                     <Menu style={{
                       width: "20px", height: "20px",
-                      color: mobileMenuOpen ? "rgba(255,255,255,0.95)" : "rgba(251,191,36,0.65)",
-                    }} />
+                      color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.55)",
+                      filter: mobileMenuOpen ? "drop-shadow(0 0 4px rgba(232,185,63,0.7))" : "none",
+                    }} strokeWidth={1.5} />
                   </div>
                   <span style={{
                     fontSize: "9px", fontWeight: "500",
-                    color: mobileMenuOpen ? "rgba(251,191,36,0.9)" : "rgba(255,255,255,0.35)",
+                    color: mobileMenuOpen ? "#f9d976" : "rgba(232,185,63,0.4)",
                   }}>المزيد</span>
                 </div>
               </button>
@@ -1626,16 +1647,12 @@ export default function Layout({ children }: LayoutProps) {
               <button type="button" onClick={logout}>
                 <div className="flex flex-col items-center gap-0.5">
                   <div
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90"
-                    style={{
-                      background: "linear-gradient(145deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.07) 100%)",
-                      border: "1px solid rgba(239,68,68,0.2)",
-                      boxShadow: "0 2px 6px rgba(239,68,68,0.1)",
-                    }}
+                    className="w-11 h-11 flex items-center justify-center transition-all duration-200 active:scale-90"
+                    style={{ clipPath: "polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%)" }}
                   >
-                    <LogOut style={{ width: "20px", height: "20px", color: "rgba(239,68,68,0.75)" }} />
+                    <LogOut style={{ width: "20px", height: "20px", color: "rgba(232,185,63,0.55)" }} strokeWidth={1.5} />
                   </div>
-                  <span style={{ fontSize: "9px", fontWeight: "500", color: "rgba(239,68,68,0.6)" }}>خروج</span>
+                  <span style={{ fontSize: "9px", fontWeight: "500", color: "rgba(232,185,63,0.4)" }}>خروج</span>
                 </div>
               </button>
             </nav>
