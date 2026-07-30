@@ -1365,7 +1365,7 @@ export default function Layout({ children }: LayoutProps) {
                     </Link>
                   );
                 })}
-                {(true) && (
+                {(isAdmin || can("finance.view")) && (
                   <div className="pt-1">
                     <button type="button" onClick={() => setFinanceOpen(v => !v)}
                       className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all",
