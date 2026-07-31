@@ -1262,7 +1262,7 @@ function InvoiceGroupDeliveryRow({
         {/* Row (visible on all screen sizes; no horizontal scroll — columns collapse on mobile) */}
         <div
           dir="rtl"
-          className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] gap-0 items-start py-2.5 text-xs cursor-pointer"
+          className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_80px_140px] md:min-w-[1180px] gap-0 items-start py-2.5 text-xs cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* اسم الراسل */}
@@ -1518,7 +1518,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* ملاحظات — قابلة للتعديل */}
-          <div className="px-2 flex items-center" onClick={e => e.stopPropagation()}>
+          <div className="px-2 pt-1.5 flex items-start" onClick={e => e.stopPropagation()}>
             <NotesCell
               manifestId={manifestId}
               shipmentId={(rep as any).shipmentId ?? rep.id}
