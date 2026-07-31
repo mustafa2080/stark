@@ -2371,27 +2371,25 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           onClick={() => setNetProfitOpen((v) => !v)}
           className="w-full flex items-center justify-between p-4 text-right"
         >
-          <div>
-            <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
-            <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {formatCurrency(netProfit)}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <p className="text-[10px] font-bold text-muted-foreground">صافي الربح الحقيقي</p>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${netProfitOpen ? "rotate-180" : ""}`} />
+        </button>
+        {netProfitOpen && (
+          <div className="px-4 pb-4 -mt-1 flex items-center justify-between">
+            <div>
+              <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {formatCurrency(netProfit)}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {formatCurrency(s.totalRevenue)} إيرادات
+                &nbsp;−&nbsp;{formatCurrency(s.totalCost)} تكلفة بضاعة
+                &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
+                {s.returnLosses > 0 && <>&nbsp;−&nbsp;{formatCurrency(s.returnLosses)} خسائر مرتجع</>}
+              </p>
+            </div>
             {netProfit >= 0
               ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
               : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${netProfitOpen ? "rotate-180" : ""}`} />
-          </div>
-        </button>
-        {netProfitOpen && (
-          <div className="px-4 pb-4 -mt-1">
-            <p className="text-[10px] text-muted-foreground">
-              {formatCurrency(s.totalRevenue)} إيرادات
-              &nbsp;−&nbsp;{formatCurrency(s.totalCost)} تكلفة بضاعة
-              &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
-              {s.returnLosses > 0 && <>&nbsp;−&nbsp;{formatCurrency(s.returnLosses)} خسائر مرتجع</>}
-            </p>
           </div>
         )}
       </div>
