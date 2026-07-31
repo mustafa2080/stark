@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 
 export interface NavItem {
   id: string;
-  href: string;
+  href?: string;   // وضع routes (admin/custom) — مطلوب لو مفيش onSelectTab
   icon: any;
   label: string;
   exact?: boolean;
@@ -32,9 +32,19 @@ interface ProfessionalBottomNavProps {
   onLogout?: () => void;
   userDisplayName?: string | null;
   userRoleLabel?: string | null;
+  // ── وضع tabs داخل صفحة واحدة (SPA) بدل routes حقيقية — لو موجودة، الضغط
+  // على أي عنصر بيستدعيها بدل ما يعمل Link فعلي، والـ active بيتحدد بالـ id ──
+  activeTabId?: string;
+  onSelectTab?: (id: string) => void;
 }
 
-function isItemActive(item: { href: string; exact?: boolean }, location: string) {
+function isItemActive(
+  item: { id: string; href?: string; exact?: boolean },
+  location: string,
+  activeTabId?: string,
+) {
+  if (activeTabId !== undefined) return item.id === activeTabId;
+  if (!item.href) return false;
   return item.exact
     ? location === item.href
     : location === item.href || location.startsWith(item.href + "/");
@@ -106,6 +116,15 @@ function NavButton({
     </motion.div>
   );
 
+  // وضع tabs (SPA): مفيش href → زرار عادي بيستدعي onNavigate بدل Link
+  if (!item.href) {
+    return (
+      <button type="button" onClick={onNavigate} className="flex flex-1 min-w-0">
+        {content}
+      </button>
+    );
+  }
+
   return (
     <Link href={item.href} onClick={onNavigate} className="flex flex-1 min-w-0">
       {content}
@@ -162,40 +181,49 @@ function MoreSheetItem({ item, isActive, accent, onClick, index }: {
   item: NavItem; isActive: boolean; accent: string; onClick: () => void; index: number;
 }) {
   const Icon = item.icon;
+  const body = (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.025, type: "spring", stiffness: 400, damping: 28 }}
+      whileTap={{ scale: 0.94 }}
+      className="flex flex-col items-center gap-2 p-3 rounded-2xl"
+      style={{
+        background: isActive
+          ? `linear-gradient(155deg, rgba(${accent},0.16) 0%, rgba(${accent},0.05) 100%)`
+          : "hsl(var(--muted)/0.4)",
+        border: isActive ? `1px solid rgba(${accent},0.35)` : "1px solid transparent",
+      }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center"
+        style={{ background: `linear-gradient(155deg, rgba(${accent},0.25) 0%, rgba(${accent},0.1) 100%)` }}
+      >
+        <Icon style={{ width: 18, height: 18, color: `rgb(${accent})` }} strokeWidth={1.9} />
+      </div>
+      <span
+        className="text-[11px] font-semibold text-center leading-tight"
+        style={{ color: isActive ? `rgb(${accent})` : "hsl(var(--foreground)/0.85)" }}
+      >
+        {item.label}
+      </span>
+    </motion.div>
+  );
+
+  if (!item.href) {
+    return <button type="button" onClick={onClick} className="w-full">{body}</button>;
+  }
+
   return (
     <Link href={item.href} onClick={onClick}>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.025, type: "spring", stiffness: 400, damping: 28 }}
-        whileTap={{ scale: 0.94 }}
-        className="flex flex-col items-center gap-2 p-3 rounded-2xl"
-        style={{
-          background: isActive
-            ? `linear-gradient(155deg, rgba(${accent},0.16) 0%, rgba(${accent},0.05) 100%)`
-            : "hsl(var(--muted)/0.4)",
-          border: isActive ? `1px solid rgba(${accent},0.35)` : "1px solid transparent",
-        }}
-      >
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: `linear-gradient(155deg, rgba(${accent},0.25) 0%, rgba(${accent},0.1) 100%)` }}
-        >
-          <Icon style={{ width: 18, height: 18, color: `rgb(${accent})` }} strokeWidth={1.9} />
-        </div>
-        <span
-          className="text-[11px] font-semibold text-center leading-tight"
-          style={{ color: isActive ? `rgb(${accent})` : "hsl(var(--foreground)/0.85)" }}
-        >
-          {item.label}
-        </span>
-      </motion.div>
+      {body}
     </Link>
   );
 }
 
 export function ProfessionalBottomNav({
   location, items, moreItems, accent, onLogout, userDisplayName, userRoleLabel,
+  activeTabId, onSelectTab,
 }: ProfessionalBottomNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -223,8 +251,9 @@ export function ProfessionalBottomNav({
               <NavButton
                 key={item.id}
                 item={item}
-                isActive={isItemActive(item, location)}
+                isActive={isItemActive(item, location, activeTabId)}
                 accent={accent}
+                onNavigate={onSelectTab ? () => onSelectTab(item.id) : undefined}
               />
             ))}
 
@@ -248,10 +277,13 @@ export function ProfessionalBottomNav({
                   <MoreSheetItem
                     key={item.id}
                     item={item}
-                    isActive={isItemActive(item, location)}
+                    isActive={isItemActive(item, location, activeTabId)}
                     accent={accent}
                     index={i}
-                    onClick={() => setMoreOpen(false)}
+                    onClick={() => {
+                      setMoreOpen(false);
+                      onSelectTab?.(item.id);
+                    }}
                   />
                 ))}
               </div>

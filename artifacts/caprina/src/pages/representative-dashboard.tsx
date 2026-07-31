@@ -26,6 +26,7 @@ import { RepRouteMap } from "@/components/rep-route-map";
 import { useTheme } from "@/contexts/ThemeContext";
 import { RETURN_REASONS } from "@/lib/order-constants";
 import { applyDeliveryReadyTemplate } from "@/lib/whatsapp";
+import { ProfessionalBottomNav, type NavItem } from "@/components/professional-bottom-nav";
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "قيد الانتظار", pending: "قيد الانتظار",
@@ -3101,66 +3102,8 @@ function DesktopSidebar({
   );
 }
 
-// ─── Mobile Bottom Nav — احترافي، انيميشن spring (liquid pill) بدل fade بسيط ──
-export function MobileBottomNav({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
-  return (
-    <nav
-      dir="rtl"
-      className="md:hidden fixed bottom-0 right-0 left-0 z-50 flex justify-center px-3"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
-    >
-      <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 300, damping: 28 }}
-        className="flex items-stretch gap-0.5 rounded-[26px] px-1.5 py-1.5 w-full max-w-md"
-        style={{
-          background: "rgba(20,20,26,0.72)",
-          backdropFilter: "blur(24px) saturate(180%)",
-          WebkitBackdropFilter: "blur(24px) saturate(180%)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset",
-        }}
-      >
-        {NAV_ITEMS.map((item) => {
-          const isActive = active === item.id;
-          return (
-            <motion.button
-              key={item.id}
-              onClick={() => onSelect(item.id)}
-              whileTap={{ scale: 0.86 }}
-              transition={{ type: "spring", stiffness: 500, damping: 22 }}
-              className="relative flex-1 flex flex-col items-center justify-center py-2 gap-1 rounded-[20px]"
-            >
-              {isActive && (
-                <motion.span
-                  layoutId="repNavActivePill"
-                  className="absolute inset-0 rounded-[20px]"
-                  style={{
-                    background: item.glowColor.replace("0.35", "0.16"),
-                    boxShadow: `0 0 0 1px ${item.glowColor.replace("0.35", "0.25")} inset`,
-                  }}
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                />
-              )}
-              <motion.span
-                className="relative flex items-center justify-center"
-                animate={{ y: isActive ? -1 : 0, scale: isActive ? 1.12 : 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 20 }}
-              >
-                <item.Icon className={`w-[19px] h-[19px] transition-colors duration-200 ${isActive ? item.activeColor : "text-muted-foreground/70"}`} />
-              </motion.span>
-              <span className={`relative text-[9.5px] font-bold transition-all duration-200 ${isActive ? item.activeColor : "text-muted-foreground/70"}`}
-                style={{ opacity: isActive ? 1 : 0.85 }}>
-                {item.label}
-              </span>
-            </motion.button>
-          );
-        })}
-      </motion.div>
-    </nav>
-  );
-}
+// (تم استبدال MobileBottomNav المحلي بالمكوّن المشترك ProfessionalBottomNav —
+// نفس التصميم والحركة المستخدمة في admin/custom، راجع أسفل الملف)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ─── HOME TAB — النظرة العامة (تصميم الداشبورد الجديد) ───────────────────────
@@ -4554,8 +4497,18 @@ export default function RepresentativeDashboard() {
 
         </div>{/* end content area */}
 
-        {/* ─── Mobile Bottom Nav ─── */}
-        <MobileBottomNav active={activeTab} onSelect={handleNavSelect} />
+        {/* ─── Mobile Bottom Nav — نفس المكوّن الاحترافي الموحّد المستخدم في
+             admin/custom (ProfessionalBottomNav)، بوضع tabs بدل routes ─── */}
+        <ProfessionalBottomNav
+          location=""
+          items={NAV_ITEMS.map((n): NavItem => ({ id: n.id, icon: n.Icon, label: n.label }))}
+          activeTabId={activeTab}
+          onSelectTab={(id) => handleNavSelect(id as TabId)}
+          accent="232,185,63"
+          onLogout={logout}
+          userDisplayName={user?.displayName}
+          userRoleLabel="مندوب"
+        />
       </div>{/* end main content */}
     </div>
   );
