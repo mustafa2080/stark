@@ -1031,8 +1031,10 @@ function InvoiceGroupDeliveryRow({
   }, 0);
   // السعر الكامل للفاتورة (للعرض والمرجع)
   const totalFullPrice = group.reduce((s, o) => s + Number(o.totalPrice), 0);
-  // إجمالي سعر الشحن الفعلي للمجموعة (منفصل عن قيمة الشحنة/COD)
-  const totalShippingFee = group.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
+  // إجمالي سعر الشحن الفعلي للمجموعة (منفصل عن قيمة الشحنة/COD) — فقط للأوردرات المُسلَّمة
+  const totalShippingFee = group
+    .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
+    .reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
   const invoiceNum = (rep as any).invoiceNumber?.trim() || null;
   const isMulti = group.length > 1;
 
@@ -2553,7 +2555,9 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+                const effectiveShipping = (manifest.orders ?? [])
+                  .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
+                  .reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
                 const due = (s?.deliveredGross ?? 0) - effectiveShipping;
                 return (
                   <>
