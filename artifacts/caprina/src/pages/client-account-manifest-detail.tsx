@@ -2318,17 +2318,17 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           const ordersForSettlement = manifest.orders ?? [];
           const deliveredOrdersS = ordersForSettlement.filter(o => o.deliveryStatus === "delivered");
           const returnedOrdersS  = ordersForSettlement.filter(o => o.deliveryStatus === "returned");
-          const totalShippingFees = ordersForSettlement.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
           const deliveredCODs    = deliveredOrdersS.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
           const returnedCODs     = returnedOrdersS.reduce((sum, o) => {
             const rvr = (o as any).returnValueReceived;
             return sum + (rvr != null ? Number(rvr) : 0);
           }, 0);
+          const totalShipmentValue = deliveredCODs + returnedCODs;
           return (
             <>
               <div className="bg-card rounded-md p-3 border border-border">
                 <p className="text-[10px] text-muted-foreground mb-1">إجمالي سعر الشحنة</p>
-                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(totalShippingFees)}</p>
+                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(totalShipmentValue)}</p>
                 <p className="text-[10px] text-muted-foreground">{ordersForSettlement.length} شحنة</p>
               </div>
               <div className="bg-card rounded-md p-3 border border-emerald-900/40">
