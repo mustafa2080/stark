@@ -2332,12 +2332,12 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
                 <p className="text-[10px] text-muted-foreground">{ordersForSettlement.length} شحنة</p>
               </div>
               <div className="bg-card rounded-md p-3 border border-emerald-900/40">
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mb-1">COD المُسلَّم</p>
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mb-1">المُسلَّم</p>
                 <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(deliveredCODs)}</p>
                 <p className="text-[10px] text-emerald-700 dark:text-emerald-600">{deliveredOrdersS.length} طلبية</p>
               </div>
               <div className="bg-card rounded-md p-3 border border-red-900/40">
-                <p className="text-[10px] text-red-700 dark:text-red-400 mb-1">COD المرتجع</p>
+                <p className="text-[10px] text-red-700 dark:text-red-400 mb-1">المرتجع</p>
                 <p className="text-base font-black text-red-600 dark:text-red-400">{formatCurrency(returnedCODs)}</p>
                 <p className="text-[10px] text-muted-foreground">{returnedOrdersS.length} شحنة</p>
               </div>
@@ -5189,17 +5189,17 @@ export default function ShippingManifestPage() {
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground mb-1">إجمالي COD</p>
+              <p className="text-xs text-muted-foreground mb-1">إجمالي المستحق</p>
               <p className="text-lg font-black text-emerald-400">{formatCurrency(totalCOD)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
-              <p className="text-xs text-emerald-400 mb-1">COD المُسلَّم</p>
+              <p className="text-xs text-emerald-400 mb-1">المُسلَّم</p>
               <p className="text-lg font-black text-emerald-400">{formatCurrency(deliveredCOD)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
             <Card className="border-red-900/40 bg-red-900/10 p-4">
-              <p className="text-xs text-red-400 mb-1">COD المرتجع</p>
+              <p className="text-xs text-red-400 mb-1">المرتجع</p>
               <p className="text-lg font-black text-red-400">{formatCurrency(returnedCOD)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{returnedOrders.length} شحنة</p>
             </Card>
