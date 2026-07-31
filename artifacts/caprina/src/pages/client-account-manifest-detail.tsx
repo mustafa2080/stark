@@ -3651,6 +3651,7 @@ export default function ShippingManifestPage() {
     qty: new Set(), total: new Set(), date: new Set(), status: new Set(),
   });
   const [showColFilters, setShowColFilters] = useState(false);
+  const [netLossOpen, setNetLossOpen] = useState(false);
   const [manifestCustomerSearch, setManifestCustomerSearch] = useState("");
   const [manifestProductSearch, setManifestProductSearch] = useState("");
   const [manifestTotalSearch, setManifestTotalSearch] = useState("");
@@ -5205,12 +5206,24 @@ export default function ShippingManifestPage() {
               <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">−{formatCurrency(shippingCost)}</p>
             </Card>
-            <Card className={`col-span-2 p-4 border ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-xs mb-1 font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                    {isProfit ? "صافي المستحق" : "صافي الخسارة"}
-                  </p>
+            <Card className={`col-span-2 p-0 border overflow-hidden ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
+              <button
+                type="button"
+                onClick={() => setNetLossOpen((v) => !v)}
+                className="w-full flex items-center justify-between p-4 text-right"
+              >
+                <p className={`text-xs font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                  {isProfit ? "صافي المستحق" : "صافي الخسارة"}
+                </p>
+                <div className="flex items-center gap-2">
+                  {isProfit
+                    ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
+                    : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${netLossOpen ? "rotate-180" : ""}`} />
+                </div>
+              </button>
+              {netLossOpen && (
+                <div className="px-4 pb-4 -mt-1">
                   <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
                     {formatCurrency(Math.abs(netAmount))}
                   </p>
@@ -5218,10 +5231,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(deliveredCOD)} مُسلَّم + {formatCurrency(returnedCOD)} مرتجع مستلم − {formatCurrency(shippingCost)} شحن
                   </p>
                 </div>
-                {isProfit
-                  ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
-                  : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
-              </div>
+              )}
             </Card>
           </div>
         );
