@@ -5182,6 +5182,7 @@ export default function ShippingManifestPage() {
           return s + (rvr != null ? Number(rvr) : 0);
         }, 0);
         const shippingCost    = totalShippingFee;
+        const totalCOD        = deliveredCOD + returnedCOD;
         // القيمة المستلمة فعليًا من العميل في المرتجعات (returnValueReceived) بتضاف للإيرادات
         const netAmount       = deliveredCOD + returnedCOD - shippingCost;
         const isProfit        = netAmount >= 0;
@@ -5189,7 +5190,7 @@ export default function ShippingManifestPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-border bg-card p-4">
               <p className="text-xs text-muted-foreground mb-1">إجمالي COD</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalShippingFee)}</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalCOD)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
