@@ -199,6 +199,76 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /client-account-manifests/balance/:clientId ─────────────────────────
+// إجمالي رصيد العميل = مجموع صافي المستحق (netDueFromClient) لكل البيانات "المقفولة" الخاصة به
+// (نفس معادلة netDueFromClient المُستخدمة داخل كل بيان — إجمالي المُسلَّم فعليًا − تكلفة الشحن)
+router.get("/client-account-manifests/balance/:clientId", async (req, res): Promise<void> => {
+  try {
+    const clientId = Number(req.params.clientId);
+    if (!clientId) { res.status(400).json({ error: "معرّف العميل غير صالح" }); return; }
+
+    const closedManifests = await db
+      .select()
+      .from(clientAccountManifestsTable)
+      .where(and(
+        eq(clientAccountManifestsTable.clientId, clientId),
+        eq(clientAccountManifestsTable.status, "closed"),
+      ));
+
+    const manifestIds = closedManifests.map(m => m.id);
+    let totalBalance = 0;
+
+    if (manifestIds.length) {
+      const items = await db
+        .select()
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
+
+      const shipmentIds = items.map(i => i.shipmentId);
+      const shipments = shipmentIds.length
+        ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+        : [];
+      const shipmentMap: Record<number, any> = {};
+      shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+      let deliveredGross = 0;
+      let totalShippingCost = 0;
+
+      for (const item of items) {
+        const shipment = shipmentMap[item.shipmentId];
+        if (!shipment) continue;
+        const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
+        const shipping = Number(shipment.shippingFee ?? 0);
+
+        if (item.deliveryStatus === "delivered") {
+          const dvr = (item as any).deliveredValueReceived;
+          const actualCod = dvr != null ? Number(dvr) : cod;
+          deliveredGross += actualCod;
+          totalShippingCost += shipping;
+        } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+          totalShippingCost += shipping;
+          deliveredGross += Number(item.partialQuantity);
+        } else if (item.deliveryStatus === "returned") {
+          const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
+          if (returnReasonHasValue) {
+            deliveredGross += Number((item as any).returnValueReceived ?? 0);
+            totalShippingCost += shipping;
+          } else if ((item as any).returnReceived === 1) {
+            totalShippingCost += shipping;
+          }
+        }
+      }
+
+      totalBalance = deliveredGross - totalShippingCost;
+    }
+
+    res.json({ clientId, balance: totalBalance, closedManifestsCount: manifestIds.length });
+  } catch (e) {
+    console.error("[GET /client-account-manifests/balance/:clientId]", e);
+    res.status(500).json({ error: "خطأ في حساب رصيد العميل" });
+  }
+});
+
 // ─── GET /client-account-manifests/:id ───────────────────────────────────────
 router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
   try {

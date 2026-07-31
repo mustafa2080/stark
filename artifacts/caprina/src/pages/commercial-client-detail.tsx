@@ -298,6 +298,13 @@ export default function CommercialClientDetailPage() {
     enabled: !isNaN(clientId),
   });
 
+  // ── رصيد العميل الإجمالي (مجموع صافي المستحق للبيانات المقفولة) ─────────────
+  const { data: balanceData } = useQuery<{ clientId: number; balance: number; closedManifestsCount: number }>({
+    queryKey: ["client-account-balance", clientId],
+    queryFn: () => apiFetch(`/client-account-manifests/balance/${clientId}`),
+    enabled: !isNaN(clientId),
+  });
+
   // ── شحنات العميل ──────────────────────────────────────────────────────────
   const { data: shipmentsData } = useQuery<{ shipments: ClientShipment[]; total: number }>({
     queryKey: ["client-shipments", clientId],
@@ -865,7 +872,7 @@ export default function CommercialClientDetailPage() {
 
       {/* ─── Stats Cards — زي شركات الشحن بس بأرقام العميل ─── */}
       {!isLoading && client && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <Card className="card-glow border-border p-3 text-center" style={GLOW.neutral.style}>
             <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي الفواتير</p>
             <p className="text-2xl font-black">{allOrders.length}</p>
@@ -884,6 +891,11 @@ export default function CommercialClientDetailPage() {
             <p className="text-[10px] text-red-400 mb-0.5">المديونية</p>
             <p className="text-xl font-black text-red-400">{fmt(unpaid)}</p>
             <p className="text-[10px] text-muted-foreground">مدفوع: {fmt(totalPaid)}</p>
+          </Card>
+          <Card className="card-glow border-emerald-900/40 p-3 text-center" style={GLOW.emerald.style}>
+            <p className="text-[10px] text-emerald-400 mb-0.5">إجمالي رصيد العميل</p>
+            <p className="text-xl font-black text-emerald-400">{fmt(balanceData?.balance ?? 0)}</p>
+            <p className="text-[10px] text-muted-foreground">{balanceData?.closedManifestsCount ?? 0} بيان مقفول</p>
           </Card>
           <Card
             className={`card-glow p-3 text-center border ${salesPct >= 75 ? "border-emerald-900/40" : salesPct >= 50 ? "border-amber-900/40" : "border-primary/30"}`}

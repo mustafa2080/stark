@@ -57,6 +57,7 @@ interface WalletResponse {
   invoices: InvoiceRow[];
   creditLimit: string;
   accountStatus: string;
+  clientBalance: number;
 }
 
 // ── Summary card (glow + shadow + gradient) ────────────────────────────────
@@ -206,6 +207,15 @@ export default function ClientWalletPage() {
           totalInvoiced={totalInvoiced}
           creditLimit={Number(data?.creditLimit ?? 0)}
         />
+
+        {/* ── رصيدك الحالي (من البيانات المقفولة) ── */}
+        <div className="rounded-2xl p-4 flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30">
+          <div>
+            <p className="text-xs font-bold text-emerald-400 mb-1">رصيدك الحالي</p>
+            <p className="text-2xl font-black text-emerald-400">{fc(data?.clientBalance ?? 0)}</p>
+          </div>
+          <Wallet size={32} className="text-emerald-400 opacity-30" />
+        </div>
 
         {/* ── Summary cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

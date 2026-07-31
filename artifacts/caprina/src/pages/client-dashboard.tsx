@@ -30,6 +30,7 @@ interface StatsResponse {
   finance: { totalCod: string; totalCollected: string; totalShippingFee: string; outstanding: string };
   accountStatus: string;
   creditLimit: string;
+  clientBalance: number;
 }
 
 interface ShipmentRow {
@@ -660,6 +661,12 @@ export default function ClientDashboardPage() {
             </button>
 
             <StatPill value={fn(stats?.total ?? 0)} label="إجمالي الشحنات" />
+
+            <button onClick={() => navigate("/client-wallet")}
+              className="w-full text-right rounded-xl p-4 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/15 transition-colors">
+              <p className="text-[11px] text-emerald-400 font-bold mb-1">إجمالي رصيد العميل</p>
+              <p className="text-xl font-black text-emerald-400">{fc(stats?.clientBalance ?? 0)}</p>
+            </button>
           </div>
 
           {/* ── Right column: Donut + Legend ── */}

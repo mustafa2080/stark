@@ -463,6 +463,63 @@ async function getClientShipments(tenantId: number | null, normalizedPhone: stri
 }
 
 
+// ─── إجمالي رصيد العميل = مجموع صافي المستحق لكل البيانات "المقفولة" الخاصة به ──
+// (نفس معادلة netDueFromClient في /client-account-manifests/:id — إجمالي المُسلَّم فعليًا − تكلفة الشحن)
+async function computeClientBalance(clientId: number): Promise<number> {
+  const closedManifests = await db
+    .select({ id: clientAccountManifestsTable.id })
+    .from(clientAccountManifestsTable)
+    .where(and(
+      eq(clientAccountManifestsTable.clientId, clientId),
+      eq(clientAccountManifestsTable.status, "closed"),
+    ));
+
+  const manifestIds = closedManifests.map(m => m.id);
+  if (manifestIds.length === 0) return 0;
+
+  const items = await db
+    .select()
+    .from(clientAccountManifestItemsTable)
+    .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
+
+  const shipmentIds = items.map(i => i.shipmentId);
+  const shipments = shipmentIds.length
+    ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+    : [];
+  const shipmentMap: Record<number, any> = {};
+  shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+  let deliveredGross = 0;
+  let totalShippingCost = 0;
+
+  for (const item of items) {
+    const shipment = shipmentMap[item.shipmentId];
+    if (!shipment) continue;
+    const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
+    const shipping = Number(shipment.shippingFee ?? 0);
+
+    if (item.deliveryStatus === "delivered") {
+      const dvr = (item as any).deliveredValueReceived;
+      const actualCod = dvr != null ? Number(dvr) : cod;
+      deliveredGross += actualCod;
+      totalShippingCost += shipping;
+    } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+      totalShippingCost += shipping;
+      deliveredGross += Number(item.partialQuantity);
+    } else if (item.deliveryStatus === "returned") {
+      const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
+      if (returnReasonHasValue) {
+        deliveredGross += Number((item as any).returnValueReceived ?? 0);
+        totalShippingCost += shipping;
+      } else if ((item as any).returnReceived === 1) {
+        totalShippingCost += shipping;
+      }
+    }
+  }
+
+  return deliveredGross - totalShippingCost;
+}
+
 // ─── GET /client-portal/stats — إحصائيات دائرية (زي الصورة) + KPIs ─────────
 router.get("/client-portal/stats", async (req, res): Promise<void> => {
   try {
@@ -506,6 +563,7 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
     const totalCod       = shipments.reduce((s, x) => s + parseFloat(x.codAmount ?? "0"), 0);
     const totalCollected  = shipments.reduce((s, x) => s + parseFloat(x.collectedAmount ?? "0"), 0);
     const totalShippingFee = shipments.reduce((s, x) => s + parseFloat(x.shippingFee ?? "0"), 0);
+    const clientBalance = await computeClientBalance(client.id);
 
     res.json({
       total,
@@ -518,6 +576,7 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
       },
       accountStatus: client.accountStatus,
       creditLimit: client.creditLimit,
+      clientBalance,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1223,7 +1282,9 @@ router.get("/client-portal/wallet", async (req, res): Promise<void> => {
     if (user.tenantId !== null && user.tenantId !== undefined) invConds.push(eq(clientInvoicesTable.tenantId, user.tenantId));
     const invoices = await db.select().from(clientInvoicesTable).where(and(...invConds)).orderBy(desc(clientInvoicesTable.createdAt)).limit(50);
 
-    res.json({ payments, invoices, creditLimit: client.creditLimit, accountStatus: client.accountStatus });
+    const clientBalance = await computeClientBalance(client.id);
+
+    res.json({ payments, invoices, creditLimit: client.creditLimit, accountStatus: client.accountStatus, clientBalance });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
