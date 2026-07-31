@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, gte, lte, and, sql, lt, isNull, like, or } from "drizzle-orm";
 import ExcelJS from "exceljs";
-import { db, expensesTable, shippingFinancialInvoicesTable, ordersTable, shippingManifestsTable, shippingManifestOrdersTable, cashRegistersTable, cashTransactionsTable, shippingCompaniesTable } from "@workspace/db";
+import { db, expensesTable, shippingFinancialInvoicesTable, ordersTable, shippingManifestsTable, shippingManifestOrdersTable, cashRegistersTable, cashTransactionsTable, shippingCompaniesTable, clientAccountPaymentsTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 
@@ -15,6 +15,7 @@ const ExpenseSchema = z.object({
   referenceId: z.string().nullish(),
   supplierId: z.number().nullish(),
   shippingCompanyId: z.number().nullish(),
+  clientId: z.number().nullish(),
   cashRegisterId: z.number().nullish(),
   notes: z.string().nullish(),
   expenseDate: z.string(),
@@ -133,6 +134,11 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
   const data = parsed.data;
   const amt = data.amount;
 
+  if (data.category === "client_payment" && !data.clientId) {
+    res.status(400).json({ error: "لازم تحدد العميل عند اختيار تصنيف سداد حساب عميل" });
+    return;
+  }
+
   // ── تحديد الخزنة: المحددة من المستخدم أو الافتراضية تلقائياً ────────────
   let reg: any = null;
   let balBefore = 0;
@@ -192,6 +198,20 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
       referenceNumber: data.referenceId ?? undefined,
       expenseId,
       transactionDate: new Date(data.expenseDate),
+      createdByUserId: user?.id ?? null,
+      createdByName: user?.displayName ?? null,
+      createdAt: now,
+    });
+  }
+
+  // ── سداد حساب عميل: نسجّل مبلغ السداد عشان يتخصم من رصيد العميل ────────
+  if (data.category === "client_payment" && data.clientId) {
+    await db.insert(clientAccountPaymentsTable).values({
+      tenantId: getTenantId(req),
+      clientId: data.clientId,
+      amount: String(amt),
+      expenseId,
+      notes: data.notes ?? null,
       createdByUserId: user?.id ?? null,
       createdByName: user?.displayName ?? null,
       createdAt: now,

@@ -8,6 +8,7 @@ import {
   clientsTable,
   usersTable,
   warehousesTable,
+  clientAccountPaymentsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -261,6 +262,14 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
 
       totalBalance = deliveredGross - totalShippingCost;
     }
+
+    // ── سدادات سبق دفعها للعميل كمصروف "سداد حساب عميل" — بتتخصم من الرصيد ──
+    const payments = await db
+      .select({ amount: clientAccountPaymentsTable.amount })
+      .from(clientAccountPaymentsTable)
+      .where(eq(clientAccountPaymentsTable.clientId, clientId));
+    const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+    totalBalance -= totalPaid;
 
     res.json({ clientId, balance: totalBalance, closedManifestsCount: manifestIds.length });
   } catch (e) {

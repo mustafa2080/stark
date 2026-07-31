@@ -17,6 +17,7 @@ import {
   clientAccountManifestsTable,
   clientAccountManifestItemsTable,
   warehousesTable,
+  clientAccountPaymentsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import multer from "multer";
@@ -475,7 +476,15 @@ async function computeClientBalance(clientId: number): Promise<number> {
     ));
 
   const manifestIds = closedManifests.map(m => m.id);
-  if (manifestIds.length === 0) return 0;
+
+  // ── سدادات سبق دفعها للعميل كمصروف "سداد حساب عميل" — بتتخصم من الرصيد دايمًا ──
+  const payments = await db
+    .select({ amount: clientAccountPaymentsTable.amount })
+    .from(clientAccountPaymentsTable)
+    .where(eq(clientAccountPaymentsTable.clientId, clientId));
+  const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+
+  if (manifestIds.length === 0) return -totalPaid;
 
   const items = await db
     .select()
@@ -517,7 +526,7 @@ async function computeClientBalance(clientId: number): Promise<number> {
     }
   }
 
-  return deliveredGross - totalShippingCost;
+  return deliveredGross - totalShippingCost - totalPaid;
 }
 
 // ─── GET /client-portal/stats — إحصائيات دائرية (زي الصورة) + KPIs ─────────
