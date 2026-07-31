@@ -17,6 +17,7 @@ import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
   ChevronDown, Lock, Unlock, Truck, Package, Search, SlidersHorizontal, X,
+  LayoutGrid, List, Check,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -297,6 +298,7 @@ export default function ClientAccountManifestsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [sortBy, setSortBy] = useState<"recent" | "sales" | "name">("recent");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const { data: clients, isLoading } = useQuery<Client[]>({
     queryKey: ["finance-clients"],
@@ -444,6 +446,27 @@ export default function ClientAccountManifestsPage() {
 
       {/* Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
+        <div
+          className="flex items-center gap-0.5 rounded-full bg-muted/60 p-1 shrink-0 self-start"
+        >
+          <button
+            type="button"
+            onClick={() => setViewMode("grid")}
+            title="عرض شبكي"
+            className={`h-8 w-10 flex items-center justify-center rounded-full transition-colors ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("list")}
+            title="عرض قائمة"
+            className={`h-8 flex items-center gap-1 px-3 rounded-full transition-colors ${viewMode === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <List className="w-4 h-4" />
+            {viewMode === "list" && <Check className="w-3.5 h-3.5" />}
+          </button>
+        </div>
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -474,7 +497,7 @@ export default function ClientAccountManifestsPage() {
       {isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
       ) : filteredClients.length ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "flex flex-col gap-2.5"}>
           {filteredClients.map((client, idx) => {
             const palettes = [
               { rgb: "251,146,60",  rgb2: "251,191,36"  },
