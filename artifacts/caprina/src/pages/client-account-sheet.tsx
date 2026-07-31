@@ -2081,6 +2081,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const { toast } = useToast();
   const s = manifest.stats;
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
+  const [netProfitOpen, setNetProfitOpen] = useState(false);
 
   // تكلفة الشحن الفعلية = تُحسب أوتوماتيك دايمًا من مجموع shippingCost في الأوردرات (لا يوجد إدخال يدوي)
   const effectiveShippingCost = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
@@ -2141,22 +2142,35 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
       </div>
 
       {/* صافي الربح الحقيقي = إيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع */}
-      <div className={`rounded-md p-4 border flex items-center justify-between ${netProfit >= 0 ? "border-emerald-700/40 bg-emerald-900/10" : "border-red-700/40 bg-red-900/10"}`}>
-        <div>
-          <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
-          <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {formatCurrency(netProfit)}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            {formatCurrency(s.totalRevenue)} إيرادات
-            &nbsp;−&nbsp;{formatCurrency(s.totalCost)} تكلفة بضاعة
-            &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
-            {s.returnLosses > 0 && <>&nbsp;−&nbsp;{formatCurrency(s.returnLosses)} خسائر مرتجع</>}
-          </p>
-        </div>
-        {netProfit >= 0
-          ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
-          : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
+      <div className={`rounded-md border overflow-hidden ${netProfit >= 0 ? "border-emerald-700/40 bg-emerald-900/10" : "border-red-700/40 bg-red-900/10"}`}>
+        <button
+          type="button"
+          onClick={() => setNetProfitOpen((v) => !v)}
+          className="w-full flex items-center justify-between p-4 text-right"
+        >
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground mb-1">صافي الربح الحقيقي</p>
+            <p className={`text-2xl font-black ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {formatCurrency(netProfit)}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {netProfit >= 0
+              ? <TrendingUp className="w-10 h-10 text-emerald-500 opacity-20" />
+              : <TrendingDown className="w-10 h-10 text-red-500 opacity-20" />}
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${netProfitOpen ? "rotate-180" : ""}`} />
+          </div>
+        </button>
+        {netProfitOpen && (
+          <div className="px-4 pb-4 -mt-1">
+            <p className="text-[10px] text-muted-foreground">
+              {formatCurrency(s.totalRevenue)} إيرادات
+              &nbsp;−&nbsp;{formatCurrency(s.totalCost)} تكلفة بضاعة
+              &nbsp;−&nbsp;{formatCurrency(effectiveShippingCost)} شحن
+              {s.returnLosses > 0 && <>&nbsp;−&nbsp;{formatCurrency(s.returnLosses)} خسائر مرتجع</>}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Balance */}
