@@ -2292,8 +2292,10 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
   const [netProfitOpen, setNetProfitOpen] = useState(false);
 
-  // تكلفة الشحن الفعلية = تُحسب أوتوماتيك دايمًا من مجموع shippingCost في الأوردرات (لا يوجد إدخال يدوي)
-  const effectiveShippingCost = (manifest.orders ?? []).reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+  // تكلفة الشحن الفعلية = تُحسب فقط على الأوردرات المُسلَّمة (مسلَّم / مسلَّم جزئي) — الباقي (pending/postponed/delayed/returned) = صفر
+  const effectiveShippingCost = (manifest.orders ?? [])
+    .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
+    .reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
 
   const deliveredTotal = s.deliveredGross;
   // صافي الربح الحقيقي = إجمالي الإيرادات − تكلفة البضاعة − تكلفة الشحن − خسائر الإرجاع
