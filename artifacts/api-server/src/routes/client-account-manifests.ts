@@ -200,6 +200,93 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /client-account-manifests/clients-with-balance ──────────────────────
+// قائمة كل العملاء التجاريين (اللي عندهم بيانات حساب عميل) مع رصيد كل واحد محسوب
+// تُستخدم في القائمة المنسدلة لصفحة "سداد حساب عميل" بالمصروفات
+router.get("/client-account-manifests/clients-with-balance", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+
+    // كل العملاء اللي عندهم بيان حساب عميل واحد على الأقل
+    const manifestConds: any[] = [];
+    if (tenantId !== null) manifestConds.push(eq(clientAccountManifestsTable.tenantId, tenantId));
+    const allManifests = await db
+      .select({ id: clientAccountManifestsTable.id, clientId: clientAccountManifestsTable.clientId, status: clientAccountManifestsTable.status })
+      .from(clientAccountManifestsTable)
+      .where(manifestConds.length ? and(...manifestConds) : undefined);
+
+    const clientIds = Array.from(new Set(allManifests.map(m => m.clientId).filter(Boolean)));
+    if (!clientIds.length) { res.json({ clients: [] }); return; }
+
+    const clients = await db
+      .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone })
+      .from(clientsTable)
+      .where(inArray(clientsTable.id, clientIds));
+
+    const closedManifestIds = allManifests.filter(m => m.status === "closed").map(m => m.id);
+
+    const itemsByManifest = closedManifestIds.length
+      ? await db.select().from(clientAccountManifestItemsTable).where(inArray(clientAccountManifestItemsTable.manifestId, closedManifestIds))
+      : [];
+    const shipmentIds = Array.from(new Set(itemsByManifest.map(i => i.shipmentId)));
+    const shipments = shipmentIds.length
+      ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+      : [];
+    const shipmentMap: Record<number, any> = {};
+    shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    const manifestClientMap: Record<number, number> = {};
+    allManifests.forEach(m => { manifestClientMap[m.id] = m.clientId; });
+
+    // تجميع صافي المستحق لكل عميل من كل الـ items بتاعة البيانات المقفولة
+    const balanceByClient: Record<number, number> = {};
+    for (const item of itemsByManifest) {
+      const cId = manifestClientMap[item.manifestId];
+      if (!cId) continue;
+      const shipment = shipmentMap[item.shipmentId];
+      if (!shipment) continue;
+      const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
+      const shipping = Number(shipment.shippingFee ?? 0);
+      let delta = 0;
+
+      if (item.deliveryStatus === "delivered") {
+        const dvr = (item as any).deliveredValueReceived;
+        const actualCod = dvr != null ? Number(dvr) : cod;
+        delta = actualCod - shipping;
+      } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+        delta = Number(item.partialQuantity) - shipping;
+      } else if (item.deliveryStatus === "returned") {
+        const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
+        if (returnReasonHasValue) {
+          delta = Number((item as any).returnValueReceived ?? 0) - shipping;
+        } else if ((item as any).returnReceived === 1) {
+          delta = -shipping;
+        }
+      }
+      balanceByClient[cId] = (balanceByClient[cId] ?? 0) + delta;
+    }
+
+    // خصم السدادات السابقة (سداد حساب عميل) من رصيد كل عميل
+    const paymentConds: any[] = [inArray(clientAccountPaymentsTable.clientId, clientIds)];
+    const payments = await db
+      .select({ clientId: clientAccountPaymentsTable.clientId, amount: clientAccountPaymentsTable.amount })
+      .from(clientAccountPaymentsTable)
+      .where(and(...paymentConds));
+    for (const p of payments) {
+      balanceByClient[p.clientId] = (balanceByClient[p.clientId] ?? 0) - Number(p.amount ?? 0);
+    }
+
+    const result = clients
+      .map(c => ({ id: c.id, name: c.name, phone: c.phone, balance: balanceByClient[c.id] ?? 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+    res.json({ clients: result });
+  } catch (e) {
+    console.error("[GET /client-account-manifests/clients-with-balance]", e);
+    res.status(500).json({ error: "خطأ في جلب قائمة العملاء بالأرصدة" });
+  }
+});
+
 // ─── GET /client-account-manifests/balance/:clientId ─────────────────────────
 // إجمالي رصيد العميل = مجموع صافي المستحق (netDueFromClient) لكل البيانات "المقفولة" الخاصة به
 // (نفس معادلة netDueFromClient المُستخدمة داخل كل بيان — إجمالي المُسلَّم فعليًا − تكلفة الشحن)

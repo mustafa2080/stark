@@ -1,7 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +33,7 @@ const EXPENSE_CATEGORIES = [
   { value: "utilities",      label: "كهرباء / خدمات",   color: "#EAB308", glow: "rgba(234,179,8,0.25)"  },
   { value: "maintenance",    label: "صيانة",            color: "#F97316", glow: "rgba(249,115,22,0.25)" },
   { value: "returns_loss",   label: "خسائر مرتجعات",    color: "#EF4444", glow: "rgba(239,68,68,0.25)"  },
+  { value: "client_payment", label: "سداد حساب عميل",   color: "#14B8A6", glow: "rgba(20,184,166,0.25)" },
   { value: "other",          label: "أخرى",             color: "#6B7280", glow: "rgba(107,114,128,0.25)"},
 ];
 
@@ -49,6 +49,7 @@ const defaultForm = () => ({
   referenceId: "", notes: "",
   expenseDate: format(new Date(), "yyyy-MM-dd"),
   cashRegisterId: "",
+  clientId: "",
 });
 
 export default function FinanceExpenses() {
@@ -111,19 +112,39 @@ export default function FinanceExpenses() {
   });
   const registers = regData?.registers ?? [];
 
+  // ── سداد حساب عميل: قائمة منسدلة بكل العملاء التجاريين + رصيد كل واحد ──
+  const { data: clientsBalData } = useQuery<{ clients: { id: number; name: string; phone: string | null; balance: number }[] }>({
+    queryKey: ["/api/client-account-manifests/clients-with-balance"],
+    queryFn:  () => api.get("/api/client-account-manifests/clients-with-balance"),
+    enabled:  form.category === "client_payment",
+  });
+  const clientsWithBalance = clientsBalData?.clients ?? [];
+  const selectedClient = clientsWithBalance.find(c => String(c.id) === form.clientId) ?? null;
+  const clientBalance  = selectedClient?.balance ?? null;
+
+  const pickClient = (idStr: string) => {
+    F("clientId", idStr);
+    const c = clientsWithBalance.find(cl => String(cl.id) === idStr);
+    const bal = c?.balance ?? 0;
+    F("amount", bal > 0 ? String(bal) : "");
+  };
+
+  const resetClientPayment = () => { F("clientId", ""); };
+
   // ── Mutations ──
   const save = useMutation({
     mutationFn: () => api.post("/api/finance/expenses", {
       ...form,
       amount: parseFloat(form.amount),
       cashRegisterId: form.cashRegisterId ? parseInt(form.cashRegisterId) : null,
+      clientId: form.category === "client_payment" && form.clientId ? parseInt(form.clientId) : null,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["finance-expenses"] });
       qc.invalidateQueries({ queryKey: ["/api/cash-registers"] });
       qc.invalidateQueries({ queryKey: ["/api/cash-registers/alerts"] });
-      setOpen(false); setForm(defaultForm());
-      toast({ title: "✅ تمت إضافة المصروف وتم الخصم من الخزنة" });
+      setOpen(false); setForm(defaultForm()); resetClientPayment();
+      toast({ title: form.category === "client_payment" ? "✅ تم تسجيل السداد وخصمه من رصيد العميل" : "✅ تمت إضافة المصروف وتم الخصم من الخزنة" });
     },
     onError: (e: any) => toast({ title: "❌ خطأ", description: e.message, variant: "destructive" }),
   });
@@ -352,7 +373,7 @@ export default function FinanceExpenses() {
       )}
 
       {/* ── Dialog إضافة مصروف ── */}
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setForm(defaultForm()); }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setForm(defaultForm()); resetClientPayment(); } }}>
         <DialogContent className="bg-card border-border max-w-md" dir="rtl">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Receipt className="w-4 h-4"/> مصروف جديد</DialogTitle></DialogHeader>
           <div className="space-y-3 mt-2">
@@ -363,7 +384,7 @@ export default function FinanceExpenses() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs mb-1 block">التصنيف</Label>
-                <Select value={form.category} onValueChange={v => F("category", v)}>
+                <Select value={form.category} onValueChange={v => { F("category", v); if (v !== "client_payment") resetClientPayment(); }}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue/></SelectTrigger>
                   <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                 </Select>
@@ -373,6 +394,33 @@ export default function FinanceExpenses() {
                 <Input type="number" className="h-9 text-sm" placeholder="0" value={form.amount} onChange={e => F("amount", e.target.value)}/>
               </div>
             </div>
+
+            {form.category === "client_payment" && (
+              <div>
+                <Label className="text-xs mb-1 block flex items-center gap-1">
+                  <Search className="w-3 h-3 text-teal-500"/> العميل *
+                </Label>
+                <Select value={form.clientId} onValueChange={pickClient}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder={clientsWithBalance.length ? "اختر العميل التجاري..." : "جاري تحميل العملاء..."}/>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {clientsWithBalance.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name} — رصيد: {fmt(c.balance)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedClient && clientBalance !== null && (
+                  <div className={`mt-1.5 text-xs px-2 py-1 rounded flex items-center gap-1.5 ${clientBalance > 0 ? "bg-teal-500/10 text-teal-700" : "bg-muted text-muted-foreground"}`}>
+                    <Wallet className="w-3 h-3"/>
+                    رصيد العميل الحالي: <strong>{fmt(clientBalance)}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs mb-1 block">التاريخ *</Label>
@@ -412,7 +460,7 @@ export default function FinanceExpenses() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button className="flex-1 h-9 font-bold" onClick={() => save.mutate()}
-                disabled={save.isPending || !form.title || !form.amount}>
+                disabled={save.isPending || !form.title || !form.amount || (form.category === "client_payment" && !form.clientId)}>
                 {save.isPending ? "جاري الحفظ..." : form.cashRegisterId ? `حفظ والخصم من ${registers.find(r=>String(r.id)===form.cashRegisterId)?.name ?? "الخزنة"}` : "حفظ والخصم من الخزنة الافتراضية"}
               </Button>
               <Button variant="outline" className="h-9 border-border" onClick={() => setOpen(false)}>إلغاء</Button>
