@@ -5181,7 +5181,10 @@ export default function ShippingManifestPage() {
         const ordersForPnl = ordersExcludingPendingShipping;
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        const totalShippingFee = ordersForPnl.reduce((s, o) => s + (o.shippingCost ?? 0), 0);
+        // تكلفة الشحن الفعلية = تُحسب فقط على الأوردرات المُسلَّمة (مسلَّم / مسلَّم جزئي) — الباقي = صفر
+        const totalShippingFee = ordersForPnl
+          .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
+          .reduce((s, o) => s + (o.shippingCost ?? 0), 0);
         const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => {
           const rvr = (o as any).returnValueReceived;
