@@ -2327,7 +2327,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           return (
             <>
               <div className="bg-card rounded-md p-3 border border-border">
-                <p className="text-[10px] text-muted-foreground mb-1">إجمالي COD</p>
+                <p className="text-[10px] text-muted-foreground mb-1">إجمالي سعر الشحنة</p>
                 <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(totalShippingFees)}</p>
                 <p className="text-[10px] text-muted-foreground">{ordersForSettlement.length} شحنة</p>
               </div>
