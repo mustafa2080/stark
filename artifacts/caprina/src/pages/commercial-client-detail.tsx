@@ -1707,116 +1707,382 @@ function ClientStatementDialog({ client, orders, from, to, onFromChange, onToCha
   });
   const totalUnpaid = Math.max(0, totalAmount - totalPaid);
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const stMapAr: Record<string, string> = {
+      draft: "مسودة", confirmed: "مؤكد", processing: "قيد التجهيز",
+      delivered: "مسلَّم", closed: "مغلق",
+    };
+    const rangeLabel = from || to
+      ? `الفترة من ${from ? format(new Date(from), "yyyy/MM/dd") : "بداية التعاملات"} إلى ${to ? format(new Date(to), "yyyy/MM/dd") : "تاريخه"}`
+      : "كافة الفترات";
+
+    const rows = filtered.map((o, i) => {
+      const tot = parseFloat(o.totalAmount ?? "0");
+      const pd  = o.paymentStatus === "paid" ? tot : parseFloat(o.paidAmount ?? "0");
+      const unp = Math.max(0, tot - pd);
+      return `
+        <tr>
+          <td class="c-idx">${i + 1}</td>
+          <td class="c-num">${o.soNumber}</td>
+          <td>${format(new Date(o.createdAt), "yyyy/MM/dd")}</td>
+          <td>${stMapAr[o.status] ?? o.status}</td>
+          <td class="c-num">${fmt(tot)}</td>
+          <td class="c-num pos">${fmt(pd)}</td>
+          <td class="c-num ${unp > 0 ? "neg" : ""}">${fmt(unp)}</td>
+        </tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar">
+<head><meta charset="UTF-8">
+<title>كشف حساب — ${client.name}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Cairo","Tahoma",Arial,sans-serif; color: #1e293b; background:#fff; font-size: 12px; line-height: 1.5; }
+
+  .letterhead { display:flex; align-items:center; justify-content:space-between; border-bottom: 3px solid #1e3a5f; padding-bottom: 14px; margin-bottom: 18px; }
+  .company-name { font-size: 22px; font-weight: 900; color:#1e3a5f; letter-spacing: .5px; }
+  .company-sub  { font-size: 10px; color:#64748b; margin-top: 2px; }
+  .doc-badge { text-align:left; }
+  .doc-badge .doc-title { font-size: 15px; font-weight:900; color:#fff; background:#1e3a5f; padding:6px 16px; border-radius: 4px; display:inline-block; }
+  .doc-badge .doc-date  { font-size: 9px; color:#64748b; margin-top:6px; }
+
+  .info-bar { display:flex; justify-content:space-between; gap: 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding: 10px 16px; margin-bottom: 18px; }
+  .info-item .lbl { font-size: 9px; color:#94a3b8; font-weight:700; }
+  .info-item .val { font-size: 13px; color:#1e293b; font-weight:800; margin-top:2px; }
+
+  .summary { display:grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
+  .stat { border-radius: 6px; padding: 12px 8px; text-align:center; border: 1px solid; }
+  .stat .lbl { font-size: 9.5px; font-weight:700; margin-bottom: 4px; }
+  .stat .val { font-size: 17px; font-weight:900; }
+  .stat.blue    { background:#eff6ff; border-color:#bfdbfe; } .stat.blue .lbl,.stat.blue .val{color:#1d4ed8;}
+  .stat.green   { background:#ecfdf5; border-color:#a7f3d0; } .stat.green .lbl,.stat.green .val{color:#047857;}
+  .stat.amber   { background:#fffbeb; border-color:#fde68a; } .stat.amber .lbl,.stat.amber .val{color:#b45309;}
+  .stat.red     { background:#fef2f2; border-color:#fecaca; } .stat.red .lbl,.stat.red .val{color:#b91c1c;}
+
+  table { width:100%; border-collapse: collapse; }
+  thead th { background:#1e3a5f; color:#fff; font-size:10.5px; font-weight:800; padding: 9px 6px; text-align:center; border: 1px solid #1e3a5f; }
+  tbody td { padding: 7px 6px; text-align:center; font-size: 11px; border: 1px solid #e2e8f0; }
+  tbody tr:nth-child(even) { background:#f8fafc; }
+  .c-idx { color:#94a3b8; font-size:10px; width: 26px; }
+  .c-num { font-variant-numeric: tabular-nums; font-weight:700; }
+  td.pos { color:#059669; }
+  td.neg { color:#dc2626; font-weight:900; }
+
+  tfoot td { background:#1e3a5f; color:#fff; font-weight:900; font-size:12px; padding:10px 6px; border:1px solid #1e3a5f; }
+  tfoot td.neg-total { background:#b91c1c; }
+
+  .empty-row td { padding: 30px; color:#94a3b8; font-size:12px; }
+
+  .footer { display:flex; justify-content:space-between; margin-top: 40px; padding-top: 16px; }
+  .sig { text-align:center; width: 180px; }
+  .sig .line { border-top: 1px solid #94a3b8; margin-top: 34px; padding-top: 4px; font-size: 10px; color:#64748b; }
+  .stamp-note { font-size: 9px; color:#94a3b8; text-align:center; margin-top: 26px; }
+</style></head>
+<body>
+  <div class="letterhead">
+    <div>
+      <div class="company-name">Stark Vector</div>
+      <div class="company-sub">إدارة الشحن والخدمات اللوجستية</div>
+    </div>
+    <div class="doc-badge">
+      <span class="doc-title">كشف حساب عميل</span>
+      <div class="doc-date">تاريخ الإصدار: ${format(new Date(), "yyyy/MM/dd — HH:mm")}</div>
+    </div>
+  </div>
+
+  <div class="info-bar">
+    <div class="info-item">
+      <div class="lbl">اسم العميل</div>
+      <div class="val">${client.name}</div>
+    </div>
+    ${client.phone ? `<div class="info-item"><div class="lbl">رقم الهاتف</div><div class="val">${client.phone}</div></div>` : ""}
+    <div class="info-item">
+      <div class="lbl">الفترة</div>
+      <div class="val">${rangeLabel}</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="stat blue"><div class="lbl">إجمالي الأوامر</div><div class="val">${filtered.length}</div></div>
+    <div class="stat amber"><div class="lbl">إجمالي المشتريات</div><div class="val">${fmt(totalAmount)}</div></div>
+    <div class="stat green"><div class="lbl">إجمالي المدفوع</div><div class="val">${fmt(totalPaid)}</div></div>
+    <div class="stat red"><div class="lbl">المتبقي (المديونية)</div><div class="val">${fmt(totalUnpaid)}</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>م</th><th>رقم الأمر</th><th>التاريخ</th><th>الحالة</th>
+        <th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filtered.length ? rows : `<tr class="empty-row"><td colspan="7">لا توجد أوامر في هذه الفترة</td></tr>`}
+    </tbody>
+    ${filtered.length ? `
+    <tfoot>
+      <tr>
+        <td colspan="4">الإجمالي</td>
+        <td>${fmt(totalAmount)}</td>
+        <td>${fmt(totalPaid)}</td>
+        <td class="${totalUnpaid > 0 ? "neg-total" : ""}">${fmt(totalUnpaid)}</td>
+      </tr>
+    </tfoot>` : ""}
+  </table>
+
+  <div class="footer">
+    <div class="sig"><div class="line">توقيع المسؤول</div></div>
+    <div class="sig"><div class="line">توقيع العميل</div></div>
+  </div>
+  <p class="stamp-note">هذا الكشف صادر إلكترونياً من نظام Stark Vector ولا يحتاج توقيعاً لاعتماده داخلياً.</p>
+</body></html>`;
+
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.onload = () => win.print();
+    }
+  };
 
   const handleExportExcel = async () => {
     setExporting("excel");
     try {
       const ExcelJS = (await import("exceljs")).default;
       const wb = new ExcelJS.Workbook();
-      wb.creator = "Caprina OS";
+      wb.creator = "Stark Vector";
       wb.created = new Date();
-      const ws = wb.addWorksheet("كشف الحساب", { views: [{ rightToLeft: true }] });
+      const ws = wb.addWorksheet("كشف الحساب", {
+        views: [{ rightToLeft: true, showGridLines: false }],
+      });
 
-      const bAll = (cell: any, color = "FFB0BEC5") => {
-        const s = { style: "thin" as const, color: { argb: color } };
-        cell.border = { top: s, left: s, bottom: s, right: s };
+      // ── ألوان الشركة (هوية موحّدة، هادئة، مناسبة للطباعة) ──
+      const NAVY   = "FF1E3A5F"; // هيدر أساسي
+      const NAVY_D = "FF162B47"; // خط حدود الهيدر
+      const INK    = "FF1E293B"; // نص أساسي
+      const MUTED  = "FF64748B"; // نص ثانوي
+      const LINE   = "FFD9DEE7"; // خطوط الجدول
+      const ROW_ALT= "FFF4F7FB"; // صف متبدل
+      const GREEN  = "FF047857"; const GREEN_BG = "FFECFDF5"; const GREEN_BR = "FFA7F3D0";
+      const AMBER  = "FFB45309"; const AMBER_BG = "FFFFFBEB"; const AMBER_BR = "FFFDE68A";
+      const RED    = "FFB91C1C"; const RED_BG   = "FFFEF2F2"; const RED_BR   = "FFFECACA";
+      const BLUE   = "FF1D4ED8"; const BLUE_BG  = "FFEFF6FF"; const BLUE_BR  = "FFBFDBFE";
+
+      const thin = (color: string) => ({ style: "thin" as const, color: { argb: color } });
+      const bAll = (cell: any, color = LINE) => {
+        cell.border = { top: thin(color), left: thin(color), bottom: thin(color), right: thin(color) };
       };
 
-      ws.mergeCells("A1:F1");
-      const t1 = ws.getCell("A1");
-      t1.value = `كشف حساب — ${client.name}`;
-      t1.font = { name: "Arial", size: 18, bold: true, color: { argb: "FFFFFFFF" } };
-      t1.alignment = { horizontal: "center", vertical: "middle" };
-      t1.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
-      ws.getRow(1).height = 40;
-
-      ws.mergeCells("A2:F2");
-      const t2 = ws.getCell("A2");
-      const rangeLabel = from || to
-        ? `الفترة: ${from ? format(new Date(from), "yyyy/MM/dd") : "البداية"} — ${to ? format(new Date(to), "yyyy/MM/dd") : "الآن"}`
-        : `كل الفترات — تاريخ الإصدار: ${format(new Date(), "yyyy/MM/dd HH:mm")}`;
-      t2.value = rangeLabel;
-      t2.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF94A3B8" } };
-      t2.alignment = { horizontal: "center", vertical: "middle" };
-      ws.getRow(2).height = 18;
-      ws.getRow(3).height = 8;
-
-      const smLabels = ["إجمالي الأوامر", "إجمالي المشتريات", "المدفوع", "المتبقي"];
-      const smVals   = [filtered.length, totalAmount, totalPaid, totalUnpaid];
-      const smColors = ["FF7C3AED", "FFD97706", "FF16A34A", "FFDC2626"];
-      const smBGs    = ["FF2E1065", "FF451A03", "FF052E16", "FF450A0A"];
-      const smFmts   = ['#,##0', '#,##0', '#,##0', '#,##0'];
-
-      smLabels.forEach((lbl, i) => {
-        const col = String.fromCharCode(65 + i); // A..D — leaving E,F spare width
-        const c2  = col;
-        const hCell = ws.getCell(`${col}4`);
-        hCell.value = lbl;
-        hCell.font = { name: "Arial", size: 9, bold: true, color: { argb: smColors[i] } };
-        hCell.alignment = { horizontal: "center", vertical: "middle" };
-        hCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: smBGs[i] } };
-        bAll(hCell, smColors[i]);
-        ws.getRow(4).height = 20;
-
-        const vCell = ws.getCell(`${col}5`);
-        vCell.value = smVals[i];
-        vCell.numFmt = smFmts[i];
-        vCell.font = { name: "Arial", size: 13, bold: true, color: { argb: smColors[i] } };
-        vCell.alignment = { horizontal: "center", vertical: "middle" };
-        vCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: smBGs[i] } };
-        bAll(vCell, smColors[i]);
-        ws.getRow(5).height = 30;
-      });
-      ws.getRow(6).height = 8;
-
       ws.columns = [
-        { key: "soNumber", width: 20 }, { key: "createdAt", width: 14 },
-        { key: "status", width: 14 }, { key: "payStatus", width: 12 },
-        { key: "total", width: 16 }, { key: "paid", width: 16 },
+        { key: "idx", width: 6 }, { key: "soNumber", width: 20 }, { key: "createdAt", width: 14 },
+        { key: "status", width: 16 }, { key: "total", width: 16 },
+        { key: "paid", width: 16 }, { key: "unpaid", width: 16 },
       ];
 
-      const hdr = ws.addRow(["رقم الأمر", "التاريخ", "الحالة", "الدفع", "الإجمالي", "المدفوع"]);
+      // ══ سطر 1-2: هيدر الشركة ══
+      ws.mergeCells("A1:D2");
+      const cName = ws.getCell("A1");
+      cName.value = "Stark Vector";
+      cName.font = { name: "Arial", size: 20, bold: true, color: { argb: NAVY } };
+      cName.alignment = { horizontal: "right", vertical: "bottom" };
+
+      ws.mergeCells("E1:G1");
+      const cDocTitle = ws.getCell("E1");
+      cDocTitle.value = "كشف حساب عميل";
+      cDocTitle.font = { name: "Arial", size: 13, bold: true, color: { argb: "FFFFFFFF" } };
+      cDocTitle.alignment = { horizontal: "center", vertical: "middle" };
+      cDocTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+      ws.getRow(1).height = 26;
+
+      ws.mergeCells("E2:G2");
+      const cDate = ws.getCell("E2");
+      cDate.value = `تاريخ الإصدار: ${format(new Date(), "yyyy/MM/dd — HH:mm")}`;
+      cDate.font = { name: "Arial", size: 9, color: { argb: MUTED } };
+      cDate.alignment = { horizontal: "center", vertical: "middle" };
+      ws.getRow(2).height = 22;
+
+      ws.mergeCells("A3:D3");
+      const cSub = ws.getCell("A3");
+      cSub.value = "إدارة الشحن والخدمات اللوجستية";
+      cSub.font = { name: "Arial", size: 9, color: { argb: MUTED } };
+      cSub.alignment = { horizontal: "right", vertical: "top" };
+      ws.getRow(3).height = 16;
+
+      // خط فاصل تحت الهيدر
+      for (let c = 1; c <= 7; c++) {
+        ws.getCell(4, c).border = { bottom: { style: "medium", color: { argb: NAVY } } };
+      }
+      ws.getRow(4).height = 4;
+
+      // ══ سطر 5-6: بيانات العميل + الفترة ══
+      const rangeLabel = from || to
+        ? `${from ? format(new Date(from), "yyyy/MM/dd") : "البداية"}  إلى  ${to ? format(new Date(to), "yyyy/MM/dd") : "تاريخه"}`
+        : "كافة الفترات";
+
+      ws.mergeCells("A6:B6");
+      ws.getCell("A6").value = "اسم العميل:";
+      ws.getCell("A6").font = { name: "Arial", size: 9, bold: true, color: { argb: MUTED } };
+      ws.getCell("A6").alignment = { horizontal: "right" };
+      ws.mergeCells("C6:D6");
+      ws.getCell("C6").value = client.name;
+      ws.getCell("C6").font = { name: "Arial", size: 11, bold: true, color: { argb: INK } };
+      ws.getCell("C6").alignment = { horizontal: "right" };
+
+      ws.mergeCells("E6:E6");
+      ws.getCell("E6").value = "الفترة:";
+      ws.getCell("E6").font = { name: "Arial", size: 9, bold: true, color: { argb: MUTED } };
+      ws.getCell("E6").alignment = { horizontal: "right" };
+      ws.mergeCells("F6:G6");
+      ws.getCell("F6").value = rangeLabel;
+      ws.getCell("F6").font = { name: "Arial", size: 10, bold: true, color: { argb: INK } };
+      ws.getCell("F6").alignment = { horizontal: "right" };
+      ws.getRow(6).height = 20;
+
+      if (client.phone) {
+        ws.mergeCells("A7:B7");
+        ws.getCell("A7").value = "رقم الهاتف:";
+        ws.getCell("A7").font = { name: "Arial", size: 9, bold: true, color: { argb: MUTED } };
+        ws.getCell("A7").alignment = { horizontal: "right" };
+        ws.mergeCells("C7:D7");
+        ws.getCell("C7").value = client.phone;
+        ws.getCell("C7").font = { name: "Arial", size: 10, color: { argb: INK } };
+        ws.getCell("C7").alignment = { horizontal: "right" };
+        ws.getRow(7).height = 18;
+      }
+      ws.getRow(8).height = 10;
+
+      // ══ سطر 9-10: بطاقات الملخص ══
+      const smLabels = ["إجمالي الأوامر", "إجمالي المشتريات", "إجمالي المدفوع", "المتبقي (المديونية)"];
+      const smVals   = [filtered.length, totalAmount, totalPaid, totalUnpaid];
+      const smFmts   = ['#,##0', '#,##0" ج.م"', '#,##0" ج.م"', '#,##0" ج.م"'];
+      const smFG     = [BLUE, AMBER, GREEN, RED];
+      const smBG     = [BLUE_BG, AMBER_BG, GREEN_BG, RED_BG];
+      const smBR     = [BLUE_BR, AMBER_BR, RED_BR, RED_BR];
+      // كل بطاقة تاخد عمود واحد إلا الأخيرة عمودين (G فاضي)
+      const smCols   = [["A","A"],["B","C"],["D","E"],["F","G"]];
+
+      smLabels.forEach((lbl, i) => {
+        const [c1, c2] = smCols[i];
+        if (c1 !== c2) { ws.mergeCells(`${c1}9:${c2}9`); ws.mergeCells(`${c1}10:${c2}10`); }
+        const hCell = ws.getCell(`${c1}9`);
+        hCell.value = lbl;
+        hCell.font = { name: "Arial", size: 9, bold: true, color: { argb: smFG[i] } };
+        hCell.alignment = { horizontal: "center", vertical: "middle" };
+        hCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: smBG[i] } };
+        bAll(hCell, smBR[i]);
+        ws.getRow(9).height = 20;
+
+        const vCell = ws.getCell(`${c1}10`);
+        vCell.value = smVals[i];
+        vCell.numFmt = smFmts[i];
+        vCell.font = { name: "Arial", size: 14, bold: true, color: { argb: smFG[i] } };
+        vCell.alignment = { horizontal: "center", vertical: "middle" };
+        vCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: smBG[i] } };
+        bAll(vCell, smBR[i]);
+        ws.getRow(10).height = 30;
+      });
+      ws.getRow(11).height = 10;
+
+      // ══ سطر 12: رأس الجدول ══
+      const hdr = ws.getRow(12);
+      hdr.values = ["م", "رقم الأمر", "التاريخ", "الحالة", "الإجمالي", "المدفوع", "المتبقي"];
       hdr.eachCell(cell => {
         cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
         cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
-        bAll(cell, "FF3B82F6");
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+        bAll(cell, NAVY_D);
       });
-      hdr.height = 22;
+      hdr.height = 24;
 
+      // ══ صفوف الأوامر ══
       filtered.forEach((o, i) => {
         const tot = parseFloat(o.totalAmount ?? "0");
         const pd  = o.paymentStatus === "paid" ? tot : parseFloat(o.paidAmount ?? "0");
-        const rowBG = i % 2 === 0 ? "FFF0F4FA" : "FFFFFFFF";
-        const row = ws.addRow({
-          soNumber: o.soNumber,
-          createdAt: format(new Date(o.createdAt), "yyyy/MM/dd"),
-          status: stMap[o.status] ?? o.status,
-          payStatus: pyLabel(o, Math.max(0, tot - pd)),
-          total: tot, paid: pd,
-        });
+        const unp = Math.max(0, tot - pd);
+        const rowBG = i % 2 === 0 ? "FFFFFFFF" : ROW_ALT;
+
+        const row = ws.addRow([
+          i + 1, o.soNumber, format(new Date(o.createdAt), "yyyy/MM/dd"),
+          stMap[o.status] ?? o.status, tot, pd, unp,
+        ]);
         row.eachCell(cell => {
-          cell.font = { name: "Arial", size: 10, color: { argb: "FF1E293B" } };
+          cell.font = { name: "Arial", size: 10, color: { argb: INK } };
           cell.alignment = { horizontal: "center", vertical: "middle" };
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBG } };
-          bAll(cell, "FFD1D5DB");
+          bAll(cell, LINE);
         });
+        row.getCell(1).font = { name: "Arial", size: 9, color: { argb: MUTED } };
+        row.getCell(2).font = { name: "Arial", size: 10, bold: true, color: { argb: NAVY } };
         row.getCell(5).numFmt = '#,##0';
         row.getCell(6).numFmt = '#,##0';
+        row.getCell(6).font = { name: "Arial", size: 10, bold: true, color: { argb: GREEN } };
+        row.getCell(7).numFmt = '#,##0';
+        row.getCell(7).font = unp > 0
+          ? { name: "Arial", size: 10, bold: true, color: { argb: RED } }
+          : { name: "Arial", size: 10, color: { argb: MUTED } };
         row.height = 20;
       });
 
-      const totRow = ws.addRow(["", "", "", "الإجمالي", totalAmount, totalPaid]);
+      if (filtered.length === 0) {
+        ws.mergeCells(`A13:G13`);
+        const emptyCell = ws.getCell("A13");
+        emptyCell.value = "لا توجد أوامر في هذه الفترة";
+        emptyCell.font = { name: "Arial", size: 10, color: { argb: MUTED } };
+        emptyCell.alignment = { horizontal: "center", vertical: "middle" };
+        ws.getRow(13).height = 40;
+      }
+
+      // ══ صف الإجمالي ══
+      const totRow = ws.addRow(["", "", "", "الإجمالي", totalAmount, totalPaid, totalUnpaid]);
+      ws.mergeCells(`A${totRow.number}:D${totRow.number}`);
       totRow.eachCell(cell => {
         cell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1D4ED8" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
         cell.alignment = { horizontal: "center", vertical: "middle" };
-        bAll(cell, "FF60A5FA");
+        bAll(cell, NAVY_D);
       });
       totRow.getCell(5).numFmt = '#,##0';
       totRow.getCell(6).numFmt = '#,##0';
-      totRow.height = 24;
+      totRow.getCell(7).numFmt = '#,##0';
+      if (totalUnpaid > 0) {
+        totRow.getCell(7).fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED } };
+      }
+      totRow.height = 26;
+
+      // ══ تذييل: توقيعات ══
+      const sigRowNum = totRow.number + 3;
+      ws.mergeCells(`A${sigRowNum}:B${sigRowNum}`);
+      ws.getCell(`A${sigRowNum}`).value = "____________________";
+      ws.getCell(`A${sigRowNum}`).font = { name: "Arial", size: 10, color: { argb: MUTED } };
+      ws.getCell(`A${sigRowNum}`).alignment = { horizontal: "center" };
+      ws.mergeCells(`F${sigRowNum}:G${sigRowNum}`);
+      ws.getCell(`F${sigRowNum}`).value = "____________________";
+      ws.getCell(`F${sigRowNum}`).font = { name: "Arial", size: 10, color: { argb: MUTED } };
+      ws.getCell(`F${sigRowNum}`).alignment = { horizontal: "center" };
+
+      const sigLabelRow = sigRowNum + 1;
+      ws.mergeCells(`A${sigLabelRow}:B${sigLabelRow}`);
+      ws.getCell(`A${sigLabelRow}`).value = "توقيع المسؤول";
+      ws.getCell(`A${sigLabelRow}`).font = { name: "Arial", size: 9, color: { argb: MUTED } };
+      ws.getCell(`A${sigLabelRow}`).alignment = { horizontal: "center" };
+      ws.mergeCells(`F${sigLabelRow}:G${sigLabelRow}`);
+      ws.getCell(`F${sigLabelRow}`).value = "توقيع العميل";
+      ws.getCell(`F${sigLabelRow}`).font = { name: "Arial", size: 9, color: { argb: MUTED } };
+      ws.getCell(`F${sigLabelRow}`).alignment = { horizontal: "center" };
+
+      const noteRow = sigLabelRow + 2;
+      ws.mergeCells(`A${noteRow}:G${noteRow}`);
+      ws.getCell(`A${noteRow}`).value = "هذا الكشف صادر إلكترونياً من نظام Stark Vector ولا يحتاج توقيعاً لاعتماده داخلياً.";
+      ws.getCell(`A${noteRow}`).font = { name: "Arial", size: 8, italic: true, color: { argb: MUTED } };
+      ws.getCell(`A${noteRow}`).alignment = { horizontal: "center" };
+
+      // إعدادات الطباعة
+      ws.pageSetup = {
+        paperSize: 9, orientation: "portrait", fitToPage: true,
+        fitToWidth: 1, fitToHeight: 0,
+        margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+      };
 
       const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
