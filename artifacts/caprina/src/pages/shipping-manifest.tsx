@@ -1013,6 +1013,15 @@ function InvoiceGroupDeliveryRow({
 
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
+  // تكلفة الشحن (وسعر المنطقة المعروض بجانبها) تُحسب لو الحالة: مسلَّم / مسلَّم جزئي /
+  // استلام جزئي / مرتجع بأحد الأسباب الثلاثة (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
+  // أي حالة أو سبب تاني = صفر.
+  const RETURN_REASONS_WITH_SHIPPING_ROW = ["refused_paid", "refused_unpaid", "quality"];
+  const rowShippingWasIncurred =
+    (rep as any)?.deliveryStatus === "delivered" ||
+    (rep as any)?.deliveryStatus === "partial_delivered" ||
+    (rep as any)?.deliveryStatus === "partial_received" ||
+    ((rep as any)?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_ROW.includes((rep as any)?.returnReason));
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received احسب الجزء المستلم (كمية)، لو partial_delivered في بيان الشحن القيمة مسجَّلة مباشرة
   const totalPrice = group.reduce((s, o) => {
@@ -1361,9 +1370,11 @@ function InvoiceGroupDeliveryRow({
           <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
             <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
-          {/* سعر المنطقة (المحافظة) — من قسم "المناطق والأسعار" حسب zoneId الشحنة */}
+          {/* سعر المنطقة (المحافظة) — من قسم "المناطق والأسعار" حسب zoneId الشحنة.
+              يُعرض فقط لو الشحن اتنفذ فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي/مرتجع بأحد
+              الأسباب الثلاثة)، وإلا صفر — نفس شرط عمود "شحن" بالظبط. */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
-            {rep.zonePrice != null ? (
+            {rowShippingWasIncurred && rep.zonePrice != null ? (
               <span className="text-amber-500 font-semibold truncate">{formatCurrency(rep.zonePrice)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
