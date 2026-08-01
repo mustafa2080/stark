@@ -3972,11 +3972,7 @@ export default function ShippingManifestPage() {
       if (manifest && variables?.status === "closed") {
         const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
         const due = (manifest.stats?.deliveredGross ?? 0) - effectiveShipping;
-        // نأخر ظهور overlay الملخص خطوة واحدة بعد إغلاق الـ Dialog، عشان منفتحش
-        // طبقة fixed جديدة في نفس اللحظة اللي Radix Dialog بيعمل فيها cleanup
-        // لقفل الـ scroll على الـ body — التعارض ده كان بيسبب تصغير الشاشة (zoom out)
-        // على متصفحات الموبايل لما البيان يتقفل من صفحة المندوب.
-        setTimeout(() => setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 }), 50);
+        setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
       }
       refetch();
       setShowCloseDialog(false);
@@ -5168,33 +5164,36 @@ export default function ShippingManifestPage() {
       )}
 
       {/* ─── ملخص ما بعد الإغلاق — الرصيد المستحق + عدد المرتجعات ─── */}
-      {closedSummary && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-emerald-600/40 bg-gradient-to-b from-emerald-900/20 to-card p-6 space-y-4 text-center" dir="rtl">
-            <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center">
-              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-base font-black text-emerald-400">تم إغلاق البيان بنجاح</p>
-            </div>
-            <div className="space-y-3">
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-right">
-                <p className="text-sm text-foreground">
-                  رصيدك <strong className="text-amber-400 text-base">{formatCurrency(closedSummary.due)}</strong>، الرجاء توريده للشركة
-                </p>
+      {/* استخدام AlertDialog (نفس آلية Radix المستخدمة في باقي حوارات الصفحة) بدل
+          طبقة fixed/backdrop-blur اليدوية، لأن الأخيرة كانت بتسبب مشكلة شاشة سودا
+          فاضية على متصفحات الموبايل بعد إغلاق الـ Dialog السابق مباشرة. */}
+      <AlertDialog open={!!closedSummary} onOpenChange={(open) => { if (!open) setClosedSummary(null); }}>
+        <AlertDialogContent dir="rtl" className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center justify-center gap-2 text-emerald-500">
+              <CheckCircle2 className="w-5 h-5" />
+              تم إغلاق البيان بنجاح
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right space-y-3" asChild>
+              <div className="space-y-3 mt-2">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-right">
+                  <p className="text-sm text-foreground">
+                    رصيدك <strong className="text-amber-400 text-base">{formatCurrency(closedSummary?.due ?? 0)}</strong>، الرجاء توريده للشركة
+                  </p>
+                </div>
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-right">
+                  <p className="text-sm text-foreground">
+                    عدد المرتجعات <strong className="text-red-400 text-base">{closedSummary?.returned ?? 0}</strong>، الرجاء توريدهم للشركة
+                  </p>
+                </div>
               </div>
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-right">
-                <p className="text-sm text-foreground">
-                  عدد المرتجعات <strong className="text-red-400 text-base">{closedSummary.returned}</strong>، الرجاء توريدهم للشركة
-                </p>
-              </div>
-            </div>
-            <Button className="w-full gap-2 bg-emerald-700 hover:bg-emerald-600" onClick={() => setClosedSummary(null)}>
-              <CheckCircle2 className="w-4 h-4" /> تمام، هوريها
-            </Button>
-          </div>
-        </div>
-      )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogAction className="w-full gap-2 bg-emerald-700 hover:bg-emerald-600" onClick={() => setClosedSummary(null)}>
+            <CheckCircle2 className="w-4 h-4" /> تمام، هوريها
+          </AlertDialogAction>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ─── Rollover Dialog — بيان جديد اتنشأ ─── */}
       {showRolloverDialog && (
