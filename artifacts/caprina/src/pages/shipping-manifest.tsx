@@ -2727,7 +2727,14 @@ function ExportDialog({
       const rep = group[0];
       const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
       const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
-      const courierCost = rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null;
+      // تكلفة الشحن تظهر فقط لو تمت عملية الشحن فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي مؤكد/مرتجع بأحد الأسباب الثلاثة)
+      const RETURN_REASONS_WITH_SHIPPING_XLS = ["refused_paid", "refused_unpaid", "quality"];
+      const shippingWasIncurredXls =
+        (rep as any).deliveryStatus === "delivered" ||
+        (rep as any).deliveryStatus === "partial_delivered" ||
+        ((rep as any).deliveryStatus === "partial_received" && (rep as any).returnReceived === 1) ||
+        ((rep as any).deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_XLS.includes((rep as any).returnReason));
+      const courierCost = shippingWasIncurredXls ? effectiveShipping : 0;
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
       const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
       const deliveryLabel = statuses.length === 1
@@ -4199,7 +4206,16 @@ export default function ShippingManifestPage() {
             const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
             const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-            const courierCost = rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : null;
+            // تكلفة الشحن تظهر فقط لو تمت عملية الشحن فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي مؤكد/مرتجع بأحد الأسباب الثلاثة)
+            const RETURN_REASONS_WITH_SHIPPING_PRINT = ["refused_paid", "refused_unpaid", "quality"];
+            const shippingWasIncurredPrint =
+              (rep as any).deliveryStatus === "delivered" ||
+              (rep as any).deliveryStatus === "partial_delivered" ||
+              ((rep as any).deliveryStatus === "partial_received" && (rep as any).returnReceived === 1) ||
+              ((rep as any).deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_PRINT.includes((rep as any).returnReason));
+            const courierCost = shippingWasIncurredPrint
+              ? (rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : 0)
+              : 0;
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
