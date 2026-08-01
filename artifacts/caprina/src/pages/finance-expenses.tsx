@@ -127,6 +127,8 @@ export default function FinanceExpenses() {
     const c = clientsWithBalance.find(cl => String(cl.id) === idStr);
     const bal = c?.balance ?? 0;
     F("amount", bal > 0 ? String(bal) : "");
+    // العنوان بيتولّد تلقائيًا من اسم العميل — مفيش داعي اليوزر يكتبه يدوي
+    F("title", c ? `سداد رصيد — ${c.name}` : "");
   };
 
   const resetClientPayment = () => { F("clientId", ""); };
@@ -378,8 +380,17 @@ export default function FinanceExpenses() {
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Receipt className="w-4 h-4"/> مصروف جديد</DialogTitle></DialogHeader>
           <div className="space-y-3 mt-2">
             <div>
-              <Label className="text-xs mb-1 block">العنوان *</Label>
-              <Input className="h-9 text-sm" placeholder="مثال: إيجار مخزن يناير" value={form.title} onChange={e => F("title", e.target.value)}/>
+              <Label className="text-xs mb-1 block">
+                العنوان *{form.category === "client_payment" && <span className="text-muted-foreground font-normal"> (يتولّد تلقائيًا من اسم العميل)</span>}
+              </Label>
+              <Input
+                className="h-9 text-sm"
+                placeholder="مثال: إيجار مخزن يناير"
+                value={form.title}
+                onChange={e => F("title", e.target.value)}
+                readOnly={form.category === "client_payment"}
+                disabled={form.category === "client_payment"}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
