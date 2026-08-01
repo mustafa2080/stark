@@ -340,7 +340,7 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
       .from(usersTable).where(eq(usersTable.clientId, id)).limit(1);
     const hasAccount = !!linkedUser;
 
-    // جلب أوامر البيع المرتبطة
+    // جلب أوامر البيع المرتبطة (نظام sale_orders القديم — لسه بيستخدمه عملاء نظام الطلبات)
     const orderConds: any[] = [eq(saleOrdersTable.clientName, client.name)];
     if (tenantId !== null) orderConds.push(eq(saleOrdersTable.tenantId, tenantId));
 
@@ -353,15 +353,49 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
       .where(and(...orderConds))
       .orderBy(desc(saleOrdersTable.createdAt));
 
-    // ✅ حساب الإحصائيات live من الفواتير الفعلية (مش من الـ DB المخزّن)
-    const totalSales = orders.reduce((s, o) => s + parseFloat(o.totalAmount ?? "0"), 0);
-    const totalPaid  = orders.reduce((s, o) => {
+    // ✅ جلب شحنات العميل (نظام الشحن — بالـ clientId أو بمطابقة اسم المُرسل)
+    // نفس منطق GET /finance/clients/:id/shipments — عشان عملاء نظام الشحن
+    // (زي "So Sweet") تظهر لهم فواتير/مديونية حقيقية بدل أصفار
+    const shipConds: any[] = [isNull(shipmentsTable.deletedAt)];
+    shipConds.push(or(eq(shipmentsTable.clientId, id), eq(shipmentsTable.senderName, client.name))!);
+    if (tenantId !== null) shipConds.push(eq(shipmentsTable.tenantId, tenantId));
+
+    const clientShipmentsForStats = await db.select({
+      id:               shipmentsTable.id,
+      shipmentNumber:   shipmentsTable.shipmentNumber,
+      status:           shipmentsTable.status,
+      codAmount:        shipmentsTable.codAmount,
+      collectedAmount:  shipmentsTable.collectedAmount,
+      createdAt:        shipmentsTable.createdAt,
+    }).from(shipmentsTable)
+      .where(and(...shipConds));
+
+    // حالات الشحن اللي بتُحتسب "مسلَّمة" فعليًا (مصدر الفاتورة الحقيقي)
+    const DELIVERED_STATUSES = ["delivered", "partial_received"];
+    const deliveredShipments = clientShipmentsForStats.filter(s => DELIVERED_STATUSES.includes(s.status));
+
+    // ✅ إجمالي مبيعات/تحصيل الشحنات — من قيمة الشحنات المُسلَّمة فعليًا
+    const shipmentsSales     = deliveredShipments.reduce((s, sh) => s + parseFloat(sh.codAmount ?? "0"), 0);
+    const shipmentsCollected = deliveredShipments.reduce((s, sh) => {
+      const cod = parseFloat(sh.codAmount ?? "0");
+      const collected = sh.collectedAmount != null ? parseFloat(sh.collectedAmount) : cod;
+      return s + collected;
+    }, 0);
+
+    // ✅ حساب الإحصائيات live — دمج نظام أوامر البيع (القديم) + نظام الشحن (الجديد)
+    // لو العميل مالوش أوردرات مبيعات، هتفضل شغالة بس على أرقام الشحنات، والعكس صحيح
+    const salesOrdersTotal = orders.reduce((s, o) => s + parseFloat(o.totalAmount ?? "0"), 0);
+    const salesOrdersPaid  = orders.reduce((s, o) => {
       const t = parseFloat(o.totalAmount ?? "0");
       const p = o.paymentStatus === "paid" ? t : parseFloat(o.paidAmount ?? "0");
       return s + p;
     }, 0);
-    const totalOrders     = orders.length;
-    const deliveredOrders = orders.filter(o => o.status === "delivered").length;
+
+    const totalSales = salesOrdersTotal + shipmentsSales;
+    const totalPaid  = salesOrdersPaid + shipmentsCollected;
+    // إجمالي الفواتير = أوامر البيع + الشحنات (كل شحنة بتُعتبر "فاتورة")
+    const totalOrders     = orders.length + clientShipmentsForStats.length;
+    const deliveredOrders = orders.filter(o => o.status === "delivered").length + deliveredShipments.length;
     const deliveryRate    = totalOrders > 0 ? Math.round((deliveredOrders / totalOrders) * 100) : 0;
 
     res.json({
