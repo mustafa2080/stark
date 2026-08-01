@@ -737,10 +737,10 @@ function OrderDeliveryRow({
             <div className="flex flex-wrap gap-2 items-end">
               {/* سبب الإرجاع */}
               <div>
-                <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
+                <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع *</Label>
                 <Select value={returnReason} onValueChange={setReturnReason}>
                   <SelectTrigger className="h-8 text-xs w-44 bg-background border-red-800/60 focus:ring-red-700">
-                    <SelectValue placeholder="اختر السبب..." />
+                    <SelectValue placeholder="اختر السبب... *" />
                   </SelectTrigger>
                   <SelectContent>
                     {RETURN_REASONS.map(r => (
@@ -769,6 +769,9 @@ function OrderDeliveryRow({
                   </SelectContent>
                 </Select>
               </div>
+              {!returnReason && (
+                <p className="text-[10px] text-destructive w-full">⚠ يجب اختيار سبب الإرجاع قبل الحفظ</p>
+              )}
               {returnReceived === null && (
                 <p className="text-[10px] text-destructive w-full">⚠ يجب اختيار حالة الاستلام قبل الحفظ</p>
               )}
@@ -830,6 +833,7 @@ function OrderDeliveryRow({
                 (needsPartial && (partialQty === "")) ||
                 (needsPartial && parseInt(partialQty) > (status === "partial_delivered" && isShipmentManifest ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0))) ||
                 (status === "returned" && returnReceived === null) ||
+                (status === "returned" && !returnReason) ||
                 (needsReturnValue && returnValueReceived.trim() === "") ||
                 ((status === "partial_received" || status === "partial_delivered") && partialReturnReceived === null)
               }
@@ -1851,10 +1855,10 @@ function InvoiceGroupDeliveryRow({
               <div className="space-y-2">
                 {/* سبب الإرجاع */}
                 <div className="w-full sm:w-auto">
-                  <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
+                  <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع *</Label>
                   <Select value={bulkReturnReason} onValueChange={setBulkReturnReason}>
                     <SelectTrigger className="h-8 text-xs w-full sm:w-52 bg-background border-red-800/60 focus:ring-red-700">
-                      <SelectValue placeholder="اختر السبب..." />
+                      <SelectValue placeholder="اختر السبب... *" />
                     </SelectTrigger>
                     <SelectContent>
                       {RETURN_REASONS.map(r => (
@@ -1863,6 +1867,9 @@ function InvoiceGroupDeliveryRow({
                     </SelectContent>
                   </Select>
                 </div>
+                {!bulkReturnReason && (
+                  <p className="text-[10px] text-destructive font-medium">⚠ يجب اختيار سبب الإرجاع قبل الحفظ</p>
+                )}
                 {bulkNeedsReturnValue && (
                   <div className="w-full sm:w-auto">
                     <Label className="text-[10px] mb-1 block text-muted-foreground">القيمة المستلمة فعليًا *</Label>
@@ -1970,6 +1977,7 @@ function InvoiceGroupDeliveryRow({
                   bulkMutation.isPending ||
                   (needsBulkNote && !bulkNote.trim()) ||
                   (bulkStatus === "returned" && bulkReturnReceived === null) ||
+                  (bulkStatus === "returned" && !bulkReturnReason) ||
                   (bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "") ||
                   (bulkStatus === "partial_received" && partialReturnReceived === null) ||
                   (!isPerItemMode && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
