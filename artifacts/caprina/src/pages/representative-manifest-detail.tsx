@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Component, type ReactNode } from "react";
 import ExcelJS from "exceljs";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -2407,6 +2408,53 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   );
 }
 
+// ─── Error Boundary — بيمنع أي خطأ JS جوه محتوى الحوار من إنه يسود الصفحة
+// كلها بالكامل (زي ما كان بيحصل مع "تأكيد إغلاق البيان" على الموبايل).
+// بدل الشاشة السودا، بيعرض رسالة واضحة وزرار "إغلاق" عشان المستخدم يقدر
+// يرجع للصفحة بدل ما يحتاج يقفل التطبيق ويفتحه تاني.
+class DialogErrorBoundary extends Component<
+  { children: ReactNode; onClose: () => void },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(error: unknown) {
+    return { hasError: true, message: error instanceof Error ? error.message : String(error) };
+  }
+  componentDidCatch(error: unknown, info: unknown) {
+    // eslint-disable-next-line no-console
+    console.error("[CloseConfirmDialog] render error:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Dialog open onOpenChange={this.props.onClose}>
+          <DialogContent className="bg-card border-border max-w-md" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-right flex items-center gap-2 text-red-500">
+                <AlertTriangle className="w-4 h-4" />
+                حصل خطأ غير متوقع
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-muted-foreground text-right">
+              حصلت مشكلة أثناء عرض تفاصيل إغلاق البيان. اضغط "إغلاق" وحاول تاني، ولو استمرت المشكلة ابعت الرسالة دي للدعم الفني:
+            </p>
+            <p className="text-[10px] text-red-500/80 text-left break-all font-mono bg-red-500/5 p-2 rounded">
+              {this.state.message}
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={this.props.onClose}>إغلاق</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function CloseConfirmDialog({
   manifest,
   onClose,
@@ -2418,7 +2466,10 @@ function CloseConfirmDialog({
   onConfirm: () => void;
   loading: boolean;
 }) {
-  const s = manifest.stats;
+  // نستخدم كائن افتراضي آمن لو manifest.stats جه undefined/null مؤقتًا (مثلاً
+  // أثناء الـ refetch اللي بيحصل فور نجاح الإغلاق) — عشان القيم القديمة لسه
+  // تتعرض بدل ما الـ component يعمل crash ويسود الشاشة بالكامل على الموبايل.
+  const s = manifest.stats ?? ({} as NonNullable<ShippingManifestDetail["stats"]>);
   const [netDueOpen, setNetDueOpen] = useState(false);
 
   // احسب الإحصائيات على مستوى الفواتير (مش الطلبات الفردية)
@@ -2429,7 +2480,7 @@ function CloseConfirmDialog({
       partial_received: 3, partial_delivered: 3,
       pending: 2, delivered: 1,
     };
-    for (const o of manifest.orders) {
+    for (const o of manifest.orders ?? []) {
       const key = (o as any).invoiceNumber?.trim() || `solo-${o.id}`;
       const existing = map.get(key);
       const existingP = existing ? (priority[existing] ?? 0) : 0;
@@ -2483,11 +2534,11 @@ function CloseConfirmDialog({
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-2 rounded-md bg-muted/20 border border-border">
               <p className="text-muted-foreground">إجمالي الطلبيات</p>
-              <p className="font-bold text-base">{s.total}</p>
+              <p className="font-bold text-base">{s.total ?? 0}</p>
             </div>
             <div className="p-2 rounded-md bg-emerald-900/10 border border-emerald-700">
               <p className="text-emerald-400">مسلَّم</p>
-              <p className="font-bold text-base text-emerald-400">{s.delivered}</p>
+              <p className="font-bold text-base text-emerald-400">{s.delivered ?? 0}</p>
             </div>
             <div className="p-2 rounded-md bg-orange-900/10 border border-orange-700">
               <p className="text-orange-400">مؤجل</p>
@@ -2497,10 +2548,10 @@ function CloseConfirmDialog({
             </div>
             <div className="p-2 rounded-md bg-red-900/10 border border-red-700">
               <p className="text-red-400">مرتجع</p>
-              <p className="font-bold text-base text-red-400">{s.returned}</p>
+              <p className="font-bold text-base text-red-400">{s.returned ?? 0}</p>
               {(() => {
-                const atShipping = manifest.orders.filter(o => o.deliveryStatus === "returned" && (o as any).returnReceived === 0).length;
-                const atWarehouse = manifest.orders.filter(o => o.deliveryStatus === "returned" && (o as any).returnReceived === 1).length;
+                const atShipping = (manifest.orders ?? []).filter(o => o.deliveryStatus === "returned" && (o as any).returnReceived === 0).length;
+                const atWarehouse = (manifest.orders ?? []).filter(o => o.deliveryStatus === "returned" && (o as any).returnReceived === 1).length;
                 return (
                   <>
                     {atShipping > 0 && <p className="text-[9px] text-orange-400">🚚 عند الشحن: {atShipping}</p>}
@@ -2515,7 +2566,7 @@ function CloseConfirmDialog({
                 {invoiceCounts.partial}
               </p>
               {(() => {
-                const partialOrders = manifest.orders.filter(o =>
+                const partialOrders = (manifest.orders ?? []).filter(o =>
                   o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
                 );
                 const totalPartialReturned = partialOrders.reduce((sum, o) => {
@@ -5155,12 +5206,14 @@ export default function ShippingManifestPage() {
 
       {/* ─── Close Confirm Dialog ─── */}
       {showCloseDialog && (
-        <CloseConfirmDialog
-          manifest={manifest}
-          onClose={() => setShowCloseDialog(false)}
-          onConfirm={() => updateMutation.mutate({ status: "closed" })}
-          loading={updateMutation.isPending}
-        />
+        <DialogErrorBoundary onClose={() => setShowCloseDialog(false)}>
+          <CloseConfirmDialog
+            manifest={manifest}
+            onClose={() => setShowCloseDialog(false)}
+            onConfirm={() => updateMutation.mutate({ status: "closed" })}
+            loading={updateMutation.isPending}
+          />
+        </DialogErrorBoundary>
       )}
 
       {/* ─── ملخص ما بعد الإغلاق — الرصيد المستحق + عدد المرتجعات ─── */}
