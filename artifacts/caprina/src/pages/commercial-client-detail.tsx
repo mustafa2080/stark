@@ -262,6 +262,9 @@ export default function CommercialClientDetailPage() {
   const [activeTab, setActiveTab] = useState<"data" | "shipments" | "dashboard">("dashboard");
   const [showNewManifest, setShowNewManifest] = useState(false);
   const [showOpenManifestWarning, setShowOpenManifestWarning] = useState(false);
+  const [showStatement, setShowStatement] = useState(false);
+  const [statementFrom, setStatementFrom] = useState("");
+  const [statementTo,   setStatementTo]   = useState("");
   const { toast } = useToast();
 
   // ── تعديل الهدف inline ──────────────────────────────────────────────────
@@ -798,6 +801,15 @@ export default function CommercialClientDetailPage() {
             >
               <PackagePlus className="w-3.5 h-3.5" />
               بيان جديد
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setStatementFrom(""); setStatementTo(""); setShowStatement(true); }}
+              className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              كشف حساب
             </Button>
             <Button
               variant="outline"
@@ -1630,7 +1642,375 @@ export default function CommercialClientDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ─── Dialog: كشف حساب العميل ─── */}
+      {showStatement && client && (
+        <ClientStatementDialog
+          client={client}
+          orders={allOrders}
+          from={statementFrom}
+          to={statementTo}
+          onFromChange={setStatementFrom}
+          onToChange={setStatementTo}
+          onClose={() => setShowStatement(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ─── ClientStatementDialog — كشف حساب تفاعلي بفلترة تاريخ ──────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function ClientStatementDialog({ client, orders, from, to, onFromChange, onToChange, onClose }: {
+  client: Client;
+  orders: SaleOrder[];
+  from: string;
+  to: string;
+  onFromChange: (v: string) => void;
+  onToChange: (v: string) => void;
+  onClose: () => void;
+}) {
+  const [exporting, setExporting] = useState<"excel" | null>(null);
+
+  const filtered = useMemo(() => {
+    return orders.filter(o => {
+      const d = new Date(o.createdAt);
+      if (from && d < new Date(from)) return false;
+      if (to) {
+        const toEnd = new Date(to);
+        toEnd.setHours(23, 59, 59, 999);
+        if (d > toEnd) return false;
+      }
+      return true;
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [orders, from, to]);
+
+  const stMap: Record<string, string> = {
+    draft: "مسودة", confirmed: "مؤكد", processing: "قيد التجهيز",
+    delivered: "مسلَّم", closed: "مغلق",
+  };
+  const pyLabel = (o: SaleOrder, unpaid: number) =>
+    o.paymentStatus === "paid" ? "كامل" : unpaid > 0 && parseFloat(o.paidAmount ?? "0") > 0 ? "جزئي" : "غير مدفوع";
+  const pyColorClass = (o: SaleOrder, unpaid: number) =>
+    o.paymentStatus === "paid"
+      ? "border-emerald-700 bg-emerald-900/20 text-emerald-400"
+      : unpaid > 0 && parseFloat(o.paidAmount ?? "0") > 0
+      ? "border-amber-700 bg-amber-900/20 text-amber-400"
+      : "border-red-700 bg-red-900/20 text-red-400";
+
+  let totalAmount = 0, totalPaid = 0;
+  filtered.forEach(o => {
+    const t = parseFloat(o.totalAmount ?? "0");
+    const p = o.paymentStatus === "paid" ? t : parseFloat(o.paidAmount ?? "0");
+    totalAmount += t; totalPaid += p;
+  });
+  const totalUnpaid = Math.max(0, totalAmount - totalPaid);
+
+  const handlePrint = () => window.print();
+
+  const handleExportExcel = async () => {
+    setExporting("excel");
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "Caprina OS";
+      wb.created = new Date();
+      const ws = wb.addWorksheet("كشف الحساب", { views: [{ rightToLeft: true }] });
+
+      const bAll = (cell: any, color = "FFB0BEC5") => {
+        const s = { style: "thin" as const, color: { argb: color } };
+        cell.border = { top: s, left: s, bottom: s, right: s };
+      };
+
+      ws.mergeCells("A1:F1");
+      const t1 = ws.getCell("A1");
+      t1.value = `كشف حساب — ${client.name}`;
+      t1.font = { name: "Arial", size: 18, bold: true, color: { argb: "FFFFFFFF" } };
+      t1.alignment = { horizontal: "center", vertical: "middle" };
+      t1.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+      ws.getRow(1).height = 40;
+
+      ws.mergeCells("A2:F2");
+      const t2 = ws.getCell("A2");
+      const rangeLabel = from || to
+        ? `الفترة: ${from ? format(new Date(from), "yyyy/MM/dd") : "البداية"} — ${to ? format(new Date(to), "yyyy/MM/dd") : "الآن"}`
+        : `كل الفترات — تاريخ الإصدار: ${format(new Date(), "yyyy/MM/dd HH:mm")}`;
+      t2.value = rangeLabel;
+      t2.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF94A3B8" } };
+      t2.alignment = { horizontal: "center", vertical: "middle" };
+      ws.getRow(2).height = 18;
+      ws.getRow(3).height = 8;
+
+      const smLabels = ["إجمالي الأوامر", "إجمالي المشتريات", "المدفوع", "المتبقي"];
+      const smVals   = [filtered.length, totalAmount, totalPaid, totalUnpaid];
+      const smColors = ["FF7C3AED", "FFD97706", "FF16A34A", "FFDC2626"];
+      const smBGs    = ["FF2E1065", "FF451A03", "FF052E16", "FF450A0A"];
+      const smFmts   = ['#,##0', '#,##0', '#,##0', '#,##0'];
+
+      smLabels.forEach((lbl, i) => {
+        const col = String.fromCharCode(65 + i); // A..D — leaving E,F spare width
+        const c2  = col;
+        const hCell = ws.getCell(`${col}4`);
+        hCell.value = lbl;
+        hCell.font = { name: "Arial", size: 9, bold: true, color: { argb: smColors[i] } };
+        hCell.alignment = { horizontal: "center", vertical: "middle" };
+        hCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: smBGs[i] } };
+        bAll(hCell, smColors[i]);
+        ws.getRow(4).height = 20;
+
+        const vCell = ws.getCell(`${col}5`);
+        vCell.value = smVals[i];
+        vCell.numFmt = smFmts[i];
+        vCell.font = { name: "Arial", size: 13, bold: true, color: { argb: smColors[i] } };
+        vCell.alignment = { horizontal: "center", vertical: "middle" };
+        vCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: smBGs[i] } };
+        bAll(vCell, smColors[i]);
+        ws.getRow(5).height = 30;
+      });
+      ws.getRow(6).height = 8;
+
+      ws.columns = [
+        { key: "soNumber", width: 20 }, { key: "createdAt", width: 14 },
+        { key: "status", width: 14 }, { key: "payStatus", width: 12 },
+        { key: "total", width: 16 }, { key: "paid", width: 16 },
+      ];
+
+      const hdr = ws.addRow(["رقم الأمر", "التاريخ", "الحالة", "الدفع", "الإجمالي", "المدفوع"]);
+      hdr.eachCell(cell => {
+        cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+        bAll(cell, "FF3B82F6");
+      });
+      hdr.height = 22;
+
+      filtered.forEach((o, i) => {
+        const tot = parseFloat(o.totalAmount ?? "0");
+        const pd  = o.paymentStatus === "paid" ? tot : parseFloat(o.paidAmount ?? "0");
+        const rowBG = i % 2 === 0 ? "FFF0F4FA" : "FFFFFFFF";
+        const row = ws.addRow({
+          soNumber: o.soNumber,
+          createdAt: format(new Date(o.createdAt), "yyyy/MM/dd"),
+          status: stMap[o.status] ?? o.status,
+          payStatus: pyLabel(o, Math.max(0, tot - pd)),
+          total: tot, paid: pd,
+        });
+        row.eachCell(cell => {
+          cell.font = { name: "Arial", size: 10, color: { argb: "FF1E293B" } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBG } };
+          bAll(cell, "FFD1D5DB");
+        });
+        row.getCell(5).numFmt = '#,##0';
+        row.getCell(6).numFmt = '#,##0';
+        row.height = 20;
+      });
+
+      const totRow = ws.addRow(["", "", "", "الإجمالي", totalAmount, totalPaid]);
+      totRow.eachCell(cell => {
+        cell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1D4ED8" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        bAll(cell, "FF60A5FA");
+      });
+      totRow.getCell(5).numFmt = '#,##0';
+      totRow.getCell(6).numFmt = '#,##0';
+      totRow.height = 24;
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `كشف-حساب-${client.name}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent
+        dir="rtl"
+        className="max-w-4xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto p-0 gap-0"
+      >
+        <div className="p-4 sm:p-6 space-y-4 print:p-6">
+          {/* رأس المودال */}
+          <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
+            <div className="flex items-center gap-2 order-2 sm:order-1">
+              <Button
+                variant="outline" size="sm"
+                onClick={handlePrint}
+                className="h-8 gap-1.5 text-xs border-blue-800 text-blue-400 hover:bg-blue-900/20"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                طباعة
+              </Button>
+              <Button
+                variant="outline" size="sm"
+                onClick={handleExportExcel}
+                disabled={exporting === "excel"}
+                className="h-8 gap-1.5 text-xs border-emerald-800 text-emerald-400 hover:bg-emerald-900/20"
+              >
+                {exporting === "excel"
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <FileSpreadsheet className="w-3.5 h-3.5" />}
+                تصدير Excel
+              </Button>
+            </div>
+            <DialogHeader className="order-1 sm:order-2 flex-1 min-w-[200px]">
+              <DialogTitle className="text-right flex items-center gap-2 text-base sm:text-lg">
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                كشف حساب — {client.name}
+              </DialogTitle>
+            </DialogHeader>
+          </div>
+
+          {/* فلتر التاريخ */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 print:hidden">
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1 block">من تاريخ</Label>
+              <Input
+                type="date"
+                value={from}
+                onChange={e => onFromChange(e.target.value)}
+                className="h-9 text-xs bg-background"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1 block">إلى تاريخ</Label>
+              <Input
+                type="date"
+                value={to}
+                onChange={e => onToChange(e.target.value)}
+                className="h-9 text-xs bg-background"
+              />
+            </div>
+          </div>
+
+          {/* بطاقات الملخص */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <Card className="p-3 text-center border-red-900/40" style={GLOW.red.style}>
+              <p className="text-[10px] text-red-400 mb-1 font-bold">المتبقي</p>
+              <p className="text-base sm:text-xl font-black text-red-400 truncate">{fmt(totalUnpaid)} ج.م</p>
+            </Card>
+            <Card className="p-3 text-center border-emerald-900/40" style={GLOW.emerald.style}>
+              <p className="text-[10px] text-emerald-400 mb-1 font-bold">المدفوع</p>
+              <p className="text-base sm:text-xl font-black text-emerald-400 truncate">{fmt(totalPaid)} ج.م</p>
+            </Card>
+            <Card className="p-3 text-center border-amber-900/40" style={GLOW.amber.style}>
+              <p className="text-[10px] text-amber-400 mb-1 font-bold">إجمالي المشتريات</p>
+              <p className="text-base sm:text-xl font-black text-amber-400 truncate">{fmt(totalAmount)} ج.م</p>
+            </Card>
+            <Card className="p-3 text-center border-primary/30" style={GLOW.blue.style}>
+              <p className="text-[10px] text-primary mb-1 font-bold">إجمالي الأوامر</p>
+              <p className="text-base sm:text-xl font-black text-primary">{filtered.length}</p>
+            </Card>
+          </div>
+
+          {/* الجدول — Desktop */}
+          <div className="hidden sm:block rounded-lg border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/40 text-muted-foreground">
+                    <th className="px-3 py-2 font-bold text-center">رقم الأمر</th>
+                    <th className="px-3 py-2 font-bold text-center">التاريخ</th>
+                    <th className="px-3 py-2 font-bold text-center">الحالة</th>
+                    <th className="px-3 py-2 font-bold text-center">الإجمالي</th>
+                    <th className="px-3 py-2 font-bold text-center">المدفوع</th>
+                    <th className="px-3 py-2 font-bold text-center">المتبقي</th>
+                    <th className="px-3 py-2 font-bold text-center">الدفع</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                        لا توجد أوامر في هذه الفترة
+                      </td>
+                    </tr>
+                  ) : filtered.map((o, i) => {
+                    const tot = parseFloat(o.totalAmount ?? "0");
+                    const pd  = o.paymentStatus === "paid" ? tot : parseFloat(o.paidAmount ?? "0");
+                    const unp = Math.max(0, tot - pd);
+                    return (
+                      <tr key={o.id} className={i % 2 === 0 ? "bg-card" : "bg-muted/10"}>
+                        <td className="px-3 py-2 text-center font-bold text-amber-400">{o.soNumber}</td>
+                        <td className="px-3 py-2 text-center text-muted-foreground">{format(new Date(o.createdAt), "yyyy/M/d")}</td>
+                        <td className="px-3 py-2 text-center">
+                          <Badge variant="outline" className="text-[9px] border-emerald-700 bg-emerald-900/20 text-emerald-400">
+                            {stMap[o.status] ?? o.status}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 text-center font-bold">{fmt(tot)} ج.م</td>
+                        <td className="px-3 py-2 text-center text-emerald-400">{fmt(pd)} ج.م</td>
+                        <td className="px-3 py-2 text-center font-bold text-red-400">{fmt(unp)} ج.م</td>
+                        <td className="px-3 py-2 text-center">
+                          <Badge variant="outline" className={`text-[9px] font-bold border ${pyColorClass(o, unp)}`}>
+                            {pyLabel(o, unp)}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* الجدول — Mobile (كروت) */}
+          <div className="sm:hidden space-y-2">
+            {filtered.length === 0 ? (
+              <p className="text-center text-muted-foreground text-xs py-8">لا توجد أوامر في هذه الفترة</p>
+            ) : filtered.map(o => {
+              const tot = parseFloat(o.totalAmount ?? "0");
+              const pd  = o.paymentStatus === "paid" ? tot : parseFloat(o.paidAmount ?? "0");
+              const unp = Math.max(0, tot - pd);
+              return (
+                <Card key={o.id} className="p-3 border-border">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-black text-sm text-amber-400">{o.soNumber}</span>
+                    <Badge variant="outline" className={`text-[9px] font-bold border ${pyColorClass(o, unp)}`}>
+                      {pyLabel(o, unp)}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-2">
+                    <span>{format(new Date(o.createdAt), "yyyy/MM/dd")}</span>
+                    <Badge variant="outline" className="text-[9px] border-emerald-700 bg-emerald-900/20 text-emerald-400">
+                      {stMap[o.status] ?? o.status}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    <div>
+                      <p className="text-[9px] text-muted-foreground">الإجمالي</p>
+                      <p className="text-xs font-bold">{fmt(tot)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground">المدفوع</p>
+                      <p className="text-xs font-bold text-emerald-400">{fmt(pd)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground">المتبقي</p>
+                      <p className="text-xs font-bold text-red-400">{fmt(unp)}</p>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-end print:hidden">
+            <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs">
+              إغلاق
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
