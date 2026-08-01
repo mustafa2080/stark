@@ -2727,12 +2727,12 @@ function ExportDialog({
       const rep = group[0];
       const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
       const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
-      // تكلفة الشحن تظهر فقط لو تمت عملية الشحن فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي مؤكد/مرتجع بأحد الأسباب الثلاثة)
+      // تكلفة الشحن تظهر لو الحالة: مسلَّم/مسلَّم جزئي/استلام جزئي/مرتجع بأحد الأسباب الثلاثة
       const RETURN_REASONS_WITH_SHIPPING_XLS = ["refused_paid", "refused_unpaid", "quality"];
       const shippingWasIncurredXls =
         (rep as any).deliveryStatus === "delivered" ||
         (rep as any).deliveryStatus === "partial_delivered" ||
-        ((rep as any).deliveryStatus === "partial_received" && (rep as any).returnReceived === 1) ||
+        (rep as any).deliveryStatus === "partial_received" ||
         ((rep as any).deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_XLS.includes((rep as any).returnReason));
       const courierCost = shippingWasIncurredXls ? effectiveShipping : 0;
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
@@ -4206,12 +4206,12 @@ export default function ShippingManifestPage() {
             const { label, cls } = statusLabel(isSingleStatus ? statuses[0] as DeliveryStatus : "pending");
             const totalQty = group.reduce((sum, o) => sum + o.quantity, 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-            // تكلفة الشحن تظهر فقط لو تمت عملية الشحن فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي مؤكد/مرتجع بأحد الأسباب الثلاثة)
+            // تكلفة الشحن تظهر لو الحالة: مسلَّم/مسلَّم جزئي/استلام جزئي/مرتجع بأحد الأسباب الثلاثة
             const RETURN_REASONS_WITH_SHIPPING_PRINT = ["refused_paid", "refused_unpaid", "quality"];
             const shippingWasIncurredPrint =
               (rep as any).deliveryStatus === "delivered" ||
               (rep as any).deliveryStatus === "partial_delivered" ||
-              ((rep as any).deliveryStatus === "partial_received" && (rep as any).returnReceived === 1) ||
+              (rep as any).deliveryStatus === "partial_received" ||
               ((rep as any).deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_PRINT.includes((rep as any).returnReason));
             const courierCost = shippingWasIncurredPrint
               ? (rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : 0)
@@ -4753,16 +4753,15 @@ export default function ShippingManifestPage() {
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
                     courierShippingCost={(() => {
-                      // تكلفة الشحن تُحسب فقط لو تمت عملية الشحن فعليًا:
-                      // مسلَّم / مسلَّم جزئي / استلام جزئي مؤكد الاستلام في المخزن /
+                      // تكلفة الشحن تُحسب لو الحالة: مسلَّم / مسلَّم جزئي / استلام جزئي /
                       // مرتجع بأحد الأسباب الثلاثة (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
-                      // أي حالة أو سبب تاني = صفر (مفيش شحن اتحسب عليه فعليًا).
+                      // أي حالة أو سبب تاني = صفر.
                       const repFirst = group[0] as any;
                       const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
                       const shippingWasIncurred =
                         repFirst?.deliveryStatus === "delivered" ||
                         repFirst?.deliveryStatus === "partial_delivered" ||
-                        (repFirst?.deliveryStatus === "partial_received" && repFirst?.returnReceived === 1) ||
+                        repFirst?.deliveryStatus === "partial_received" ||
                         (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
                       if (!shippingWasIncurred) return 0;
                       // أولوية لسعر منطقة الشحنة (zoneId) من قسم المناطق والأسعار،
