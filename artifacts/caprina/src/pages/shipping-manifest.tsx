@@ -4949,7 +4949,18 @@ export default function ShippingManifestPage() {
           return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason);
         });
         const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
-        const shippingCost    = courierShippingCostForCalc * shippingCostGroupsCount;
+        // تكلفة الشحن الفعلية لكل مجموعة/شحنة = سعر منطقتها (zoneId) لو موجود ومحدد له سعر،
+        // وإلا نرجع للسعر الثابت على شركة الشحن (courierShippingCostForCalc) كـ fallback.
+        // نفس منطق بيان المندوب بالظبط (representative-manifest-detail.tsx) — عشان الرقمين
+        // يتطابقوا لنفس البيان بدل ما الأدمن يحسب بسعر ثابت واحد لكل الشحنات.
+        const shippingCostGroups = groupManifestOrders(shippingCostOrders);
+        const shippingCost    = shippingCostGroups.reduce((s, group) => {
+          const repG = group[0] as any;
+          const zIdG = repG?.zoneId;
+          const zoneG = zIdG != null ? pnlSettlementZones.find(z => z.id === zIdG) : null;
+          const perShipmentCost = zoneG?.price != null ? Number(zoneG.price) : courierShippingCostForCalc;
+          return s + perShipmentCost;
+        }, 0);
         // سعر المنطقة الفعلي لكل شحنة = من جدول shipment_zones الحالي حسب zoneId
         // بتاع كل شحنة (مش سعر ثابت للشركة ومش shippingFee المجمَّد وقت الإنشاء).
         // لو الشحنة مالهاش zoneId أو المنطقة مش موجودة في الجدول الحالي → صفر لها.
