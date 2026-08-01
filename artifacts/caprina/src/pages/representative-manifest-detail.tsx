@@ -4874,22 +4874,19 @@ export default function ShippingManifestPage() {
                     isShipmentManifest={true}
                     courierShippingCost={(() => {
                       // تكلفة الشحن تُحسب فقط لو تمت عملية الشحن فعليًا:
-                      // مسلَّم / مسلَّم جزئي / استلام جزئي مؤكد الاستلام في المخزن /
-                      // مرتجع بأحد الأسباب الثلاثة (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
+                      // مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع بأحد الأسباب الثلاثة
+                      // (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
                       // أي حالة أو سبب تاني = صفر (مفيش شحن اتحسب عليه فعليًا).
                       const repFirst = group[0] as any;
                       const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
                       const shippingWasIncurred =
                         repFirst?.deliveryStatus === "delivered" ||
                         repFirst?.deliveryStatus === "partial_delivered" ||
-                        (repFirst?.deliveryStatus === "partial_received" && repFirst?.returnReceived === 1) ||
+                        repFirst?.deliveryStatus === "partial_received" ||
                         (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
                       if (!shippingWasIncurred) return 0;
-                      // أولوية لسعر منطقة الشحنة (zoneId) من قسم المناطق والأسعار،
-                      // وإلا نرجع للسعر الثابت على شركة الشحن كـ fallback
-                      const zId = repFirst?.zoneId;
-                      const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
-                      if (zone?.price != null) return Number(zone.price);
+                      // قيمة ثابتة واحدة لكل الشحنات = "تكلفة الشحنة" المسجَّلة على
+                      // المندوب/شركة الشحن نفسها (مش سعر المنطقة).
                       return rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : 0;
                     })()}
                     manifestCompanyName={manifest.companyName}
@@ -5055,25 +5052,17 @@ export default function ShippingManifestPage() {
           .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason))
           .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        // partial_received: يدخل في تكلفة الشحن بس لو اتأكد استلامه فعليًا في البيان ده (نفس منطق deliveredOrders فوق)
+        // partial_received: تدخل في تكلفة الشحن زي مسلَّم ومرتجع بالأسباب الثلاثة، بدون شرط إضافي
         const shippingCostOrders = ordersForPnl.filter(o => {
           if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-          if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
+          if (o.deliveryStatus === "partial_received") return true;
           return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason);
         });
         const shippingCostGroups = groupManifestOrders(shippingCostOrders);
         const shippingCostGroupsCount = shippingCostGroups.length;
-        // تكلفة الشحن الفعلية لكل مجموعة/شحنة = سعر منطقتها (zoneId) لو موجود ومحدد له سعر،
-        // وإلا نرجع للسعر الثابت على شركة الشحن (courierShippingCostForCalc) كـ fallback.
-        // ده بيحل مشكلة إن الشحنة اللي معاها zoneId بس شركتها من غير shippingCost ثابت
-        // كانت بتطلع تكلفتها صفر وبالتالي متسجّلش في الإجمالي.
-        const shippingCost = shippingCostGroups.reduce((s, group) => {
-          const rep = group[0] as any;
-          const zId = rep?.zoneId;
-          const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
-          const perShipmentCost = zone?.price != null ? Number(zone.price) : courierShippingCostForCalc;
-          return s + perShipmentCost;
-        }, 0);
+        // تكلفة الشحن = قيمة ثابتة واحدة (تكلفة الشحنة المسجَّلة على شركة الشحن نفسها)
+        // × عدد الشحنات المؤهلة، بدل سعر منطقة كل شحنة على حدة.
+        const shippingCost = courierShippingCostForCalc * shippingCostGroupsCount;
         // سعر المنطقة الفعلي لكل شحنة = من جدول shipment_zones الحالي حسب zoneId
         // بتاع كل شحنة (مش سعر ثابت للشركة ومش shippingFee المجمَّد وقت الإنشاء).
         // لو الشحنة مالهاش zoneId أو المنطقة مش موجودة في الجدول الحالي → صفر لها.

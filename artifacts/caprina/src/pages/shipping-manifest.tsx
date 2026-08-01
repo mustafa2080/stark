@@ -1370,12 +1370,13 @@ function InvoiceGroupDeliveryRow({
           <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
             <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
-          {/* سعر المنطقة (المحافظة) — من قسم "المناطق والأسعار" حسب zoneId الشحنة.
-              يُعرض فقط لو الشحن اتنفذ فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي/مرتجع بأحد
-              الأسباب الثلاثة)، وإلا صفر — نفس شرط عمود "شحن" بالظبط. */}
+          {/* تكلفة الشحنة — قيمة ثابتة واحدة لكل الشحنات، جايه من "تكلفة الشحنة"
+              المسجَّلة على المندوب/شركة الشحن نفسها (courierShippingCost)، مش سعر
+              المنطقة. تُعرض فقط لو الشحن اتنفذ فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي/
+              مرتجع بأحد الأسباب الثلاثة)، وإلا صفر. */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
-            {rowShippingWasIncurred && rep.zonePrice != null ? (
-              <span className="text-amber-500 font-semibold truncate">{formatCurrency(rep.zonePrice)}</span>
+            {rowShippingWasIncurred && courierShippingCost != null ? (
+              <span className="text-amber-500 font-semibold truncate">{formatCurrency(courierShippingCost)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
@@ -4141,8 +4142,7 @@ export default function ShippingManifestPage() {
   const courierCostPerShipmentPrint = Number((manifest as any)?.company?.shippingCost ?? 0);
   // partial_received: يدخل تكلفة الشحن (طباعة) بس لو اتأكد استلامه فعليًا (نفس منطق printDeliveredOrders فوق)
   const shippingCostOrdersPrint = ordersForPnlPrint.filter(o => {
-    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-    if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
+    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
   const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length;
@@ -4775,11 +4775,8 @@ export default function ShippingManifestPage() {
                         repFirst?.deliveryStatus === "partial_received" ||
                         (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
                       if (!shippingWasIncurred) return 0;
-                      // أولوية لسعر منطقة الشحنة (zoneId) من قسم المناطق والأسعار،
-                      // وإلا نرجع للسعر الثابت على شركة الشحن كـ fallback
-                      const zId = repFirst?.zoneId;
-                      const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
-                      if (zone?.price != null) return Number(zone.price);
+                      // قيمة ثابتة واحدة لكل الشحنات = "تكلفة الشحنة" المسجَّلة على
+                      // المندوب/شركة الشحن نفسها (مش سعر المنطقة).
                       return rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : 0;
                     })()}
                     manifestCompanyName={manifest.companyName}
@@ -4944,23 +4941,13 @@ export default function ShippingManifestPage() {
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
         // partial_received: يدخل في تكلفة الشحن بس لو اتأكد استلامه فعليًا في البيان ده (نفس منطق deliveredOrders فوق)
         const shippingCostOrders = ordersForPnl.filter(o => {
-          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-          if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
+          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
           return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason);
         });
         const shippingCostGroupsCount = groupManifestOrders(shippingCostOrders).length;
-        // تكلفة الشحن الفعلية لكل مجموعة/شحنة = سعر منطقتها (zoneId) لو موجود ومحدد له سعر،
-        // وإلا نرجع للسعر الثابت على شركة الشحن (courierShippingCostForCalc) كـ fallback.
-        // نفس منطق بيان المندوب بالظبط (representative-manifest-detail.tsx) — عشان الرقمين
-        // يتطابقوا لنفس البيان بدل ما الأدمن يحسب بسعر ثابت واحد لكل الشحنات.
-        const shippingCostGroups = groupManifestOrders(shippingCostOrders);
-        const shippingCost    = shippingCostGroups.reduce((s, group) => {
-          const repG = group[0] as any;
-          const zIdG = repG?.zoneId;
-          const zoneG = zIdG != null ? pnlSettlementZones.find(z => z.id === zIdG) : null;
-          const perShipmentCost = zoneG?.price != null ? Number(zoneG.price) : courierShippingCostForCalc;
-          return s + perShipmentCost;
-        }, 0);
+        // تكلفة الشحن = قيمة ثابتة واحدة (تكلفة الشحنة المسجَّلة على شركة الشحن نفسها)
+        // × عدد الشحنات المؤهلة، بدل سعر منطقة كل شحنة على حدة.
+        const shippingCost    = courierShippingCostForCalc * shippingCostGroupsCount;
         // سعر المنطقة الفعلي لكل شحنة = من جدول shipment_zones الحالي حسب zoneId
         // بتاع كل شحنة (مش سعر ثابت للشركة ومش shippingFee المجمَّد وقت الإنشاء).
         // لو الشحنة مالهاش zoneId أو المنطقة مش موجودة في الجدول الحالي → صفر لها.
