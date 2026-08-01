@@ -415,7 +415,7 @@ function DeliveryBar({ rate }: { rate: number }) {
   );
 }
 
-function CompanyStats({ companyId, canViewFinancials }: { companyId: number; canViewFinancials: boolean }) {
+function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: number; canViewFinancials: boolean; hidden?: boolean }) {
   const { data: stats } = useQuery({
     queryKey: ["company-stats", companyId],
     queryFn: () => manifestsApi.companyStats(companyId),
@@ -440,6 +440,7 @@ function CompanyStats({ companyId, canViewFinancials }: { companyId: number; can
   const openShipmentManifest = shipmentManifests?.find(m => m.status === "open") ?? null;
   // البيان المفتوح الفعلي — نظام الشحنات له الأولوية
   const activeManifest = openShipmentManifest ?? openManifest;
+  if (hidden) return null;
   if (!stats && !shipmentStats) return null;
 
   // ─── دمج إحصائيات نظام الطلبات (القديم) ونظام الشحنات (الجديد) ─────────────
@@ -1393,7 +1394,7 @@ export default function ShippingCompanies() {
             const p = palettes[idx % palettes.length];
             const isActive = company.isActive;
             return (
-            <div key={company.id} className="relative overflow-hidden rounded-2xl p-5 transition-all duration-300"
+            <div key={company.id} className={`relative overflow-hidden rounded-2xl transition-all duration-300 ${viewMode === "list" ? "p-3" : "p-5"}`}
               style={{
                 background: isActive
                   ? `linear-gradient(145deg, rgba(${p.rgb},0.13) 0%, rgba(${p.rgb2},0.06) 50%, rgba(0,0,0,0.15) 100%)`
@@ -1473,7 +1474,7 @@ export default function ShippingCompanies() {
                     </a>
                   </div>
                 )}
-                {(company as any).costMode !== "zone" && (company as any).shippingCost != null && (
+                {(company as any).costMode !== "zone" && (company as any).shippingCost != null && viewMode !== "list" && (
                   <p className="text-xs flex items-center gap-2">
                     <span className="text-[10px] font-bold text-primary">ج.م</span>
                     <span className="text-muted-foreground">تكلفة الشحنة:</span>
@@ -1482,7 +1483,7 @@ export default function ShippingCompanies() {
                     </span>
                   </p>
                 )}
-                {(() => {
+                {viewMode !== "list" && (() => {
                   // استخراج zoneCostIds من الشركة (المناطق المرتبطة بالمندوب)
                   let zcIds: number[] = [];
                   if ((company as any).zoneCostIds) {
@@ -1520,18 +1521,18 @@ export default function ShippingCompanies() {
                     </div>
                   );
                 })()}
-                {company.website && (
+                {company.website && viewMode !== "list" && (
                   <p className="text-xs text-muted-foreground flex items-center gap-2"><Globe className="w-3 h-3" />
                     <a href={company.website} target="_blank" rel="noreferrer" className="hover:underline" style={{ color: `rgba(${p.rgb},0.85)` }}>{company.website}</a>
                   </p>
                 )}
-                {company.notes && <p className="text-xs text-muted-foreground pt-1 border-t" style={{ borderColor: `rgba(${p.rgb},0.15)` }}>{company.notes}</p>}
+                {company.notes && viewMode !== "list" && <p className="text-xs text-muted-foreground pt-1 border-t" style={{ borderColor: `rgba(${p.rgb},0.15)` }}>{company.notes}</p>}
               </div>
 
-              <CompanyStats companyId={company.id} canViewFinancials={canViewFinancials && canFinancials} />
+              <CompanyStats companyId={company.id} canViewFinancials={canViewFinancials && canFinancials} hidden={viewMode === "list"} />
 
               {/* ── قسم حساب الدخول ── */}
-              {canEdit && (
+              {canEdit && viewMode !== "list" && (
                 <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: `rgba(${p.rgb},0.15)` }}>
                   <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide flex items-center gap-1">
                     <KeyRound className="w-2.5 h-2.5" />
