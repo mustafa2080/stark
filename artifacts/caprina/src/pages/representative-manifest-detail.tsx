@@ -3972,7 +3972,11 @@ export default function ShippingManifestPage() {
       if (manifest && variables?.status === "closed") {
         const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
         const due = (manifest.stats?.deliveredGross ?? 0) - effectiveShipping;
-        setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
+        // نأخر ظهور overlay الملخص خطوة واحدة بعد إغلاق الـ Dialog، عشان منفتحش
+        // طبقة fixed جديدة في نفس اللحظة اللي Radix Dialog بيعمل فيها cleanup
+        // لقفل الـ scroll على الـ body — التعارض ده كان بيسبب تصغير الشاشة (zoom out)
+        // على متصفحات الموبايل لما البيان يتقفل من صفحة المندوب.
+        setTimeout(() => setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 }), 50);
       }
       refetch();
       setShowCloseDialog(false);
