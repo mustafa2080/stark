@@ -5087,7 +5087,21 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
-                    courierShippingCost={manifest.manualShippingCost}
+                    courierShippingCost={(() => {
+                      // تكلفة الشحن تُحسب فقط لو تمت عملية الشحن فعليًا:
+                      // مسلَّم / مسلَّم جزئي / استلام جزئي مؤكد الاستلام في المخزن /
+                      // مرتجع بأحد الأسباب الثلاثة (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
+                      // أي حالة أو سبب تاني = صفر (مفيش شحن اتحسب عليه فعليًا).
+                      const repFirst = group[0] as any;
+                      const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
+                      const shippingWasIncurred =
+                        repFirst?.deliveryStatus === "delivered" ||
+                        repFirst?.deliveryStatus === "partial_delivered" ||
+                        (repFirst?.deliveryStatus === "partial_received" && repFirst?.returnReceived === 1) ||
+                        (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
+                      if (!shippingWasIncurred) return 0;
+                      return manifest.manualShippingCost;
+                    })()}
                   />
                   ))}
                   </div>
