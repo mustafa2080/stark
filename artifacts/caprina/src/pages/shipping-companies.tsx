@@ -1191,6 +1191,7 @@ export default function ShippingCompanies() {
   const [repDialogCompany, setRepDialogCompany] = useState<ShippingCompany | null>(null);
   const [repDialogMode, setRepDialogMode] = useState<"account" | "password">("account");
   const [form, setForm] = useState(emptyForm);
+  const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     if (typeof window === "undefined") return "grid";
     return (localStorage.getItem("shipping-companies-view") as "grid" | "list") || "grid";
@@ -1209,6 +1210,29 @@ export default function ShippingCompanies() {
     queryKey: ["zone-costs"],
     queryFn: () => apiFetch("/zone-costs"),
   });
+
+  // ── بحث احترافي Realtime على المناديب: بالاسم / الهاتف / الملاحظات / مناطق التغطية ──
+  const filteredCompanies = useMemo(() => {
+    if (!companies) return companies;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return companies;
+    return companies.filter((c) => {
+      if (c.name?.toLowerCase().includes(q)) return true;
+      if (c.phone && c.phone.replace(/[^0-9]/g, "").includes(q.replace(/[^0-9]/g, "")) && q.replace(/[^0-9]/g, "")) return true;
+      if (c.phone && c.phone.toLowerCase().includes(q)) return true;
+      if (c.notes && c.notes.toLowerCase().includes(q)) return true;
+      if (c.website && c.website.toLowerCase().includes(q)) return true;
+      // بحث في أسماء مناطق التغطية المرتبطة بالمندوب
+      let zcIds: number[] = [];
+      if ((c as any).zoneCostIds) {
+        try { zcIds = JSON.parse((c as any).zoneCostIds); } catch {}
+      } else if ((c as any).zoneCostId) {
+        zcIds = [(c as any).zoneCostId];
+      }
+      if (zcIds.some((id) => zoneCosts.find((z) => z.id === id)?.name?.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [companies, searchQuery, zoneCosts]);
 
   const createMutation = useMutation({
     mutationFn: (data: typeof emptyForm) => shippingApi.create(data),
@@ -1377,11 +1401,37 @@ export default function ShippingCompanies() {
         </div>
       </div>
 
+      {/* ── شريط بحث احترافي Realtime ── */}
+      <div className="relative">
+        <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="ابحث بالاسم، الهاتف، المنطقة، أو الملاحظات..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="h-11 pr-10 pl-9 text-sm bg-muted/20 border-border/60 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl transition-all"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            aria-label="مسح البحث"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-muted/60 hover:bg-muted flex items-center justify-center transition-colors"
+          >
+            <XIcon className="w-3 h-3 text-muted-foreground" />
+          </button>
+        )}
+      </div>
+      {searchQuery && (
+        <p className="text-xs text-muted-foreground -mt-2 px-1">
+          {filteredCompanies?.length ?? 0} نتيجة من أصل {companies?.length ?? 0}
+        </p>
+      )}
+
       {isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
-      ) : companies?.length ? (
+      ) : filteredCompanies?.length ? (
         <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "flex flex-col gap-4"}>
-          {companies.map((company, idx) => {
+          {filteredCompanies.map((company, idx) => {
             // ألوان متنوعة لكل شركة
             const palettes = [
               { rgb: "251,146,60",  rgb2: "251,191,36"  }, // برتقالي/ذهبي
@@ -1577,6 +1627,15 @@ export default function ShippingCompanies() {
             );
           })}
         </div>
+      ) : searchQuery ? (
+        <Card className="border-border p-12 text-center">
+          <Search className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
+          <p className="font-bold">لا توجد نتائج مطابقة</p>
+          <p className="text-sm text-muted-foreground mt-1">جرّب كلمة بحث مختلفة أو امسح البحث لعرض كل المناديب.</p>
+          <Button variant="outline" onClick={() => setSearchQuery("")} className="mt-4 gap-2 text-sm">
+            <XIcon className="w-4 h-4" />مسح البحث
+          </Button>
+        </Card>
       ) : (
         <Card className="border-border p-12 text-center">
           <Truck className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
