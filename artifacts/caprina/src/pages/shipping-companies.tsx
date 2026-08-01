@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, LayoutGrid, List } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -1190,6 +1190,14 @@ export default function ShippingCompanies() {
   const [repDialogCompany, setRepDialogCompany] = useState<ShippingCompany | null>(null);
   const [repDialogMode, setRepDialogMode] = useState<"account" | "password">("account");
   const [form, setForm] = useState(emptyForm);
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "grid";
+    return (localStorage.getItem("shipping-companies-view") as "grid" | "list") || "grid";
+  });
+  const changeViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    if (typeof window !== "undefined") localStorage.setItem("shipping-companies-view", mode);
+  };
 
   const { data: companies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
   const { data: zones = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number }[]>({
@@ -1312,11 +1320,36 @@ export default function ShippingCompanies() {
           <h1 className="text-2xl font-bold">إدارة مناديب الشحن</h1>
           <p className="text-muted-foreground text-sm mt-0.5">إدارة مناديب الشحن وبيانات التسليم</p>
         </div>
-        {can("shipping.edit") && (
-          <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
-            <Plus className="w-4 h-4" />إضافة مندوب
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Toggle عرض: كروت / قائمة — زي Google Drive */}
+          <div className="flex items-center rounded-full p-1 bg-muted/40 border border-border/60">
+            <button
+              type="button"
+              onClick={() => changeViewMode("grid")}
+              aria-label="عرض كروت"
+              className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+                viewMode === "grid" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => changeViewMode("list")}
+              aria-label="عرض قائمة"
+              className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+                viewMode === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          {can("shipping.edit") && (
+            <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
+              <Plus className="w-4 h-4" />إضافة مندوب
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -1346,7 +1379,7 @@ export default function ShippingCompanies() {
       {isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
       ) : companies?.length ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "flex flex-col gap-4"}>
           {companies.map((company, idx) => {
             // ألوان متنوعة لكل شركة
             const palettes = [
