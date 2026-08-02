@@ -5206,10 +5206,32 @@ export default function ShippingManifestPage() {
 
       {/* ─── Close Confirm Dialog ─── */}
       {showCloseDialog && (
-        <DialogErrorBoundary onClose={() => setShowCloseDialog(false)}>
+        <DialogErrorBoundary
+          onClose={() => {
+            setShowCloseDialog(false);
+            requestAnimationFrame(() => {
+              document.body.style.removeProperty("overflow");
+              document.body.style.removeProperty("padding-right");
+              document.body.style.removeProperty("pointer-events");
+              window.scrollTo({ left: 0 });
+            });
+          }}
+        >
           <CloseConfirmDialog
             manifest={manifest}
-            onClose={() => setShowCloseDialog(false)}
+            onClose={() => {
+              setShowCloseDialog(false);
+              // Radix Dialog بيحط inline style (overflow/padding-right) على
+              // document.body وقت الفتح ويشيلها وقت القفل — لكن على بعض
+              // متصفحات الموبايل (خصوصًا مع RTL) التنظيف ده ممكن يتعارض توقيتًا
+              // ويسيب الصفحة "متزحلقة" لليمين بعد القفل. بننضف يدويًا كضمان إضافي.
+              requestAnimationFrame(() => {
+                document.body.style.removeProperty("overflow");
+                document.body.style.removeProperty("padding-right");
+                document.body.style.removeProperty("pointer-events");
+                window.scrollTo({ left: 0 });
+              });
+            }}
             onConfirm={() => updateMutation.mutate({ status: "closed" })}
             loading={updateMutation.isPending}
           />
