@@ -2506,15 +2506,18 @@ function CloseConfirmDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-card border-border max-w-md" dir="rtl">
-        <DialogHeader>
+      <DialogContent
+        className="bg-card border-border max-w-md flex flex-col max-h-[85vh] p-0 gap-0"
+        dir="rtl"
+      >
+        <DialogHeader className="shrink-0 p-4 pb-2 border-b border-border">
           <DialogTitle className="text-right flex items-center gap-2">
             <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             إغلاق البيان {manifest.manifestNumber}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 mt-2">
+        <div className="space-y-3 p-4 overflow-y-auto flex-1 min-h-0">
           <div className="flex items-start gap-2 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700">
             <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <p className="text-xs text-red-700 dark:text-red-400 font-semibold">
@@ -2643,7 +2646,7 @@ function CloseConfirmDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2 mt-2">
+        <DialogFooter className="flex flex-row gap-2 shrink-0 p-4 pt-3 border-t border-border">
           <Button
             className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white gap-1"
             onClick={onConfirm}
