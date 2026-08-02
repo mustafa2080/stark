@@ -2467,7 +2467,6 @@ function CloseConfirmDialog({
   onConfirm: () => void;
   loading: boolean;
 }) {
-  console.log("[CloseDialog] -1. CloseConfirmDialog function body بدأ التنفيذ");
   // نستخدم كائن افتراضي آمن لو manifest.stats جه undefined/null مؤقتًا (مثلاً
   // أثناء الـ refetch اللي بيحصل فور نجاح الإغلاق) — عشان القيم القديمة لسه
   // تتعرض بدل ما الـ component يعمل crash ويسود الشاشة بالكامل على الموبايل.
@@ -2505,56 +2504,12 @@ function CloseConfirmDialog({
   }, [invoiceStatusMap]);
 
   const pendingCount = invoiceCounts.pending;
-
-  console.log("[CloseDialog] 0. CloseConfirmDialog بيترندر دلوقتي", {
-    hasManifest: !!manifest,
-    hasStats: !!manifest?.stats,
-    ordersCount: manifest?.orders?.length,
-    windowWidth: typeof window !== "undefined" ? window.innerWidth : "n/a",
-  });
-
-  useEffect(() => {
-    // نقيس فعليًا شكل الـ DOM بعد ما الديالوج يترسم — عشان نعرف هل فيه
-    // مساحة (width/height) ظاهرة فعلاً ولا العنصر موجود بس بمساحة صفر/مخفي.
-    const t = setTimeout(() => {
-      const dialogEl = document.querySelector('[role="dialog"]');
-      const overlayEls = document.querySelectorAll('[data-radix-portal] > div');
-      if (dialogEl) {
-        const rect = dialogEl.getBoundingClientRect();
-        const cs = window.getComputedStyle(dialogEl);
-        console.log("[CloseDialog] 5. قياس فعلي للـ dialog element", {
-          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
-          display: cs.display,
-          visibility: cs.visibility,
-          opacity: cs.opacity,
-          zIndex: cs.zIndex,
-          transform: cs.transform,
-          position: cs.position,
-        });
-      } else {
-        console.log("[CloseDialog] 5. مفيش عنصر [role=dialog] في الـ DOM خالص!");
-      }
-      console.log("[CloseDialog] 6. عدد عناصر البورتال المباشرة:", overlayEls.length);
-      overlayEls.forEach((el, i) => {
-        const rect = (el as HTMLElement).getBoundingClientRect();
-        const cs = window.getComputedStyle(el as HTMLElement);
-        console.log(`[CloseDialog] 6.${i}`, {
-          className: (el as HTMLElement).className,
-          rect: { width: rect.width, height: rect.height },
-          zIndex: cs.zIndex,
-          bg: cs.backgroundColor,
-        });
-      });
-    }, 100);
-    return () => clearTimeout(t);
-  }, []);
+  const mountTimeRef = useRef(Date.now());
 
   return (
     <Dialog
       open
       onOpenChange={(next) => {
-        console.log("[CloseDialog] onOpenChange اتنادى بقيمة:", next);
-        console.trace("[CloseDialog] trace لمين نادى onOpenChange");
         if (!next) onClose();
       }}
     >
@@ -2562,16 +2517,15 @@ function CloseConfirmDialog({
         className="max-w-md flex flex-col max-h-[85vh] p-0 gap-0"
         dir="rtl"
         onPointerDownOutside={(e) => {
-          console.log("[CloseDialog] onPointerDownOutside اتنادى", e.detail);
-        }}
-        onInteractOutside={(e) => {
-          console.log("[CloseDialog] onInteractOutside اتنادى", e.detail);
-        }}
-        onEscapeKeyDown={() => {
-          console.log("[CloseDialog] onEscapeKeyDown اتنادى");
-        }}
-        onOpenAutoFocus={() => {
-          console.log("[CloseDialog] onOpenAutoFocus اتنادى");
+          // على بعض متصفحات الموبايل (خصوصًا PWA) نفس اللمسة اللي فتحت
+          // الديالوج بتولّد pointerdown تاني بعد الـ mount بفاصل زمني بسيط
+          // بيتفسّر خطأ كـ "ضغطة برة الديالوج" فيقفله فورًا لحظة الفتح
+          // (السواد اللي بيفلاش ويختفي). بنتجاهل أي outside-pointer في أول
+          // 300ms من عمر الديالوج عشان نضمن إنها مش نفس اللمسة الأصلية.
+          const age = Date.now() - mountTimeRef.current;
+          if (age < 300) {
+            e.preventDefault();
+          }
         }}
       >
         <DialogHeader className="shrink-0 p-4 pb-2 border-b border-border">
@@ -5252,19 +5206,7 @@ export default function ShippingManifestPage() {
       {!isLocked && (
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            console.log("[CloseDialog] 1. زرار فتح الإغلاق اتضغط");
-            // تأخير الفتح لتيك واحد عشان نضمن إن نفس الـ click/touch event
-            // اللي فتح الزرار ده خلص تمامًا قبل ما Radix يركّب الـ Dialog
-            // الجديد ويبدأ يسجل outside-pointer events — على بعض متصفحات
-            // الموبايل كان بيحصل تسريب للـ event فيتفسر كـ "outside click"
-            // على الديالوج الجديد ويقفله فورًا لحظة الفتح (السواد اللي بيفلاش ويختفي).
-            setTimeout(() => {
-              console.log("[CloseDialog] 1b. فتح الديالوج فعليًا بعد التأخير");
-              setShowCloseDialog(true);
-            }, 0);
-          }}
+          onClick={() => setShowCloseDialog(true)}
           className="group relative w-full overflow-hidden rounded-2xl border border-emerald-800/40 bg-gradient-to-l from-emerald-950/60 via-emerald-900/30 to-emerald-950/60 p-5 text-right transition-all duration-300 hover:border-emerald-600/60 hover:shadow-xl hover:shadow-emerald-950/40 print:hidden"
         >
           {/* توهج خلفي زخرفي */}
@@ -5290,7 +5232,6 @@ export default function ShippingManifestPage() {
       {showCloseDialog && (
         <DialogErrorBoundary
           onClose={() => {
-            console.log("[CloseDialog] ErrorBoundary.onClose اتنادى (يعني حصل Error!)");
             setShowCloseDialog(false);
             requestAnimationFrame(() => {
               document.body.style.removeProperty("overflow");
@@ -5303,33 +5244,19 @@ export default function ShippingManifestPage() {
           <CloseConfirmDialog
             manifest={manifest}
             onClose={() => {
-              console.log("[CloseDialog] 2. onClose اتنادى، showCloseDialog هيبقى false دلوقتي");
               setShowCloseDialog(false);
               // Radix Dialog بيحط inline style (overflow/padding-right) على
               // document.body وقت الفتح ويشيلها وقت القفل — لكن على بعض
               // متصفحات الموبايل (خصوصًا مع RTL) التنظيف ده ممكن يتعارض توقيتًا
               // ويسيب الصفحة "متزحلقة" لليمين بعد القفل. بننضف يدويًا كضمان إضافي.
               requestAnimationFrame(() => {
-                console.log("[CloseDialog] 3. requestAnimationFrame اتنفذ - قبل التنضيف", {
-                  bodyOverflow: document.body.style.overflow,
-                  bodyPaddingRight: document.body.style.paddingRight,
-                  bodyPointerEvents: document.body.style.pointerEvents,
-                });
                 document.body.style.removeProperty("overflow");
                 document.body.style.removeProperty("padding-right");
                 document.body.style.removeProperty("pointer-events");
                 window.scrollTo({ left: 0 });
-                console.log("[CloseDialog] 4. التنضيف خلص", {
-                  bodyOverflow: document.body.style.overflow,
-                  bodyPaddingRight: document.body.style.paddingRight,
-                  bodyPointerEvents: document.body.style.pointerEvents,
-                });
               });
             }}
-            onConfirm={() => {
-              console.log("[CloseDialog] onConfirm اتنادى - هيبدأ mutation");
-              updateMutation.mutate({ status: "closed" });
-            }}
+            onConfirm={() => updateMutation.mutate({ status: "closed" })}
             loading={updateMutation.isPending}
           />
         </DialogErrorBoundary>
