@@ -2550,10 +2550,29 @@ function CloseConfirmDialog({
   }, []);
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        console.log("[CloseDialog] onOpenChange اتنادى بقيمة:", next);
+        console.trace("[CloseDialog] trace لمين نادى onOpenChange");
+        if (!next) onClose();
+      }}
+    >
       <DialogContent
         className="max-w-md flex flex-col max-h-[85vh] p-0 gap-0"
         dir="rtl"
+        onPointerDownOutside={(e) => {
+          console.log("[CloseDialog] onPointerDownOutside اتنادى", e.detail);
+        }}
+        onInteractOutside={(e) => {
+          console.log("[CloseDialog] onInteractOutside اتنادى", e.detail);
+        }}
+        onEscapeKeyDown={() => {
+          console.log("[CloseDialog] onEscapeKeyDown اتنادى");
+        }}
+        onOpenAutoFocus={() => {
+          console.log("[CloseDialog] onOpenAutoFocus اتنادى");
+        }}
       >
         <DialogHeader className="shrink-0 p-4 pb-2 border-b border-border">
           <DialogTitle className="text-right flex items-center gap-2">
