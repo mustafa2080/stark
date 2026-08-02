@@ -2467,6 +2467,7 @@ function CloseConfirmDialog({
   onConfirm: () => void;
   loading: boolean;
 }) {
+  console.log("[CloseDialog] -1. CloseConfirmDialog function body بدأ التنفيذ");
   // نستخدم كائن افتراضي آمن لو manifest.stats جه undefined/null مؤقتًا (مثلاً
   // أثناء الـ refetch اللي بيحصل فور نجاح الإغلاق) — عشان القيم القديمة لسه
   // تتعرض بدل ما الـ component يعمل crash ويسود الشاشة بالكامل على الموبايل.
@@ -2504,6 +2505,13 @@ function CloseConfirmDialog({
   }, [invoiceStatusMap]);
 
   const pendingCount = invoiceCounts.pending;
+
+  console.log("[CloseDialog] 0. CloseConfirmDialog بيترندر دلوقتي", {
+    hasManifest: !!manifest,
+    hasStats: !!manifest?.stats,
+    ordersCount: manifest?.orders?.length,
+    windowWidth: typeof window !== "undefined" ? window.innerWidth : "n/a",
+  });
 
   return (
     <Dialog open onOpenChange={onClose}>
