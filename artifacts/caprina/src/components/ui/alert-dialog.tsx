@@ -30,10 +30,11 @@ const AlertDialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, ...props }, ref) => (
   <AlertDialogPortal>
-    <AlertDialogOverlay style={{ zIndex: 2147483000 }} />
+    <AlertDialogOverlay dir="ltr" style={{ zIndex: 2147483000, top: 0, left: 0, right: 0, bottom: 0 }} />
     <div
-      className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
-      style={{ zIndex: 2147483001 }}
+      dir="ltr"
+      className="fixed flex items-center justify-center p-4 pointer-events-none"
+      style={{ zIndex: 2147483001, top: 0, left: 0, right: 0, bottom: 0 }}
     >
       <AlertDialogPrimitive.Content
         ref={ref}
