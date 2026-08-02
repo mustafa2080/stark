@@ -961,6 +961,9 @@ export default function Orders() {
   const debouncedSearch = useDebounce(search, 300);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  // ── Pagination (server-side) ─────────────────────────────────────────────
+  const PAGE_SIZE = 1000;
+  const [page, setPage] = useState(1);
 
   // mutation لتحديث حالة الشحنة
   const updateShipment = useMutation({
@@ -1035,15 +1038,15 @@ export default function Orders() {
   });
 
   const { data: ordersResponse, isLoading } = useQuery({
-    // customerSearch بيدور client-side على البيانات الراجعة، فلو مفعّل لازم نجيب عدد أكبر
-    // بكتير عشان الفلتر يقدر يوصل لكل الشحنات المطابقة مش أول 200 بس
-    queryKey: ["shipments-list", debouncedSearch, status, dateFrom, dateTo, !!customerSearch],
+    // ── Pagination server-side حقيقي: كل صفحة = طلب API جديد بـ limit/offset مختلفين ──
+    queryKey: ["shipments-list", debouncedSearch, status, dateFrom, dateTo, page],
     queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(status !== "all" ? { status } : {}),
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),
-      limit: customerSearch ? "5000" : "200",
+      limit: String(PAGE_SIZE),
+      offset: String((page - 1) * PAGE_SIZE),
     }).toString()}`).then((res: any) => ({ data: res.data ?? res, total: res.total ?? (res.data ?? res).length })),
     staleTime: 15_000,
     gcTime: 60_000,
@@ -1132,21 +1135,18 @@ export default function Orders() {
     });
   }, [colFilteredRows, sortCol, sortDir, getColVal]);
 
-  // ── Pagination (client-side) ─────────────────────────────────────────────
-  const PAGE_SIZE = 20;
-  const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE));
+  // ── Pagination server-side: totalPages مبني على العدد الحقيقي من السيرفر ──
+  // paginatedRows = displayRows نفسها لأن التقسيم بيحصل في السيرفر (limit/offset)
+  // مش في المتصفح؛ الفلاتر المحلية (بحث/فرز) بتشتغل على شحنات الصفحة الحالية بس.
+  const totalPages = Math.max(1, Math.ceil((ordersTotal ?? 0) / PAGE_SIZE));
   useEffect(() => {
     if (page > totalPages) setPage(1);
   }, [totalPages]);
-  const paginatedRows = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return displayRows.slice(start, start + PAGE_SIZE);
-  }, [displayRows, page]);
-  // أي تغيير في الفلاتر أو الترتيب يرجّع للصفحة الأولى
+  const paginatedRows = displayRows;
+  // أي تغيير في الفلاتر أو الحالة يرجّع للصفحة الأولى (السيرفر هيجيب من جديد)
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, customerSearch, status, dateFrom, dateTo, colFilters, sortCol, sortDir]);
+  }, [debouncedSearch, status, dateFrom, dateTo]);
 
   const hasActiveFilter = search || customerSearch || status !== "all" || dateFrom || dateTo;
 
@@ -2245,11 +2245,11 @@ export default function Orders() {
               </Table>
             </div>
 
-            {/* ── Pagination ── */}
-            {displayRows.length > PAGE_SIZE && (
+            {/* ── Pagination (server-side) ── */}
+            {(ordersTotal ?? 0) > PAGE_SIZE && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-border gap-2 flex-wrap">
                 <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
-                  عرض {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, displayRows.length)} من {displayRows.length}
+                  عرض {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, ordersTotal ?? 0)} من {ordersTotal ?? 0}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button variant="outline" size="sm" className="h-8 text-xs" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
