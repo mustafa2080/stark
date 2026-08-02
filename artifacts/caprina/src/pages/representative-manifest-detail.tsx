@@ -2507,7 +2507,7 @@ function CloseConfirmDialog({
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent
-        className="bg-card border-border max-w-md flex flex-col max-h-[85vh] p-0 gap-0"
+        className="max-w-md flex flex-col max-h-[85vh] p-0 gap-0"
         dir="rtl"
       >
         <DialogHeader className="shrink-0 p-4 pb-2 border-b border-border">
