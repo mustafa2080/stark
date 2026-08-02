@@ -251,9 +251,10 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       const cost     = Number(shipment.costPrice ?? 0);
 
       if (item.deliveryStatus === "delivered") {
-        // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا الإجمالي العادي (cod)
+        // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا السعر الإجمالي للطلب (totalAmount)
+        // — نفس مصدر القيمة المستخدم في صفحة تفاصيل البيان (لازم يفضل متطابق معاه).
         const dvr = (item as any).deliveredValueReceived;
-        const actualCod = dvr != null ? Number(dvr) : cod;
+        const actualCod = dvr != null ? Number(dvr) : Number(shipment.totalAmount ?? cod);
         totalRevenue += actualCod;
         deliveredGross += actualCod;
         totalCost += cost;
@@ -273,21 +274,17 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         // مالية (زي المرتجع العادي بالظبط)، حتى بعد تأكيد الاستلام. الجزء
         // المسلَّم الفعلي محسوب أصلًا في البيان القديم على السجل الأصلي.
       } else if (item.deliveryStatus === "returned") {
-        // مرتجع: returnReceived بيتحكم في المخزون فقط، ومالوش أي تأثير على الإيرادات/تكلفة الشحن هنا
+        // مرتجع بسبب مالي (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة):
+        // المندوب راح فعليًا وتحرك، فتكلفة الشحن اتصرفت بغض النظر عن نتيجة التحصيل —
+        // تُحسب دايمًا في الحالات الثلاث دي، حتى لو القيمة المستلمة فعليًا = صفر
+        // (نفس منطق صفحة تفاصيل البيان — لازم يفضل متطابق معاه).
         const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
-        // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش
         if (returnReasonHasValue) {
           const manualVal = Number((item as any).returnValueReceived ?? 0);
-          // تكلفة الشحن بتتضاف فقط لو فيه قيمة إيراد فعلية متحصّلة من العميل —
-          // من غيرها (لسه صفر / متسجّلاش تاني بعد الترحيل) البيان يفضل صفر
-          // بالكامل، من غير تكلفة شحن بدون إيراد مقابلها (كانت بتسبب رصيد
-          // سالب للمندوب بالغلط في البيانات المرحّلة الجديدة).
-          if (manualVal > 0) {
-            deliveredGross += manualVal;
-            deliveredShippingFees += shipping;
-            totalRevenue += manualVal;
-            totalShippingCost += shipping;
-          }
+          deliveredGross += manualVal;
+          deliveredShippingFees += shipping;
+          totalRevenue += manualVal;
+          totalShippingCost += shipping;
         }
       } else {
         // pending/delayed → لسه عند شركة الشحن، مفيش تكلفة شحن تُحسب عليه دلوقتي
@@ -300,10 +297,18 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
 
     // تكلفة المندوب تُحسب تلقائيًا من تكلفة الشحن المسجّلة على شركة الشحن نفسها
-    // (company.shippingCost) × عدد الشحنات المسلَّمة فعليًا، بدل الإدخال اليدوي القديم.
-    // لو الشركة معندهاش shippingCost مسجل → صفر.
+    // (company.shippingCost) × عدد الشحنات اللي اتصرف عليها تكلفة شحن فعليًا، بدل
+    // الإدخال اليدوي القديم. لو الشركة معندهاش shippingCost مسجل → صفر.
+    // ملحوظة مهمة: تكلفة الشحن مش بس على "delivered" — المندوب بيتحرك فعليًا (وبالتالي
+    // تُحسب عليه تكلفة شحن) كمان في المرتجع بالأسباب المالية الثلاثة: رفض الاستلام بعد
+    // المعاينة (مدفوع/غير مدفوع)، أو الهروب من الاستلام بدون معاينة — لازم تفضل مطابقة
+    // لـ RETURN_REASONS_IN_PNL تحت بالظبط.
+    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
+    const returnedWithShippingCost = items.filter(i =>
+      i.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes((i as any).returnReason)
+    ).length;
     const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
-    const courierCostManual = courierCostPerShipment * delivered;
+    const courierCostManual = courierCostPerShipment * (delivered + returnedWithShippingCost);
     // صافي المستحق للشركة = إجمالي المسلَّم (COD) − تكلفة المندوب
     const netDueToCompany   = deliveredGross - courierCostManual;
     // صافي الربح الحقيقي = إجمالي رسوم الشحن − تكلفة المندوب

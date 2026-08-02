@@ -2628,11 +2628,16 @@ function CloseConfirmDialog({
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden px-3 pb-3 text-xs">
                   {(() => {
-                    // تكلفة الشحن الفعلية = سعر الشحنة الواحدة (company.shippingCost) × عدد الشحنات المسلَّمة فعليًا
-                    // (نفس منطق الباك إند بالظبط — لازم تفضل متطابقة معاه، وإلا الرقم المعروض هنا هيبقى غلط
-                    // كل ما عدد الشحنات المسلَّمة يزيد عن واحدة)
+                    // تكلفة الشحن الفعلية = سعر الشحنة الواحدة (company.shippingCost) × عدد الشحنات اللي
+                    // اتصرف عليها تكلفة شحن فعليًا (نفس منطق الباك إند بالظبط — لازم تفضل متطابقة معاه):
+                    // مسلَّم + مرتجع بأحد الأسباب الثلاثة (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة)
+                    // — في الحالات دي المندوب راح فعليًا وتحرك، فتكلفة الشحن اتصرفت بغض النظر عن نتيجة التسليم.
+                    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
+                    const returnedWithShippingCost = (manifest.orders ?? []).filter(o =>
+                      o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes((o as any).returnReason)
+                    ).length;
                     const shippingCostPerShipment = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
-                    const effectiveShipping = shippingCostPerShipment * (s?.delivered ?? 0);
+                    const effectiveShipping = shippingCostPerShipment * ((s?.delivered ?? 0) + returnedWithShippingCost);
                     const due = (s as any)?.netDueToCompany ?? ((s?.deliveredGross ?? 0) - effectiveShipping);
                     return (
                       <>
