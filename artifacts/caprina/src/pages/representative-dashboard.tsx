@@ -3288,10 +3288,11 @@ function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments:
   );
 }
 
-// ─── 2.5) بطاقة محفظتي (سجل تصفية البيانات المُقفلة) ─────────────────────────
-// كل بيان يقفله المندوب بنفسه، القيمة المستحقة منه (COD بعد خصم تكلفة الشحن)
-// بتتصفّر فورًا وتتسجل هنا كـ "تصفية". الرصيد الحالي (غير المُقفل) موجود في
-// كارت "التحصيل والمالية" فوق — الكارت ده أرشيف بس لتاريخ التصفيات.
+// ─── 2.5) بطاقة محفظتي (الرصيد الحالي + سجل تصفية البيانات المُقفلة) ────────
+// الرصيد الحالي = صافي المستحق من البيان المفتوح (لسه ما اتقفلش نهائيًا من
+// الأدمن)، بنفس منطق كارت "الرصيد المستحق من المندوب" في تفاصيل البيان تمامًا.
+// أول ما الأدمن يقفل البيان فعليًا، الرصيد ده يتصفر تلقائيًا وينزل صف جديد
+// في "آخر التصفيات" تحت.
 function WalletHistoryCard() {
   const [collapsed, setCollapsed] = useState(false);
   const { data: wallet } = useQuery({
@@ -3301,6 +3302,7 @@ function WalletHistoryCard() {
 
   const transactions = wallet?.transactions ?? [];
   const totalSettled = wallet?.totalSettled ?? 0;
+  const currentBalance = wallet?.currentBalance ?? 0;
 
   return (
     <div className="rounded-2xl border bg-card/60 overflow-hidden flex flex-col h-full">
@@ -3311,9 +3313,16 @@ function WalletHistoryCard() {
 
       {!collapsed && (
         <>
-          <div className="p-4 pb-2">
-            <p className="text-[10px] text-muted-foreground mb-1">إجمالي المُصفّى (كل الوقت)</p>
-            <p className="text-lg font-black text-teal-400 leading-tight">{formatCurrency(totalSettled)}</p>
+          <div className="p-4 pb-2 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">الرصيد الحالي</p>
+              <p className="text-lg font-black text-amber-400 leading-tight">{formatCurrency(currentBalance)}</p>
+              <p className="text-[9px] text-muted-foreground/70 mt-0.5">يُصفَّر عند إغلاق البيان</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">إجمالي المُصفّى (كل الوقت)</p>
+              <p className="text-lg font-black text-teal-400 leading-tight">{formatCurrency(totalSettled)}</p>
+            </div>
           </div>
 
           <div className="px-4 py-2">

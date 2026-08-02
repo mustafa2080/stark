@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { eq, and, desc, isNull, count, sql, inArray } from "drizzle-orm";
 import { db, shipmentsTable, shipmentItemsTable, shippingCompaniesTable, usersTable, shipmentZonesTable, auditLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, representativeWalletTransactionsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { computeManifestNetDue } from "../lib/manifestFinance.js";
 import { verifyToken } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { getTenantId, buildTenantCondition } from "../middlewares/requireTenant.js";
@@ -544,8 +545,10 @@ router.get("/location", requireRepresentativeOrAdmin, async (req: Request, res: 
 
 // ─── GET /representative/wallet — سجل تصفيات محفظة المندوب ───────────────────
 // كل صف = بيان اتقفل بواسطة المندوب نفسه، بالقيمة اللي اتصفّت وقتها.
-// الرصيد الحالي (المتبقي غير المُقفل) موجود بالفعل في /representative/dashboard
-// كـ totalCollected — ده أرشيف تاريخي بس لما اتقفل وإمتى وبكام.
+// currentBalance = الرصيد الحالي المستحق من البيان المفتوح (لسه ما اتقفلش
+// نهائيًا من الأدمن) — بنفس منطق computeManifestNetDue بالظبط. بيفضل الرقم
+// ده ظاهر هنا لحد ما الأدمن يقفل البيان، وقتها يتصفر تلقائيًا ويتحول لصف
+// جديد في الأرشيف تحت (transactions).
 router.get("/wallet", requireRepresentativeOrAdmin, async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const targetUserId = user.role === "representative"
@@ -561,9 +564,34 @@ router.get("/wallet", requireRepresentativeOrAdmin, async (req: Request, res: Re
 
   const totalSettled = rows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
 
+  // ─── الرصيد الحالي (غير المُقفل نهائيًا بعد) ───────────────────────────────
+  let currentBalance = 0;
+  const companyId = user.role === "representative"
+    ? user.shippingCompanyId
+    : req.query.companyId ? parseInt(req.query.companyId as string) : null;
+  if (companyId) {
+    // البيانات اللي لسه "مفتوحة فعليًا" من وجهة نظر الأدمن (status="open")
+    // — سواء لسه ما اتلمسش خالص، أو المندوب قفلها مؤقتًا (closedByRole="representative")
+    // وبيستنى تأكيد الأدمن. لما الأدمن يقفلها فعليًا (status="closed") بيتم
+    // الترحيل للخزنة وتتسجل كتصفية، فمابقتش من ضمن الحساب هنا.
+    const openManifests = await db.select()
+      .from(shipmentManifestsTable)
+      .where(and(
+        eq(shipmentManifestsTable.shippingCompanyId, companyId),
+        eq(shipmentManifestsTable.status, "open"),
+      ));
+    for (const manifest of openManifests) {
+      const items = await db.select().from(shipmentManifestItemsTable)
+        .where(eq(shipmentManifestItemsTable.manifestId, manifest.id));
+      const netDue = await computeManifestNetDue(manifest, items);
+      currentBalance += netDue;
+    }
+  }
+
   res.json({
     transactions: rows.map(r => ({ ...r, amount: Number(r.amount) })),
     totalSettled,
+    currentBalance,
   });
 });
 
