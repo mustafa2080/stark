@@ -2513,6 +2513,42 @@ function CloseConfirmDialog({
     windowWidth: typeof window !== "undefined" ? window.innerWidth : "n/a",
   });
 
+  useEffect(() => {
+    // نقيس فعليًا شكل الـ DOM بعد ما الديالوج يترسم — عشان نعرف هل فيه
+    // مساحة (width/height) ظاهرة فعلاً ولا العنصر موجود بس بمساحة صفر/مخفي.
+    const t = setTimeout(() => {
+      const dialogEl = document.querySelector('[role="dialog"]');
+      const overlayEls = document.querySelectorAll('[data-radix-portal] > div');
+      if (dialogEl) {
+        const rect = dialogEl.getBoundingClientRect();
+        const cs = window.getComputedStyle(dialogEl);
+        console.log("[CloseDialog] 5. قياس فعلي للـ dialog element", {
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+          display: cs.display,
+          visibility: cs.visibility,
+          opacity: cs.opacity,
+          zIndex: cs.zIndex,
+          transform: cs.transform,
+          position: cs.position,
+        });
+      } else {
+        console.log("[CloseDialog] 5. مفيش عنصر [role=dialog] في الـ DOM خالص!");
+      }
+      console.log("[CloseDialog] 6. عدد عناصر البورتال المباشرة:", overlayEls.length);
+      overlayEls.forEach((el, i) => {
+        const rect = (el as HTMLElement).getBoundingClientRect();
+        const cs = window.getComputedStyle(el as HTMLElement);
+        console.log(`[CloseDialog] 6.${i}`, {
+          className: (el as HTMLElement).className,
+          rect: { width: rect.width, height: rect.height },
+          zIndex: cs.zIndex,
+          bg: cs.backgroundColor,
+        });
+      });
+    }, 100);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent
