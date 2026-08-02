@@ -1937,6 +1937,10 @@ export const shipmentsApi = {
   delete: (id: number) => apiFetch<{ success: boolean }>(`/shipments/${id}`, { method: "DELETE" }),
   stats: () => apiFetch<any>("/shipments/stats"),
   track: (number: string) => apiFetch<Shipment>(`/shipments/track/${encodeURIComponent(number)}`),
+  deleteBulk: (ids: number[]) => apiFetch<{ deleted: number; skipped: number }>("/shipments/bulk", { method: "DELETE", body: JSON.stringify({ ids }) }),
+  archived: () => apiFetch<Shipment[]>("/shipments/archived"),
+  restore: (id: number) => apiFetch<Shipment>(`/shipments/${id}/restore`, { method: "POST" }),
+  purgeSelected: (ids: number[]) => apiFetch<{ success: boolean; deleted: number }>("/shipments/archived/purge", { method: "DELETE", body: JSON.stringify({ ids }) }),
 };
 
 // ─── Shipment Manifests API ───────────────────────────────────────────────────

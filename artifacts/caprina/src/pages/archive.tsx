@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, RotateCcw, AlertTriangle, Package, Search, Trash2, CheckSquare, Square } from "lucide-react";
-import { ordersApi, apiFetch } from "@/lib/api";
+import { ordersApi, shipmentsApi, apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,16 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   cancelled:        { label: "ملغي",         color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
 };
 
+// ── حالات الشحنات (Stark) — نفس منطق التلوين لكن labels خاصة بالشحنات ─────────
+const SHIPMENT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending:      { label: "قيد الانتظار",  color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+  in_shipping:  { label: "قيد الشحن",     color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
+  delivered:    { label: "تم التسليم",    color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  returned:     { label: "مُرتجع",         color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  delayed:      { label: "متأخر",         color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
+  cancelled:    { label: "ملغي",          color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+};
+
 const formatDate = (d: string) =>
   new Date(d).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" });
 
@@ -35,37 +45,66 @@ export default function ArchivePage() {
   const [search, setSearch] = useState("");
   const [restoring, setRestoring] = useState<number | null>(null);
 
-  // ── تحديد ──────────────────────────────────────────────────────────────
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  // ── تحديد ── مفتاح مركب "type:id" عشان نفرّق بين order وshipment بنفس الرقم ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteSelectedDialog, setShowDeleteSelectedDialog] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const rowKey = (type: "order" | "shipment", id: number) => `${type}:${id}`;
 
-  const { data: orders = [], isLoading, refetch } = useQuery({
+  const { data: orders = [], isLoading: ordersLoading, refetch: refetchOrders } = useQuery({
     queryKey: ["archived-orders"],
     queryFn: ordersApi.archived,
   });
 
-  const filtered = orders.filter(o =>
+  const { data: shipments = [], isLoading: shipmentsLoading, refetch: refetchShipments } = useQuery({
+    queryKey: ["archived-shipments"],
+    queryFn: shipmentsApi.archived,
+  });
+
+  const isLoading = ordersLoading || shipmentsLoading;
+  const refetch = async () => { await Promise.all([refetchOrders(), refetchShipments()]); };
+
+  // ── توحيد الشحنات على شكل صفوف تشبه orders (مع تمييز _type: "shipment") ──
+  const shipmentRows = shipments.map(s => ({
+    id: s.id,
+    _type: "shipment" as const,
+    customerName: s.receiverName,
+    phone: s.receiverPhone,
+    product: s.parcelType || "شحنة",
+    status: s.status,
+    totalPrice: Number(s.totalAmount) || 0,
+    createdAt: s.createdAt,
+    deletedAt: (s as any).deletedAt,
+  }));
+
+  const orderRows = orders.map(o => ({ ...o, _type: "order" as const }));
+
+  const allRows = [...orderRows, ...shipmentRows];
+
+  const filtered = allRows.filter(o =>
     !search ||
     o.customerName?.toLowerCase().includes(search.toLowerCase()) ||
     o.product?.toLowerCase().includes(search.toLowerCase()) ||
     o.phone?.includes(search)
   );
 
-  // ── جمّع الطلبات بالفاتورة (invoiceNumber) ────────────────────────────
+  // ── جمّع الطلبات بالفاتورة (invoiceNumber) — الشحنات لا تُجمّع (كل شحنة مستقلة) ──
   const groupedFiltered = (() => {
-    const groupMap = new Map<string, typeof orders>();
+    const groupMap = new Map<string, typeof filtered>();
     for (const o of filtered) {
-      const key = (o as any).invoiceNumber?.trim() || `solo-${o.id}`;
+      const key = o._type === "order" && (o as any).invoiceNumber?.trim()
+        ? (o as any).invoiceNumber.trim()
+        : `solo-${o._type}-${o.id}`;
       if (!groupMap.has(key)) groupMap.set(key, []);
       groupMap.get(key)!.push(o);
     }
     return Array.from(groupMap.values()).map(grp => {
       const rep = { ...grp[0] } as any;
+      // كل صف بيحمل مفاتيحه المركّبة الخاصة به دايمًا (حتى لو صف مفرد) عشان التحديد يبقى متسق
+      rep._groupKeys   = grp.map(o => rowKey(o._type, o.id));
       if (grp.length > 1) {
-        rep._groupIds    = grp.map(o => o.id);
         rep._groupCount  = grp.length;
-        rep._products    = grp.map(o => `${o.product} ×${o.quantity}`).join(" ، ");
+        rep._products    = grp.map(o => `${o.product} ×${(o as any).quantity ?? 1}`).join(" ، ");
         rep.totalPrice   = grp.reduce((s, o) => s + o.totalPrice, 0);
       }
       return rep;
@@ -73,46 +112,52 @@ export default function ArchivePage() {
   })();
 
   // ── تحديد الكل / إلغاء الكل ────────────────────────────────────────────
-  const allGroupIds = groupedFiltered.flatMap(o => (o as any)._groupIds ?? [o.id]);
-  const allFilteredSelected = groupedFiltered.length > 0 && allGroupIds.every(id => selectedIds.has(id));
+  const allGroupKeys = groupedFiltered.flatMap(o => (o as any)._groupKeys as string[]);
+  const allFilteredSelected = groupedFiltered.length > 0 && allGroupKeys.every(k => selectedIds.has(k));
   const someSelected = selectedIds.size > 0;
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(allGroupIds));
+      setSelectedIds(new Set(allGroupKeys));
     }
   };
 
   const toggleOne = (o: any) => {
-    const ids: number[] = (o as any)._groupIds ?? [o.id];
+    const keys: string[] = (o as any)._groupKeys;
     setSelectedIds(prev => {
       const next = new Set(prev);
-      const allSel = ids.every(id => next.has(id));
-      if (allSel) ids.forEach(id => next.delete(id));
-      else ids.forEach(id => next.add(id));
+      const allSel = keys.every(k => next.has(k));
+      if (allSel) keys.forEach(k => next.delete(k));
+      else keys.forEach(k => next.add(k));
       return next;
     });
   };
 
   const isRowSelected = (o: any) => {
-    const ids: number[] = (o as any)._groupIds ?? [o.id];
-    return ids.every(id => selectedIds.has(id));
+    const keys: string[] = (o as any)._groupKeys;
+    return keys.every(k => selectedIds.has(k));
   };
 
-  // ── استرجاع ────────────────────────────────────────────────────────────
+  // ── استرجاع (بيوجّه لكل API حسب النوع: order أو shipment) ───────────────
   const handleRestore = async (o: any) => {
-    const ids: number[] = (o as any)._groupIds ?? [o.id];
-    setRestoring(ids[0]);
+    const keys: string[] = (o as any)._groupKeys;
+    setRestoring(o.id);
     try {
-      for (const id of ids) await ordersApi.restore(id);
+      for (const key of keys) {
+        const [type, idStr] = key.split(":");
+        const id = Number(idStr);
+        if (type === "order") await ordersApi.restore(id);
+        else await shipmentsApi.restore(id);
+      }
       await refetch();
-      setSelectedIds(prev => { const n = new Set(prev); ids.forEach(id => n.delete(id)); return n; });
+      setSelectedIds(prev => { const n = new Set(prev); keys.forEach(k => n.delete(k)); return n; });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["orders-summary"] });
-      const msg = ids.length > 1 ? `تم استرجاع الفاتورة (${ids.length} منتجات) للطلبات النشطة.` : `طلب ${o.customerName} تم نقله للطلبات النشطة.`;
-      toast({ title: "تم استرجاع الطلب", description: msg });
+      queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      const msg = keys.length > 1 ? `تم استرجاع الفاتورة (${keys.length} عناصر) للنشط.` : `${o.customerName} تم نقله للنشط.`;
+      toast({ title: "تم الاسترجاع", description: msg });
     } catch (e: any) {
       toast({ title: "خطأ", description: e.message, variant: "destructive" });
     } finally {
@@ -120,19 +165,28 @@ export default function ArchivePage() {
     }
   };
 
-  // ── حذف المحدد نهائياً ──────────────────────────────────────────────────
+  // ── حذف المحدد نهائياً (مقسّم حسب النوع على كل endpoint) ─────────────────
   const handleDeleteSelected = async () => {
     setDeletingSelected(true);
     try {
-      const ids = Array.from(selectedIds);
-      await apiFetch("/orders/archived/purge", {
-        method: "DELETE",
-        body: JSON.stringify({ ids }),
-      });
+      const orderIds: number[] = [];
+      const shipmentIds: number[] = [];
+      for (const key of Array.from(selectedIds)) {
+        const [type, idStr] = key.split(":");
+        (type === "order" ? orderIds : shipmentIds).push(Number(idStr));
+      }
+      if (orderIds.length) {
+        await apiFetch("/orders/archived/purge", { method: "DELETE", body: JSON.stringify({ ids: orderIds }) });
+      }
+      if (shipmentIds.length) {
+        await shipmentsApi.purgeSelected(shipmentIds);
+      }
       await refetch();
+      const total = orderIds.length + shipmentIds.length;
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast({ title: "✅ تم الحذف النهائي", description: `تم حذف ${ids.length} طلب نهائياً.` });
+      queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      toast({ title: "✅ تم الحذف النهائي", description: `تم حذف ${total} عنصر نهائياً.` });
     } catch (e: any) {
       toast({ title: "خطأ", description: e.message, variant: "destructive" });
     } finally {
@@ -151,9 +205,9 @@ export default function ArchivePage() {
         </div>
         <div>
           <h1 className="text-xl font-bold">الأرشيف</h1>
-          <p className="text-sm text-muted-foreground">الطلبات المحذوفة (يمكن استرجاعها)</p>
+          <p className="text-sm text-muted-foreground">الطلبات والشحنات المحذوفة (يمكن استرجاعها)</p>
         </div>
-        <Badge variant="outline" className="mr-auto">{orders.length} طلب</Badge>
+        <Badge variant="outline" className="mr-auto">{orders.length} طلب + {shipments.length} شحنة</Badge>
 
         {/* زر الحذف النهائي للمحدد — للأدمن فقط */}
         {isAdmin && someSelected && (
@@ -224,12 +278,14 @@ export default function ArchivePage() {
                 </TableHeader>
                 <TableBody>
                   {groupedFiltered.map(o => {
-                    const statusInfo = STATUS_LABELS[o.status] ?? { label: o.status, color: "bg-gray-100 text-gray-600" };
+                    const isShipment = (o as any)._type === "shipment";
+                    const labelsMap = isShipment ? SHIPMENT_STATUS_LABELS : STATUS_LABELS;
+                    const statusInfo = labelsMap[o.status] ?? { label: o.status, color: "bg-gray-100 text-gray-600" };
                     const isSelected = isRowSelected(o);
                     const isGroup = !!(o as any)._groupCount && (o as any)._groupCount > 1;
                     return (
                       <TableRow
-                        key={o.id}
+                        key={`${(o as any)._type}-${o.id}`}
                         className={`transition-opacity ${isSelected ? "bg-red-950/20 opacity-100" : "opacity-75 hover:opacity-100"}`}
                       >
                         {isAdmin && (
@@ -237,11 +293,14 @@ export default function ArchivePage() {
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={() => toggleOne(o)}
-                              aria-label={`تحديد طلب ${o.id}`}
+                              aria-label={`تحديد عنصر ${o.id}`}
                             />
                           </TableCell>
                         )}
                         <TableCell className="font-mono text-xs text-muted-foreground">
+                          <span className={`ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isShipment ? "bg-indigo-500/10 text-indigo-500" : "bg-cyan-500/10 text-cyan-500"}`}>
+                            {isShipment ? "شحنة" : "طلب"}
+                          </span>
                           #{o.id}
                           {isGroup && (
                             <span className="mr-1 text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
@@ -287,10 +346,10 @@ export default function ArchivePage() {
         </CardContent>
       </Card>
 
-      {orders.length > 0 && (
+      {(orders.length > 0 || shipments.length > 0) && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-          <p>الطلبات في الأرشيف مخفية من جميع التقارير والإحصائيات. يمكن استرجاعها في أي وقت.</p>
+          <p>الطلبات والشحنات في الأرشيف مخفية من جميع التقارير والإحصائيات. يمكن استرجاعها في أي وقت.</p>
         </div>
       )}
 
@@ -298,9 +357,9 @@ export default function ArchivePage() {
       <AlertDialog open={showDeleteSelectedDialog} onOpenChange={setShowDeleteSelectedDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>⛔ حذف نهائي للطلبات المحددة</AlertDialogTitle>
+            <AlertDialogTitle>⛔ حذف نهائي للعناصر المحددة</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم حذف <strong>{selectedIds.size} طلب</strong> نهائياً بشكل لا يمكن التراجع عنه.
+              سيتم حذف <strong>{selectedIds.size} عنصر (طلب/شحنة)</strong> نهائياً بشكل لا يمكن التراجع عنه.
               هذه العملية غير قابلة للاسترجاع. هل أنت متأكد؟
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -311,7 +370,7 @@ export default function ArchivePage() {
               disabled={deletingSelected}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {deletingSelected ? "جاري الحذف..." : `نعم، احذف ${selectedIds.size} طلب`}
+              {deletingSelected ? "جاري الحذف..." : `نعم، احذف ${selectedIds.size} عنصر`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

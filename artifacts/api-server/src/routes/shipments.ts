@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, like, or, inArray, sql, isNull, gte } from "drizzle-orm";
+import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
 import { z } from "zod";
@@ -1264,6 +1264,59 @@ router.delete("/shipments/bulk", async (req, res): Promise<void> => {
     res.json({ deleted, skipped });
   } catch (e: any) {
     res.status(500).json({ error: "خطأ في الحذف الجماعي" });
+  }
+});
+
+// ─── GET /shipments/archived (الشحنات المحذوفة — تظهر في نفس صفحة الأرشيف) ────
+router.get("/shipments/archived", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const conditions: any[] = [isNotNull(shipmentsTable.deletedAt)];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
+    const rows = await db.select().from(shipmentsTable)
+      .where(and(...conditions))
+      .orderBy(desc(shipmentsTable.deletedAt));
+    res.json(rows);
+  } catch (e) {
+    console.error("[GET /shipments/archived]", e);
+    res.status(500).json({ error: "خطأ في جلب الشحنات المؤرشفة" });
+  }
+});
+
+// ─── POST /shipments/:id/restore (استرجاع شحنة من الأرشيف) ────────────────────
+router.post("/shipments/:id/restore", async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+    const [existing] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id));
+    if (!existing) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+    if (!existing.deletedAt) { res.status(400).json({ error: "الشحنة غير مؤرشفة" }); return; }
+    await db.update(shipmentsTable).set({ deletedAt: null, updatedAt: new Date() } as any).where(eq(shipmentsTable.id, id));
+    const [restored] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id));
+    res.json(restored);
+  } catch (e) {
+    console.error("[POST /shipments/:id/restore]", e);
+    res.status(500).json({ error: "خطأ في استرجاع الشحنة" });
+  }
+});
+
+// ─── DELETE /shipments/archived/purge (حذف نهائي — أدمن فقط) ──────────────────
+router.delete("/shipments/archived/purge", async (req, res): Promise<void> => {
+  try {
+    const { ids } = req.body as { ids: number[] };
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: "ids مطلوبة" });
+      return;
+    }
+    const numericIds = ids.map(Number).filter(n => !isNaN(n));
+    // حذف نهائي — بس للطلبات المؤرشفة (deletedAt IS NOT NULL)، نفس منطق /orders/archived/purge بالظبط
+    await db.delete(shipmentsTable).where(
+      and(inArray(shipmentsTable.id, numericIds), isNotNull(shipmentsTable.deletedAt))
+    );
+    res.json({ success: true, deleted: numericIds.length });
+  } catch (e) {
+    console.error("[DELETE /shipments/archived/purge]", e);
+    res.status(500).json({ error: "خطأ في الحذف النهائي" });
   }
 });
 
