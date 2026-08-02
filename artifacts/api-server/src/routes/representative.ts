@@ -221,8 +221,29 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
   const dateFrom = req.query.dateFrom as string | undefined;
   const dateTo   = req.query.dateTo as string | undefined;
   const shipmentIds2 = await getShipmentIdsByCompany(companyId);
+
+  // ─── إجمالي المحصل / المطلوب المتبقي — مبنيين على البيان المفتوح الحالي بس ───
+  // (نفس منطق "الرصيد الحالي" في /wallet بالظبط، عشان الكارتين يطابقوا بعض تمامًا)
+  const [openManifest] = await db.select().from(shipmentManifestsTable)
+    .where(and(eq(shipmentManifestsTable.shippingCompanyId, companyId), eq(shipmentManifestsTable.status, "open")));
+  let openManifestCollected = 0;
+  let openManifestPending = 0;
+  if (openManifest) {
+    const openItems = await db.select().from(shipmentManifestItemsTable)
+      .where(eq(shipmentManifestItemsTable.manifestId, openManifest.id));
+    openManifestCollected = await computeManifestNetDue(openManifest, openItems);
+    const openShipmentIds = openItems.map(i => i.shipmentId);
+    if (openShipmentIds.length) {
+      const openShipments = await db.select({ status: shipmentsTable.status, codAmount: shipmentsTable.codAmount })
+        .from(shipmentsTable).where(inArray(shipmentsTable.id, openShipmentIds));
+      openManifestPending = openShipments
+        .filter(s => !["delivered", "partial_received", "returned", "cancelled"].includes(s.status))
+        .reduce((sum, s) => sum + Number(s.codAmount ?? 0), 0);
+    }
+  }
+
   if (!shipmentIds2.length) {
-    res.json({ total: 0, delivered: 0, partial: 0, returned: 0, inProgress: 0, deliveryRate: 0, returnRate: 0, totalCollected: 0, zones: [], topZone: null, lastLogin: null, ratingsAvg: null, ratingsCount: 0, recentRatings: [], highReturnRisk: false });
+    res.json({ total: 0, delivered: 0, partial: 0, returned: 0, inProgress: 0, deliveryRate: 0, returnRate: 0, totalCollected: 0, openManifestCollected, openManifestPending, zones: [], topZone: null, lastLogin: null, ratingsAvg: null, ratingsCount: 0, recentRatings: [], highReturnRisk: false });
     return;
   }
   const conditions: any[] = [inArray(shipmentsTable.id, shipmentIds2), isNull(shipmentsTable.deletedAt)];
@@ -281,7 +302,8 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     : null;
 
   res.json({ total, delivered, partial, returned, inProgress, deliveryRate, returnRate,
-    totalCollected, zones, topZone: zones[0] ?? null, lastLogin: lastLogin?.createdAt ?? null,
+    totalCollected, openManifestCollected, openManifestPending,
+    zones, topZone: zones[0] ?? null, lastLogin: lastLogin?.createdAt ?? null,
     ratingsAvg, ratingsCount: ratingRows.length, recentRatings: ratingRows,
     highReturnRisk: total >= 5 && returnRate > 30 });
 });

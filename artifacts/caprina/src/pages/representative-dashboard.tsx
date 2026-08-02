@@ -3218,11 +3218,10 @@ function TasksSummaryCard({ allShipments, onNavigate }: { allShipments: any[]; o
 // ─── 2) بطاقة التحصيل المالي (COD) ────────────────────────────────────────────
 function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments: any[]; onNavigate: (t: TabId) => void }) {
   const [collapsed, setCollapsed] = useState(false);
-  const totalCollected = d?.totalCollected ?? 0;
-  // المطلوب المتبقي = COD بتاع الشحنات الغير متحصلة بعد (قيد التوصيل / مؤجلة)
-  const pendingCod = allShipments
-    .filter(s => !["delivered", "partial_received", "returned", "cancelled"].includes(s.status))
-    .reduce((sum, s) => sum + Number(s.codAmount ?? 0), 0);
+  // إجمالي المحصل / المطلوب المتبقي — مبنيين على البيان المفتوح الحالي بس
+  // (نفس منطق "الرصيد الحالي" في كارت المحفظة، عشان الكارتين يطابقوا بعض تمامًا)
+  const totalCollected = d?.openManifestCollected ?? 0;
+  const pendingCod = d?.openManifestPending ?? 0;
 
   // آخر 4 شحنات تم تحصيلها فعليًا، كسجل "تاريخ التحصيل"
   // المبلغ المعروض = collectedAmount الفعلي (زي تاب الشحنات)، مع fallback على codAmount لو مش متسجل
@@ -3295,10 +3294,11 @@ function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments:
 // في "آخر التصفيات" تحت.
 function WalletHistoryCard() {
   const [collapsed, setCollapsed] = useState(false);
-  const { data: wallet } = useQuery({
+  const { data: walletData } = useQuery({
     queryKey: ["rep-wallet"],
     queryFn: () => apiFetch(`/representative/wallet`),
   });
+  const wallet = walletData as any;
 
   const transactions = wallet?.transactions ?? [];
   const totalSettled = wallet?.totalSettled ?? 0;
