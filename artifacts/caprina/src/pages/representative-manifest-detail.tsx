@@ -2467,6 +2467,7 @@ function CloseConfirmDialog({
   onConfirm: () => void;
   loading: boolean;
 }) {
+  console.log("[DBG] CloseConfirmDialog بدأ الرندر");
   // نستخدم كائن افتراضي آمن لو manifest.stats جه undefined/null مؤقتًا (مثلاً
   // أثناء الـ refetch اللي بيحصل فور نجاح الإغلاق) — عشان القيم القديمة لسه
   // تتعرض بدل ما الـ component يعمل crash ويسود الشاشة بالكامل على الموبايل.
@@ -5206,7 +5207,7 @@ export default function ShippingManifestPage() {
       {!isLocked && (
         <button
           type="button"
-          onClick={() => setShowCloseDialog(true)}
+          onClick={() => { console.log("[DBG] زرار الإغلاق اتضغط"); setShowCloseDialog(true); }}
           className="group relative w-full overflow-hidden rounded-2xl border border-emerald-800/40 bg-gradient-to-l from-emerald-950/60 via-emerald-900/30 to-emerald-950/60 p-5 text-right transition-all duration-300 hover:border-emerald-600/60 hover:shadow-xl hover:shadow-emerald-950/40 print:hidden"
         >
           {/* توهج خلفي زخرفي */}
