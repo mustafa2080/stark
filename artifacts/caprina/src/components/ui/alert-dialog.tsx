@@ -30,18 +30,19 @@ const AlertDialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, ...props }, ref) => (
   <AlertDialogPortal>
-    <div className="fixed inset-0 z-50 isolate">
-      <AlertDialogOverlay className="z-0" />
-      <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
-        <AlertDialogPrimitive.Content
-          ref={ref}
-          className={cn(
-            "relative pointer-events-auto grid w-full max-w-lg gap-4 rounded-lg border border-white/10 dark:bg-[hsl(0,0%,16%)] bg-white p-6 shadow-2xl shadow-black/60 duration-200 max-h-[90vh] overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            className
-          )}
-          {...props}
-        />
-      </div>
+    <AlertDialogOverlay style={{ zIndex: 2147483000 }} />
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
+      style={{ zIndex: 2147483001 }}
+    >
+      <AlertDialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          "relative pointer-events-auto grid w-full max-w-lg gap-4 rounded-lg border border-white/10 dark:bg-[hsl(0,0%,16%)] bg-white p-6 shadow-2xl shadow-black/60 duration-200 max-h-[90vh] overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          className
+        )}
+        {...props}
+      />
     </div>
   </AlertDialogPortal>
 ))
