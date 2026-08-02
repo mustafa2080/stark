@@ -2628,8 +2628,12 @@ function CloseConfirmDialog({
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden px-3 pb-3 text-xs">
                   {(() => {
-                    const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
-                    const due = (s?.deliveredGross ?? 0) - effectiveShipping;
+                    // تكلفة الشحن الفعلية = سعر الشحنة الواحدة (company.shippingCost) × عدد الشحنات المسلَّمة فعليًا
+                    // (نفس منطق الباك إند بالظبط — لازم تفضل متطابقة معاه، وإلا الرقم المعروض هنا هيبقى غلط
+                    // كل ما عدد الشحنات المسلَّمة يزيد عن واحدة)
+                    const shippingCostPerShipment = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+                    const effectiveShipping = shippingCostPerShipment * (s?.delivered ?? 0);
+                    const due = (s as any)?.netDueToCompany ?? ((s?.deliveredGross ?? 0) - effectiveShipping);
                     return (
                       <>
                         <p className="font-black text-lg text-primary">
