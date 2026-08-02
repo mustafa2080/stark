@@ -4287,7 +4287,11 @@ export default function ShippingManifestPage() {
     );
 
   const s = manifest.stats;
-  const isLocked = manifest.status === "closed";
+  // isLocked لازم يشمل حالة "قفل مؤقت من المندوب" برضه (status يفضل "open" فعليًا
+  // في الداتابيز في الحالة دي عمدًا — بس closedByRole="representative" هو العلامة
+  // الحقيقية إن المندوب قفل بيانه وبقى بانتظار تأكيد الأدمن). من غير الشرط ده
+  // الشاشة كانت بترجع تعرض البيان "مفتوح" فورًا بعد الإغلاق وكأن حاجة ما حصلتش.
+  const isLocked = manifest.status === "closed" || !!(manifest as any).closedByRole;
   const pendingOrders = manifest.orders.filter(
     (o) => o.deliveryStatus === "pending"
   ).length;
