@@ -15,7 +15,7 @@ import {
 export async function computeManifestNetDue(
   manifest: typeof shipmentManifestsTable.$inferSelect,
   items: (typeof shipmentManifestItemsTable.$inferSelect)[],
-): Promise<number> {
+): Promise<{ gross: number; net: number }> {
   // جيب الشحنات لمعرفة سعر كل شحنة
   const shipmentIds = items.map(i => i.shipmentId);
   const shipments = shipmentIds.length > 0
@@ -65,5 +65,5 @@ export async function computeManifestNetDue(
 
   // الصافي المستحق من المندوب (COD المسلَّم − تكلفة شحن المندوب)
   const courierCostManual = courierCostPerShipment * deliveredCount;
-  return deliveredGross - courierCostManual;
+  return { gross: deliveredGross, net: deliveredGross - courierCostManual };
 }

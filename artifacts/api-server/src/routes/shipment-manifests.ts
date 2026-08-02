@@ -733,7 +733,7 @@ async function createTreasuryEntryOnClose(
   userName: string | null,
 ): Promise<void> {
   const now = new Date();
-  const netDueToCompany = await computeManifestNetDue(manifest, items);
+  const netDueToCompany = (await computeManifestNetDue(manifest, items)).net;
 
   // جيب شركة الشحن (لاسمها في وصف حركة الخزنة)
   const [company] = await db.select().from(shippingCompaniesTable)
@@ -832,7 +832,7 @@ async function recordRepresentativeWalletEntry(
   representativeName: string | null,
 ): Promise<void> {
   const now = new Date();
-  const netDue = await computeManifestNetDue(manifest, items);
+  const netDue = (await computeManifestNetDue(manifest, items)).net;
   if (netDue <= 0) return;
 
   await db.insert(representativeWalletTransactionsTable).values({
