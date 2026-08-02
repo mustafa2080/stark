@@ -2003,6 +2003,15 @@ export default function Orders() {
                           return <span className="inline-flex items-center gap-0.5 text-[9px] text-red-600 dark:text-red-400"><RotateCcw className="w-2.5 h-2.5 shrink-0" />{reason}</span>;
                         })()}
                         {order.status === "returned" && (() => {
+                          // لو المرتجع اتأكد استلامه فعليًا في المخزن، نعرض اسم المخزن
+                          // بدل اسم المندوب/شركة الشحن (نفس منطق partial_received فوق)
+                          const rr = (order as any).returnReceived as 0 | 1 | boolean | null | undefined;
+                          const isReceived = rr === 1 || rr === true;
+                          if (isReceived) {
+                            return (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">↪ في مخزن {(order as any).warehouseName || "—"}</span>
+                            );
+                          }
                           const repName = (order as any).shippingCompanyName as string | null | undefined;
                           if (!repName) return null;
                           return (
@@ -2206,6 +2215,19 @@ export default function Orders() {
                             );
                           })()}
                           {order.status === "returned" && (() => {
+                            // لو المرتجع اتأكد استلامه فعليًا في المخزن، نعرض اسم المخزن
+                            // بدل اسم المندوب/شركة الشحن (نفس منطق partial_received تحت)
+                            const rr = (o as any).returnReceived as 0 | 1 | boolean | null | undefined;
+                            const isReceived = rr === 1 || rr === true;
+                            if (isReceived) {
+                              return (
+                                <div className="flex items-center justify-center gap-0.5 mt-1">
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
+                                    ↪ في مخزن {(order as any).warehouseName || "—"}
+                                  </span>
+                                </div>
+                              );
+                            }
                             const repName = (order as any).shippingCompanyName as string | null | undefined;
                             if (!repName) return null;
                             return (
