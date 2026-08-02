@@ -5197,9 +5197,18 @@ export default function ShippingManifestPage() {
       {!isLocked && (
         <button
           type="button"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             console.log("[CloseDialog] 1. زرار فتح الإغلاق اتضغط");
-            setShowCloseDialog(true);
+            // تأخير الفتح لتيك واحد عشان نضمن إن نفس الـ click/touch event
+            // اللي فتح الزرار ده خلص تمامًا قبل ما Radix يركّب الـ Dialog
+            // الجديد ويبدأ يسجل outside-pointer events — على بعض متصفحات
+            // الموبايل كان بيحصل تسريب للـ event فيتفسر كـ "outside click"
+            // على الديالوج الجديد ويقفله فورًا لحظة الفتح (السواد اللي بيفلاش ويختفي).
+            setTimeout(() => {
+              console.log("[CloseDialog] 1b. فتح الديالوج فعليًا بعد التأخير");
+              setShowCloseDialog(true);
+            }, 0);
           }}
           className="group relative w-full overflow-hidden rounded-2xl border border-emerald-800/40 bg-gradient-to-l from-emerald-950/60 via-emerald-900/30 to-emerald-950/60 p-5 text-right transition-all duration-300 hover:border-emerald-600/60 hover:shadow-xl hover:shadow-emerald-950/40 print:hidden"
         >
