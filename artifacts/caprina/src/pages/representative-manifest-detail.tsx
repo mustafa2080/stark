@@ -2614,7 +2614,7 @@ function CloseConfirmDialog({
             </div>
           </div>
 
-          {/* ─── صافي المستحق من الشركة ─── */}
+          {/* ─── صافي المستحق للشركة ─── */}
           <div className="space-y-2">
             <div className="rounded-md bg-primary/10 border border-primary/30 overflow-hidden transition-all duration-300">
               <button
@@ -2622,7 +2622,7 @@ function CloseConfirmDialog({
                 onClick={() => setNetDueOpen(v => !v)}
                 className="w-full flex items-center justify-between p-3 text-right text-xs"
               >
-                <p className="text-muted-foreground mb-0">صافي المستحق من الشركة</p>
+                <p className="text-muted-foreground mb-0">صافي المستحق للشركة</p>
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
               </button>
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
