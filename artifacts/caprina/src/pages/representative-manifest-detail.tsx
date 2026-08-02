@@ -5189,7 +5189,10 @@ export default function ShippingManifestPage() {
       {!isLocked && (
         <button
           type="button"
-          onClick={() => setShowCloseDialog(true)}
+          onClick={() => {
+            console.log("[CloseDialog] 1. زرار فتح الإغلاق اتضغط");
+            setShowCloseDialog(true);
+          }}
           className="group relative w-full overflow-hidden rounded-2xl border border-emerald-800/40 bg-gradient-to-l from-emerald-950/60 via-emerald-900/30 to-emerald-950/60 p-5 text-right transition-all duration-300 hover:border-emerald-600/60 hover:shadow-xl hover:shadow-emerald-950/40 print:hidden"
         >
           {/* توهج خلفي زخرفي */}
@@ -5215,6 +5218,7 @@ export default function ShippingManifestPage() {
       {showCloseDialog && (
         <DialogErrorBoundary
           onClose={() => {
+            console.log("[CloseDialog] ErrorBoundary.onClose اتنادى (يعني حصل Error!)");
             setShowCloseDialog(false);
             requestAnimationFrame(() => {
               document.body.style.removeProperty("overflow");
@@ -5227,19 +5231,33 @@ export default function ShippingManifestPage() {
           <CloseConfirmDialog
             manifest={manifest}
             onClose={() => {
+              console.log("[CloseDialog] 2. onClose اتنادى، showCloseDialog هيبقى false دلوقتي");
               setShowCloseDialog(false);
               // Radix Dialog بيحط inline style (overflow/padding-right) على
               // document.body وقت الفتح ويشيلها وقت القفل — لكن على بعض
               // متصفحات الموبايل (خصوصًا مع RTL) التنظيف ده ممكن يتعارض توقيتًا
               // ويسيب الصفحة "متزحلقة" لليمين بعد القفل. بننضف يدويًا كضمان إضافي.
               requestAnimationFrame(() => {
+                console.log("[CloseDialog] 3. requestAnimationFrame اتنفذ - قبل التنضيف", {
+                  bodyOverflow: document.body.style.overflow,
+                  bodyPaddingRight: document.body.style.paddingRight,
+                  bodyPointerEvents: document.body.style.pointerEvents,
+                });
                 document.body.style.removeProperty("overflow");
                 document.body.style.removeProperty("padding-right");
                 document.body.style.removeProperty("pointer-events");
                 window.scrollTo({ left: 0 });
+                console.log("[CloseDialog] 4. التنضيف خلص", {
+                  bodyOverflow: document.body.style.overflow,
+                  bodyPaddingRight: document.body.style.paddingRight,
+                  bodyPointerEvents: document.body.style.pointerEvents,
+                });
               });
             }}
-            onConfirm={() => updateMutation.mutate({ status: "closed" })}
+            onConfirm={() => {
+              console.log("[CloseDialog] onConfirm اتنادى - هيبدأ mutation");
+              updateMutation.mutate({ status: "closed" });
+            }}
             loading={updateMutation.isPending}
           />
         </DialogErrorBoundary>
