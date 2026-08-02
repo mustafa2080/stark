@@ -42,6 +42,7 @@ const AlertDialogContent = React.forwardRef<
           className
         )}
         {...props}
+        style={{ ...props.style, maxWidth: "min(32rem, calc(100vw - 2rem))" }}
       />
     </div>
   </AlertDialogPortal>
