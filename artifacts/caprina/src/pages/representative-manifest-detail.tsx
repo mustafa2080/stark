@@ -42,6 +42,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -2515,6 +2516,9 @@ function CloseConfirmDialog({
             <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             إغلاق البيان {manifest.manifestNumber}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            تأكيد إغلاق البيان وعرض ملخص حالة الطلبيات قبل الإغلاق النهائي
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 p-4 overflow-y-auto flex-1 min-h-0">
