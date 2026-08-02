@@ -4054,9 +4054,56 @@ export default function ShippingManifestPage() {
     onSuccess: (result: any, variables: { status: "open" | "closed" }) => {
       // نحسب صافي المستحق + عدد المرتجعات من آخر نسخة معروفة للبيان قبل التحديث
       // الـ overlay ده خاص بعملية الإغلاق فقط — مش هيظهر لما نعمل "إعادة فتح"
+      // ملحوظة مهمة: لازم نستخدم بالظبط نفس منطق كارت "الرصيد المستحق من المندوب"
+      // (deliveredCOD - shippingCost محسوبة على كل الشحنات المؤهلة: مسلَّم + جزئي +
+      // مرتجع بأسباب مالية معينة) — حساب مبسّط بمرة شحن واحدة كان بيدي رقم مختلف تمامًا.
       if (manifest && variables?.status === "closed") {
-        const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
-        const due = (manifest.stats?.deliveredGross ?? 0) - effectiveShipping;
+        const RETURN_REASONS_IN_PNL_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
+        const isRolledOver = (o: any) => ((o?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+        const isStillAtShippingLocal = (o: any) => {
+          const rr = o?.returnReceived;
+          const isReceivedBack = rr === 1 || rr === true || rr === "1";
+          if (o?.deliveryStatus === "returned") return !isReceivedBack;
+          if (o?.deliveryStatus === "partial_received" || o?.deliveryStatus === "partial_delivered") return !isReceivedBack;
+          return false;
+        };
+        const ordersForPnlLocal = (manifest.orders ?? []).filter((o: any) => {
+          if (o.deliveryStatus === "returned") {
+            if (isRolledOver(o)) return false;
+            if (!RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason)) return false;
+            const hasReturnValueLocal = o.returnValueReceived != null;
+            return hasReturnValueLocal || !isStillAtShippingLocal(o);
+          }
+          if (o.deliveryStatus === "partial_delivered") return !isRolledOver(o);
+          if (o.deliveryStatus === "partial_received") return !isStillAtShippingLocal(o);
+          return true;
+        });
+        const deliveredOrdersLocal = ordersForPnlLocal.filter((o: any) => {
+          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
+          if (o.deliveryStatus === "partial_received") return o.returnReceived === 1;
+          return false;
+        });
+        const deliveredCODLocal = deliveredOrdersLocal.reduce((s: number, o: any) => {
+          if (o.deliveryStatus === "partial_delivered" && o.partialQuantity != null) {
+            return s + Number(o.partialQuantity);
+          }
+          if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
+            return s + Number(o.unitPrice) * Number(o.partialQuantity);
+          }
+          const dvr = o.deliveredValueReceived;
+          return s + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+        }, 0) + ordersForPnlLocal
+          .filter((o: any) => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason))
+          .reduce((s: number, o: any) => s + Number(o.returnValueReceived ?? 0), 0);
+        const courierCostPerShipmentLocal = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+        const shippingCostOrdersLocal = ordersForPnlLocal.filter((o: any) => {
+          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
+          if (o.deliveryStatus === "partial_received") return true;
+          return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason);
+        });
+        const shippingCostGroupsCountLocal = groupManifestOrders(shippingCostOrdersLocal).length;
+        const shippingCostLocal = courierCostPerShipmentLocal * shippingCostGroupsCountLocal;
+        const due = deliveredCODLocal - shippingCostLocal;
         setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
       }
       refetch();
@@ -5299,7 +5346,7 @@ export default function ShippingManifestPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogAction className="w-full gap-2 bg-emerald-700 hover:bg-emerald-600" onClick={() => setClosedSummary(null)}>
-            <CheckCircle2 className="w-4 h-4" /> تمام، هوريها
+            <CheckCircle2 className="w-4 h-4" /> تمام، هوردهم
           </AlertDialogAction>
         </AlertDialogContent>
       </AlertDialog>
