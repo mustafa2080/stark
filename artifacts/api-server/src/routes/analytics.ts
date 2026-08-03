@@ -54,8 +54,8 @@ async function getVariantsForTenant(tenantId: number | null) {
 }
 async function getManifestsForTenant(tenantId: number | null) {
   return tenantId !== null
-    ? db.select({ id: shippingManifestsTable.id, manualShippingCost: shippingManifestsTable.manualShippingCost, createdAt: shippingManifestsTable.createdAt }).from(shippingManifestsTable).where(sql.raw(`shipping_manifests.tenant_id = ${tenantId}`))
-    : db.select({ id: shippingManifestsTable.id, manualShippingCost: shippingManifestsTable.manualShippingCost, createdAt: shippingManifestsTable.createdAt }).from(shippingManifestsTable);
+    ? db.select({ id: shippingManifestsTable.id, status: shippingManifestsTable.status, manualShippingCost: shippingManifestsTable.manualShippingCost, createdAt: shippingManifestsTable.createdAt }).from(shippingManifestsTable).where(sql.raw(`shipping_manifests.tenant_id = ${tenantId}`))
+    : db.select({ id: shippingManifestsTable.id, status: shippingManifestsTable.status, manualShippingCost: shippingManifestsTable.manualShippingCost, createdAt: shippingManifestsTable.createdAt }).from(shippingManifestsTable);
 }
 
 // ─── Dynamic cost resolver ──────────────────────────────────────────────────────
@@ -511,11 +511,15 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
         returnDamagedValue += damagedCost;
         returnLoss += damagedCost;
       }
-    } else if (
+    }
+  }
+
+  // "في الطريق" = مؤشر لحظي (snapshot) — بيتحسب من كل الأوردرات بغض النظر عن فلتر التاريخ المختار
+  for (const o of allOrdersRaw) {
+    if (
       (o.status === "in_shipping" || o.status === "delayed") &&
       pendingOrderIdsFromManifests.has(o.id)
     ) {
-      // في الطريق = الأوردر لسه جوه بيان مندوب مفتوح (مش بس بناءً على status الأوردر)
       pendingRevenue += o.quantity * o.unitPrice;
     }
   }
