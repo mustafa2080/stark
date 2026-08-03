@@ -23,11 +23,12 @@ export function invalidateChartsCache(tenantId: number | null) {
 }
 
 export function invalidateSmartCache(tenantId: number | null) {
-  // امسح كل الـ keys اللي فيها smart-insights أو analytics-profit أو analytics-alerts
+  // امسح كل الـ keys اللي فيها smart-insights أو analytics-profit أو analytics-alerts أو analytics-financial
   for (const key of analyticsCache.keys()) {
     if (key.startsWith(`smart-insights:${tenantId ?? "global"}`) ||
         key.startsWith(`analytics-profit:${tenantId ?? "global"}`) ||
-        key.startsWith(`analytics-alerts:${tenantId ?? "global"}`)) {
+        key.startsWith(`analytics-alerts:${tenantId ?? "global"}`) ||
+        key.startsWith(`analytics-financial:${tenantId ?? "global"}`)) {
       analyticsCache.delete(key);
     }
   }
