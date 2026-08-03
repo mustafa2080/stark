@@ -90,7 +90,7 @@ function ZonesMultiSelect({
         side="bottom"
         sideOffset={6}
         collisionPadding={16}
-        avoidCollisions
+        avoidCollisions={false}
         dir="rtl"
         onInteractOutside={e => e.preventDefault()}
         onOpenAutoFocus={e => e.preventDefault()}
