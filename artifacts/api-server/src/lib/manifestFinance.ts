@@ -40,7 +40,9 @@ export async function computeManifestNetDue(
   for (const item of items) {
     const shipment = shipmentMap.get(item.shipmentId);
     if (!shipment) continue;
-    const price = Number((shipment as any).codAmount ?? (shipment as any).totalAmount ?? shipment.shippingFee ?? 0);
+    // السعر الكامل للشحنة المسلَّمة = totalAmount (codAmount + shippingFee)، مش codAmount
+    // لوحده — نفس totalPrice المستخدم في deliveredCOD بالفرونت بالظبط.
+    const price = Number((shipment as any).totalAmount ?? (Number((shipment as any).codAmount ?? 0) + Number(shipment.shippingFee ?? 0)));
 
     if (item.deliveryStatus === "delivered") {
       // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا السعر العادي
