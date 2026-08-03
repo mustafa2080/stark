@@ -8,6 +8,7 @@ import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInv
 import { pushNotification } from "../lib/notifications.js";
 import { autoAddShipmentToClientAccountManifest } from "./client-account-manifests.js";
 import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
+import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 
 const router: IRouter = Router();
 
@@ -984,6 +985,8 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
     for (const shId of numericIds) {
       await syncShipmentStatusToManifests(shId, status);
     }
+    invalidateSmartCache(tenantId);
+    invalidateChartsCache(tenantId);
 
     if (toAutoAdd.length > 0) {
       for (const r of toAutoAdd) {
@@ -1079,6 +1082,8 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
       });
+      invalidateSmartCache(tenantId);
+      invalidateChartsCache(tenantId);
     }
 
     // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"

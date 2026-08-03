@@ -23,6 +23,7 @@ import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
 import { broadcastUrgentToCompany } from "./representative.js";
 import { pushNotification } from "../lib/notifications.js";
 import { computeManifestNetDue } from "../lib/manifestFinance.js";
+import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -1043,6 +1044,7 @@ async function rolloverPartialShipments(
 router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
   try {
     const id   = Number(req.params.id);
+    const tenantId = getTenantId(req);
     let body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null };
     const now  = new Date();
     const reqUser = (req as any).user;
@@ -1126,6 +1128,9 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
         } : {}),
       })
       .where(eq(shipmentManifestsTable.id, id));
+
+    invalidateSmartCache(tenantId);
+    invalidateChartsCache(tenantId);
 
     // ── تحويل الإيراد للخزنة عند الإغلاق ──────────────────────────────────
     // ملحوظة: ده مش من اختصاص المندوب — لما المندوب هو اللي بيقفل بيانه،

@@ -411,13 +411,22 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
   const fsBaseConditions: any[] = [isNull(ordersTable.deletedAt)];
   if (tenantId !== null) fsBaseConditions.push(eq(ordersTable.tenantId, tenantId));
 
-  const [allOrdersRaw, products, variants, allManifests, allManifestOrders] = await Promise.all([
+  const fsShipmentConditions: any[] = [isNull(shipmentsTable.deletedAt)];
+  if (tenantId !== null) fsShipmentConditions.push(eq(shipmentsTable.tenantId, tenantId));
+
+  const [allOrdersRaw, products, variants, allManifests, allManifestOrders, pendingShipmentsRaw, openShipmentManifests, shipmentManifestItemsRaw] = await Promise.all([
     db.select().from(ordersTable).where(and(...fsBaseConditions)),
     getProductsForTenant(tenantId),
     getVariantsForTenant(tenantId),
     getManifestsForTenant(tenantId),
     db.select({ manifestId: shippingManifestOrdersTable.manifestId, orderId: shippingManifestOrdersTable.orderId })
       .from(shippingManifestOrdersTable),
+    db.select({ id: shipmentsTable.id, status: shipmentsTable.status, codAmount: shipmentsTable.codAmount })
+      .from(shipmentsTable).where(and(...fsShipmentConditions)),
+    db.select({ id: shipmentManifestsTable.id })
+      .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.status, "open")),
+    db.select({ manifestId: shipmentManifestItemsTable.manifestId, shipmentId: shipmentManifestItemsTable.shipmentId })
+      .from(shipmentManifestItemsTable),
   ]);
 
   // فلتر التاريخ
@@ -457,12 +466,6 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
   const manifestMap = new Map<number, typeof allManifests[0]>(allManifests.map(m => [m.id, m]));
   // shippingSpend = مجموع manualShippingCost للبيانات التي لها أوردرات مستلمة — يُضاف مرة واحدة لكل بيان
   const countedManifestsForShipping = new Set<number>();
-
-  // "في الطريق" = أي أوردر داخل بيان مندوب لسه مفتوح (status = open)، بغض النظر عن حالة الأوردر نفسه
-  const openManifestIds = new Set(allManifests.filter(m => m.status === "open").map(m => m.id));
-  const pendingOrderIdsFromManifests = new Set(
-    allManifestOrders.filter(mo => openManifestIds.has(mo.manifestId)).map(mo => mo.orderId)
-  );
 
   let cashIn = 0, costOfGoods = 0, shippingSpend = 0;
   let returnLoss = 0, returnRevLost = 0, pendingRevenue = 0;
@@ -514,13 +517,18 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
     }
   }
 
-  // "في الطريق" = مؤشر لحظي (snapshot) — بيتحسب من كل الأوردرات بغض النظر عن فلتر التاريخ المختار
-  for (const o of allOrdersRaw) {
+  // "في الطريق" = مؤشر لحظي (snapshot) — بيتحسب من نظام shipments/shipment_manifests
+  // (النظام الفعلي المستخدم للمناديب)، بغض النظر عن فلتر التاريخ المختار
+  const openShipmentManifestIds = new Set(openShipmentManifests.map(m => m.id));
+  const pendingShipmentIdsFromManifests = new Set(
+    shipmentManifestItemsRaw.filter(mi => openShipmentManifestIds.has(mi.manifestId)).map(mi => mi.shipmentId)
+  );
+  for (const s of pendingShipmentsRaw) {
     if (
-      (o.status === "in_shipping" || o.status === "delayed") &&
-      pendingOrderIdsFromManifests.has(o.id)
+      (s.status === "in_transit" || s.status === "delayed") &&
+      pendingShipmentIdsFromManifests.has(s.id)
     ) {
-      pendingRevenue += o.quantity * o.unitPrice;
+      pendingRevenue += Number(s.codAmount ?? 0);
     }
   }
 
