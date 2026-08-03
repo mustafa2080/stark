@@ -504,7 +504,7 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
         returnDamagedValue += damagedCost;
         returnLoss += damagedCost;
       }
-    } else if (o.status === "in_shipping") {
+    } else if (o.status === "in_shipping" || o.status === "delayed") {
       pendingRevenue += o.quantity * o.unitPrice;
     }
   }
