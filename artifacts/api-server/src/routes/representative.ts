@@ -231,7 +231,7 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
   if (openManifest) {
     const openItems = await db.select().from(shipmentManifestItemsTable)
       .where(eq(shipmentManifestItemsTable.manifestId, openManifest.id));
-    openManifestCollected = (await computeManifestNetDue(openManifest, openItems)).gross;
+    openManifestCollected = (await computeManifestNetDue(openManifest, openItems)).net;
     const openShipmentIds = openItems.map(i => i.shipmentId);
     if (openShipmentIds.length) {
       const openShipments = await db.select({ status: shipmentsTable.status, codAmount: shipmentsTable.codAmount })
@@ -606,7 +606,7 @@ router.get("/wallet", requireRepresentativeOrAdmin, async (req: Request, res: Re
       const items = await db.select().from(shipmentManifestItemsTable)
         .where(eq(shipmentManifestItemsTable.manifestId, manifest.id));
       const netDue = await computeManifestNetDue(manifest, items);
-      currentBalance += netDue.gross;
+      currentBalance += netDue.net;
     }
   }
 
