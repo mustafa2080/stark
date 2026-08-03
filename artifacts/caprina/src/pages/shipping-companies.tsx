@@ -87,6 +87,10 @@ function ZonesMultiSelect({
       <PopoverContent
         className="w-[280px] p-0"
         align="start"
+        side="bottom"
+        sideOffset={6}
+        collisionPadding={16}
+        avoidCollisions
         dir="rtl"
         onInteractOutside={e => e.preventDefault()}
         onOpenAutoFocus={e => e.preventDefault()}
