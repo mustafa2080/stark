@@ -458,6 +458,12 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
   // shippingSpend = مجموع manualShippingCost للبيانات التي لها أوردرات مستلمة — يُضاف مرة واحدة لكل بيان
   const countedManifestsForShipping = new Set<number>();
 
+  // "في الطريق" = أي أوردر داخل بيان مندوب لسه مفتوح (status = open)، بغض النظر عن حالة الأوردر نفسه
+  const openManifestIds = new Set(allManifests.filter(m => m.status === "open").map(m => m.id));
+  const pendingOrderIdsFromManifests = new Set(
+    allManifestOrders.filter(mo => openManifestIds.has(mo.manifestId)).map(mo => mo.orderId)
+  );
+
   let cashIn = 0, costOfGoods = 0, shippingSpend = 0;
   let returnLoss = 0, returnRevLost = 0, pendingRevenue = 0;
   let returnDamagedValue = 0; // تكلفة التوالف = المرتجعات التالفة (isDamaged=1) × تكلفة البضاعة
@@ -505,7 +511,11 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
         returnDamagedValue += damagedCost;
         returnLoss += damagedCost;
       }
-    } else if (o.status === "in_shipping" || o.status === "delayed") {
+    } else if (
+      (o.status === "in_shipping" || o.status === "delayed") &&
+      pendingOrderIdsFromManifests.has(o.id)
+    ) {
+      // في الطريق = الأوردر لسه جوه بيان مندوب مفتوح (مش بس بناءً على status الأوردر)
       pendingRevenue += o.quantity * o.unitPrice;
     }
   }
