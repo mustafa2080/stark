@@ -1249,7 +1249,7 @@ export default function OperationsCenterPage() {
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-background/40 border border-border rounded-lg px-3 py-2">
-                    <p className="text-[9px] text-muted-foreground">صافي الربح</p>
+                    <p className="text-[9px] text-muted-foreground">صافي الإيرادات</p>
                     <p className={`text-sm sm:text-base font-black ${(cashPeriodSummary?.netProfit ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
                       {fc(cashPeriodSummary?.netProfit ?? 0)}
                     </p>
