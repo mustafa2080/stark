@@ -396,6 +396,12 @@ export interface FinancialSummary {
   potentialInventoryProfit: number;
 }
 
+export interface ManifestsPnlSummary {
+  totalRevenue: number;   // إجمالي الأرباح اللي مع المناديب
+  totalExpenses: number;  // إجمالي المصاريف في الخزنة
+  netRevenue: number;     // صافي الإيراد = إجمالي الأرباح - إجمالي المصاريف
+}
+
 export interface ProductPerformance {
   name: string;
   productId: number | null;
@@ -893,6 +899,12 @@ export const analyticsApi = {
     if (params?.to)     q.set("to", params.to);
     const qs = q.toString();
     return apiFetch<FinancialSummary>(`/analytics/financial-summary${qs ? `?${qs}` : ""}`);
+  },
+  manifestsPnlSummary: (params?: { period?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    const qs = q.toString();
+    return apiFetch<ManifestsPnlSummary>(`/analytics/manifests-pnl-summary${qs ? `?${qs}` : ""}`);
   },
   productPerformance: () => apiFetch<ProductPerformanceResponse>("/analytics/product-performance"),
   alerts: () => apiFetch<AlertsResponse>("/analytics/alerts"),

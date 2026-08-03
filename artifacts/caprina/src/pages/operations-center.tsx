@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
@@ -352,6 +352,18 @@ function useFinancialSummary(period: "today" | "week" | "month") {
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
     placeholderData: (prev: FinancialSummary | undefined) => prev,
+  });
+}
+
+// ── جلب ملخص أرباح المناديب + مصروفات الخزنة حسب الفترة ───────────────────────
+function useManifestsPnlSummary(period: "today" | "week" | "month") {
+  return useQuery({
+    queryKey: ["analytics-manifests-pnl-summary-oc", period],
+    queryFn: () => analyticsApi.manifestsPnlSummary({ period }),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: ManifestsPnlSummary | undefined) => prev,
   });
 }
 
@@ -962,6 +974,7 @@ export default function OperationsCenterPage() {
   const { data: cashRegisters, isLoading: cashRegistersLoading } = useCashRegisters();
   const totalCash = cashRegisters?.totalBalance ?? 0;
   const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(cashPeriod);
+  const { data: manifestsPnlSummary, isLoading: manifestsPnlLoading } = useManifestsPnlSummary(cashPeriod);
   const [profitPeriod, setProfitPeriod] = useState<"today" | "week" | "month">("today");
   const { data: periodProfitData, isLoading: periodProfitLoading } = usePeriodProfit();
   const { data: shipmentChartsOc, isLoading: shipmentChartsOcLoading } = useShipmentCharts();
@@ -1264,25 +1277,25 @@ export default function OperationsCenterPage() {
               )}
             </div>
 
-            {/* العمود الأيسر: صف الإحصائيات الأربعة */}
-            <div className="lg:w-[46%] shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 bg-background/30 rounded-lg border border-border/40 self-stretch content-center">
+            {/* العمود الأيسر: إجمالي الإيرادات / إجمالي المصاريف / صافي الإيراد */}
+            <div className="lg:w-[46%] shrink-0 grid grid-cols-3 gap-2 p-2.5 bg-background/30 rounded-lg border border-border/40 self-stretch content-center">
               <div className="text-center">
-                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">المقبوض</p>
+                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">إجمالي الإيرادات</p>
                 <p className="font-black text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
-                  {fc((cashPeriodSummary?.cashIn ?? 0) - (cashPeriodSummary?.shippingSpend ?? 0))}
+                  {manifestsPnlLoading && !manifestsPnlSummary ? "—" : fc(manifestsPnlSummary?.totalRevenue ?? 0)}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">تكلفة البضاعة</p>
-                <p className="font-black text-amber-700 dark:text-amber-400 text-xs sm:text-sm">{fc(cashPeriodSummary?.costOfGoods ?? 0)}</p>
+                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">إجمالي المصاريف</p>
+                <p className="font-black text-red-600 dark:text-red-400 text-xs sm:text-sm">
+                  {manifestsPnlLoading && !manifestsPnlSummary ? "—" : fc(manifestsPnlSummary?.totalExpenses ?? 0)}
+                </p>
               </div>
               <div className="text-center">
-                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">تكلفة الشحن</p>
-                <p className="font-black text-orange-600 dark:text-orange-400 text-xs sm:text-sm">{fc(cashPeriodSummary?.shippingSpend ?? 0)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">خسائر المرتجعات</p>
-                <p className="font-black text-red-600 dark:text-red-400 text-xs sm:text-sm">{fc(cashPeriodSummary?.returnLoss ?? 0)}</p>
+                <p className="text-[9px] font-bold text-muted-foreground mb-0.5">صافي الإيراد</p>
+                <p className={`font-black text-xs sm:text-sm ${(manifestsPnlSummary?.netRevenue ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                  {manifestsPnlLoading && !manifestsPnlSummary ? "—" : fc(manifestsPnlSummary?.netRevenue ?? 0)}
+                </p>
               </div>
             </div>
           </div>

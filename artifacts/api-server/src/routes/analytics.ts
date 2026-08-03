@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable } from "@workspace/db";
 import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -591,6 +591,87 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
   } catch (err) {
     console.error("[analytics/financial-summary]", err);
     res.status(500).json({ error: "فشل تحميل الملخص المالي", detail: String(err) });
+  }
+});
+
+// ─── GET /api/analytics/manifests-pnl-summary ───────────────────────────────
+// ملخص أرباح المناديب (بيانات الشحن) + مصروفات الخزنة، مجمّعين على مستوى الشركة كلها.
+// نفس منطق realNetProfit في shipment-manifests.ts (لبيان واحد) لكن على كل البيانات
+// دفعة واحدة — بدون N+1 queries.
+router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financials"), async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = req.query.period as string | undefined;
+    const now = new Date();
+
+    let fromDate: Date | null = null;
+    if (period === "week") {
+      fromDate = new Date(now); fromDate.setDate(now.getDate() - 7);
+    } else if (period === "month") {
+      fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (period === "today") {
+      fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    // ── جلب كل بنود بيانات المناديب مع الشحنة وشركة الشحن المرتبطة دفعة واحدة ──
+    const manifestConditions: any[] = [];
+    if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
+
+    const rows = await db
+      .select({
+        deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
+        returnReason: shipmentManifestItemsTable.returnReason,
+        deliveredAt: shipmentManifestItemsTable.deliveredAt,
+        shippingFee: shipmentsTable.shippingFee,
+        courierCostPerShipment: shippingCompaniesTable.shippingCost,
+      })
+      .from(shipmentManifestItemsTable)
+      .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+      .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
+      .where(manifestConditions.length ? and(...manifestConditions) : undefined);
+
+    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
+
+    let totalRevenue = 0;   // إجمالي رسوم الشحن (deliveredShippingFees) عبر كل البيانات
+    let totalCourierCost = 0; // إجمالي تكلفة المناديب
+
+    for (const r of rows) {
+      if (fromDate) {
+        if (!r.deliveredAt || new Date(r.deliveredAt) < fromDate) continue;
+      }
+      const isEligible =
+        r.deliveryStatus === "delivered" ||
+        r.deliveryStatus === "partial_delivered" ||
+        (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
+      if (!isEligible) continue;
+
+      totalRevenue += Number(r.shippingFee ?? 0);
+      totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
+    }
+
+    const netProfitWithReps = totalRevenue - totalCourierCost; // إجمالي الأرباح اللي مع المناديب
+
+    // ── مصروفات الخزنة (نفس الفترة) ─────────────────────────────────────────
+    const expenseConditions: any[] = [];
+    if (tenantId !== null) expenseConditions.push(eq(expensesTable.tenantId, tenantId));
+    if (fromDate) expenseConditions.push(gte(expensesTable.expenseDate, fromDate));
+
+    const [{ totalExpenses }] = await db
+      .select({ totalExpenses: sql<number>`COALESCE(SUM(CAST(${expensesTable.amount} AS DECIMAL(14,2))), 0)` })
+      .from(expensesTable)
+      .where(expenseConditions.length ? and(...expenseConditions) : undefined);
+
+    const netRevenue = netProfitWithReps - Number(totalExpenses ?? 0);
+
+    res.json({
+      totalRevenue: netProfitWithReps, // إجمالي الأرباح اللي مع المناديب
+      totalExpenses: Number(totalExpenses ?? 0),
+      netRevenue,
+    });
+  } catch (err) {
+    console.error("[analytics/manifests-pnl-summary]", err);
+    res.status(500).json({ error: "فشل تحميل ملخص أرباح المناديب", detail: String(err) });
   }
 });
 
