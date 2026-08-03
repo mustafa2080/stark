@@ -234,13 +234,22 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     openManifestCollected = (await computeManifestNetDue(openManifest, openItems)).net;
     const openShipmentIds = openItems.map(i => i.shipmentId);
     if (openShipmentIds.length) {
-      const openShipments = await db.select({ status: shipmentsTable.status, codAmount: shipmentsTable.codAmount, totalAmount: shipmentsTable.totalAmount, shippingFee: shipmentsTable.shippingFee })
+      const openShipments = await db.select({ id: shipmentsTable.id, status: shipmentsTable.status, codAmount: shipmentsTable.codAmount, totalAmount: shipmentsTable.totalAmount, shippingFee: shipmentsTable.shippingFee })
         .from(shipmentsTable).where(inArray(shipmentsTable.id, openShipmentIds));
+      const shipmentById = new Map(openShipments.map(s => [s.id, s]));
       // القيمة الكاملة المطلوب تحصيلها = totalAmount (codAmount + shippingFee)، مش
       // codAmount لوحده — نفس totalPrice المستخدم في الفرونت (عمود "إجمالي" بالجدول).
-      openManifestPending = openShipments
-        .filter(s => !["delivered", "partial_received", "returned", "cancelled"].includes(s.status))
-        .reduce((sum, s) => sum + Number((s as any).totalAmount ?? (Number(s.codAmount ?? 0) + Number((s as any).shippingFee ?? 0))), 0);
+      // الاستبعاد لازم يبقى على delivery_status بتاع العنصر في البيان نفسه (delivered/
+      // partial_delivered/partial_received/returned) مش على shipments.status العام،
+      // لأن الشحنة ممكن تفضل "in_shipping" في جدول shipments حتى بعد ما تتسلَّم فعليًا
+      // في البيان — فكانت بتتحسب غلط ضمن "المتبقي".
+      openManifestPending = openItems
+        .filter(i => !["delivered", "partial_delivered", "partial_received", "returned"].includes(i.deliveryStatus))
+        .reduce((sum, i) => {
+          const s = shipmentById.get(i.shipmentId);
+          if (!s) return sum;
+          return sum + Number((s as any).totalAmount ?? (Number(s.codAmount ?? 0) + Number((s as any).shippingFee ?? 0)));
+        }, 0);
     }
   }
 
