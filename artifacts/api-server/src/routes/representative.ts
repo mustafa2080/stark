@@ -234,11 +234,13 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     openManifestCollected = (await computeManifestNetDue(openManifest, openItems)).net;
     const openShipmentIds = openItems.map(i => i.shipmentId);
     if (openShipmentIds.length) {
-      const openShipments = await db.select({ status: shipmentsTable.status, codAmount: shipmentsTable.codAmount })
+      const openShipments = await db.select({ status: shipmentsTable.status, codAmount: shipmentsTable.codAmount, totalAmount: shipmentsTable.totalAmount, shippingFee: shipmentsTable.shippingFee })
         .from(shipmentsTable).where(inArray(shipmentsTable.id, openShipmentIds));
+      // القيمة الكاملة المطلوب تحصيلها = totalAmount (codAmount + shippingFee)، مش
+      // codAmount لوحده — نفس totalPrice المستخدم في الفرونت (عمود "إجمالي" بالجدول).
       openManifestPending = openShipments
         .filter(s => !["delivered", "partial_received", "returned", "cancelled"].includes(s.status))
-        .reduce((sum, s) => sum + Number(s.codAmount ?? 0), 0);
+        .reduce((sum, s) => sum + Number((s as any).totalAmount ?? (Number(s.codAmount ?? 0) + Number((s as any).shippingFee ?? 0))), 0);
     }
   }
 
