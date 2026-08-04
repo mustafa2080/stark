@@ -5015,6 +5015,12 @@ export default function ShippingManifestPage() {
           const zone = pnlSettlementZones.find(z => z.id === zId);
           return s + (zone?.price != null ? Number(zone.price) : 0);
         }, 0);
+        // إجمالي تكلفة الشحن المعروض في كارت "إجمالي تكلفة الشحن" فقط = مجموع سعر
+        // زون كل شحنة على حدة (zonePricePnl) بدل الرقم الثابت × العدد — نفس مصدر
+        // "صافي الربح الحقيقي" تحت، لكن هنا لعرض الكارت فقط. باقي حسابات هذا القسم
+        // (netAmount, totalDueToCourier) لسه بتستخدم shippingCost الأصلي كما هو
+        // بناءً على تعليمات بشمهندس مصطفى: التعديل يخص كارت "إجمالي تكلفة الشحن" فقط.
+        const displayedShippingCost = zonePricePnl;
         // صافي الربح الحقيقي = سعر المنطقة الفعلي (لكل شحنة حسب منطقتها) - إجمالي تكلفة الشحن
         const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
@@ -5029,7 +5035,8 @@ export default function ShippingManifestPage() {
             </Card>
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
-              <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
+              <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{shippingCostOrders.length} شحنة (حسب زون كل شحنة)</p>
             </Card>
             <Card className="border-sky-900/40 bg-sky-900/10 p-4">
               <p className="text-xs text-sky-400 mb-1">الرصيد المستحق من المندوب</p>
