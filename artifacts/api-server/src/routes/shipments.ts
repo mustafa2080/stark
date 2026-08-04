@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte } from "drizzle-orm";
+import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
 import { z } from "zod";
@@ -530,6 +530,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
 });
 
 // ─── GET /shipments/zones (alias for /shipment-zones) ───────────────────────
+// كل زون بيرجع معاه costPrice = تكلفة الشحن الحقيقية من جدول "تكاليف المناطق"
+// (zone_costs.delivery_cost عن طريق zone_costs.zone_id) — ده مصدر مختلف عن price
+// اللي هو سعر البيع للعميل. costPrice هو اللي المفروض يُستخدم في عمود "شحن" بتفاصيل
+// بيان المندوب لما costMode = "zone"، عشان يعكس التكلفة الحقيقية مش سعر البيع.
 router.get("/shipments/zones", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
@@ -537,7 +541,15 @@ router.get("/shipments/zones", async (req, res): Promise<void> => {
     const cond = tenantId !== null
       ? or(eq(shipmentZonesTable.tenantId, tenantId), isNull(shipmentZonesTable.tenantId))
       : undefined;
-    const rows = await db.select().from(shipmentZonesTable).where(cond).orderBy(shipmentZonesTable.name);
+    const rows = await db
+      .select({
+        ...getTableColumns(shipmentZonesTable),
+        costPrice: zoneCostsTable.deliveryCost,
+      })
+      .from(shipmentZonesTable)
+      .leftJoin(zoneCostsTable, eq(zoneCostsTable.zoneId, shipmentZonesTable.id))
+      .where(cond)
+      .orderBy(shipmentZonesTable.name);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: "خطأ في استرجاع المناطق" }); }
 });

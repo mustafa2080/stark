@@ -1013,8 +1013,10 @@ function InvoiceGroupDeliveryRow({
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // سعر الشحن حسب زون الطلبية (المحافظة) — يُستخدم بس لو costMode = "zone"
-  const { data: rowZones = [] } = useQuery<{ id: number; price: number }[]>({
+  // تكلفة الشحن حسب زون الطلبية (المحافظة) — يُستخدم بس لو costMode = "zone"
+  // costPrice = التكلفة الحقيقية من جدول "تكاليف المناطق" (zone_costs.delivery_cost)،
+  // مش price اللي هو سعر البيع للعميل — الاتنين مصدرين مختلفين تمامًا.
+  const { data: rowZones = [] } = useQuery<{ id: number; price: number; costPrice: number | null }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
     enabled: courierCostMode === "zone",
@@ -1033,10 +1035,10 @@ function InvoiceGroupDeliveryRow({
     ((rep as any)?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_ROW.includes((rep as any)?.returnReason));
   // سعر الشحن المعروض في عمود الصف:
   // - costMode = "rep"  → الرقم الثابت بتاع المندوب (courierShippingCost)
-  // - costMode = "zone" → سعر زون الطلبية الفعلي (حسب المحافظة) من جدول المناطق
+  // - costMode = "zone" → تكلفة زون الطلبية الحقيقية (costPrice من جدول تكاليف المناطق)
   const rowZoneId = (rep as any)?.zoneId;
   const rowZoneShippingCost = courierCostMode === "zone"
-    ? (rowZoneId != null ? (rowZones.find(z => z.id === rowZoneId)?.price ?? null) : null)
+    ? (rowZoneId != null ? (rowZones.find(z => z.id === rowZoneId)?.costPrice ?? null) : null)
     : courierShippingCost;
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received احسب الجزء المستلم (كمية)، لو partial_delivered في بيان الشحن القيمة مسجَّلة مباشرة
@@ -3578,8 +3580,9 @@ export default function ShippingManifestPage() {
   const { toast } = useToast();
   const { canViewFinancials, isAdmin } = useAuth();
   const { brand } = useBrand();
-  // سعر المنطقة (لحاوية صافي المستحق) — نفس مصدر صافي الربح الحقيقي
-  const { data: pnlSettlementZones = [] } = useQuery<{ id: number; price: number }[]>({
+  // تكلفة المنطقة (لحاوية صافي المستحق) — نفس مصدر صافي الربح الحقيقي
+  // costPrice = التكلفة الحقيقية من جدول "تكاليف المناطق" (zone_costs.delivery_cost)
+  const { data: pnlSettlementZones = [] } = useQuery<{ id: number; price: number; costPrice: number | null }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
@@ -5019,7 +5022,9 @@ export default function ShippingManifestPage() {
           const zId = (o as any).zoneId;
           if (zId == null) return s;
           const zone = pnlSettlementZones.find(z => z.id === zId);
-          return s + (zone?.price != null ? Number(zone.price) : 0);
+          // costPrice = التكلفة الحقيقية من جدول تكاليف المناطق (zone_costs)، مش
+          // price اللي هو سعر البيع للعميل — نفس المصدر المستخدم في عمود "شحن" بالصف.
+          return s + (zone?.costPrice != null ? Number(zone.costPrice) : 0);
         }, 0);
         // إجمالي تكلفة الشحن المعروض في كارت "إجمالي تكلفة الشحن" لازم يطابق بالظبط
         // مجموع القيم الظاهرة فعليًا في عمود "شحن" بكل صف (rowZoneShippingCost) —
