@@ -636,13 +636,23 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
   try {
     const tenantId = getTenantId(req);
     const period = req.query.period as string | undefined;
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
     const now = new Date();
 
     let fromDate: Date | null = null;
-    if (period === "week") {
+    let toDate: Date | null = null;
+    if (period === "custom" && customFrom) {
+      fromDate = new Date(customFrom + "T00:00:00");
+      if (customTo) {
+        toDate = new Date(customTo + "T23:59:59");
+      }
+    } else if (period === "week") {
       fromDate = new Date(now); fromDate.setDate(now.getDate() - 7);
     } else if (period === "month") {
       fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (period === "year") {
+      fromDate = new Date(now.getFullYear(), 0, 1);
     } else if (period === "today") {
       fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     }
@@ -651,6 +661,7 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
     const manifestConditions: any[] = [eq(shipmentManifestsTable.status, "closed")];
     if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
     if (fromDate) manifestConditions.push(gte(shipmentManifestsTable.closedAt, fromDate));
+    if (toDate) manifestConditions.push(lte(shipmentManifestsTable.closedAt, toDate));
 
     const rows = await db
       .select({
@@ -731,6 +742,7 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
       );
     }
     if (fromDate) cashExpenseConditions.push(gte(cashTransactionsTable.transactionDate, fromDate));
+    if (toDate) cashExpenseConditions.push(lte(cashTransactionsTable.transactionDate, toDate));
 
     const [{ totalExpenses }] = await db
       .select({ totalExpenses: sql<number>`COALESCE(SUM(CAST(${cashTransactionsTable.amount} AS DECIMAL(14,2))), 0)` })

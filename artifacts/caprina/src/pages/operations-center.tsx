@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
@@ -17,6 +19,7 @@ import {
   AlertTriangle, AlertOctagon, AlertCircle, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
   UserPlus, FileText, LogOut, Wallet, Activity, X,
+  Calendar as CalendarIcon, ChevronDown,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Line,
@@ -27,6 +30,12 @@ import { exportOperationsReportPdf } from "@/lib/operations-report";
 const fc = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n));
+
+// ── نوع الفلتر الزمني الموحّد (يوم/أسبوع/شهر/سنة/فترة محددة) ───────────────────
+type OcPeriodFilter =
+  | { type: "today" | "week" | "month" | "year" }
+  | { type: "custom"; from: string; to: string }; // from/to بصيغة YYYY-MM-DD
+
 const timeAgo = (iso: string): string => {
   const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (diffMin < 1) return "الآن";
@@ -344,10 +353,13 @@ function useCashRegisters() {
 }
 
 // ── جلب الملخص المالي حسب الفترة (بيانات حقيقية من الباك اند) ─────────────────
-function useFinancialSummary(period: "today" | "week" | "month") {
+function useFinancialSummary(filter: OcPeriodFilter) {
+  const params = filter.type === "custom"
+    ? { period: "custom", from: filter.from, to: filter.to }
+    : { period: filter.type };
   return useQuery({
-    queryKey: ["analytics-financial-summary-oc", period],
-    queryFn: () => analyticsApi.financialSummary({ period }),
+    queryKey: ["analytics-financial-summary-oc", filter],
+    queryFn: () => analyticsApi.financialSummary(params),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
@@ -355,11 +367,99 @@ function useFinancialSummary(period: "today" | "week" | "month") {
   });
 }
 
+const OC_PERIOD_TABS: { key: "today" | "week" | "month" | "year"; label: string }[] = [
+  { key: "today", label: "اليوم" },
+  { key: "week",  label: "أسبوع" },
+  { key: "month", label: "شهر" },
+  { key: "year",  label: "سنة" },
+];
+
+const ocFmtDate = (d: Date) =>
+  d.toLocaleDateString("ar-EG", { day: "numeric", month: "short" });
+
+// ── فلتر الفترة الزمني الموحّد: تبويبات + زر "فترة محددة" بتقويم منبثق ─────────
+function OcPeriodFilterBar({
+  value, onChange,
+}: {
+  value: OcPeriodFilter;
+  onChange: (v: OcPeriodFilter) => void;
+}) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [draftRange, setDraftRange] = useState<{ from?: Date; to?: Date }>(() =>
+    value.type === "custom"
+      ? { from: new Date(value.from), to: new Date(value.to) }
+      : {}
+  );
+
+  const isCustom = value.type === "custom";
+  const customLabel = isCustom
+    ? `${ocFmtDate(new Date(value.from))} - ${ocFmtDate(new Date(value.to))}`
+    : "فترة محددة";
+
+  const applyCustomRange = () => {
+    if (!draftRange.from || !draftRange.to) return;
+    const toYmd = (d: Date) => d.toISOString().slice(0, 10);
+    onChange({ type: "custom", from: toYmd(draftRange.from), to: toYmd(draftRange.to) });
+    setPopoverOpen(false);
+  };
+
+  return (
+    <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5 flex-wrap">
+      {OC_PERIOD_TABS.map((t) => (
+        <button
+          key={t.key}
+          onClick={() => onChange({ type: t.key })}
+          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
+            value.type === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
+              isCustom ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
+            }`}
+          >
+            <CalendarIcon className="w-3 h-3" />
+            {customLabel}
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-auto p-0">
+          <Calendar
+            mode="range"
+            selected={draftRange}
+            onSelect={(r: any) => setDraftRange(r ?? {})}
+            numberOfMonths={1}
+            dir="rtl"
+          />
+          <div className="flex items-center justify-between gap-2 p-2 border-t border-border">
+            <span className="text-[10px] text-muted-foreground">
+              {draftRange.from && draftRange.to
+                ? `${ocFmtDate(draftRange.from)} → ${ocFmtDate(draftRange.to)}`
+                : "اختر تاريخ البداية والنهاية"}
+            </span>
+            <Button size="sm" className="h-7 text-[11px]" disabled={!draftRange.from || !draftRange.to} onClick={applyCustomRange}>
+              تطبيق
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 // ── جلب ملخص أرباح المناديب + مصروفات الخزنة حسب الفترة ───────────────────────
-function useManifestsPnlSummary(period: "today" | "week" | "month") {
+function useManifestsPnlSummary(filter: OcPeriodFilter) {
+  const params = filter.type === "custom"
+    ? { period: "custom", from: filter.from, to: filter.to }
+    : { period: filter.type };
   return useQuery({
-    queryKey: ["analytics-manifests-pnl-summary-oc", period],
-    queryFn: () => analyticsApi.manifestsPnlSummary({ period }),
+    queryKey: ["analytics-manifests-pnl-summary-oc", filter],
+    queryFn: () => analyticsApi.manifestsPnlSummary(params),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
@@ -978,12 +1078,11 @@ export default function OperationsCenterPage() {
   const [financialModal, setFinancialModal] = useState<{ key: string; label: string; color: string } | null>(null);
   const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
   const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
-  const [cashPeriod, setCashPeriod] = useState<"today" | "week" | "month">("today");
+  const [ocPeriodFilter, setOcPeriodFilter] = useState<OcPeriodFilter>({ type: "today" });
   const { data: cashRegisters, isLoading: cashRegistersLoading } = useCashRegisters();
   const totalCash = cashRegisters?.totalBalance ?? 0;
-  const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(cashPeriod);
-  const { data: manifestsPnlSummary, isLoading: manifestsPnlLoading } = useManifestsPnlSummary(cashPeriod);
-  const [profitPeriod, setProfitPeriod] = useState<"today" | "week" | "month">("today");
+  const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(ocPeriodFilter);
+  const { data: manifestsPnlSummary, isLoading: manifestsPnlLoading } = useManifestsPnlSummary(ocPeriodFilter);
   const { data: periodProfitData, isLoading: periodProfitLoading } = usePeriodProfit();
   const { data: shipmentChartsOc, isLoading: shipmentChartsOcLoading } = useShipmentCharts();
   const { data: smartAlertsData } = useSmartAlerts();
@@ -1235,23 +1334,7 @@ export default function OperationsCenterPage() {
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
                   <Wallet className="w-3.5 h-3.5 text-emerald-500" /> إجمالي أرصدة الخزن
                 </p>
-                <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5">
-                  {([
-                    { key: "today" as const, label: "اليوم" },
-                    { key: "week" as const, label: "أسبوع" },
-                    { key: "month" as const, label: "شهر" },
-                  ]).map((t) => (
-                    <button
-                      key={t.key}
-                      onClick={() => setCashPeriod(t.key)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
-                        cashPeriod === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+                <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} />
               </div>
 
               {cashRegistersLoading && !cashRegisters ? (
@@ -1324,8 +1407,8 @@ export default function OperationsCenterPage() {
               label={label}
               data={data}
               tone={tone}
-              active={profitPeriod === key}
-              onClick={() => setProfitPeriod(key)}
+              active={ocPeriodFilter.type === key}
+              onClick={() => setOcPeriodFilter({ type: key })}
             />
           ))
         ) : null}

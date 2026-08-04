@@ -903,9 +903,11 @@ export const analyticsApi = {
     const qs = q.toString();
     return apiFetch<FinancialSummary>(`/analytics/financial-summary${qs ? `?${qs}` : ""}`);
   },
-  manifestsPnlSummary: (params?: { period?: string }) => {
+  manifestsPnlSummary: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
     if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
     const qs = q.toString();
     return apiFetch<ManifestsPnlSummary>(`/analytics/manifests-pnl-summary${qs ? `?${qs}` : ""}`);
   },
