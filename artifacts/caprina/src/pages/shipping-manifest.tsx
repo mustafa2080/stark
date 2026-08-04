@@ -1011,6 +1011,12 @@ function InvoiceGroupDeliveryRow({
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  // سعر الشحن الفعلي حسب زون الطلبية (المحافظة) — نفس مصدر صافي الربح الحقيقي في الملخص
+  const { data: rowZones = [] } = useQuery<{ id: number; price: number }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipments/zones"),
+  });
+
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
   // تكلفة الشحن (وسعر المنطقة المعروض بجانبها) تُحسب لو الحالة: مسلَّم / مسلَّم جزئي /
@@ -1022,6 +1028,11 @@ function InvoiceGroupDeliveryRow({
     (rep as any)?.deliveryStatus === "partial_delivered" ||
     (rep as any)?.deliveryStatus === "partial_received" ||
     ((rep as any)?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_ROW.includes((rep as any)?.returnReason));
+  // سعر الشحن الفعلي للصف = سعر زون الطلبية (حسب المحافظة) من جدول المناطق، مش رقم ثابت للمندوب/الشركة
+  const rowZoneId = (rep as any)?.zoneId;
+  const rowZoneShippingCost = rowZoneId != null
+    ? (rowZones.find(z => z.id === rowZoneId)?.price ?? null)
+    : null;
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received احسب الجزء المستلم (كمية)، لو partial_delivered في بيان الشحن القيمة مسجَّلة مباشرة
   const totalPrice = group.reduce((s, o) => {
@@ -1370,13 +1381,13 @@ function InvoiceGroupDeliveryRow({
           <div className="hidden md:flex text-center px-1 items-center justify-center overflow-hidden">
             <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
-          {/* تكلفة الشحنة — قيمة ثابتة واحدة لكل الشحنات، جايه من "تكلفة الشحنة"
-              المسجَّلة على المندوب/شركة الشحن نفسها (courierShippingCost)، مش سعر
-              المنطقة. تُعرض فقط لو الشحن اتنفذ فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي/
-              مرتجع بأحد الأسباب الثلاثة)، وإلا صفر. */}
+          {/* تكلفة الشحنة — سعر زون الطلبية الفعلي (حسب المحافظة) من جدول المناطق
+              (rowZoneShippingCost)، مش رقم ثابت للمندوب/شركة الشحن. تُعرض فقط لو
+              الشحن اتنفذ فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي/مرتجع بأحد الأسباب
+              الثلاثة) وللطلبية زون معروف، وإلا صفر/شرطة. */}
           <div className="text-center px-1 flex items-center justify-center overflow-hidden">
-            {rowShippingWasIncurred && courierShippingCost != null ? (
-              <span className="text-amber-500 font-semibold truncate">{formatCurrency(courierShippingCost)}</span>
+            {rowShippingWasIncurred && rowZoneShippingCost != null ? (
+              <span className="text-amber-500 font-semibold truncate">{formatCurrency(rowZoneShippingCost)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
