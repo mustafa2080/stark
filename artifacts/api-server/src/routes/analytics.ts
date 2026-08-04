@@ -694,7 +694,12 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
       // (نفس معادلة realNetProfit في shipment-manifests.ts، لبيان واحد — هنا مجمّعة على كل البيانات)
       deliveredShippingFees += Number(r.shippingFee ?? 0);
 
-      totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
+      // تكلفة المندوب (courierCostManual) بتتحسب فقط على delivered + returned بأسباب مالية،
+      // مش partial_delivered — نفس شرط courierCostPerShipment × (delivered + returnedWithShippingCost)
+      // في shipment-manifests.ts، عشان يفضل الرقم مطابق تمامًا لصفحة تفاصيل البيان.
+      if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
+        totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
+      }
     }
 
     const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
