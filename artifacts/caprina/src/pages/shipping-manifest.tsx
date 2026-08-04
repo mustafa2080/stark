@@ -1011,12 +1011,6 @@ function InvoiceGroupDeliveryRow({
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // سعر الشحن الفعلي حسب زون الطلبية (المحافظة) — نفس مصدر صافي الربح الحقيقي في الملخص
-  const { data: rowZones = [] } = useQuery<{ id: number; price: number }[]>({
-    queryKey: ["shipment-zones"],
-    queryFn: () => apiFetch("/shipments/zones"),
-  });
-
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
   // تكلفة الشحن (وسعر المنطقة المعروض بجانبها) تُحسب لو الحالة: مسلَّم / مسلَّم جزئي /
@@ -1028,11 +1022,9 @@ function InvoiceGroupDeliveryRow({
     (rep as any)?.deliveryStatus === "partial_delivered" ||
     (rep as any)?.deliveryStatus === "partial_received" ||
     ((rep as any)?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_ROW.includes((rep as any)?.returnReason));
-  // سعر الشحن الفعلي للصف = سعر زون الطلبية (حسب المحافظة) من جدول المناطق، مش رقم ثابت للمندوب/الشركة
-  const rowZoneId = (rep as any)?.zoneId;
-  const rowZoneShippingCost = rowZoneId != null
-    ? (rowZones.find(z => z.id === rowZoneId)?.price ?? null)
-    : null;
+  // سعر الشحن المعروض في عمود الصف = الرقم الثابت بتاع المندوب (courierShippingCost)
+  // المسجَّل وقت إنشاء المندوب — مش سعر زون الطلبية (ده بقى مستخدم في الملخص بس تحت).
+  const rowZoneShippingCost = courierShippingCost;
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received احسب الجزء المستلم (كمية)، لو partial_delivered في بيان الشحن القيمة مسجَّلة مباشرة
   const totalPrice = group.reduce((s, o) => {
