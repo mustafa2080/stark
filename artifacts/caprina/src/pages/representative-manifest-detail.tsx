@@ -5021,9 +5021,23 @@ export default function ShippingManifestPage() {
                         repFirst?.deliveryStatus === "partial_received" ||
                         (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
                       if (!shippingWasIncurred) return 0;
-                      // قيمة ثابتة واحدة لكل الشحنات = "تكلفة الشحنة" المسجَّلة على
-                      // المندوب/شركة الشحن نفسها (مش سعر المنطقة).
-                      return rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : 0;
+                      // لو الشركة شغالة بنظام "zone": التكلفة = سعر أول منطقة مرتبطة بالشركة
+                      // (من جدول shipment_zones)، مش company.shippingCost (ده بيبقى فاضي غالبًا
+                      // لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
+                      // لو الشركة شغالة بنظام "rep": التكلفة = company.shippingCost اليدوي.
+                      const companyForCost = rawManifest?.company as any;
+                      if (companyForCost?.costMode === "zone") {
+                        let zIdsForCost: number[] = [];
+                        if (companyForCost?.zoneIds) {
+                          try { zIdsForCost = JSON.parse(companyForCost.zoneIds); } catch {}
+                        } else if (companyForCost?.zoneId) {
+                          zIdsForCost = [companyForCost.zoneId];
+                        }
+                        if (!zIdsForCost.length) return 0;
+                        const zoneForCost = pnlSettlementZones.find(z => z.id === zIdsForCost[0]);
+                        return zoneForCost?.price != null ? Number(zoneForCost.price) : 0;
+                      }
+                      return companyForCost?.shippingCost != null ? Number(companyForCost.shippingCost) : 0;
                     })()}
                     manifestCompanyName={manifest.companyName}
                   />
@@ -5168,7 +5182,20 @@ export default function ShippingManifestPage() {
         // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع مع دفع رسوم الشحن فقط)
         // pending/delayed لا تُحسب أبدًا (صفر) حتى تتغيّر حالتها فعليًا
         // لو الشحنة ليها zoneId وسعر منطقة محدد، بناخد سعر المنطقة كأولوية (بدل السعر الثابت على الشركة)
-        const courierShippingCostForCalc = companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
+        const courierShippingCostForCalc = (() => {
+          if (companyAnyPnl?.costMode === "zone") {
+            let zIdsPnl: number[] = [];
+            if (companyAnyPnl?.zoneIds) {
+              try { zIdsPnl = JSON.parse(companyAnyPnl.zoneIds); } catch {}
+            } else if (companyAnyPnl?.zoneId) {
+              zIdsPnl = [companyAnyPnl.zoneId];
+            }
+            if (!zIdsPnl.length) return 0;
+            const zonePnl = pnlSettlementZones.find(z => z.id === zIdsPnl[0]);
+            return zonePnl?.price != null ? Number(zonePnl.price) : 0;
+          }
+          return companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
+        })();
         // أسباب المرتجع اللي بتدخل في الحسابات المالية (شحن فعليًا اتنفذ رغم الرفض/الهروب)
         const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"] as const;
         // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
