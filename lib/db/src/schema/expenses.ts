@@ -3,16 +3,16 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const EXPENSE_CATEGORIES = [
-  "shipping_fees",      // مصاريف شحن
-  "warehouse_rent",     // إيجار مخزن
-  "salary",             // مرتبات
-  "marketing",          // تسويق وإعلانات
-  "packaging",          // تغليف
-  "utilities",          // كهرباء / مياه / إنترنت
-  "maintenance",        // صيانة
-  "returns_loss",       // خسائر مرتجعات
-  "client_payment",     // سداد حساب عميل
-  "other",              // أخرى
+  "shipping_fees",       // مصاريف شحن إضافية للمناديب
+  "warehouse_rent",      // إيجارات
+  "salary",              // مرتبات
+  "marketing",           // تسويق وإعلانات
+  "utilities",           // كهرباء وخدمات
+  "returns_loss",        // خسائر مرتجعات
+  "branch_transfer",     // انتقالات بين الفروع
+  "pickup_fees",         // مصاريف بيك أب
+  "other",               // أخرى
+  "client_payment",      // سداد حساب عميل
 ] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 

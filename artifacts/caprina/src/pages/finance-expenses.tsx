@@ -25,16 +25,16 @@ const api = {
 };
 
 const EXPENSE_CATEGORIES = [
-  { value: "shipping_fees",  label: "مصاريف شحن",      color: "#3B82F6", glow: "rgba(59,130,246,0.25)" },
-  { value: "warehouse_rent", label: "إيجار مخزن",       color: "#8B5CF6", glow: "rgba(139,92,246,0.25)" },
-  { value: "salary",         label: "مرتبات",           color: "#10B981", glow: "rgba(16,185,129,0.25)" },
-  { value: "marketing",      label: "تسويق وإعلانات",   color: "#F59E0B", glow: "rgba(245,158,11,0.25)" },
-  { value: "packaging",      label: "تغليف",            color: "#06B6D4", glow: "rgba(6,182,212,0.25)"  },
-  { value: "utilities",      label: "كهرباء / خدمات",   color: "#EAB308", glow: "rgba(234,179,8,0.25)"  },
-  { value: "maintenance",    label: "صيانة",            color: "#F97316", glow: "rgba(249,115,22,0.25)" },
-  { value: "returns_loss",   label: "خسائر مرتجعات",    color: "#EF4444", glow: "rgba(239,68,68,0.25)"  },
-  { value: "client_payment", label: "سداد حساب عميل",   color: "#14B8A6", glow: "rgba(20,184,166,0.25)" },
-  { value: "other",          label: "أخرى",             color: "#6B7280", glow: "rgba(107,114,128,0.25)"},
+  { value: "shipping_fees",   label: "مصاريف شحن إضافية للمناديب", color: "#3B82F6", glow: "rgba(59,130,246,0.25)" },
+  { value: "warehouse_rent",  label: "إيجارات",                    color: "#8B5CF6", glow: "rgba(139,92,246,0.25)" },
+  { value: "salary",          label: "مرتبات",                     color: "#10B981", glow: "rgba(16,185,129,0.25)" },
+  { value: "marketing",       label: "تسويق وإعلانات",             color: "#F59E0B", glow: "rgba(245,158,11,0.25)" },
+  { value: "utilities",       label: "كهرباء وخدمات",              color: "#EAB308", glow: "rgba(234,179,8,0.25)"  },
+  { value: "returns_loss",    label: "خسائر مرتجعات",              color: "#EF4444", glow: "rgba(239,68,68,0.25)"  },
+  { value: "branch_transfer", label: "انتقالات بين الفروع",        color: "#06B6D4", glow: "rgba(6,182,212,0.25)"  },
+  { value: "pickup_fees",     label: "مصاريف بيك أب",              color: "#F97316", glow: "rgba(249,115,22,0.25)" },
+  { value: "other",           label: "أخرى",                       color: "#6B7280", glow: "rgba(107,114,128,0.25)"},
+  { value: "client_payment",  label: "سداد حساب عميل",             color: "#14B8A6", glow: "rgba(20,184,166,0.25)" },
 ];
 
 const catLabel = (v: string) => EXPENSE_CATEGORIES.find(c => c.value === v)?.label ?? v;

@@ -66,9 +66,10 @@ router.get("/finance/expenses/export-excel", async (req, res): Promise<void> => 
     .orderBy(desc(expensesTable.expenseDate));
 
   const CAT_LABELS: Record<string, string> = {
-    shipping_fees:"مصاريف شحن", warehouse_rent:"إيجار مخزن", salary:"مرتبات",
-    marketing:"تسويق وإعلانات", packaging:"تغليف", utilities:"كهرباء / خدمات",
-    maintenance:"صيانة", returns_loss:"خسائر مرتجعات", other:"أخرى",
+    shipping_fees:"مصاريف شحن إضافية للمناديب", warehouse_rent:"إيجارات", salary:"مرتبات",
+    marketing:"تسويق وإعلانات", utilities:"كهرباء وخدمات",
+    returns_loss:"خسائر مرتجعات", branch_transfer:"انتقالات بين الفروع",
+    pickup_fees:"مصاريف بيك أب", other:"أخرى", client_payment:"سداد حساب عميل",
   };
 
   const wb = new ExcelJS.Workbook();
