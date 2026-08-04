@@ -5028,8 +5028,20 @@ export default function ShippingManifestPage() {
         // بشمهندس مصطفى (لم يُطلب تعديله)؛ التعديل يخص "إجمالي تكلفة الشحن" و"الرصيد
         // المستحق من المندوب" فقط.
         const displayedShippingCost = zonePricePnl;
-        // صافي الربح الحقيقي = سعر المنطقة الفعلي (لكل شحنة حسب منطقتها) - إجمالي تكلفة الشحن
-        const netAmount       = zonePricePnl - shippingCost;
+        // ─── صافي الربح الحقيقي = مصروف الشحن للأوردر − تكلفة الشحن للأوردر ───
+        // مصروف الشحن للأوردر = رسوم الشحن المسجَّلة على كل أوردر (shippingFee) —
+        // اللي العميل بيدفعها، مجمّعة على كل الأوردرات المؤهلة (shippingCostOrders).
+        const totalShippingFeeForPnl = shippingCostOrders.reduce(
+          (s, o) => s + Number((o as any).shippingFee ?? o.shippingCost ?? 0), 0
+        );
+        // تكلفة الشحن للأوردر = نفس القيمة المعروضة في عمود "شحن" بالصف لكل أوردر،
+        // حسب costMode بتاع المندوب: "rep" = الرقم الثابت لكل أوردر، "zone" = سعر
+        // زون الأوردر نفسه. costMode = "zone" تساوي zonePricePnl (محسوبة أعلاه)؛
+        // costMode = "rep" = الرقم الثابت × عدد الأوردرات المؤهلة (shippingCost فوق).
+        const perOrderCourierCostMode: "rep" | "zone" = companyAnyPnl?.costMode === "zone" ? "zone" : "rep";
+        const perOrderShippingCostSum = perOrderCourierCostMode === "zone" ? zonePricePnl : shippingCost;
+        // صافي الربح الحقيقي = مصروف الشحن للأوردر − تكلفة الشحن للأوردر
+        const netAmount       = totalShippingFeeForPnl - perOrderShippingCostSum;
         const isProfit        = netAmount >= 0;
         // الرصيد المستحق من المندوب = إجمالي الإيرادات - إجمالي تكلفة الشحن المعروضة
         // (سعر الزون الفعلي لكل شحنة، نفس displayedShippingCost في الكارت المجاور —
@@ -5075,7 +5087,7 @@ export default function ShippingManifestPage() {
                       : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
                   </div>
                   <p className="text-[10px] text-muted-foreground px-4 pb-4">
-                    {formatCurrency(zonePricePnl)} سعر الشحنة − {formatCurrency(shippingCost)} إجمالي تكلفة الشحن
+                    {formatCurrency(totalShippingFeeForPnl)} مصروف الشحن − {formatCurrency(perOrderShippingCostSum)} تكلفة الشحن
                   </p>
                 </div>
               </div>
