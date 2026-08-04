@@ -995,6 +995,7 @@ function InvoiceGroupDeliveryRow({
   onToggleSelect,
   isShipmentManifest = false,
   courierShippingCost = null,
+  courierCostMode = "rep",
   manifestCompanyName = null,
 }: {
   group: ManifestOrder[];
@@ -1006,10 +1007,18 @@ function InvoiceGroupDeliveryRow({
   onToggleSelect?: (groupKey: string) => void;
   isShipmentManifest?: boolean;
   courierShippingCost?: number | null;
+  courierCostMode?: "rep" | "zone";
   manifestCompanyName?: string | null;
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  // سعر الشحن حسب زون الطلبية (المحافظة) — يُستخدم بس لو costMode = "zone"
+  const { data: rowZones = [] } = useQuery<{ id: number; price: number }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipments/zones"),
+    enabled: courierCostMode === "zone",
+  });
 
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
@@ -1022,9 +1031,13 @@ function InvoiceGroupDeliveryRow({
     (rep as any)?.deliveryStatus === "partial_delivered" ||
     (rep as any)?.deliveryStatus === "partial_received" ||
     ((rep as any)?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_ROW.includes((rep as any)?.returnReason));
-  // سعر الشحن المعروض في عمود الصف = الرقم الثابت بتاع المندوب (courierShippingCost)
-  // المسجَّل وقت إنشاء المندوب — مش سعر زون الطلبية (ده بقى مستخدم في الملخص بس تحت).
-  const rowZoneShippingCost = courierShippingCost;
+  // سعر الشحن المعروض في عمود الصف:
+  // - costMode = "rep"  → الرقم الثابت بتاع المندوب (courierShippingCost)
+  // - costMode = "zone" → سعر زون الطلبية الفعلي (حسب المحافظة) من جدول المناطق
+  const rowZoneId = (rep as any)?.zoneId;
+  const rowZoneShippingCost = courierCostMode === "zone"
+    ? (rowZoneId != null ? (rowZones.find(z => z.id === rowZoneId)?.price ?? null) : null)
+    : courierShippingCost;
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received احسب الجزء المستلم (كمية)، لو partial_delivered في بيان الشحن القيمة مسجَّلة مباشرة
   const totalPrice = group.reduce((s, o) => {
@@ -4813,6 +4826,7 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
+                    courierCostMode={(rawManifest as any)?.company?.costMode === "zone" ? "zone" : "rep"}
                     courierShippingCost={(() => {
                       // تكلفة الشحن تُحسب لو الحالة: مسلَّم / مسلَّم جزئي / استلام جزئي /
                       // مرتجع بأحد الأسباب الثلاثة (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
