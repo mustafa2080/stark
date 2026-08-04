@@ -664,6 +664,7 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
     // مجمّعة على مستوى كل البيانات/المناديب — القيمة المستلمة فعليًا من العميل، مش رسوم الشحن.
     let totalRevenue = 0;
     let totalCourierCost = 0; // إجمالي تكلفة المناديب
+    let deliveredShippingFees = 0; // إجمالي رسوم الشحن للشحنات المؤهلة (لحساب صافي الربح الحقيقي)
     let eligibleCount = 0;    // عدد الشحنات المؤهلة (مسلَّم/مسلَّم جزئي/مرتجع بأسباب مالية)
     let returnCount = 0;      // عدد المرتجعات بالأسباب المالية
 
@@ -689,12 +690,16 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
         totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
       }
 
+      // صافي الربح الحقيقي = إجمالي رسوم الشحن (shippingFee) للشحنات المؤهلة − تكلفة المندوب
+      // (نفس معادلة realNetProfit في shipment-manifests.ts، لبيان واحد — هنا مجمّعة على كل البيانات)
+      deliveredShippingFees += Number(r.shippingFee ?? 0);
+
       totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
     }
 
     const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
 
-    const netProfitWithReps = totalRevenue - totalCourierCost; // إجمالي الأرباح اللي مع المناديب
+    const netProfitWithReps = deliveredShippingFees - totalCourierCost; // صافي الربح الحقيقي = رسوم الشحن − تكلفة المناديب
 
     // ── مصروفات الخزنة الفعلية (نفس الفترة) ─────────────────────────────────
     // إجمالي كل حركة خزنة بالسالب (سحب/دفع مصروف/دفع مورد) — تحويل بين الخزن (transfer_out) مُستبعد
