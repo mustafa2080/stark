@@ -5021,13 +5021,15 @@ export default function ShippingManifestPage() {
           const zone = pnlSettlementZones.find(z => z.id === zId);
           return s + (zone?.price != null ? Number(zone.price) : 0);
         }, 0);
-        // إجمالي تكلفة الشحن المعروض في كارت "إجمالي تكلفة الشحن" (وفي حساب الرصيد
-        // المستحق من المندوب تحت) = مجموع سعر زون كل شحنة على حدة (zonePricePnl)
-        // بدل الرقم الثابت × العدد — نفس مصدر "صافي الربح الحقيقي" تحت.
+        // إجمالي تكلفة الشحن المعروض في كارت "إجمالي تكلفة الشحن" لازم يطابق بالظبط
+        // مجموع القيم الظاهرة فعليًا في عمود "شحن" بكل صف (rowZoneShippingCost) —
+        // يعني لازم يحترم costMode بتاع الشركة زي العمود بالظبط:
+        // costMode = "rep"  → الرقم الثابت × عدد الشحنات المؤهلة (shippingCost)
+        // costMode = "zone" → مجموع سعر زون كل شحنة على حدة (zonePricePnl)
         // ملحوظة: netAmount لسه بيستخدم shippingCost الأصلي كما هو بناءً على تعليمات
         // بشمهندس مصطفى (لم يُطلب تعديله)؛ التعديل يخص "إجمالي تكلفة الشحن" و"الرصيد
         // المستحق من المندوب" فقط.
-        const displayedShippingCost = zonePricePnl;
+        const displayedShippingCost = companyAnyPnl?.costMode === "zone" ? zonePricePnl : shippingCost;
         // ─── صافي الربح الحقيقي = مصروف الشحن للأوردر − تكلفة الشحن للأوردر ───
         // مصروف الشحن للأوردر = رسوم الشحن المسجَّلة على كل أوردر (shippingFee) —
         // اللي العميل بيدفعها، مجمّعة على كل الأوردرات المؤهلة (shippingCostOrders).
