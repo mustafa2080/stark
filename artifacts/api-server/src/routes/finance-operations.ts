@@ -286,19 +286,9 @@ router.delete("/finance/expenses/:id", async (req, res): Promise<void> => {
           .set({ balance: String(balAfter), updatedAt: now })
           .where(eq(cashRegistersTable.id, reg.id));
 
-        await db.insert(cashTransactionsTable).values({
-          registerId:    reg.id,
-          type:          "deposit",
-          amount:        String(amt),
-          balanceBefore: String(balBefore),
-          balanceAfter:  String(balAfter),
-          description:   `إلغاء مصروف: ${expense.title}`,
-          referenceNumber: String(id),
-          transactionDate: now,
-          createdByUserId: user?.id   ?? null,
-          createdByName:   user?.displayName ?? null,
-          createdAt:     now,
-        });
+        // نمسح حركة الخزنة الأصلية (expense_paid) خالص بدل ما نضيف حركة deposit معاكسة —
+        // عشان "إجمالي المصاريف" في الداشبورد يترجع صح فورًا، من غير ما يفضل أثر للمصروف الملغي.
+        await db.delete(cashTransactionsTable).where(eq(cashTransactionsTable.expenseId, id));
       }
     }
 
