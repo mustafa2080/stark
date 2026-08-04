@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import { db, expensesTable, shippingFinancialInvoicesTable, ordersTable, shippingManifestsTable, shippingManifestOrdersTable, cashRegistersTable, cashTransactionsTable, shippingCompaniesTable, clientAccountPaymentsTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 
 const router: IRouter = Router();
 
@@ -219,6 +220,8 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
   }
 
   const [expense] = await db.select().from(expensesTable).where(eq(expensesTable.id, expenseId));
+  invalidateSmartCache(getTenantId(req));
+  invalidateChartsCache(getTenantId(req));
   res.status(201).json(expense);
 });
 
@@ -300,6 +303,8 @@ router.delete("/finance/expenses/:id", async (req, res): Promise<void> => {
     }
 
     await db.delete(expensesTable).where(eq(expensesTable.id, id));
+    invalidateSmartCache(getTenantId(req));
+    invalidateChartsCache(getTenantId(req));
     res.status(204).send();
   } catch (err) { console.error("[DELETE expense]", err); res.status(500).json({ error: "فشل حذف المصروف" }); }
 });
