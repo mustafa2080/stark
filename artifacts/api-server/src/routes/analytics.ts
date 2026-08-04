@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable } from "@workspace/db";
 import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -675,15 +675,23 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
 
     const netProfitWithReps = totalRevenue - totalCourierCost; // إجمالي الأرباح اللي مع المناديب
 
-    // ── مصروفات الخزنة (نفس الفترة) ─────────────────────────────────────────
-    const expenseConditions: any[] = [];
-    if (tenantId !== null) expenseConditions.push(eq(expensesTable.tenantId, tenantId));
-    if (fromDate) expenseConditions.push(gte(expensesTable.expenseDate, fromDate));
+    // ── مصروفات الخزنة الفعلية (نفس الفترة) ─────────────────────────────────
+    // إجمالي كل حركة خزنة بالسالب (سحب/دفع مصروف/دفع مورد) — تحويل بين الخزن (transfer_out) مُستبعد
+    // لأنه نقل داخلي مش مصروف حقيقي.
+    const cashExpenseConditions: any[] = [
+      sql`${cashTransactionsTable.type} IN ('withdrawal', 'expense_paid', 'purchase_paid')`,
+    ];
+    if (tenantId !== null) {
+      cashExpenseConditions.push(
+        sql`${cashTransactionsTable.registerId} IN (SELECT id FROM cash_registers WHERE tenant_id = ${tenantId})`
+      );
+    }
+    if (fromDate) cashExpenseConditions.push(gte(cashTransactionsTable.transactionDate, fromDate));
 
     const [{ totalExpenses }] = await db
-      .select({ totalExpenses: sql<number>`COALESCE(SUM(CAST(${expensesTable.amount} AS DECIMAL(14,2))), 0)` })
-      .from(expensesTable)
-      .where(expenseConditions.length ? and(...expenseConditions) : undefined);
+      .select({ totalExpenses: sql<number>`COALESCE(SUM(CAST(${cashTransactionsTable.amount} AS DECIMAL(14,2))), 0)` })
+      .from(cashTransactionsTable)
+      .where(and(...cashExpenseConditions));
 
     const netRevenue = netProfitWithReps - Number(totalExpenses ?? 0);
 
