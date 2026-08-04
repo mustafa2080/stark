@@ -79,7 +79,7 @@ function OcPeriodCard({
   active: boolean;
   onClick: () => void;
 }) {
-  const isProfit = data.netRevenue >= 0;
+  const isProfit = data.totalRevenue >= 0;
   return (
     <Card
       className={`oc-kpi-card overflow-hidden cursor-pointer transition-all duration-200 ${active ? "" : "opacity-70 hover:opacity-100"}`}
@@ -95,7 +95,7 @@ function OcPeriodCard({
         </div>
         <div className="min-w-0">
           <p className={`text-lg sm:text-2xl font-black leading-tight truncate ${isProfit ? "" : "text-red-600 dark:text-red-400"}`} style={isProfit ? { color: active ? tone : undefined } : undefined}>
-            {fc(data.netRevenue)}
+            {fc(data.totalRevenue)}
           </p>
           <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الإيراد</p>
         </div>
