@@ -428,7 +428,22 @@ function OcPeriodFilterBar({
             <ChevronDown className="w-3 h-3" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-auto p-0">
+        <PopoverContent
+          align="end"
+          className="w-auto p-0"
+          onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest("select") || target.closest("[data-slot='calendar']")) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest("select") || target.closest("[data-slot='calendar']")) {
+              e.preventDefault();
+            }
+          }}
+        >
           <Calendar
             mode="range"
             selected={draftRange}
