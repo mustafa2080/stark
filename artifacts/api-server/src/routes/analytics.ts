@@ -621,6 +621,17 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
 // ملخص أرباح المناديب (بيانات الشحن) + مصروفات الخزنة، مجمّعين على مستوى الشركة كلها.
 // نفس منطق realNetProfit في shipment-manifests.ts (لبيان واحد) لكن على كل البيانات
 // دفعة واحدة — بدون N+1 queries.
+//
+// ملحوظة مهمة (تصحيح بناءً على توضيح بشمهندس مصطفى):
+// "صافي الإيراد" هنا لازم يتغذى فقط من البيانات (manifests) اللي اتقفلت فعليًا
+// (status = "closed") — يعني بعد ما المندوب اتحاسب وصافي ربحه اتحوّل فعليًا
+// للخزينة (createTreasuryEntryOnClose). البيانات المفتوحة (لسه تحت التسوية)
+// مستبعدة تمامًا من الحساب، حتى لو فيها شحنات مُسلَّمة فعليًا — لأن ده رصيد
+// لسه مش مؤكد نهائيًا لحد ما المندوب يقفل البيان.
+//
+// الفلترة بالفترة (اليوم/أسبوع/شهر) بقت على أساس تاريخ إغلاق البيان (closedAt)
+// مش تاريخ تسليم شحنة فردية (deliveredAt) — عشان الرقم يبقى متسق ومترابط
+// بمنطق واحد بغض النظر عن الفترة المختارة (فلترة زمنية بس، مش مصدر بيانات مختلف).
 router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financials"), async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
@@ -636,15 +647,15 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
       fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     }
 
-    // ── جلب كل بنود بيانات المناديب مع الشحنة وشركة الشحن المرتبطة دفعة واحدة ──
-    const manifestConditions: any[] = [];
+    // ── جلب كل بنود البيانات المقفولة بس (status = closed) مع الشحنة وشركة الشحن ──
+    const manifestConditions: any[] = [eq(shipmentManifestsTable.status, "closed")];
     if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
+    if (fromDate) manifestConditions.push(gte(shipmentManifestsTable.closedAt, fromDate));
 
     const rows = await db
       .select({
         deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
         returnReason: shipmentManifestItemsTable.returnReason,
-        deliveredAt: shipmentManifestItemsTable.deliveredAt,
         partialQuantity: shipmentManifestItemsTable.partialQuantity,
         returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
         deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
@@ -656,12 +667,12 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
       .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
       .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
       .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
-      .where(manifestConditions.length ? and(...manifestConditions) : undefined);
+      .where(and(...manifestConditions));
 
     const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
 
     // "إجمالي الإيرادات" = نفس معادلة "إجمالي الإيرادات" في صفحة تفاصيل بيان المندوب (deliveredCOD)،
-    // مجمّعة على مستوى كل البيانات/المناديب — القيمة المستلمة فعليًا من العميل، مش رسوم الشحن.
+    // مجمّعة على مستوى كل البيانات المقفولة فقط — القيمة المستلمة فعليًا من العميل.
     let totalRevenue = 0;
     let totalCourierCost = 0; // إجمالي تكلفة المناديب
     let deliveredShippingFees = 0; // إجمالي رسوم الشحن للشحنات المؤهلة (لحساب صافي الربح الحقيقي)
@@ -669,9 +680,6 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
     let returnCount = 0;      // عدد المرتجعات بالأسباب المالية
 
     for (const r of rows) {
-      if (fromDate) {
-        if (!r.deliveredAt || new Date(r.deliveredAt) < fromDate) continue;
-      }
       const isEligible =
         r.deliveryStatus === "delivered" ||
         r.deliveryStatus === "partial_delivered" ||
@@ -691,7 +699,7 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
       }
 
       // صافي الربح الحقيقي = إجمالي رسوم الشحن (shippingFee) للشحنات المؤهلة − تكلفة المندوب
-      // (نفس معادلة realNetProfit في shipment-manifests.ts، لبيان واحد — هنا مجمّعة على كل البيانات)
+      // (نفس معادلة realNetProfit في shipment-manifests.ts، لبيان واحد — هنا مجمّعة على البيانات المقفولة)
       deliveredShippingFees += Number(r.shippingFee ?? 0);
 
       // تكلفة المندوب (courierCostManual) بتتحسب فقط على delivered + returned بأسباب مالية،
@@ -704,9 +712,9 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
 
     const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
 
-    const netProfitWithReps = deliveredShippingFees - totalCourierCost; // صافي الربح الحقيقي = رسوم الشحن − تكلفة المناديب
+    const netProfitWithReps = deliveredShippingFees - totalCourierCost; // صافي الربح الحقيقي التراكمي للبيانات المقفولة
 
-    // ── مصروفات الخزنة الفعلية (نفس الفترة) ─────────────────────────────────
+    // ── مصروفات الخزنة الفعلية (نفس الفترة، بنفس فلتر تاريخ إغلاق البيانات) ──
     // إجمالي كل حركة خزنة بالسالب (سحب/دفع مصروف/دفع مورد) — تحويل بين الخزن (transfer_out) مُستبعد
     // لأنه نقل داخلي مش مصروف حقيقي.
     const cashExpenseConditions: any[] = [
@@ -727,7 +735,7 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
     const netRevenue = netProfitWithReps - Number(totalExpenses ?? 0);
 
     res.json({
-      totalRevenue: netProfitWithReps, // إجمالي الأرباح اللي مع المناديب
+      totalRevenue: netProfitWithReps, // إجمالي صافي أرباح البيانات المقفولة (تراكمي)
       totalExpenses: Number(totalExpenses ?? 0),
       netRevenue,
       orders: eligibleCount,
