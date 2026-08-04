@@ -5015,17 +5015,20 @@ export default function ShippingManifestPage() {
           const zone = pnlSettlementZones.find(z => z.id === zId);
           return s + (zone?.price != null ? Number(zone.price) : 0);
         }, 0);
-        // إجمالي تكلفة الشحن المعروض في كارت "إجمالي تكلفة الشحن" فقط = مجموع سعر
-        // زون كل شحنة على حدة (zonePricePnl) بدل الرقم الثابت × العدد — نفس مصدر
-        // "صافي الربح الحقيقي" تحت، لكن هنا لعرض الكارت فقط. باقي حسابات هذا القسم
-        // (netAmount, totalDueToCourier) لسه بتستخدم shippingCost الأصلي كما هو
-        // بناءً على تعليمات بشمهندس مصطفى: التعديل يخص كارت "إجمالي تكلفة الشحن" فقط.
+        // إجمالي تكلفة الشحن المعروض في كارت "إجمالي تكلفة الشحن" (وفي حساب الرصيد
+        // المستحق من المندوب تحت) = مجموع سعر زون كل شحنة على حدة (zonePricePnl)
+        // بدل الرقم الثابت × العدد — نفس مصدر "صافي الربح الحقيقي" تحت.
+        // ملحوظة: netAmount لسه بيستخدم shippingCost الأصلي كما هو بناءً على تعليمات
+        // بشمهندس مصطفى (لم يُطلب تعديله)؛ التعديل يخص "إجمالي تكلفة الشحن" و"الرصيد
+        // المستحق من المندوب" فقط.
         const displayedShippingCost = zonePricePnl;
         // صافي الربح الحقيقي = سعر المنطقة الفعلي (لكل شحنة حسب منطقتها) - إجمالي تكلفة الشحن
         const netAmount       = zonePricePnl - shippingCost;
         const isProfit        = netAmount >= 0;
-        // الرصيد المستحق من المندوب = إجمالي الإيرادات - إجمالي تكلفة الشحن
-        const totalDueToCourier = deliveredCOD - shippingCost;
+        // الرصيد المستحق من المندوب = إجمالي الإيرادات - إجمالي تكلفة الشحن المعروضة
+        // (سعر الزون الفعلي لكل شحنة، نفس displayedShippingCost في الكارت المجاور —
+        // مش shippingCost القديمة الثابتة اللي بتطلع صفر لو company.shippingCost مش مسجَّل).
+        const totalDueToCourier = deliveredCOD - displayedShippingCost;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
