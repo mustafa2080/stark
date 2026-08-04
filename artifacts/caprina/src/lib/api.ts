@@ -400,6 +400,9 @@ export interface ManifestsPnlSummary {
   totalRevenue: number;   // إجمالي الأرباح اللي مع المناديب
   totalExpenses: number;  // إجمالي المصاريف في الخزنة
   netRevenue: number;     // صافي الإيراد = إجمالي الأرباح - إجمالي المصاريف
+  orders: number;         // عدد الشحنات المؤهلة (مسلَّم/مسلَّم جزئي/مرتجع بأسباب مالية)
+  returnCount: number;    // عدد المرتجعات بالأسباب المالية
+  returnRate: number;     // نسبة المرتجع %
 }
 
 export interface ProductPerformance {

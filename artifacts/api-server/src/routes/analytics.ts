@@ -664,6 +664,8 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
     // مجمّعة على مستوى كل البيانات/المناديب — القيمة المستلمة فعليًا من العميل، مش رسوم الشحن.
     let totalRevenue = 0;
     let totalCourierCost = 0; // إجمالي تكلفة المناديب
+    let eligibleCount = 0;    // عدد الشحنات المؤهلة (مسلَّم/مسلَّم جزئي/مرتجع بأسباب مالية)
+    let returnCount = 0;      // عدد المرتجعات بالأسباب المالية
 
     for (const r of rows) {
       if (fromDate) {
@@ -674,6 +676,9 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
         r.deliveryStatus === "partial_delivered" ||
         (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
       if (!isEligible) continue;
+
+      eligibleCount++;
+      if (r.deliveryStatus === "returned") returnCount++;
 
       if (r.deliveryStatus === "partial_delivered" && r.partialQuantity != null) {
         totalRevenue += Number(r.partialQuantity);
@@ -686,6 +691,8 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
 
       totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
     }
+
+    const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
 
     const netProfitWithReps = totalRevenue - totalCourierCost; // إجمالي الأرباح اللي مع المناديب
 
@@ -713,6 +720,9 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
       totalRevenue: netProfitWithReps, // إجمالي الأرباح اللي مع المناديب
       totalExpenses: Number(totalExpenses ?? 0),
       netRevenue,
+      orders: eligibleCount,
+      returnCount,
+      returnRate,
     });
   } catch (err) {
     console.error("[analytics/manifests-pnl-summary]", err);

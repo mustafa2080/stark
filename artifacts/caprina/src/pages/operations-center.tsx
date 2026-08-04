@@ -69,17 +69,17 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
-// ── كارت ربح الفترة (اليوم/الأسبوع/الشهر) — منقول من لوحة التحكم ─────────────
+// ── كارت ربح الفترة (اليوم/الأسبوع/الشهر) — من بيانات المناديب + الخزينة ─────
 function OcPeriodCard({
   label, data, tone, active, onClick,
 }: {
   label: string;
-  data: { orders: number; revenue: number; cost: number; shippingCost: number; netProfit: number; returnRate: number; returnCount: number };
+  data: ManifestsPnlSummary;
   tone: string;
   active: boolean;
   onClick: () => void;
 }) {
-  const isProfit = data.netProfit >= 0;
+  const isProfit = data.netRevenue >= 0;
   return (
     <Card
       className={`oc-kpi-card overflow-hidden cursor-pointer transition-all duration-200 ${active ? "" : "opacity-70 hover:opacity-100"}`}
@@ -95,18 +95,18 @@ function OcPeriodCard({
         </div>
         <div className="min-w-0">
           <p className={`text-lg sm:text-2xl font-black leading-tight truncate ${isProfit ? "" : "text-red-600 dark:text-red-400"}`} style={isProfit ? { color: active ? tone : undefined } : undefined}>
-            {fc(data.netProfit)}
+            {fc(data.netRevenue)}
           </p>
-          <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الربح</p>
+          <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الإيراد</p>
         </div>
         <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
           <div className="min-w-0">
             <p className="text-[9px] text-muted-foreground leading-tight">إيرادات</p>
-            <p className="text-[11px] sm:text-xs font-bold text-primary truncate">{fc(data.revenue - data.shippingCost)}</p>
+            <p className="text-[11px] sm:text-xs font-bold text-primary truncate">{fc(data.totalRevenue)}</p>
           </div>
           <div className="min-w-0">
             <p className="text-[9px] text-muted-foreground leading-tight">التكلفة</p>
-            <p className="text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-400 truncate">{fc(data.cost)}</p>
+            <p className="text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-400 truncate">{fc(data.totalExpenses)}</p>
           </div>
           <div className="min-w-0">
             <p className="text-[9px] text-muted-foreground leading-tight">الطلبات</p>
@@ -379,15 +379,23 @@ function useShipmentCharts() {
   });
 }
 
-// ── جلب ملخص الربح لكل الفترات (اليوم/الأسبوع/الشهر) — منقول من لوحة التحكم ────
+// ── جلب ملخص الربح لكل الفترات (اليوم/الأسبوع/الشهر) — من بيانات المناديب + الخزينة ────
 function usePeriodProfit() {
-  return useQuery({
-    queryKey: ["analytics-profit-oc"],
-    queryFn: () => analyticsApi.profit(),
-    staleTime: 5 * 60_000,
+  const results = useQuery({
+    queryKey: ["analytics-manifests-pnl-summary-periods-oc"],
+    queryFn: async () => {
+      const [today, week, month] = await Promise.all([
+        analyticsApi.manifestsPnlSummary({ period: "today" }),
+        analyticsApi.manifestsPnlSummary({ period: "week" }),
+        analyticsApi.manifestsPnlSummary({ period: "month" }),
+      ]);
+      return { today, week, month };
+    },
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
-    placeholderData: (prev: ProfitAnalytics | undefined) => prev,
+    placeholderData: (prev: { today: ManifestsPnlSummary; week: ManifestsPnlSummary; month: ManifestsPnlSummary } | undefined) => prev,
   });
+  return results;
 }
 
 // ── جلب التنبيهات الذكية (مخزون منخفض / مرتجعات عالية) — منقول من لوحة التحكم ─
