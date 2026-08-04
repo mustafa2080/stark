@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
@@ -416,8 +416,8 @@ function OcPeriodFilterBar({
           {t.label}
         </button>
       ))}
-      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <PopoverTrigger asChild>
+      <Dialog open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <DialogTrigger asChild>
           <button
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
               isCustom ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
@@ -427,45 +427,33 @@ function OcPeriodFilterBar({
             {customLabel}
             <ChevronDown className="w-3 h-3" />
           </button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="end"
-          className="w-auto p-0"
-          onPointerDownOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest("select") || target.closest("[data-slot='calendar']")) {
-              e.preventDefault();
-            }
-          }}
-          onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest("select") || target.closest("[data-slot='calendar']")) {
-              e.preventDefault();
-            }
-          }}
-        >
-          <Calendar
-            mode="range"
-            selected={draftRange}
-            onSelect={(r: any) => setDraftRange(r ?? {})}
-            numberOfMonths={1}
-            dir="rtl"
-            captionLayout="dropdown"
-            fromYear={2020}
-            toYear={new Date().getFullYear() + 1}
-          />
-          <div className="flex items-center justify-between gap-2 p-2 border-t border-border">
-            <span className="text-[10px] text-muted-foreground">
-              {draftRange.from && draftRange.to
-                ? `${ocFmtDate(draftRange.from)} → ${ocFmtDate(draftRange.to)}`
-                : "اختر تاريخ البداية والنهاية"}
-            </span>
-            <Button size="sm" className="h-7 text-[11px]" disabled={!draftRange.from || !draftRange.to} onClick={applyCustomRange}>
-              تطبيق
-            </Button>
+        </DialogTrigger>
+        <DialogContent className="w-auto max-w-fit p-4">
+          <div className="flex flex-col items-center gap-3" dir="rtl">
+            <Calendar
+              mode="range"
+              selected={draftRange}
+              onSelect={(r: any) => setDraftRange(r ?? {})}
+              numberOfMonths={2}
+              dir="rtl"
+              captionLayout="dropdown"
+              fromYear={2020}
+              toYear={new Date().getFullYear() + 1}
+              className="scale-110 origin-top"
+            />
+            <div className="flex items-center justify-between gap-3 w-full pt-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                {draftRange.from && draftRange.to
+                  ? `${ocFmtDate(draftRange.from)} → ${ocFmtDate(draftRange.to)}`
+                  : "اختر تاريخ البداية والنهاية"}
+              </span>
+              <Button size="sm" disabled={!draftRange.from || !draftRange.to} onClick={applyCustomRange}>
+                تطبيق
+              </Button>
+            </div>
           </div>
-        </PopoverContent>
-      </Popover>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
