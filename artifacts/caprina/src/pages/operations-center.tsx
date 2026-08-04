@@ -1271,8 +1271,8 @@ export default function OperationsCenterPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-background/40 border border-border rounded-lg px-3 py-2">
                     <p className="text-[9px] text-muted-foreground">صافي الإيرادات</p>
-                    <p className={`text-sm sm:text-base font-black ${(manifestsPnlSummary?.totalRevenue ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
-                      {fc(manifestsPnlSummary?.totalRevenue ?? 0)}
+                    <p className={`text-sm sm:text-base font-black ${(manifestsPnlSummary?.netRevenue ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                      {fc(manifestsPnlSummary?.netRevenue ?? 0)}
                     </p>
                   </div>
                   <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
