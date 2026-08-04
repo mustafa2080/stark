@@ -717,8 +717,13 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
     // ── مصروفات الخزنة الفعلية (نفس الفترة، بنفس فلتر تاريخ إغلاق البيانات) ──
     // إجمالي كل حركة خزنة بالسالب (سحب/دفع مصروف/دفع مورد) — تحويل بين الخزن (transfer_out) مُستبعد
     // لأنه نقل داخلي مش مصروف حقيقي.
+    // "سداد حساب عميل" (client_payment) مُستبعد كمان من حساب "المصروفات المؤثرة على الربح" —
+    // ده مش مصروف تشغيلي، هو خصم من الخزنة بس (بيتخصم من رصيد العميل، مش بيقلل الربح).
     const cashExpenseConditions: any[] = [
       sql`${cashTransactionsTable.type} IN ('withdrawal', 'expense_paid', 'purchase_paid')`,
+      sql`(${cashTransactionsTable.expenseId} IS NULL OR ${cashTransactionsTable.expenseId} NOT IN (
+        SELECT id FROM expenses WHERE category = 'client_payment'
+      ))`,
     ];
     if (tenantId !== null) {
       cashExpenseConditions.push(
