@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { db, cashRegistersTable, cashTransactionsTable, shippingFinancialInvoicesTable, shippingCompaniesTable, shippingManifestsTable, CREDIT_TYPES, DEBIT_TYPES } from "@workspace/db";
 import { eq, desc, sql, and, gte, lte, ne, inArray, isNull } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 
 const creditSql = sql.raw([...CREDIT_TYPES].map(t => `'${t}'`).join(","));
 const debitSql  = sql.raw([...DEBIT_TYPES].map(t => `'${t}'`).join(","));
@@ -175,6 +176,8 @@ cashRegistersRouter.post("/:id/transaction", async (req, res) => {
     if(isDebit&&balanceAfter<0)return res.status(400).json({error:`الرصيد مش كفاية — المتاح: ${balanceBefore.toLocaleString("ar-EG")} ج.م`});
     await db.update(cashRegistersTable).set({balance:String(balanceAfter),updatedAt:now}).where(eq(cashRegistersTable.id,registerId));
     await db.insert(cashTransactionsTable).values({registerId,type,amount:String(amt),balanceBefore:String(balanceBefore),balanceAfter:String(balanceAfter),description,referenceNumber,orderId:orderId?Number(orderId):null,transactionDate:transactionDate?new Date(transactionDate):now,createdByUserId:req.body.userId??null,createdByName:req.body.userName??null,createdAt:now});
+    invalidateSmartCache(getTenantId(req));
+    invalidateChartsCache(getTenantId(req));
     res.json({success:true,newBalance:balanceAfter});
   } catch(err){res.status(500).json({error:"فشل تسجيل الحركة"});}
 });
@@ -195,6 +198,8 @@ cashRegistersRouter.post("/transfer", async (req, res) => {
       {registerId:fromId,type:"transfer_out",amount:String(amt),balanceBefore:String(fromBefore),balanceAfter:String(fromAfter),transferToRegisterId:toId,description:description??`تحويل إلى ${to.name}`,transactionDate:now,createdAt:now,createdByUserId:req.body.userId??null,createdByName:req.body.userName??null},
       {registerId:toId,type:"transfer_in",amount:String(amt),balanceBefore:String(toBefore),balanceAfter:String(toAfter),transferToRegisterId:fromId,description:description??`تحويل من ${from.name}`,transactionDate:now,createdAt:now,createdByUserId:req.body.userId??null,createdByName:req.body.userName??null},
     ]);
+    invalidateSmartCache(getTenantId(req));
+    invalidateChartsCache(getTenantId(req));
     res.json({success:true,fromBalance:fromAfter,toBalance:toAfter});
   } catch(err){res.status(500).json({error:"فشل التحويل"});}
 });
@@ -401,6 +406,8 @@ cashRegistersRouter.patch("/transactions/:id", async (req, res) => {
     if (transactionDate)   updates.transactionDate = new Date(transactionDate);
 
     await db.update(cashTransactionsTable).set(updates).where(eq(cashTransactionsTable.id, txId));
+    invalidateSmartCache(getTenantId(req));
+    invalidateChartsCache(getTenantId(req));
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: "فشل تعديل الحركة" }); }
 });
@@ -424,6 +431,9 @@ cashRegistersRouter.delete("/transactions/:id", async (req, res) => {
     }
 
     await db.delete(cashTransactionsTable).where(eq(cashTransactionsTable.id, txId));
+    const tenantId = getTenantId(req);
+    invalidateSmartCache(tenantId);
+    invalidateChartsCache(tenantId);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: "فشل حذف الحركة" }); }
 });
