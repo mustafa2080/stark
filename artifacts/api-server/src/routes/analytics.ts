@@ -645,6 +645,10 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
         deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
         returnReason: shipmentManifestItemsTable.returnReason,
         deliveredAt: shipmentManifestItemsTable.deliveredAt,
+        partialQuantity: shipmentManifestItemsTable.partialQuantity,
+        returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
+        deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+        codAmount: shipmentsTable.codAmount,
         shippingFee: shipmentsTable.shippingFee,
         courierCostPerShipment: shippingCompaniesTable.shippingCost,
       })
@@ -656,7 +660,9 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
 
     const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
 
-    let totalRevenue = 0;   // إجمالي رسوم الشحن (deliveredShippingFees) عبر كل البيانات
+    // "إجمالي الإيرادات" = نفس معادلة "إجمالي الإيرادات" في صفحة تفاصيل بيان المندوب (deliveredCOD)،
+    // مجمّعة على مستوى كل البيانات/المناديب — القيمة المستلمة فعليًا من العميل، مش رسوم الشحن.
+    let totalRevenue = 0;
     let totalCourierCost = 0; // إجمالي تكلفة المناديب
 
     for (const r of rows) {
@@ -669,7 +675,15 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
         (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
       if (!isEligible) continue;
 
-      totalRevenue += Number(r.shippingFee ?? 0);
+      if (r.deliveryStatus === "partial_delivered" && r.partialQuantity != null) {
+        totalRevenue += Number(r.partialQuantity);
+      } else if (r.deliveryStatus === "returned") {
+        totalRevenue += Number(r.returnValueReceived ?? 0);
+      } else {
+        // مسلَّم بالكامل: القيمة الفعلية المستلمة لو المندوب دخلها، وإلا قيمة الشحنة (COD) كاملة
+        totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
+      }
+
       totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
     }
 
