@@ -435,6 +435,9 @@ function OcPeriodFilterBar({
             onSelect={(r: any) => setDraftRange(r ?? {})}
             numberOfMonths={1}
             dir="rtl"
+            captionLayout="dropdown"
+            fromYear={2020}
+            toYear={new Date().getFullYear() + 1}
           />
           <div className="flex items-center justify-between gap-2 p-2 border-t border-border">
             <span className="text-[10px] text-muted-foreground">
