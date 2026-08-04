@@ -1300,8 +1300,8 @@ export default function OperationsCenterPage() {
               </div>
               <div className="text-center">
                 <p className="text-[9px] font-bold text-muted-foreground mb-0.5">صافي الإيراد</p>
-                <p className={`font-black text-xs sm:text-sm ${(manifestsPnlSummary?.totalRevenue ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                  {manifestsPnlLoading && !manifestsPnlSummary ? "—" : fc(manifestsPnlSummary?.totalRevenue ?? 0)}
+                <p className={`font-black text-xs sm:text-sm ${(manifestsPnlSummary?.netRevenue ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                  {manifestsPnlLoading && !manifestsPnlSummary ? "—" : fc(manifestsPnlSummary?.netRevenue ?? 0)}
                 </p>
               </div>
             </div>
