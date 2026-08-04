@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
@@ -390,6 +391,14 @@ function OcPeriodFilterBar({
       ? { from: new Date(value.from), to: new Date(value.to) }
       : {}
   );
+  const [navMonth, setNavMonth] = useState<Date>(() =>
+    value.type === "custom" ? new Date(value.from) : new Date()
+  );
+
+  const OC_MONTH_NAMES = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const navYear = navMonth.getFullYear();
+  const navMonthIdx = navMonth.getMonth();
+  const ocYearOptions = Array.from({ length: (new Date().getFullYear() + 1) - 2020 + 1 }, (_, i) => 2020 + i);
 
   const isCustom = value.type === "custom";
   const customLabel = isCustom
@@ -430,15 +439,46 @@ function OcPeriodFilterBar({
         </DialogTrigger>
         <DialogContent className="w-auto max-w-fit p-4">
           <div className="flex flex-col items-center gap-3" dir="rtl">
+            <div className="flex items-center gap-2 w-full justify-center">
+              <Select
+                value={String(navMonthIdx)}
+                onValueChange={(v) => setNavMonth(new Date(navYear, Number(v), 1))}
+              >
+                <SelectTrigger className="h-8 w-[110px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OC_MONTH_NAMES.map((name, idx) => (
+                    <SelectItem key={idx} value={String(idx)} className="text-xs">
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={String(navYear)}
+                onValueChange={(v) => setNavMonth(new Date(Number(v), navMonthIdx, 1))}
+              >
+                <SelectTrigger className="h-8 w-[90px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ocYearOptions.map((y) => (
+                    <SelectItem key={y} value={String(y)} className="text-xs">
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Calendar
               mode="range"
               selected={draftRange}
               onSelect={(r: any) => setDraftRange(r ?? {})}
+              month={navMonth}
+              onMonthChange={setNavMonth}
               numberOfMonths={2}
               dir="rtl"
-              captionLayout="dropdown"
-              fromYear={2020}
-              toYear={new Date().getFullYear() + 1}
               className="scale-110 origin-top"
             />
             <div className="flex items-center justify-between gap-3 w-full pt-3 border-t border-border">
