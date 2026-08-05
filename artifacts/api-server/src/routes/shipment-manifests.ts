@@ -151,12 +151,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     // ── اسم المندوب: في هذا النظام "شركة الشحن" تحمل اسم المندوب نفسه ──
     let manifestRepName: string | null = null;
     if (manifest.shippingCompanyId) {
-      const [company] = await db
+      const [co] = await db
         .select({ name: shippingCompaniesTable.name })
         .from(shippingCompaniesTable)
         .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId))
         .limit(1);
-      manifestRepName = company?.name ?? null;
+      manifestRepName = co?.name ?? null;
     }
 
     // المندوب يشوف بيانات شركته فقط، والعميل التجاري يشوف بياناته هو فقط

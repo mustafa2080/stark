@@ -13,8 +13,8 @@ export const shippingCompaniesTable = mysqlTable("shipping_companies", {
   shippingCost: decimal("shipping_cost", { precision: 10, scale: 2 }), // تكلفة الشحن لكل شحنة/طلب
 
   // ── طريقة تحديد تكلفة الشحنة ─────────────────────────────────────────
-  // "rep"  = سعر المندوب — مأخوذ من منطقة تكلفة محددة (zone_costs)
-  // "zone" = سعر الزون — قيمة يدوية حرة (shippingCost أعلاه)
+  // "zone" = سعر الزون — تكلفة الشحنة تُحسب من جدول مناطق التكلفة (zone_costs) حسب زون كل شحنة
+  // "rep"  = سعر المندوب — رقم ثابت واحد لكل شحنة (shippingCost أعلاه)، بغض النظر عن الزون
   costMode:   varchar("cost_mode", { length: 10 }).default("zone"),  // "rep" | "zone"
   zoneCostId: int("zone_cost_id"),                                  // (قديم) مرجع منطقة تكلفة واحدة
   zoneCostIds: text("zone_cost_ids"),                               // مصفوفة JSON لمناطق تكلفة متعددة عند اختيار "سعر الزون"
