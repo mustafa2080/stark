@@ -1566,13 +1566,13 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch">
         {/* العمود الجانبي — مركز العمليات */}
         <div className="xl:col-span-1 flex flex-col gap-3">
-          <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#ef4444" }}>
+          <Card className="oc-kpi-card max-h-[420px] flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 overflow-y-auto min-h-0 pr-4 pl-2">
               {opsCenterLoading && delayedShipments.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0 animate-pulse">
