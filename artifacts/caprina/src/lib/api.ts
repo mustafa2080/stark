@@ -1093,6 +1093,7 @@ export interface ManifestStats {
 
 export interface ManifestCompanyStats extends ManifestStats {
   manifestCount: number;
+  realNetRevenue?: number;
 }
 
 export interface Order {

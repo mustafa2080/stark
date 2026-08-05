@@ -455,6 +455,7 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
     returned:      (stats?.returned ?? 0)      + (shipmentStats?.returned ?? 0),
     total:         (stats?.total ?? 0)         + (shipmentStats?.total ?? 0),
     netProfit:     (stats?.netProfit ?? 0)     + (shipmentStats?.netProfit ?? 0),
+    realNetRevenue: (shipmentStats as any)?.realNetRevenue ?? 0,
     manifestCount: (stats?.manifestCount ?? 0) + (shipmentStats?.manifestCount ?? 0),
   };
   const deliveryRate = merged.total > 0
@@ -541,10 +542,10 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
           </span>
           <span className="relative inline-grid">
             <span
-              className={`col-start-1 row-start-1 transition-all duration-300 ${showNetProfit ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"} font-black ${merged.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}
+              className={`col-start-1 row-start-1 transition-all duration-300 ${showNetProfit ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"} font-black ${merged.realNetRevenue >= 0 ? "text-emerald-400" : "text-red-400"}`}
             >
-              {merged.netProfit >= 0 ? <TrendingUp className="inline w-3 h-3 mr-0.5" /> : <TrendingDown className="inline w-3 h-3 mr-0.5" />}
-              {formatCurrency(Math.abs(merged.netProfit))}
+              {merged.realNetRevenue >= 0 ? <TrendingUp className="inline w-3 h-3 mr-0.5" /> : <TrendingDown className="inline w-3 h-3 mr-0.5" />}
+              {formatCurrency(Math.abs(merged.realNetRevenue))}
             </span>
             <span
               className={`col-start-1 row-start-1 transition-all duration-300 ${showNetProfit ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"} text-muted-foreground`}

@@ -1307,7 +1307,7 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
     const companyId = Number(req.params.id);
     const tenantId  = getTenantId(req);
 
-    const manifests = await db.select({ id: shipmentManifestsTable.id })
+    const manifests = await db.select({ id: shipmentManifestsTable.id, status: shipmentManifestsTable.status })
       .from(shipmentManifestsTable)
       .where(and(
         eq(shipmentManifestsTable.shippingCompanyId, companyId),
@@ -1317,6 +1317,7 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
       ));
 
     const manifestIds = manifests.map(m => m.id);
+    const closedManifestIds = new Set(manifests.filter(m => m.status === "closed").map(m => m.id));
     let items: any[] = [];
     if (manifestIds.length) {
       items = await db.select().from(shipmentManifestItemsTable)
@@ -1332,6 +1333,17 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
 
     // ─── حسابات مالية (P&L) من بيانات الشحنات نفسها ─────────────────────────
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
+    // ─── صافي الإيراد الحقيقي = نفس معادلة "صافي الإيراد الحقيقي" في تفاصيل
+    // البيان (realNetProfit = deliveredShippingFees − courierCostManual)،
+    // مجمّعة على مستوى كل البيانات المغلقة فقط للمندوب/الشركة دي. ─────────
+    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
+    const [company] = await db.select().from(shippingCompaniesTable)
+      .where(eq(shippingCompaniesTable.id, companyId));
+    const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
+    let deliveredShippingFeesClosed = 0;
+    let deliveredCountClosed = 0;
+    let returnedWithShippingCostClosed = 0;
+
     if (items.length) {
       const shipmentIds = items.map(i => i.shipmentId);
       const shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
@@ -1343,6 +1355,7 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
         const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
         const shipping = Number(shipment.shippingFee ?? 0);
         const cost     = Number(shipment.costPrice ?? 0);
+        const isClosed = closedManifestIds.has(item.manifestId);
 
         if (item.deliveryStatus === "delivered" || item.deliveryStatus === "partial_delivered") {
           totalRevenue += cod;
@@ -1359,15 +1372,28 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
         } else {
           totalShippingCost += shipping;
         }
+
+        // ─── صافي الإيراد الحقيقي (بيانات مغلقة فقط) ──────────────────────
+        if (isClosed) {
+          if (item.deliveryStatus === "delivered") {
+            deliveredShippingFeesClosed += shipping;
+            deliveredCountClosed += 1;
+          } else if (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes((item as any).returnReason)) {
+            deliveredShippingFeesClosed += shipping;
+            returnedWithShippingCostClosed += 1;
+          }
+        }
       }
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
+    const courierCostManualClosed = courierCostPerShipment * (deliveredCountClosed + returnedWithShippingCostClosed);
+    const realNetRevenue = deliveredShippingFeesClosed - courierCostManualClosed;
 
     res.json({
       total, delivered, partial, returned, pending,
       deliveryRate,
       totalRevenue, totalCost, totalShippingCost, returnLosses,
-      netProfit, deliveredGross,
+      netProfit, deliveredGross, realNetRevenue,
       manifestCount: manifests.length,
     });
   } catch (e) {
