@@ -1308,7 +1308,11 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
     const companyId = Number(req.params.id);
     const tenantId  = getTenantId(req);
 
-    const manifests = await db.select({ id: shipmentManifestsTable.id, status: shipmentManifestsTable.status })
+    const manifests = await db.select({
+      id: shipmentManifestsTable.id,
+      status: shipmentManifestsTable.status,
+      closedByRole: shipmentManifestsTable.closedByRole,
+    })
       .from(shipmentManifestsTable)
       .where(and(
         eq(shipmentManifestsTable.shippingCompanyId, companyId),
@@ -1318,7 +1322,11 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
       ));
 
     const manifestIds = manifests.map(m => m.id);
-    const closedManifestIds = new Set(manifests.filter(m => m.status === "closed").map(m => m.id));
+    const closedManifestIds = new Set(
+      manifests
+        .filter(m => m.status === "closed" || !!m.closedByRole)
+        .map(m => m.id)
+    );
     let items: any[] = [];
     if (manifestIds.length) {
       items = await db.select().from(shipmentManifestItemsTable)
