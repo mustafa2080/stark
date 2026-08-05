@@ -3705,6 +3705,12 @@ export default function ShippingManifestPage() {
         returnReason: item.returnReason ?? null,
         returnValueReceived: (item as any).returnValueReceived != null ? Number((item as any).returnValueReceived) : null,
         deliveredValueReceived: (item as any).deliveredValueReceived != null ? Number((item as any).deliveredValueReceived) : null,
+        // السعر الإضافي بتاع نوع الشحنة (لو الشحنة "نوع خاص" زي قابل للكسر / منطقة متطرفة) —
+        // من غير النقل ده، عمود "شحن" في السطر الفردي كان بيفضل يتجاهل الإضافة دي تمامًا
+        // حتى لو الباك إند راجعها صح، لأن الـ adapter هنا كان بيبني ManifestOrder جديد
+        // من غير ما ينقل الحقلين دول من الـ item الخام.
+        repExtraCost: (item as any).repExtraCost != null ? Number((item as any).repExtraCost) : 0,
+        repExtraReason: (item as any).repExtraReason ?? null,
       } as any;
     });
     const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
