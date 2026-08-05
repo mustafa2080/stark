@@ -2359,7 +2359,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
           onClick={() => setNetProfitOpen(v => !v)}
           className="w-full flex items-center justify-between p-4 text-right"
         >
-          <p className="text-[10px] font-bold text-muted-foreground mb-0">صافي الربح الحقيقي</p>
+          <p className="text-[10px] font-bold text-muted-foreground mb-0">صافي الإيراد الحقيقي</p>
           <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netProfitOpen ? "rotate-180" : ""}`} />
         </button>
         <div className={`grid transition-all duration-300 ease-in-out ${netProfitOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
