@@ -539,14 +539,19 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
             إجمالي الإيرادات المحققة
             <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${showNetProfit ? "rotate-180" : ""}`} />
           </span>
-          {showNetProfit ? (
-            <span className={`font-black ${merged.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+          <span className="relative inline-grid">
+            <span
+              className={`col-start-1 row-start-1 transition-all duration-300 ${showNetProfit ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"} font-black ${merged.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}
+            >
               {merged.netProfit >= 0 ? <TrendingUp className="inline w-3 h-3 mr-0.5" /> : <TrendingDown className="inline w-3 h-3 mr-0.5" />}
               {formatCurrency(Math.abs(merged.netProfit))}
             </span>
-          ) : (
-            <span className="text-muted-foreground">●●●●</span>
-          )}
+            <span
+              className={`col-start-1 row-start-1 transition-all duration-300 ${showNetProfit ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"} text-muted-foreground`}
+            >
+              ●●●●
+            </span>
+          </span>
         </button>
       )}
       <div className="flex items-center justify-between text-xs">
