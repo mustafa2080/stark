@@ -89,6 +89,7 @@ function OcPeriodCard({
   active: boolean;
   onClick: () => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   const isProfit = data.totalRevenue >= 0;
   return (
     <Card
@@ -97,36 +98,46 @@ function OcPeriodCard({
       onClick={onClick}
     >
       <CardContent className="p-3 sm:p-4 space-y-2 sm:space-y-3">
-        <div className="flex items-center justify-between gap-1">
+        <div
+          className="flex items-center justify-between gap-1 cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); setIsOpen((v) => !v); }}
+        >
           <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
-          <Badge variant="outline" className={`text-[9px] font-bold border shrink-0 px-1.5 ${
-            data.returnRate > 20 ? "border-red-400 text-red-600 dark:border-red-800 dark:text-red-400" : "border-border text-muted-foreground"
-          }`}>{data.returnRate}%↩</Badge>
-        </div>
-        <div className="min-w-0">
-          <p className={`text-lg sm:text-2xl font-black leading-tight truncate ${isProfit ? "" : "text-red-600 dark:text-red-400"}`} style={isProfit ? { color: active ? tone : undefined } : undefined}>
-            {fc(data.totalRevenue)}
-          </p>
-          <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الإيراد</p>
-        </div>
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
-          <div className="min-w-0">
-            <p className="text-[9px] text-muted-foreground leading-tight">إيرادات</p>
-            <p className="text-[11px] sm:text-xs font-bold text-primary truncate">{fc(data.totalRevenue)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] text-muted-foreground leading-tight">التكلفة</p>
-            <p className="text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-400 truncate">{fc(data.totalExpenses)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] text-muted-foreground leading-tight">الطلبات</p>
-            <p className="text-[11px] sm:text-xs font-bold">{fn(data.orders)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] text-muted-foreground leading-tight">مرتجع</p>
-            <p className="text-[11px] sm:text-xs font-bold text-red-600 dark:text-red-400">{fn(data.returnCount)}</p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Badge variant="outline" className={`text-[9px] font-bold border px-1.5 ${
+              data.returnRate > 20 ? "border-red-400 text-red-600 dark:border-red-800 dark:text-red-400" : "border-border text-muted-foreground"
+            }`}>{data.returnRate}%↩</Badge>
+            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
           </div>
         </div>
+        {isOpen && (
+          <>
+            <div className="min-w-0">
+              <p className={`text-lg sm:text-2xl font-black leading-tight truncate ${isProfit ? "" : "text-red-600 dark:text-red-400"}`} style={isProfit ? { color: active ? tone : undefined } : undefined}>
+                {fc(data.totalRevenue)}
+              </p>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الإيراد</p>
+            </div>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
+              <div className="min-w-0">
+                <p className="text-[9px] text-muted-foreground leading-tight">إيرادات</p>
+                <p className="text-[11px] sm:text-xs font-bold text-primary truncate">{fc(data.totalRevenue)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] text-muted-foreground leading-tight">التكلفة</p>
+                <p className="text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-400 truncate">{fc(data.totalExpenses)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] text-muted-foreground leading-tight">الطلبات</p>
+                <p className="text-[11px] sm:text-xs font-bold">{fn(data.orders)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] text-muted-foreground leading-tight">مرتجع</p>
+                <p className="text-[11px] sm:text-xs font-bold text-red-600 dark:text-red-400">{fn(data.returnCount)}</p>
+              </div>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -1125,6 +1136,7 @@ export default function OperationsCenterPage() {
   const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
   const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
   const [ocPeriodFilter, setOcPeriodFilter] = useState<OcPeriodFilter>({ type: "today" });
+  const [isTreasuryOpen, setIsTreasuryOpen] = useState(false);
   const { data: cashRegisters, isLoading: cashRegistersLoading } = useCashRegisters();
   const totalCash = cashRegisters?.totalBalance ?? 0;
   const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(ocPeriodFilter);
@@ -1373,16 +1385,30 @@ export default function OperationsCenterPage() {
       {/* ── إجمالي أرصدة الخزن (منقول من لوحة التحكم) ────────────────────── */}
       <Card className="oc-card overflow-hidden" style={{ ["--tone" as any]: "#10b981" }}>
         <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+              onClick={() => setIsTreasuryOpen((v) => !v)}
+            >
+              <Wallet className="w-3.5 h-3.5 text-emerald-500" /> إجمالي أرصدة الخزن
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isTreasuryOpen ? "rotate-180" : ""}`} />
+            </button>
+            <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} />
+          </div>
+
+          {!isTreasuryOpen ? (
+            <button
+              type="button"
+              onClick={() => setIsTreasuryOpen(true)}
+              className="w-full text-center text-xs text-muted-foreground py-3 hover:text-foreground transition-colors"
+            >
+              اضغط للعرض
+            </button>
+          ) : (
           <div className="flex flex-col lg:flex-row lg:items-start gap-4">
             {/* العمود الأيمن: الرقم الكبير + التفاصيل */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                  <Wallet className="w-3.5 h-3.5 text-emerald-500" /> إجمالي أرصدة الخزن
-                </p>
-                <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} />
-              </div>
-
               {cashRegistersLoading && !cashRegisters ? (
                 <div className="h-10 w-40 bg-muted rounded animate-pulse mb-3" />
               ) : (
@@ -1435,6 +1461,7 @@ export default function OperationsCenterPage() {
               </div>
             </div>
           </div>
+          )}
         </CardContent>
       </Card>
 
