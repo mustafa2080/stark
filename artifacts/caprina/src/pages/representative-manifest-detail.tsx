@@ -996,6 +996,8 @@ function InvoiceGroupDeliveryRow({
   onToggleSelect,
   isShipmentManifest = false,
   courierShippingCost = null,
+  repExtraCost = 0,
+  repExtraReason = null,
   manifestCompanyName = null,
 }: {
   group: ManifestOrder[];
@@ -1007,6 +1009,8 @@ function InvoiceGroupDeliveryRow({
   onToggleSelect?: (groupKey: string) => void;
   isShipmentManifest?: boolean;
   courierShippingCost?: number | null;
+  repExtraCost?: number;
+  repExtraReason?: string | null;
   manifestCompanyName?: string | null;
 }) {
   const { toast } = useToast();
@@ -1368,12 +1372,17 @@ function InvoiceGroupDeliveryRow({
           <div className="flex text-center px-1 items-center justify-center overflow-hidden">
             <span className="text-emerald-500 font-semibold truncate">{formatCurrency(receivedAmount)}</span>
           </div>
-          {/* تكلفة الشحن (المندوب) */}
-          <div className="text-center px-1 flex items-center justify-center overflow-hidden">
+          {/* تكلفة الشحن (المندوب) — شاملة أي إضافة خاصة بنوع الشحنة */}
+          <div className="text-center px-1 flex flex-col items-center justify-center overflow-hidden gap-0.5">
             {courierShippingCost != null ? (
               <span className="text-amber-500 font-semibold truncate">{formatCurrency(courierShippingCost)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
+            )}
+            {repExtraCost > 0 && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 truncate max-w-[90px]">
+                {repExtraReason ?? "نوع الشحنة"} +{formatCurrency(repExtraCost)}
+              </span>
             )}
           </div>
           {/* حالة الاوردر + زرار التقفيل */}
@@ -5026,6 +5035,7 @@ export default function ShippingManifestPage() {
                       // لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
                       // لو الشركة شغالة بنظام "rep": التكلفة = company.shippingCost اليدوي.
                       const companyForCost = rawManifest?.company as any;
+                      const repExtra = Number((repFirst as any)?.repExtraCost ?? 0);
                       if (companyForCost?.costMode === "zone") {
                         let zIdsForCost: number[] = [];
                         if (companyForCost?.zoneIds) {
@@ -5033,12 +5043,25 @@ export default function ShippingManifestPage() {
                         } else if (companyForCost?.zoneId) {
                           zIdsForCost = [companyForCost.zoneId];
                         }
-                        if (!zIdsForCost.length) return 0;
+                        if (!zIdsForCost.length) return 0 + repExtra;
                         const zoneForCost = pnlSettlementZones.find(z => z.id === zIdsForCost[0]);
-                        return zoneForCost?.price != null ? Number(zoneForCost.price) : 0;
+                        const zoneBase = zoneForCost?.price != null ? Number(zoneForCost.price) : 0;
+                        return zoneBase + repExtra;
                       }
-                      return companyForCost?.shippingCost != null ? Number(companyForCost.shippingCost) : 0;
+                      const baseCost = companyForCost?.shippingCost != null ? Number(companyForCost.shippingCost) : 0;
+                      return baseCost + repExtra;
                     })()}
+                    repExtraCost={(() => {
+                      const rf = group[0] as any;
+                      const RETURN_REASONS_WITH_SHIPPING2 = ["refused_paid", "refused_unpaid", "quality"];
+                      const incurred =
+                        rf?.deliveryStatus === "delivered" ||
+                        rf?.deliveryStatus === "partial_delivered" ||
+                        rf?.deliveryStatus === "partial_received" ||
+                        (rf?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING2.includes(rf?.returnReason));
+                      return incurred ? Number(rf?.repExtraCost ?? 0) : 0;
+                    })()}
+                    repExtraReason={(group[0] as any)?.repExtraReason ?? null}
                     manifestCompanyName={manifest.companyName}
                   />
                   ))}
