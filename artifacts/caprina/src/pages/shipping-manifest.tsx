@@ -996,6 +996,8 @@ function InvoiceGroupDeliveryRow({
   isShipmentManifest = false,
   courierShippingCost = null,
   courierCostMode = "rep",
+  repExtraCost = 0,
+  repExtraReason = null,
   manifestCompanyName = null,
 }: {
   group: ManifestOrder[];
@@ -1008,6 +1010,8 @@ function InvoiceGroupDeliveryRow({
   isShipmentManifest?: boolean;
   courierShippingCost?: number | null;
   courierCostMode?: "rep" | "zone";
+  repExtraCost?: number;
+  repExtraReason?: string | null;
   manifestCompanyName?: string | null;
 }) {
   const { toast } = useToast();
@@ -1037,9 +1041,12 @@ function InvoiceGroupDeliveryRow({
   // - costMode = "rep"  → الرقم الثابت بتاع المندوب (courierShippingCost)
   // - costMode = "zone" → تكلفة زون الطلبية الحقيقية (costPrice من جدول تكاليف المناطق)
   const rowZoneId = (rep as any)?.zoneId;
-  const rowZoneShippingCost = courierCostMode === "zone"
+  const rowZoneShippingCostBase = courierCostMode === "zone"
     ? (rowZoneId != null ? (rowZones.find(z => z.id === rowZoneId)?.costPrice ?? null) : null)
     : courierShippingCost;
+  const rowZoneShippingCost = rowZoneShippingCostBase != null
+    ? Number(rowZoneShippingCostBase) + (rowShippingWasIncurred ? Number(repExtraCost ?? 0) : 0)
+    : rowZoneShippingCostBase;
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received احسب الجزء المستلم (كمية)، لو partial_delivered في بيان الشحن القيمة مسجَّلة مباشرة
   const totalPrice = group.reduce((s, o) => {
@@ -1392,11 +1399,16 @@ function InvoiceGroupDeliveryRow({
               (rowZoneShippingCost)، مش رقم ثابت للمندوب/شركة الشحن. تُعرض فقط لو
               الشحن اتنفذ فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي/مرتجع بأحد الأسباب
               الثلاثة) وللطلبية زون معروف، وإلا صفر/شرطة. */}
-          <div className="text-center px-1 flex items-center justify-center overflow-hidden">
+          <div className="text-center px-1 flex flex-col items-center justify-center overflow-hidden gap-0.5">
             {rowShippingWasIncurred && rowZoneShippingCost != null ? (
               <span className="text-amber-500 font-semibold truncate">{formatCurrency(rowZoneShippingCost)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
+            )}
+            {rowShippingWasIncurred && Number(repExtraCost ?? 0) > 0 && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 truncate max-w-[90px]">
+                {repExtraReason ?? "نوع الشحنة"} +{formatCurrency(Number(repExtraCost))}
+              </span>
             )}
           </div>
           {/* حالة الاوردر + زرار التقفيل */}
@@ -4844,8 +4856,21 @@ export default function ShippingManifestPage() {
                       if (!shippingWasIncurred) return 0;
                       // قيمة ثابتة واحدة لكل الشحنات = "تكلفة الشحنة" المسجَّلة على
                       // المندوب/شركة الشحن نفسها (مش سعر المنطقة).
+                      // ملحوظة: الإضافة الخاصة بنوع الشحنة (repExtraCost) بتتضاف
+                      // في السطر نفسه (rowZoneShippingCost) عشان تغطي حالة الزون كمان.
                       return rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : 0;
                     })()}
+                    repExtraCost={(() => {
+                      const rf = group[0] as any;
+                      const RETURN_REASONS_WITH_SHIPPING3 = ["refused_paid", "refused_unpaid", "quality"];
+                      const incurred =
+                        rf?.deliveryStatus === "delivered" ||
+                        rf?.deliveryStatus === "partial_delivered" ||
+                        rf?.deliveryStatus === "partial_received" ||
+                        (rf?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING3.includes(rf?.returnReason));
+                      return incurred ? Number(rf?.repExtraCost ?? 0) : 0;
+                    })()}
+                    repExtraReason={(group[0] as any)?.repExtraReason ?? null}
                     manifestCompanyName={manifest.companyName}
                   />
                   ))}
