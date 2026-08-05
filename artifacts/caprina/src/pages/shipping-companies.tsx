@@ -420,6 +420,7 @@ function DeliveryBar({ rate }: { rate: number }) {
 }
 
 function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: number; canViewFinancials: boolean; hidden?: boolean }) {
+  const [showNetProfit, setShowNetProfit] = useState(false);
   const { data: stats } = useQuery({
     queryKey: ["company-stats", companyId],
     queryFn: () => manifestsApi.companyStats(companyId),
@@ -529,13 +530,24 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
         )}
       </div>
       {canViewFinancials && (
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">صافي الربح / الخسارة</span>
-          <span className={`font-black ${merged.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {merged.netProfit >= 0 ? <TrendingUp className="inline w-3 h-3 mr-0.5" /> : <TrendingDown className="inline w-3 h-3 mr-0.5" />}
-            {formatCurrency(Math.abs(merged.netProfit))}
+        <button
+          type="button"
+          onClick={() => setShowNetProfit(v => !v)}
+          className="w-full flex items-center justify-between text-xs"
+        >
+          <span className="text-muted-foreground flex items-center gap-1">
+            إجمالي الإيرادات المحققة
+            <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${showNetProfit ? "rotate-180" : ""}`} />
           </span>
-        </div>
+          {showNetProfit ? (
+            <span className={`font-black ${merged.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {merged.netProfit >= 0 ? <TrendingUp className="inline w-3 h-3 mr-0.5" /> : <TrendingDown className="inline w-3 h-3 mr-0.5" />}
+              {formatCurrency(Math.abs(merged.netProfit))}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">●●●●</span>
+          )}
+        </button>
       )}
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">عدد البيانات</span>
