@@ -1,1 +1,0 @@
-تطبيق نفس تعديل عرض السعر الإضافي للمندوب (مجمّع + badge) على صفحة shipment-manifests (shipping-manifest.tsx) بما فيها حالة الزون
