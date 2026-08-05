@@ -13,6 +13,7 @@ import {
   clientAccountAdjustmentsTable,
   representativeWalletTransactionsTable,
   shipmentZonesTable,
+  zoneCostsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -1339,15 +1340,27 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
     const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
     const [company] = await db.select().from(shippingCompaniesTable)
       .where(eq(shippingCompaniesTable.id, companyId));
-    const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
     let deliveredShippingFeesClosed = 0;
-    let deliveredCountClosed = 0;
-    let returnedWithShippingCostClosed = 0;
+    let courierCostClosed = 0;
 
     if (items.length) {
       const shipmentIds = items.map(i => i.shipmentId);
       const shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
       const shipmentMap = new Map(shipments.map(s => [s.id, s]));
+      const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((id): id is number => id != null))];
+      const zoneCosts = zoneIds.length
+        ? await db.select({ zoneId: zoneCostsTable.zoneId, deliveryCost: zoneCostsTable.deliveryCost })
+            .from(zoneCostsTable)
+            .where(and(
+              inArray(zoneCostsTable.zoneId, zoneIds),
+              tenantId !== null
+                ? or(eq(zoneCostsTable.tenantId, tenantId), isNull(zoneCostsTable.tenantId))
+                : undefined,
+            ))
+        : [];
+      const zoneCostMap = new Map(zoneCosts.map(z => [z.zoneId, Number(z.deliveryCost ?? 0)]));
+      const companyCostMode = (company as any)?.costMode === "zone" ? "zone" : "rep";
+      const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
 
       for (const item of items) {
         const shipment = shipmentMap.get(item.shipmentId);
@@ -1375,19 +1388,23 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
 
         // ─── صافي الإيراد الحقيقي (بيانات مغلقة فقط) ──────────────────────
         if (isClosed) {
-          if (item.deliveryStatus === "delivered") {
+          const hasShippingFee =
+            item.deliveryStatus === "delivered" ||
+            item.deliveryStatus === "partial_delivered" ||
+            (item.deliveryStatus === "partial_received" && (item as any).returnReceived === 1) ||
+            (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes((item as any).returnReason));
+
+          if (hasShippingFee) {
             deliveredShippingFeesClosed += shipping;
-            deliveredCountClosed += 1;
-          } else if (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes((item as any).returnReason)) {
-            deliveredShippingFeesClosed += shipping;
-            returnedWithShippingCostClosed += 1;
+            courierCostClosed += companyCostMode === "zone"
+              ? Number(zoneCostMap.get(shipment.zoneId ?? -1) ?? 0)
+              : courierCostPerShipment;
           }
         }
       }
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
-    const courierCostManualClosed = courierCostPerShipment * (deliveredCountClosed + returnedWithShippingCostClosed);
-    const realNetRevenue = deliveredShippingFeesClosed - courierCostManualClosed;
+    const realNetRevenue = deliveredShippingFeesClosed - courierCostClosed;
 
     res.json({
       total, delivered, partial, returned, pending,
