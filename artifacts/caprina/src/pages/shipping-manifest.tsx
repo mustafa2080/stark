@@ -5079,7 +5079,7 @@ export default function ShippingManifestPage() {
               >
                 <p className={`text-xs mb-0 font-bold flex items-center gap-1.5 ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
                   {netDueOpen ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                  صافي الربح الحقيقي
+                  صافي الإيراد الحقيقي
                 </p>
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
               </button>
