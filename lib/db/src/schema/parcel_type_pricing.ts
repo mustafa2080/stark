@@ -19,6 +19,9 @@ export const parcelTypePricingTable = mysqlTable("parcel_type_pricing", {
   parcelType: varchar("parcel_type", { length: 50 }).notNull(),
   label:      varchar("label", { length: 100 }),
   basePrice:  decimal("base_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  // السعر الإضافي الثابت اللي بياخده المندوب مقابل نوع الشحنة ده (قابل للكسر، منطقة متطرفة، ...)
+  // ثابت (constant) مربوط بنوع الشحنة — لا يوجد تعديل يدوي للمندوب على هذا الرقم.
+  repExtraCost: decimal("rep_extra_cost", { precision: 10, scale: 2 }).notNull().default("0"),
   isActive:   boolean("is_active").default(true),
   imageUrl:   text("image_url"),
   notes:      text("notes"),

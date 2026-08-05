@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ParcelType = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
-interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number; imageUrl?: string | null }
+interface ParcelTypePricing { id: number; parcelType: ParcelType; label?: string; basePrice: string | number; repExtraCost?: string | number; imageUrl?: string | null }
 
 const PARCEL_LABELS: Record<ParcelType, string> = {
   document: "مستندات", normal: "طرد عادي", fragile: "قابل للكسر",
@@ -36,10 +36,12 @@ export default function ParcelTypesPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editPrices, setEditPrices] = useState<Record<number, string>>({});
+  const [editRepExtraCosts, setEditRepExtraCosts] = useState<Record<number, string>>({});
   const [addOpen, setAddOpen] = useState(false);
   const [newType, setNewType] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newRepExtraCost, setNewRepExtraCost] = useState("");
   const [newImage, setNewImage] = useState<string | null>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
   // حالة تعديل الصورة لكل كارد
@@ -114,8 +116,8 @@ export default function ParcelTypesPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, basePrice }: { id: number; basePrice: number }) =>
-      apiFetch(`/parcel-type-pricing/${id}`, { method: "PUT", body: JSON.stringify({ basePrice }) }),
+    mutationFn: ({ id, basePrice, repExtraCost }: { id: number; basePrice: number; repExtraCost: number }) =>
+      apiFetch(`/parcel-type-pricing/${id}`, { method: "PUT", body: JSON.stringify({ basePrice, repExtraCost }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] }); toast({ title: "تم التحديث ✅" }); },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -125,7 +127,7 @@ export default function ParcelTypesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["parcel-type-pricing"] });
       toast({ title: "تمت الإضافة ✅" });
-      setAddOpen(false); setNewType(""); setNewLabel(""); setNewPrice(""); setNewImage(null);
+      setAddOpen(false); setNewType(""); setNewLabel(""); setNewPrice(""); setNewRepExtraCost(""); setNewImage(null);
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -184,7 +186,7 @@ export default function ParcelTypesPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {pricing.map(p => (
-                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                <div key={p.id} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
                   {/* صورة / إيموجي + زر تغيير واضح */}
                   <div className="relative shrink-0">
                     <input
@@ -218,7 +220,11 @@ export default function ParcelTypesPage() {
 
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-foreground">{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</p>
-                    <p className="text-[10px] text-muted-foreground">سعر إضافي على رسوم المنطقة</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      للعميل: {Number(p.basePrice ?? 0).toLocaleString("ar-EG")} ج
+                      {" · "}
+                      للمندوب: {Number(p.repExtraCost ?? 0).toLocaleString("ar-EG")} ج
+                    </p>
                     {/* أزرار حفظ/إلغاء الصورة */}
                     {editImgId === p.id && editImgPreview && (
                       <div className="flex gap-1.5 mt-1">
@@ -240,15 +246,33 @@ export default function ParcelTypesPage() {
                       </div>
                     )}
                   </div>
+                  <div className="grid grid-cols-2 gap-2 shrink-0 w-full sm:w-56">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">إضافة العميل</Label>
+                      <Input
+                        type="number"
+                        className="text-xs h-8 text-center"
+                        value={editPrices[p.id] ?? String(p.basePrice)}
+                        onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">إضافة المندوب</Label>
+                      <Input
+                        type="number"
+                        className="text-xs h-8 text-center"
+                        value={editRepExtraCosts[p.id] ?? String(p.repExtraCost ?? 0)}
+                        onChange={e => setEditRepExtraCosts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      />
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Input
-                      type="number"
-                      className="text-xs h-8 w-24 text-center"
-                      value={editPrices[p.id] ?? String(p.basePrice)}
-                      onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
-                    />
                     <Button size="sm" className="h-8 text-xs px-3"
-                      onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}
+                      onClick={() => updateMutation.mutate({
+                        id: p.id,
+                        basePrice: Number(editPrices[p.id] ?? p.basePrice),
+                        repExtraCost: Number(editRepExtraCosts[p.id] ?? p.repExtraCost ?? 0),
+                      })}
                       disabled={updateMutation.isPending}>
                       حفظ
                     </Button>
@@ -262,7 +286,7 @@ export default function ParcelTypesPage() {
             </div>
           )}
           <p className="text-[10px] text-muted-foreground mt-4 border-t border-border pt-3">
-            💡 السعر الإجمالي للشحنة = سعر المنطقة + سعر نوع الشحنة + رسوم التأمين
+            💡 سعر العميل = سعر المنطقة + إضافة نوع الشحنة. تكلفة المندوب = تكلفة شحن المندوب + إضافة المندوب الثابتة لنوع الشحنة.
           </p>
         </CardContent>
       </Card>
@@ -289,9 +313,14 @@ export default function ParcelTypesPage() {
                   onChange={e => setNewLabel(e.target.value)} />
               </div>
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي (جنيه) <span className="text-red-500">*</span></Label>
+                <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي للعميل (جنيه) <span className="text-red-500">*</span></Label>
                 <Input type="number" className="text-sm" placeholder="0" value={newPrice}
                   onChange={e => setNewPrice(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي للمندوب (جنيه)</Label>
+                <Input type="number" className="text-sm" placeholder="0" value={newRepExtraCost}
+                  onChange={e => setNewRepExtraCost(e.target.value)} />
               </div>
 
               {/* ── صورة نوع الشحنة ── */}
@@ -336,10 +365,17 @@ export default function ParcelTypesPage() {
               </div>
 
               <div className="flex gap-2 pt-1 border-t border-border">
-                <Button variant="outline" className="flex-1 text-xs" onClick={() => { setAddOpen(false); setNewImage(null); }}>إلغاء</Button>
+                <Button variant="outline" className="flex-1 text-xs" onClick={() => { setAddOpen(false); setNewImage(null); setNewRepExtraCost(""); }}>إلغاء</Button>
                 <Button className="flex-1 text-xs gap-1.5"
                   disabled={!newType || !newLabel || !newPrice || addMutation.isPending || uploadingImg}
-                  onClick={() => addMutation.mutate({ parcelType: newType, label: newLabel, basePrice: Number(newPrice), isActive: true, imageUrl: newImage })}>
+                  onClick={() => addMutation.mutate({
+                    parcelType: newType,
+                    label: newLabel,
+                    basePrice: Number(newPrice),
+                    repExtraCost: Number(newRepExtraCost || 0),
+                    isActive: true,
+                    imageUrl: newImage,
+                  })}>
                   {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                   إضافة
                 </Button>

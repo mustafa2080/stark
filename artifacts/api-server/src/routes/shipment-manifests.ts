@@ -14,6 +14,7 @@ import {
   representativeWalletTransactionsTable,
   shipmentZonesTable,
   zoneCostsTable,
+  parcelTypePricingTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -205,6 +206,35 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       zonePriceMap = Object.fromEntries(zoneRows.map(z => [z.id, Number(z.price ?? 0)]));
     }
 
+    const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
+    let parcelPricingMap: Record<string, { label: string; repExtraCost: number }> = {};
+    if (parcelTypes.length) {
+      const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
+      if (manifest.tenantId !== null && manifest.tenantId !== undefined) {
+        conds.push(or(eq(parcelTypePricingTable.tenantId, manifest.tenantId), isNull(parcelTypePricingTable.tenantId)));
+      }
+      const pricingRows = await db
+        .select({
+          tenantId: parcelTypePricingTable.tenantId,
+          parcelType: parcelTypePricingTable.parcelType,
+          label: parcelTypePricingTable.label,
+          repExtraCost: parcelTypePricingTable.repExtraCost,
+        })
+        .from(parcelTypePricingTable)
+        .where(and(...conds));
+      const currentTenantId = manifest.tenantId ?? null;
+      for (const row of pricingRows) {
+        const existing = parcelPricingMap[row.parcelType];
+        const isTenantRow = row.tenantId !== null && row.tenantId !== undefined && row.tenantId === currentTenantId;
+        if (!existing || isTenantRow) {
+          parcelPricingMap[row.parcelType] = {
+            label: row.label ?? row.parcelType,
+            repExtraCost: Number(row.repExtraCost ?? 0),
+          };
+        }
+      }
+    }
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       return {
@@ -224,6 +254,11 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
         unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
         shippingCost:  Number(sh?.shippingFee ?? 0),
+        parcelType:    sh?.parcelType ?? null,
+        repExtraCost:  sh?.parcelType ? (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) : 0,
+        repExtraReason: sh?.parcelType && (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) > 0
+          ? (parcelPricingMap[sh.parcelType]?.label ?? sh.parcelType)
+          : null,
         invoiceNumber: sh?.shipmentNumber ?? "",
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
         returnReceived: sh?.returnReceived ?? null,
@@ -310,8 +345,28 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const returnedWithShippingCost = items.filter(i =>
       i.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes((i as any).returnReason)
     ).length;
+    const isItemEligibleForCourierCost = (i: any) =>
+      i.deliveryStatus === "delivered" ||
+      i.deliveryStatus === "partial_delivered" ||
+      (i.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(i.returnReason));
     const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
-    const courierCostManual = courierCostPerShipment * (delivered + returnedWithShippingCost);
+    const repExtraCostBreakdown = items
+      .filter(isItemEligibleForCourierCost)
+      .map(item => {
+        const sh = shipmentMap[item.shipmentId];
+        const pricing = sh?.parcelType ? parcelPricingMap[sh.parcelType] : null;
+        const amount = Math.abs(Number(pricing?.repExtraCost ?? 0));
+        return amount > 0 ? {
+          shipmentId: item.shipmentId,
+          parcelType: sh?.parcelType ?? null,
+          reason: pricing?.label ?? sh?.parcelType ?? "نوع الشحنة",
+          amount,
+        } : null;
+      })
+      .filter(Boolean);
+    const repExtraCostTotal = repExtraCostBreakdown.reduce((s: number, x: any) => s + Number(x.amount ?? 0), 0);
+    const courierBaseCost = courierCostPerShipment * (delivered + returnedWithShippingCost);
+    const courierCostManual = courierBaseCost + repExtraCostTotal;
     // صافي المستحق للشركة = إجمالي المسلَّم (COD) − تكلفة المندوب
     const netDueToCompany   = deliveredGross - courierCostManual;
     // صافي الربح الحقيقي = إجمالي رسوم الشحن − تكلفة المندوب
@@ -330,6 +385,9 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         deliveredShippingFees,                       // إجمالي رسوم الشحن (shippingFee) للشحنات المسلَّمة
         netDueToCompany,                             // صافي المستحق للشركة = المسلَّم − تكلفة المندوب
         realNetProfit,                               // صافي الربح الحقيقي = رسوم الشحن − تكلفة المندوب
+        courierBaseCost,
+        repExtraCostTotal,
+        repExtraCostBreakdown,
       },
       courierCostManual, // محسوبة تلقائيًا الآن من company.shippingCost × عدد المسلَّم
     });

@@ -1518,11 +1518,12 @@ router.get("/parcel-type-pricing", async (req, res): Promise<void> => {
 router.put("/parcel-type-pricing/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { basePrice, isActive, imageUrl } = req.body;
+    const { basePrice, repExtraCost, isActive, imageUrl } = req.body;
     const upd: any = { updatedAt: new Date() };
-    if (basePrice  !== undefined) upd.basePrice  = String(basePrice);
-    if (isActive   !== undefined) upd.isActive   = isActive;
-    if (imageUrl   !== undefined) upd.imageUrl   = imageUrl;
+    if (basePrice    !== undefined) upd.basePrice    = String(basePrice);
+    if (repExtraCost !== undefined) upd.repExtraCost = String(repExtraCost);
+    if (isActive     !== undefined) upd.isActive     = isActive;
+    if (imageUrl     !== undefined) upd.imageUrl     = imageUrl;
     await db.update(parcelTypePricingTable).set(upd).where(eq(parcelTypePricingTable.id, id));
     const rows = await db.select().from(parcelTypePricingTable).where(eq(parcelTypePricingTable.id, id)).limit(1);
     res.json(rows[0]);
@@ -1532,13 +1533,13 @@ router.put("/parcel-type-pricing/:id", async (req, res): Promise<void> => {
 router.post("/parcel-type-pricing", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { parcelType, label, basePrice, isActive = true, imageUrl } = req.body;
+    const { parcelType, label, basePrice, repExtraCost = 0, isActive = true, imageUrl } = req.body;
     if (!parcelType || basePrice === undefined) { res.status(400).json({ error: "parcelType والسعر مطلوبان" }); return; }
     const now = new Date();
     const result = await db.insert(parcelTypePricingTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
       parcelType, label: label ?? parcelType,
-      basePrice: String(basePrice), isActive,
+      basePrice: String(basePrice), repExtraCost: String(repExtraCost), isActive,
       imageUrl: imageUrl ?? null,
       createdAt: now, updatedAt: now,
     });
@@ -1560,14 +1561,14 @@ router.post("/parcel-type-pricing/init", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
     const DEFAULTS = [
-      { parcelType: "document",    label: "مستندات",     basePrice: "0" },
-      { parcelType: "normal",      label: "طرد عادي",    basePrice: "0" },
-      { parcelType: "fragile",     label: "قابل للكسر",  basePrice: "5" },
-      { parcelType: "heavy",       label: "ثقيل",        basePrice: "10" },
-      { parcelType: "electronics", label: "إلكترونيات",  basePrice: "10" },
-      { parcelType: "clothing",    label: "ملابس",       basePrice: "0" },
-      { parcelType: "food",        label: "طعام",        basePrice: "5" },
-      { parcelType: "other",       label: "أخري",        basePrice: "0" },
+      { parcelType: "document",    label: "مستندات",     basePrice: "0",  repExtraCost: "0" },
+      { parcelType: "normal",      label: "طرد عادي",    basePrice: "0",  repExtraCost: "0" },
+      { parcelType: "fragile",     label: "قابل للكسر",  basePrice: "5",  repExtraCost: "0" },
+      { parcelType: "heavy",       label: "ثقيل",        basePrice: "10", repExtraCost: "0" },
+      { parcelType: "electronics", label: "إلكترونيات",  basePrice: "10", repExtraCost: "0" },
+      { parcelType: "clothing",    label: "ملابس",       basePrice: "0",  repExtraCost: "0" },
+      { parcelType: "food",        label: "طعام",        basePrice: "5",  repExtraCost: "0" },
+      { parcelType: "other",       label: "أخري",        basePrice: "0",  repExtraCost: "0" },
     ];
     const now = new Date();
     for (const d of DEFAULTS) {
@@ -1579,7 +1580,7 @@ router.post("/parcel-type-pricing/init", async (req, res): Promise<void> => {
       if (!existing.length) {
         await db.insert(parcelTypePricingTable).values({
           ...(tenantId !== null ? { tenantId } : {}),
-          parcelType: d.parcelType, label: d.label, basePrice: d.basePrice,
+          parcelType: d.parcelType, label: d.label, basePrice: d.basePrice, repExtraCost: d.repExtraCost,
           isActive: true, createdAt: now, updatedAt: now,
         });
       }

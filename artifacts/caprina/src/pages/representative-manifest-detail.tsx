@@ -5236,10 +5236,13 @@ export default function ShippingManifestPage() {
           return s + (zone?.price != null ? Number(zone.price) : 0);
         }, 0);
         // صافي الربح الحقيقي = سعر المنطقة الفعلي (لكل شحنة حسب منطقتها) - إجمالي تكلفة الشحن
-        const netAmount       = zonePricePnl - shippingCost;
+        const repExtraCostBreakdown = ((manifest as any)?.stats?.repExtraCostBreakdown ?? []) as Array<{ reason?: string | null; amount?: number }>;
+        const repExtraCostTotal = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
+        const displayedShippingCost = shippingCost + repExtraCostTotal;
+        const netAmount       = zonePricePnl - displayedShippingCost;
         const isProfit        = netAmount >= 0;
         // الرصيد المستحق من المندوب = إجمالي الإيرادات - إجمالي تكلفة الشحن
-        const totalDueToCourier = deliveredCOD - shippingCost;
+        const totalDueToCourier = deliveredCOD - displayedShippingCost;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
@@ -5249,7 +5252,24 @@ export default function ShippingManifestPage() {
             </Card>
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
-              <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
+              <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
+              {repExtraCostTotal > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">إضافات أنواع: {formatCurrency(repExtraCostTotal)}</p>
+              )}
+              {repExtraCostBreakdown.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {repExtraCostBreakdown.slice(0, 4).map((x, idx) => (
+                    <span key={idx} className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200">
+                      {x.reason ?? "نوع الشحنة"} +{formatCurrency(Number(x.amount ?? 0))}
+                    </span>
+                  ))}
+                  {repExtraCostBreakdown.length > 4 && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                      +{repExtraCostBreakdown.length - 4}
+                    </span>
+                  )}
+                </div>
+              )}
             </Card>
             <Card className="border-sky-900/40 bg-sky-900/10 p-4">
               <p className="text-xs text-sky-400 mb-1">الرصيد المستحق من المندوب</p>
@@ -5280,7 +5300,7 @@ export default function ShippingManifestPage() {
                       : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
                   </div>
                   <p className="text-[10px] text-muted-foreground px-4 pb-4">
-                    {formatCurrency(zonePricePnl)} سعر الشحنة − {formatCurrency(shippingCost)} إجمالي تكلفة الشحن
+                    {formatCurrency(zonePricePnl)} سعر الشحنة − {formatCurrency(displayedShippingCost)} إجمالي تكلفة الشحن
                   </p>
                 </div>
               </div>

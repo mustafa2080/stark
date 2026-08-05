@@ -5034,7 +5034,10 @@ export default function ShippingManifestPage() {
         // ملحوظة: netAmount لسه بيستخدم shippingCost الأصلي كما هو بناءً على تعليمات
         // بشمهندس مصطفى (لم يُطلب تعديله)؛ التعديل يخص "إجمالي تكلفة الشحن" و"الرصيد
         // المستحق من المندوب" فقط.
-        const displayedShippingCost = companyAnyPnl?.costMode === "zone" ? zonePricePnl : shippingCost;
+        const repExtraCostBreakdown = ((manifest as any)?.stats?.repExtraCostBreakdown ?? []) as Array<{ reason?: string | null; amount?: number }>;
+        const repExtraCostTotal = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
+        const baseDisplayedShippingCost = companyAnyPnl?.costMode === "zone" ? zonePricePnl : shippingCost;
+        const displayedShippingCost = baseDisplayedShippingCost + repExtraCostTotal;
         // ─── صافي الربح الحقيقي = مصروف الشحن للأوردر − تكلفة الشحن للأوردر ───
         // مصروف الشحن للأوردر = رسوم الشحن المسجَّلة على كل أوردر (shippingFee) —
         // اللي العميل بيدفعها، مجمّعة على كل الأوردرات المؤهلة (shippingCostOrders).
@@ -5046,7 +5049,7 @@ export default function ShippingManifestPage() {
         // زون الأوردر نفسه. costMode = "zone" تساوي zonePricePnl (محسوبة أعلاه)؛
         // costMode = "rep" = الرقم الثابت × عدد الأوردرات المؤهلة (shippingCost فوق).
         const perOrderCourierCostMode: "rep" | "zone" = companyAnyPnl?.costMode === "zone" ? "zone" : "rep";
-        const perOrderShippingCostSum = perOrderCourierCostMode === "zone" ? zonePricePnl : shippingCost;
+        const perOrderShippingCostSum = (perOrderCourierCostMode === "zone" ? zonePricePnl : shippingCost) + repExtraCostTotal;
         // صافي الربح الحقيقي = مصروف الشحن للأوردر − تكلفة الشحن للأوردر
         const netAmount       = totalShippingFeeForPnl - perOrderShippingCostSum;
         const isProfit        = netAmount >= 0;
@@ -5064,7 +5067,24 @@ export default function ShippingManifestPage() {
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{shippingCostOrders.length} شحنة (حسب زون كل شحنة)</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {shippingCostOrders.length} شحنة
+                {repExtraCostTotal > 0 ? ` · إضافات أنواع: ${formatCurrency(repExtraCostTotal)}` : ""}
+              </p>
+              {repExtraCostBreakdown.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {repExtraCostBreakdown.slice(0, 4).map((x, idx) => (
+                    <span key={idx} className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200">
+                      {x.reason ?? "نوع الشحنة"} +{formatCurrency(Number(x.amount ?? 0))}
+                    </span>
+                  ))}
+                  {repExtraCostBreakdown.length > 4 && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                      +{repExtraCostBreakdown.length - 4}
+                    </span>
+                  )}
+                </div>
+              )}
             </Card>
             <Card className="border-sky-900/40 bg-sky-900/10 p-4">
               <p className="text-xs text-sky-400 mb-1">الرصيد المستحق من المندوب</p>
