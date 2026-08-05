@@ -1777,7 +1777,7 @@ function ShipmentWarehouseTab() {
 
 // ─── Parcel Types Tab (منقولة من parcel-types.tsx) ──────────────────────────
 type ParcelTypeKey = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
-interface ParcelTypePricingItem { id: number; parcelType: ParcelTypeKey; label?: string; basePrice: string | number; imageUrl?: string | null }
+interface ParcelTypePricingItem { id: number; parcelType: ParcelTypeKey; label?: string; basePrice: string | number; repExtraCost?: string | number; imageUrl?: string | null }
 
 const PARCEL_LABELS_MAP: Record<ParcelTypeKey, string> = {
   document: "مستندات", normal: "طرد عادي", fragile: "قابل للكسر",
@@ -1835,10 +1835,12 @@ function ParcelTypesTab() {
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editPrices, setEditPrices] = useState<Record<number, string>>({});
+  const [editRepExtraCosts, setEditRepExtraCosts] = useState<Record<number, string>>({});
   const [addOpen, setAddOpen] = useState(false);
   const [newType, setNewType] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newRepExtraCost, setNewRepExtraCost] = useState("");
   const [newImage, setNewImage] = useState<string | null>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [editImgId, setEditImgId] = useState<number | null>(null);
@@ -1895,8 +1897,8 @@ function ParcelTypesTab() {
     onSuccess: () => { invalidate(); toast({ title: "تمت التهيئة ✅" }); },
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, basePrice }: { id: number; basePrice: number }) =>
-      callApi(`/parcel-type-pricing/${id}`, { method: "PUT", body: JSON.stringify({ basePrice }) }),
+    mutationFn: ({ id, basePrice, repExtraCost }: { id: number; basePrice: number; repExtraCost: number }) =>
+      callApi(`/parcel-type-pricing/${id}`, { method: "PUT", body: JSON.stringify({ basePrice, repExtraCost }) }),
     onSuccess: () => { invalidate(); toast({ title: "تم التحديث ✅" }); },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -1904,7 +1906,7 @@ function ParcelTypesTab() {
     mutationFn: (d: any) => callApi("/parcel-type-pricing", { method: "POST", body: JSON.stringify(d) }),
     onSuccess: () => {
       invalidate(); toast({ title: "تمت الإضافة ✅" });
-      setAddOpen(false); setNewType(""); setNewLabel(""); setNewPrice(""); setNewImage(null);
+      setAddOpen(false); setNewType(""); setNewLabel(""); setNewPrice(""); setNewRepExtraCost(""); setNewImage(null);
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
@@ -2086,7 +2088,10 @@ function ParcelTypesTab() {
                   {/* stats chips */}
                   <div className="hidden sm:flex items-center gap-2 shrink-0">
                     <span className="text-[11px] font-black text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 px-2.5 py-1 rounded-full">
-                      {Number(p.basePrice)} ج
+                      العميل {Number(p.basePrice)} ج
+                    </span>
+                    <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-2.5 py-1 rounded-full">
+                      المندوب {Number(p.repExtraCost ?? 0)} ج
                     </span>
                     {totalShipCount > 0 && (
                       <span className="flex items-center gap-1 text-[11px] font-black text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full">
@@ -2103,6 +2108,7 @@ function ParcelTypesTab() {
                   {/* mobile: price only */}
                   <div className="flex sm:hidden items-center gap-2 shrink-0">
                     <span className="text-xs font-black text-violet-600 dark:text-violet-400">{Number(p.basePrice)} ج</span>
+                    <span className="text-[10px] font-black text-amber-600 dark:text-amber-400">{Number(p.repExtraCost ?? 0)} ج</span>
                     {totalShipCount > 0 && (
                       <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">{totalShipCount}</span>
                     )}
@@ -2119,10 +2125,14 @@ function ParcelTypesTab() {
                   <div className="border-t border-border/60">
 
                     {/* ── Stats Row ────────────────────────────────────── */}
-                    <div className="grid grid-cols-3 divide-x divide-x-reverse divide-border/60 bg-muted/10">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-x-reverse divide-border/60 bg-muted/10">
                       <div className="px-4 py-3 text-center">
-                        <p className="text-[10px] text-muted-foreground font-medium mb-1">السعر الإضافي</p>
+                        <p className="text-[10px] text-muted-foreground font-medium mb-1">إضافة العميل</p>
                         <p className="text-xl font-black text-violet-600 dark:text-violet-400">{Number(p.basePrice)} <span className="text-xs font-bold">ج</span></p>
+                      </div>
+                      <div className="px-4 py-3 text-center">
+                        <p className="text-[10px] text-muted-foreground font-medium mb-1">إضافة المندوب</p>
+                        <p className="text-xl font-black text-amber-600 dark:text-amber-400">{Number(p.repExtraCost ?? 0)} <span className="text-xs font-bold">ج</span></p>
                       </div>
                       <div className="px-4 py-3 text-center">
                         <p className="text-[10px] text-muted-foreground font-medium mb-1">الشحنات (كل الحالات)</p>
@@ -2282,9 +2292,14 @@ function ParcelTypesTab() {
                   onChange={e => setNewLabel(e.target.value)} />
               </div>
               <div>
-                <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي (جنيه) *</Label>
+                <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي للعميل (جنيه) *</Label>
                 <Input type="number" className="text-sm" placeholder="0" value={newPrice}
                   onChange={e => setNewPrice(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي للمندوب (جنيه)</Label>
+                <Input type="number" className="text-sm" placeholder="0" value={newRepExtraCost}
+                  onChange={e => setNewRepExtraCost(e.target.value)} />
               </div>
               <div>
                 <Label className="text-xs font-bold mb-1.5 block">صورة (اختياري)</Label>
@@ -2322,10 +2337,17 @@ function ParcelTypesTab() {
                 </div>
               </div>
               <div className="flex gap-2 pt-1 border-t border-border">
-                <Button variant="outline" className="flex-1 text-xs" onClick={() => { setAddOpen(false); setNewImage(null); }}>إلغاء</Button>
+                <Button variant="outline" className="flex-1 text-xs" onClick={() => { setAddOpen(false); setNewImage(null); setNewRepExtraCost(""); }}>إلغاء</Button>
                 <Button className="flex-1 text-xs gap-1.5"
                   disabled={!newType || !newLabel || !newPrice || addMutation.isPending || uploadingImg}
-                  onClick={() => addMutation.mutate({ parcelType: newType, label: newLabel, basePrice: Number(newPrice), isActive: true, imageUrl: newImage })}>
+                  onClick={() => addMutation.mutate({
+                    parcelType: newType,
+                    label: newLabel,
+                    basePrice: Number(newPrice),
+                    repExtraCost: Number(newRepExtraCost || 0),
+                    isActive: true,
+                    imageUrl: newImage,
+                  })}>
                   {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                   إضافة
                 </Button>
@@ -2403,21 +2425,38 @@ function ParcelTypesTab() {
                   </div>
                 </div>
 
-                {/* السعر الإضافي */}
-                <div>
-                  <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي (جنيه)</Label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Input
-                      type="number"
-                      className="text-sm h-9 font-bold flex-1"
-                      value={editPrices[p.id] ?? String(p.basePrice)}
-                      onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
-                    />
-                    <span className="text-xs text-muted-foreground">ج</span>
+                {/* الأسعار الإضافية */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي للعميل (جنيه)</Label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Input
+                        type="number"
+                        className="text-sm h-9 font-bold flex-1"
+                        value={editPrices[p.id] ?? String(p.basePrice)}
+                        onChange={e => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      />
+                      <span className="text-xs text-muted-foreground">ج</span>
+                    </div>
+                    {Number(editPrices[p.id] ?? p.basePrice) !== Number(p.basePrice) && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">كان: {Number(p.basePrice)} ج</p>
+                    )}
                   </div>
-                  {Number(editPrices[p.id] ?? p.basePrice) !== Number(p.basePrice) && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">كان: {Number(p.basePrice)} ج</p>
-                  )}
+                  <div>
+                    <Label className="text-xs font-bold mb-1.5 block">السعر الإضافي للمندوب (جنيه)</Label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Input
+                        type="number"
+                        className="text-sm h-9 font-bold flex-1"
+                        value={editRepExtraCosts[p.id] ?? String(p.repExtraCost ?? 0)}
+                        onChange={e => setEditRepExtraCosts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      />
+                      <span className="text-xs text-muted-foreground">ج</span>
+                    </div>
+                    {Number(editRepExtraCosts[p.id] ?? p.repExtraCost ?? 0) !== Number(p.repExtraCost ?? 0) && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">كان: {Number(p.repExtraCost ?? 0)} ج</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-1 border-t border-border">
@@ -2425,7 +2464,11 @@ function ParcelTypesTab() {
                     onClick={() => { setEditImgId(null); setEditImgPreview(null); }}>إغلاق</Button>
                   <Button className="flex-1 text-xs gap-1.5"
                     disabled={updateMutation.isPending}
-                    onClick={() => updateMutation.mutate({ id: p.id, basePrice: Number(editPrices[p.id] ?? p.basePrice) })}>
+                    onClick={() => updateMutation.mutate({
+                      id: p.id,
+                      basePrice: Number(editPrices[p.id] ?? p.basePrice),
+                      repExtraCost: Number(editRepExtraCosts[p.id] ?? p.repExtraCost ?? 0),
+                    })}>
                     {updateMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "✓ حفظ السعر"}
                   </Button>
                 </div>
