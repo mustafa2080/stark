@@ -1969,6 +1969,7 @@ export interface ShipmentManifestListItem {
   companyName: string;
   companyLogo: string | null;
   status: "open" | "closed";
+  closedByRole: "representative" | "admin" | null;
   notes: string | null;
   invoicePrice: string | null;
   shipmentCount: number;

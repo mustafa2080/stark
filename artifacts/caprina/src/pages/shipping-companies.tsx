@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, apiFetch, type ShippingCompany, type ShippingManifestListItem, type ShipmentManifestListItem, type ManifestCompanyStats, type Shipment } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -441,6 +441,24 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
     queryFn: () => shipmentManifestsApi.list(companyId),
     staleTime: 10000,
   });
+  const closedShipmentManifestIds = useMemo(
+    () => (shipmentManifests ?? [])
+      .filter(m => m.status === "closed" || !!(m as any).closedByRole)
+      .map(m => m.id),
+    [shipmentManifests]
+  );
+  const closedShipmentManifestDetails = useQueries({
+    queries: closedShipmentManifestIds.map(id => ({
+      queryKey: ["shipment-manifest", id],
+      queryFn: () => shipmentManifestsApi.get(id),
+      staleTime: 30000,
+    })),
+  });
+  const realNetRevenueFromClosedDetails = closedShipmentManifestDetails.reduce(
+    (sum, q) => sum + Number(q.data?.stats?.realNetProfit ?? 0),
+    0
+  );
+  const hasClosedDetails = closedShipmentManifestDetails.some(q => !!q.data);
   const openManifest = manifests?.find(m => m.status === "open") ?? null;
   const openShipmentManifest = shipmentManifests?.find(m => m.status === "open") ?? null;
   // البيان المفتوح الفعلي — نظام الشحنات له الأولوية
@@ -455,7 +473,7 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
     returned:      (stats?.returned ?? 0)      + (shipmentStats?.returned ?? 0),
     total:         (stats?.total ?? 0)         + (shipmentStats?.total ?? 0),
     netProfit:     (stats?.netProfit ?? 0)     + (shipmentStats?.netProfit ?? 0),
-    realNetRevenue: (shipmentStats as any)?.realNetRevenue ?? 0,
+    realNetRevenue: hasClosedDetails ? realNetRevenueFromClosedDetails : ((shipmentStats as any)?.realNetRevenue ?? 0),
     manifestCount: (stats?.manifestCount ?? 0) + (shipmentStats?.manifestCount ?? 0),
   };
   const deliveryRate = merged.total > 0
