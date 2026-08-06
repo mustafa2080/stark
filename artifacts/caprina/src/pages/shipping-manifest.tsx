@@ -1330,7 +1330,7 @@ function InvoiceGroupDeliveryRow({
         {/* Row (fully responsive, no horizontal scroll) */}
         <div
           dir="rtl"
-          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 items-start py-2.5 text-xs"
+          className="grid grid-cols-[28px_minmax(0,1fr)_74px_64px_56px] md:grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_92px_100px_90px] gap-0 items-start py-2.5 text-xs"
         >
           {/* تحديد */}
           <div className="flex items-center justify-center pt-0.5" onClick={e => e.stopPropagation()}>
@@ -1399,14 +1399,14 @@ function InvoiceGroupDeliveryRow({
               (rowZoneShippingCost)، مش رقم ثابت للمندوب/شركة الشحن. تُعرض فقط لو
               الشحن اتنفذ فعليًا (مسلَّم/مسلَّم جزئي/استلام جزئي/مرتجع بأحد الأسباب
               الثلاثة) وللطلبية زون معروف، وإلا صفر/شرطة. */}
-          <div className="text-center px-1 flex flex-col items-center justify-center overflow-hidden gap-0.5">
+          <div className="text-center px-1 py-1 flex flex-col items-center justify-center gap-1">
             {rowShippingWasIncurred && rowZoneShippingCost != null ? (
-              <span className="text-amber-500 font-semibold truncate">{formatCurrency(rowZoneShippingCost)}</span>
+              <span className="text-amber-500 font-semibold">{formatCurrency(rowZoneShippingCost)}</span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
             {rowShippingWasIncurred && Number(repExtraCost ?? 0) > 0 && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 truncate max-w-[90px]">
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-amber-400 whitespace-normal break-words text-center">
                 {repExtraReason ?? "نوع الشحنة"} +{formatCurrency(Number(repExtraCost))}
               </span>
             )}
@@ -2823,7 +2823,9 @@ function ExportDialog({
         (rep as any).deliveryStatus === "partial_delivered" ||
         (rep as any).deliveryStatus === "partial_received" ||
         ((rep as any).deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_XLS.includes((rep as any).returnReason));
-      const courierCost = shippingWasIncurredXls ? effectiveShipping : 0;
+      const repExtraCostXls = shippingWasIncurredXls ? Number((rep as any).repExtraCost ?? 0) : 0;
+      const repExtraReasonXls = (rep as any).repExtraReason ?? "نوع الشحنة";
+      const courierCost = (shippingWasIncurredXls ? effectiveShipping : 0) + repExtraCostXls;
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
       const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
       const deliveryLabel = statuses.length === 1
@@ -2893,14 +2895,26 @@ function ExportDialog({
         border: "FFD1D5DB",
         numFmt: '#,##0 "ج.م"',
       });
-      // 9: تكلفة الشحن (المندوب)
-      setCell(row.getCell(9), courierCost != null && courierCost > 0 ? courierCost : "—", {
-        fill: baseFill,
-        font: { color: { argb: C.amber } },
-        align: { horizontal: "center", vertical: "middle" },
-        border: "FFD1D5DB",
-        numFmt: courierCost != null && courierCost > 0 ? '#,##0 "ج.م"' : undefined,
-      });
+      // 9: تكلفة الشحن (المندوب) — يشمل السعر الإضافي بتاع نوع الشحنة (لو موجود) كسطر توضيحي أسفل الرقم
+      if (repExtraCostXls > 0) {
+        row.getCell(9).value = {
+          richText: [
+            { font: { name: "Tahoma", size: 10, bold: true, color: { argb: C.amber } }, text: `${courierCost.toLocaleString("ar-EG")} ج.م\n` },
+            { font: { name: "Tahoma", size: 7, color: { argb: C.amber } }, text: `${repExtraReasonXls} +${repExtraCostXls.toLocaleString("ar-EG")}` },
+          ],
+        } as any;
+        row.getCell(9).fill = makeFill(baseFill);
+        row.getCell(9).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        row.getCell(9).border = makeBorder("FFD1D5DB");
+      } else {
+        setCell(row.getCell(9), courierCost != null && courierCost > 0 ? courierCost : "—", {
+          fill: baseFill,
+          font: { color: { argb: C.amber } },
+          align: { horizontal: "center", vertical: "middle" },
+          border: "FFD1D5DB",
+          numFmt: courierCost != null && courierCost > 0 ? '#,##0 "ج.م"' : undefined,
+        });
+      }
       // 10: حالة الاوردر
       setCell(row.getCell(10), deliveryLabel, {
         fill: deliveryStatus === "delivered" ? C.greenBg : deliveryStatus === "returned" ? C.redBg : deliveryStatus === "partial_received" ? C.tealBg : deliveryStatus === "postponed" ? C.amberBg : C.grayBg,
@@ -4308,9 +4322,12 @@ export default function ShippingManifestPage() {
               (rep as any).deliveryStatus === "partial_delivered" ||
               (rep as any).deliveryStatus === "partial_received" ||
               ((rep as any).deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_PRINT.includes((rep as any).returnReason));
-            const courierCost = shippingWasIncurredPrint
+            const courierBaseCost = shippingWasIncurredPrint
               ? (rawManifest?.company?.shippingCost != null ? Number(rawManifest.company.shippingCost) : 0)
               : 0;
+            const repExtraCostPrint = shippingWasIncurredPrint ? Number((rep as any).repExtraCost ?? 0) : 0;
+            const repExtraReasonPrint = (rep as any).repExtraReason ?? "نوع الشحنة";
+            const courierCost = courierBaseCost + repExtraCostPrint;
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
@@ -4322,7 +4339,14 @@ export default function ShippingManifestPage() {
                 <td style={{ fontSize: "8.5pt" }}>{(rep as any).address ?? "—"}</td>
                 <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
                 <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
-                <td className="mp-td-center" style={{ color: "#d97706" }}>{courierCost != null ? courierCost.toLocaleString("ar-EG") + " ج" : "—"}</td>
+                <td className="mp-td-center" style={{ color: "#d97706" }}>
+                  {shippingWasIncurredPrint ? courierCost.toLocaleString("ar-EG") + " ج" : "—"}
+                  {repExtraCostPrint > 0 && (
+                    <div style={{ fontSize: "7pt", color: "#b45309", fontWeight: 700, marginTop: "0.5mm" }}>
+                      {repExtraReasonPrint} +{repExtraCostPrint.toLocaleString("ar-EG")} ج
+                    </div>
+                  )}
+                </td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
               </tr>
