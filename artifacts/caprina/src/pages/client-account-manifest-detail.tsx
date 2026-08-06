@@ -3409,9 +3409,15 @@ type ColFilters = {
   total: Set<string>;
   date: Set<string>;
   status: Set<string>;
+  sender: Set<string>;
+  phone: Set<string>;
+  address: Set<string>;
+  shipping: Set<string>;
+  grandTotal: Set<string>;
 };
 
 /* ── أيقونة فلتر Excel لكل عمود ── */
+function emptyColFilters(): ColFilters { return { customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set() }; }
 function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
   col: keyof ColFilters;
   colFilters: ColFilters;
@@ -3709,7 +3715,7 @@ export default function ShippingManifestPage() {
   const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
   const [colFilters, setColFilters] = useState<ColFilters>({
     customer: new Set(), governorate: new Set(), product: new Set(),
-    qty: new Set(), total: new Set(), date: new Set(), status: new Set(),
+    qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set(),
   });
   const [showColFilters, setShowColFilters] = useState(false);
   const [netLossOpen, setNetLossOpen] = useState(false);
@@ -3874,6 +3880,11 @@ export default function ShippingManifestPage() {
     switch (col) {
       case "customer":    return rep.customerName ?? "";
       case "governorate": return rep.city ?? "";
+      case "sender":      return (rep as any).senderName ?? "";
+      case "phone":       return rep.phone ?? "";
+      case "address":     return (rep as any).address ?? "";
+      case "shipping":    return String(group.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0));
+      case "grandTotal":  return String(group.reduce((s, o) => s + Number(o.totalPrice ?? 0) + Number((o as any).shippingCost ?? 0), 0));
       case "product":     return group.map(o => o.product).filter(Boolean).join(", ");
       case "qty":         return String(group.reduce((s, o) => s + o.quantity, 0));
       case "total":       return String(group.reduce((s, o) => s + o.totalPrice, 0));
@@ -3934,7 +3945,7 @@ export default function ShippingManifestPage() {
   };
 
   const clearAllColFilters = () => {
-    setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set() });
+    setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set() });
   };
 
   // ─── Selection helpers ───────────────────────────────────────────────────────
@@ -4747,19 +4758,27 @@ export default function ShippingManifestPage() {
           <span className="text-[11px] text-muted-foreground font-bold px-2.5 py-1 rounded-full bg-muted/40 border border-border/60">
             {displayGroups.length} شحنة
           </span>
+          <button
+            type="button"
+            onClick={() => { if (showColFilters) { setColFilters(emptyColFilters()); setSortCol(null); } setShowColFilters(v => !v); }}
+            className={`flex h-7 items-center gap-1.5 px-2.5 rounded-lg border text-xs font-medium transition-all shrink-0 ${showColFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
+          >
+            <svg viewBox="0 0 24 24" className="w-3 h-3" fill={showColFilters ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            {showColFilters ? "إلغاء الفلتر" : "إنشاء فلتر"}
+          </button>
         </div>
 
         <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
-          <span>الراسل</span>
-          <span>العميل</span>
-          <span>الهاتف</span>
-          <span>المحافظة</span>
-          <span>العنوان</span>
-          <span className="text-center">القطع</span>
-          <span className="text-left">الإجمالي</span>
-          <span className="text-center">سعر المنطقة</span>
-          <span className="text-center">الإجمالي الكلي</span>
-          <span className="text-center">الحالة</span>
+          <span className="flex items-center justify-between gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-between gap-1">العميل{showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-between gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-between gap-1">المحافظة{showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-between gap-1">العنوان{showColFilters && <ColFilterBtn col="address" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">القطع{showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-start gap-1">الإجمالي{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">سعر المنطقة{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">الإجمالي الكلي{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
         </div>
 
         {displayGroups.length === 0 ? (
@@ -5156,7 +5175,7 @@ export default function ShippingManifestPage() {
               onClick={(e) => {
                 e.stopPropagation();
                 if (showColFilters) {
-                  setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set() });
+                  setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set() });
                   setSortCol(null);
                 }
                 setShowColFilters(v => !v);
