@@ -4417,12 +4417,28 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
-  const effectiveShipping = groupManifestOrders(shippingCostOrdersPrint).reduce((s, group) => {
-    const rep = group[0] as any;
-    const zId = rep?.zoneId;
-    const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
-    return s + (zone?.price != null ? Number(zone.price) : courierCostPerShipmentPrint);
-  }, 0);
+  // ── تكلفة الشحن (طباعة) — منسوخة بالحرف من نفس منطق الكارت (displayedShippingCost)
+  // عشان الاتنين يطابقوا بعض 100%. بيحترم costMode بتاع الشركة (rep/zone) ويضيف
+  // repExtraCostTotal فوقه، بالظبط زي الكارت. أي تعديل هنا لازم يتعمل في الكارت كمان.
+  const companyAnyPrint = (rawManifest as any)?.company;
+  const courierShippingCostForCalcPrint = (() => {
+    if (companyAnyPrint?.costMode === "zone") {
+      let zIdsPrint: number[] = [];
+      if (companyAnyPrint?.zoneIds) {
+        try { zIdsPrint = JSON.parse(companyAnyPrint.zoneIds); } catch {}
+      } else if (companyAnyPrint?.zoneId) {
+        zIdsPrint = [companyAnyPrint.zoneId];
+      }
+      if (!zIdsPrint.length) return 0;
+      const zonePnlPrint = pnlSettlementZones.find(z => z.id === zIdsPrint[0]);
+      return zonePnlPrint?.price != null ? Number(zonePnlPrint.price) : 0;
+    }
+    return companyAnyPrint?.shippingCost != null ? Number(companyAnyPrint.shippingCost) : 0;
+  })();
+  const shippingCostGroupsCountPrint = groupManifestOrders(shippingCostOrdersPrint).length;
+  const shippingCostPrint = courierShippingCostForCalcPrint * shippingCostGroupsCountPrint;
+  const repExtraCostTotalPrint = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
+  const effectiveShipping = shippingCostPrint + repExtraCostTotalPrint;
 
 
   return (
