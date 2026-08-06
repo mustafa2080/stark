@@ -1374,6 +1374,7 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* تكلفة الشحن (المندوب) — شاملة أي إضافة خاصة بنوع الشحنة */}
           <div className="text-center px-1 flex flex-col items-center justify-center overflow-hidden gap-0.5">
+            {(() => { console.log('[DBG-SHIP-ROW]', { invoiceNum, deliveryStatus: rep?.deliveryStatus, returnReason: (rep as any)?.returnReason, parcelType: (rep as any)?.parcelType, repExtraCostRaw: (rep as any)?.repExtraCost, courierShippingCost, repExtraCost, repExtraReason }); return null; })()}
             {courierShippingCost != null ? (
               <span className="text-amber-500 font-semibold truncate">{formatCurrency(courierShippingCost)}</span>
             ) : (
