@@ -5070,6 +5070,9 @@ export default function ShippingManifestPage() {
                     })()}
                     repExtraCost={(() => {
                       const rf = group[0] as any;
+                      if (rf?.customerName?.includes('سارة') || rf?.customerName?.includes('ساره')) {
+                        console.log('[DBG-SARA3]', JSON.parse(JSON.stringify(rf)));
+                      }
                       const RETURN_REASONS_WITH_SHIPPING2 = ["refused_paid", "refused_unpaid", "quality"];
                       const incurred =
                         rf?.deliveryStatus === "delivered" ||
