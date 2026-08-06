@@ -5034,10 +5034,10 @@ export default function ShippingManifestPage() {
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
                     courierShippingCost={(() => {
-                      // تكلفة الشحن تُحسب فقط لو تمت عملية الشحن فعليًا:
-                      // مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع بأحد الأسباب الثلاثة
-                      // (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
-                      // أي حالة أو سبب تاني = صفر (مفيش شحن اتحسب عليه فعليًا).
+                      // السعر الأساسي (rep الثابت أو zone) بيظهر دايمًا بغض النظر عن حالة
+                      // الطلبية — نفس منطق بيان الأدمن بالحرف. الإضافة (repExtraCost) بس
+                      // هي اللي بتتوقف على shippingWasIncurred (تمت عملية الشحن فعليًا:
+                      // مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع بأحد الأسباب الثلاثة).
                       const repFirst = group[0] as any;
                       const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
                       const shippingWasIncurred =
@@ -5045,13 +5045,12 @@ export default function ShippingManifestPage() {
                         repFirst?.deliveryStatus === "partial_delivered" ||
                         repFirst?.deliveryStatus === "partial_received" ||
                         (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
-                      if (!shippingWasIncurred) return 0;
                       // لو الشركة شغالة بنظام "zone": التكلفة = سعر أول منطقة مرتبطة بالشركة
                       // (من جدول shipment_zones)، مش company.shippingCost (ده بيبقى فاضي غالبًا
                       // لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
                       // لو الشركة شغالة بنظام "rep": التكلفة = company.shippingCost اليدوي.
                       const companyForCost = rawManifest?.company as any;
-                      const repExtra = Number((repFirst as any)?.repExtraCost ?? 0);
+                      const repExtra = shippingWasIncurred ? Number((repFirst as any)?.repExtraCost ?? 0) : 0;
                       if (companyForCost?.costMode === "zone") {
                         let zIdsForCost: number[] = [];
                         if (companyForCost?.zoneIds) {
