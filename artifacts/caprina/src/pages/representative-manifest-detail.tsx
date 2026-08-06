@@ -3841,6 +3841,9 @@ export default function ShippingManifestPage() {
         returnReason: item.returnReason ?? null,
         returnValueReceived: (item as any).returnValueReceived != null ? Number((item as any).returnValueReceived) : null,
         deliveredValueReceived: (item as any).deliveredValueReceived != null ? Number((item as any).deliveredValueReceived) : null,
+        parcelType: sh?.parcelType ?? null,
+        repExtraCost: (item as any).repExtraCost != null ? Number((item as any).repExtraCost) : 0,
+        repExtraReason: (item as any).repExtraReason ?? null,
       } as any;
     });
     const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
@@ -5070,9 +5073,6 @@ export default function ShippingManifestPage() {
                     })()}
                     repExtraCost={(() => {
                       const rf = group[0] as any;
-                      if (rf?.customerName?.includes('سارة') || rf?.customerName?.includes('ساره')) {
-                        console.log('[DBG-SARA3]', JSON.parse(JSON.stringify(rf)));
-                      }
                       const RETURN_REASONS_WITH_SHIPPING2 = ["refused_paid", "refused_unpaid", "quality"];
                       const incurred =
                         rf?.deliveryStatus === "delivered" ||
