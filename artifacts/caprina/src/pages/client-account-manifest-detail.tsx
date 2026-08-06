@@ -3904,25 +3904,15 @@ export default function ShippingManifestPage() {
 
   const colFilterHasActive = Object.values(colFilters).some(s => s.size > 0);
 
-  // ── إخفاء الكروت اللي لسه معلقة (اللي ظاهر عليها زرار "تقفيل") ──
-  const unlockedFilteredGroups = useMemo(() => {
-    return colFilteredGroups.filter(group => {
-      const statuses = [...new Set(group.map(o => o.deliveryStatus))];
-      const hasMixedPartial = statuses.includes("partial_received") && statuses.every(s => s === "partial_received" || s === "pending" || s === "postponed");
-      const groupStatus = statuses.length === 1 ? statuses[0] : hasMixedPartial ? "partial_received" : "pending";
-      return groupStatus !== "pending";
-    });
-  }, [colFilteredGroups]);
-
   const displayGroups = useMemo(() => {
-    if (!sortCol) return unlockedFilteredGroups;
-    return [...unlockedFilteredGroups].sort((a, b) => {
+    if (!sortCol) return colFilteredGroups;
+    return [...colFilteredGroups].sort((a, b) => {
       const va = getGroupVal(sortCol, a);
       const vb = getGroupVal(sortCol, b);
       const cmp = va.localeCompare(vb, "ar", { numeric: true });
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [unlockedFilteredGroups, sortCol, sortDir]);
+  }, [colFilteredGroups, sortCol, sortDir]);
 
   // القيم المتاحة لكل عمود بناءً على البيانات الحالية بعد باقي الفلاتر
   const getColOptions = (col: keyof ColFilters): string[] => {
@@ -5137,6 +5127,7 @@ export default function ShippingManifestPage() {
       {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} isShipmentManifest={true} />}
 
       {/* ─── Orders Table ─── */}
+      {false && (
       <Card className="border-border bg-card overflow-visible print:break-inside-avoid">
         <div
           className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-border cursor-pointer hover:bg-muted/10 transition-colors"
@@ -5364,6 +5355,7 @@ export default function ShippingManifestPage() {
         )}
       </Card>
 
+      )}
       {/* ─── حاوية المرتجعات والجزئي لسه عند شركة الشحن ─── */}
       {(() => {
         const pendingReturnOrders = (manifest.orders ?? []).filter(o =>
