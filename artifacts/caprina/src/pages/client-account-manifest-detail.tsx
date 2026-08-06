@@ -4815,6 +4815,15 @@ export default function ShippingManifestPage() {
                   <div className="text-center font-bold text-violet-400">{formatCurrency(total + shipping)}</div>
                   <div className="text-center">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
+                    {status === "returned" && (() => {
+                      const returnedOrder = group.find(o => o.deliveryStatus === "returned" && (o as any).returnReason);
+                      const reason = returnedOrder ? (returnedOrder as any).returnReason : null;
+                      return reason ? (
+                        <p className="text-[9px] text-red-400 mt-1 truncate max-w-[100px] mx-auto" title={returnReasonLabel(reason)}>
+                          {returnReasonLabel(reason)}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
 
@@ -4824,7 +4833,18 @@ export default function ShippingManifestPage() {
                       <p className="font-bold truncate">{rep.customerName}</p>
                       <p className="text-[10px] text-muted-foreground">{rep.phone}</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full border shrink-0 ${meta.cls}`}>{meta.label}</span>
+                    <div className="text-left shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
+                      {status === "returned" && (() => {
+                        const returnedOrder = group.find(o => o.deliveryStatus === "returned" && (o as any).returnReason);
+                        const reason = returnedOrder ? (returnedOrder as any).returnReason : null;
+                        return reason ? (
+                          <p className="text-[9px] text-red-400 mt-1 max-w-[120px] truncate" title={returnReasonLabel(reason)}>
+                            {returnReasonLabel(reason)}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
                   {(rep as any).senderName && <p className="text-[10px] text-muted-foreground">الراسل: {(rep as any).senderName}</p>}
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1">
