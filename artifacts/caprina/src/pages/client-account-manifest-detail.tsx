@@ -4824,6 +4824,15 @@ export default function ShippingManifestPage() {
                         </p>
                       ) : null;
                     })()}
+                    {status !== "returned" && status !== "delivered" && (() => {
+                      const notedOrder = group.find(o => o.deliveryNote && o.deliveryNote.trim());
+                      const noteText = notedOrder ? notedOrder.deliveryNote : null;
+                      return noteText ? (
+                        <p className="text-[9px] text-orange-400 mt-1 leading-tight text-center" title={noteText}>
+                          {noteText}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
 
@@ -4841,6 +4850,15 @@ export default function ShippingManifestPage() {
                         return reason ? (
                           <p className="text-[9px] text-red-400 mt-1 leading-tight text-left whitespace-normal" title={returnReasonLabel(reason)}>
                             {returnReasonLabel(reason)}
+                          </p>
+                        ) : null;
+                      })()}
+                      {status !== "returned" && status !== "delivered" && (() => {
+                        const notedOrder = group.find(o => o.deliveryNote && o.deliveryNote.trim());
+                        const noteText = notedOrder ? notedOrder.deliveryNote : null;
+                        return noteText ? (
+                          <p className="text-[9px] text-orange-400 mt-1 leading-tight text-left whitespace-normal" title={noteText}>
+                            {noteText}
                           </p>
                         ) : null;
                       })()}
