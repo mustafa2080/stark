@@ -4224,52 +4224,40 @@ export default function ShippingManifestPage() {
     }
   };
 
-  // returned: يستبعد بالكامل من حسابات الطباعة دايمًا. partial_delivered/partial_received:
-  // يفضلوا لو مش لسه عند الشحن — بنفس منطق كارت الشاشة بالضبط.
-  const ordersForPnlPrint = (manifest.orders ?? []).filter(o => {
-    if (o.deliveryStatus === "returned") {
-      const RETURN_REASONS_IN_PNL_PRINT_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
-      if (!RETURN_REASONS_IN_PNL_PRINT_LOCAL.includes((o as any).returnReason)) return false;
-      return !isStillAtShipping(o);
-    }
-    if (o.deliveryStatus === "partial_delivered") return true;
-    if (o.deliveryStatus === "partial_received") {
-      return !isStillAtShipping(o);
-    }
-    return true;
-  });
+  // ── حسابات الطباعة — منسوخة بالحرف من ExportDialog (الإكسل) عشان الاتنين
+  // يطابقوا بعض 100%. أي تعديل هنا لازم يتعمل بالظبط في ExportDialog كمان.
+  const safeOrdersPrint = manifest.orders ?? [];
+  const deliveredGrossPrint = safeOrdersPrint
+    .filter(o => o.deliveryStatus === "delivered")
+    .reduce((sum, o) => {
+      const dvr = (o as any).deliveredValueReceived;
+      return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+    }, 0);
+  const partialGrossPrint = safeOrdersPrint
+    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
+    .reduce((sum, o) => {
+      const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
+      if (returnReceived == null) return sum;
+      if (o.partialQuantity == null) return sum;
+      if (o.deliveryStatus === "partial_delivered") {
+        return sum + Number(o.partialQuantity);
+      }
+      if (o.quantity <= 0) return sum;
+      const unitPrice = (o as any).unitPrice != null
+        ? Number((o as any).unitPrice)
+        : Number(o.totalPrice) / Number(o.quantity);
+      return sum + Math.round(unitPrice * Number(o.partialQuantity));
+    }, 0);
   const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
-  // partial_received: يدخل الحسابات المالية (نسخة الطباعة) بس لو اتأكد استلامه فعليًا في البيان ده نفسه
-  const printDeliveredOrders = ordersForPnlPrint.filter(o => {
-    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-    if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
-    return false;
-  });
-  // إجمالي الإيرادات = القيمة المستلمة فعليًا (مسلَّم كامل + جزء مُسلَّم/مُستلم + مرتجع بأسباب مالية معتبرة)
-  const totalCollected = printDeliveredOrders.reduce((s, o) => {
-    if (o.deliveryStatus === "partial_delivered" && o.partialQuantity != null) {
-      return s + Number(o.partialQuantity);
-    }
-    if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
-      const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : (o.quantity > 0 ? Number(o.totalPrice) / Number(o.quantity) : 0);
-      return s + unitPrice * Number(o.partialQuantity);
-    }
-    // مسلَّم بالكامل: القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا الإجمالي العادي
-    const dvrPrint = (o as any).deliveredValueReceived;
-    return s + (dvrPrint != null ? Number(dvrPrint) : Number(o.totalPrice ?? 0));
-  }, 0) + ordersForPnlPrint
+  const returnedCollectedPrint = safeOrdersPrint
     .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
-    .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
-  // رسوم الشحن = تكلفة الشحن الثابتة على شركة الشحن × عدد الطلبات الداخلة في الحساب (مسلَّم/جزئي/مرتجع بسبب مالي)
-  const courierCostPerShipmentPrint = Number((manifest as any)?.company?.shippingCost ?? 0);
-  // partial_received: يدخل تكلفة الشحن (طباعة) بس لو اتأكد استلامه فعليًا (نفس منطق printDeliveredOrders فوق)
-  const shippingCostOrdersPrint = ordersForPnlPrint.filter(o => {
+    .reduce((sum, o) => sum + Number((o as any).returnValueReceived ?? 0), 0);
+  const totalCollected = deliveredGrossPrint + partialGrossPrint + returnedCollectedPrint;
+  const shippingCostOrdersPrint = safeOrdersPrint.filter(o => {
     if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
-  // رسوم الشحن الإضافية بتاعة نوع الشحنة (منطقة متطرفة/قابل للكسر...) — بتتحسب من نفس مجموعة
-  // shippingCostOrdersPrint المؤهلة للشحن (تشمل partial_received)، مش من stats.repExtraCostTotal
-  // لأن الأخيرة بتستخدم شرط أهلية مختلف شوية في الباك إند (بيستبعد partial_received).
+  const courierCostPerShipmentPrint = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
   const repExtraCostTotalPrint = groupManifestOrders(shippingCostOrdersPrint)
     .reduce((s, group) => s + Number((group[0] as any).repExtraCost ?? 0), 0);
   const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length
