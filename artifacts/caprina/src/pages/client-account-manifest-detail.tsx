@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, type ElementType } from "react";
 import { createPortal } from "react-dom";
 import ExcelJS from "exceljs";
 import { useParams, Link } from "wouter";
@@ -48,13 +48,18 @@ import {
 import {
   ArrowRight,
   Truck,
+  MapPin,
+  Phone,
   Package,
+  PackageX,
   TrendingUp,
   TrendingDown,
   AlertCircle,
   CheckCircle2,
   RotateCcw,
   Clock,
+  Sparkles,
+  Layers,
   Printer,
   Lock,
   Unlock,
@@ -3627,6 +3632,56 @@ function ReturnReceivedButton({
   );
 }
 
+function ClientLookCard({ icon: Icon, value, label, tone, compact = false }: {
+  icon: ElementType;
+  value: number;
+  label: string;
+  tone: "amber" | "rose" | "sky" | "violet" | "emerald" | "muted" | "orange" | "red";
+  compact?: boolean;
+}) {
+  const styles = {
+    amber: "from-amber-500/15 via-amber-500/5 to-transparent border-amber-500/30 text-amber-300 bg-amber-500/15 border-amber-500/30",
+    rose: "from-rose-500/15 via-rose-500/5 to-transparent border-rose-500/30 text-rose-300 bg-rose-500/15 border-rose-500/30",
+    sky: "from-sky-500/15 via-sky-500/5 to-transparent border-sky-500/30 text-sky-300 bg-sky-500/15 border-sky-500/30",
+    violet: "from-violet-500/15 via-violet-500/5 to-transparent border-violet-500/30 text-violet-300 bg-violet-500/15 border-violet-500/30",
+    emerald: "from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/30 text-emerald-300 bg-emerald-500/15 border-emerald-500/30",
+    muted: "from-gray-500/15 via-gray-500/5 to-transparent border-gray-500/30 text-foreground bg-gray-500/15 border-gray-500/30",
+    orange: "from-orange-500/15 via-orange-500/5 to-transparent border-orange-500/30 text-orange-300 bg-orange-500/15 border-orange-500/30",
+    red: "from-red-500/15 via-red-500/5 to-transparent border-red-500/30 text-red-300 bg-red-500/15 border-red-500/30",
+  }[tone];
+  const [wrap, iconBg] = styles.split(" bg-");
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${wrap} p-3 flex flex-col items-center gap-1.5 shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5`}>
+      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center bg-${iconBg}`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <span className={`${compact ? "text-xl" : "text-2xl"} font-black`}>{value}</span>
+      <span className="text-[10px] text-muted-foreground text-center">{label}</span>
+    </div>
+  );
+}
+
+function ClientMoneyCard({ label, value, tone, className = "" }: {
+  label: string;
+  value: string;
+  tone: "emerald" | "sky" | "violet";
+  className?: string;
+}) {
+  const styles = {
+    emerald: "border-emerald-500/25 from-emerald-500/10 via-emerald-500/[0.03] text-emerald-300",
+    sky: "border-sky-500/25 from-sky-500/10 via-sky-500/[0.03] text-sky-300",
+    violet: "border-violet-500/25 from-violet-500/10 via-violet-500/[0.03] text-violet-300",
+  }[tone];
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${styles} to-transparent p-4 shadow-lg shadow-black/10 ${className}`}>
+      <p className="relative text-[11px] text-muted-foreground mb-1">{label}</p>
+      <p className="relative text-xl font-black">{value}</p>
+    </div>
+  );
+}
+
 export default function ShippingManifestPage() {
   const params = useParams();
   const id = Number(params.id);
@@ -4217,6 +4272,27 @@ export default function ShippingManifestPage() {
   const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
   const newOrdersCount = groupedPendingCount;
+  const totalCod = (manifest.orders ?? []).reduce((sum, order) => sum + Number(order.totalPrice ?? 0), 0);
+  const totalShippingCost = (manifest.orders ?? []).reduce((sum, order) => sum + Number((order as any).shippingCost ?? 0), 0);
+  const returnedNotArrived = (manifest.orders ?? []).filter(
+    (order) =>
+      (order.deliveryStatus === "returned" || order.deliveryStatus === "partial_delivered" || order.deliveryStatus === "partial_received") &&
+      (order as any).returnReceived !== 1
+  ).length;
+  const stillAtShippingRows = (manifest.orders ?? []).filter(
+    (order) =>
+      order.deliveryStatus === "delayed" ||
+      order.deliveryStatus === "postponed" ||
+      ((order.deliveryStatus === "returned" || order.deliveryStatus === "partial_delivered" || order.deliveryStatus === "partial_received") &&
+        (order as any).returnReceived !== 1)
+  );
+  const compactStatusMeta = (status: DeliveryStatus) => {
+    if (status === "delivered") return { label: "مسلَّم ✓", cls: "border-emerald-700 bg-emerald-900/20 text-emerald-400" };
+    if (status === "partial_delivered" || status === "partial_received") return { label: "مسلَّم جزئي", cls: "border-teal-700 bg-teal-900/20 text-teal-400" };
+    if (status === "returned") return { label: "مرتجع", cls: "border-red-700 bg-red-900/20 text-red-400" };
+    if (status === "delayed" || status === "postponed") return { label: "مؤجل", cls: "border-orange-700 bg-orange-900/20 text-orange-400" };
+    return { label: "قيد الانتظار", cls: "border-border text-muted-foreground" };
+  };
 
   return (
     <>
@@ -4615,6 +4691,169 @@ export default function ShippingManifestPage() {
         </div>
       )}
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <ClientLookCard icon={Clock} value={groupedPostponedCount} label="مؤجل" tone="amber" />
+        <ClientLookCard icon={PackageX} value={returnedNotArrived} label="مرتجع لم يصل" tone="rose" />
+        <ClientLookCard icon={Sparkles} value={newOrdersCount} label="الشحنات الجديدة" tone="sky" />
+        <ClientLookCard icon={Layers} value={manifest.orders.length} label="الإجمالي" tone="violet" />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <ClientLookCard icon={Package} value={manifest.orders.length} label="إجمالي الشحنات" tone="violet" compact />
+        <ClientLookCard icon={CheckCircle2} value={groupedDeliveredCount} label="مسلَّم" tone="emerald" compact />
+        <ClientLookCard icon={Clock} value={groupedPendingCount} label="قيد الانتظار" tone="muted" compact />
+        <ClientLookCard icon={AlertCircle} value={groupedPostponedCount} label="مؤجل" tone="orange" compact />
+        <ClientLookCard icon={RotateCcw} value={groupedReturnedCount} label="مرتجع" tone="red" compact />
+      </div>
+
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-md shadow-black/10">
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="text-muted-foreground font-bold">نسبة التسليم</span>
+          <span className="font-black text-emerald-400 text-lg drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">{screenDeliveryRate}%</span>
+        </div>
+        <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-l from-emerald-400 to-emerald-600 rounded-full transition-all shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+            style={{ width: `${screenDeliveryRate}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <ClientMoneyCard label="إجمالي قيمة الشحنات" value={formatCurrency(totalCod)} tone="emerald" />
+        <ClientMoneyCard label="إجمالي سعر المنطقة" value={formatCurrency(totalShippingCost)} tone="sky" />
+        <ClientMoneyCard label="الإجمالي الكلي" value={formatCurrency(totalCod + totalShippingCost)} tone="violet" className="col-span-2 sm:col-span-1" />
+      </div>
+
+      <div className="relative">
+        <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={manifestCustomerSearch}
+          onChange={(e) => setManifestCustomerSearch(e.target.value)}
+          placeholder="ابحث باسم العميل أو رقم الشحنة أو الهاتف..."
+          className="w-full h-11 rounded-xl bg-muted/25 border border-border pr-10 pl-3 text-sm outline-none focus:border-primary/50 focus:bg-muted/35 transition-all"
+          dir="rtl"
+        />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-muted/10 overflow-hidden shadow-lg shadow-black/10">
+        <div className="px-4 py-3.5 border-b border-border flex items-center justify-between bg-gradient-to-l from-muted/30 to-transparent">
+          <p className="text-sm font-black flex items-center gap-2">
+            <Package className="w-4 h-4 text-primary" />
+            الشحنات في البيان
+          </p>
+          <span className="text-[11px] text-muted-foreground font-bold px-2.5 py-1 rounded-full bg-muted/40 border border-border/60">
+            {displayGroups.length} شحنة
+          </span>
+        </div>
+
+        <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
+          <span>الراسل</span>
+          <span>العميل</span>
+          <span>الهاتف</span>
+          <span>المحافظة</span>
+          <span>العنوان</span>
+          <span className="text-center">القطع</span>
+          <span className="text-left">الإجمالي</span>
+          <span className="text-center">سعر المنطقة</span>
+          <span className="text-center">الإجمالي الكلي</span>
+          <span className="text-center">الحالة</span>
+        </div>
+
+        {displayGroups.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground">لا توجد نتائج مطابقة</div>
+        ) : (
+          displayGroups.map((group) => {
+            const rep = group[0];
+            const status = groupManifestStatus(group) as DeliveryStatus;
+            const meta = compactStatusMeta(status);
+            const total = group.reduce((sum, order) => sum + Number(order.totalPrice ?? 0), 0);
+            const shipping = group.reduce((sum, order) => sum + Number((order as any).shippingCost ?? 0), 0);
+            const quantity = group.reduce((sum, order) => sum + Number(order.quantity ?? 0), 0);
+            const key = group.map((order) => order.id).join("-");
+            return (
+              <div key={`client-look-${key}`}>
+                <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_110px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
+                  <div className="min-w-0 pr-2 text-muted-foreground truncate">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
+                  <div className="min-w-0 pr-2">
+                    <p className="font-bold truncate">{rep.customerName}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">{rep.invoiceNumber}</p>
+                  </div>
+                  <div className="min-w-0 pr-2 text-muted-foreground flex items-center gap-1">
+                    <Phone className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{rep.phone}</span>
+                  </div>
+                  <div className="min-w-0 pr-2 font-semibold truncate">{rep.city || <span className="text-muted-foreground/40">—</span>}</div>
+                  <div className="min-w-0 pr-2 flex items-start gap-1">
+                    <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+                    <span className="truncate text-muted-foreground">{(rep as any).address || "—"}</span>
+                  </div>
+                  <div className="text-center font-bold">{quantity}</div>
+                  <div className="text-left font-bold">{formatCurrency(total)}</div>
+                  <div className="text-center font-semibold text-sky-400">{formatCurrency(shipping)}</div>
+                  <div className="text-center font-bold text-violet-400">{formatCurrency(total + shipping)}</div>
+                  <div className="text-center">
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
+                  </div>
+                </div>
+
+                <div className="md:hidden px-4 py-3 border-b border-border/40 flex flex-col gap-1.5 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-bold truncate">{rep.customerName}</p>
+                      <p className="text-[10px] text-muted-foreground">{rep.phone}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full border shrink-0 ${meta.cls}`}>{meta.label}</span>
+                  </div>
+                  {(rep as any).senderName && <p className="text-[10px] text-muted-foreground">الراسل: {(rep as any).senderName}</p>}
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <MapPin className="w-2.5 h-2.5" />{rep.city}{(rep as any).address ? ` — ${(rep as any).address}` : ""}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] text-muted-foreground">{rep.invoiceNumber}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">{quantity} قطعة</span>
+                      <span className="font-bold text-primary">{formatCurrency(total)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground">سعر المنطقة</span>
+                    <span className="font-bold text-sky-400">{formatCurrency(shipping)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground">الإجمالي الكلي</span>
+                    <span className="font-bold text-violet-400">{formatCurrency(total + shipping)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {stillAtShippingRows.length > 0 && (
+        <div className="relative overflow-hidden rounded-2xl border border-orange-700/50 bg-gradient-to-br from-orange-950/30 via-orange-950/10 to-transparent shadow-lg shadow-black/10">
+          <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full blur-3xl opacity-30 bg-orange-500/30" />
+          <div className="relative px-4 py-3 border-b border-orange-800/40 flex items-center gap-2">
+            <Truck className="w-4 h-4 text-orange-400" />
+            <p className="text-sm font-black text-orange-300">بضاعة لسه مع مندوب الشحن ({stillAtShippingRows.length})</p>
+          </div>
+          {stillAtShippingRows.map((order) => {
+            const meta = compactStatusMeta(order.deliveryStatus as DeliveryStatus);
+            return (
+              <div key={order.id} className="px-4 py-3 border-b border-orange-800/20 last:border-0 flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold truncate">{order.customerName}</p>
+                  <p className="text-[11px] text-muted-foreground">{order.phone} — {order.invoiceNumber}</p>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-1 rounded-full border shrink-0 ${meta.cls}`}>{meta.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {false && (<>
       {/* ─── KPI Cards ─── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="border-border bg-card p-4">
@@ -4820,6 +5059,8 @@ export default function ShippingManifestPage() {
           </div>
         </div>
       </div>
+
+      </>)}
 
       {/* ─── Delivery Rate Bar ─── */}
       <Card className="border-border bg-card p-4">
