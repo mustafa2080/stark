@@ -3904,15 +3904,25 @@ export default function ShippingManifestPage() {
 
   const colFilterHasActive = Object.values(colFilters).some(s => s.size > 0);
 
+  // ── إخفاء الكروت اللي لسه معلقة (اللي ظاهر عليها زرار "تقفيل") ──
+  const unlockedFilteredGroups = useMemo(() => {
+    return colFilteredGroups.filter(group => {
+      const statuses = [...new Set(group.map(o => o.deliveryStatus))];
+      const hasMixedPartial = statuses.includes("partial_received") && statuses.every(s => s === "partial_received" || s === "pending" || s === "postponed");
+      const groupStatus = statuses.length === 1 ? statuses[0] : hasMixedPartial ? "partial_received" : "pending";
+      return groupStatus !== "pending";
+    });
+  }, [colFilteredGroups]);
+
   const displayGroups = useMemo(() => {
-    if (!sortCol) return colFilteredGroups;
-    return [...colFilteredGroups].sort((a, b) => {
+    if (!sortCol) return unlockedFilteredGroups;
+    return [...unlockedFilteredGroups].sort((a, b) => {
       const va = getGroupVal(sortCol, a);
       const vb = getGroupVal(sortCol, b);
       const cmp = va.localeCompare(vb, "ar", { numeric: true });
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [colFilteredGroups, sortCol, sortDir]);
+  }, [unlockedFilteredGroups, sortCol, sortDir]);
 
   // القيم المتاحة لكل عمود بناءً على البيانات الحالية بعد باقي الفلاتر
   const getColOptions = (col: keyof ColFilters): string[] => {
