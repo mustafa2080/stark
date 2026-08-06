@@ -5044,6 +5044,9 @@ export default function ShippingManifestPage() {
                       // لو الشركة شغالة بنظام "rep": التكلفة = company.shippingCost اليدوي.
                       const companyForCost = rawManifest?.company as any;
                       const repExtra = Number((repFirst as any)?.repExtraCost ?? 0);
+                      if ((repFirst as any)?.invoiceNumber === "SHP26070407") {
+                        console.log('[DBG-SARA]', { parcelType: (repFirst as any)?.parcelType, repExtraCostRaw: (repFirst as any)?.repExtraCost, repExtra, shipment: (repFirst as any)?.shipment, fullOrder: repFirst });
+                      }
                       if (companyForCost?.costMode === "zone") {
                         let zIdsForCost: number[] = [];
                         if (companyForCost?.zoneIds) {
