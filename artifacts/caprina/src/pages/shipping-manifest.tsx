@@ -4243,7 +4243,8 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
-  const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length;
+  const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length
+    + groupManifestOrders(shippingCostOrdersPrint).reduce((s, group) => s + Number((group[0] as any).repExtraCost ?? 0), 0);
 
 
   return (
