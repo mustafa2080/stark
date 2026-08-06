@@ -1374,15 +1374,17 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* تكلفة الشحن (المندوب) — شاملة أي إضافة خاصة بنوع الشحنة */}
           <div className="text-center px-1 flex flex-col items-center justify-center overflow-hidden gap-0.5">
-            {(() => { if (invoiceNum?.includes('26070407') || rep?.customerName?.includes('سارة')) { console.log('%c[DBG-SARA]', 'color:#0f0;font-weight:bold', JSON.stringify({ invoiceNum, customerName: rep?.customerName, deliveryStatus: rep?.deliveryStatus, returnReason: (rep as any)?.returnReason, parcelType: (rep as any)?.parcelType, repExtraCostRaw: (rep as any)?.repExtraCost, courierShippingCost, repExtraCost, repExtraReason }, null, 2)); } return null; })()}
+            {/* شحن المندوب المعروض = الأساسي + إضافة نوع الشحنة (out_zone وغيره) مجموعين في رقم واحد */}
             {courierShippingCost != null ? (
-              <span className="text-amber-500 font-semibold truncate">{formatCurrency(courierShippingCost)}</span>
+              <span className="text-amber-500 font-semibold truncate">
+                {formatCurrency(Number(courierShippingCost) + Number(repExtraCost || 0))}
+              </span>
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
             {repExtraCost > 0 && (
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 truncate max-w-[90px]">
-                {repExtraReason ?? "نوع الشحنة"} +{formatCurrency(repExtraCost)}
+                شامل {repExtraReason ?? "نوع الشحنة"} +{formatCurrency(repExtraCost)}
               </span>
             )}
           </div>
