@@ -1383,8 +1383,11 @@ function InvoiceGroupDeliveryRow({
               <span className="text-muted-foreground/40">—</span>
             )}
             {repExtraCost > 0 && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 truncate max-w-[90px]">
-                شامل {repExtraReason ?? "نوع الشحنة"} +{formatCurrency(repExtraCost)}
+              <span
+                title={`${repExtraReason ?? "نوع الشحنة"} +${formatCurrency(repExtraCost)}`}
+                className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 whitespace-normal break-words text-center leading-tight max-w-[95px]"
+              >
+                {repExtraReason ?? "نوع الشحنة"} +{formatCurrency(repExtraCost)}
               </span>
             )}
           </div>
