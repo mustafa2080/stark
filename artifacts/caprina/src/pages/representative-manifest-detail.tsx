@@ -5070,9 +5070,6 @@ export default function ShippingManifestPage() {
                     })()}
                     repExtraCost={(() => {
                       const rf = group[0] as any;
-                      if (rf?.invoiceNumber === "SHP26070407") {
-                        console.log('[DBG-SARA2]', { parcelType: rf?.parcelType, repExtraCostRaw: rf?.repExtraCost, shipment: rf?.shipment });
-                      }
                       const RETURN_REASONS_WITH_SHIPPING2 = ["refused_paid", "refused_unpaid", "quality"];
                       const incurred =
                         rf?.deliveryStatus === "delivered" ||
