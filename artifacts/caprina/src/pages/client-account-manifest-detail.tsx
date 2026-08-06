@@ -4706,6 +4706,7 @@ export default function ShippingManifestPage() {
         <ClientLookCard icon={RotateCcw} value={groupedReturnedCount} label="مرتجع" tone="red" compact />
       </div>
 
+      {false && (
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-md shadow-black/10">
         <div className="flex items-center justify-between text-xs mb-2">
           <span className="text-muted-foreground font-bold">نسبة التسليم</span>
@@ -4718,6 +4719,7 @@ export default function ShippingManifestPage() {
           />
         </div>
       </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <ClientMoneyCard label="إجمالي قيمة الشحنات" value={formatCurrency(totalCod)} tone="emerald" />
@@ -4831,7 +4833,7 @@ export default function ShippingManifestPage() {
         )}
       </div>
 
-      {stillAtShippingRows.length > 0 && (
+      {false && stillAtShippingRows.length > 0 && (
         <div className="relative overflow-hidden rounded-2xl border border-orange-700/50 bg-gradient-to-br from-orange-950/30 via-orange-950/10 to-transparent shadow-lg shadow-black/10">
           <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full blur-3xl opacity-30 bg-orange-500/30" />
           <div className="relative px-4 py-3 border-b border-orange-800/40 flex items-center gap-2">
@@ -5102,7 +5104,7 @@ export default function ShippingManifestPage() {
       </Card>
 
       {/* ─── Invoice Section ─── */}
-      {canViewFinancials && (
+      {false && canViewFinancials && (
         <Card className="border-border bg-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <Banknote className="w-4 h-4 text-muted-foreground" />
@@ -5124,7 +5126,7 @@ export default function ShippingManifestPage() {
       )}
 
       {/* ─── Settlement Card ─── */}
-      {canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} isShipmentManifest={true} />}
+      {false && canViewFinancials && <SettlementCard manifest={manifest} onSaved={refetch} isShipmentManifest={true} />}
 
       {/* ─── Orders Table ─── */}
       {false && (
