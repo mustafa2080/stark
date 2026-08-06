@@ -2620,8 +2620,10 @@ function ExportDialog({
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_XLS_TOP.includes((o as any).returnReason);
   });
   const courierCostPerShipmentXlsTop = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+  const repExtraCostTotalXlsTop = groupManifestOrders(shippingCostOrdersXlsTop)
+    .reduce((s, group) => s + Number((group[0] as any).repExtraCost ?? 0), 0);
   const effectiveShipping = courierCostPerShipmentXlsTop * groupManifestOrders(shippingCostOrdersXlsTop).length
-    + Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
+    + repExtraCostTotalXlsTop;
   const { brand } = useBrand();
   const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
@@ -2845,7 +2847,9 @@ function ExportDialog({
         ((rep as any).deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_XLS.includes((rep as any).returnReason));
       const repExtraCostXls = shippingWasIncurredXls ? Number((rep as any).repExtraCost ?? 0) : 0;
       const repExtraReasonXls = (rep as any).repExtraReason ?? "نوع الشحنة";
-      const courierCost = (shippingWasIncurredXls ? effectiveShipping : 0) + repExtraCostXls;
+      // ملحوظة مهمة: courierCostPerShipmentXlsTop هو سعر الشحنة الواحدة الثابت (مش effectiveShipping
+      // اللي هو إجمالي كل شحنات البيان — استخدامه هنا غلط بيكرر نفس الإجمالي في كل صف).
+      const courierCost = (shippingWasIncurredXls ? courierCostPerShipmentXlsTop : 0) + repExtraCostXls;
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
       const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
       const deliveryLabel = statuses.length === 1
@@ -4263,10 +4267,11 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
-  // رسوم الشحن الإضافية بتاعة نوع الشحنة (منطقة متطرفة/قابل للكسر...) — نفس المصدر المستخدم
-  // في كارت "إجمالي تكلفة الشحن" بالشاشة بالظبط (stats.repExtraCostTotal من الباك إند)،
-  // بدل إعادة حسابها يدويًا هنا وهي ممكن تختلف لو منطق الأهلية اتغيّر مستقبلًا.
-  const repExtraCostTotalPrint = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
+  // رسوم الشحن الإضافية بتاعة نوع الشحنة (منطقة متطرفة/قابل للكسر...) — بتتحسب من نفس مجموعة
+  // shippingCostOrdersPrint المؤهلة للشحن (تشمل partial_received)، مش من stats.repExtraCostTotal
+  // لأن الأخيرة بتستخدم شرط أهلية مختلف شوية في الباك إند (بيستبعد partial_received).
+  const repExtraCostTotalPrint = groupManifestOrders(shippingCostOrdersPrint)
+    .reduce((s, group) => s + Number((group[0] as any).repExtraCost ?? 0), 0);
   const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length
     + repExtraCostTotalPrint;
 
