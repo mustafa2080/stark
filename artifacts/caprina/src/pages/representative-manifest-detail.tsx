@@ -5035,9 +5035,18 @@ export default function ShippingManifestPage() {
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
                     courierShippingCost={(() => {
-                      // تكلفة الشحن بتظهر دايمًا بغض النظر عن حالة الطلبية أو سبب
-                      // المرتجع (موحّدة مع بيان الأدمن).
+                      // تكلفة الشحن تُحسب فقط لو تمت عملية الشحن فعليًا:
+                      // مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع بأحد الأسباب الثلاثة
+                      // (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
+                      // أي حالة أو سبب تاني = صفر (مفيش شحن اتحسب عليه فعليًا).
                       const repFirst = group[0] as any;
+                      const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
+                      const shippingWasIncurred =
+                        repFirst?.deliveryStatus === "delivered" ||
+                        repFirst?.deliveryStatus === "partial_delivered" ||
+                        repFirst?.deliveryStatus === "partial_received" ||
+                        (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
+                      if (!shippingWasIncurred) return 0;
                       // لو الشركة شغالة بنظام "zone": التكلفة = سعر أول منطقة مرتبطة بالشركة
                       // (من جدول shipment_zones)، مش company.shippingCost (ده بيبقى فاضي غالبًا
                       // لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
@@ -5064,7 +5073,13 @@ export default function ShippingManifestPage() {
                     })()}
                     repExtraCost={(() => {
                       const rf = group[0] as any;
-                      return Number(rf?.repExtraCost ?? 0);
+                      const RETURN_REASONS_WITH_SHIPPING2 = ["refused_paid", "refused_unpaid", "quality"];
+                      const incurred =
+                        rf?.deliveryStatus === "delivered" ||
+                        rf?.deliveryStatus === "partial_delivered" ||
+                        rf?.deliveryStatus === "partial_received" ||
+                        (rf?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING2.includes(rf?.returnReason));
+                      return incurred ? Number(rf?.repExtraCost ?? 0) : 0;
                     })()}
                     repExtraReason={(group[0] as any)?.repExtraReason ?? null}
                     manifestCompanyName={manifest.companyName}
