@@ -4819,7 +4819,7 @@ export default function ShippingManifestPage() {
                       const returnedOrder = group.find(o => o.deliveryStatus === "returned" && (o as any).returnReason);
                       const reason = returnedOrder ? (returnedOrder as any).returnReason : null;
                       return reason ? (
-                        <p className="text-[9px] text-red-400 mt-1 truncate max-w-[100px] mx-auto" title={returnReasonLabel(reason)}>
+                        <p className="text-[9px] text-red-400 mt-1 leading-tight text-center" title={returnReasonLabel(reason)}>
                           {returnReasonLabel(reason)}
                         </p>
                       ) : null;
@@ -4833,13 +4833,13 @@ export default function ShippingManifestPage() {
                       <p className="font-bold truncate">{rep.customerName}</p>
                       <p className="text-[10px] text-muted-foreground">{rep.phone}</p>
                     </div>
-                    <div className="text-left shrink-0">
+                    <div className="text-left shrink-0 max-w-[140px]">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
                       {status === "returned" && (() => {
                         const returnedOrder = group.find(o => o.deliveryStatus === "returned" && (o as any).returnReason);
                         const reason = returnedOrder ? (returnedOrder as any).returnReason : null;
                         return reason ? (
-                          <p className="text-[9px] text-red-400 mt-1 max-w-[120px] truncate" title={returnReasonLabel(reason)}>
+                          <p className="text-[9px] text-red-400 mt-1 leading-tight text-left whitespace-normal" title={returnReasonLabel(reason)}>
                             {returnReasonLabel(reason)}
                           </p>
                         ) : null;
