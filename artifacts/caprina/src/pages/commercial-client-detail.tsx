@@ -21,14 +21,16 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight, Users, ShoppingBag, TrendingUp, TrendingDown,
-  ChevronRight, Calendar, Package, Phone, MapPin,
+  ChevronRight, ChevronLeft, Calendar, Package, Phone, MapPin,
   Clock, CheckCircle2, Target, Edit2, Check, X,
   Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
-  Send, User, PackagePlus, Lock, Search, LayoutDashboard, Eye,
+  Send, User, PackagePlus, Lock, LockOpen, Search, LayoutDashboard, Eye,
+  Hourglass, RotateCcw, PackageX, PackageCheck, AlertCircle,
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
 import { apiFetch, clientAccountManifestsApi, shipmentsApi, type ClientAccountManifestListItem } from "@/lib/api";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine, CartesianGrid, PieChart, Pie, Cell,
@@ -323,6 +325,24 @@ export default function CommercialClientDetailPage() {
     enabled: !isNaN(clientId),
   });
   const openManifest = manifests?.find(m => m.status === "open") ?? null;
+  const { adminOpenManifest, adminRecentlyClosedManifests, adminArchivedManifests } = useMemo(() => {
+    if (!manifests) {
+      return {
+        adminOpenManifest: null,
+        adminRecentlyClosedManifests: [] as ClientAccountManifestListItem[],
+        adminArchivedManifests: [] as ClientAccountManifestListItem[],
+      };
+    }
+
+    const open = manifests.find((m) => m.status === "open") ?? null;
+    const closed = manifests.filter((m) => m.status === "closed");
+
+    return {
+      adminOpenManifest: open,
+      adminRecentlyClosedManifests: closed.slice(0, 2),
+      adminArchivedManifests: closed.slice(2),
+    };
+  }, [manifests]);
 
   const handleNewManifestClick = () => {
     if (openManifest) setShowOpenManifestWarning(true);
@@ -1471,10 +1491,29 @@ export default function CommercialClientDetailPage() {
             {manifestsLoading ? (
               <p className="text-xs text-muted-foreground text-center py-3">جاري التحميل...</p>
             ) : manifests && manifests.length > 0 ? (
-              <div className="mt-3 space-y-1.5 pt-3 border-t border-border">
-                {manifests.map((m) => (
-                  <ClientManifestRow key={m.id} manifest={m} clientId={clientId} qc={qc} />
-                ))}
+              <div className="mt-3 space-y-4 pt-3 border-t border-border">
+                {adminOpenManifest && (
+                  <AdminOpenManifestCard manifest={adminOpenManifest} clientId={clientId} qc={qc} />
+                )}
+
+                {adminRecentlyClosedManifests.length > 0 && (
+                  <div className="space-y-2.5">
+                    {adminRecentlyClosedManifests.map((m) => (
+                      <AdminRecentlyClosedManifestCard key={m.id} manifest={m} clientId={clientId} qc={qc} />
+                    ))}
+                  </div>
+                )}
+
+                {adminArchivedManifests.length > 0 && (
+                  <div className="space-y-3">
+                    {(adminOpenManifest || adminRecentlyClosedManifests.length > 0) && (
+                      <p className="text-xs font-bold text-muted-foreground/70 pt-1">البيانات المغلقة</p>
+                    )}
+                    {adminArchivedManifests.map((m) => (
+                      <AdminArchivedManifestCard key={m.id} manifest={m} clientId={clientId} qc={qc} />
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground text-center py-3">لا توجد بيانات حساب بعد</p>
@@ -2277,6 +2316,296 @@ function ClientStatementDialog({ client, orders, from, to, onFromChange, onToCha
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ─── Admin Client Account Manifest Cards — نفس تجربة حساب العميل ────────────
+// ════════════════════════════════════════════════════════════════════════════
+function AdminOpenManifestCard({ manifest, clientId, qc }: {
+  manifest: ClientAccountManifestListItem;
+  clientId: number;
+  qc: ReturnType<typeof useQueryClient>;
+}) {
+  const sc = manifest.statusCounts;
+  const total = manifest.shipmentCount;
+  const completed = (sc.delivered ?? 0) + (sc.partial ?? 0);
+  const deliveryPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-emerald-950/20 via-muted/20 to-transparent hover:border-emerald-600/60 transition-all p-4 sm:p-5">
+      <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-30 bg-emerald-500/30" />
+
+      <div className="relative flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <Hourglass className="w-3.5 h-3.5 text-amber-400 animate-[spin_2.5s_linear_infinite]" />
+          <span className="text-[11px] font-bold text-amber-300">
+            البيان حالياً قيد العمل — يتم إضافة شحنات العميل عليه
+          </span>
+        </div>
+        <ChevronLeft className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+      </div>
+
+      <div className="relative flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <Link href={`/finance/client-account-sheet/manifest/${manifest.id}`} className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-black text-sm truncate">{manifest.manifestNumber}</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 bg-emerald-900/30 text-emerald-400 border border-emerald-800">
+                <LockOpen className="w-2.5 h-2.5" /> مفتوح
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
+            </p>
+          </div>
+        </Link>
+        <AdminManifestActions manifest={manifest} clientId={clientId} qc={qc} />
+      </div>
+
+      <div className="relative grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+        <AdminManifestMiniStat icon={Package} value={total} label="إجمالي الأوردرات" />
+        <AdminManifestMiniStat icon={CheckCircle2} value={sc.delivered ?? 0} label="مُسلَّم" tone="emerald" loading />
+        <AdminManifestMiniStat icon={Clock} value={sc.delayed ?? 0} label="مؤجل" tone="orange" loading />
+        <AdminManifestMiniStat icon={RotateCcw} value={sc.returned ?? 0} label="مرتجع" tone="red" loading />
+        <AdminManifestMiniStat icon={PackageCheck} value={sc.partial ?? 0} label="استلم جزء" tone="teal" loading />
+        <AdminManifestMiniStat icon={PackageX} value={Math.max(total - completed - (sc.delayed ?? 0) - (sc.returned ?? 0), 0)} label="قيد العمل" tone="rose" loading />
+      </div>
+
+      {total > 0 && (
+        <div className="relative mt-4">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+            <span>نسبة التسليم</span>
+            <span className="font-bold text-foreground">{deliveryPct}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${deliveryPct}%` }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminRecentlyClosedManifestCard({ manifest, clientId, qc }: {
+  manifest: ClientAccountManifestListItem;
+  clientId: number;
+  qc: ReturnType<typeof useQueryClient>;
+}) {
+  return (
+    <div className="rounded-xl border border-sky-700/40 bg-gradient-to-l from-sky-950/15 via-muted/15 to-transparent p-3.5 flex items-center justify-between gap-3 flex-wrap">
+      <Link href={`/finance/client-account-sheet/manifest/${manifest.id}`} className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-sky-500/10 text-sky-400">
+          <FileText className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-xs truncate">{manifest.manifestNumber}</p>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-900/30 text-sky-400 border border-sky-800">
+              تم إغلاق البيان
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {manifest.closedAt && `أُغلق في ${format(new Date(manifest.closedAt), "d MMMM yyyy", { locale: ar })}`}
+            {manifest.invoicePrice && ` — ${formatCurrency(Number(manifest.invoicePrice))}`}
+          </p>
+        </div>
+      </Link>
+      <AdminManifestActions manifest={manifest} clientId={clientId} qc={qc} compact />
+    </div>
+  );
+}
+
+function AdminArchivedManifestCard({ manifest, clientId, qc }: {
+  manifest: ClientAccountManifestListItem;
+  clientId: number;
+  qc: ReturnType<typeof useQueryClient>;
+}) {
+  const sc = manifest.statusCounts;
+  const total = manifest.shipmentCount;
+  const completed = (sc.delivered ?? 0) + (sc.partial ?? 0);
+  const deliveryPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div className="group rounded-2xl border border-border bg-muted/20 hover:bg-muted/35 hover:border-primary/40 transition-all p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <Link href={`/finance/client-account-sheet/manifest/${manifest.id}`} className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-black text-sm truncate">{manifest.manifestNumber}</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 bg-muted text-muted-foreground border border-border">
+                <Lock className="w-2.5 h-2.5" /> مغلق — تم إغلاقه
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
+              {manifest.closedAt && ` — أُغلق في ${format(new Date(manifest.closedAt), "d MMMM yyyy", { locale: ar })}`}
+            </p>
+          </div>
+        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <AdminManifestActions manifest={manifest} clientId={clientId} qc={qc} compact />
+          <ChevronLeft className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
+        <AdminManifestMiniStat icon={Package} value={total} label="إجمالي" />
+        <AdminManifestMiniStat icon={CheckCircle2} value={sc.delivered ?? 0} label="مسلَّم" tone="emerald" />
+        <AdminManifestMiniStat icon={Clock} value={sc.pending ?? 0} label="قيد الانتظار" tone="muted" />
+        <AdminManifestMiniStat icon={AlertCircle} value={sc.delayed ?? 0} label="مؤجل" tone="orange" />
+        <AdminManifestMiniStat icon={RotateCcw} value={sc.returned ?? 0} label="مرتجع" tone="red" />
+      </div>
+
+      {total > 0 && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+            <span>نسبة التسليم</span>
+            <span className="font-bold text-foreground">{deliveryPct}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${deliveryPct}%` }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminManifestActions({ manifest, clientId, qc, compact = false }: {
+  manifest: ClientAccountManifestListItem;
+  clientId: number;
+  qc: ReturnType<typeof useQueryClient>;
+  compact?: boolean;
+}) {
+  const { toast } = useToast();
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  const toggleLockMutation = useMutation({
+    mutationFn: (status: "open" | "closed") =>
+      clientAccountManifestsApi.update(manifest.id, { status }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
+      if (res?.rolled) {
+        toast({
+          title: "🔒 تم إغلاق البيان بنجاح",
+          description: `تم ترحيل ${res.rolled.orderCount} فاتورة غير مكتملة إلى بيان جديد: ${res.rolled.manifestNumber}`,
+          duration: 8000,
+        });
+      } else {
+        toast({ title: "تم التحديث" });
+      }
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => clientAccountManifestsApi.delete(manifest.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
+      toast({ title: "تم حذف البيان" });
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      {manifest.status === "open" ? (
+        <Button
+          size="sm" variant="outline"
+          className={cn(
+            "gap-1 border-emerald-700 text-emerald-400 hover:bg-emerald-900/20",
+            compact ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3",
+          )}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowCloseConfirm(true); }}
+          disabled={toggleLockMutation.isPending}
+        >
+          <Lock className="w-3 h-3" />إغلاق
+        </Button>
+      ) : (
+        <Button
+          size="sm" variant="outline"
+          className={cn(
+            "gap-1 border-blue-700 text-blue-400 hover:bg-blue-900/20",
+            compact ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3",
+          )}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleLockMutation.mutate("open"); }}
+          disabled={toggleLockMutation.isPending}
+        >
+          <LockOpen className="w-3 h-3" />فتح
+        </Button>
+      )}
+
+      {manifest.shipmentCount === 0 && (
+        <Button
+          size="sm" variant="ghost"
+          className={cn("text-red-400 hover:bg-red-900/20", compact ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3")}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (confirm("حذف هذا البيان؟")) deleteMutation.mutate(); }}
+        >
+          حذف
+        </Button>
+      )}
+
+      {showCloseConfirm && (
+        <Dialog open onOpenChange={setShowCloseConfirm}>
+          <DialogContent className="max-w-md bg-card border-border" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-black flex items-center gap-2">
+                <Lock className="w-4 h-4 text-emerald-400" /> إغلاق البيان
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-amber-400 leading-relaxed">
+              سيتم إغلاق البيان، وأي فواتير لسه قيد التجهيز غير مسلَّمة هيتم ترحيلها تلقائياً لبيان جديد مفتوح.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <Button
+                size="sm" className="h-8 text-xs flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => { toggleLockMutation.mutate("closed"); setShowCloseConfirm(false); }}
+                disabled={toggleLockMutation.isPending}
+              >
+                {toggleLockMutation.isPending ? "جاري الإغلاق..." : "تأكيد الإغلاق والترحيل"}
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowCloseConfirm(false)}>إلغاء</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function AdminManifestMiniStat({ icon: Icon, value, label, tone = "default", loading = false }: {
+  icon: typeof Package;
+  value: number;
+  label: string;
+  tone?: "default" | "emerald" | "orange" | "red" | "muted" | "teal" | "rose";
+  loading?: boolean;
+}) {
+  const toneClass = {
+    default: "text-foreground",
+    emerald: "text-emerald-400",
+    orange: "text-orange-400",
+    red: "text-red-400",
+    muted: "text-muted-foreground",
+    teal: "text-teal-400",
+    rose: "text-rose-400",
+  }[tone];
+
+  return (
+    <div className="flex flex-col items-center gap-0.5 py-2 rounded-lg bg-background/40 border border-border/40 relative">
+      <Icon className={cn("w-3.5 h-3.5", toneClass)} />
+      <span className={cn("text-sm font-black", toneClass)}>{value}</span>
+      <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+        {label}
+        {loading && <Clock className="w-2 h-2 animate-spin opacity-50" />}
+      </span>
+    </div>
   );
 }
 
