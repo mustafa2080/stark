@@ -5047,15 +5047,14 @@ export default function ShippingManifestPage() {
                         repFirst?.deliveryStatus === "partial_received" ||
                         (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
                       if (!shippingWasIncurred) return 0;
+                      // قيمة السعر الأساسي بس (زي بيان الأدمن بالظبط) — الإضافة
+                      // الخاصة بنوع الشحنة (repExtraCost) بتتبعت وتتعرض منفصلة كـ
+                      // badge تحت السعر الأساسي (props: repExtraCost/repExtraReason).
                       // لو الشركة شغالة بنظام "zone": التكلفة = سعر أول منطقة مرتبطة بالشركة
                       // (من جدول shipment_zones)، مش company.shippingCost (ده بيبقى فاضي غالبًا
                       // لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
                       // لو الشركة شغالة بنظام "rep": التكلفة = company.shippingCost اليدوي.
                       const companyForCost = rawManifest?.company as any;
-                      const repExtra = Number((repFirst as any)?.repExtraCost ?? 0);
-                      if ((repFirst as any)?.invoiceNumber === "SHP26070407") {
-                        console.log('[DBG-SARA]', { parcelType: (repFirst as any)?.parcelType, repExtraCostRaw: (repFirst as any)?.repExtraCost, repExtra, shipment: (repFirst as any)?.shipment, fullOrder: repFirst });
-                      }
                       if (companyForCost?.costMode === "zone") {
                         let zIdsForCost: number[] = [];
                         if (companyForCost?.zoneIds) {
@@ -5063,16 +5062,17 @@ export default function ShippingManifestPage() {
                         } else if (companyForCost?.zoneId) {
                           zIdsForCost = [companyForCost.zoneId];
                         }
-                        if (!zIdsForCost.length) return 0 + repExtra;
+                        if (!zIdsForCost.length) return 0;
                         const zoneForCost = pnlSettlementZones.find(z => z.id === zIdsForCost[0]);
-                        const zoneBase = zoneForCost?.price != null ? Number(zoneForCost.price) : 0;
-                        return zoneBase + repExtra;
+                        return zoneForCost?.price != null ? Number(zoneForCost.price) : 0;
                       }
-                      const baseCost = companyForCost?.shippingCost != null ? Number(companyForCost.shippingCost) : 0;
-                      return baseCost + repExtra;
+                      return companyForCost?.shippingCost != null ? Number(companyForCost.shippingCost) : 0;
                     })()}
                     repExtraCost={(() => {
                       const rf = group[0] as any;
+                      if (rf?.invoiceNumber === "SHP26070407") {
+                        console.log('[DBG-SARA2]', { parcelType: rf?.parcelType, repExtraCostRaw: rf?.repExtraCost, shipment: rf?.shipment });
+                      }
                       const RETURN_REASONS_WITH_SHIPPING2 = ["refused_paid", "refused_unpaid", "quality"];
                       const incurred =
                         rf?.deliveryStatus === "delivered" ||
