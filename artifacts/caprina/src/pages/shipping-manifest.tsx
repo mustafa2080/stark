@@ -2611,7 +2611,17 @@ function ExportDialog({
   onClose: () => void;
 }) {
   const s = manifest.stats;
-  const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+  // تكلفة الشحن = الرقم الثابت × عدد الشحنات المؤهلة (مسلَّم/جزئي/مرتجع بسبب مالي) + إجمالي
+  // السعر الإضافي لنوع الشحنة (منطقة متطرفة/قابل للكسر...) — نفس منطق كارت الشاشة بالظبط.
+  // (قبل كده كان بيساوي company.shippingCost وبس، من غير ضرب في عدد الشحنات ولا أي إضافة).
+  const RETURN_REASONS_IN_PNL_XLS_TOP = ["refused_paid", "refused_unpaid", "quality"];
+  const shippingCostOrdersXlsTop = (manifest.orders ?? []).filter(o => {
+    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
+    return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_XLS_TOP.includes((o as any).returnReason);
+  });
+  const courierCostPerShipmentXlsTop = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+  const effectiveShipping = courierCostPerShipmentXlsTop * groupManifestOrders(shippingCostOrdersXlsTop).length
+    + Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
   const { brand } = useBrand();
   const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
@@ -2646,7 +2656,10 @@ function ExportDialog({
 
   const deliveredGross = safeOrders
     .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+    .reduce((sum, o) => {
+      const dvr = (o as any).deliveredValueReceived;
+      return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+    }, 0);
   const partialGross = safeOrders
     .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
     .reduce((sum, o) => {
@@ -2663,7 +2676,14 @@ function ExportDialog({
         : Number(o.totalPrice) / Number(o.quantity);
       return sum + Math.round(unitPrice * Number(o.partialQuantity));
     }, 0);
-  const totalCollected = deliveredGross + partialGross;
+  // إجمالي المحصَّل = نفس منطق كارت الشاشة/الطباعة بالظبط: مسلَّم كامل + جزئي (مُسلَّم فعليًا)
+  // + مرتجع بأحد الأسباب المالية المعتبرة (القيمة اللي دخلها المندوب يدويًا فقط).
+  // (قبل كده كان ناقص المرتجعات دي بالكامل، فكان بيدي رقم أقل من الصحيح).
+  const RETURN_REASONS_IN_PNL_XLS_TOP2 = ["refused_paid", "refused_unpaid", "quality"];
+  const returnedCollectedXlsTop = safeOrders
+    .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_XLS_TOP2.includes((o as any).returnReason))
+    .reduce((sum, o) => sum + Number((o as any).returnValueReceived ?? 0), 0);
+  const totalCollected = deliveredGross + partialGross + returnedCollectedXlsTop;
   const netDue = totalCollected - effectiveShipping;
 
   // ── Excel Export — styled workbook with RTL layout ────────────────────────
@@ -4243,8 +4263,12 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
+  // رسوم الشحن الإضافية بتاعة نوع الشحنة (منطقة متطرفة/قابل للكسر...) — نفس المصدر المستخدم
+  // في كارت "إجمالي تكلفة الشحن" بالشاشة بالظبط (stats.repExtraCostTotal من الباك إند)،
+  // بدل إعادة حسابها يدويًا هنا وهي ممكن تختلف لو منطق الأهلية اتغيّر مستقبلًا.
+  const repExtraCostTotalPrint = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
   const effectiveShipping = courierCostPerShipmentPrint * groupManifestOrders(shippingCostOrdersPrint).length
-    + groupManifestOrders(shippingCostOrdersPrint).reduce((s, group) => s + Number((group[0] as any).repExtraCost ?? 0), 0);
+    + repExtraCostTotalPrint;
 
 
   return (
