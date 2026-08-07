@@ -172,7 +172,7 @@ function OrderDeliveryRow({
       ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)
       : null
   );
-  const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "unaware"];
+  const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "quality"];
   const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE.includes(returnReason);
 
   // مزامنة الـ state مع الـ prop بعد كل refetch
@@ -2310,7 +2310,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
   const [netProfitOpen, setNetProfitOpen] = useState(false);
 
-  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "unaware"];
+  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
 
   // تكلفة الشحن الفعلية = مسلَّم + مسلَّم جزئي + المرتجع بأحد الأسباب الثلاثة المعتمدة
   const effectiveShippingCost = (manifest.orders ?? [])
@@ -2592,7 +2592,7 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "unaware"];
+                const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
                 const effectiveShipping = (manifest.orders ?? [])
                   .filter(o =>
                     o.deliveryStatus === "delivered" ||
@@ -4333,7 +4333,7 @@ export default function ShippingManifestPage() {
       return sum + Math.round(unitPrice * Number(o.partialQuantity));
     }, 0);
 
-  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "unaware"];
+  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
   const getCollectedAmount = (o: ManifestOrder) => {
     if (o.deliveryStatus === "delivered") {
       const dvr = (o as any).deliveredValueReceived;
@@ -5475,7 +5475,7 @@ export default function ShippingManifestPage() {
                       // مرتجع بأحد الأسباب الثلاثة (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
                       // أي حالة أو سبب تاني = صفر (مفيش شحن اتحسب عليه فعليًا).
                       const repFirst = group[0] as any;
-                      const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "unaware"];
+                      const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
                       const shippingWasIncurred =
                         repFirst?.deliveryStatus === "delivered" ||
                         repFirst?.deliveryStatus === "partial_delivered" ||

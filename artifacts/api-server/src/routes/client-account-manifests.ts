@@ -477,8 +477,10 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         address:       sh?.receiverAddress ?? "",
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
-        totalPrice:    Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
-        unitPrice:     Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
+        zoneId:        sh?.zoneId ?? null,
+        zonePrice:     sh?.zoneId != null ? (zoneShippingMap[sh.zoneId] ?? Number(sh?.shippingFee ?? 0)) : Number(sh?.shippingFee ?? 0),
+        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
+        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
         shippingCost:  getZoneShipping(sh),
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
@@ -493,7 +495,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     // ─── حسابات مالية — من منظور حساب العميل (بدل شركة الشحن) ────────────────
-    const RETURN_REASONS_WITH_SHIPPING = new Set(["refused_paid", "refused_unpaid", "unaware"]);
+    const RETURN_REASONS_WITH_SHIPPING = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
     let deliveredShippingFees = 0;
     for (const item of items) {
