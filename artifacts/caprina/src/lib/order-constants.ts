@@ -3,6 +3,9 @@ export const RETURN_REASONS: { value: string; label: string }[] = [
   { value: "refused_unpaid",     label: "العميل رفض الاستلام بعد المعاينة ولم يدفع تكلفة الشحن" },
   { value: "quality",            label: "العميل تهرب من الاستلام" },
   { value: "unaware",            label: "لا يعلم عن الشحنة" },
+  { value: "cancel_requested",   label: "طلب إلغاء" },
+  { value: "no_answer",          label: "لا يوجد رد" },
+  { value: "out_of_coverage",    label: "خارج نطاق التغطية" },
 ];
 
 export const returnReasonLabel = (reason: string | null | undefined): string => {

@@ -52,8 +52,10 @@ const RETURN_REASON_LABELS: Record<string, string> = {
   refused_unpaid: "رفض الاستلام (غير مدفوع)",
   quality: "مشكلة في الجودة",
   unaware: "لا يعلم عن الشحنة",
-  wrong_address: "عنوان خاطئ",
+  cancel_requested: "طلب إلغاء",
   no_answer: "لا يوجد رد",
+  out_of_coverage: "خارج نطاق التغطية",
+  wrong_address: "عنوان خاطئ",
   other: "سبب آخر",
 };
 
