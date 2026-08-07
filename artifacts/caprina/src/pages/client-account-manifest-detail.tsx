@@ -3823,6 +3823,8 @@ export default function ShippingManifestPage() {
         addedAt: rawManifest.createdAt,
         partialQuantity: item.partialQuantity ?? null,
         returnReason: item.returnReason ?? null,
+        returnValueReceived: (item as any).returnValueReceived ?? null,
+        deliveredValueReceived: (item as any).deliveredValueReceived ?? null,
       } as any;
     });
     const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
@@ -4207,22 +4209,23 @@ export default function ShippingManifestPage() {
   const pendingOrders = manifest.orders.filter(
     (o) => o.deliveryStatus === "pending"
   ).length;
-  // helper: هل الطلبية دي بضاعة لسه عند شركة الشحن؟
-  // (مرتجع أو جزئي مرحَّل ولم يُستلم بعد)
+  // helper: هل الطلبية دي مرتجع كامل لسه عند شركة الشحن؟
+  // المسلم الجزئي لا يخرج من الحسابات؛ الجزء المسلم منه مستحق حتى لو الباقي لسه راجع.
   const isStillAtShipping = (o: typeof manifest.orders[number]) => {
     const rr = (o as any).returnReceived;
     const isConfirmed = rr === 1 || rr === true || rr === "1";
     // لو اتسجلت قيمة مالية مستلمة فعليًا من العميل (returnValueReceived)، الطلبية بقت
     // مالياً محسومة حتى لو البضاعة نفسها لسه ما رجعتش المخزن (returnReceived=0)
     const hasReturnValue = (o as any).returnValueReceived != null;
-    return (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+    return o.deliveryStatus === "returned" &&
       !isConfirmed && !hasReturnValue;
   };
 
-  // استبعد: (1) اللي لسه عند الشحن، (2) اللي تم استلامها (returnReceived=1) — خالص مش في البيان
+  // استبعد المرتجع الكامل فقط من جدول الحساب لما يكون لسه عند الشحن أو اتأكد استلامه.
+  // المسلم الجزئي يفضل ظاهر ومحسوب بقيمة الجزء المحصل.
   const isReturnConfirmed = (o: typeof manifest.orders[number]) => {
     const rr = (o as any).returnReceived;
-    return rr === 1 || rr === true || rr === "1";
+    return o.deliveryStatus === "returned" && (rr === 1 || rr === true || rr === "1");
   };
   const ordersExcludingPendingShipping = (manifest.orders ?? []).filter(
     (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
