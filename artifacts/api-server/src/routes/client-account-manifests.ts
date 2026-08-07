@@ -419,6 +419,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     // ─── حسابات مالية — من منظور حساب العميل (بدل شركة الشحن) ────────────────
+    const RETURN_REASONS_WITH_SHIPPING = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
     let deliveredShippingFees = 0;
     for (const item of items) {
@@ -450,6 +451,8 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
           const unitCost = qty > 0 ? cost / qty : cost;
           totalCost += unitCost * partialCod;
         }
+      } else if (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.has(String((item as any).returnReason ?? ""))) {
+        totalShippingCost += shipping;
       }
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;

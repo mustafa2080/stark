@@ -2299,9 +2299,16 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
   const [netProfitOpen, setNetProfitOpen] = useState(false);
 
-  // تكلفة الشحن الفعلية = تُحسب فقط على الأوردرات المُسلَّمة (مسلَّم / مسلَّم جزئي) — الباقي (pending/postponed/delayed/returned) = صفر
+  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
+
+  // تكلفة الشحن الفعلية = مسلَّم + مسلَّم جزئي + المرتجع بأحد الأسباب الثلاثة المعتمدة
   const effectiveShippingCost = (manifest.orders ?? [])
-    .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
+    .filter(o =>
+      o.deliveryStatus === "delivered" ||
+      o.deliveryStatus === "partial_received" ||
+      o.deliveryStatus === "partial_delivered" ||
+      (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? "")))
+    )
     .reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
 
   const deliveredTotal = s.deliveredGross;
@@ -2326,13 +2333,27 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
         {(() => {
           const ordersForSettlement = manifest.orders ?? [];
           const deliveredOrdersS = ordersForSettlement.filter(o => o.deliveryStatus === "delivered");
+          const partialOrdersS = ordersForSettlement.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
           const returnedOrdersS  = ordersForSettlement.filter(o => o.deliveryStatus === "returned");
-          const deliveredCODs    = deliveredOrdersS.reduce((sum, o) => sum + Number((o as any).totalPrice ?? 0), 0);
+          const deliveredCODs    = deliveredOrdersS.reduce((sum, o) => {
+            const dvr = (o as any).deliveredValueReceived;
+            return sum + (dvr != null ? Number(dvr) : Number((o as any).totalPrice ?? 0));
+          }, 0);
+          const partialCODs = partialOrdersS.reduce((sum, o) => {
+            if (o.partialQuantity == null) return sum;
+            if (o.deliveryStatus === "partial_delivered") return sum + Number(o.partialQuantity);
+            if (o.quantity <= 0) return sum;
+            const unitPrice = (o as any).unitPrice != null
+              ? Number((o as any).unitPrice)
+              : Number(o.totalPrice) / Number(o.quantity);
+            return sum + Math.round(unitPrice * Number(o.partialQuantity));
+          }, 0);
           const returnedCODs     = returnedOrdersS.reduce((sum, o) => {
             const rvr = (o as any).returnValueReceived;
             return sum + (rvr != null ? Number(rvr) : 0);
           }, 0);
-          const totalShipmentValue = deliveredCODs + returnedCODs;
+          const collectedCODs = deliveredCODs + partialCODs;
+          const totalShipmentValue = collectedCODs;
           return (
             <>
               <div className="bg-card rounded-md p-3 border border-border">
@@ -2342,8 +2363,8 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
               </div>
               <div className="bg-card rounded-md p-3 border border-emerald-900/40">
                 <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mb-1">المُسلَّم</p>
-                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(deliveredCODs)}</p>
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-600">{deliveredOrdersS.length} طلبية</p>
+                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(collectedCODs)}</p>
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-600">{deliveredOrdersS.length + partialOrdersS.length} طلبية</p>
               </div>
               <div className="bg-card rounded-md p-3 border border-red-900/40">
                 <p className="text-[10px] text-red-700 dark:text-red-400 mb-1">المرتجع</p>
@@ -2366,7 +2387,7 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
               <div className="bg-card rounded-md p-3 border border-primary/40">
                 <p className="text-[10px] text-muted-foreground mb-1">صافي المستحق</p>
                 <p className="text-base font-black text-primary">{formatCurrency(netBeforeInvoice)}</p>
-                <p className="text-[10px] text-muted-foreground">مُسلَّم − شحن</p>
+                <p className="text-[10px] text-muted-foreground">مُسلَّم + جزئي − شحن</p>
               </div>
             </>
           );
@@ -2560,8 +2581,14 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
+                const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
                 const effectiveShipping = (manifest.orders ?? [])
-                  .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
+                  .filter(o =>
+                    o.deliveryStatus === "delivered" ||
+                    o.deliveryStatus === "partial_received" ||
+                    o.deliveryStatus === "partial_delivered" ||
+                    (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? "")))
+                  )
                   .reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
                 const due = (s?.deliveredGross ?? 0) - effectiveShipping;
                 return (
@@ -2570,7 +2597,7 @@ function CloseConfirmDialog({
                       {formatCurrency(due)}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      إيرادات مستلمة ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
+                      مسلم + جزئي ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
                     </p>
                   </>
                 );
@@ -5496,20 +5523,42 @@ export default function ShippingManifestPage() {
         // نستخدم نفس helper isStillAtShipping المعرّف فوق
         const ordersForPnl = ordersExcludingPendingShipping;
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
+        const partialOrders = ordersForPnl.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        // تكلفة الشحن الفعلية = تُحسب فقط على الأوردرات المُسلَّمة (مسلَّم / مسلَّم جزئي) — الباقي = صفر
+        const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
+        const returnedWithShippingOrders = returnedOrders.filter(o =>
+          RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? ""))
+        );
+        // تكلفة الشحن الفعلية = مسلَّم + مسلَّم جزئي + المرتجع بأحد الأسباب الثلاثة المعتمدة
         const totalShippingFee = ordersForPnl
-          .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
+          .filter(o =>
+            o.deliveryStatus === "delivered" ||
+            o.deliveryStatus === "partial_received" ||
+            o.deliveryStatus === "partial_delivered" ||
+            (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? "")))
+          )
           .reduce((s, o) => s + (o.shippingCost ?? 0), 0);
-        const deliveredCOD    = deliveredOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+        const deliveredCOD    = deliveredOrders.reduce((s, o) => {
+          const dvr = (o as any).deliveredValueReceived;
+          return s + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+        }, 0);
+        const partialCOD = partialOrders.reduce((s, o) => {
+          if (o.partialQuantity == null) return s;
+          if (o.deliveryStatus === "partial_delivered") return s + Number(o.partialQuantity);
+          if (o.quantity <= 0) return s;
+          const unitPrice = (o as any).unitPrice != null
+            ? Number((o as any).unitPrice)
+            : Number(o.totalPrice) / Number(o.quantity);
+          return s + Math.round(unitPrice * Number(o.partialQuantity));
+        }, 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => {
           const rvr = (o as any).returnValueReceived;
           return s + (rvr != null ? Number(rvr) : 0);
         }, 0);
         const shippingCost    = totalShippingFee;
-        const totalCOD        = deliveredCOD + returnedCOD;
-        // القيمة المستلمة فعليًا من العميل في المرتجعات (returnValueReceived) بتضاف للإيرادات
-        const netAmount       = deliveredCOD + returnedCOD - shippingCost;
+        const collectedCOD    = deliveredCOD + partialCOD;
+        const totalCOD        = collectedCOD;
+        const netAmount       = collectedCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
@@ -5520,8 +5569,8 @@ export default function ShippingManifestPage() {
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
               <p className="text-xs text-emerald-400 mb-1">المُسلَّم</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(deliveredCOD)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(collectedCOD)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length + partialOrders.length} شحنة</p>
             </Card>
             <Card className="border-red-900/40 bg-red-900/10 p-4">
               <p className="text-xs text-red-400 mb-1">المرتجع</p>
@@ -5554,7 +5603,8 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netAmount))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(deliveredCOD)} مُسلَّم + {formatCurrency(returnedCOD)} مرتجع مستلم − {formatCurrency(shippingCost)} شحن
+                    {formatCurrency(deliveredCOD)} مُسلَّم + {formatCurrency(partialCOD)} جزئي − {formatCurrency(shippingCost)} شحن
+                    {returnedWithShippingOrders.length > 0 ? ` (${returnedWithShippingOrders.length} مرتجع محسوب شحن)` : ""}
                   </p>
                 </div>
               )}
