@@ -26,7 +26,7 @@ import {
   Clock, CheckCircle2, Target, Edit2, Check, X,
   Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
   Send, User, PackagePlus, Lock, LockOpen, Search, LayoutDashboard, Eye,
-  Hourglass, RotateCcw, PackageX, PackageCheck, AlertCircle,
+  Hourglass, RotateCcw, PackageX, PackageCheck, AlertCircle, ChevronDown,
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -1738,6 +1738,8 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
     () => allReturns.filter(s => s.manifestReturnReceived !== 1),
     [allReturns]
   );
+  const [pendingOpen, setPendingOpen] = useState(false);
+  const [receivedOpen, setReceivedOpen] = useState(false);
 
   return (
     <div className="space-y-5 pt-1">
@@ -1762,18 +1764,30 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
           className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4"
           style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
         >
-          <div className="flex items-center gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setPendingOpen(v => !v)}
+            className="flex items-center gap-2 w-full text-right"
+          >
             <span className="text-base">🚚</span>
             <h2 className="font-bold text-sm text-red-400">
               بضاعة لسه عند شركة الشحن ({pendingReturns.length})
             </h2>
-            <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
-          </div>
+            {!pendingOpen && (
+              <span className="text-[10px] text-red-400/60">— اضغط للعرض</span>
+            )}
+            <ChevronDown className={`w-4 h-4 text-red-400 mr-auto transition-transform ${pendingOpen ? "rotate-180" : ""}`} />
+          </button>
+          {pendingOpen && (
+          <>
+          <p className="text-[10px] text-red-400/60 mt-2 mb-1">اضغط "تم الاستلام" لما توصلك من الشركة</p>
           <div className="flex flex-col gap-2">
             {pendingReturns.map(s => (
               <ReturnShipmentRow key={s.id} s={s} />
             ))}
           </div>
+          </>
+          )}
         </div>
       )}
 
@@ -1783,13 +1797,22 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
           className="rounded-xl border-2 border-emerald-500/70 bg-emerald-950/30 p-4"
           style={{ boxShadow: "0 0 30px 6px rgba(16,185,129,0.35), 0 0 60px 10px rgba(16,185,129,0.12), inset 0 0 20px 2px rgba(16,185,129,0.05)" }}
         >
-          <div className="flex items-center gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setReceivedOpen(v => !v)}
+            className="flex items-center gap-2 w-full text-right"
+          >
             <PackageCheck className="w-4 h-4 text-emerald-400" />
             <h2 className="font-bold text-sm text-emerald-400">
               مرتجعات تم تسليمها للعميل ({receivedReturns.length})
             </h2>
-          </div>
-          <div className="flex flex-col gap-2">
+            {!receivedOpen && (
+              <span className="text-[10px] text-emerald-400/60">— اضغط للعرض</span>
+            )}
+            <ChevronDown className={`w-4 h-4 text-emerald-400 mr-auto transition-transform ${receivedOpen ? "rotate-180" : ""}`} />
+          </button>
+          {receivedOpen && (
+          <div className="flex flex-col gap-2 mt-3">
             {receivedReturns.map(s => (
               <div
                 key={s.id}
@@ -1821,6 +1844,7 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
       {receivedReturns.length === 0 && pendingReturns.length === 0 && (
