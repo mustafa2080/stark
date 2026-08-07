@@ -255,13 +255,6 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
         delta = actualCod - shipping;
       } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
         delta = Number(item.partialQuantity) - shipping;
-      } else if (item.deliveryStatus === "returned") {
-        const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
-        if (returnReasonHasValue) {
-          delta = Number((item as any).returnValueReceived ?? 0) - shipping;
-        } else if ((item as any).returnReceived === 1) {
-          delta = -shipping;
-        }
       }
       balanceByClient[cId] = (balanceByClient[cId] ?? 0) + delta;
     }
@@ -336,14 +329,6 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
         } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
           totalShippingCost += shipping;
           deliveredGross += Number(item.partialQuantity);
-        } else if (item.deliveryStatus === "returned") {
-          const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
-          if (returnReasonHasValue) {
-            deliveredGross += Number((item as any).returnValueReceived ?? 0);
-            totalShippingCost += shipping;
-          } else if ((item as any).returnReceived === 1) {
-            totalShippingCost += shipping;
-          }
         }
       }
 
@@ -464,17 +449,6 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
           const qty = Number(shipment.quantity ?? 1);
           const unitCost = qty > 0 ? cost / qty : cost;
           totalCost += unitCost * partialCod;
-        }
-      } else if (item.deliveryStatus === "returned") {
-        // إجمالي المسلَّم: القيمة اللي دخلها المندوب يدويًا عند المرتجع (الثلاث أسباب) — صفر لو لسه ماتسجّلش
-        const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
-        if (returnReasonHasValue) {
-          const manualVal = Number((item as any).returnValueReceived ?? 0);
-          deliveredGross += manualVal;
-          totalRevenue += manualVal;
-          totalShippingCost += shipping;
-        } else if ((item as any).returnReceived === 1) {
-          totalShippingCost += shipping;
         }
       }
     }
