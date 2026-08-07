@@ -756,6 +756,8 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       shippingFee:    shipmentsTable.shippingFee,
       createdAt:      shipmentsTable.createdAt,
       pieces:         shipmentsTable.pieces,
+      returnReason:   shipmentsTable.returnReason,
+      returnReceived: shipmentsTable.returnReceived,
     }).from(shipmentsTable)
       .where(and(...shipConds))
       .orderBy(desc(shipmentsTable.createdAt))

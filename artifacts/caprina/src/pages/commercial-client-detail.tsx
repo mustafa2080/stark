@@ -31,6 +31,7 @@ import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from
 import { ar } from "date-fns/locale";
 import { apiFetch, clientAccountManifestsApi, shipmentsApi, type ClientAccountManifestListItem } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
+import { returnReasonLabel } from "@/lib/order-constants";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine, CartesianGrid, PieChart, Pie, Cell,
@@ -155,6 +156,7 @@ type ClientShipment = {
   receiverName: string; receiverCity: string | null;
   codAmount: string | null; shippingFee: string | null;
   createdAt: string; pieces: number | null;
+  returnReason?: string | null; returnReceived?: number | null;
 };
 
 // ── بطاقة الفاتورة — زي ManifestCard بالظبط ────────────────────────────────
@@ -261,10 +263,9 @@ export default function CommercialClientDetailPage() {
   const [, navigate] = useLocation();
 
   // ── تابات: البيانات / الشحنات / الداشبورد ────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"data" | "shipments" | "dashboard">("dashboard");
+  const [activeTab, setActiveTab] = useState<"data" | "shipments" | "dashboard" | "statement" | "returns">("dashboard");
   const [showNewManifest, setShowNewManifest] = useState(false);
   const [showOpenManifestWarning, setShowOpenManifestWarning] = useState(false);
-  const [showStatement, setShowStatement] = useState(false);
   const [statementFrom, setStatementFrom] = useState("");
   const [statementTo,   setStatementTo]   = useState("");
   const { toast } = useToast();
@@ -825,15 +826,6 @@ export default function CommercialClientDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setStatementFrom(""); setStatementTo(""); setShowStatement(true); }}
-              className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              كشف حساب
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={exportExcel}
               disabled={exportingExcel}
               className="h-8 gap-1.5 text-xs border-emerald-800 text-emerald-400 hover:bg-emerald-900/20"
@@ -895,6 +887,28 @@ export default function CommercialClientDetailPage() {
           <Send className="w-3.5 h-3.5" />
           الشحنات
           {clientShipments.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{clientShipments.length}</Badge>}
+        </button>
+        <button
+          onClick={() => setActiveTab("returns")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px shrink-0 ${
+            activeTab === "returns"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          المرتجعات
+        </button>
+        <button
+          onClick={() => { setStatementFrom(""); setStatementTo(""); setActiveTab("statement"); }}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px shrink-0 ${
+            activeTab === "statement"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          كشف حساب
         </button>
       </div>
 
@@ -1653,6 +1667,11 @@ export default function CommercialClientDetailPage() {
         </div>
       )}
 
+      {/* ══════════════════════════ Tab: المرتجعات ══════════════════════════ */}
+      {activeTab === "returns" && (
+        <ReturnsTabContent shipments={clientShipments} />
+      )}
+
       {/* ─── Dialog: إنشاء بيان جديد ─── */}
       {showNewManifest && client && (
         <CreateSaleOrderManifestDialog
@@ -1683,7 +1702,7 @@ export default function CommercialClientDetailPage() {
       </AlertDialog>
 
       {/* ─── Dialog: كشف حساب العميل ─── */}
-      {showStatement && client && (
+      {activeTab === "statement" && client && (
         <ClientStatementDialog
           client={client}
           orders={allOrders}
@@ -1691,9 +1710,99 @@ export default function CommercialClientDetailPage() {
           to={statementTo}
           onFromChange={setStatementFrom}
           onToChange={setStatementTo}
-          onClose={() => setShowStatement(false)}
+          onClose={() => setActiveTab("dashboard")}
         />
       )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ─── ReturnsTabContent — تبويب المرتجعات: تم تسليمها / لم تُسلَّم بعد ──────
+// ════════════════════════════════════════════════════════════════════════════
+function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
+  const allReturns = useMemo(
+    () => shipments.filter(s => s.status === "returned"),
+    [shipments]
+  );
+  const receivedReturns = useMemo(
+    () => allReturns.filter(s => s.returnReceived === 1),
+    [allReturns]
+  );
+  const pendingReturns = useMemo(
+    () => allReturns.filter(s => s.returnReceived !== 1),
+    [allReturns]
+  );
+
+  const ReturnRow = ({ s }: { s: ClientShipment }) => (
+    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-bold text-xs">{s.shipmentNumber}</span>
+          <span className="text-[11px] text-muted-foreground">{s.receiverName}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap mt-1">
+          {s.receiverCity && (
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <MapPin className="w-3 h-3" />{s.receiverCity}
+            </span>
+          )}
+          {s.returnReason && (
+            <span className="text-[10px] text-red-400">{returnReasonLabel(s.returnReason)}</span>
+          )}
+        </div>
+      </div>
+      <div className="text-left shrink-0">
+        <p className="font-bold text-xs text-primary">{formatCurrency(parseFloat(s.codAmount ?? "0"))}</p>
+        <p className="text-[10px] text-muted-foreground">{format(new Date(s.createdAt), "yyyy/MM/dd")}</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 pt-1">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Card className="card-glow border-border p-3 text-center" style={GLOW.neutral.style}>
+          <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي المرتجعات</p>
+          <p className="text-xl font-black">{allReturns.length}</p>
+        </Card>
+        <Card className="card-glow border-emerald-800/50 p-3 text-center" style={GLOW.emerald.style}>
+          <p className="text-[10px] text-muted-foreground mb-0.5">تم تسليمها للعميل</p>
+          <p className="text-xl font-black text-emerald-400">{receivedReturns.length}</p>
+        </Card>
+        <Card className="card-glow border-red-800/50 p-3 text-center" style={GLOW.red.style}>
+          <p className="text-[10px] text-muted-foreground mb-0.5">لم يتم تسليمها بعد</p>
+          <p className="text-xl font-black text-red-400">{pendingReturns.length}</p>
+        </Card>
+      </div>
+
+      {/* ─── قسم: مرتجعات تم تسليمها للعميل ─── */}
+      <div className="border border-emerald-800/40 rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-900/15 border-b border-emerald-800/40">
+          <PackageCheck className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-xs font-bold text-emerald-400">مرتجعات تم تسليمها للعميل</h3>
+          <Badge variant="outline" className="text-[9px] border-emerald-700 text-emerald-400">{receivedReturns.length}</Badge>
+        </div>
+        {receivedReturns.length === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">لا توجد مرتجعات مُسلَّمة حتى الآن</div>
+        ) : (
+          <div>{receivedReturns.map(s => <ReturnRow key={s.id} s={s} />)}</div>
+        )}
+      </div>
+
+      {/* ─── قسم: مرتجعات لم يتم تسليمها بعد ─── */}
+      <div className="border border-red-800/40 rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-red-900/15 border-b border-red-800/40">
+          <PackageX className="w-4 h-4 text-red-400" />
+          <h3 className="text-xs font-bold text-red-400">مرتجعات لم يتم تسليمها بعد</h3>
+          <Badge variant="outline" className="text-[9px] border-red-700 text-red-400">{pendingReturns.length}</Badge>
+        </div>
+        {pendingReturns.length === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">لا توجد مرتجعات معلّقة حالياً</div>
+        ) : (
+          <div>{pendingReturns.map(s => <ReturnRow key={s.id} s={s} />)}</div>
+        )}
+      </div>
     </div>
   );
 }
