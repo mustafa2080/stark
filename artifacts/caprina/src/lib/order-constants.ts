@@ -2,6 +2,7 @@ export const RETURN_REASONS: { value: string; label: string }[] = [
   { value: "refused_paid",       label: "العميل رفض الاستلام بعد المعاينة ودفع تكلفة الشحن" },
   { value: "refused_unpaid",     label: "العميل رفض الاستلام بعد المعاينة ولم يدفع تكلفة الشحن" },
   { value: "quality",            label: "العميل تهرب من الاستلام" },
+  { value: "unaware",            label: "لا يعلم عن الشحنة" },
 ];
 
 export const returnReasonLabel = (reason: string | null | undefined): string => {
