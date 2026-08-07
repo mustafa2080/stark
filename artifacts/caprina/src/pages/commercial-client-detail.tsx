@@ -157,6 +157,10 @@ type ClientShipment = {
   codAmount: string | null; shippingFee: string | null;
   createdAt: string; pieces: number | null;
   returnReason?: string | null; returnReceived?: number | null;
+  manifestId?: number | null;
+  manifestDeliveryStatus?: string | null;
+  manifestPartialQty?: number | null;
+  manifestReturnReceived?: number | null;
 };
 
 // ── بطاقة الفاتورة — زي ManifestCard بالظبط ────────────────────────────────
@@ -1726,37 +1730,12 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
     [shipments]
   );
   const receivedReturns = useMemo(
-    () => allReturns.filter(s => s.returnReceived === 1),
+    () => allReturns.filter(s => s.manifestReturnReceived === 1),
     [allReturns]
   );
   const pendingReturns = useMemo(
-    () => allReturns.filter(s => s.returnReceived !== 1),
+    () => allReturns.filter(s => s.manifestReturnReceived !== 1),
     [allReturns]
-  );
-
-  const ReturnRow = ({ s }: { s: ClientShipment }) => (
-    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-xs">{s.shipmentNumber}</span>
-          <span className="text-[11px] text-muted-foreground">{s.receiverName}</span>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap mt-1">
-          {s.receiverCity && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <MapPin className="w-3 h-3" />{s.receiverCity}
-            </span>
-          )}
-          {s.returnReason && (
-            <span className="text-[10px] text-red-400">{returnReasonLabel(s.returnReason)}</span>
-          )}
-        </div>
-      </div>
-      <div className="text-left shrink-0">
-        <p className="font-bold text-xs text-primary">{formatCurrency(parseFloat(s.codAmount ?? "0"))}</p>
-        <p className="text-[10px] text-muted-foreground">{format(new Date(s.createdAt), "yyyy/MM/dd")}</p>
-      </div>
-    </div>
   );
 
   return (
@@ -1776,6 +1755,27 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
         </Card>
       </div>
 
+      {/* ─── قسم: بضاعة لسه عند شركة الشحن (لم تُسلَّم) ─── */}
+      {pendingReturns.length > 0 && (
+        <div
+          className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4"
+          style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">🚚</span>
+            <h2 className="font-bold text-sm text-red-400">
+              بضاعة لسه عند شركة الشحن ({pendingReturns.length})
+            </h2>
+            <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {pendingReturns.map(s => (
+              <ReturnShipmentRow key={s.id} s={s} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ─── قسم: مرتجعات تم تسليمها للعميل ─── */}
       <div className="border border-emerald-800/40 rounded-xl overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-900/15 border-b border-emerald-800/40">
@@ -1786,24 +1786,146 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
         {receivedReturns.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">لا توجد مرتجعات مُسلَّمة حتى الآن</div>
         ) : (
-          <div>{receivedReturns.map(s => <ReturnRow key={s.id} s={s} />)}</div>
-        )}
-      </div>
-
-      {/* ─── قسم: مرتجعات لم يتم تسليمها بعد ─── */}
-      <div className="border border-red-800/40 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-red-900/15 border-b border-red-800/40">
-          <PackageX className="w-4 h-4 text-red-400" />
-          <h3 className="text-xs font-bold text-red-400">مرتجعات لم يتم تسليمها بعد</h3>
-          <Badge variant="outline" className="text-[9px] border-red-700 text-red-400">{pendingReturns.length}</Badge>
-        </div>
-        {pendingReturns.length === 0 ? (
-          <div className="py-8 text-center text-xs text-muted-foreground">لا توجد مرتجعات معلّقة حالياً</div>
-        ) : (
-          <div>{pendingReturns.map(s => <ReturnRow key={s.id} s={s} />)}</div>
+          <div>{receivedReturns.map(s => (
+            <div key={s.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-xs">{s.shipmentNumber}</span>
+                  <span className="text-[11px] text-muted-foreground">{s.receiverName}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  {s.receiverCity && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <MapPin className="w-3 h-3" />{s.receiverCity}
+                    </span>
+                  )}
+                  {s.returnReason && (
+                    <span className="text-[10px] text-red-400">{returnReasonLabel(s.returnReason)}</span>
+                  )}
+                </div>
+              </div>
+              <div className="text-left shrink-0">
+                <p className="font-bold text-xs text-primary">{formatCurrency(parseFloat(s.codAmount ?? "0"))}</p>
+                <p className="text-[10px] text-muted-foreground">{format(new Date(s.createdAt), "yyyy/MM/dd")}</p>
+              </div>
+            </div>
+          ))}</div>
         )}
       </div>
     </div>
+  );
+}
+
+// ─── صف شحنة مرتجعة لسه عند شركة الشحن — بزرارين تفاعليين ─────────────────
+function ReturnShipmentRow({ s }: { s: ClientShipment }) {
+  const isPartial = s.manifestDeliveryStatus === "partial_received" || s.manifestDeliveryStatus === "partial_delivered";
+  return (
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-medium text-xs truncate text-foreground">{s.receiverName}</span>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
+            {isPartial ? "جزئي" : "مرتجع"}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.shipmentNumber}</p>
+        {s.returnReason && (
+          <p className="text-[10px] font-semibold text-red-400 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
+        )}
+      </div>
+      <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
+        {s.manifestId ? (
+          <>
+            <SimpleReturnReceivedButton shipment={s} received={true} />
+            <SimpleReturnReceivedButton shipment={s} received={false} />
+          </>
+        ) : (
+          <span className="text-[10px] text-muted-foreground px-2">غير مرتبط ببيان</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── زرار "تم الاستلام" / "لم يتم بعد" — نسخة مستقلة تعمل على أي شحنة من أي بيان ───
+function SimpleReturnReceivedButton({ shipment, received }: { shipment: ClientShipment; received: boolean }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const currentRR = shipment.manifestReturnReceived;
+  const isActive = received ? currentRR === 1 : currentRR === 0;
+  const [confirmReceive, setConfirmReceive] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      clientAccountManifestsApi.updateItem(shipment.manifestId!, shipment.id, {
+        deliveryStatus: shipment.manifestDeliveryStatus ?? "returned",
+        partialQuantity: shipment.manifestPartialQty ?? null,
+        returnReceived: received,
+      }),
+    onSuccess: () => {
+      toast({
+        title: received ? "تم الاستلام ✅" : "لم يتم الاستلام بعد",
+        description: received ? "تمت إضافة البضاعة للمخزن" : undefined,
+      });
+      qc.invalidateQueries({ queryKey: ["client-shipments"] });
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  if (received) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => !isActive && setConfirmReceive(true)}
+          disabled={mutation.isPending}
+          className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+            isActive
+              ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
+              : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          <span className="text-sm">✅</span>
+          <span>تم الاستلام</span>
+        </button>
+        <AlertDialog open={confirmReceive} onOpenChange={setConfirmReceive}>
+          <AlertDialogContent dir="rtl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد استلام البضاعة</AlertDialogTitle>
+              <AlertDialogDescription>
+                هل أنت متأكد من استلام بضاعة شحنة <strong>{shipment.shipmentNumber}</strong> ({shipment.receiverName}) من مندوب الشحن؟
+                <br />سيتم إضافتها للمخزن فورًا.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-emerald-700 text-white hover:bg-emerald-600"
+                onClick={() => { setConfirmReceive(false); mutation.mutate(); }}
+              >
+                نعم، تم الاستلام
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => !isActive && mutation.mutate()}
+      disabled={mutation.isPending}
+      className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+        isActive
+          ? "border-orange-500 bg-orange-900/40 text-orange-300"
+          : "border-border text-muted-foreground hover:border-orange-700 hover:text-orange-400 hover:bg-orange-900/10"
+      } disabled:opacity-50 disabled:cursor-not-allowed`}
+    >
+      <span className="text-sm">🚚</span>
+      <span>لم يتم بعد</span>
+    </button>
   );
 }
 

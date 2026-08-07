@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -746,7 +746,7 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
     shipConds.push(or(idCond, nameCond)!);
     if (tenantId !== null) shipConds.push(eq(shipmentsTable.tenantId, tenantId));
 
-    const shipments = await db.select({
+    const rawShipments = await db.select({
       id:             shipmentsTable.id,
       shipmentNumber: shipmentsTable.shipmentNumber,
       status:         shipmentsTable.status,
@@ -758,10 +758,25 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       pieces:         shipmentsTable.pieces,
       returnReason:   shipmentsTable.returnReason,
       returnReceived: shipmentsTable.returnReceived,
+      manifestId:          clientAccountManifestItemsTable.manifestId,
+      manifestDeliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+      manifestPartialQty:  clientAccountManifestItemsTable.partialQuantity,
+      manifestReturnReceived: clientAccountManifestItemsTable.returnReceived,
     }).from(shipmentsTable)
+      .leftJoin(clientAccountManifestItemsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
       .where(and(...shipConds))
-      .orderBy(desc(shipmentsTable.createdAt))
-      .limit(200);
+      .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId))
+      .limit(400);
+
+    // كل شحنة ممكن تتكرر لو مرتبطة بأكتر من بيان — ناخد أحدث manifestId بس لكل shipment
+    const seen = new Set<number>();
+    const shipments = [];
+    for (const s of rawShipments) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      shipments.push(s);
+      if (shipments.length >= 200) break;
+    }
 
     res.json({ shipments, total: shipments.length });
   } catch (err: any) {
