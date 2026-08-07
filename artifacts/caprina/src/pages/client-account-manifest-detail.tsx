@@ -4834,9 +4834,9 @@ export default function ShippingManifestPage() {
           <span className="flex items-center justify-start gap-1">المحافظة{showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">العنوان{showColFilters && <ColFilterBtn col="address" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">القطع{showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">السعر الإجمالي{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">القيمة المستلمة{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">قيمة الشحن{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">الإجمالي{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">سعر المنطقة{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">الإجمالي الكلي{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
         </div>
 
@@ -4848,8 +4848,8 @@ export default function ShippingManifestPage() {
             const status = groupManifestStatus(group) as DeliveryStatus;
             const meta = compactStatusMeta(status);
             const total = group.reduce((sum, order) => sum + getShipmentAmount(order), 0);
-            const collected = group.reduce((sum, order) => sum + getCollectedAmount(order), 0);
             const shipping = group.reduce((sum, order) => sum + getChargeableShipping(order), 0);
+            const grandTotal = total - shipping;
             const quantity = group.reduce((sum, order) => sum + Number(order.quantity ?? 0), 0);
             const key = group.map((order) => order.id).join("-");
             return (
@@ -4871,8 +4871,8 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="text-center font-bold">{quantity}</div>
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
-                  <div className="text-center font-bold text-violet-400">{formatCurrency(collected)}</div>
                   <div className="text-center font-semibold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</div>
+                  <div className="text-center font-bold text-violet-400">{formatCurrency(grandTotal)}</div>
                   <div className="text-center">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
                     {status === "returned" && (() => {
@@ -4936,12 +4936,12 @@ export default function ShippingManifestPage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">القيمة المستلمة</span>
-                    <span className="font-bold text-violet-400">{formatCurrency(collected)}</span>
+                    <span className="text-muted-foreground">سعر المنطقة</span>
+                    <span className="font-bold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">قيمة الشحن</span>
-                    <span className="font-bold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</span>
+                    <span className="text-muted-foreground">الإجمالي الكلي</span>
+                    <span className="font-bold text-violet-400">{formatCurrency(grandTotal)}</span>
                   </div>
                 </div>
               </div>
