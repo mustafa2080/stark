@@ -4301,17 +4301,36 @@ export default function ShippingManifestPage() {
       return sum + Math.round(unitPrice * Number(o.partialQuantity));
     }, 0);
 
-  const totalCollected = deliveredGross + partialGross;
-  // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
-  // مش على كل أوردرات البيان، عشان الصافي المستحق ميتخصمش منه رسوم شحن طلبات لسه ماتحصّلتش
-  const collectedOrdersForShipping = ordersExcludingPendingShipping.filter(o =>
-    o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
-  );
-  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
+  const getCollectedAmount = (o: ManifestOrder) => {
+    if (o.deliveryStatus === "delivered") {
+      const dvr = (o as any).deliveredValueReceived;
+      return dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
+    }
+    if (o.deliveryStatus === "partial_delivered") {
+      return o.partialQuantity == null ? 0 : Number(o.partialQuantity);
+    }
+    if (o.deliveryStatus === "partial_received") {
+      if (o.partialQuantity == null || o.quantity <= 0) return 0;
+      const unitPrice = (o as any).unitPrice != null
+        ? Number((o as any).unitPrice)
+        : Number(o.totalPrice) / Number(o.quantity);
+      return Math.round(unitPrice * Number(o.partialQuantity));
+    }
+    return 0;
+  };
+  const hasChargeableShipping = (o: ManifestOrder) =>
+    o.deliveryStatus === "delivered" ||
+    o.deliveryStatus === "partial_received" ||
+    o.deliveryStatus === "partial_delivered" ||
+    (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? "")));
+  const getChargeableShipping = (o: ManifestOrder) =>
+    hasChargeableShipping(o) ? Number((o as any).shippingCost ?? 0) : 0;
+
+  const totalCollected = ordersExcludingPendingShipping.reduce((sum, o) => sum + getCollectedAmount(o), 0);
+  const effectiveShipping = ordersExcludingPendingShipping.reduce((sum, o) => sum + getChargeableShipping(o), 0);
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
   const newOrdersCount = groupedPendingCount;
-  const totalCod = (manifest.orders ?? []).reduce((sum, order) => sum + Number(order.totalPrice ?? 0), 0);
-  const totalShippingCost = (manifest.orders ?? []).reduce((sum, order) => sum + Number((order as any).shippingCost ?? 0), 0);
   const returnedNotArrived = (manifest.orders ?? []).filter(
     (order) =>
       (order.deliveryStatus === "returned" || order.deliveryStatus === "partial_delivered" || order.deliveryStatus === "partial_received") &&
@@ -4760,9 +4779,9 @@ export default function ShippingManifestPage() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <ClientMoneyCard label="إجمالي قيمة الشحنات" value={formatCurrency(totalCod)} tone="emerald" />
-        <ClientMoneyCard label="إجمالي سعر المنطقة" value={formatCurrency(totalShippingCost)} tone="sky" />
-        <ClientMoneyCard label="الإجمالي الكلي" value={formatCurrency(totalCod + totalShippingCost)} tone="violet" className="col-span-2 sm:col-span-1" />
+        <ClientMoneyCard label="إجمالي المستحق" value={formatCurrency(totalCollected)} tone="emerald" />
+        <ClientMoneyCard label="تكلفة الشحن" value={`-${formatCurrency(effectiveShipping)}`} tone="sky" />
+        <ClientMoneyCard label="صافي المستحق" value={formatCurrency(totalCollected - effectiveShipping)} tone="violet" className="col-span-2 sm:col-span-1" />
       </div>
 
       <div className="relative">
@@ -4802,9 +4821,9 @@ export default function ShippingManifestPage() {
           <span className="flex items-center justify-start gap-1">المحافظة{showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">العنوان{showColFilters && <ColFilterBtn col="address" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">القطع{showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">الإجمالي{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">سعر المنطقة{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">الإجمالي الكلي{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">المستحق{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">الشحن المحتسب{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">الصافي{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
         </div>
 
@@ -4815,8 +4834,9 @@ export default function ShippingManifestPage() {
             const rep = group[0];
             const status = groupManifestStatus(group) as DeliveryStatus;
             const meta = compactStatusMeta(status);
-            const total = group.reduce((sum, order) => sum + Number(order.totalPrice ?? 0), 0);
-            const shipping = group.reduce((sum, order) => sum + Number((order as any).shippingCost ?? 0), 0);
+            const total = group.reduce((sum, order) => sum + getCollectedAmount(order), 0);
+            const shipping = group.reduce((sum, order) => sum + getChargeableShipping(order), 0);
+            const net = total - shipping;
             const quantity = group.reduce((sum, order) => sum + Number(order.quantity ?? 0), 0);
             const key = group.map((order) => order.id).join("-");
             return (
@@ -4838,8 +4858,8 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="text-center font-bold">{quantity}</div>
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
-                  <div className="text-center font-semibold text-sky-400">{formatCurrency(shipping)}</div>
-                  <div className="text-center font-bold text-violet-400">{formatCurrency(total + shipping)}</div>
+                  <div className="text-center font-semibold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</div>
+                  <div className="text-center font-bold text-violet-400">{formatCurrency(net)}</div>
                   <div className="text-center">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
                     {status === "returned" && (() => {
@@ -4903,12 +4923,12 @@ export default function ShippingManifestPage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">سعر المنطقة</span>
-                    <span className="font-bold text-sky-400">{formatCurrency(shipping)}</span>
+                    <span className="text-muted-foreground">الشحن المحتسب</span>
+                    <span className="font-bold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">الإجمالي الكلي</span>
-                    <span className="font-bold text-violet-400">{formatCurrency(total + shipping)}</span>
+                    <span className="text-muted-foreground">الصافي</span>
+                    <span className="font-bold text-violet-400">{formatCurrency(net)}</span>
                   </div>
                 </div>
               </div>
