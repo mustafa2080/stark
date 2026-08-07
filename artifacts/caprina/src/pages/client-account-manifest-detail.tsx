@@ -4330,8 +4330,8 @@ export default function ShippingManifestPage() {
   const getChargeableShipping = (o: ManifestOrder) =>
     hasChargeableShipping(o) ? Number((o as any).shippingCost ?? 0) : 0;
 
-  const totalCollected = ordersExcludingPendingShipping.reduce((sum, o) => sum + getCollectedAmount(o), 0);
-  const effectiveShipping = ordersExcludingPendingShipping.reduce((sum, o) => sum + getChargeableShipping(o), 0);
+  const totalCollected = (manifest.orders ?? []).reduce((sum, o) => sum + getCollectedAmount(o), 0);
+  const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
   const newOrdersCount = groupedPendingCount;
   const returnedNotArrived = (manifest.orders ?? []).filter(
@@ -5543,42 +5543,20 @@ export default function ShippingManifestPage() {
 
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
-        // نستخدم نفس helper isStillAtShipping المعرّف فوق
-        const ordersForPnl = ordersExcludingPendingShipping;
+        const ordersForPnl = manifest.orders ?? [];
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const partialOrders = ordersForPnl.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
         const returnedWithShippingOrders = returnedOrders.filter(o =>
           RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? ""))
         );
-        // تكلفة الشحن الفعلية = مسلَّم + مسلَّم جزئي + المرتجع بأحد الأسباب الثلاثة المعتمدة
-        const totalShippingFee = ordersForPnl
-          .filter(o =>
-            o.deliveryStatus === "delivered" ||
-            o.deliveryStatus === "partial_received" ||
-            o.deliveryStatus === "partial_delivered" ||
-            (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? "")))
-          )
-          .reduce((s, o) => s + (o.shippingCost ?? 0), 0);
-        const deliveredCOD    = deliveredOrders.reduce((s, o) => {
-          const dvr = (o as any).deliveredValueReceived;
-          return s + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
-        }, 0);
-        const partialCOD = partialOrders.reduce((s, o) => {
-          if (o.partialQuantity == null) return s;
-          if (o.deliveryStatus === "partial_delivered") return s + Number(o.partialQuantity);
-          if (o.quantity <= 0) return s;
-          const unitPrice = (o as any).unitPrice != null
-            ? Number((o as any).unitPrice)
-            : Number(o.totalPrice) / Number(o.quantity);
-          return s + Math.round(unitPrice * Number(o.partialQuantity));
-        }, 0);
+        const deliveredCOD = deliveredOrders.reduce((s, o) => s + getCollectedAmount(o), 0);
+        const partialCOD = partialOrders.reduce((s, o) => s + getCollectedAmount(o), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => {
           const rvr = (o as any).returnValueReceived;
           return s + (rvr != null ? Number(rvr) : 0);
         }, 0);
-        const shippingCost    = totalShippingFee;
+        const shippingCost    = ordersForPnl.reduce((s, o) => s + getChargeableShipping(o), 0);
         const collectedCOD    = deliveredCOD + partialCOD;
         const totalCOD        = collectedCOD;
         const netAmount       = collectedCOD - shippingCost;
