@@ -326,9 +326,11 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
           const actualCod = dvr != null ? Number(dvr) : cod;
           deliveredGross += actualCod;
           totalShippingCost += shipping;
-        } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+        } else if (item.deliveryStatus === "partial_delivered") {
           totalShippingCost += shipping;
-          deliveredGross += Number(item.partialQuantity);
+          deliveredGross += item.partialQuantity != null
+            ? Number(item.partialQuantity)
+            : Number((shipment as any).collectedAmount ?? 0);
         }
       }
 
