@@ -4356,13 +4356,10 @@ export default function ShippingManifestPage() {
     if (dvr != null) return Number(dvr);
     return Number(o.totalPrice ?? (o as any).total ?? 0);
   };
-  const hasChargeableShipping = (o: ManifestOrder) =>
-    o.deliveryStatus === "delivered" ||
-    o.deliveryStatus === "partial_received" ||
-    o.deliveryStatus === "partial_delivered" ||
-    (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? "")));
+  // تم شيل شرط hasChargeableShipping بالكامل بناءً على طلب المهندس —
+  // الشحن يتحسب دايمًا للشحنة بغض النظر عن حالة التسليم (pending/delayed/returned/...)
   const getChargeableShipping = (o: ManifestOrder) =>
-    hasChargeableShipping(o) ? Number((o as any).shippingCost ?? 0) : 0;
+    Number((o as any).shippingCost ?? 0);
 
   const totalCollected = (manifest.orders ?? []).reduce((sum, o) => sum + getCollectedAmount(o), 0);
   const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
