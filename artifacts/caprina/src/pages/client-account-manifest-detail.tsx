@@ -4867,7 +4867,8 @@ export default function ShippingManifestPage() {
             const meta = compactStatusMeta(status);
             const total = group.reduce((sum, order) => sum + getShipmentAmount(order), 0);
             const shipping = group.reduce((sum, order) => sum + getChargeableShipping(order), 0);
-            const grandTotal = total - shipping;
+            // حماية: الإجمالي الكلي ميظهرش بالسالب أبدًا مهما كانت بيانات الشحنة
+            const grandTotal = Math.max(0, total - shipping);
             const quantity = group.reduce((sum, order) => sum + Number(order.quantity ?? 0), 0);
             const key = group.map((order) => order.id).join("-");
             return (
