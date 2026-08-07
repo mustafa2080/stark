@@ -479,8 +479,10 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         quantity:      sh?.pieces        ?? 1,
         zoneId:        sh?.zoneId ?? null,
         zonePrice:     sh?.zoneId != null ? (zoneShippingMap[sh.zoneId] ?? Number(sh?.shippingFee ?? 0)) : Number(sh?.shippingFee ?? 0),
-        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
-        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
+        // الإجمالي لازم يستخدم نفس سعر المنطقة الفعلي (getZoneShipping) اللي بيتعرض في
+        // عمود "سعر المنطقة" — مش shippingFee الخام اللي ممكن يبقى صفر لو محدّش دخلها يدويًا.
+        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + getZoneShipping(sh),
+        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + getZoneShipping(sh),
         shippingCost:  getZoneShipping(sh),
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
