@@ -2397,12 +2397,8 @@ function ClientStatementDialog({ client, orders, from, to, onFromChange, onToCha
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent
-        dir="rtl"
-        className="max-w-4xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto p-0 gap-0"
-      >
-        <div className="p-4 sm:p-6 space-y-4 print:p-6">
+    <div dir="rtl" className="w-full">
+      <div className="space-y-4">
           {/* رأس المودال */}
           <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
             <div className="flex items-center gap-2 order-2 sm:order-1">
@@ -2426,12 +2422,12 @@ function ClientStatementDialog({ client, orders, from, to, onFromChange, onToCha
                 تصدير Excel
               </Button>
             </div>
-            <DialogHeader className="order-1 sm:order-2 flex-1 min-w-[200px]">
-              <DialogTitle className="text-right flex items-center gap-2 text-base sm:text-lg">
+            <div className="order-1 sm:order-2 flex-1 min-w-[200px]">
+              <h2 className="text-right flex items-center gap-2 text-base sm:text-lg font-semibold">
                 <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
                 كشف حساب — {client.name}
-              </DialogTitle>
-            </DialogHeader>
+              </h2>
+            </div>
           </div>
 
           {/* فلتر التاريخ */}
@@ -2567,20 +2563,13 @@ function ClientStatementDialog({ client, orders, from, to, onFromChange, onToCha
               );
             })}
           </div>
-
-          <div className="flex justify-end print:hidden">
-            <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs">
-              إغلاق
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ─── Admin Client Account Manifest Cards — نفس تجربة حساب العميل ────────────
+// ─── Admin Client Account Manifest Cards — نفس تجربة حساب العميل ──────────
 // ════════════════════════════════════════════════════════════════════════════
 function AdminOpenManifestCard({ manifest, clientId, qc }: {
   manifest: ClientAccountManifestListItem;
