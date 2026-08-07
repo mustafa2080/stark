@@ -5,6 +5,7 @@ import {
   clientAccountManifestsTable,
   clientAccountManifestItemsTable,
   shipmentsTable,
+  shipmentZonesTable,
   clientsTable,
   usersTable,
   warehousesTable,
@@ -424,6 +425,25 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, manifest.clientId));
+    const clientType = client?.clientType ?? "normal";
+
+    const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+    let zoneShippingMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+      zoneShippingMap = Object.fromEntries(zones.map(z => {
+        const priceByType =
+          clientType === "vip"        ? z.priceVip :
+          clientType === "commercial" ? z.priceCommercial :
+          z.priceNormal;
+        const resolved = priceByType != null && Number(priceByType) > 0 ? priceByType : z.price;
+        return [z.id, Number(resolved) || 0];
+      }));
+    }
+    const getZoneShipping = (shipment: any) =>
+      shipment?.zoneId ? (zoneShippingMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
+
     // ── جلب أسماء المناديب (assignedUserId) دفعة واحدة ──────────────────────
     const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
     let repNameMap: Record<number, string> = {};
@@ -459,7 +479,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         quantity:      sh?.pieces        ?? 1,
         totalPrice:    Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
         unitPrice:     Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
-        shippingCost:  Number(sh?.shippingFee ?? 0),
+        shippingCost:  getZoneShipping(sh),
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
@@ -480,7 +500,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
       const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
-      const shipping = Number(shipment.shippingFee ?? 0);
+      const shipping = getZoneShipping(shipment);
       const cost     = Number(shipment.costPrice ?? 0);
 
       if (item.deliveryStatus === "delivered") {
@@ -513,8 +533,6 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
     const netDueFromClient = deliveredGross - totalShippingCost; // صافي المستحق من/على العميل
-
-    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, manifest.clientId));
 
     res.json({
       ...manifest,

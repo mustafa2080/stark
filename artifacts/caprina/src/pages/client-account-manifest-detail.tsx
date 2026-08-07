@@ -1036,10 +1036,21 @@ function InvoiceGroupDeliveryRow({
   }, 0);
   // السعر الكامل للفاتورة (للعرض والمرجع)
   const totalFullPrice = group.reduce((s, o) => s + Number(o.totalPrice), 0);
-  // إجمالي سعر الشحن الفعلي للمجموعة (منفصل عن قيمة الشحنة/COD) — فقط للأوردرات المُسلَّمة
-  const totalShippingFee = group
-    .filter(o => o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_received")
-    .reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
+  const totalShippingFee = group.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
+  const totalShipmentWithShipping = totalFullPrice + totalShippingFee;
+  const totalReceivedFromCustomer = group.reduce((sum, o) => {
+    if (o.deliveryStatus === "delivered") {
+      const dvr = (o as any).deliveredValueReceived;
+      return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+    }
+    if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
+      return sum + Number(o.partialQuantity ?? 0);
+    }
+    if (o.deliveryStatus === "returned") {
+      return sum + Number((o as any).returnValueReceived ?? 0);
+    }
+    return sum;
+  }, 0);
   const invoiceNum = (rep as any).invoiceNumber?.trim() || null;
   const isMulti = group.length > 1;
 
@@ -1323,15 +1334,15 @@ function InvoiceGroupDeliveryRow({
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
-          {/* اجمالى سعر الشحنة (COD) */}
+          {/* اجمالى سعر الشحنة شامل قيمة الشحن */}
           <div className="text-left font-bold px-3 flex items-center">
-            <span className="text-emerald-500">{formatCurrency(totalFullPrice)}</span>
+            <span className="text-emerald-500">{formatCurrency(totalShipmentWithShipping)}</span>
           </div>
-          {/* القيمة المستلمة (= سعر الشحنة) */}
+          {/* القيمة المستلمة من العميل */}
           <div className="hidden md:flex text-center px-2 items-center justify-center">
-            <span className="text-emerald-500 font-semibold">{formatCurrency(totalFullPrice)}</span>
+            <span className="text-emerald-500 font-semibold">{formatCurrency(totalReceivedFromCustomer)}</span>
           </div>
-          {/* تكلفة الشحن (فعلية من مناديب Stark لكل شحنة) */}
+          {/* قيمة الشحن من سعر المنطقة */}
           <div className="text-center px-2 flex items-center justify-center">
             {totalShippingFee > 0 ? (
               <span className="text-amber-500 font-semibold">{formatCurrency(totalShippingFee)}</span>
@@ -2880,7 +2891,7 @@ function ExportDialog({
     setCell(ws1.getCell("A4"), "", { fill: C.bg, border: C.bg });
     ws1.getRow(4).height = 8;
 
-    const headers = ["#", "اسم العميل", "الهاتف", "المحافظة", "العنوان", "الشركة الراسلة", "سعر الشحنة", "سعر الشحن", "الإجمالي", "حالة التسليم", "ملاحظة", "رقم الشحنة"];
+    const headers = ["#", "اسم العميل", "الهاتف", "المحافظة", "العنوان", "الشركة الراسلة", "إجمالي سعر الشحنة", "القيمة المستلمة", "قيمة الشحن", "حالة التسليم", "ملاحظة", "رقم الشحنة"];
     const headerRow = ws1.getRow(5);
     headerRow.values = headers;
     headerRow.height = 24;
@@ -2897,8 +2908,21 @@ function ExportDialog({
       const rep = group[0];
       const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
       const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
-      const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-      const net = cod - fee;
+      const fee = group.reduce((sum, order) => sum + Number((order as any).shippingCost ?? 0), 0);
+      const shipmentTotal = cod + fee;
+      const receivedValue = group.reduce((sum, order) => {
+        if (order.deliveryStatus === "delivered") {
+          const dvr = (order as any).deliveredValueReceived;
+          return sum + (dvr != null ? Number(dvr) : Number(order.totalPrice ?? 0));
+        }
+        if (order.deliveryStatus === "partial_delivered" || order.deliveryStatus === "partial_received") {
+          return sum + Number(order.partialQuantity ?? 0);
+        }
+        if (order.deliveryStatus === "returned") {
+          return sum + Number((order as any).returnValueReceived ?? 0);
+        }
+        return sum;
+      }, 0);
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
       const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
       const deliveryLabel = statuses.length === 1
@@ -2952,29 +2976,29 @@ function ExportDialog({
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
       });
-      // 7: سعر الشحنة (COD)
-      setCell(row.getCell(7), cod, {
+      // 7: إجمالي سعر الشحنة شامل قيمة الشحن
+      setCell(row.getCell(7), shipmentTotal, {
         fill: baseFill,
         font: { bold: true, color: { argb: C.green } },
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
         numFmt: '#,##0 "ج.م"',
       });
-      // 8: سعر الشحن (fee)
-      setCell(row.getCell(8), fee > 0 ? fee : "—", {
+      // 8: القيمة المستلمة من العميل
+      setCell(row.getCell(8), receivedValue > 0 ? receivedValue : "—", {
+        fill: baseFill,
+        font: { bold: true, color: { argb: C.blue } },
+        align: { horizontal: "center", vertical: "middle" },
+        border: "FFD1D5DB",
+        numFmt: receivedValue > 0 ? '#,##0 "ج.م"' : undefined,
+      });
+      // 9: قيمة الشحن من سعر المنطقة
+      setCell(row.getCell(9), fee > 0 ? fee : "—", {
         fill: baseFill,
         font: { color: { argb: C.amber } },
         align: { horizontal: "center", vertical: "middle" },
         border: "FFD1D5DB",
         numFmt: fee > 0 ? '#,##0 "ج.م"' : undefined,
-      });
-      // 9: الإجمالي (net)
-      setCell(row.getCell(9), net, {
-        fill: baseFill,
-        font: { bold: true, color: { argb: C.blue } },
-        align: { horizontal: "center", vertical: "middle" },
-        border: "FFD1D5DB",
-        numFmt: '#,##0 "ج.م"',
       });
       // 10: الحالة
       setCell(row.getCell(10), deliveryLabel, {
@@ -4417,9 +4441,9 @@ export default function ShippingManifestPage() {
             <th style={{ width: "8%" }}>المحافظة</th>
             <th style={{ width: "17%" }}>العنوان</th>
             <th style={{ width: "11%" }}>الراسل</th>
-            <th style={{ width: "9%" }}>سعر الشحنة</th>
-            <th style={{ width: "8%" }}>سعر الشحن</th>
+            <th style={{ width: "9%" }}>إجمالي سعر الشحنة</th>
             <th style={{ width: "10%" }}>القيمة المستلمة</th>
+            <th style={{ width: "8%" }}>قيمة الشحن</th>
             <th style={{ width: "8%" }}>الحالة</th>
             <th style={{ width: "6%" }}>ملاحظة</th>
           </tr>
@@ -4433,26 +4457,21 @@ export default function ShippingManifestPage() {
             const { label, cls } = statusLabel(singleStatus);
             const totalQty = group.reduce((sum, o) => sum + (o.quantity ?? 0), 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-            const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-            const net = cod - fee;
-            // القيمة المستلمة فعليًا (0 لو لسه قيد الانتظار/مؤجل/مرتجع بالكامل ولم يُستلم)
-            const isDeliveredLike = singleStatus === "delivered";
-            const isPartialLike = singleStatus === "partial_received" || singleStatus === "partial_delivered";
-            const deliveredActual = group.reduce((sum, o) => {
-              const dvr = (o as any).deliveredValueReceived;
-              return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+            const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+            const shipmentTotal = cod + fee;
+            const receivedValue = group.reduce((sum, o) => {
+              if (o.deliveryStatus === "delivered") {
+                const dvr = (o as any).deliveredValueReceived;
+                return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+              }
+              if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
+                return sum + Number(o.partialQuantity ?? 0);
+              }
+              if (o.deliveryStatus === "returned") {
+                return sum + Number((o as any).returnValueReceived ?? 0);
+              }
+              return sum;
             }, 0);
-            const receivedValue = isDeliveredLike
-              ? deliveredActual - fee
-              : isPartialLike
-                ? group.reduce((sum, o) => {
-                    const rr = (o as any).returnReceived;
-                    if (rr == null || (rr !== 1 && rr !== true)) return sum;
-                    if (o.partialQuantity == null || (o.quantity ?? 0) <= 0) return sum;
-                    const unitPrice = Number(o.totalPrice ?? 0) / Number(o.quantity ?? 1);
-                    return sum + Math.round(unitPrice * Number(o.partialQuantity));
-                  }, 0) - fee
-                : 0;
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
@@ -4464,11 +4483,11 @@ export default function ShippingManifestPage() {
                 <td>{rep.city ?? "—"}</td>
                 <td style={{ fontSize: "8.5pt" }}>{(rep as any).address ?? "—"}</td>
                 <td style={{ fontSize: "8.5pt" }}>{(rep as any).senderName ?? "—"}</td>
-                <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
-                <td className="mp-td-center" style={{ color: "#d97706" }}>{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{shipmentTotal.toLocaleString("ar-EG")} ج</td>
                 <td className="mp-td-center mp-td-bold" style={{ color: receivedValue > 0 ? "#1d4ed8" : "#94a3b8" }}>
                   {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") + " ج" : "—"}
                 </td>
+                <td className="mp-td-center" style={{ color: "#d97706" }}>{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
               </tr>
@@ -4523,7 +4542,7 @@ export default function ShippingManifestPage() {
               <th style={{ width: "9%" }}>المحافظة</th>
               <th style={{ width: "8%" }}>العنوان</th>
               <th style={{ width: "11%" }}>الشركة الراسله</th>
-              <th style={{ width: "10%" }}>سعر الشحنه</th>
+              <th style={{ width: "10%" }}>إجمالي سعر الشحنة</th>
               <th style={{ width: "10%" }}>القيمة المستلمه</th>
               <th style={{ width: "9%" }}>قيمة الشحن</th>
               <th style={{ width: "8%" }}>الحاله</th>
@@ -4537,21 +4556,21 @@ export default function ShippingManifestPage() {
               const isSingleStatus = statuses.length === 1;
               const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
               const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-              const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-              const net = cod - fee;
-              const isDeliveredLike = singleStatus === "delivered";
-              const isPartialLike = singleStatus === "partial_received" || singleStatus === "partial_delivered";
-              const receivedValue = isDeliveredLike
-                ? net
-                : isPartialLike
-                  ? group.reduce((sum, o) => {
-                      const rr = (o as any).returnReceived;
-                      if (rr == null || (rr !== 1 && rr !== true)) return sum;
-                      if (o.partialQuantity == null || (o.quantity ?? 0) <= 0) return sum;
-                      const unitPrice = Number(o.totalPrice ?? 0) / Number(o.quantity ?? 1);
-                      return sum + Math.round(unitPrice * Number(o.partialQuantity));
-                    }, 0) - fee
-                  : 0;
+              const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+              const shipmentTotal = cod + fee;
+              const receivedValue = group.reduce((sum, o) => {
+                if (o.deliveryStatus === "delivered") {
+                  const dvr = (o as any).deliveredValueReceived;
+                  return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+                }
+                if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
+                  return sum + Number(o.partialQuantity ?? 0);
+                }
+                if (o.deliveryStatus === "returned") {
+                  return sum + Number((o as any).returnValueReceived ?? 0);
+                }
+                return sum;
+              }, 0);
               const statusText =
                 singleStatus === "delivered" ? "استلم" :
                 singleStatus === "returned" ? "مرتجع" :
@@ -4568,9 +4587,9 @@ export default function ShippingManifestPage() {
                   <td>{rep.city ?? "—"}</td>
                   <td style={{ fontSize: "8pt" }}>{(rep as any).address ?? "—"}</td>
                   <td>{(rep as any).senderName ?? "—"}</td>
-                  <td>{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
+                  <td>{shipmentTotal.toLocaleString("ar-EG")}</td>
                   <td className="tr-td-received">{receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}</td>
-                  <td className="tr-td-shipping">{cod.toLocaleString("ar-EG")}</td>
+                  <td className="tr-td-shipping">{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
                   <td className={statusCls}>{statusText}</td>
                   <td className="tr-note">{notes || "—"}</td>
                 </tr>
@@ -4792,9 +4811,9 @@ export default function ShippingManifestPage() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <ClientMoneyCard label="إجمالي المستحق" value={formatCurrency(totalCollected)} tone="emerald" />
+        <ClientMoneyCard label="إجمالي المستحق" value={formatCurrency(netDue)} tone="emerald" />
         <ClientMoneyCard label="تكلفة الشحن" value={`-${formatCurrency(effectiveShipping)}`} tone="sky" />
-        <ClientMoneyCard label="صافي المستحق" value={formatCurrency(totalCollected - effectiveShipping)} tone="violet" className="col-span-2 sm:col-span-1" />
+        <ClientMoneyCard label="المُحصّل قبل الشحن" value={formatCurrency(totalCollected)} tone="violet" className="col-span-2 sm:col-span-1" />
       </div>
 
       <div className="relative">
@@ -5074,7 +5093,7 @@ export default function ShippingManifestPage() {
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">المحافظة</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500 hidden md:table-cell">العنوان</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500 hidden sm:table-cell">الشركة الراسله</th>
-                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">سعر الشحنه</th>
+                <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">إجمالي سعر الشحنة</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">القيمة المستلمه</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">قيمة الشحن</th>
                 <th className="px-2 py-2 font-bold whitespace-nowrap border border-slate-500">الحاله</th>
@@ -5088,21 +5107,21 @@ export default function ShippingManifestPage() {
                 const isSingleStatus = statuses.length === 1;
                 const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
                 const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-                const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-                const net = cod - fee;
-                const isDeliveredLike = singleStatus === "delivered";
-                const isPartialLike = singleStatus === "partial_received" || singleStatus === "partial_delivered";
-                const receivedValue = isDeliveredLike
-                  ? net
-                  : isPartialLike
-                    ? group.reduce((sum, o) => {
-                        const rr = (o as any).returnReceived;
-                        if (rr == null || (rr !== 1 && rr !== true)) return sum;
-                        if (o.partialQuantity == null || (o.quantity ?? 0) <= 0) return sum;
-                        const unitPrice = Number(o.totalPrice ?? 0) / Number(o.quantity ?? 1);
-                        return sum + Math.round(unitPrice * Number(o.partialQuantity));
-                      }, 0) - fee
-                    : 0;
+                const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+                const shipmentTotal = cod + fee;
+                const receivedValue = group.reduce((sum, o) => {
+                  if (o.deliveryStatus === "delivered") {
+                    const dvr = (o as any).deliveredValueReceived;
+                    return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
+                  }
+                  if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
+                    return sum + Number(o.partialQuantity ?? 0);
+                  }
+                  if (o.deliveryStatus === "returned") {
+                    return sum + Number((o as any).returnValueReceived ?? 0);
+                  }
+                  return sum;
+                }, 0);
                 const statusText =
                   singleStatus === "delivered" ? "استلم" :
                   singleStatus === "returned" ? "مرتجع" :
@@ -5123,11 +5142,11 @@ export default function ShippingManifestPage() {
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{rep.city ?? "—"}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center hidden md:table-cell">{(rep as any).address ?? "—"}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center hidden sm:table-cell">{(rep as any).senderName ?? "—"}</td>
-                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center">{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-bold text-teal-700 dark:text-teal-400">{shipmentTotal.toLocaleString("ar-EG")}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-extrabold text-emerald-700 dark:text-emerald-400">
                       {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}
                     </td>
-                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-bold text-teal-700 dark:text-teal-400">{cod.toLocaleString("ar-EG")}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center">{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
                     <td className={`px-2 py-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap ${statusCls}`}>{statusText}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center text-[11px] text-muted-foreground hidden lg:table-cell">{notes || "—"}</td>
                   </tr>
@@ -5407,9 +5426,9 @@ export default function ShippingManifestPage() {
                   <div className="hidden md:flex items-center justify-center gap-1 px-2 h-9">
                     القيمة المستلمة
                   </div>
-                  {/* ─── تكلفة الشحن (المندوب) ─── */}
+                  {/* ─── قيمة الشحن من سعر المنطقة ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">
-                    تكلفة الشحن
+                    قيمة الشحن
                   </div>
                   {/* ─── حالة الاوردر ─── */}
                   <div className="flex items-center gap-1 px-2 h-9">
@@ -5568,14 +5587,13 @@ export default function ShippingManifestPage() {
         }, 0);
         const shippingCost    = ordersForPnl.reduce((s, o) => s + getChargeableShipping(o), 0);
         const collectedCOD    = deliveredCOD + partialCOD;
-        const totalCOD        = collectedCOD;
         const netAmount       = collectedCOD - shippingCost;
         const isProfit        = netAmount >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-border bg-card p-4">
               <p className="text-xs text-muted-foreground mb-1">إجمالي المستحق</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalCOD)}</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
