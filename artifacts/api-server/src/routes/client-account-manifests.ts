@@ -6,6 +6,7 @@ import {
   clientAccountManifestItemsTable,
   shipmentsTable,
   shipmentZonesTable,
+  zoneCostsTable,
   clientsTable,
   usersTable,
   warehousesTable,
@@ -430,6 +431,9 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
 
     const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
     let zoneShippingMap: Record<number, number> = {};
+    // ── مصدر الحقيقة الأساسي لمبلغ الشحن المستحق من العميل التجاري: جدول
+    // "تكاليف المناطق" (zone_costs.deliveryCost) — مش أسعار shipment_zones العادية ──
+    let zoneDeliveryCostMap: Record<number, number> = {};
     if (zoneIds.length) {
       const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
       zoneShippingMap = Object.fromEntries(zones.map(z => {
@@ -440,9 +444,24 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         const resolved = priceByType != null && Number(priceByType) > 0 ? priceByType : z.price;
         return [z.id, Number(resolved) || 0];
       }));
+
+      const zoneCosts = await db.select().from(zoneCostsTable)
+        .where(and(inArray(zoneCostsTable.zoneId, zoneIds), eq(zoneCostsTable.isActive, true)));
+      zoneDeliveryCostMap = Object.fromEntries(
+        zoneCosts.filter(zc => zc.zoneId != null).map(zc => [zc.zoneId as number, Number(zc.deliveryCost) || 0])
+      );
     }
-    const getZoneShipping = (shipment: any) =>
-      shipment?.zoneId ? (zoneShippingMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
+    const getZoneShipping = (shipment: any) => {
+      if (!shipment?.zoneId) return Number(shipment?.shippingFee ?? 0);
+      // 1) تكلفة المنطقة المسجّلة يدويًا في تاب "تكاليف المناطق" (الأولوية)
+      const zoneCost = zoneDeliveryCostMap[shipment.zoneId];
+      if (zoneCost != null && zoneCost > 0) return zoneCost;
+      // 2) fallback: سعر shipment_zones حسب تصنيف العميل
+      const zonePrice = zoneShippingMap[shipment.zoneId];
+      if (zonePrice != null && zonePrice > 0) return zonePrice;
+      // 3) fallback أخير: shippingFee المسجل يدويًا على الشحنة نفسها
+      return Number(shipment.shippingFee ?? 0);
+    };
 
     // ── جلب أسماء المناديب (assignedUserId) دفعة واحدة ──────────────────────
     const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
@@ -478,7 +497,8 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
         zoneId:        sh?.zoneId ?? null,
-        zonePrice:     sh?.zoneId != null ? (zoneShippingMap[sh.zoneId] ?? Number(sh?.shippingFee ?? 0)) : Number(sh?.shippingFee ?? 0),
+        // نفس مصدر الحقيقة الموحّد: تكلفة المنطقة (zone_costs) أولاً، وإلا سعر shipment_zones
+        zonePrice:     getZoneShipping(sh),
         // الإجمالي لازم يستخدم نفس سعر المنطقة الفعلي (getZoneShipping) اللي بيتعرض في
         // عمود "سعر المنطقة" — مش shippingFee الخام اللي ممكن يبقى صفر لو محدّش دخلها يدويًا.
         totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + getZoneShipping(sh),
