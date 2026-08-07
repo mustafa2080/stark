@@ -1738,81 +1738,73 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
     () => allReturns.filter(s => s.manifestReturnReceived !== 1),
     [allReturns]
   );
-  const [pendingOpen, setPendingOpen] = useState(false);
-  const [receivedOpen, setReceivedOpen] = useState(false);
+  const [filterMode, setFilterMode] = useState<"all" | "pending" | "received">("all");
+  const showPending  = filterMode === "all" || filterMode === "pending";
+  const showReceived = filterMode === "all" || filterMode === "received";
 
   return (
     <div className="space-y-5 pt-1">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="card-glow border-border p-3 text-center" style={GLOW.neutral.style}>
+        <Card
+          className={`card-glow border-border p-3 text-center cursor-pointer transition-all ${filterMode === "all" ? "ring-2 ring-primary" : ""}`}
+          style={GLOW.neutral.style}
+          onClick={() => setFilterMode("all")}
+        >
           <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي المرتجعات</p>
           <p className="text-xl font-black">{allReturns.length}</p>
         </Card>
-        <Card className="card-glow border-emerald-800/50 p-3 text-center" style={GLOW.emerald.style}>
+        <Card
+          className={`card-glow border-emerald-800/50 p-3 text-center cursor-pointer transition-all ${filterMode === "received" ? "ring-2 ring-emerald-500" : ""}`}
+          style={GLOW.emerald.style}
+          onClick={() => setFilterMode(m => m === "received" ? "all" : "received")}
+        >
           <p className="text-[10px] text-muted-foreground mb-0.5">تم تسليمها للعميل</p>
           <p className="text-xl font-black text-emerald-400">{receivedReturns.length}</p>
         </Card>
-        <Card className="card-glow border-red-800/50 p-3 text-center" style={GLOW.red.style}>
+        <Card
+          className={`card-glow border-red-800/50 p-3 text-center cursor-pointer transition-all ${filterMode === "pending" ? "ring-2 ring-red-500" : ""}`}
+          style={GLOW.red.style}
+          onClick={() => setFilterMode(m => m === "pending" ? "all" : "pending")}
+        >
           <p className="text-[10px] text-muted-foreground mb-0.5">لم يتم تسليمها بعد</p>
           <p className="text-xl font-black text-red-400">{pendingReturns.length}</p>
         </Card>
       </div>
 
       {/* ─── قسم: بضاعة لسه عند شركة الشحن (لم تُسلَّم) ─── */}
-      {pendingReturns.length > 0 && (
+      {showPending && pendingReturns.length > 0 && (
         <div
           className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4"
           style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
         >
-          <button
-            type="button"
-            onClick={() => setPendingOpen(v => !v)}
-            className="flex items-center gap-2 w-full text-right"
-          >
+          <div className="flex items-center gap-2 mb-3">
             <span className="text-base">🚚</span>
             <h2 className="font-bold text-sm text-red-400">
               بضاعة لسه عند شركة الشحن ({pendingReturns.length})
             </h2>
-            {!pendingOpen && (
-              <span className="text-[10px] text-red-400/60">— اضغط للعرض</span>
-            )}
-            <ChevronDown className={`w-4 h-4 text-red-400 mr-auto transition-transform ${pendingOpen ? "rotate-180" : ""}`} />
-          </button>
-          {pendingOpen && (
-          <>
-          <p className="text-[10px] text-red-400/60 mt-2 mb-1">اضغط "تم الاستلام" لما توصلك من الشركة</p>
+            <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
+          </div>
           <div className="flex flex-col gap-2">
             {pendingReturns.map(s => (
               <ReturnShipmentRow key={s.id} s={s} />
             ))}
           </div>
-          </>
-          )}
         </div>
       )}
 
       {/* ─── قسم: مرتجعات تم تسليمها للعميل ─── */}
-      {receivedReturns.length > 0 && (
+      {showReceived && receivedReturns.length > 0 && (
         <div
           className="rounded-xl border-2 border-emerald-500/70 bg-emerald-950/30 p-4"
           style={{ boxShadow: "0 0 30px 6px rgba(16,185,129,0.35), 0 0 60px 10px rgba(16,185,129,0.12), inset 0 0 20px 2px rgba(16,185,129,0.05)" }}
         >
-          <button
-            type="button"
-            onClick={() => setReceivedOpen(v => !v)}
-            className="flex items-center gap-2 w-full text-right"
-          >
+          <div className="flex items-center gap-2 mb-3">
             <PackageCheck className="w-4 h-4 text-emerald-400" />
             <h2 className="font-bold text-sm text-emerald-400">
               مرتجعات تم تسليمها للعميل ({receivedReturns.length})
             </h2>
-            {!receivedOpen && (
-              <span className="text-[10px] text-emerald-400/60">— اضغط للعرض</span>
-            )}
-            <ChevronDown className={`w-4 h-4 text-emerald-400 mr-auto transition-transform ${receivedOpen ? "rotate-180" : ""}`} />
-          </button>
-          {receivedOpen && (
-          <div className="flex flex-col gap-2 mt-3">
+          </div>
+          <div className="flex flex-col gap-2">
             {receivedReturns.map(s => (
               <div
                 key={s.id}
@@ -1844,7 +1836,6 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
               </div>
             ))}
           </div>
-          )}
         </div>
       )}
       {receivedReturns.length === 0 && pendingReturns.length === 0 && (
