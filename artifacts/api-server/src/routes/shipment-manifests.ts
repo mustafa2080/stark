@@ -206,6 +206,22 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       zonePriceMap = Object.fromEntries(zoneRows.map(z => [z.id, Number(z.price ?? 0)]));
     }
 
+    // ── جلب تكاليف المناطق (من قسم "تكاليف المناطق") — بديل احتياطي لرسوم الشحن
+    // الفارغة/الصفرية، وتُستخدم أيضًا في حساب تكلفة المندوب لو costMode = "zone" ──
+    let zoneCostMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneCostRows = await db
+        .select({ zoneId: zoneCostsTable.zoneId, deliveryCost: zoneCostsTable.deliveryCost })
+        .from(zoneCostsTable)
+        .where(and(
+          inArray(zoneCostsTable.zoneId, zoneIds),
+          manifest.tenantId !== null && manifest.tenantId !== undefined
+            ? or(eq(zoneCostsTable.tenantId, manifest.tenantId), isNull(zoneCostsTable.tenantId))
+            : undefined,
+        ));
+      zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId, Number(z.deliveryCost ?? 0)]));
+    }
+
     const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
     let parcelPricingMap: Record<string, { label: string; repExtraCost: number }> = {};
     if (parcelTypes.length) {
@@ -237,6 +253,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
 
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
+      // رسوم الشحن الفعلية: لو shippingFee المسجَّلة على الشحنة صفر/فارغة، نستخدم
+      // تكلفة المنطقة (تكاليف المناطق) كبديل احتياطي بدل ما تفضل صفر.
+      const manualShippingFee = Number(sh?.shippingFee ?? 0);
+      const effectiveShippingFee = manualShippingFee > 0
+        ? manualShippingFee
+        : (sh?.zoneId != null ? (zoneCostMap[sh.zoneId] ?? 0) : 0);
       return {
         ...item,
         shipment: sh,
@@ -250,10 +272,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         zoneId:        sh?.zoneId ?? null,
         // سعر المنطقة (المحافظة) من قسم "المناطق والأسعار" — لعرضه في عمود "شحن" بالجدول
         zonePrice:     sh?.zoneId != null ? (zonePriceMap[sh.zoneId] ?? null) : null,
-        // الإجمالي = مبلغ التحصيل (codAmount) + سعر الشحن (shippingFee)، زي قسم "الشحنات" بالظبط
-        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
-        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + Number(sh?.shippingFee ?? 0),
-        shippingCost:  Number(sh?.shippingFee ?? 0),
+        // رسوم الشحن الفعلية: لو الشحنة معندهاش shippingFee مسجَّل يدويًا (فارغ/صفر)،
+        // نرجع لتكلفة المنطقة من "تكاليف المناطق" بدل ما نسيب القيمة صفر/بالسالب.
+        shippingCost:  effectiveShippingFee,
+        // الإجمالي = مبلغ التحصيل (codAmount) + سعر الشحن الفعلي (بعد fallback تكاليف المناطق)
+        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + effectiveShippingFee,
+        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + effectiveShippingFee,
         parcelType:    sh?.parcelType ?? null,
         repExtraCost:  sh?.parcelType ? (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) : 0,
         repExtraReason: sh?.parcelType && (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) > 0
@@ -285,7 +309,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
       const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
-      const shipping = Number(shipment.shippingFee ?? 0);
+      // نفس منطق fallback المستخدم في enrichedItems: لو shippingFee صفر/فارغ نرجع
+      // لتكلفة المنطقة (تكاليف المناطق) بدل ما تفضل صفر وتفسد حساب "المستحق".
+      const manualShipping = Number(shipment.shippingFee ?? 0);
+      const shipping = manualShipping > 0
+        ? manualShipping
+        : (shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0);
       const cost     = Number(shipment.costPrice ?? 0);
 
       if (item.deliveryStatus === "delivered") {
@@ -365,7 +394,18 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       })
       .filter(Boolean);
     const repExtraCostTotal = repExtraCostBreakdown.reduce((s: number, x: any) => s + Number(x.amount ?? 0), 0);
-    const courierBaseCost = courierCostPerShipment * (delivered + returnedWithShippingCost);
+    // لو الشركة شغّالة بـ costMode = "zone"، تكلفة المندوب لكل شحنة بتتحدد من تكلفة
+    // منطقتها (تكاليف المناطق) مش سعر ثابت واحد للكل — نفس منطق الإحصائيات العامة
+    // لشركات الشحن (routes/shipment-manifests.ts: /shipping-companies/:id/shipment-stats).
+    const companyCostMode = (company as any)?.costMode === "zone" ? "zone" : "rep";
+    const courierBaseCost = companyCostMode === "zone"
+      ? items
+          .filter(isItemEligibleForCourierCost)
+          .reduce((s: number, item: any) => {
+            const sh = shipmentMap[item.shipmentId];
+            return s + (sh?.zoneId != null ? (zoneCostMap[sh.zoneId] ?? 0) : 0);
+          }, 0)
+      : courierCostPerShipment * (delivered + returnedWithShippingCost);
     const courierCostManual = courierBaseCost + repExtraCostTotal;
     // صافي المستحق للشركة = إجمالي المسلَّم (COD) − تكلفة المندوب
     const netDueToCompany   = deliveredGross - courierCostManual;
