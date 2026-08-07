@@ -3778,6 +3778,11 @@ export default function ShippingManifestPage() {
       const shippingFeeAmt = (item as any).shippingCost != null
         ? Number((item as any).shippingCost)
         : sh ? parseFloat(sh.shippingFee ?? '0') : 0;
+      const partialAmount = item.partialQuantity != null
+        ? Number(item.partialQuantity)
+        : sh && Number((sh as any).collectedAmount ?? 0) > 0
+          ? Number((sh as any).collectedAmount)
+          : null;
       return {
         id: item.shipmentId,
         manifestOrderId: item.id,
@@ -3821,7 +3826,7 @@ export default function ShippingManifestPage() {
         deliveredAt: item.deliveredAt,
         returnReceived: item.returnReceived,
         addedAt: rawManifest.createdAt,
-        partialQuantity: item.partialQuantity ?? null,
+        partialQuantity: partialAmount,
         returnReason: item.returnReason ?? null,
         returnValueReceived: (item as any).returnValueReceived ?? null,
         deliveredValueReceived: (item as any).deliveredValueReceived ?? null,

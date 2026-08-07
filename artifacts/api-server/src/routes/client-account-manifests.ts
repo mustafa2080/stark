@@ -438,12 +438,14 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         totalCost += cost;
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
-      } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+      } else if (item.deliveryStatus === "partial_delivered") {
         // partialQuantity هنا في بيان الشحن قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي
         // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
-        const partialCod = Number(item.partialQuantity);
+        const partialCod = item.partialQuantity != null
+          ? Number(item.partialQuantity)
+          : Number((shipment as any).collectedAmount ?? 0);
         totalRevenue += partialCod;
         deliveredGross += partialCod;
         if ((item as any).returnReceived === 1) {
