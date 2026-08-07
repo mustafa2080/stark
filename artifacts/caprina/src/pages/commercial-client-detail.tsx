@@ -1778,41 +1778,54 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
       )}
 
       {/* ─── قسم: مرتجعات تم تسليمها للعميل ─── */}
-      <div className="border border-emerald-800/40 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-900/15 border-b border-emerald-800/40">
-          <PackageCheck className="w-4 h-4 text-emerald-400" />
-          <h3 className="text-xs font-bold text-emerald-400">مرتجعات تم تسليمها للعميل</h3>
-          <Badge variant="outline" className="text-[9px] border-emerald-700 text-emerald-400">{receivedReturns.length}</Badge>
-        </div>
-        {receivedReturns.length === 0 ? (
-          <div className="py-8 text-center text-xs text-muted-foreground">لا توجد مرتجعات مُسلَّمة حتى الآن</div>
-        ) : (
-          <div>{receivedReturns.map(s => (
-            <div key={s.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-xs">{s.shipmentNumber}</span>
-                  <span className="text-[11px] text-muted-foreground">{s.receiverName}</span>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap mt-1">
-                  {s.receiverCity && (
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <MapPin className="w-3 h-3" />{s.receiverCity}
-                    </span>
-                  )}
+      {receivedReturns.length > 0 && (
+        <div
+          className="rounded-xl border-2 border-emerald-500/70 bg-emerald-950/30 p-4"
+          style={{ boxShadow: "0 0 30px 6px rgba(16,185,129,0.35), 0 0 60px 10px rgba(16,185,129,0.12), inset 0 0 20px 2px rgba(16,185,129,0.05)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <PackageCheck className="w-4 h-4 text-emerald-400" />
+            <h2 className="font-bold text-sm text-emerald-400">
+              مرتجعات تم تسليمها للعميل ({receivedReturns.length})
+            </h2>
+          </div>
+          <div className="flex flex-col gap-2">
+            {receivedReturns.map(s => (
+              <div
+                key={s.id}
+                className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-emerald-800/30 bg-emerald-950/30 px-3 py-2.5"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-medium text-xs truncate text-foreground">{s.receiverName}</span>
+                    {s.receiverCity && (
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <MapPin className="w-3 h-3" />{s.receiverCity}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.shipmentNumber}</p>
                   {s.returnReason && (
-                    <span className="text-[10px] text-red-400">{returnReasonLabel(s.returnReason)}</span>
+                    <p className="text-[10px] font-semibold text-emerald-400/80 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
                   )}
                 </div>
+                <div className="text-left shrink-0 flex items-center gap-2">
+                  <div>
+                    <p className="font-bold text-xs text-primary">{formatCurrency(parseFloat(s.codAmount ?? "0"))}</p>
+                    <p className="text-[10px] text-muted-foreground">{format(new Date(s.createdAt), "yyyy/MM/dd")}</p>
+                  </div>
+                  <span className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-600 bg-emerald-900/40 text-emerald-300 text-[10px] font-bold">
+                    ✅ تم الاستلام
+                  </span>
+                </div>
               </div>
-              <div className="text-left shrink-0">
-                <p className="font-bold text-xs text-primary">{formatCurrency(parseFloat(s.codAmount ?? "0"))}</p>
-                <p className="text-[10px] text-muted-foreground">{format(new Date(s.createdAt), "yyyy/MM/dd")}</p>
-              </div>
-            </div>
-          ))}</div>
-        )}
-      </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {receivedReturns.length === 0 && pendingReturns.length === 0 && (
+        <div className="py-10 text-center text-xs text-muted-foreground">لا توجد مرتجعات لهذا العميل حتى الآن</div>
+      )}
     </div>
   );
 }
