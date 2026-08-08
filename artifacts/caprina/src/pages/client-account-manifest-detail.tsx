@@ -4345,11 +4345,8 @@ export default function ShippingManifestPage() {
       return o.partialQuantity == null ? 0 : Number(o.partialQuantity);
     }
     if (o.deliveryStatus === "partial_received") {
-      if (o.partialQuantity == null || o.quantity <= 0) return 0;
-      const unitPrice = (o as any).unitPrice != null
-        ? Number((o as any).unitPrice)
-        : Number(o.totalPrice) / Number(o.quantity);
-      return Math.round(unitPrice * Number(o.partialQuantity));
+      // partialQuantity هنا فعليًا مبلغ الفلوس المُستلم (collectedAmount)، مش عدد قطع — تترجع كقيمة مباشرة.
+      return o.partialQuantity == null ? 0 : Math.round(Number(o.partialQuantity));
     }
     return 0;
   };
