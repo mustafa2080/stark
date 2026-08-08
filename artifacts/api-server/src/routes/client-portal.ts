@@ -2184,11 +2184,17 @@ router.post("/client-portal/shipments/import/execute", async (req, res): Promise
       return;
     }
 
+    // نحسب رقم البداية مرة واحدة فقط من الداتابيز، وبعدين نزوّد العداد محليًا لكل
+    // صف — نفس إصلاح مشكلة أرقام الشحنات المكررة في استيراد الإدارة (import.ts).
     let imported = 0;
     const now = new Date();
+    const firstShipmentNumber = await generateShipmentNumber(tenantId);
+    const numberPrefix = firstShipmentNumber.slice(0, -4);
+    let nextSeq = parseInt(firstShipmentNumber.slice(-4), 10);
     for (const s of validShipments) {
       try {
-        const shipmentNumber = await generateShipmentNumber(tenantId);
+        const shipmentNumber = `${numberPrefix}${String(nextSeq).padStart(4, "0")}`;
+        nextSeq++;
         await db.insert(shipmentsTable).values({
           ...(tenantId !== null ? { tenantId } : {}),
           shipmentNumber,

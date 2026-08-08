@@ -588,12 +588,20 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
   }
 
   // ── إدخال الشحنات دفعة دفعة، كل شحنة برقمها التسلسلي الخاص ──────────────────
+  // نحسب رقم البداية مرة واحدة فقط من الداتابيز، وبعدين نزوّد العداد محليًا لكل
+  // صف — لأن استدعاء generateShipmentNumber جوه اللوب كان بيعتمد على createdAt
+  // للترتيب، وكل صفوف الاستيراد بتتحط بنفس اللحظة بالميلي ثانية، فكان بيرجّع
+  // نفس الرقم القديم لعدة صفوف ويسبب أرقام شحنات مكررة.
   let insertedCount = 0;
   const now = new Date();
+  const firstShipmentNumber = await generateShipmentNumber(tenantId);
+  const numberPrefix = firstShipmentNumber.slice(0, -4);
+  let nextSeq = parseInt(firstShipmentNumber.slice(-4), 10);
 
   for (const s of validShipments) {
     try {
-      const shipmentNumber = await generateShipmentNumber(tenantId);
+      const shipmentNumber = `${numberPrefix}${String(nextSeq).padStart(4, "0")}`;
+      nextSeq++;
       await db.insert(shipmentsTable).values({
         ...(tenantId !== null ? { tenantId } : {}),
         shipmentNumber,

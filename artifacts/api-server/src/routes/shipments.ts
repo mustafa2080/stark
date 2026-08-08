@@ -210,7 +210,7 @@ export async function generateShipmentNumber(tenantId: number | null): Promise<s
         ? and(eq(shipmentsTable.tenantId, tenantId), like(shipmentsTable.shipmentNumber, `${prefix}%`))
         : like(shipmentsTable.shipmentNumber, `${prefix}%`)
     )
-    .orderBy(desc(shipmentsTable.createdAt))
+    .orderBy(desc(shipmentsTable.id))
     .limit(1);
   const last = rows[0]?.n;
   const seq  = last ? (parseInt(last.slice(-4)) + 1) : 1;
