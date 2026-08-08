@@ -1043,9 +1043,13 @@ function InvoiceGroupDeliveryRow({
       const dvr = (o as any).deliveredValueReceived;
       return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
     }
-    if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-      if (o.partialQuantity != null) {
-        return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+    if (o.deliveryStatus === "partial_delivered") {
+      return sum + (o.partialQuantity != null ? Number(o.partialQuantity) : 0);
+    }
+    if (o.deliveryStatus === "partial_received") {
+      if (o.partialQuantity != null && o.quantity > 0) {
+        const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : Number(o.totalPrice) / Number(o.quantity);
+        return sum + Math.round(unitPrice * Number(o.partialQuantity));
       }
       return sum;
     }
@@ -4468,9 +4472,13 @@ export default function ShippingManifestPage() {
                 const dvr = (o as any).deliveredValueReceived;
                 return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
               }
-              if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-                if (o.partialQuantity != null) {
-                  return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+              if (o.deliveryStatus === "partial_delivered") {
+                return sum + (o.partialQuantity != null ? Number(o.partialQuantity) : 0);
+              }
+              if (o.deliveryStatus === "partial_received") {
+                if (o.partialQuantity != null && o.quantity > 0) {
+                  const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : Number(o.totalPrice) / Number(o.quantity);
+                  return sum + Math.round(unitPrice * Number(o.partialQuantity));
                 }
                 return sum;
               }
@@ -4570,9 +4578,13 @@ export default function ShippingManifestPage() {
                   const dvr = (o as any).deliveredValueReceived;
                   return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
                 }
-                if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-                  if (o.partialQuantity != null) {
-                    return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+                if (o.deliveryStatus === "partial_delivered") {
+                  return sum + (o.partialQuantity != null ? Number(o.partialQuantity) : 0);
+                }
+                if (o.deliveryStatus === "partial_received") {
+                  if (o.partialQuantity != null && o.quantity > 0) {
+                    const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : Number(o.totalPrice) / Number(o.quantity);
+                    return sum + Math.round(unitPrice * Number(o.partialQuantity));
                   }
                   return sum;
                 }
@@ -5126,9 +5138,13 @@ export default function ShippingManifestPage() {
                     const dvr = (o as any).deliveredValueReceived;
                     return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
                   }
-                  if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-                    if (o.partialQuantity != null) {
-                      return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+                  if (o.deliveryStatus === "partial_delivered") {
+                    return sum + (o.partialQuantity != null ? Number(o.partialQuantity) : 0);
+                  }
+                  if (o.deliveryStatus === "partial_received") {
+                    if (o.partialQuantity != null && o.quantity > 0) {
+                      const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : Number(o.totalPrice) / Number(o.quantity);
+                      return sum + Math.round(unitPrice * Number(o.partialQuantity));
                     }
                     return sum;
                   }
