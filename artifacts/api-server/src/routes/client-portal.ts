@@ -27,6 +27,7 @@ import { requireAuth } from "../middlewares/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
 import { generateShipmentNumber, syncShipmentInventory } from "./shipments.js";
 import { pushNotification } from "../lib/notifications.js";
+import { autoAddShipmentToClientAccountManifest } from "./client-account-manifests.js";
 
 const router: IRouter = Router();
 const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -1015,6 +1016,7 @@ router.post("/client-portal/shipments", async (req, res): Promise<void> => {
     const result = await db.insert(shipmentsTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
       shipmentNumber,
+      clientId:        client.id,
       // العميل هو صاحب الشحنة — بياناته الخاصة تتحدد من حسابه مش من الطلب
       senderName:      client.name,
       senderPhone:     client.phone ?? undefined,
@@ -2195,9 +2197,10 @@ router.post("/client-portal/shipments/import/execute", async (req, res): Promise
       try {
         const shipmentNumber = `${numberPrefix}${String(nextSeq).padStart(4, "0")}`;
         nextSeq++;
-        await db.insert(shipmentsTable).values({
+        const insertResult = await db.insert(shipmentsTable).values({
           ...(tenantId !== null ? { tenantId } : {}),
           shipmentNumber,
+          clientId:        client.id,
           senderName:      client.name,
           senderPhone:     client.phone ?? undefined,
           senderCity:      client.city ?? undefined,
@@ -2231,6 +2234,11 @@ router.post("/client-portal/shipments/import/execute", async (req, res): Promise
           updatedAt:       now,
         });
         imported++;
+
+        // إضافة تلقائية لبيان حساب العميل المفتوح (لو موجود)، أو فتح بيان جديد له
+        const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
+        autoAddShipmentToClientAccountManifest(insertId, client.id, tenantId)
+          .catch((e) => console.error("[client-portal import] auto-add manifest error", e));
       } catch (e: any) {
         errors.push(`فشل استيراد شحنة "${s.receiverName}": ${e.message}`);
       }

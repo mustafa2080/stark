@@ -826,8 +826,8 @@ router.post("/shipments", async (req, res): Promise<void> => {
 
     res.status(201).json(newShipment[0]);
 
-    // إضافة تلقائية لبيان حساب العميل لو الشحنة اتعملت من الأول بحالة "قيد الشحن في المخزن"
-    if (newShipment[0] && newShipment[0].status === "warehouse_ready") {
+    // إضافة تلقائية لبيان حساب العميل المفتوح فور إنشاء الشحنة (بغض النظر عن حالتها)
+    if (newShipment[0] && newShipment[0].clientId) {
       autoAddShipmentToClientAccountManifest(
         insertId,
         newShipment[0].clientId,
