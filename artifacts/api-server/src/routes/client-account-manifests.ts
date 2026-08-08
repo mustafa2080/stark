@@ -504,14 +504,17 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       // fallback هنا بنفس منطق partialQuantity تحت، عشان الفرونت إند والحسابات المالية
       // كلهم ياخدوا السبب الصح بدل ما يفضل يظهر فاضي.
       const effectiveReturnReason = (item as any).returnReason ?? sh?.returnReason ?? null;
-      // مرتجع بلا سبب خالص (returnReason فاضي/null) بيتعامل معاه كرفض عادي:
-      // بدون قيمة مستلمة وبدون سعر شحن. أي مرتجع عنده سبب (أي سبب كان) يفضل
-      // زي ما هو — له قيمة (لو من الأسباب المالية الثلاثة) وله سعر شحن دايمًا.
-      const hasReturnReason = !!String(effectiveReturnReason ?? "").trim();
-      const isReturnedNoReason = item.deliveryStatus === "returned" && !hasReturnReason;
+      // القيمة المستلمة وسعر الشحن يظهروا بس للمرتجع بواحد من الأسباب المالية
+      // الثلاثة تحديدًا (RETURN_REASONS_WITH_VALUE) — مش أي سبب. أي سبب تاني
+      // أو مفيش سبب خالص = بدون قيمة مستلمة وبدون سعر شحن.
       const isReturnedWithValue = item.deliveryStatus === "returned"
         && RETURN_REASONS_WITH_VALUE.has(String(effectiveReturnReason ?? ""));
-      const zoneShippingForItem = isReturnedNoReason ? 0 : getZoneShipping(sh);
+      // سعر الشحن يظهر فقط للمرتجع بالأسباب المالية الثلاثة (رفض بعد المعاينة
+      // مدفوع/غير مدفوع، أو تهرّب من الاستلام "quality") — حتى لو القيمة المستلمة صفر
+      // (زي refused_unpaid). أي سبب تاني أو مفيش سبب خالص = سعر شحن صفر.
+      const zoneShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
+        ? getZoneShipping(sh)
+        : 0;
       return {
         ...item,
         // item.returnReason ممكن يفضل null حتى لو السبب الحقيقي مسجّل على مستوى
@@ -560,7 +563,9 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     // ─── حسابات مالية — من منظور حساب العميل (بدل شركة الشحن) ────────────────
-    const RETURN_REASONS_WITH_SHIPPING = new Set(["refused_paid", "refused_unpaid", "quality", "unaware", "cancel_requested", "no_answer", "out_of_coverage"]);
+    // نفس الأسباب المالية الثلاثة المستخدمة فوق (RETURN_REASONS_WITH_VALUE) — لازم تفضل
+    // متطابقة، عشان الإجمالي في الكروت يتوافق مع سعر الشحن الظاهر في الجدول التفصيلي.
+    const RETURN_REASONS_WITH_SHIPPING = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
     let deliveredShippingFees = 0;
     for (const item of items) {
