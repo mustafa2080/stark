@@ -2757,6 +2757,7 @@ function ExportDialog({
   );
   const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
   const netDue = totalCollected - effectiveShipping;
+  console.log("[DEBUG-2 @2759-EXCEL]", { deliveredGross, partialGross, totalCollected, effectiveShipping, netDue });
 
   // ── Excel Export — styled workbook with RTL layout ────────────────────────
   const exportExcel = async () => {
@@ -4365,6 +4366,7 @@ export default function ShippingManifestPage() {
   const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
   // الصافي المستحق = المُحصَّل (مسلَّم + جزئي فقط) - تكلفة الشحن
   const netDue = totalCollected - effectiveShipping;
+  console.log("[DEBUG-1 @2759]", { deliveredGross, partialGross, totalCollected, effectiveShipping, netDue });
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
   const newOrdersCount = groupedPendingCount;
   const returnedNotArrived = (manifest.orders ?? []).filter(
