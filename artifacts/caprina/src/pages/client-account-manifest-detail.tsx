@@ -4874,7 +4874,7 @@ export default function ShippingManifestPage() {
             // الانتظار / مرتجع بأحد الأسباب السبعة اللى مفيهاش استحقاق فعلى). غير كده تتحسب القيمة الفعلية.
             const isZeroedRow = (order: ManifestOrder) => {
               const st = order.deliveryStatus;
-              if (st === "postponed" || st === "pending") return true;
+              if (st === "postponed" || st === "delayed" || st === "pending") return true;
               if (st === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((order as any).returnReason ?? ""))) return true;
               return false;
             };
