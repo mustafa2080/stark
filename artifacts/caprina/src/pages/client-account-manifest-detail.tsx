@@ -4847,7 +4847,7 @@ export default function ShippingManifestPage() {
           </button>
         </div>
 
-        <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_120px_100px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
+        <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_110px_110px_110px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
           <span className="flex items-center justify-start gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">العميل{showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
@@ -4856,7 +4856,6 @@ export default function ShippingManifestPage() {
           <span className="flex items-center justify-center gap-1">إجمالي سعر الشحنة{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">القيمة المستلمة{showColFilters && <ColFilterBtn col="collected" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">سعر الشحن{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">الإجمالي الكلي{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
         </div>
 
@@ -4868,8 +4867,6 @@ export default function ShippingManifestPage() {
             const status = groupManifestStatus(group) as DeliveryStatus;
             const meta = compactStatusMeta(status);
             const total = group.reduce((sum, order) => sum + getShipmentAmount(order), 0);
-            // شحن ديب الإجمالي الكلي (يفضل يتحسب زي ما هو دايمًا، مش متأثر بالتصفير أدناه)
-            const shipping = group.reduce((sum, order) => sum + getChargeableShipping(order), 0);
             // القيمة المستلمة وسعر الشحن المعروضين فى الجدول = صفر فى حالة (مؤجَّل / قيد
             // الانتظار / مرتجع بأحد الأسباب السبعة اللى مفيهاش استحقاق فعلى). غير كده تتحسب القيمة الفعلية.
             const isZeroedRow = (order: ManifestOrder) => {
@@ -4880,12 +4877,10 @@ export default function ShippingManifestPage() {
             };
             const shippingDisplay = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
             const collected = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getCollectedAmount(order)), 0);
-            // حماية: الإجمالي الكلي ميظهرش بالسالب أبدًا مهما كانت بيانات الشحنة
-            const grandTotal = Math.max(0, total - shipping);
             const key = group.map((order) => order.id).join("-");
             return (
               <div key={`client-look-${key}`}>
-                <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_120px_100px_110px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
+                <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_110px_110px_110px_110px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
                   <div className="min-w-0 pr-2 text-muted-foreground truncate">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
                   <div className="min-w-0 pr-2">
                     <p className="font-bold truncate">{rep.customerName}</p>
@@ -4903,7 +4898,6 @@ export default function ShippingManifestPage() {
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
                   <div className="text-center font-semibold text-emerald-400">{formatCurrency(collected)}</div>
                   <div className="text-center font-semibold text-sky-400">{shippingDisplay > 0 ? `-${formatCurrency(shippingDisplay)}` : formatCurrency(0)}</div>
-                  <div className="text-center font-bold text-violet-400">{formatCurrency(grandTotal)}</div>
                   <div className="text-center">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
                     {status === "returned" && (() => {
@@ -4970,10 +4964,6 @@ export default function ShippingManifestPage() {
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="text-muted-foreground">سعر الشحن</span>
                     <span className="font-bold text-sky-400">{shippingDisplay > 0 ? `-${formatCurrency(shippingDisplay)}` : formatCurrency(0)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">الإجمالي الكلي</span>
-                    <span className="font-bold text-violet-400">{formatCurrency(grandTotal)}</span>
                   </div>
                 </div>
               </div>
