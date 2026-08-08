@@ -1044,7 +1044,10 @@ function InvoiceGroupDeliveryRow({
       return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
     }
     if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-      return sum + Number(o.partialQuantity ?? 0);
+      if (o.partialQuantity != null) {
+        return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+      }
+      return sum;
     }
     if (o.deliveryStatus === "returned") {
       return sum + Number((o as any).returnValueReceived ?? 0);
@@ -4466,7 +4469,10 @@ export default function ShippingManifestPage() {
                 return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
               }
               if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-                return sum + Number(o.partialQuantity ?? 0);
+                if (o.partialQuantity != null) {
+                  return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+                }
+                return sum;
               }
               if (o.deliveryStatus === "returned") {
                 return sum + Number((o as any).returnValueReceived ?? 0);
@@ -4565,7 +4571,10 @@ export default function ShippingManifestPage() {
                   return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
                 }
                 if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-                  return sum + Number(o.partialQuantity ?? 0);
+                  if (o.partialQuantity != null) {
+                    return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+                  }
+                  return sum;
                 }
                 if (o.deliveryStatus === "returned") {
                   return sum + Number((o as any).returnValueReceived ?? 0);
@@ -5118,7 +5127,10 @@ export default function ShippingManifestPage() {
                     return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
                   }
                   if (o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") {
-                    return sum + Number(o.partialQuantity ?? 0);
+                    if (o.partialQuantity != null) {
+                      return sum + Number(o.unitPrice) * Number(o.partialQuantity);
+                    }
+                    return sum;
                   }
                   if (o.deliveryStatus === "returned") {
                     return sum + Number((o as any).returnValueReceived ?? 0);
