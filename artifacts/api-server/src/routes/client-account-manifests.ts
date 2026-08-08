@@ -536,8 +536,20 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         totalShippingCost += shipping;
       }
     }
+    // ─── إجمالي المستحق الشامل: كل شحنة في البيان (بغض النظر عن حالتها) تُحسب
+    // COD ناقص سعر الشحن — بما في ذلك pending/delayed، بطلب المدير أن يُحسب
+    // المستحق بافتراض متفائل (كل الشحنات هتتحصّل بكامل قيمتها). هذا منفصل عن
+    // netProfit/deliveredGross الأصليين اللي بيقيسوا الأداء الفعلي المُقفل فقط.
+    let netDueFromClientAllStatuses = 0;
+    for (const item of items) {
+      const shipment = shipmentMap[item.shipmentId];
+      if (!shipment) continue;
+      const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
+      const shipping = getZoneShipping(shipment);
+      netDueFromClientAllStatuses += cod - shipping;
+    }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
-    const netDueFromClient = deliveredGross - totalShippingCost; // صافي المستحق من/على العميل
+    const netDueFromClient = netDueFromClientAllStatuses; // صافي المستحق من/على العميل — شامل كل الحالات
 
     res.json({
       ...manifest,
@@ -945,7 +957,7 @@ router.post("/client-account-manifests/sync-orphan-shipments", async (req, res):
 
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt as any))
-      : undefined;
+      : isNull(shipmentsTable.deletedAt as any);
 
     const candidates = await db
       .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, shipmentNumber: shipmentsTable.shipmentNumber, status: shipmentsTable.status })
