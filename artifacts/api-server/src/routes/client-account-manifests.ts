@@ -381,8 +381,9 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
           totalShippingCost += shipping;
         } else if (item.deliveryStatus === "partial_delivered") {
           totalShippingCost += shipping;
-          deliveredGross += item.partialQuantity != null
-            ? Number(item.partialQuantity)
+          const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
+          deliveredGross += pq != null
+            ? Number(pq)
             : Number((shipment as any).collectedAmount ?? 0);
         }
       }
@@ -470,6 +471,10 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       return {
         ...item,
+        // item.partialQuantity (جدول client_account_manifest_items) ممكن يفضل null
+        // حتى لو القيمة الحقيقية مسجّلة على مستوى الشحنة نفسها (shipment.partialQuantity)،
+        // فبنعمل fallback هنا عشان الفرونت إند اللي بيقرا o.partialQuantity ياخد القيمة الصح.
+        partialQuantity: item.partialQuantity != null ? item.partialQuantity : (sh?.partialQuantity ?? null),
         shipment: sh,
         customerName:  sh?.receiverName  ?? "",
         phone:         sh?.receiverPhone ?? "",
@@ -522,8 +527,9 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
-        const partialCod = item.partialQuantity != null
-          ? Number(item.partialQuantity)
+        const pqSrc = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
+        const partialCod = pqSrc != null
+          ? Number(pqSrc)
           : Number((shipment as any).collectedAmount ?? 0);
         totalRevenue += partialCod;
         deliveredGross += partialCod;
