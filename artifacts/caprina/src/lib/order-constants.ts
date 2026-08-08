@@ -6,6 +6,7 @@ export const RETURN_REASONS: { value: string; label: string }[] = [
   { value: "cancel_requested",   label: "طلب إلغاء" },
   { value: "no_answer",          label: "لا يوجد رد" },
   { value: "out_of_coverage",    label: "خارج نطاق التغطية" },
+  { value: "closed",             label: "مغلق" },
 ];
 
 export const returnReasonLabel = (reason: string | null | undefined): string => {
