@@ -222,6 +222,9 @@ function OrderDeliveryRow({
       if ((status === "partial_received" || status === "partial_delivered") && partialProduct.trim()) {
         finalNote = partialProduct.trim() + (note.trim() ? " | " + note.trim() : "");
       }
+      if (status === "returned" && !returnReason.trim()) {
+        throw new Error("يجب اختيار سبب المرتجع");
+      }
       if (status === "returned" && needsReturnValue) {
         if (returnValueReceived.trim() === "" || isNaN(Number(returnValueReceived))) {
           throw new Error("يجب إدخال القيمة المستلمة فعليًا قبل الحفظ");
@@ -791,6 +794,7 @@ function OrderDeliveryRow({
                 (needsPartial && (partialQty === "")) ||
                 (needsPartial && parseInt(partialQty) > order.quantity) ||
                 (status === "returned" && returnReceived === null) ||
+                (status === "returned" && !returnReason.trim()) ||
                 (needsReturnValue && (returnValueReceived.trim() === "" || isNaN(Number(returnValueReceived)))) ||
                 (status === "partial_received" && partialReturnReceived === null)
               }
@@ -1181,6 +1185,13 @@ function InvoiceGroupDeliveryRow({
 
   const bulkMutation = useMutation({
     mutationFn: async () => {
+      const willBeReturned = isPerItemMode
+        ? group.some(o => (perOrderStatus[o.id] ?? bulkStatus) === "returned")
+        : bulkStatus === "returned";
+      if (willBeReturned && !bulkReturnReason.trim()) {
+        throw new Error("\u064a\u062c\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0633\u0628\u0628 \u0627\u0644\u0645\u0631\u062a\u062c\u0639 \u0642\u0628\u0644 \u0627\u0644\u062d\u0641\u0638");
+      }
+
       // نحفظ snapshot من القيم الحالية قبل الـ API calls
       pendingSaveRef.current = {
         partialQtyMap: { ...partialQtyMap },
@@ -2083,6 +2094,9 @@ function InvoiceGroupDeliveryRow({
                   bulkMutation.isPending ||
                   (needsBulkNote && !bulkNote.trim()) ||
                   (bulkStatus === "returned" && bulkReturnReceived === null) ||
+                  (isPerItemMode
+                    ? group.some(o => (perOrderStatus[o.id] ?? bulkStatus) === "returned") && !bulkReturnReason.trim()
+                    : bulkStatus === "returned" && !bulkReturnReason.trim()) ||
                   (bulkStatus === "partial_received" && partialReturnReceived === null) ||
                   (!isPerItemMode && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
                     partialQtyMap[group[0].id] === "" || partialQtyMap[group[0].id] === undefined
