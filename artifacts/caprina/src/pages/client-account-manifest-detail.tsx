@@ -1369,6 +1369,9 @@ function InvoiceGroupDeliveryRow({
               // بدل الاعتماد على returnReason في الفرونت إند بس، عشان لو السبب ضاع لأي
               // سبب (فراغ، اختلاف مصدر...) القيمة الصحيحة من الباك اند تفضل هي المرجع.
               const showShipping = (groupStatus !== "returned" || financialReasons.includes(String(rr ?? ""))) || totalShippingFee > 0;
+              if (rr === "refused_unpaid" || rr === "refused_paid") {
+                console.log("[SHIPPING-DEBUG]", { shipmentId: (rep as any).id, rr, groupStatus, totalShippingFee, rawShippingCosts: group.map(o => (o as any).shippingCost), showShipping });
+              }
               return showShipping ? (
                 <span className="text-amber-500 font-semibold">{formatCurrency(totalShippingFee)}</span>
               ) : (
