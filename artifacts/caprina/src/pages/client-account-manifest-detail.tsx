@@ -1362,11 +1362,16 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* قيمة الشحن من سعر المنطقة */}
           <div className="text-center px-2 flex items-center justify-center">
-            {totalShippingFee > 0 ? (
-              <span className="text-amber-500 font-semibold">{formatCurrency(totalShippingFee)}</span>
-            ) : (
-              <span className="text-muted-foreground/40">—</span>
-            )}
+            {(() => {
+              const rr = (rep as any).returnReason;
+              const financialReasons = ["refused_paid", "refused_unpaid", "quality"];
+              const showShipping = groupStatus !== "returned" || financialReasons.includes(String(rr ?? ""));
+              return showShipping ? (
+                <span className="text-amber-500 font-semibold">{formatCurrency(totalShippingFee)}</span>
+              ) : (
+                <span className="text-muted-foreground/40">—</span>
+              );
+            })()}
           </div>
           {/* الحالة + زرار التقفيل */}
           <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
@@ -2331,9 +2336,8 @@ function SettlementCard({ manifest, onSaved, isShipmentManifest = false }: { man
   const invoicePrice = manifest.invoicePrice != null ? Number(manifest.invoicePrice) : 0;
   const [netProfitOpen, setNetProfitOpen] = useState(false);
 
-  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality", "unaware", "cancel_requested", "no_answer", "out_of_coverage"];
-
-  // تكلفة الشحن الفعلية = مسلَّم + مسلَّم جزئي + المرتجع بأحد الأسباب المعتمدة
+  // تكلفة الشحن الفعلية = مسلَّم + مسلَّم جزئي + المرتجع بأحد الأسباب المالية الثلاثة المعتمدة
+  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
   const effectiveShippingCost = (manifest.orders ?? [])
     .filter(o =>
       o.deliveryStatus === "delivered" ||
@@ -2613,7 +2617,7 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality", "unaware", "cancel_requested", "no_answer", "out_of_coverage"];
+                const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
                 const effectiveShipping = (manifest.orders ?? [])
                   .filter(o =>
                     o.deliveryStatus === "delivered" ||
