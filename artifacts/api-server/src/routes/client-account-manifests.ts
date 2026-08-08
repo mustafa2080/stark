@@ -933,4 +933,59 @@ router.post("/client-account-manifests/sync-warehouse-ready", async (req, res): 
   }
 });
 
+// ─── POST /client-account-manifests/sync-orphan-shipments ────────────────────
+// حل شامل للبيانات القديمة السابقة على تفعيل الإضافة التلقائية: يمر على *كل*
+// الشحنات المرتبطة بعميل (بغض النظر عن الحالة) واللي معندهاش item في أي بيان
+// حساب، ويضيفهم لبيان العميل المفتوح لو موجود فقط (من غير ما يفتح بيان جديد
+// تلقائيًا، تجنبًا لفتح بيانات جديدة بالجملة على بيانات قديمة مقفولة). آمن
+// للتشغيل المتكرر (idempotent) — أي شحنة مضافة بالفعل بتتجاهل.
+router.post("/client-account-manifests/sync-orphan-shipments", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt as any))
+      : undefined;
+
+    const candidates = await db
+      .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, shipmentNumber: shipmentsTable.shipmentNumber, status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(cond ?? and());
+
+    let added = 0;
+    let noOpenManifest = 0;
+    const skipped: { id: number; shipmentNumber: string | null; reason: string }[] = [];
+    for (const s of candidates) {
+      if (!s.clientId) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "no_client_id" }); continue; }
+
+      const alreadyInManifest = await db
+        .select({ id: clientAccountManifestItemsTable.id })
+        .from(clientAccountManifestItemsTable)
+        .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
+        .where(eq(clientAccountManifestItemsTable.shipmentId, s.id))
+        .limit(1);
+      if (alreadyInManifest.length) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "already_in_manifest" }); continue; }
+
+      const openManifest = await db
+        .select({ id: clientAccountManifestsTable.id })
+        .from(clientAccountManifestsTable)
+        .where(and(eq(clientAccountManifestsTable.clientId, s.clientId), eq(clientAccountManifestsTable.status, "open")))
+        .limit(1);
+      if (!openManifest.length) { noOpenManifest++; skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "no_open_manifest_for_client" }); continue; }
+
+      try {
+        await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId);
+        added++;
+      } catch (err: any) {
+        skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: `error: ${err?.message ?? err}` });
+      }
+    }
+
+    res.json({ success: true, scanned: candidates.length, added, noOpenManifest, skipped });
+  } catch (e: any) {
+    console.error("[POST /client-account-manifests/sync-orphan-shipments]", e);
+    res.status(500).json({ error: "خطأ في مزامنة الشحنات القديمة اليتيمة مع بيانات العملاء" });
+  }
+});
+
 export default router;
