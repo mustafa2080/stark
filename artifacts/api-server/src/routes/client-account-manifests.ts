@@ -515,6 +515,16 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       const zoneShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
         ? getZoneShipping(sh)
         : 0;
+      if (effectiveReturnReason === "refused_unpaid" || effectiveReturnReason === "refused_paid") {
+        console.log("[BACKEND-SHIPPING-DEBUG]", {
+          shipmentId: item.shipmentId,
+          effectiveReturnReason,
+          isReturnedWithValue,
+          zoneShippingForItem,
+          shZoneId: sh?.zoneId,
+          shShippingFee: sh?.shippingFee,
+        });
+      }
       return {
         ...item,
         // item.returnReason ممكن يفضل null حتى لو السبب الحقيقي مسجّل على مستوى
