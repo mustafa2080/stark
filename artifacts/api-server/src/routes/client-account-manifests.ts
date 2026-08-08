@@ -499,16 +499,25 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
 
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
+      // item.returnReason (جدول client_account_manifest_items) ممكن يفضل null حتى
+      // لو السبب الحقيقي مسجّل على مستوى الشحنة نفسها (shipment.returnReason) — فبنعمل
+      // fallback هنا بنفس منطق partialQuantity تحت، عشان الفرونت إند والحسابات المالية
+      // كلهم ياخدوا السبب الصح بدل ما يفضل يظهر فاضي.
+      const effectiveReturnReason = (item as any).returnReason ?? sh?.returnReason ?? null;
       // مرتجع بلا سبب خالص (returnReason فاضي/null) بيتعامل معاه كرفض عادي:
       // بدون قيمة مستلمة وبدون سعر شحن. أي مرتجع عنده سبب (أي سبب كان) يفضل
       // زي ما هو — له قيمة (لو من الأسباب المالية الثلاثة) وله سعر شحن دايمًا.
-      const hasReturnReason = !!String((item as any).returnReason ?? "").trim();
+      const hasReturnReason = !!String(effectiveReturnReason ?? "").trim();
       const isReturnedNoReason = item.deliveryStatus === "returned" && !hasReturnReason;
       const isReturnedWithValue = item.deliveryStatus === "returned"
-        && RETURN_REASONS_WITH_VALUE.has(String((item as any).returnReason ?? ""));
+        && RETURN_REASONS_WITH_VALUE.has(String(effectiveReturnReason ?? ""));
       const zoneShippingForItem = isReturnedNoReason ? 0 : getZoneShipping(sh);
       return {
         ...item,
+        // item.returnReason ممكن يفضل null حتى لو السبب الحقيقي مسجّل على مستوى
+        // الشحنة (shipment.returnReason) — نفس الـ fallback المحسوب فوق، عشان الفرونت
+        // إند اللي بيقرا o.returnReason يعرض السبب الصح بدل ما يفضل فاضي.
+        returnReason: effectiveReturnReason,
         // item.partialQuantity (جدول client_account_manifest_items) ممكن يفضل null
         // حتى لو القيمة الحقيقية مسجّلة على مستوى الشحنة نفسها (shipment.partialQuantity)،
         // فبنعمل fallback هنا عشان الفرونت إند اللي بيقرا o.partialQuantity ياخد القيمة الصح.
@@ -586,8 +595,13 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
           const unitCost = qty > 0 ? cost / qty : cost;
           totalCost += unitCost * partialCod;
         }
-      } else if (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.has(String((item as any).returnReason ?? ""))) {
-        totalShippingCost += shipping;
+      } else if (item.deliveryStatus === "returned") {
+        // نفس الـ fallback: السبب ممكن يكون مسجّل على مستوى الشحنة نفسها بس مش
+        // على مستوى item هنا.
+        const returnReasonEff = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
+        if (RETURN_REASONS_WITH_SHIPPING.has(String(returnReasonEff ?? ""))) {
+          totalShippingCost += shipping;
+        }
       }
     }
     // ─── إجمالي المستحق الشامل: كل شحنة في البيان (بغض النظر عن حالتها) تُحسب
@@ -708,6 +722,24 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
       .from(clientAccountManifestsTable).where(eq(clientAccountManifestsTable.id, manifestId)).limit(1);
     if (!manifestRow) { res.status(404).json({ error: "البيان غير موجود" }); return; }
     if (manifestRow.status === "closed") { res.status(400).json({ error: "البيان مغلق — لا يمكن التعديل" }); return; }
+
+    // ─── منع حفظ حالة "مرتجع" بدون سبب — لازم يبقى فيه سبب دايمًا، إما جاي في
+    // الطلب الحالي أو موجود بالفعل من قبل (زي زرار "تم الاستلام" السريع اللي
+    // بيحدّث returnReceived بس على مرتجع مسجّل سببه من الأول). ─────────────────
+    if (body.deliveryStatus === "returned") {
+      const reasonInRequest = body.returnReason !== undefined ? String(body.returnReason ?? "").trim() : null;
+      if (body.returnReason !== undefined) {
+        if (!reasonInRequest) { res.status(400).json({ error: "يجب اختيار سبب المرتجع" }); return; }
+      } else {
+        const [existingItem] = await db.select({ returnReason: clientAccountManifestItemsTable.returnReason })
+          .from(clientAccountManifestItemsTable)
+          .where(and(
+            eq(clientAccountManifestItemsTable.manifestId, manifestId),
+            eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
+          )).limit(1);
+        if (!existingItem?.returnReason?.trim()) { res.status(400).json({ error: "يجب اختيار سبب المرتجع" }); return; }
+      }
+    }
 
     await db.update(clientAccountManifestItemsTable)
       .set({

@@ -597,6 +597,23 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       }
     }
 
+    // ─── منع حفظ حالة "مرتجع" بدون سبب — لازم يبقى فيه سبب دايمًا، إما جاي في
+    // الطلب الحالي أو موجود بالفعل من قبل (زي زرار "تم الاستلام" السريع اللي
+    // بيحدّث returnReceived بس على مرتجع مسجّل سببه من الأول). ─────────────────
+    if (body.deliveryStatus === "returned") {
+      if (body.returnReason !== undefined) {
+        if (!String(body.returnReason ?? "").trim()) { res.status(400).json({ error: "يجب اختيار سبب المرتجع" }); return; }
+      } else {
+        const [existingItem] = await db.select({ returnReason: shipmentManifestItemsTable.returnReason })
+          .from(shipmentManifestItemsTable)
+          .where(and(
+            eq(shipmentManifestItemsTable.manifestId, manifestId),
+            eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+          )).limit(1);
+        if (!existingItem?.returnReason?.trim()) { res.status(400).json({ error: "يجب اختيار سبب المرتجع" }); return; }
+      }
+    }
+
     await db.update(shipmentManifestItemsTable)
       .set({
         deliveryStatus: body.deliveryStatus,
