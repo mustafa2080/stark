@@ -14,7 +14,7 @@ import {
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { syncManifestItemToShipment } from "../lib/manifestSync.js";
+import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY } from "../lib/manifestSync.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
 
@@ -798,11 +798,30 @@ router.post("/client-account-manifests/:id/add-shipments", async (req, res): Pro
       return;
     }
 
+    // نجيب الحالة الحالية الفعلية لكل شحنة من جدول shipments بدل ما نحطها
+    // "pending" ثابتة — عشان بند البيان يتولد متسق مع حالة الشحنة وقت الإضافة
+    // (بيصلح مشكلة إن شحنات مرتجعة/مسلمة اتضافت متأخر وفضلت شكلها "قيد الانتظار").
+    const shipmentRows = await db.select({ id: shipmentsTable.id, status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(inArray(shipmentsTable.id, newIds));
+    const statusById = new Map(shipmentRows.map(r => [r.id, r.status]));
+
+    // خريطة SHIPMENT_STATUS_TO_DELIVERY بتستخدم "postponed"/"partial_delivered"
+    // بينما بند بيان حساب العميل التجاري بيستخدم "postponed" فعلاً لكن
+    // "partial_received" (مش partial_delivered) — نطابقها هنا فقط لهذا الجدول.
+    const toClientAccountStatus = (shipmentStatus: string | undefined): string => {
+      const mapped = shipmentStatus ? SHIPMENT_STATUS_TO_DELIVERY[shipmentStatus] : undefined;
+      if (!mapped) return "pending";
+      if (mapped === "partial_delivered") return "partial_received";
+      if (mapped === "delayed") return "postponed";
+      return mapped;
+    };
+
     await db.insert(clientAccountManifestItemsTable).values(
       newIds.map(sid => ({
         manifestId,
         shipmentId:     sid,
-        deliveryStatus: "pending",
+        deliveryStatus: toClientAccountStatus(statusById.get(sid)),
         addedAt:        now,
       }))
     );

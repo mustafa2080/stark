@@ -21,7 +21,7 @@ export type ManifestDeliveryStatus =
   | "pending" | "delivered" | "returned" | "delayed" | "partial_delivered";
 
 // شحنة → بيان: من status الشحنة الأصلي لحالة التسليم في البيان
-const SHIPMENT_STATUS_TO_DELIVERY: Record<string, ManifestDeliveryStatus> = {
+export const SHIPMENT_STATUS_TO_DELIVERY: Record<string, ManifestDeliveryStatus> = {
   waiting:           "pending",
   confirmed:         "pending",
   picked_up:         "pending",
