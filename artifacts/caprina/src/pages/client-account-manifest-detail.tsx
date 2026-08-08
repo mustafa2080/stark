@@ -4910,12 +4910,16 @@ export default function ShippingManifestPage() {
             const meta = compactStatusMeta(status);
             const total = group.reduce((sum, order) => sum + getShipmentAmount(order), 0);
             // القيمة المستلمة وسعر الشحن المعروضين فى الجدول = صفر فى حالة (مؤجَّل / قيد
-            // الانتظار / مرتجع بسبب مش من الأسباب المالية الثلاثة). غير كده (مسلَّم، جزئي،
-            // أو مرتجع بسبب مالي: رفض بعد معاينة مدفوع/غير مدفوع أو تهرّب) تتحسب القيمة الفعلية.
+            // الانتظار / مرتجع بسبب مش من الأسباب المالية الثلاثة / مرتجع بسبب مالي لكن
+            // القيمة المستلمة الفعلية = صفر). غير كده (مسلَّم، جزئي، أو مرتجع بسبب مالي
+            // وله قيمة مستلمة فعلية) تتحسب القيمة الفعلية وسعر الشحن معاها.
             const isZeroedRow = (order: ManifestOrder) => {
               const st = order.deliveryStatus;
               if (st === "postponed" || st === "delayed" || st === "pending") return true;
-              if (st === "returned" && !RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
+              if (st === "returned") {
+                if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
+                if (getCollectedAmount(order) === 0) return true;
+              }
               return false;
             };
             const shippingDisplay = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
