@@ -4897,7 +4897,7 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
                   <div className="text-center font-semibold text-emerald-400">{formatCurrency(collected)}</div>
-                  <div className="text-center font-semibold text-sky-400">{shippingDisplay > 0 ? `-${formatCurrency(shippingDisplay)}` : formatCurrency(0)}</div>
+                  <div className="text-center font-semibold text-sky-400">{formatCurrency(shippingDisplay)}</div>
                   <div className="text-center">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
                     {status === "returned" && (() => {
@@ -4963,7 +4963,7 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="text-muted-foreground">سعر الشحن</span>
-                    <span className="font-bold text-sky-400">{shippingDisplay > 0 ? `-${formatCurrency(shippingDisplay)}` : formatCurrency(0)}</span>
+                    <span className="font-bold text-sky-400">{formatCurrency(shippingDisplay)}</span>
                   </div>
                 </div>
               </div>
