@@ -10,6 +10,7 @@ import {
   usersTable,
   warehousesTable,
   clientAccountPaymentsTable,
+  shipmentManifestItemsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -426,6 +427,31 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
+    // ── returnValueReceived للمرتجع بالأسباب المالية (رفض بعد المعاينة / تهرب) ──
+    // القيمة دي بتتسجل في جدول بيان الشحن (shipment_manifest_items) مش في جدول
+    // بيان حساب العميل نفسه، فبنجيبها هنا كـ fallback زي partialQuantity بالضبط.
+    let shipmentReturnValueMap: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const smItems = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
+          addedAt: shipmentManifestItemsTable.addedAt,
+        })
+        .from(shipmentManifestItemsTable)
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          eq(shipmentManifestItemsTable.deliveryStatus, "returned"),
+        ));
+      // نرتب تصاعديًا بالـ addedAt، وبعدين overwrite في اللوب — فآخر كتابة (الأحدث) هي اللي تفضل
+      smItems
+        .filter(r => r.returnValueReceived != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => {
+          shipmentReturnValueMap[row.shipmentId] = Number(row.returnValueReceived);
+        });
+    }
+
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, manifest.clientId));
     const clientType = client?.clientType ?? "normal";
 
@@ -475,6 +501,12 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         // حتى لو القيمة الحقيقية مسجّلة على مستوى الشحنة نفسها (shipment.partialQuantity)،
         // فبنعمل fallback هنا عشان الفرونت إند اللي بيقرا o.partialQuantity ياخد القيمة الصح.
         partialQuantity: item.partialQuantity != null ? item.partialQuantity : (sh?.partialQuantity ?? null),
+        // returnValueReceived للمرتجع بالأسباب المالية الثلاثة (رفض بعد المعاينة مدفوع/غير
+        // مدفوع، أو تهرّب من الاستلام "quality") — القيمة مسجّلة أصلاً في بيان الشحن
+        // (shipment_manifest_items) مش في بيان حساب العميل، فبناخدها fallback من هناك.
+        returnValueReceived: (item as any).returnValueReceived != null
+          ? (item as any).returnValueReceived
+          : (shipmentReturnValueMap[item.shipmentId] ?? null),
         shipment: sh,
         customerName:  sh?.receiverName  ?? "",
         phone:         sh?.receiverPhone ?? "",
