@@ -3464,11 +3464,12 @@ type ColFilters = {
   phone: Set<string>;
   address: Set<string>;
   shipping: Set<string>;
+  collected: Set<string>;
   grandTotal: Set<string>;
 };
 
 /* ── أيقونة فلتر Excel لكل عمود ── */
-function emptyColFilters(): ColFilters { return { customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set() }; }
+function emptyColFilters(): ColFilters { return { customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), collected: new Set(), grandTotal: new Set() }; }
 function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
   col: keyof ColFilters;
   colFilters: ColFilters;
@@ -3942,6 +3943,7 @@ export default function ShippingManifestPage() {
       case "phone":       return rep.phone ?? "";
       case "address":     return (rep as any).address ?? "";
       case "shipping":    return String(group.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0));
+      case "collected":   return String(group.reduce((s, o) => s + getCollectedAmount(o), 0));
       case "grandTotal":  return String(group.reduce((s, o) => s + Number(o.totalPrice ?? 0) + Number((o as any).shippingCost ?? 0), 0));
       case "product":     return group.map(o => o.product).filter(Boolean).join(", ");
       case "qty":         return String(group.reduce((s, o) => s + o.quantity, 0));
@@ -4845,15 +4847,15 @@ export default function ShippingManifestPage() {
           </button>
         </div>
 
-        <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
+        <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_120px_100px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
           <span className="flex items-center justify-start gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">العميل{showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">المحافظة{showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">العنوان{showColFilters && <ColFilterBtn col="address" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">القطع{showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">الإجمالي{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">سعر المنطقة{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">إجمالي سعر الشحنة{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">القيمة المستلمة{showColFilters && <ColFilterBtn col="collected" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">سعر الشحن بتاع المنطقة{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الإجمالي الكلي{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
         </div>
@@ -4867,13 +4869,13 @@ export default function ShippingManifestPage() {
             const meta = compactStatusMeta(status);
             const total = group.reduce((sum, order) => sum + getShipmentAmount(order), 0);
             const shipping = group.reduce((sum, order) => sum + getChargeableShipping(order), 0);
+            const collected = group.reduce((sum, order) => sum + getCollectedAmount(order), 0);
             // حماية: الإجمالي الكلي ميظهرش بالسالب أبدًا مهما كانت بيانات الشحنة
             const grandTotal = Math.max(0, total - shipping);
-            const quantity = group.reduce((sum, order) => sum + Number(order.quantity ?? 0), 0);
             const key = group.map((order) => order.id).join("-");
             return (
               <div key={`client-look-${key}`}>
-                <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_110px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
+                <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_120px_100px_110px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
                   <div className="min-w-0 pr-2 text-muted-foreground truncate">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
                   <div className="min-w-0 pr-2">
                     <p className="font-bold truncate">{rep.customerName}</p>
@@ -4888,8 +4890,8 @@ export default function ShippingManifestPage() {
                     <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
                     <span className="truncate text-muted-foreground">{(rep as any).address || "—"}</span>
                   </div>
-                  <div className="text-center font-bold">{quantity}</div>
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
+                  <div className="text-center font-semibold text-emerald-400">{formatCurrency(collected)}</div>
                   <div className="text-center font-semibold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</div>
                   <div className="text-center font-bold text-violet-400">{formatCurrency(grandTotal)}</div>
                   <div className="text-center">
@@ -4949,13 +4951,14 @@ export default function ShippingManifestPage() {
                   </p>
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-[10px] text-muted-foreground">{rep.invoiceNumber}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold">{quantity} قطعة</span>
-                      <span className="font-bold text-primary">{formatCurrency(total)}</span>
-                    </div>
+                    <span className="font-bold text-primary">{formatCurrency(total)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">سعر المنطقة</span>
+                    <span className="text-muted-foreground">القيمة المستلمة</span>
+                    <span className="font-bold text-emerald-400">{formatCurrency(collected)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground">سعر الشحن بتاع المنطقة</span>
                     <span className="font-bold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
