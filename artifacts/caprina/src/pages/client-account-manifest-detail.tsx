@@ -3767,7 +3767,7 @@ export default function ShippingManifestPage() {
   const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
   const [colFilters, setColFilters] = useState<ColFilters>({
     customer: new Set(), governorate: new Set(), product: new Set(),
-    qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set(),
+    qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), collected: new Set(), grandTotal: new Set(),
   });
   const [showColFilters, setShowColFilters] = useState(false);
   const [netLossOpen, setNetLossOpen] = useState(false);
@@ -4005,7 +4005,7 @@ export default function ShippingManifestPage() {
   };
 
   const clearAllColFilters = () => {
-    setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set() });
+    setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), collected: new Set(), grandTotal: new Set() });
   };
 
   // ─── Selection helpers ───────────────────────────────────────────────────────
@@ -5295,7 +5295,7 @@ export default function ShippingManifestPage() {
               onClick={(e) => {
                 e.stopPropagation();
                 if (showColFilters) {
-                  setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), grandTotal: new Set() });
+                  setColFilters({ customer: new Set(), governorate: new Set(), product: new Set(), qty: new Set(), total: new Set(), date: new Set(), status: new Set(), sender: new Set(), phone: new Set(), address: new Set(), shipping: new Set(), collected: new Set(), grandTotal: new Set() });
                   setSortCol(null);
                 }
                 setShowColFilters(v => !v);
