@@ -5593,7 +5593,7 @@ export default function ShippingManifestPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-border bg-card p-4">
               <p className="text-xs text-muted-foreground mb-1">إجمالي المستحق</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(collectedCOD)}</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
