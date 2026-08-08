@@ -5576,6 +5576,12 @@ export default function ShippingManifestPage() {
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const partialOrders = ordersForPnl.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
+        // أسباب المرتجع اللي بيتحسب لها "مستحق" فعليًا ضمن إجمالي المستحق:
+        // رفض بعد المعاينة (مدفوع/غير مدفوع)، أو تهرب العميل من المعاينة.
+        const RETURN_REASONS_DUE_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
+        const returnedDueOrders = returnedOrders.filter(o =>
+          RETURN_REASONS_DUE_LOCAL.includes(String((o as any).returnReason ?? ""))
+        );
         const returnedWithShippingOrders = returnedOrders.filter(o =>
           RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? ""))
         );
@@ -5589,12 +5595,16 @@ export default function ShippingManifestPage() {
         const collectedCOD    = deliveredCOD + partialCOD;
         const netAmount       = collectedCOD - shippingCost;
         const isProfit        = netAmount >= 0;
+        // إجمالي المستحق بيشمل بس الشحنات اللي فعلاً بتولد مبلغ مستحق:
+        // مسلَّم + استلام جزئي + مرتجع بأسباب الشحن الثلاثة (رفض بعد المعاينة
+        // مدفوع/غير مدفوع، أو تهرب من المعاينة) — مش كل شحنات البيان.
+        const dueOrdersCount = deliveredOrders.length + partialOrders.length + returnedDueOrders.length;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-border bg-card p-4">
               <p className="text-xs text-muted-foreground mb-1">إجمالي المستحق</p>
               <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{ordersForPnl.length} شحنة</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{dueOrdersCount} شحنة</p>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
               <p className="text-xs text-emerald-400 mb-1">المُسلَّم</p>
