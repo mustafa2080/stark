@@ -1365,7 +1365,10 @@ function InvoiceGroupDeliveryRow({
             {(() => {
               const rr = (rep as any).returnReason;
               const financialReasons = ["refused_paid", "refused_unpaid", "quality"];
-              const showShipping = groupStatus !== "returned" || financialReasons.includes(String(rr ?? ""));
+              // نعتمد على وجود قيمة شحن فعلية (الباك اند بيضمن إنها صفر لو مفيش شحن مستحق)
+              // بدل الاعتماد على returnReason في الفرونت إند بس، عشان لو السبب ضاع لأي
+              // سبب (فراغ، اختلاف مصدر...) القيمة الصحيحة من الباك اند تفضل هي المرجع.
+              const showShipping = (groupStatus !== "returned" || financialReasons.includes(String(rr ?? ""))) || totalShippingFee > 0;
               return showShipping ? (
                 <span className="text-amber-500 font-semibold">{formatCurrency(totalShippingFee)}</span>
               ) : (
