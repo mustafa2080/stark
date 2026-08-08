@@ -493,20 +493,35 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
     }
 
+    // نفس مجموعة الأسباب المالية المستخدمة في حسابات الإجمالي تحت — لازم تفضل
+    // متطابقة، لأن دي اللي بتحدد هل المرتجع ده "له قيمة/شحن" أصلاً أو لأ.
+    const RETURN_REASONS_WITH_VALUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
+      // مرتجع بلا سبب خالص (returnReason فاضي/null) بيتعامل معاه كرفض عادي:
+      // بدون قيمة مستلمة وبدون سعر شحن. أي مرتجع عنده سبب (أي سبب كان) يفضل
+      // زي ما هو — له قيمة (لو من الأسباب المالية الثلاثة) وله سعر شحن دايمًا.
+      const hasReturnReason = !!String((item as any).returnReason ?? "").trim();
+      const isReturnedNoReason = item.deliveryStatus === "returned" && !hasReturnReason;
+      const isReturnedWithValue = item.deliveryStatus === "returned"
+        && RETURN_REASONS_WITH_VALUE.has(String((item as any).returnReason ?? ""));
+      const zoneShippingForItem = isReturnedNoReason ? 0 : getZoneShipping(sh);
       return {
         ...item,
         // item.partialQuantity (جدول client_account_manifest_items) ممكن يفضل null
         // حتى لو القيمة الحقيقية مسجّلة على مستوى الشحنة نفسها (shipment.partialQuantity)،
         // فبنعمل fallback هنا عشان الفرونت إند اللي بيقرا o.partialQuantity ياخد القيمة الصح.
         partialQuantity: item.partialQuantity != null ? item.partialQuantity : (sh?.partialQuantity ?? null),
-        // returnValueReceived للمرتجع بالأسباب المالية الثلاثة (رفض بعد المعاينة مدفوع/غير
-        // مدفوع، أو تهرّب من الاستلام "quality") — القيمة مسجّلة أصلاً في بيان الشحن
-        // (shipment_manifest_items) مش في بيان حساب العميل، فبناخدها fallback من هناك.
-        returnValueReceived: (item as any).returnValueReceived != null
-          ? (item as any).returnValueReceived
-          : (shipmentReturnValueMap[item.shipmentId] ?? null),
+        // returnValueReceived للمرتجع بالأسباب المالية الثلاثة فقط (رفض بعد المعاينة
+        // مدفوع/غير مدفوع، أو تهرّب من الاستلام "quality") — القيمة مسجّلة أصلاً في بيان
+        // الشحن (shipment_manifest_items) مش في بيان حساب العميل، فبناخدها fallback من
+        // هناك. مرتجع بلا سبب خالص، أو بسبب غير الأسباب المالية الثلاثة، يفضل null.
+        returnValueReceived: isReturnedWithValue
+          ? ((item as any).returnValueReceived != null
+              ? (item as any).returnValueReceived
+              : (shipmentReturnValueMap[item.shipmentId] ?? null))
+          : null,
         shipment: sh,
         customerName:  sh?.receiverName  ?? "",
         phone:         sh?.receiverPhone ?? "",
@@ -516,12 +531,13 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         quantity:      sh?.pieces        ?? 1,
         zoneId:        sh?.zoneId ?? null,
         // نفس مصدر الحقيقة الموحّد: تكلفة المنطقة (zone_costs) أولاً، وإلا سعر shipment_zones
-        zonePrice:     getZoneShipping(sh),
+        // — لكن للمرتجع بلا سبب خالص، سعر الشحن = صفر.
+        zonePrice:     zoneShippingForItem,
         // الإجمالي لازم يستخدم نفس سعر المنطقة الفعلي (getZoneShipping) اللي بيتعرض في
         // عمود "سعر المنطقة" — مش shippingFee الخام اللي ممكن يبقى صفر لو محدّش دخلها يدويًا.
-        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + getZoneShipping(sh),
-        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + getZoneShipping(sh),
-        shippingCost:  getZoneShipping(sh),
+        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
+        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
+        shippingCost:  zoneShippingForItem,
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
