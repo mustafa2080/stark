@@ -4855,7 +4855,7 @@ export default function ShippingManifestPage() {
           <span className="flex items-center justify-start gap-1">العنوان{showColFilters && <ColFilterBtn col="address" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">إجمالي سعر الشحنة{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">القيمة المستلمة{showColFilters && <ColFilterBtn col="collected" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">سعر الشحن بتاع المنطقة{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center gap-1">سعر الشحن{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الإجمالي الكلي{showColFilters && <ColFilterBtn col="grandTotal" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
         </div>
@@ -4968,7 +4968,7 @@ export default function ShippingManifestPage() {
                     <span className="font-bold text-emerald-400">{formatCurrency(collected)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">سعر الشحن بتاع المنطقة</span>
+                    <span className="text-muted-foreground">سعر الشحن</span>
                     <span className="font-bold text-sky-400">{shippingDisplay > 0 ? `-${formatCurrency(shippingDisplay)}` : formatCurrency(0)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
