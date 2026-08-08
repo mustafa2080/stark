@@ -3808,6 +3808,9 @@ export default function ShippingManifestPage() {
         : sh && Number((sh as any).collectedAmount ?? 0) > 0
           ? Number((sh as any).collectedAmount)
           : null;
+      if (item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") {
+        console.log("[DEBUG-PARTIAL]", item.shipmentId, "status:", item.deliveryStatus, "item.partialQuantity:", item.partialQuantity, "sh.collectedAmount:", (sh as any)?.collectedAmount, "sh.codAmount:", (sh as any)?.codAmount, "partialAmount(final):", partialAmount);
+      }
       return {
         id: item.shipmentId,
         manifestOrderId: item.id,
