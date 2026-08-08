@@ -4360,6 +4360,9 @@ export default function ShippingManifestPage() {
     }, 0);
 
   const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality", "unaware", "cancel_requested", "no_answer", "out_of_coverage"];
+  // الأسباب المالية الثلاثة فقط اللي بيظهر لها القيمة المستلمة وسعر الشحن في جدول "نظرة العميل":
+  // رفض بعد المعاينة (دفع/غير مدفوع) أو تهرّب من الاستلام.
+  const RETURN_REASONS_FINANCIAL = ["refused_paid", "refused_unpaid", "quality"];
   const getCollectedAmount = (o: ManifestOrder) => {
     if (o.deliveryStatus === "delivered") {
       const dvr = (o as any).deliveredValueReceived;
@@ -4371,6 +4374,10 @@ export default function ShippingManifestPage() {
     if (o.deliveryStatus === "partial_received") {
       // partialQuantity هنا فعليًا مبلغ الفلوس المُستلم (collectedAmount)، مش عدد قطع — تترجع كقيمة مباشرة.
       return o.partialQuantity == null ? 0 : Math.round(Number(o.partialQuantity));
+    }
+    if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) {
+      const rvr = (o as any).returnValueReceived;
+      return rvr != null ? Number(rvr) : 0;
     }
     return 0;
   };
@@ -4903,11 +4910,12 @@ export default function ShippingManifestPage() {
             const meta = compactStatusMeta(status);
             const total = group.reduce((sum, order) => sum + getShipmentAmount(order), 0);
             // القيمة المستلمة وسعر الشحن المعروضين فى الجدول = صفر فى حالة (مؤجَّل / قيد
-            // الانتظار / مرتجع بأحد الأسباب السبعة اللى مفيهاش استحقاق فعلى). غير كده تتحسب القيمة الفعلية.
+            // الانتظار / مرتجع بسبب مش من الأسباب المالية الثلاثة). غير كده (مسلَّم، جزئي،
+            // أو مرتجع بسبب مالي: رفض بعد معاينة مدفوع/غير مدفوع أو تهرّب) تتحسب القيمة الفعلية.
             const isZeroedRow = (order: ManifestOrder) => {
               const st = order.deliveryStatus;
               if (st === "postponed" || st === "delayed" || st === "pending") return true;
-              if (st === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((order as any).returnReason ?? ""))) return true;
+              if (st === "returned" && !RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
               return false;
             };
             const shippingDisplay = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
