@@ -4868,8 +4868,18 @@ export default function ShippingManifestPage() {
             const status = groupManifestStatus(group) as DeliveryStatus;
             const meta = compactStatusMeta(status);
             const total = group.reduce((sum, order) => sum + getShipmentAmount(order), 0);
+            // شحن ديب الإجمالي الكلي (يفضل يتحسب زي ما هو دايمًا، مش متأثر بالتصفير أدناه)
             const shipping = group.reduce((sum, order) => sum + getChargeableShipping(order), 0);
-            const collected = group.reduce((sum, order) => sum + getCollectedAmount(order), 0);
+            // القيمة المستلمة وسعر الشحن المعروضين فى الجدول = صفر فى حالة (مؤجَّل / قيد
+            // الانتظار / مرتجع بأحد الأسباب السبعة اللى مفيهاش استحقاق فعلى). غير كده تتحسب القيمة الفعلية.
+            const isZeroedRow = (order: ManifestOrder) => {
+              const st = order.deliveryStatus;
+              if (st === "postponed" || st === "pending") return true;
+              if (st === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((order as any).returnReason ?? ""))) return true;
+              return false;
+            };
+            const shippingDisplay = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
+            const collected = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getCollectedAmount(order)), 0);
             // حماية: الإجمالي الكلي ميظهرش بالسالب أبدًا مهما كانت بيانات الشحنة
             const grandTotal = Math.max(0, total - shipping);
             const key = group.map((order) => order.id).join("-");
@@ -4892,7 +4902,7 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
                   <div className="text-center font-semibold text-emerald-400">{formatCurrency(collected)}</div>
-                  <div className="text-center font-semibold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</div>
+                  <div className="text-center font-semibold text-sky-400">{shippingDisplay > 0 ? `-${formatCurrency(shippingDisplay)}` : formatCurrency(0)}</div>
                   <div className="text-center font-bold text-violet-400">{formatCurrency(grandTotal)}</div>
                   <div className="text-center">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
@@ -4959,7 +4969,7 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="text-muted-foreground">سعر الشحن بتاع المنطقة</span>
-                    <span className="font-bold text-sky-400">{shipping > 0 ? `-${formatCurrency(shipping)}` : formatCurrency(0)}</span>
+                    <span className="font-bold text-sky-400">{shippingDisplay > 0 ? `-${formatCurrency(shippingDisplay)}` : formatCurrency(0)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="text-muted-foreground">الإجمالي الكلي</span>
