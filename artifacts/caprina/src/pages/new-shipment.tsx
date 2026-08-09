@@ -182,9 +182,10 @@ export default function NewShipmentPage() {
     const seen = new Set<string>();
     return source
       .map(z => {
+        // اسم المحافظة بس في القائمة المنسدلة (بدون "داخل/متطرفات" واسم المنطقة التفصيلي)
         const gov = z.toGovernorate?.trim() || "";
         const area = z.name?.trim() || "";
-        const label = gov && area ? `${gov} - ${area}` : (gov || area);
+        const label = gov || area;
         return { label, zone: z };
       })
       .filter(x => x.label)
