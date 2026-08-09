@@ -4908,7 +4908,7 @@ export default function ShippingManifestPage() {
           />
         </div>
         <div className="flex justify-between mt-2 text-xs">
-          <span className="text-emerald-500 font-bold">مُسلَّم: {groupedDeliveredCount}</span>
+          <span className="text-emerald-500 font-bold">مُسلَّم: {groupedCompletedCount}</span>
           <span className="text-red-500 font-bold">مؤجل: {groupedPostponedCount}</span>
           <span className="text-red-500 font-bold">مرتجع: {groupedReturnedCount}</span>
         </div>
