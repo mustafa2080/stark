@@ -4923,7 +4923,9 @@ export default function ShippingManifestPage() {
             // الانتظار / مرتجع بسبب مش من الأسباب المالية الثلاثة / مرتجع بسبب مالي لكن
             // القيمة المستلمة الفعلية = صفر). غير كده (مسلَّم، جزئي، أو مرتجع بسبب مالي
             // وله قيمة مستلمة فعلية) تتحسب القيمة الفعلية وسعر الشحن معاها.
-            const isZeroedRow = (order: ManifestOrder) => {
+            // شرط تصفير "القيمة المستلمة" فقط - مؤجَّل/قيد الانتظار/مرتجع بسبب غير مالي
+            // أو مرتجع بسبب مالي بس القيمة المستلمة الفعلية = صفر
+            const isCollectedZeroedRow = (order: ManifestOrder) => {
               const st = order.deliveryStatus;
               if (st === "postponed" || st === "delayed" || st === "pending") return true;
               if (st === "returned") {
@@ -4932,8 +4934,18 @@ export default function ShippingManifestPage() {
               }
               return false;
             };
-            const shippingDisplay = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
-            const collected = group.reduce((sum, order) => sum + (isZeroedRow(order) ? 0 : getCollectedAmount(order)), 0);
+            // شرط تصفير "سعر الشحن" منفصل - الشحن مستحق طالما مسلَّم/جزئي أو مرتجع بسبب مالي،
+            // بغض النظر عن قيمة المستلم الفعلية (ممكن تكون صفر والشحن برضو مستحق - refused_unpaid مثلًا)
+            const isShippingZeroedRow = (order: ManifestOrder) => {
+              const st = order.deliveryStatus;
+              if (st === "postponed" || st === "delayed" || st === "pending") return true;
+              if (st === "returned") {
+                if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
+              }
+              return false;
+            };
+            const shippingDisplay = group.reduce((sum, order) => sum + (isShippingZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
+            const collected = group.reduce((sum, order) => sum + (isCollectedZeroedRow(order) ? 0 : getCollectedAmount(order)), 0);
             const key = group.map((order) => order.id).join("-");
             return (
               <div key={`client-look-${key}`}>
