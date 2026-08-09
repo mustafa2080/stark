@@ -5751,6 +5751,7 @@ export default function ShippingManifestPage() {
           repExtraCostBreakdownMap.set(reason, (repExtraCostBreakdownMap.get(reason) ?? 0) + amt);
         }
         const repExtraCostBreakdown = [...repExtraCostBreakdownMap.entries()].map(([reason, amount]) => ({ reason, amount }));
+        // كارت "إجمالي تكلفة الشحن" العلوي لسه بيعرض شامل إضافات الأنواع (شفافية كاملة للمستخدم).
         const displayedShippingCost = shippingCost + repExtraCostTotal;
         // إجمالي المستحق = مجموع "القيمة المستلمة" (getCollectedAmount) لكل شحنات البيان
         // مباشرة، بدون طرح تكلفة الشحن.
@@ -5759,9 +5760,14 @@ export default function ShippingManifestPage() {
         // مسلَّم + استلام جزئي + مرتجع بأسباب الشحن الثلاثة (رفض بعد المعاينة
         // مدفوع/غير مدفوع، أو تهرب من المعاينة) — مش كل شحنات البيان.
         const dueOrdersCount = deliveredOrders.length + partialOrders.length + returnedDueOrders.length;
-        // الرصيد المستحق = إجمالي الإيرادات - إجمالي تكلفة الشحن (شامل إضافات الأنواع)
+        // الرصيد المستحق (كارت ثابت دايمًا) = إجمالي الإيرادات - إجمالي تكلفة الشحن (شامل إضافات الأنواع)
         const totalDueFromClient = netAmount - displayedShippingCost;
-        const isProfit        = totalDueFromClient >= 0;
+        // صافي الإيراد المستحق (الحاوية المخفية تحت فقط) = إجمالي سعر الشحن (netAmount)
+        // ناقص قيمة الشحن بس (shippingCost = سعر المنطقة الصافي، نفس عمود "قيمة الشحن"
+        // الظاهر في الجدول التفصيلي)، من غير إضافات نوع الطرد (repExtraCostTotal) —
+        // بطلب المدير، عشان يبقى الرقم مطابق تمامًا لعمود "قيمة الشحن".
+        const netRevenueDue   = netAmount - shippingCost;
+        const isProfit        = netRevenueDue >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
             <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
@@ -5815,10 +5821,10 @@ export default function ShippingManifestPage() {
               {netLossOpen && (
                 <div className="px-4 pb-4 -mt-1">
                   <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                    {formatCurrency(Math.abs(totalDueFromClient))}
+                    {formatCurrency(Math.abs(netRevenueDue))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(netAmount)} إيرادات − {formatCurrency(displayedShippingCost)} تكلفة الشحن
+                    {formatCurrency(netAmount)} إجمالي سعر الشحن − {formatCurrency(shippingCost)} تكلفة سعر الشحنة
                   </p>
                 </div>
               )}
