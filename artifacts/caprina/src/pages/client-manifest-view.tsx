@@ -13,6 +13,30 @@ import { ar } from "date-fns/locale";
 const formatCurrency = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
+// القيمة المستلمة فعليًا لكل شحنة — نفس منطق بيان التسوية فى اكونت العميل بالأدمن
+const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
+function getReceivedValue(item: ManifestItem): number {
+  if (item.deliveryStatus === "delivered") {
+    const dvr = item.deliveredValueReceived;
+    return dvr != null ? Number(dvr) : Number(item.totalPrice || 0);
+  }
+  if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
+    return Number(item.partialQuantity);
+  }
+  if (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String(item.returnReason ?? ""))) {
+    return item.returnValueReceived != null ? Number(item.returnValueReceived) : 0;
+  }
+  return 0;
+}
+// سعر الشحن المخصوم فعليًا — بس على الشحنات اللي دخلت فى الحساب (نفس الشرط اللي فى الأدمن)
+function getEffectiveShipping(item: ManifestItem): number {
+  const counted =
+    item.deliveryStatus === "delivered" ||
+    item.deliveryStatus === "partial_delivered" ||
+    (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String(item.returnReason ?? "")));
+  return counted ? Number(item.shippingCost || 0) : 0;
+}
+
 interface ManifestItem {
   id: number;
   shipmentId: number;
@@ -32,6 +56,10 @@ interface ManifestItem {
   invoiceNumber: string;
   representativeName: string | null;
   warehouseName: string | null;
+  unitPrice?: number | null;
+  deliveredValueReceived?: number | null;
+  returnValueReceived?: number | null;
+  returnReason?: string | null;
 }
 
 interface ManifestDetail {
@@ -307,9 +335,9 @@ export default function ClientManifestViewPage() {
             <span>المحافظة</span>
             <span>العنوان</span>
             <span className="text-center">القطع</span>
-            <span className="text-left">الإجمالي</span>
-            <span className="text-center">سعر المنطقة</span>
-            <span className="text-center">الإجمالي الكلي</span>
+            <span className="text-left">القيمة المستلمة</span>
+            <span className="text-center">سعر الشحن</span>
+            <span className="text-center">صافي</span>
             <span className="text-center">الحالة</span>
           </div>
 
@@ -542,9 +570,9 @@ function ItemRow({ item }: { item: ManifestItem }) {
             ? <span><span className="text-teal-400">{item.partialQuantity}</span><span className="text-muted-foreground">/{item.quantity}</span></span>
             : item.quantity}
         </div>
-        <div className="text-left font-bold">{formatCurrency(item.totalPrice)}</div>
-        <div className="text-center font-semibold text-sky-400">{formatCurrency(item.shippingCost)}</div>
-        <div className="text-center font-bold text-violet-400">{formatCurrency(Number(item.totalPrice || 0) + Number(item.shippingCost || 0))}</div>
+        <div className="text-left font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</div>
+        <div className="text-center font-semibold text-sky-400">{formatCurrency(getEffectiveShipping(item))}</div>
+        <div className="text-center font-bold text-violet-400">{formatCurrency(getReceivedValue(item) - getEffectiveShipping(item))}</div>
         <div className="text-center">
           <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.bg} ${meta.color}`}>
             {meta.label}
@@ -575,16 +603,16 @@ function ItemRow({ item }: { item: ManifestItem }) {
           <span className="font-mono text-[10px] text-muted-foreground">{item.invoiceNumber}</span>
           <div className="flex items-center gap-2">
             <span className="font-bold">{item.quantity} قطعة</span>
-            <span className="font-bold text-primary">{formatCurrency(item.totalPrice)}</span>
+            <span className="font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</span>
           </div>
         </div>
         <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">سعر المنطقة</span>
-          <span className="font-bold text-sky-400">{formatCurrency(item.shippingCost)}</span>
+          <span className="text-muted-foreground">سعر الشحن</span>
+          <span className="font-bold text-sky-400">{formatCurrency(getEffectiveShipping(item))}</span>
         </div>
         <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">الإجمالي الكلي</span>
-          <span className="font-bold text-violet-400">{formatCurrency(Number(item.totalPrice || 0) + Number(item.shippingCost || 0))}</span>
+          <span className="text-muted-foreground">صافي</span>
+          <span className="font-bold text-violet-400">{formatCurrency(getReceivedValue(item) - getEffectiveShipping(item))}</span>
         </div>
         {item.deliveryStatus === "delayed" && item.deliveryNote && (
           <p className="text-[10px] text-orange-400">⏸ {item.deliveryNote}</p>
