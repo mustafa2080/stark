@@ -4497,7 +4497,6 @@ export default function ShippingManifestPage() {
             const totalQty = group.reduce((sum, o) => sum + (o.quantity ?? 0), 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
             const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
-            const shipmentTotal = cod + fee;
             const receivedValue = group.reduce((sum, o) => {
               if (o.deliveryStatus === "delivered") {
                 const dvr = (o as any).deliveredValueReceived;
@@ -4529,7 +4528,7 @@ export default function ShippingManifestPage() {
                 <td>{rep.city ?? "—"}</td>
                 <td style={{ fontSize: "8.5pt" }}>{(rep as any).address ?? "—"}</td>
                 <td style={{ fontSize: "8.5pt" }}>{(rep as any).senderName ?? "—"}</td>
-                <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{shipmentTotal.toLocaleString("ar-EG")} ج</td>
+                <td className="mp-td-center mp-td-bold" style={{ color: "#15803d" }}>{cod.toLocaleString("ar-EG")} ج</td>
                 <td className="mp-td-center mp-td-bold" style={{ color: receivedValue > 0 ? "#1d4ed8" : "#94a3b8" }}>
                   {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") + " ج" : "—"}
                 </td>
@@ -4603,7 +4602,6 @@ export default function ShippingManifestPage() {
               const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
               const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
               const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
-              const shipmentTotal = cod + fee;
               const receivedValue = group.reduce((sum, o) => {
                 if (o.deliveryStatus === "delivered") {
                   const dvr = (o as any).deliveredValueReceived;
@@ -4640,7 +4638,7 @@ export default function ShippingManifestPage() {
                   <td>{rep.city ?? "—"}</td>
                   <td style={{ fontSize: "8pt" }}>{(rep as any).address ?? "—"}</td>
                   <td>{(rep as any).senderName ?? "—"}</td>
-                  <td>{shipmentTotal.toLocaleString("ar-EG")}</td>
+                  <td>{cod.toLocaleString("ar-EG")}</td>
                   <td className="tr-td-received">{receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}</td>
                   <td className="tr-td-shipping">{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
                   <td className={statusCls}>{statusText}</td>
@@ -5180,7 +5178,6 @@ export default function ShippingManifestPage() {
                 const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
                 const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
                 const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
-                const shipmentTotal = cod + fee;
                 const receivedValue = group.reduce((sum, o) => {
                   if (o.deliveryStatus === "delivered") {
                     const dvr = (o as any).deliveredValueReceived;
@@ -5221,7 +5218,7 @@ export default function ShippingManifestPage() {
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{rep.city ?? "—"}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center hidden md:table-cell">{(rep as any).address ?? "—"}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center hidden sm:table-cell">{(rep as any).senderName ?? "—"}</td>
-                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-bold text-teal-700 dark:text-teal-400">{shipmentTotal.toLocaleString("ar-EG")}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-bold text-teal-700 dark:text-teal-400">{cod.toLocaleString("ar-EG")}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-extrabold text-emerald-700 dark:text-emerald-400">
                       {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}
                     </td>
