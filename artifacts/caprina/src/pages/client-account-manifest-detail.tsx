@@ -5713,13 +5713,26 @@ export default function ShippingManifestPage() {
           const rvr = (o as any).returnValueReceived;
           return s + (rvr != null ? Number(rvr) : 0);
         }, 0);
-        const shippingCost    = ordersForPnl.reduce((s, o) => s + getChargeableShipping(o), 0);
+        // نفس شرط تصفير سعر الشحن المستخدم في الجدول التفصيلي (isShippingZeroedRow):
+        // مؤجل/معلَّق/قيد الانتظار، أو مرتجع بسبب غير مالي = صفر — عشان الإجمالي هنا
+        // يطابق بالظبط مجموع عمود "سعر الشحن" الظاهر فعليًا في الصفوف.
+        const isShippingZeroedRowLocal = (order: any) => {
+          const st = order.deliveryStatus;
+          if (st === "postponed" || st === "delayed" || st === "pending") return true;
+          if (st === "returned") {
+            if (!RETURN_REASONS_FINANCIAL.includes(String(order?.returnReason ?? ""))) return true;
+          }
+          return false;
+        };
+        const shippingCost    = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : getChargeableShipping(o)), 0);
         const collectedCOD    = deliveredCOD + partialCOD;
         // إضافات أنواع الشحنات (basePrice لكل نوع) على سعر العميل — نفس منطق كارت
-        // المندوب لكن بمصدر سعر العميل بدل سعر المندوب.
-        const repExtraCostTotal = ordersForPnl.reduce((s, o) => s + Number((o as any).repExtraCost ?? 0), 0);
+        // المندوب لكن بمصدر سعر العميل بدل سعر المندوب. بنفس شرط التصفير فوق حتى
+        // لا تُحسب إضافة نوع شحنة على شحنة سعر شحنها صفر أصلًا.
+        const repExtraCostTotal = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : Number((o as any).repExtraCost ?? 0)), 0);
         const repExtraCostBreakdownMap = new Map<string, number>();
         for (const o of ordersForPnl) {
+          if (isShippingZeroedRowLocal(o)) continue;
           const amt = Number((o as any).repExtraCost ?? 0);
           if (amt <= 0) continue;
           const reason = (o as any).repExtraReason ?? "نوع الشحنة";
