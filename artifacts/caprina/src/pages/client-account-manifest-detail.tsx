@@ -3893,6 +3893,10 @@ export default function ShippingManifestPage() {
         parcelType: (item as any).parcelType ?? null,
         repExtraCost: (item as any).repExtraCost ?? 0,
         repExtraReason: (item as any).repExtraReason ?? null,
+        // تكلفة المندوب الحقيقية (zone_costs.deliveryCost حسب costMode بتاع شركة
+        // الشحن المرتبطة بالشحنة) — لازم تتنقل هنا وإلا zoneCostTotal في كارت
+        // "صافي الإيراد المستحق" بيرجع صفر دايمًا رغم إن الـ backend بيبعتها صح.
+        zoneCost: (item as any).zoneCost ?? 0,
       } as any;
     });
     const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
