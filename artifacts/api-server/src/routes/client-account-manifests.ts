@@ -7,6 +7,7 @@ import {
   shipmentsTable,
   shipmentZonesTable,
   zoneCostsTable,
+  shippingCompaniesTable,
   clientsTable,
   usersTable,
   warehousesTable,
@@ -473,16 +474,43 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const getZoneShipping = (shipment: any) =>
       shipment?.zoneId ? (zoneShippingMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
 
-    // ── تكلفة المندوب (Zone Costs) — سعر توصيل واحد لكل منطقة، بدون تصنيف عميل ──
-    // ده مصدر "تكلفة المندوب في الأوردر" اللي بيتطرح في بيان العميل، مختلف عن
-    // سعر المنطقة الموجه للعميل (zoneShippingMap فوق).
+    // ── تكلفة المندوب — من بيان المندوب نفسه، مش من منطقة الشحنة الجغرافية ──
+    // نفس منطق computeManifestNetDue (lib/manifestFinance.ts) بالظبط: تكلفة كل
+    // شحنة بتتحدد من شركة/مندوب الشحن المرتبط بيها فعليًا (shipment.shippingCompanyId)،
+    // مش بمنطقتها الجغرافية بس. حسب costMode بتاع الشركة:
+    //   "rep"  → سعر ثابت واحد لكل شحنة (company.shippingCost)
+    //   "zone" → سعر تكلفة منطقة الشحنة (zone_costs.deliveryCost)
+    // لو الشحنة معندهاش شركة شحن مرتبطة (لسه في المخزن ومتحطتش على مندوب) →
+    // fallback لتكلفة المنطقة الجغرافية القديمة (zone_costs بمنطقة الشحنة).
+    const shipmentCompanyIds = [...new Set(shipments.map(s => s.shippingCompanyId).filter((v): v is number => !!v))];
+    let companyCostModeMap: Record<number, { costMode: string; shippingCost: number }> = {};
+    if (shipmentCompanyIds.length) {
+      const companyRows = await db.select({
+        id: shippingCompaniesTable.id,
+        costMode: shippingCompaniesTable.costMode,
+        shippingCost: shippingCompaniesTable.shippingCost,
+      }).from(shippingCompaniesTable).where(inArray(shippingCompaniesTable.id, shipmentCompanyIds));
+      companyCostModeMap = Object.fromEntries(companyRows.map(c => [c.id, {
+        costMode: c.costMode === "zone" ? "zone" : "rep",
+        shippingCost: Math.abs(Number(c.shippingCost ?? 0)),
+      }]));
+    }
     let zoneCostMap: Record<number, number> = {};
     if (zoneIds.length) {
       const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
       zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
     }
-    const getZoneCost = (shipment: any) =>
-      shipment?.zoneId ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+    const getZoneCost = (shipment: any) => {
+      if (!shipment) return 0;
+      const company = shipment.shippingCompanyId ? companyCostModeMap[shipment.shippingCompanyId] : null;
+      if (company) {
+        return company.costMode === "zone"
+          ? (shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0)
+          : company.shippingCost;
+      }
+      // fallback: مفيش شركة شحن مرتبطة بالشحنة — تكلفة المنطقة الجغرافية القديمة
+      return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+    };
 
     // ── جلب أسماء المناديب (assignedUserId) دفعة واحدة ──────────────────────
     const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
