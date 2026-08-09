@@ -4391,11 +4391,10 @@ export default function ShippingManifestPage() {
     }
     return 0;
   };
-  const getShipmentAmount = (o: ManifestOrder) => {
-    const dvr = (o as any).deliveredValueReceived;
-    if (dvr != null) return Number(dvr);
-    return Number(o.totalPrice ?? (o as any).total ?? 0);
-  };
+  // إجمالي سعر الشحنة = قيمة الفاتورة الأصلية للشحنة دايمًا، بدون أي شرط تصفير أو
+  // تأثر بحالة التسليم/الاسترجاع أو بالقيمة المستلمة فعليًا (deliveredValueReceived).
+  const getShipmentAmount = (o: ManifestOrder) =>
+    Number(o.totalPrice ?? (o as any).total ?? 0);
   // تم شيل شرط hasChargeableShipping بالكامل بناءً على طلب المهندس —
   // الشحن يتحسب دايمًا للشحنة بغض النظر عن حالة التسليم (pending/delayed/returned/...)
   const getChargeableShipping = (o: ManifestOrder) =>
