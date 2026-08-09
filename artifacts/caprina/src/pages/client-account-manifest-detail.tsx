@@ -4411,7 +4411,7 @@ export default function ShippingManifestPage() {
     return false;
   };
   const getChargeableShipping = (o: ManifestOrder) =>
-    isShippingZeroedRowTop(o) ? 0 : Number((o as any).shippingCost ?? 0);
+    isShippingZeroedRowTop(o) ? 0 : Number((o as any).shippingCost ?? 0) + Number((o as any).repExtraCost ?? 0);
 
   const totalCollected = (manifest.orders ?? []).reduce((sum, o) => sum + getCollectedAmount(o), 0);
   const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
