@@ -5676,7 +5676,9 @@ export default function ShippingManifestPage() {
         }, 0);
         const shippingCost    = ordersForPnl.reduce((s, o) => s + getChargeableShipping(o), 0);
         const collectedCOD    = deliveredCOD + partialCOD;
-        const netAmount       = collectedCOD - shippingCost;
+        // إجمالي المستحق = مجموع "القيمة المستلمة" (getCollectedAmount) لكل شحنات البيان
+        // مباشرة، بدون طرح تكلفة الشحن.
+        const netAmount       = ordersForPnl.reduce((s, o) => s + getCollectedAmount(o), 0);
         const isProfit        = netAmount >= 0;
         // إجمالي المستحق بيشمل بس الشحنات اللي فعلاً بتولد مبلغ مستحق:
         // مسلَّم + استلام جزئي + مرتجع بأسباب الشحن الثلاثة (رفض بعد المعاينة
