@@ -3709,11 +3709,7 @@ function ReturnReceivedButton({
       type="button"
       onClick={() => !locked && !isActive && mutation.mutate()}
       disabled={locked || mutation.isPending}
-      className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
-        isActive
-          ? "border-orange-500 bg-orange-900/40 text-orange-300"
-          : "border-border text-muted-foreground hover:border-orange-700 hover:text-orange-400 hover:bg-orange-900/10"
-      } disabled:opacity-50 disabled:cursor-not-allowed`}
+      className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-orange-500 bg-orange-900/40 text-orange-300 disabled:opacity-50 disabled:cursor-not-allowed`}
     >
       <span className="text-sm">🚚</span>
       <span>لم يتم بعد</span>
