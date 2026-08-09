@@ -5733,7 +5733,10 @@ export default function ShippingManifestPage() {
           }
           return false;
         };
-        const shippingCost    = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : getChargeableShipping(o)), 0);
+        // ملحوظة: shippingCost هنا سعر الشحن الأساسي فقط (بدون إضافات نوع الشحنة)
+        // لأن إضافات الأنواع بتتحسب لوحدها في repExtraCostTotal تحت وتتضاف بعدين —
+        // استخدام getChargeableShipping هنا كان بيحسب الإضافة مرتين.
+        const shippingCost    = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : Number((o as any).shippingCost ?? 0)), 0);
         const collectedCOD    = deliveredCOD + partialCOD;
         // إضافات أنواع الشحنات (basePrice لكل نوع) على سعر العميل — نفس منطق كارت
         // المندوب لكن بمصدر سعر العميل بدل سعر المندوب. بنفس شرط التصفير فوق حتى
