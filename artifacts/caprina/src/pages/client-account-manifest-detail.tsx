@@ -4878,22 +4878,25 @@ export default function ShippingManifestPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xl font-black text-violet-300">{manifest.orders.length}</span>
-            {statusBreakdownOpen ? (
-              <ChevronUp className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            )}
+            <ChevronDown
+              className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${statusBreakdownOpen ? "rotate-180" : ""}`}
+            />
           </div>
         </button>
-        {statusBreakdownOpen && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 px-4 pb-4">
-            <ClientLookCard icon={CheckCircle2} value={groupedDeliveredCount} label="استلم" tone="emerald" compact />
-            <ClientLookCard icon={CheckCircle2} value={groupedPartialCountDisplay} label="استلم جزئي" tone="sky" compact />
-            <ClientLookCard icon={AlertCircle} value={groupedPostponedCount} label="مؤجل" tone="orange" compact />
-            <ClientLookCard icon={Clock} value={groupedPendingCount} label="قيد الانتظار" tone="muted" compact />
-            <ClientLookCard icon={RotateCcw} value={groupedReturnedCount} label="مرتجع" tone="red" compact />
+        <div
+          className="grid transition-all duration-300 ease-in-out"
+          style={{ gridTemplateRows: statusBreakdownOpen ? "1fr" : "0fr" }}
+        >
+          <div className={`overflow-hidden transition-opacity duration-300 ${statusBreakdownOpen ? "opacity-100" : "opacity-0"}`}>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 px-4 pb-4">
+              <ClientLookCard icon={CheckCircle2} value={groupedDeliveredCount} label="استلم" tone="emerald" compact />
+              <ClientLookCard icon={CheckCircle2} value={groupedPartialCountDisplay} label="استلم جزئي" tone="sky" compact />
+              <ClientLookCard icon={AlertCircle} value={groupedPostponedCount} label="مؤجل" tone="orange" compact />
+              <ClientLookCard icon={Clock} value={groupedPendingCount} label="قيد الانتظار" tone="muted" compact />
+              <ClientLookCard icon={RotateCcw} value={groupedReturnedCount} label="مرتجع" tone="red" compact />
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-md shadow-black/10">
