@@ -1,0 +1,9 @@
+fix: الـ Adapter فى client-account-manifest-detail.tsx كان بيسقط repExtraCost
+
+السبب الحقيقى النهائى: الـ API endpoint فعلاً بيرجع repExtraCost/repExtraReason
+صح (اتأكدت منها مباشرة على السيرفر)، لكن فيه Adapter فى الصفحة بيحول
+rawManifest.items لشكل "orders" بـ mapping يدوى صريح لكل حقل — وكان ناسى
+ينقل repExtraCost/repExtraReason/parcelType خالص، فكانت بتتفقد قبل ما توصل
+لأى جدول فى الصفحة (سواء الجدول الرئيسى أو جداول تقفيل الرحلة).
+
+- إضافة parcelType/repExtraCost/repExtraReason لكائن order فى الـ adapter
