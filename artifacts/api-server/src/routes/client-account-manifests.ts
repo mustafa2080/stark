@@ -496,7 +496,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
 
     // ── جلب أسعار "الزيادة على المندوب" حسب نوع الشحنة (parcel type) ───────
     const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
-    let parcelPricingMap: Record<string, { label: string; repExtraCost: number }> = {};
+    let parcelPricingMap: Record<string, { label: string; repExtraCost: number; basePrice: number }> = {};
     if (parcelTypes.length) {
       const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
       if (manifest.tenantId !== null && manifest.tenantId !== undefined) {
@@ -508,6 +508,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
           parcelType: parcelTypePricingTable.parcelType,
           label: parcelTypePricingTable.label,
           repExtraCost: parcelTypePricingTable.repExtraCost,
+          basePrice: parcelTypePricingTable.basePrice,
         })
         .from(parcelTypePricingTable)
         .where(and(...conds));
@@ -519,6 +520,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
           parcelPricingMap[row.parcelType] = {
             label: row.label ?? row.parcelType,
             repExtraCost: Number(row.repExtraCost ?? 0),
+            basePrice: Number(row.basePrice ?? 0),
           };
         }
       }
@@ -590,8 +592,9 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
         shippingCost:  zoneShippingForItem,
         parcelType:    sh?.parcelType ?? null,
-        repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) : 0,
-        repExtraReason: (zoneShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) > 0)
+        // ملحوظة: بيان العميل بيعرض سعر العميل (basePrice) مش سعر المندوب (repExtraCost)
+        repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,
+        repExtraReason: (zoneShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) > 0)
           ? (parcelPricingMap[sh.parcelType]?.label ?? sh.parcelType)
           : null,
         invoiceNumber: sh?.shipmentNumber ?? "",
