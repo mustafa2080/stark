@@ -923,12 +923,7 @@ export default function CommercialClientDetailPage() {
 
       {/* ─── Stats Cards — زي شركات الشحن بس بأرقام العميل ─── */}
       {!isLoading && client && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <Card className="card-glow border-border p-3 text-center" style={GLOW.neutral.style}>
-            <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي الفواتير</p>
-            <p className="text-2xl font-black">{allOrders.length}</p>
-            <p className="text-[10px] text-muted-foreground">{processingOrders.length} جارية · {deliveredOrders.length} مكتملة</p>
-          </Card>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Card className="card-glow border-teal-900/40 p-3 text-center" style={GLOW.teal.style}>
             <p className="text-[10px] text-teal-400 mb-0.5">إجمالي الشحنات</p>
             <p className="text-xl font-black text-teal-400">{clientShipments.length}</p>
@@ -937,11 +932,6 @@ export default function CommercialClientDetailPage() {
               {" · "}
               {clientShipments.filter(s => ["returned"].includes(s.status)).length} مرتجع
             </p>
-          </Card>
-          <Card className="card-glow border-red-900/40 p-3 text-center" style={GLOW.red.style}>
-            <p className="text-[10px] text-red-400 mb-0.5">المديونية</p>
-            <p className="text-xl font-black text-red-400">{fmt(unpaid)}</p>
-            <p className="text-[10px] text-muted-foreground">مدفوع: {fmt(totalPaid)}</p>
           </Card>
           <Card className="card-glow border-emerald-900/40 p-3 text-center" style={GLOW.emerald.style}>
             <p className="text-[10px] text-emerald-400 mb-0.5">إجمالي رصيد العميل</p>
