@@ -4961,6 +4961,8 @@ export default function ShippingManifestPage() {
               return false;
             };
             const shippingDisplay = group.reduce((sum, order) => sum + (isShippingZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
+            const extraFee = group.reduce((sum, order) => sum + (isShippingZeroedRow(order) ? 0 : Number((order as any).repExtraCost ?? 0)), 0);
+            const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
             const collected = group.reduce((sum, order) => sum + (isCollectedZeroedRow(order) ? 0 : getCollectedAmount(order)), 0);
             const key = group.map((order) => order.id).join("-");
             return (
@@ -4982,7 +4984,14 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
                   <div className="text-center font-semibold text-emerald-400">{formatCurrency(collected)}</div>
-                  <div className="text-center font-semibold text-sky-400">{formatCurrency(shippingDisplay)}</div>
+                  <div className="text-center font-semibold text-sky-400">
+                    {formatCurrency(shippingDisplay)}
+                    {extraFee > 0 && (
+                      <p className="text-[9px] text-amber-400 font-semibold truncate">
+                        {extraReasons || "نوع الشحنة"} +{formatCurrency(extraFee)}
+                      </p>
+                    )}
+                  </div>
                   <div className="text-center">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
                     {status === "returned" && (() => {
@@ -5048,7 +5057,14 @@ export default function ShippingManifestPage() {
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="text-muted-foreground">سعر الشحن</span>
-                    <span className="font-bold text-sky-400">{formatCurrency(shippingDisplay)}</span>
+                    <span className="font-bold text-sky-400 text-left">
+                      {formatCurrency(shippingDisplay)}
+                      {extraFee > 0 && (
+                        <span className="block text-[9px] text-amber-400 font-semibold">
+                          {extraReasons || "نوع الشحنة"} +{formatCurrency(extraFee)}
+                        </span>
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
