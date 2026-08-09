@@ -163,11 +163,24 @@ export default function NewShipmentPage() {
     }
   }, [isEditMode, existingShipment]);
 
-  // كل مناطق التوصيل — محافظة - منطقة (بدون تكرار لنفس الاسم)
+  // كل مناطق التوصيل — محافظة - منطقة (فلترة حسب محافظة الراسل "من"، بدون تكرار لنفس الاسم)
+  // ملحوظة مهمة: ممكن يكون فيه أكتر من zone بنفس toGovernorate/name لكن fromGovernorate
+  // مختلفة (مثال: "داخل الاسكندرية" من الاسكندرية سعرها 65، ونفس الاسم من القاهرة سعرها
+  // 85) — لازم نفلتر على أساس محافظة الراسل (senderCity) الأول عشان ناخد السعر الصح،
+  // ولو مفيش senderCity محدد أو مفيش zones تطابقها، نرجع لكل المناطق كـ fallback.
   const toGovernorates = useMemo(() => {
+    const activeZones = zones.filter(z => z.isActive !== false);
+    const senderGov = form.senderCity?.trim() || "";
+    // توحيد الهمزات/التاء المربوطة والهاء عشان "الاسكندرية" و"الاسكندريه" يتطابقوا
+    const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase().replace(/ة/g, "ه").replace(/[أإآ]/g, "ا");
+    const matchingSenderZones = senderGov
+      ? activeZones.filter(z => normalize(z.fromGovernorate || "") === normalize(senderGov))
+      : [];
+    // لو فيه مناطق مطابقة لمحافظة الراسل بالظبط، نستخدمها فقط. غير كده (مفيش senderCity
+    // أو مفيش zones لمحافظته) نرجع لعرض كل المناطق كـ fallback عشان الفورم يفضل شغال.
+    const source = matchingSenderZones.length ? matchingSenderZones : activeZones;
     const seen = new Set<string>();
-    return zones
-      .filter(z => z.isActive !== false)
+    return source
       .map(z => {
         const gov = z.toGovernorate?.trim() || "";
         const area = z.name?.trim() || "";
@@ -182,7 +195,7 @@ export default function NewShipmentPage() {
         return true;
       })
       .sort((a, b) => a.label.localeCompare(b.label, "ar"));
-  }, [zones]);
+  }, [zones, form.senderCity]);
 
   const selectedZone    = zones.find(z => String(z.id) === form.zoneId);
   const selectedPricing = parcelPricing.find(p => p.parcelType === form.parcelType);
@@ -329,7 +342,10 @@ export default function NewShipmentPage() {
                             key={c.id}
                             value={`${c.name} ${gov} ${c.phone || ""}`}
                             onSelect={() => {
-                              setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
+                              // تصفير المنطقة المختارة سابقًا لو موجودة، لأن المناطق المتاحة بتتغيّر
+                              // حسب محافظة الراسل (senderCity) — منطقة العميل القديم ممكن تبقى غلط
+                              // أو غير موجودة أصلًا لمحافظة العميل الجديد.
+                              setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, zoneId: "", warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
                               setClientOpen(false);
                             }}
                             className="text-sm flex items-center justify-between gap-3"
@@ -653,7 +669,7 @@ export default function NewShipmentPage() {
                               key={c.id}
                               value={`${c.name} ${gov} ${c.phone || ""}`}
                               onSelect={() => {
-                                setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
+                                setForm(f => ({ ...f, clientId: String(c.id), senderName: c.name, senderPhone: c.phone || "", senderPhone2: c.phone2 || "", senderCity: gov, zoneId: "", warehouseId: c.warehouseId ? String(c.warehouseId) : f.warehouseId, adSource: c.defaultAdSource || f.adSource }));
                                 setClientOpen2(false);
                               }}
                               className="text-sm flex items-center gap-2"
