@@ -4407,8 +4407,8 @@ export default function ShippingManifestPage() {
 
   const totalCollected = (manifest.orders ?? []).reduce((sum, o) => sum + getCollectedAmount(o), 0);
   const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
-  // الصافي المستحق = المُحصَّل (مسلَّم + جزئي فقط) - تكلفة الشحن
-  const netDue = totalCollected - effectiveShipping;
+  // إجمالي المستحق = مجموع "القيمة المستلمة" مباشرة لكل شحنات البيان، بدون طرح تكلفة الشحن.
+  const netDue = totalCollected;
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
   const newOrdersCount = groupedPendingCount;
   const returnedNotArrived = (manifest.orders ?? []).filter(
