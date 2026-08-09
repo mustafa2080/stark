@@ -5715,34 +5715,61 @@ export default function ShippingManifestPage() {
         }, 0);
         const shippingCost    = ordersForPnl.reduce((s, o) => s + getChargeableShipping(o), 0);
         const collectedCOD    = deliveredCOD + partialCOD;
+        // إضافات أنواع الشحنات (basePrice لكل نوع) على سعر العميل — نفس منطق كارت
+        // المندوب لكن بمصدر سعر العميل بدل سعر المندوب.
+        const repExtraCostTotal = ordersForPnl.reduce((s, o) => s + Number((o as any).repExtraCost ?? 0), 0);
+        const repExtraCostBreakdownMap = new Map<string, number>();
+        for (const o of ordersForPnl) {
+          const amt = Number((o as any).repExtraCost ?? 0);
+          if (amt <= 0) continue;
+          const reason = (o as any).repExtraReason ?? "نوع الشحنة";
+          repExtraCostBreakdownMap.set(reason, (repExtraCostBreakdownMap.get(reason) ?? 0) + amt);
+        }
+        const repExtraCostBreakdown = [...repExtraCostBreakdownMap.entries()].map(([reason, amount]) => ({ reason, amount }));
+        const displayedShippingCost = shippingCost + repExtraCostTotal;
         // إجمالي المستحق = مجموع "القيمة المستلمة" (getCollectedAmount) لكل شحنات البيان
         // مباشرة، بدون طرح تكلفة الشحن.
         const netAmount       = ordersForPnl.reduce((s, o) => s + getCollectedAmount(o), 0);
-        const isProfit        = netAmount >= 0;
         // إجمالي المستحق بيشمل بس الشحنات اللي فعلاً بتولد مبلغ مستحق:
         // مسلَّم + استلام جزئي + مرتجع بأسباب الشحن الثلاثة (رفض بعد المعاينة
         // مدفوع/غير مدفوع، أو تهرب من المعاينة) — مش كل شحنات البيان.
         const dueOrdersCount = deliveredOrders.length + partialOrders.length + returnedDueOrders.length;
+        // الرصيد المستحق = إجمالي الإيرادات - إجمالي تكلفة الشحن (شامل إضافات الأنواع)
+        const totalDueFromClient = netAmount - displayedShippingCost;
+        const isProfit        = totalDueFromClient >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
-            <Card className="border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground mb-1">إجمالي المستحق</p>
+            <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
+              <p className="text-xs text-emerald-400 mb-1">إجمالي الإيرادات</p>
               <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{dueOrdersCount} شحنة</p>
             </Card>
-            <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
-              <p className="text-xs text-emerald-400 mb-1">المُسلَّم</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(collectedCOD)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length + partialOrders.length} شحنة</p>
-            </Card>
-            <Card className="border-red-900/40 bg-red-900/10 p-4">
-              <p className="text-xs text-red-400 mb-1">المرتجع</p>
-              <p className="text-lg font-black text-red-400">{formatCurrency(returnedCOD)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{returnedOrders.length} شحنة</p>
-            </Card>
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
-              <p className="text-xs text-amber-400 mb-1">تكلفة الشحن</p>
-              <p className="text-lg font-black text-amber-400">−{formatCurrency(shippingCost)}</p>
+              <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
+              <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {ordersForPnl.length} شحنة
+                {repExtraCostTotal > 0 ? ` · إضافات أنواع: ${formatCurrency(repExtraCostTotal)}` : ""}
+              </p>
+              {repExtraCostBreakdown.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {repExtraCostBreakdown.slice(0, 4).map((x, idx) => (
+                    <span key={idx} className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200">
+                      {x.reason} +{formatCurrency(x.amount)}
+                    </span>
+                  ))}
+                  {repExtraCostBreakdown.length > 4 && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                      +{repExtraCostBreakdown.length - 4}
+                    </span>
+                  )}
+                </div>
+              )}
+            </Card>
+            <Card className="border-sky-900/40 bg-sky-900/10 p-4">
+              <p className="text-xs text-sky-400 mb-1">الرصيد المستحق</p>
+              <p className="text-lg font-black text-sky-400">{formatCurrency(totalDueFromClient)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{dueOrdersCount} شحنة</p>
             </Card>
             <Card className={`col-span-2 p-0 border overflow-hidden ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
               <button
@@ -5763,10 +5790,10 @@ export default function ShippingManifestPage() {
               {netLossOpen && (
                 <div className="px-4 pb-4 -mt-1">
                   <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                    {formatCurrency(Math.abs(netAmount))}
+                    {formatCurrency(Math.abs(totalDueFromClient))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(deliveredCOD)} مُسلَّم + {formatCurrency(partialCOD)} جزئي + {formatCurrency(returnedCOD)} مرتجع محسوب (بدون خصم شحن)
+                    {formatCurrency(netAmount)} إيرادات − {formatCurrency(displayedShippingCost)} تكلفة الشحن
                   </p>
                 </div>
               )}
