@@ -5803,7 +5803,7 @@ export default function ShippingManifestPage() {
                 className="w-full flex items-center justify-between p-4 text-right"
               >
                 <p className={`text-xs font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                  {isProfit ? "صافي المستحق" : "صافي الخسارة"}
+                  صافي الإيراد المستحق
                 </p>
                 <div className="flex items-center gap-2">
                   {isProfit
