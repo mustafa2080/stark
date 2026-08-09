@@ -4907,6 +4907,11 @@ export default function ShippingManifestPage() {
             style={{ width: `${groupedDeliveryRate}%` }}
           />
         </div>
+        <div className="flex justify-between mt-2 text-xs">
+          <span className="text-emerald-500 font-bold">مُسلَّم: {groupedDeliveredCount}</span>
+          <span className="text-red-500 font-bold">مؤجل: {groupedPostponedCount}</span>
+          <span className="text-red-500 font-bold">مرتجع: {groupedReturnedCount}</span>
+        </div>
       </div>
 
       <div className="relative">
