@@ -4399,10 +4399,19 @@ export default function ShippingManifestPage() {
   // تأثر بحالة التسليم/الاسترجاع أو بالقيمة المستلمة فعليًا (deliveredValueReceived).
   const getShipmentAmount = (o: ManifestOrder) =>
     Number(o.totalPrice ?? (o as any).total ?? 0);
-  // تم شيل شرط hasChargeableShipping بالكامل بناءً على طلب المهندس —
-  // الشحن يتحسب دايمًا للشحنة بغض النظر عن حالة التسليم (pending/delayed/returned/...)
+  // نفس شرط تصفير سعر الشحن المستخدم في الجدول التفصيلي (isShippingZeroedRow):
+  // مؤجل/معلَّق/قيد الانتظار، أو مرتجع بسبب غير مالي = صفر — عشان الرقم هنا
+  // يطابق بالظبط مجموع عمود "سعر الشحن" الظاهر فعليًا في الصفوف.
+  const isShippingZeroedRowTop = (o: ManifestOrder) => {
+    const st = o.deliveryStatus;
+    if (st === "postponed" || st === "delayed" || st === "pending") return true;
+    if (st === "returned") {
+      if (!RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) return true;
+    }
+    return false;
+  };
   const getChargeableShipping = (o: ManifestOrder) =>
-    Number((o as any).shippingCost ?? 0);
+    isShippingZeroedRowTop(o) ? 0 : Number((o as any).shippingCost ?? 0);
 
   const totalCollected = (manifest.orders ?? []).reduce((sum, o) => sum + getCollectedAmount(o), 0);
   const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
