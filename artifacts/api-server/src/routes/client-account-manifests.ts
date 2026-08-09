@@ -281,10 +281,10 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
       .from(clientsTable)
       .where(inArray(clientsTable.id, clientIds));
 
-    const closedManifestIds = allManifests.filter(m => m.status === "closed").map(m => m.id);
+    const allManifestIds = allManifests.map(m => m.id);
 
-    const itemsByManifest = closedManifestIds.length
-      ? await db.select().from(clientAccountManifestItemsTable).where(inArray(clientAccountManifestItemsTable.manifestId, closedManifestIds))
+    const itemsByManifest = allManifestIds.length
+      ? await db.select().from(clientAccountManifestItemsTable).where(inArray(clientAccountManifestItemsTable.manifestId, allManifestIds))
       : [];
     const shipmentIds = Array.from(new Set(itemsByManifest.map(i => i.shipmentId)));
     const shipments = shipmentIds.length
@@ -296,7 +296,7 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
     const manifestClientMap: Record<number, number> = {};
     allManifests.forEach(m => { manifestClientMap[m.id] = m.clientId; });
 
-    // تجميع صافي المستحق لكل عميل من كل الـ items بتاعة البيانات المقفولة
+    // تجميع صافي المستحق لكل عميل من كل الـ items بتاعة كل بيانات العميل (كل الحالات)
     const balanceByClient: Record<number, number> = {};
     for (const item of itemsByManifest) {
       const cId = manifestClientMap[item.manifestId];
@@ -339,22 +339,19 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
 });
 
 // ─── GET /client-account-manifests/balance/:clientId ─────────────────────────
-// إجمالي رصيد العميل = مجموع صافي المستحق (netDueFromClient) لكل البيانات "المقفولة" الخاصة به
+// إجمالي رصيد العميل = مجموع صافي المستحق (netDueFromClient) لكل بيانات العميل (كل الحالات)
 // (نفس معادلة netDueFromClient المُستخدمة داخل كل بيان — إجمالي المُسلَّم فعليًا − تكلفة الشحن)
 router.get("/client-account-manifests/balance/:clientId", async (req, res): Promise<void> => {
   try {
     const clientId = Number(req.params.clientId);
     if (!clientId) { res.status(400).json({ error: "معرّف العميل غير صالح" }); return; }
 
-    const closedManifests = await db
+    const allManifests = await db
       .select()
       .from(clientAccountManifestsTable)
-      .where(and(
-        eq(clientAccountManifestsTable.clientId, clientId),
-        eq(clientAccountManifestsTable.status, "closed"),
-      ));
+      .where(eq(clientAccountManifestsTable.clientId, clientId));
 
-    const manifestIds = closedManifests.map(m => m.id);
+    const manifestIds = allManifests.map(m => m.id);
     let totalBalance = 0;
 
     if (manifestIds.length) {
@@ -404,7 +401,7 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
     const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
     totalBalance -= totalPaid;
 
-    res.json({ clientId, balance: totalBalance, closedManifestsCount: manifestIds.length });
+    res.json({ clientId, balance: totalBalance, manifestsCount: manifestIds.length });
   } catch (e) {
     console.error("[GET /client-account-manifests/balance/:clientId]", e);
     res.status(500).json({ error: "خطأ في حساب رصيد العميل" });
