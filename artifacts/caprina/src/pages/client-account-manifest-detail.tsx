@@ -5766,10 +5766,10 @@ export default function ShippingManifestPage() {
         // الرصيد المستحق (كارت ثابت دايمًا) = إجمالي الإيرادات - إجمالي تكلفة الشحن (شامل إضافات الأنواع)
         const totalDueFromClient = netAmount - displayedShippingCost;
         // صافي الإيراد المستحق (الحاوية المخفية تحت فقط) = إجمالي سعر الشحن
-        // (shippingCost = إجمالي أرقام عمود "سعر الشحن"/"قيمة الشحن" من المناطق)
-        // ناقص تكلفة المندوب الحقيقية في الأوردر (zoneCostTotal = zone_costs.deliveryCost
-        // لكل منطقة) — حسب طلب المدير: "اربطها بتكلفة المندوب في الأوردر".
-        const netRevenueDue   = shippingCost - zoneCostTotal;
+        // (displayedShippingCost = shippingCost + repExtraCostTotal، نفس رقم كارت
+        // "إجمالي تكلفة الشحن" فوق) ناقص تكلفة المندوب الحقيقية في الأوردر
+        // (zoneCostTotal = zone_costs.deliveryCost لكل منطقة) — حسب طلب المدير.
+        const netRevenueDue   = displayedShippingCost - zoneCostTotal;
         const isProfit        = netRevenueDue >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
@@ -5827,7 +5827,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netRevenueDue))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(shippingCost)} إجمالي سعر الشحن − {formatCurrency(zoneCostTotal)} تكلفة المندوب
+                    {formatCurrency(displayedShippingCost)} إجمالي سعر الشحن − {formatCurrency(zoneCostTotal)} تكلفة المندوب
                   </p>
                 </div>
               )}
