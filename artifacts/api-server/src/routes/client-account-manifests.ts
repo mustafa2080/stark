@@ -6,6 +6,7 @@ import {
   clientAccountManifestItemsTable,
   shipmentsTable,
   shipmentZonesTable,
+  zoneCostsTable,
   clientsTable,
   usersTable,
   warehousesTable,
@@ -472,6 +473,17 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const getZoneShipping = (shipment: any) =>
       shipment?.zoneId ? (zoneShippingMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
 
+    // ── تكلفة المندوب (Zone Costs) — سعر توصيل واحد لكل منطقة، بدون تصنيف عميل ──
+    // ده مصدر "تكلفة المندوب في الأوردر" اللي بيتطرح في بيان العميل، مختلف عن
+    // سعر المنطقة الموجه للعميل (zoneShippingMap فوق).
+    let zoneCostMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+      zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+    }
+    const getZoneCost = (shipment: any) =>
+      shipment?.zoneId ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+
     // ── جلب أسماء المناديب (assignedUserId) دفعة واحدة ──────────────────────
     const repUserIds = [...new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v))];
     let repNameMap: Record<number, string> = {};
@@ -546,6 +558,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       const zoneShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
         ? getZoneShipping(sh)
         : 0;
+      // تكلفة المندوب (zone cost) بنفس شرط ظهور سعر الشحن — عشان لا تُحسب تكلفة
+      // على شحنة سعر شحنها صفر أصلًا (مؤجل/مرتجع بسبب غير مالي).
+      const zoneCostForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
+        ? getZoneCost(sh)
+        : 0;
       if (effectiveReturnReason === "refused_unpaid" || effectiveReturnReason === "refused_paid") {
         console.log("[BACKEND-SHIPPING-DEBUG]", {
           shipmentId: item.shipmentId,
@@ -591,6 +608,9 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
         unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
         shippingCost:  zoneShippingForItem,
+        // تكلفة المندوب الحقيقية (zone_costs.deliveryCost) — سعر توصيل واحد لكل منطقة
+        // بدون تصنيف عميل، دي المفروض تتطرح من سعر الشحن عشان نطلع صافي الإيراد الفعلي.
+        zoneCost:      zoneCostForItem,
         parcelType:    sh?.parcelType ?? null,
         // ملحوظة: بيان العميل بيعرض سعر العميل (basePrice) مش سعر المندوب (repExtraCost)
         repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,

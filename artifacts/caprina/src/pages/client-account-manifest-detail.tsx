@@ -5751,6 +5751,9 @@ export default function ShippingManifestPage() {
           repExtraCostBreakdownMap.set(reason, (repExtraCostBreakdownMap.get(reason) ?? 0) + amt);
         }
         const repExtraCostBreakdown = [...repExtraCostBreakdownMap.entries()].map(([reason, amount]) => ({ reason, amount }));
+        // تكلفة المندوب الحقيقية (zone_costs.deliveryCost لكل منطقة، بدون تصنيف عميل) —
+        // مصدر منفصل عن basePrice/repExtraCost بتاع نوع الطرد، ده سعر توصيل المندوب الفعلي.
+        const zoneCostTotal = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : Number((o as any).zoneCost ?? 0)), 0);
         // كارت "إجمالي تكلفة الشحن" العلوي لسه بيعرض شامل إضافات الأنواع (شفافية كاملة للمستخدم).
         const displayedShippingCost = shippingCost + repExtraCostTotal;
         // إجمالي المستحق = مجموع "القيمة المستلمة" (getCollectedAmount) لكل شحنات البيان
@@ -5764,10 +5767,9 @@ export default function ShippingManifestPage() {
         const totalDueFromClient = netAmount - displayedShippingCost;
         // صافي الإيراد المستحق (الحاوية المخفية تحت فقط) = إجمالي سعر الشحن
         // (shippingCost = إجمالي أرقام عمود "سعر الشحن"/"قيمة الشحن" من المناطق)
-        // ناقص تكلفة سعر الشحنة (repExtraCostTotal = إضافات نوع الطرد) — حسب توضيح
-        // المدير مباشرة: "إجمالي سعر الشحن هو إجمالي أرقام سعر الشحنة"، فده مختلف عن
-        // netAmount (إجمالي الإيرادات) ومختلف عن كارت "الرصيد المستحق" فوق.
-        const netRevenueDue   = shippingCost - repExtraCostTotal;
+        // ناقص تكلفة المندوب الحقيقية في الأوردر (zoneCostTotal = zone_costs.deliveryCost
+        // لكل منطقة) — حسب طلب المدير: "اربطها بتكلفة المندوب في الأوردر".
+        const netRevenueDue   = shippingCost - zoneCostTotal;
         const isProfit        = netRevenueDue >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
@@ -5825,7 +5827,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netRevenueDue))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(shippingCost)} إجمالي سعر الشحن − {formatCurrency(repExtraCostTotal)} تكلفة سعر الشحنة
+                    {formatCurrency(shippingCost)} إجمالي سعر الشحن − {formatCurrency(zoneCostTotal)} تكلفة المندوب
                   </p>
                 </div>
               )}
