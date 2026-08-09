@@ -328,16 +328,15 @@ export default function ClientManifestViewPage() {
             <span className="text-[11px] text-muted-foreground font-bold px-2.5 py-1 rounded-full bg-muted/40 border border-border/60">{filteredItems.length} شحنة</span>
           </div>
 
-          <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_100px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
+          <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_100px_100px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
             <span>الراسل</span>
             <span>العميل</span>
             <span>الهاتف</span>
             <span>المحافظة</span>
             <span>العنوان</span>
-            <span className="text-center">القطع</span>
-            <span className="text-left">القيمة المستلمة</span>
+            <span className="text-left">إجمالي سعر الشحنة</span>
+            <span className="text-center">القيمة المستلمة</span>
             <span className="text-center">سعر الشحن</span>
-            <span className="text-center">صافي</span>
             <span className="text-center">الحالة</span>
           </div>
 
@@ -548,7 +547,7 @@ function ItemRow({ item }: { item: ManifestItem }) {
   const meta = STATUS_META[item.deliveryStatus] ?? STATUS_META.pending;
   return (
     <>
-      <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_90px_90px_100px_100px_100px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
+      <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_100px_100px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
         <div className="min-w-0 pr-2 text-muted-foreground truncate">
           {item.senderName || <span className="text-muted-foreground/40">—</span>}
         </div>
@@ -565,14 +564,9 @@ function ItemRow({ item }: { item: ManifestItem }) {
           <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
           <span className="truncate text-muted-foreground">{item.address || "—"}</span>
         </div>
-        <div className="text-center font-bold">
-          {item.deliveryStatus === "partial_delivered" && item.partialQuantity != null
-            ? <span><span className="text-teal-400">{item.partialQuantity}</span><span className="text-muted-foreground">/{item.quantity}</span></span>
-            : item.quantity}
-        </div>
-        <div className="text-left font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</div>
+        <div className="text-left font-bold" style={{ color: "#15803d" }}>{formatCurrency(Number((item as any).totalPrice ?? 0))}</div>
+        <div className="text-center font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</div>
         <div className="text-center font-semibold text-sky-400">{formatCurrency(getEffectiveShipping(item))}</div>
-        <div className="text-center font-bold text-violet-400">{formatCurrency(getReceivedValue(item) - getEffectiveShipping(item))}</div>
         <div className="text-center">
           <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.bg} ${meta.color}`}>
             {meta.label}
@@ -601,18 +595,15 @@ function ItemRow({ item }: { item: ManifestItem }) {
         </p>
         <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] text-muted-foreground">{item.invoiceNumber}</span>
-          <div className="flex items-center gap-2">
-            <span className="font-bold">{item.quantity} قطعة</span>
-            <span className="font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</span>
-          </div>
+          <span className="font-bold" style={{ color: "#15803d" }}>{formatCurrency(Number((item as any).totalPrice ?? 0))}</span>
+        </div>
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-muted-foreground">القيمة المستلمة</span>
+          <span className="font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</span>
         </div>
         <div className="flex items-center justify-between text-[10px]">
           <span className="text-muted-foreground">سعر الشحن</span>
           <span className="font-bold text-sky-400">{formatCurrency(getEffectiveShipping(item))}</span>
-        </div>
-        <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">صافي</span>
-          <span className="font-bold text-violet-400">{formatCurrency(getReceivedValue(item) - getEffectiveShipping(item))}</span>
         </div>
         {item.deliveryStatus === "delayed" && item.deliveryNote && (
           <p className="text-[10px] text-orange-400">⏸ {item.deliveryNote}</p>
