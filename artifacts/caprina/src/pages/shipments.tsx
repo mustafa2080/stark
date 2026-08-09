@@ -969,7 +969,7 @@ function ZonesTab() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-black flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />
-            تصنيفات العملاط، – نطاقات الشحن الشهرية
+            تصنيفات العملاء، – نطاقات الشحن الشهرية
           </CardTitle>
         </CardHeader>
         <CardContent>

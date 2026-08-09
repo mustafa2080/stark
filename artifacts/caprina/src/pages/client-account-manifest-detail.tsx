@@ -5762,12 +5762,12 @@ export default function ShippingManifestPage() {
         const dueOrdersCount = deliveredOrders.length + partialOrders.length + returnedDueOrders.length;
         // الرصيد المستحق (كارت ثابت دايمًا) = إجمالي الإيرادات - إجمالي تكلفة الشحن (شامل إضافات الأنواع)
         const totalDueFromClient = netAmount - displayedShippingCost;
-        // صافي الإيراد المستحق (الحاوية المخفية تحت فقط) = إجمالي سعر الشحن (netAmount)
-        // ناقص تكلفة سعر الشحنة من المناطق بس (shippingCost = سعر المنطقة الصافي)،
-        // من غير إضافات نوع الطرد (repExtraCostTotal) — عشان الرقم يعتمد على تكاليف
-        // المناطق والأسعار فقط زي ما طلب المدير، ومختلف عن كارت "الرصيد المستحق" فوق
-        // اللي بيشمل إضافات الأنواع كمان.
-        const netRevenueDue   = netAmount - shippingCost;
+        // صافي الإيراد المستحق (الحاوية المخفية تحت فقط) = إجمالي سعر الشحن
+        // (shippingCost = إجمالي أرقام عمود "سعر الشحن"/"قيمة الشحن" من المناطق)
+        // ناقص تكلفة سعر الشحنة (repExtraCostTotal = إضافات نوع الطرد) — حسب توضيح
+        // المدير مباشرة: "إجمالي سعر الشحن هو إجمالي أرقام سعر الشحنة"، فده مختلف عن
+        // netAmount (إجمالي الإيرادات) ومختلف عن كارت "الرصيد المستحق" فوق.
+        const netRevenueDue   = shippingCost - repExtraCostTotal;
         const isProfit        = netRevenueDue >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
@@ -5825,7 +5825,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netRevenueDue))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(netAmount)} إجمالي سعر الشحن − {formatCurrency(shippingCost)} تكلفة سعر الشحنة
+                    {formatCurrency(shippingCost)} إجمالي سعر الشحن − {formatCurrency(repExtraCostTotal)} تكلفة سعر الشحنة
                   </p>
                 </div>
               )}
