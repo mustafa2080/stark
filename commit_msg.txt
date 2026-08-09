@@ -1,6 +1,0 @@
-إضافة ملحوظة الزيادة على سعر الشحن (نوع الشحنة) في صفحات بيان العميل
-
-- client-account-manifest-detail.tsx: إضافة extraFee/extraReasons لجدول
-  تقفيل الرحلة (نسخة الطباعة ونسخة الشاشة) بنفس منطق الجدول الأساسي
-- client-manifest-view.tsx: إضافة ملحوظة repExtraCost/repExtraReason
-  تحت عمود سعر الشحن في نسختي الديسكتوب والموبايل
