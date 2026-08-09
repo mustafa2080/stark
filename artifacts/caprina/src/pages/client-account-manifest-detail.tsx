@@ -4497,6 +4497,8 @@ export default function ShippingManifestPage() {
             const totalQty = group.reduce((sum, o) => sum + (o.quantity ?? 0), 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
             const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+            const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
+            const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
             const receivedValue = group.reduce((sum, o) => {
               if (o.deliveryStatus === "delivered") {
                 const dvr = (o as any).deliveredValueReceived;
@@ -4532,7 +4534,14 @@ export default function ShippingManifestPage() {
                 <td className="mp-td-center mp-td-bold" style={{ color: receivedValue > 0 ? "#1d4ed8" : "#94a3b8" }}>
                   {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") + " ج" : "—"}
                 </td>
-                <td className="mp-td-center" style={{ color: "#d97706" }}>{fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}</td>
+                <td className="mp-td-center" style={{ color: "#d97706" }}>
+                  {fee > 0 ? fee.toLocaleString("ar-EG") + " ج" : "—"}
+                  {extraFee > 0 && (
+                    <div style={{ fontSize: "7pt", color: "#b45309", marginTop: "1px" }}>
+                      {extraReasons || "نوع الشحنة"} +{extraFee.toLocaleString("ar-EG")}
+                    </div>
+                  )}
+                </td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
               </tr>
@@ -4602,6 +4611,8 @@ export default function ShippingManifestPage() {
               const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
               const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
               const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+              const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
+              const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
               const receivedValue = group.reduce((sum, o) => {
                 if (o.deliveryStatus === "delivered") {
                   const dvr = (o as any).deliveredValueReceived;
@@ -4640,7 +4651,14 @@ export default function ShippingManifestPage() {
                   <td>{(rep as any).senderName ?? "—"}</td>
                   <td>{cod.toLocaleString("ar-EG")}</td>
                   <td className="tr-td-received">{receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}</td>
-                  <td className="tr-td-shipping">{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
+                  <td className="tr-td-shipping">
+                    {fee > 0 ? fee.toLocaleString("ar-EG") : "—"}
+                    {extraFee > 0 && (
+                      <div style={{ fontSize: "7pt", color: "#b45309", marginTop: "1px" }}>
+                        {extraReasons || "نوع الشحنة"} +{extraFee.toLocaleString("ar-EG")}
+                      </div>
+                    )}
+                  </td>
                   <td className={statusCls}>{statusText}</td>
                   <td className="tr-note">{notes || "—"}</td>
                 </tr>
@@ -5178,6 +5196,8 @@ export default function ShippingManifestPage() {
                 const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
                 const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
                 const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+                const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
+                const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
                 const receivedValue = group.reduce((sum, o) => {
                   if (o.deliveryStatus === "delivered") {
                     const dvr = (o as any).deliveredValueReceived;
@@ -5222,7 +5242,14 @@ export default function ShippingManifestPage() {
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center font-extrabold text-emerald-700 dark:text-emerald-400">
                       {receivedValue > 0 ? receivedValue.toLocaleString("ar-EG") : "—"}
                     </td>
-                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center">{fee > 0 ? fee.toLocaleString("ar-EG") : "—"}</td>
+                    <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center">
+                      {fee > 0 ? fee.toLocaleString("ar-EG") : "—"}
+                      {extraFee > 0 && (
+                        <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">
+                          {extraReasons || "نوع الشحنة"} +{extraFee.toLocaleString("ar-EG")}
+                        </div>
+                      )}
+                    </td>
                     <td className={`px-2 py-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap ${statusCls}`}>{statusText}</td>
                     <td className="px-2 py-2 border border-slate-300 dark:border-slate-700 text-center text-[11px] text-muted-foreground hidden lg:table-cell">{notes || "—"}</td>
                   </tr>

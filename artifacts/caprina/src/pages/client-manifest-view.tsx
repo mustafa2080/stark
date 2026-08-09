@@ -566,7 +566,14 @@ function ItemRow({ item }: { item: ManifestItem }) {
         </div>
         <div className="text-left font-bold" style={{ color: "#15803d" }}>{formatCurrency(Number((item as any).totalPrice ?? 0))}</div>
         <div className="text-center font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</div>
-        <div className="text-center font-semibold text-sky-400">{formatCurrency(getEffectiveShipping(item))}</div>
+        <div className="text-center font-semibold text-sky-400">
+          {formatCurrency(getEffectiveShipping(item))}
+          {Number((item as any).repExtraCost ?? 0) > 0 && (
+            <p className="text-[9px] text-amber-400 font-semibold truncate">
+              {(item as any).repExtraReason || "نوع الشحنة"} +{formatCurrency(Number((item as any).repExtraCost))}
+            </p>
+          )}
+        </div>
         <div className="text-center">
           <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.bg} ${meta.color}`}>
             {meta.label}
@@ -603,7 +610,14 @@ function ItemRow({ item }: { item: ManifestItem }) {
         </div>
         <div className="flex items-center justify-between text-[10px]">
           <span className="text-muted-foreground">سعر الشحن</span>
-          <span className="font-bold text-sky-400">{formatCurrency(getEffectiveShipping(item))}</span>
+          <span className="font-bold text-sky-400 text-left">
+            {formatCurrency(getEffectiveShipping(item))}
+            {Number((item as any).repExtraCost ?? 0) > 0 && (
+              <span className="block text-[9px] text-amber-400 font-semibold">
+                {(item as any).repExtraReason || "نوع الشحنة"} +{formatCurrency(Number((item as any).repExtraCost))}
+              </span>
+            )}
+          </span>
         </div>
         {item.deliveryStatus === "delayed" && item.deliveryNote && (
           <p className="text-[10px] text-orange-400">⏸ {item.deliveryNote}</p>
