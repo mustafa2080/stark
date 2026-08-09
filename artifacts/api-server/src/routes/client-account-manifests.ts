@@ -425,28 +425,35 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
         const shipment = shipmentMap[item.shipmentId];
         if (!shipment) continue;
         const st = item.deliveryStatus;
-        const totalPrice = Number(shipment.codAmount ?? shipment.totalAmount ?? 0) + getZoneShipping(shipment);
+        const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
+        const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
+        // نفس شرط enrichment الحقيقي (GET /:id، سطر ~674): سعر الشحن صفر لو مرتجع
+        // بسبب غير مالي أو بلا سبب — مش بس عند الطرح النهائي، لأن totalPrice نفسها
+        // (للحالة delivered) لازم تطابق نفس القيمة المخزنة فعليًا في enrichment.
+        const zoneShippingForItem = (st !== "returned" || isReturnedWithValue) ? getZoneShipping(shipment) : 0;
+        const totalPrice = Number(shipment.codAmount ?? shipment.totalAmount ?? 0) + zoneShippingForItem;
 
         let collected = 0;
         if (st === "delivered") {
           const dvr = (item as any).deliveredValueReceived;
           collected = dvr != null ? Number(dvr) : totalPrice;
-        } else if (st === "partial_delivered" || st === "partial_received") {
+        } else if (st === "partial_delivered") {
           const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
           collected = pq != null ? Number(pq) : 0;
-        } else if (st === "returned") {
-          const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
-          if (RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) {
-            const rvr = (item as any).returnValueReceived;
-            collected = rvr != null ? Number(rvr) : 0;
-          }
+        } else if (st === "partial_received") {
+          // partialQuantity هنا فعليًا مبلغ الفلوس المُستلم، بيتقرّب — نفس getCollectedAmount بالفرونت إند بالظبط.
+          const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
+          collected = pq != null ? Math.round(Number(pq)) : 0;
+        } else if (isReturnedWithValue) {
+          const rvr = (item as any).returnValueReceived;
+          collected = rvr != null ? Number(rvr) : 0;
         }
         totalBalance += collected;
 
         if (!isShippingZeroedRow(item, st)) {
-          const shippingCost = getZoneShipping(shipment);
-          const repExtraCost = shipment.parcelType ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
-          totalBalance -= (shippingCost + repExtraCost);
+          // repExtraCost بنفس شرط enrichment بالظبط: بس لو zoneShippingForItem > 0 وعندها parcelType.
+          const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
+          totalBalance -= (zoneShippingForItem + repExtraCost);
         }
       }
     }
