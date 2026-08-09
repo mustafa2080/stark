@@ -8,6 +8,7 @@ import {
   shipmentZonesTable,
   zoneCostsTable,
   shippingCompaniesTable,
+  shipmentManifestsTable,
   clientsTable,
   usersTable,
   warehousesTable,
@@ -475,14 +476,42 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       shipment?.zoneId ? (zoneShippingMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
 
     // ── تكلفة المندوب — من بيان المندوب نفسه، مش من منطقة الشحنة الجغرافية ──
-    // نفس منطق computeManifestNetDue (lib/manifestFinance.ts) بالظبط: تكلفة كل
-    // شحنة بتتحدد من شركة/مندوب الشحن المرتبط بيها فعليًا (shipment.shippingCompanyId)،
-    // مش بمنطقتها الجغرافية بس. حسب costMode بتاع الشركة:
+    // نفس منطق computeManifestNetDue (lib/manifestFinance.ts) بالظبط، لكن مصدر
+    // شركة الشحن هنا مختلف: shipment.shippingCompanyId بيتسجل بس وقت ما الشحنة
+    // تنضم لبيان شحن (shipment_manifests) — فمعظم الشحنات (اللي دخلت بيان عميل
+    // من غير ما تدخل بيان مندوب) بتفضل shippingCompanyId فاضي على جدول shipments
+    // نفسه، حتى لو فعليًا سلّمها مندوب معيّن. المصدر الصح هو آخر بيان شحن
+    // (shipment_manifests) اتضافت له الشحنة، عن طريق shipment_manifest_items.
+    // حسب costMode بتاع الشركة:
     //   "rep"  → سعر ثابت واحد لكل شحنة (company.shippingCost)
     //   "zone" → سعر تكلفة منطقة الشحنة (zone_costs.deliveryCost)
-    // لو الشحنة معندهاش شركة شحن مرتبطة (لسه في المخزن ومتحطتش على مندوب) →
-    // fallback لتكلفة المنطقة الجغرافية القديمة (zone_costs بمنطقة الشحنة).
-    const shipmentCompanyIds = [...new Set(shipments.map(s => s.shippingCompanyId).filter((v): v is number => !!v))];
+    let shipmentToCompanyId: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const manifestLinkRows = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          addedAt: shipmentManifestItemsTable.addedAt,
+          companyId: shipmentManifestsTable.shippingCompanyId,
+        })
+        .from(shipmentManifestItemsTable)
+        .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          isNull(shipmentManifestsTable.clientId), // بيانات المناديب بس (مش بيانات عملاء)
+        ));
+      // آخر بيان مندوب اتضافت له الشحنة (أحدث addedAt) هو المصدر — نفس منطق
+      // shipmentReturnValueMap فوق بالظبط.
+      manifestLinkRows
+        .filter(r => r.companyId != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => {
+          shipmentToCompanyId[row.shipmentId] = row.companyId as number;
+        });
+    }
+    const shipmentCompanyIds = [...new Set([
+      ...shipments.map(s => s.shippingCompanyId).filter((v): v is number => !!v),
+      ...Object.values(shipmentToCompanyId),
+    ])];
     let companyCostModeMap: Record<number, { costMode: string; shippingCost: number }> = {};
     if (shipmentCompanyIds.length) {
       const companyRows = await db.select({
@@ -502,13 +531,17 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     }
     const getZoneCost = (shipment: any) => {
       if (!shipment) return 0;
-      const company = shipment.shippingCompanyId ? companyCostModeMap[shipment.shippingCompanyId] : null;
+      // shipment.shippingCompanyId (لو موجود فعليًا) له أولوية، وإلا نرجع لآخر
+      // بيان مندوب اتضافت له الشحنة (shipmentToCompanyId).
+      const companyId = shipment.shippingCompanyId ?? shipmentToCompanyId[shipment.id];
+      const company = companyId ? companyCostModeMap[companyId] : null;
       if (company) {
         return company.costMode === "zone"
           ? (shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0)
           : company.shippingCost;
       }
-      // fallback: مفيش شركة شحن مرتبطة بالشحنة — تكلفة المنطقة الجغرافية القديمة
+      // fallback: مفيش شركة شحن مرتبطة بالشحنة خالص (لسه في المخزن ومتحطتش
+      // على أي مندوب) — تكلفة المنطقة الجغرافية القديمة.
       return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
     };
 
