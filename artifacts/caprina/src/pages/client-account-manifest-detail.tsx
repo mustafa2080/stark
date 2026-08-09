@@ -5727,8 +5727,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netAmount))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(deliveredCOD)} مُسلَّم + {formatCurrency(partialCOD)} جزئي − {formatCurrency(shippingCost)} شحن
-                    {returnedWithShippingOrders.length > 0 ? ` (${returnedWithShippingOrders.length} مرتجع محسوب شحن)` : ""}
+                    {formatCurrency(deliveredCOD)} مُسلَّم + {formatCurrency(partialCOD)} جزئي + {formatCurrency(returnedCOD)} مرتجع محسوب (بدون خصم شحن)
                   </p>
                 </div>
               )}
