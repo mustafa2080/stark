@@ -339,8 +339,11 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
 });
 
 // ─── GET /client-account-manifests/balance/:clientId ─────────────────────────
-// إجمالي رصيد العميل = مجموع صافي المستحق (netDueFromClient) لكل بيانات العميل (كل الحالات)
-// (نفس معادلة netDueFromClient المُستخدمة داخل كل بيان — إجمالي المُسلَّم فعليًا − تكلفة الشحن)
+// إجمالي رصيد العميل = مجموع "الرصيد المستحق" لكل بيانات العميل (كل الحالات) —
+// نفس منطق getCollectedAmount + displayedShippingCost في client-account-manifest-detail.tsx
+// (كارت "الرصيد المستحق" الثابت أعلى صفحة تفاصيل البيان): لكل شحنة، المبلغ
+// المُحصَّل فعليًا (مسلَّم/جزئي/مرتجع بسبب مالي) ناقص سعر الشحن (مصفَّر للمؤجل/
+// المعلَّق/قيد الانتظار أو المرتجع بسبب غير مالي).
 router.get("/client-account-manifests/balance/:clientId", async (req, res): Promise<void> => {
   try {
     const clientId = Number(req.params.clientId);
@@ -367,30 +370,85 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
       const shipmentMap: Record<number, any> = {};
       shipments.forEach(s => { shipmentMap[s.id] = s; });
 
-      let deliveredGross = 0;
-      let totalShippingCost = 0;
+      // ── سعر الشحن حسب نوع العميل (VIP/تجاري/عادي) — نفس getZoneShipping في GET /:id ──
+      const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+      const clientType = client?.clientType ?? "normal";
+      const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+      let zoneShippingMap: Record<number, number> = {};
+      if (zoneIds.length) {
+        const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+        zoneShippingMap = Object.fromEntries(zones.map(z => {
+          const priceByType =
+            clientType === "vip"        ? z.priceVip :
+            clientType === "commercial" ? z.priceCommercial :
+            z.priceNormal;
+          const resolved = priceByType != null && Number(priceByType) > 0 ? priceByType : z.price;
+          return [z.id, Number(resolved) || 0];
+        }));
+      }
+      const getZoneShipping = (shipment: any) =>
+        shipment?.zoneId ? (zoneShippingMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
+
+      // ── إضافات نوع الطرد (basePrice) على سعر العميل — نفس repExtraCost في GET /:id ──
+      const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
+      let parcelBasePriceMap: Record<string, number> = {};
+      if (parcelTypes.length) {
+        const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
+        const tenantId = allManifests[0]?.tenantId ?? null;
+        if (tenantId !== null && tenantId !== undefined) {
+          conds.push(or(eq(parcelTypePricingTable.tenantId, tenantId), isNull(parcelTypePricingTable.tenantId)));
+        }
+        const pricingRows = await db
+          .select({ tenantId: parcelTypePricingTable.tenantId, parcelType: parcelTypePricingTable.parcelType, basePrice: parcelTypePricingTable.basePrice })
+          .from(parcelTypePricingTable)
+          .where(and(...conds));
+        for (const row of pricingRows) {
+          const existing = parcelBasePriceMap[row.parcelType];
+          const isTenantRow = row.tenantId != null && row.tenantId === tenantId;
+          if (existing === undefined || isTenantRow) parcelBasePriceMap[row.parcelType] = Number(row.basePrice ?? 0);
+        }
+      }
+
+      // ── نفس منطق getCollectedAmount + displayedShippingCost بالظبط
+      // (client-account-manifest-detail.tsx، كارت "الرصيد المستحق" الثابت) ──
+      const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
+      const isShippingZeroedRow = (item: any, st: string) => {
+        if (st === "postponed" || st === "delayed" || st === "pending") return true;
+        if (st === "returned") {
+          const reason = item.returnReason ?? item?.shipment?.returnReason ?? null;
+          if (!RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) return true;
+        }
+        return false;
+      };
 
       for (const item of items) {
         const shipment = shipmentMap[item.shipmentId];
         if (!shipment) continue;
-        const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
-        const shipping = Number(shipment.shippingFee ?? 0);
+        const st = item.deliveryStatus;
+        const totalPrice = Number(shipment.codAmount ?? shipment.totalAmount ?? 0) + getZoneShipping(shipment);
 
-        if (item.deliveryStatus === "delivered") {
+        let collected = 0;
+        if (st === "delivered") {
           const dvr = (item as any).deliveredValueReceived;
-          const actualCod = dvr != null ? Number(dvr) : cod;
-          deliveredGross += actualCod;
-          totalShippingCost += shipping;
-        } else if (item.deliveryStatus === "partial_delivered") {
-          totalShippingCost += shipping;
+          collected = dvr != null ? Number(dvr) : totalPrice;
+        } else if (st === "partial_delivered" || st === "partial_received") {
           const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
-          deliveredGross += pq != null
-            ? Number(pq)
-            : Number((shipment as any).collectedAmount ?? 0);
+          collected = pq != null ? Number(pq) : 0;
+        } else if (st === "returned") {
+          const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
+          if (RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) {
+            const rvr = (item as any).returnValueReceived;
+            collected = rvr != null ? Number(rvr) : 0;
+          }
+        }
+        totalBalance += collected;
+
+        if (!isShippingZeroedRow(item, st)) {
+          const shippingCost = getZoneShipping(shipment);
+          const repExtraCost = shipment.parcelType ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
+          totalBalance -= (shippingCost + repExtraCost);
         }
       }
-
-      totalBalance = deliveredGross - totalShippingCost;
     }
 
     // ── سدادات سبق دفعها للعميل كمصروف "سداد حساب عميل" — بتتخصم من الرصيد ──
