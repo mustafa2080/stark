@@ -3834,6 +3834,11 @@ export default function ShippingManifestPage() {
       const shippingFeeAmt = (item as any).shippingCost != null
         ? Number((item as any).shippingCost)
         : sh ? parseFloat(sh.shippingFee ?? '0') : 0;
+      // إجمالي سعر الشحنة = نفس المصدر المستخدم في عمود "الإجمالي" بقسم الشحنات (sh.totalAmount)
+      // وليس codAmt (قيمة التحصيل)، عشان يفضل ثابت بغض النظر عن حالة التحصيل/الاسترجاع.
+      const shipmentTotalAmt = sh && (sh as any).totalAmount != null
+        ? Number((sh as any).totalAmount)
+        : codAmt;
       const partialAmount = item.partialQuantity != null
         ? Number(item.partialQuantity)
         : sh && Number((sh as any).collectedAmount ?? 0) > 0
@@ -3854,8 +3859,8 @@ export default function ShippingManifestPage() {
         senderName: sh?.senderName ?? null,
         product: sh ? `${sh.shipmentNumber}${sh.trackingNumber ? ` (${sh.trackingNumber})` : ''}` : '—',
         quantity: 1,
-        total: codAmt,
-        totalPrice: codAmt,
+        total: shipmentTotalAmt,
+        totalPrice: shipmentTotalAmt,
         cost: null,
         shippingCost: shippingFeeAmt,
         status: sh?.status ?? 'pending',
