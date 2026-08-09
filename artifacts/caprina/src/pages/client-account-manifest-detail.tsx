@@ -3798,6 +3798,7 @@ export default function ShippingManifestPage() {
   });
   const [showColFilters, setShowColFilters] = useState(false);
   const [netLossOpen, setNetLossOpen] = useState(false);
+  const [statusBreakdownOpen, setStatusBreakdownOpen] = useState(false);
   const [manifestCustomerSearch, setManifestCustomerSearch] = useState("");
   const [manifestProductSearch, setManifestProductSearch] = useState("");
   const [manifestTotalSearch, setManifestTotalSearch] = useState("");
@@ -4865,40 +4866,47 @@ export default function ShippingManifestPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <ClientLookCard icon={Clock} value={groupedPostponedCount} label="مؤجل" tone="amber" />
-        <ClientLookCard icon={PackageX} value={returnedNotArrived} label="مرتجع لم يصل" tone="rose" />
-        <ClientLookCard icon={Sparkles} value={newOrdersCount} label="الشحنات الجديدة" tone="sky" />
-        <ClientLookCard icon={Layers} value={manifest.orders.length} label="الإجمالي" tone="violet" />
+      <div className="rounded-2xl border border-border bg-gradient-to-br from-violet-500/10 via-violet-500/[0.03] to-transparent overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setStatusBreakdownOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-3 p-4"
+        >
+          <div className="flex items-center gap-2">
+            <Package className="w-4 h-4 text-violet-400" />
+            <span className="text-sm font-black text-violet-300">إجمالي عدد الشحنات</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-black text-violet-300">{manifest.orders.length}</span>
+            {statusBreakdownOpen ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
+          </div>
+        </button>
+        {statusBreakdownOpen && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 px-4 pb-4">
+            <ClientLookCard icon={CheckCircle2} value={groupedDeliveredCount} label="استلم" tone="emerald" compact />
+            <ClientLookCard icon={CheckCircle2} value={groupedPartialCountDisplay} label="استلم جزئي" tone="sky" compact />
+            <ClientLookCard icon={AlertCircle} value={groupedPostponedCount} label="مؤجل" tone="orange" compact />
+            <ClientLookCard icon={Clock} value={groupedPendingCount} label="قيد الانتظار" tone="muted" compact />
+            <ClientLookCard icon={RotateCcw} value={groupedReturnedCount} label="مرتجع" tone="red" compact />
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <ClientLookCard icon={Package} value={manifest.orders.length} label="إجمالي الشحنات" tone="violet" compact />
-        <ClientLookCard icon={CheckCircle2} value={groupedDeliveredCount} label="مسلَّم" tone="emerald" compact />
-        <ClientLookCard icon={Clock} value={groupedPendingCount} label="قيد الانتظار" tone="muted" compact />
-        <ClientLookCard icon={AlertCircle} value={groupedPostponedCount} label="مؤجل" tone="orange" compact />
-        <ClientLookCard icon={RotateCcw} value={groupedReturnedCount} label="مرتجع" tone="red" compact />
-      </div>
-
-      {false && (
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-md shadow-black/10">
         <div className="flex items-center justify-between text-xs mb-2">
           <span className="text-muted-foreground font-bold">نسبة التسليم</span>
-          <span className="font-black text-emerald-400 text-lg drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">{screenDeliveryRate}%</span>
+          <span className="font-black text-emerald-400 text-lg drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">{groupedDeliveryRate}%</span>
         </div>
         <div className="h-2.5 rounded-full bg-muted overflow-hidden">
           <div
             className="h-full bg-gradient-to-l from-emerald-400 to-emerald-600 rounded-full transition-all shadow-[0_0_10px_rgba(52,211,153,0.5)]"
-            style={{ width: `${screenDeliveryRate}%` }}
+            style={{ width: `${groupedDeliveryRate}%` }}
           />
         </div>
-      </div>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <ClientMoneyCard label="إجمالي المستحق" value={formatCurrency(netDue)} tone="emerald" />
-        <ClientMoneyCard label="تكلفة الشحن" value={formatCurrency(effectiveShipping)} tone="sky" />
-        <ClientMoneyCard label="المُحصّل قبل الشحن" value={formatCurrency(totalCollected)} tone="violet" className="col-span-2 sm:col-span-1" />
       </div>
 
       <div className="relative">
