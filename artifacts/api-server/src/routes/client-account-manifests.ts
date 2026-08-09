@@ -11,6 +11,7 @@ import {
   warehousesTable,
   clientAccountPaymentsTable,
   shipmentManifestItemsTable,
+  parcelTypePricingTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -493,8 +494,36 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
     }
 
-    // نفس مجموعة الأسباب المالية المستخدمة في حسابات الإجمالي تحت — لازم تفضل
-    // متطابقة، لأن دي اللي بتحدد هل المرتجع ده "له قيمة/شحن" أصلاً أو لأ.
+    // ── جلب أسعار "الزيادة على المندوب" حسب نوع الشحنة (parcel type) ───────
+    const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
+    let parcelPricingMap: Record<string, { label: string; repExtraCost: number }> = {};
+    if (parcelTypes.length) {
+      const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
+      if (manifest.tenantId !== null && manifest.tenantId !== undefined) {
+        conds.push(or(eq(parcelTypePricingTable.tenantId, manifest.tenantId), isNull(parcelTypePricingTable.tenantId)));
+      }
+      const pricingRows = await db
+        .select({
+          tenantId: parcelTypePricingTable.tenantId,
+          parcelType: parcelTypePricingTable.parcelType,
+          label: parcelTypePricingTable.label,
+          repExtraCost: parcelTypePricingTable.repExtraCost,
+        })
+        .from(parcelTypePricingTable)
+        .where(and(...conds));
+      const currentTenantId = manifest.tenantId ?? null;
+      for (const row of pricingRows) {
+        const existing = parcelPricingMap[row.parcelType];
+        const isTenantRow = row.tenantId !== null && row.tenantId !== undefined && row.tenantId === currentTenantId;
+        if (!existing || isTenantRow) {
+          parcelPricingMap[row.parcelType] = {
+            label: row.label ?? row.parcelType,
+            repExtraCost: Number(row.repExtraCost ?? 0),
+          };
+        }
+      }
+    }
+
     const RETURN_REASONS_WITH_VALUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
 
     const enrichedItems = items.map(item => {
@@ -560,6 +589,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
         unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
         shippingCost:  zoneShippingForItem,
+        parcelType:    sh?.parcelType ?? null,
+        repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) : 0,
+        repExtraReason: (zoneShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) > 0)
+          ? (parcelPricingMap[sh.parcelType]?.label ?? sh.parcelType)
+          : null,
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
