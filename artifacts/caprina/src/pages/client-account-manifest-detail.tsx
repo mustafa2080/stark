@@ -5343,44 +5343,6 @@ export default function ShippingManifestPage() {
 
       </>)}
 
-      {/* ─── Delivery Rate Bar ─── */}
-      <Card className="border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-bold">نسبة التسليم</p>
-          <p
-            className={`text-xl font-black ${
-              screenDeliveryRate >= 70
-                ? "text-emerald-400"
-                : screenDeliveryRate >= 40
-                ? "text-amber-400"
-                : "text-red-400"
-            }`}
-          >
-            {screenDeliveryRate}%
-          </p>
-        </div>
-        <div className="w-full bg-muted rounded-full h-3 overflow-hidden flex">
-          <div
-            className="h-3 bg-emerald-500 transition-all"
-            style={{ width: `${groupedTotalCount > 0 ? (groupedDeliveredCount / groupedTotalCount) * 100 : 0}%` }}
-          />
-          <div
-            className="h-3 bg-orange-500 transition-all"
-            style={{
-              width: `${groupedTotalCount > 0 ? (groupedPendingCount / groupedTotalCount) * 100 : 0}%`,
-            }}
-          />
-          <div
-            className="h-3 bg-red-500 transition-all"
-            style={{ width: `${groupedTotalCount > 0 ? (groupedReturnedCount / groupedTotalCount) * 100 : 0}%` }}
-          />
-        </div>
-        <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground">
-          <span className="text-emerald-600">مُسلَّم: {groupedDeliveredCount}</span>
-          <span className="text-orange-600">مؤجل: {groupedPostponedCount}</span>
-          <span className="text-red-600">مُرتجَع: {groupedReturnedCount}</span>
-        </div>
-      </Card>
 
       {/* ─── Invoice Section ─── */}
       {false && canViewFinancials && (
