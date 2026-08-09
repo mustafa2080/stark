@@ -4893,7 +4893,7 @@ export default function ShippingManifestPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <ClientMoneyCard label="إجمالي المستحق" value={formatCurrency(netDue)} tone="emerald" />
-        <ClientMoneyCard label="تكلفة الشحن" value={`-${formatCurrency(effectiveShipping)}`} tone="sky" />
+        <ClientMoneyCard label="تكلفة الشحن" value={formatCurrency(effectiveShipping)} tone="sky" />
         <ClientMoneyCard label="المُحصّل قبل الشحن" value={formatCurrency(totalCollected)} tone="violet" className="col-span-2 sm:col-span-1" />
       </div>
 
