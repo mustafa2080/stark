@@ -1727,8 +1727,13 @@ export default function CommercialClientDetailPage() {
 // ─── ReturnsTabContent — تبويب المرتجعات: تم تسليمها / لم تُسلَّم بعد ──────
 // ════════════════════════════════════════════════════════════════════════════
 function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[]; clientId: number }) {
+  // مرتجع كامل (status = returned) + المرتجع الجزئي بتاع الاستلام الجزئي (partial_delivered/partial_received)
   const allReturns = useMemo(
-    () => shipments.filter(s => s.status === "returned"),
+    () => shipments.filter(s =>
+      s.status === "returned" ||
+      s.manifestDeliveryStatus === "partial_delivered" ||
+      s.manifestDeliveryStatus === "partial_received"
+    ),
     [shipments]
   );
   const receivedReturns = useMemo(
@@ -1833,15 +1838,34 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-medium text-xs truncate text-foreground">{s.receiverName}</span>
+                    {(s.manifestDeliveryStatus === "partial_received" || s.manifestDeliveryStatus === "partial_delivered") && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-teal-900/40 text-teal-400">جزئي</span>
+                    )}
+                    {s.receiverPhone && (
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Phone className="w-3 h-3" />{s.receiverPhone}
+                      </span>
+                    )}
                     {s.receiverCity && (
                       <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                         <MapPin className="w-3 h-3" />{s.receiverCity}
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.shipmentNumber}</p>
+                  {s.receiverAddress && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.receiverAddress}</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                    {s.shipmentNumber}
+                    {s.manifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.manifestNumber}</span>}
+                  </p>
                   {s.returnReason && (
                     <p className="text-[10px] font-semibold text-emerald-400/80 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
+                  )}
+                  {s.manifestPartialQty != null && (s.manifestDeliveryStatus === "partial_received" || s.manifestDeliveryStatus === "partial_delivered") && (
+                    <p className="text-[10px] font-semibold text-teal-400/80 mt-0.5">
+                      الكمية المرتجعة من الاستلام الجزئي: {s.manifestPartialQty}
+                    </p>
                   )}
                 </div>
                 <div className="text-left shrink-0 flex items-center gap-2">
@@ -2141,6 +2165,11 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
         </p>
         {s.returnReason && (
           <p className="text-[10px] font-semibold text-red-400 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
+        )}
+        {isPartial && s.manifestPartialQty != null && (
+          <p className="text-[10px] font-semibold text-teal-400 mt-0.5">
+            الكمية المرتجعة من الاستلام الجزئي: {s.manifestPartialQty}
+          </p>
         )}
       </div>
       <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
