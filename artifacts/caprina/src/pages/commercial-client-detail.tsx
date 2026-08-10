@@ -156,10 +156,12 @@ type ClientDetail = Client & { orders: SaleOrder[]; deliveryRate?: number };
 type ClientShipment = {
   id: number; shipmentNumber: string; status: string;
   receiverName: string; receiverCity: string | null;
+  receiverPhone?: string | null; receiverAddress?: string | null;
   codAmount: string | null; shippingFee: string | null;
   createdAt: string; pieces: number | null;
   returnReason?: string | null; returnReceived?: number | null;
   manifestId?: number | null;
+  manifestNumber?: string | null;
   manifestDeliveryStatus?: string | null;
   manifestPartialQty?: number | null;
   manifestReturnReceived?: number | null;
@@ -2119,8 +2121,24 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
           <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
             {isPartial ? "جزئي" : "مرتجع"}
           </span>
+          {s.receiverPhone && (
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Phone className="w-3 h-3" />{s.receiverPhone}
+            </span>
+          )}
+          {s.receiverCity && (
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <MapPin className="w-3 h-3" />{s.receiverCity}
+            </span>
+          )}
         </div>
-        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.shipmentNumber}</p>
+        {s.receiverAddress && (
+          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.receiverAddress}</p>
+        )}
+        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+          {s.shipmentNumber}
+          {s.manifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.manifestNumber}</span>}
+        </p>
         {s.returnReason && (
           <p className="text-[10px] font-semibold text-red-400 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
         )}

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -751,6 +751,8 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       shipmentNumber: shipmentsTable.shipmentNumber,
       status:         shipmentsTable.status,
       receiverName:   shipmentsTable.receiverName,
+      receiverPhone:  shipmentsTable.receiverPhone,
+      receiverAddress: shipmentsTable.receiverAddress,
       receiverCity:   shipmentsTable.receiverCity,
       codAmount:      shipmentsTable.codAmount,
       shippingFee:    shipmentsTable.shippingFee,
@@ -759,11 +761,13 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       returnReason:   shipmentsTable.returnReason,
       returnReceived: shipmentsTable.returnReceived,
       manifestId:          clientAccountManifestItemsTable.manifestId,
+      manifestNumber:      clientAccountManifestsTable.manifestNumber,
       manifestDeliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
       manifestPartialQty:  clientAccountManifestItemsTable.partialQuantity,
       manifestReturnReceived: clientAccountManifestItemsTable.returnReceived,
     }).from(shipmentsTable)
       .leftJoin(clientAccountManifestItemsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(clientAccountManifestsTable, eq(clientAccountManifestsTable.id, clientAccountManifestItemsTable.manifestId))
       .where(and(...shipConds))
       .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId))
       .limit(400);
