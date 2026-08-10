@@ -935,8 +935,16 @@ export default function CommercialClientDetailPage() {
           </Card>
           <Card className="card-glow border-emerald-900/40 p-3 text-center" style={GLOW.emerald.style}>
             <p className="text-[10px] text-emerald-400 mb-0.5">إجمالي رصيد العميل</p>
-            <p className="text-xl font-black text-emerald-400">{fmt(balanceData?.balance ?? 0)}</p>
-            <p className="text-[10px] text-muted-foreground">{balanceData?.manifestsCount ?? 0} بيان</p>
+            {(balanceData?.manifestsCount ?? 0) > 0 ? (
+              <>
+                <p className="text-xl font-black text-emerald-400">{fmt(balanceData?.balance ?? 0)}</p>
+                <p className="text-[10px] text-muted-foreground">{balanceData?.manifestsCount ?? 0} بيان</p>
+              </>
+            ) : (
+              <p className="text-[11px] font-semibold text-emerald-400/80 leading-snug px-1">
+                سيتم عرض الإجمالي بعد إغلاق البيان
+              </p>
+            )}
           </Card>
           <Card
             className={`card-glow p-3 text-center border ${salesPct >= 75 ? "border-emerald-900/40" : salesPct >= 50 ? "border-amber-900/40" : "border-primary/30"}`}
