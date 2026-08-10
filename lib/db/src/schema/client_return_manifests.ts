@@ -12,6 +12,7 @@ export const clientReturnManifestsTable = mysqlTable("client_return_manifests", 
   clientId:       int("client_id").notNull().references(() => clientsTable.id),
   status:         varchar("status", { length: 50 }).notNull().default("open"),
   notes:          text("notes"),
+  courierName:    varchar("courier_name", { length: 255 }),
   createdAt:      datetime("created_at").notNull(),
   closedAt:       datetime("closed_at"),
 });

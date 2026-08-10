@@ -2163,6 +2163,7 @@ export interface ClientReturnManifestListItem {
   clientId: number;
   status: "open" | "closed";
   notes: string | null;
+  courierName: string | null;
   createdAt: string;
   closedAt: string | null;
   itemsCount: number;
@@ -2196,9 +2197,9 @@ export const clientReturnManifestsApi = {
     apiFetch<{ success: boolean; manifestId: number }>(
       `/client-return-manifests/${clientId}/confirm-delivery/${shipmentId}`, { method: "POST" }
     ),
-  close: (id: number, notes?: string | null) =>
+  close: (id: number, notes?: string | null, courierName?: string | null) =>
     apiFetch<{ success: boolean }>(`/client-return-manifests/${id}`, {
-      method: "PATCH", body: JSON.stringify({ status: "closed", notes }),
+      method: "PATCH", body: JSON.stringify({ status: "closed", notes, courierName }),
     }),
 };
 

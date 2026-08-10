@@ -184,6 +184,7 @@ router.get("/client-return-manifests/:id", async (req, res): Promise<void> => {
 const CloseManifestSchema = z.object({
   status: z.enum(["open", "closed"]),
   notes: z.string().nullish(),
+  courierName: z.string().nullish(),
 });
 
 router.patch("/client-return-manifests/:id", async (req, res): Promise<void> => {
@@ -199,6 +200,7 @@ router.patch("/client-return-manifests/:id", async (req, res): Promise<void> => 
       .set({
         status: body.status,
         notes: body.notes ?? manifest.notes,
+        courierName: body.courierName ?? manifest.courierName,
         closedAt: body.status === "closed" ? new Date() : null,
       })
       .where(eq(clientReturnManifestsTable.id, manifestId));
