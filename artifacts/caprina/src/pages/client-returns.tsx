@@ -382,7 +382,7 @@ function StatContainer({
 const STATUS_META: Record<ReturnItem["deliveryStatus"], { label: string; color: string; bg: string }> = {
   returned: { label: "مرتجع", color: "#dc2626", bg: "rgba(220,38,38,0.12)" },
   delayed: { label: "مؤجل", color: "#0d9488", bg: "rgba(13,148,136,0.12)" },
-  partial_delivered: { label: "تسليم جزئي", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  partial_delivered: { label: "مرتجع عن استلام جزئي", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
 };
 
 function ReturnCard({ item }: { item: ReturnItem }) {

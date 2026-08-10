@@ -1839,7 +1839,7 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-medium text-xs truncate text-foreground">{s.receiverName}</span>
                     {s.manifestDeliveryStatus === "partial_delivered" && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-teal-900/40 text-teal-400">جزئي</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-teal-900/40 text-teal-400">مرتجع عن استلام جزئي</span>
                     )}
                     {s.receiverPhone && (
                       <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -2143,7 +2143,7 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-medium text-xs truncate text-foreground">{s.receiverName}</span>
           <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
-            {isPartial ? "جزئي" : "مرتجع"}
+            {isPartial ? "مرتجع عن استلام جزئي" : "مرتجع"}
           </span>
           {s.receiverPhone && (
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
