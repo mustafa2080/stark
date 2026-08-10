@@ -1727,12 +1727,12 @@ export default function CommercialClientDetailPage() {
 // ─── ReturnsTabContent — تبويب المرتجعات: تم تسليمها / لم تُسلَّم بعد ──────
 // ════════════════════════════════════════════════════════════════════════════
 function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[]; clientId: number }) {
-  // مرتجع كامل (status = returned) + المرتجع الجزئي بتاع الاستلام الجزئي (partial_delivered/partial_received)
+  // مرتجع كامل (status = returned) + المرتجع بتاع الاستلام الجزئي فقط (partial_delivered)
+  // partial_received لوحدها مش مرتجع — لسه استلام جزئي عادي جاري، مفيهوش استرجاع مسجل
   const allReturns = useMemo(
     () => shipments.filter(s =>
       s.status === "returned" ||
-      s.manifestDeliveryStatus === "partial_delivered" ||
-      s.manifestDeliveryStatus === "partial_received"
+      s.manifestDeliveryStatus === "partial_delivered"
     ),
     [shipments]
   );
@@ -1838,7 +1838,7 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-medium text-xs truncate text-foreground">{s.receiverName}</span>
-                    {(s.manifestDeliveryStatus === "partial_received" || s.manifestDeliveryStatus === "partial_delivered") && (
+                    {s.manifestDeliveryStatus === "partial_delivered" && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-teal-900/40 text-teal-400">جزئي</span>
                     )}
                     {s.receiverPhone && (
@@ -1862,7 +1862,7 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
                   {s.returnReason && (
                     <p className="text-[10px] font-semibold text-emerald-400/80 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
                   )}
-                  {s.manifestPartialQty != null && (s.manifestDeliveryStatus === "partial_received" || s.manifestDeliveryStatus === "partial_delivered") && (
+                  {s.manifestPartialQty != null && s.manifestDeliveryStatus === "partial_delivered" && (
                     <p className="text-[10px] font-semibold text-teal-400/80 mt-0.5">
                       الكمية المرتجعة من الاستلام الجزئي: {s.manifestPartialQty}
                     </p>
@@ -2136,7 +2136,7 @@ function ReturnManifestDialog({
 
 // ─── صف شحنة مرتجعة لسه عند شركة الشحن — بزرارين تفاعليين ─────────────────
 function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: number }) {
-  const isPartial = s.manifestDeliveryStatus === "partial_received" || s.manifestDeliveryStatus === "partial_delivered";
+  const isPartial = s.manifestDeliveryStatus === "partial_delivered";
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5">
       <div className="flex-1 min-w-0">
