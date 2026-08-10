@@ -355,10 +355,15 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
     const clientId = Number(req.params.clientId);
     if (!clientId) { res.status(400).json({ error: "معرّف العميل غير صالح" }); return; }
 
+    // إجمالي رصيد العميل بيحسب بس من البيانات المقفولة (status = closed) — البيان
+    // المفتوح لسه قيد التحرير ومش نهائي، فرصيده ميظهرش في الإجمالي لحد ما يتقفل.
     const allManifests = await db
       .select()
       .from(clientAccountManifestsTable)
-      .where(eq(clientAccountManifestsTable.clientId, clientId));
+      .where(and(
+        eq(clientAccountManifestsTable.clientId, clientId),
+        eq(clientAccountManifestsTable.status, "closed"),
+      ));
 
     const manifestIds = allManifests.map(m => m.id);
     let totalBalance = 0;
