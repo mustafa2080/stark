@@ -27,10 +27,11 @@ import {
   Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
   Send, User, PackagePlus, Lock, LockOpen, Search, LayoutDashboard, Eye,
   Hourglass, RotateCcw, PackageX, PackageCheck, AlertCircle, ChevronDown,
+  Printer, ClipboardList,
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
-import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipmentsApi, type ClientAccountManifestListItem } from "@/lib/api";
+import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipmentsApi, type ClientAccountManifestListItem, type ClientReturnManifestListItem, type ClientReturnManifestItem } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
 import {
@@ -1740,8 +1741,27 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
   const showPending  = filterMode === "all" || filterMode === "pending";
   const showReceived = filterMode === "all" || filterMode === "received";
 
+  const [manifestDialogOpen, setManifestDialogOpen] = useState(false);
+
   return (
     <div className="space-y-5 pt-1">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setManifestDialogOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-colors"
+        >
+          <ClipboardList className="w-3.5 h-3.5" />
+          بيان المرتجعات المفتوح
+        </button>
+      </div>
+
+      <ReturnManifestDialog
+        open={manifestDialogOpen}
+        onOpenChange={setManifestDialogOpen}
+        clientId={clientId}
+      />
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card
           className={`card-glow border-border p-3 text-center cursor-pointer transition-all ${filterMode === "all" ? "ring-2 ring-primary" : ""}`}
@@ -1840,6 +1860,251 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
         <div className="py-10 text-center text-xs text-muted-foreground">لا توجد مرتجعات لهذا العميل حتى الآن</div>
       )}
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ReturnManifestDialog — عرض بيان المرتجعات المفتوح الحالي + طباعة + إغلاق
+// ════════════════════════════════════════════════════════════════════════════
+function ReturnManifestDialog({
+  open, onOpenChange, clientId,
+}: { open: boolean; onOpenChange: (v: boolean) => void; clientId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["client-return-manifests", clientId],
+    queryFn: () => clientReturnManifestsApi.list(clientId),
+    enabled: open,
+  });
+
+  const openManifest = data?.manifests?.find(m => m.status === "open") ?? null;
+
+  const { data: detail, isLoading: detailLoading } = useQuery({
+    queryKey: ["client-return-manifest-detail", openManifest?.id],
+    queryFn: () => clientReturnManifestsApi.get(openManifest!.id),
+    enabled: open && !!openManifest,
+  });
+
+  const closeMutation = useMutation({
+    mutationFn: () => clientReturnManifestsApi.close(openManifest!.id),
+    onSuccess: () => {
+      toast({ title: "تم إغلاق البيان ✅", description: "تم فتح بيان مرتجعات جديد تلقائيًا" });
+      qc.invalidateQueries({ queryKey: ["client-return-manifests", clientId] });
+      qc.invalidateQueries({ queryKey: ["client-return-manifest-detail"] });
+    },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const items = detail?.items ?? [];
+  const totalCod = items.reduce((sum, it) => sum + parseFloat(it.codAmount ?? "0"), 0);
+
+  const handlePrint = () => {
+    if (!openManifest || !items.length) return;
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) { window.print(); return; }
+
+    const rowsHtml = items.map((it, i) => `
+      <tr class="${i % 2 === 1 ? "mp-row-alt" : ""}">
+        <td class="mp-td-center">${i + 1}</td>
+        <td>${it.receiverName ?? "-"}<div class="mp-sub">${it.shipmentNumber}</div></td>
+        <td class="mp-td-ltr">${it.receiverPhone ?? "-"}</td>
+        <td>${it.receiverCity ?? "-"}</td>
+        <td>${it.returnReason ? returnReasonLabel(it.returnReason) : "-"}</td>
+        <td class="mp-td-center mp-td-bold">${formatCurrency(parseFloat(it.codAmount ?? "0"))}</td>
+      </tr>`).join("");
+
+    win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <title>بيان مرتجعات — ${openManifest.manifestNumber}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
+    body { font-family:'Cairo','Segoe UI',Arial,sans-serif; font-size:10pt; color:#111; background:#fff; direction:rtl; padding:0 2mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:4mm; }
+    .mp-title { font-size:17pt; font-weight:900; color:#1e3a5f; }
+    .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
+    .mp-company-name { font-size:14pt; font-weight:900; color:#1e3a5f; text-align:left; }
+    .mp-table { width:100%; border-collapse:collapse; margin-bottom:4mm; font-size:9.5pt; border:2.5px solid #1e3a5f; }
+    .mp-table thead tr { background:#1e3a5f; }
+    .mp-table th { color:#fff; font-size:9pt; font-weight:700; padding:2.5mm 3mm; text-align:right; border:2px solid rgba(255,255,255,0.5); }
+    .mp-table td { padding:2.5mm 3mm; border:2px solid #94a3b8; vertical-align:middle; line-height:1.5; }
+    .mp-row-alt td { background:#f0f4f8; }
+    .mp-td-center { text-align:center; } .mp-td-bold { font-weight:700; }
+    .mp-td-ltr { direction:ltr; text-align:right; }
+    .mp-sub { font-size:7.5pt; color:#94a3b8; margin-top:0.5mm; }
+    .mp-totals { display:flex; justify-content:flex-end; gap:4mm; margin-bottom:5mm; }
+    .mp-total-card { border:2.5px solid #15803d; border-radius:2mm; padding:3mm 6mm; text-align:center; background:#f0fdf4; }
+    .mp-total-lbl { font-size:8pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
+    .mp-total-val { font-size:13pt; font-weight:900; color:#15803d; }
+    .mp-footer { border-top:1.5px solid #e2e8f0; padding-top:4mm; margin-top:6mm; display:flex; justify-content:space-between; align-items:flex-end; }
+    .mp-sig { min-width:50mm; text-align:center; }
+    .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
+    .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
+    .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+  </style>
+</head>
+<body>
+  <div class="mp-header">
+    <div>
+      <div class="mp-title">بيان مرتجعات</div>
+      <div class="mp-meta">
+        رقم البيان: ${openManifest.manifestNumber}<br/>
+        العميل: ${openManifest.clientName ?? "-"}<br/>
+        التاريخ: ${format(new Date(), "yyyy/MM/dd")}
+      </div>
+    </div>
+    <div class="mp-company-name">STARK</div>
+  </div>
+  <table class="mp-table">
+    <thead>
+      <tr>
+        <th class="mp-td-center">#</th>
+        <th>اسم العميل</th>
+        <th>رقم التليفون</th>
+        <th>المدينة</th>
+        <th>سبب المرتجع</th>
+        <th class="mp-td-center">سعر الشحنة</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <div class="mp-totals">
+    <div class="mp-total-card">
+      <div class="mp-total-lbl">عدد المرتجعات</div>
+      <div class="mp-total-val">${items.length}</div>
+    </div>
+    <div class="mp-total-card">
+      <div class="mp-total-lbl">إجمالي القيمة</div>
+      <div class="mp-total-val">${formatCurrency(totalCod)}</div>
+    </div>
+  </div>
+  <div class="mp-footer">
+    <div class="mp-sig">
+      <div class="mp-sig-title">توقيع المندوب</div>
+      <div class="mp-sig-line"></div>
+    </div>
+    <div class="mp-sig">
+      <div class="mp-sig-title">توقيع العميل / المستلم</div>
+      <div class="mp-sig-line"></div>
+      <div class="mp-sig-name">${openManifest.clientName ?? ""}</div>
+    </div>
+  </div>
+</body>
+</html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 500);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent dir="rtl" className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-primary" />
+            بيان المرتجعات المفتوح
+          </DialogTitle>
+        </DialogHeader>
+
+        {isLoading || detailLoading ? (
+          <div className="py-10 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
+        ) : !openManifest ? (
+          <div className="py-10 text-center text-xs text-muted-foreground">
+            لا يوجد بيان مرتجعات مفتوح حاليًا لهذا العميل — سيتم إنشاء بيان جديد تلقائيًا أول ما يتم تسليم مرتجع للعميل.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+              <div>
+                <p className="text-xs font-bold">{openManifest.manifestNumber}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {items.length} مرتجع — بتاريخ {format(new Date(openManifest.createdAt), "yyyy/MM/dd")}
+                </p>
+              </div>
+              <span className="px-2 py-1 rounded-lg border border-blue-600 bg-blue-900/20 text-blue-400 text-[10px] font-bold">
+                مفتوح
+              </span>
+            </div>
+
+            {items.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">لم يتم تسليم أي مرتجع للعميل بعد ضمن هذا البيان</div>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto pr-1">
+                {items.map(it => (
+                  <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {it.shipmentNumber} {it.receiverCity ? `• ${it.receiverCity}` : ""}
+                      </p>
+                      {it.returnReason && (
+                        <p className="text-[10px] text-amber-400 mt-0.5">{returnReasonLabel(it.returnReason)}</p>
+                      )}
+                    </div>
+                    <p className="text-xs font-bold text-primary shrink-0">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {items.length > 0 && (
+              <div className="flex items-center justify-between rounded-xl border border-emerald-800/40 bg-emerald-950/20 px-3 py-2.5">
+                <span className="text-[11px] font-bold text-emerald-400">إجمالي قيمة البيان</span>
+                <span className="text-sm font-black text-emerald-400">{formatCurrency(totalCod)}</span>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={!items.length}
+                onClick={handlePrint}
+              >
+                <Printer className="w-3.5 h-3.5 ml-1.5" />
+                طباعة البيان
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={!items.length || closeMutation.isPending}
+                onClick={() => setCloseConfirmOpen(true)}
+              >
+                <Lock className="w-3.5 h-3.5 ml-1.5" />
+                إغلاق البيان
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+          <AlertDialogContent dir="rtl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد إغلاق بيان المرتجعات</AlertDialogTitle>
+              <AlertDialogDescription>
+                هل أنت متأكد من إغلاق البيان <strong>{openManifest?.manifestNumber}</strong>؟
+                <br />سيتم فتح بيان مرتجعات جديد تلقائيًا لاستقبال أي مرتجعات قادمة.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-white hover:bg-destructive/90"
+                onClick={() => { setCloseConfirmOpen(false); closeMutation.mutate(); }}
+              >
+                نعم، إغلاق البيان
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </DialogContent>
+    </Dialog>
   );
 }
 
