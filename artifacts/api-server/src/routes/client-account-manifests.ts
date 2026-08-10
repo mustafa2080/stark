@@ -362,12 +362,14 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
 
     const manifestIds = allManifests.map(m => m.id);
     let totalBalance = 0;
+    console.log("[DEBUG manifests]", JSON.stringify({ clientId, manifestIds, manifestsData: allManifests.map(m => ({ id: m.id, status: (m as any).status })) }));
 
     if (manifestIds.length) {
       const items = await db
         .select()
         .from(clientAccountManifestItemsTable)
         .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
+      console.log("[DEBUG items]", JSON.stringify({ itemsCount: items.length, shipmentIds: items.map(i => i.shipmentId) }));
 
       const shipmentIds = items.map(i => i.shipmentId);
       const shipments = shipmentIds.length
