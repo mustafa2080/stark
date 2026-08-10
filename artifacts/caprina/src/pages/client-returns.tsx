@@ -90,8 +90,10 @@ export default function ClientReturnsPage() {
     staleTime: 15_000,
   });
 
-  // نعرض فقط الشحنات "مرتجع" فعلاً — الـ delayed وpartial_delivered برا الصفحة دي خالص
-  const all = (returns ?? []).filter(i => i.deliveryStatus === "returned");
+  // مرتجع كامل + المرتجع الجزئي بتاع الاستلام الجزئي (partial_delivered) — الـ delayed برا الصفحة دي خالص
+  const all = (returns ?? []).filter(i =>
+    i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered"
+  );
 
   // "تم الاستلام" = returnReceived === 1
   const received = all.filter(i => i.returnReceived === 1);
