@@ -18,6 +18,8 @@ import {
   clientAccountManifestItemsTable,
   warehousesTable,
   clientAccountPaymentsTable,
+  clientReturnManifestsTable,
+  clientReturnManifestItemsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import multer from "multer";
@@ -1924,6 +1926,75 @@ router.get("/client-portal/returns/analysis", async (req, res): Promise<void> =>
   } catch (e) {
     console.error("[GET /client-portal/returns/analysis]", e);
     res.status(500).json({ error: "خطأ في تحليل المرتجعات" });
+  }
+});
+
+// ─── GET /client-portal/return-manifests — بيانات المرتجعات الخاصة بالعميل الحالي ──
+// (بيان مرتجعات مفتوح دايمًا + بيانات مغلقة سابقة) — نفس مفهوم client_return_manifests
+// في الأدمن، لكن مقفول على العميل الحالي فقط. عرض/طباعة فقط، بدون أي تعديل من العميل.
+router.get("/client-portal/return-manifests", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.json([]); return; }
+
+    const manifests = await db
+      .select()
+      .from(clientReturnManifestsTable)
+      .where(eq(clientReturnManifestsTable.clientId, user.clientId))
+      .orderBy(desc(clientReturnManifestsTable.createdAt));
+
+    const ids = manifests.map(m => m.id);
+    let countMap: Record<number, number> = {};
+    let totalCodMap: Record<number, number> = {};
+    if (ids.length) {
+      const items = await db
+        .select({
+          manifestId: clientReturnManifestItemsTable.manifestId,
+          codAmount: clientReturnManifestItemsTable.codAmount,
+        })
+        .from(clientReturnManifestItemsTable)
+        .where(inArray(clientReturnManifestItemsTable.manifestId, ids));
+      items.forEach(i => {
+        countMap[i.manifestId] = (countMap[i.manifestId] ?? 0) + 1;
+        totalCodMap[i.manifestId] = (totalCodMap[i.manifestId] ?? 0) + (Number(i.codAmount) || 0);
+      });
+    }
+
+    const result = manifests.map(m => ({
+      ...m,
+      itemsCount: countMap[m.id] ?? 0,
+      totalCodAmount: totalCodMap[m.id] ?? 0,
+    }));
+
+    res.json(result);
+  } catch (e) {
+    console.error("[GET /client-portal/return-manifests]", e);
+    res.status(500).json({ error: "خطأ في جلب بيانات المرتجعات" });
+  }
+});
+
+// ─── GET /client-portal/return-manifests/:id — تفاصيل بيان مرتجعات واحد (ملك العميل الحالي فقط) ──
+router.get("/client-portal/return-manifests/:id", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    const id = Number(req.params.id);
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+
+    const [manifest] = await db.select().from(clientReturnManifestsTable)
+      .where(eq(clientReturnManifestsTable.id, id)).limit(1);
+    if (!manifest) { res.status(404).json({ error: "بيان المرتجعات غير موجود" }); return; }
+    if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك بعرض هذا البيان" }); return; }
+
+    const items = await db.select().from(clientReturnManifestItemsTable)
+      .where(eq(clientReturnManifestItemsTable.manifestId, id))
+      .orderBy(desc(clientReturnManifestItemsTable.addedAt));
+
+    const totalCodAmount = items.reduce((s, i) => s + (Number(i.codAmount) || 0), 0);
+
+    res.json({ ...manifest, items, stats: { total: items.length, totalCodAmount } });
+  } catch (e) {
+    console.error("[GET /client-portal/return-manifests/:id]", e);
+    res.status(500).json({ error: "خطأ في جلب تفاصيل بيان المرتجعات" });
   }
 });
 

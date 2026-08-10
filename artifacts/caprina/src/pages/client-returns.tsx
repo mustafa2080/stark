@@ -1,10 +1,14 @@
 import { useState, useMemo, type ElementType } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { apiFetch } from "@/lib/api";
 import {
   RotateCcw, CheckCircle2, Truck, Clock, Package,
   Search, MapPin, Phone, FileText, AlertTriangle,
+  ChevronLeft, Lock, LockOpen, Layers,
 } from "lucide-react";
+import { format } from "date-fns";
+import { ar } from "date-fns/locale";
 
 const fc = (n: number | string) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
@@ -25,6 +29,17 @@ interface ReturnItem {
   totalPrice: number;
   invoiceNumber: string;
   addedAt: string;
+}
+
+interface ReturnManifestListItem {
+  id: number;
+  manifestNumber: string;
+  status: "open" | "closed";
+  notes: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  itemsCount: number;
+  totalCodAmount: number;
 }
 
 // ── Glow style helpers — نفس نمط الصفحات الاحترافية في المشروع ─────────────
@@ -60,12 +75,18 @@ const RETURN_REASON_LABELS: Record<string, string> = {
 };
 
 export default function ClientReturnsPage() {
-  const [tab, setTab] = useState<"pending" | "received">("pending");
+  const [tab, setTab] = useState<"pending" | "received" | "manifests">("pending");
   const [search, setSearch] = useState("");
 
   const { data: returns, isLoading } = useQuery<ReturnItem[]>({
     queryKey: ["client-portal-returns"],
     queryFn: () => apiFetch("/client-portal/returns"),
+    staleTime: 15_000,
+  });
+
+  const { data: returnManifests, isLoading: manifestsLoading } = useQuery<ReturnManifestListItem[]>({
+    queryKey: ["client-portal-return-manifests"],
+    queryFn: () => apiFetch("/client-portal/return-manifests"),
     staleTime: 15_000,
   });
 
@@ -75,7 +96,7 @@ export default function ClientReturnsPage() {
   const received = all.filter(i => i.returnReceived === 1);
   const pending = all.filter(i => i.returnReceived !== 1);
 
-  const activeList = tab === "pending" ? pending : received;
+  const activeList = tab === "received" ? received : pending;
 
   const filteredList = useMemo(() => {
     if (!search.trim()) return activeList;
@@ -91,6 +112,10 @@ export default function ClientReturnsPage() {
   const totalValueReceived = received.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
   const returnedCount = all.filter(i => i.deliveryStatus === "returned").length;
   const delayedCount = all.filter(i => i.deliveryStatus === "delayed").length;
+
+  const manifests = returnManifests ?? [];
+  const openReturnManifest = manifests.find(m => m.status === "open") ?? null;
+  const closedReturnManifests = manifests.filter(m => m.status === "closed");
 
   return (
     <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
@@ -161,21 +186,57 @@ export default function ClientReturnsPage() {
           >
             <CheckCircle2 size={15} /> تم الاستلام ({received.length})
           </button>
+          <button
+            onClick={() => setTab("manifests")}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+              tab === "manifests"
+                ? "text-teal-300"
+                : "bg-muted/40 text-muted-foreground border border-border"
+            }`}
+            style={tab === "manifests" ? GLOW.teal : undefined}
+          >
+            <FileText size={15} /> بيانات المرتجعات ({manifests.length})
+          </button>
         </div>
 
-        {/* ── Search ── */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث باسم العميل أو رقم الشحنة أو الهاتف..."
-            className="w-full h-10 rounded-xl bg-muted/30 border border-border pr-10 pl-3 text-sm outline-none focus:border-primary/50"
-          />
-        </div>
+        {/* ── Search — بس لتبويبي pending/received ── */}
+        {tab !== "manifests" && (
+          <div className="relative">
+            <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ابحث باسم العميل أو رقم الشحنة أو الهاتف..."
+              className="w-full h-10 rounded-xl bg-muted/30 border border-border pr-10 pl-3 text-sm outline-none focus:border-primary/50"
+            />
+          </div>
+        )}
 
         {/* ── List ── */}
-        {isLoading ? (
+        {tab === "manifests" ? (
+          manifestsLoading ? (
+            <div className="text-center py-16 text-sm text-muted-foreground">جاري التحميل...</div>
+          ) : manifests.length === 0 ? (
+            <div className="text-center py-16 rounded-2xl bg-muted/25 border border-border">
+              <FileText className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">لا توجد بيانات مرتجعات بعد</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {openReturnManifest && <OpenReturnManifestCard manifest={openReturnManifest} />}
+              {closedReturnManifests.length > 0 && (
+                <div className="space-y-2.5">
+                  {openReturnManifest && (
+                    <p className="text-xs font-bold text-muted-foreground/70 pt-2">بيانات مغلقة</p>
+                  )}
+                  {closedReturnManifests.map((m) => (
+                    <ClosedReturnManifestCard key={m.id} manifest={m} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        ) : isLoading ? (
           <div className="text-center py-16 text-sm text-muted-foreground">جاري التحميل...</div>
         ) : filteredList.length === 0 ? (
           <div className="text-center py-16 rounded-2xl bg-muted/25 border border-border">
@@ -193,6 +254,87 @@ export default function ClientReturnsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// OpenReturnManifestCard / ClosedReturnManifestCard — كروت بيان المرتجعات
+// (نفس نمط client-manifests.tsx بس مخصص لمفهوم بيان المرتجعات)
+// ══════════════════════════════════════════════════════════════════════════
+function OpenReturnManifestCard({ manifest }: { manifest: ReturnManifestListItem }) {
+  return (
+    <Link href={`/client-return-manifests/${manifest.id}`}>
+      <div className="group cursor-pointer relative overflow-hidden rounded-2xl border border-teal-700/40 bg-gradient-to-br from-teal-950/20 via-muted/20 to-transparent hover:border-teal-600/60 transition-all p-4 sm:p-5">
+        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-30 bg-teal-500/30" />
+
+        <div className="relative flex items-center justify-between flex-wrap gap-2 mb-3">
+          <span className="text-[11px] font-bold text-teal-300">
+            بيان المرتجعات الحالي — مفتوح ويستقبل مرتجعات جديدة
+          </span>
+          <ChevronLeft className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+        </div>
+
+        <div className="relative flex items-center gap-3 mb-4">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-teal-500/10 text-teal-400">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-black text-sm truncate">{manifest.manifestNumber}</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 bg-emerald-900/30 text-emerald-400 border border-emerald-800">
+                <LockOpen className="w-2.5 h-2.5" /> مفتوح
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
+            </p>
+          </div>
+        </div>
+
+        <div className="relative grid grid-cols-2 gap-2">
+          <div className="flex flex-col items-center gap-0.5 py-2 rounded-lg bg-background/40 border border-border/40">
+            <Layers className="w-3.5 h-3.5 text-foreground" />
+            <span className="text-sm font-black">{manifest.itemsCount}</span>
+            <span className="text-[9px] text-muted-foreground">عدد المرتجعات</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5 py-2 rounded-lg bg-background/40 border border-border/40">
+            <Package className="w-3.5 h-3.5 text-teal-400" />
+            <span className="text-sm font-black text-teal-400">{fc(manifest.totalCodAmount)}</span>
+            <span className="text-[9px] text-muted-foreground">إجمالي القيمة</span>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function ClosedReturnManifestCard({ manifest }: { manifest: ReturnManifestListItem }) {
+  return (
+    <Link href={`/client-return-manifests/${manifest.id}`}>
+      <div className="group cursor-pointer rounded-2xl border border-border bg-muted/20 hover:bg-muted/35 hover:border-primary/40 transition-all p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-black text-sm truncate">{manifest.manifestNumber}</p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 bg-muted text-muted-foreground border border-border">
+                  <Lock className="w-2.5 h-2.5" /> مغلق
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {manifest.itemsCount} مرتجع
+                {manifest.closedAt && ` — أُغلق في ${format(new Date(manifest.closedAt), "d MMMM yyyy", { locale: ar })}`}
+                {` — ${fc(manifest.totalCodAmount)}`}
+              </p>
+            </div>
+          </div>
+          <ChevronLeft className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary transition-colors shrink-0" />
+        </div>
+      </div>
+    </Link>
   );
 }
 

@@ -240,6 +240,7 @@ const ClientManifestsPage   = lazy(() => import("@/pages/client-manifests"));
 const ClientManifestViewPage = lazy(() => import("@/pages/client-manifest-view"));
 const ClientWalletPage      = lazy(() => import("@/pages/client-wallet"));
 const ClientReturnsPage     = lazy(() => import("@/pages/client-returns"));
+const ClientReturnManifestViewPage = lazy(() => import("@/pages/client-return-manifest-view"));
 const ClientRegisterPage    = lazy(() => import("@/pages/client-register"));
 const ContractPage          = lazy(() => import("@/pages/contract"));
 const ShipmentsSettingsPage = lazy(() => import("@/pages/shipments"));
@@ -549,6 +550,7 @@ function Router() {
           <Route path="/client-shipping-invoices" component={ClientShippingInvoicesPage} />
           <Route path="/client-wallet"            component={ClientWalletPage} />
           <Route path="/client-returns"           component={ClientReturnsPage} />
+          <Route path="/client-return-manifests/:id" component={ClientReturnManifestViewPage} />
           <Route path="/client-pickup-requests"   component={ClientPickupRequestsPage} />
           <Route path="/client-data"              component={ClientManifestsPage} />
           <Route path="/client-manifests"         component={ClientManifestsPage} />
