@@ -2168,7 +2168,7 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
         )}
         {isPartial && s.manifestPartialQty != null && (
           <p className="text-[10px] font-semibold text-teal-400 mt-0.5">
-            الكمية المرتجعة من الاستلام الجزئي: {s.manifestPartialQty}
+            الكمية المرتجعة من الاستلام الجزئي: {Math.max(0, (s.pieces ?? 0) - s.manifestPartialQty)} من {s.pieces ?? "-"}
           </p>
         )}
       </div>
