@@ -481,6 +481,11 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
           // repExtraCost بنفس شرط enrichment بالظبط: بس لو zoneShippingForItem > 0 وعندها parcelType.
           const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
           totalBalance -= (zoneShippingForItem + repExtraCost);
+          if (collected !== 0 || (zoneShippingForItem + repExtraCost) !== 0) {
+            console.log("[DEBUG row]", shipment.shipmentNumber, st, "collected=", collected, "shipping=", zoneShippingForItem + repExtraCost, "runningTotal=", totalBalance);
+          }
+        } else if (collected !== 0) {
+          console.log("[DEBUG row]", shipment.shipmentNumber, st, "collected=", collected, "shipping=0(zeroed)", "runningTotal=", totalBalance);
         }
       }
     }
@@ -491,6 +496,7 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
       .from(clientAccountPaymentsTable)
       .where(eq(clientAccountPaymentsTable.clientId, clientId));
     const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+    console.log("[DEBUG balance/:clientId]", JSON.stringify({ clientId, manifestIds, itemsProcessed: manifestIds.length ? "yes" : "no", balanceBeforePayments: totalBalance + totalPaid, totalPaid, finalBalance: totalBalance - totalPaid }));
     totalBalance -= totalPaid;
 
     res.json({ clientId, balance: totalBalance, manifestsCount: manifestIds.length });
