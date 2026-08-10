@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiFetch } from "@/lib/api";
 import {
-  RotateCcw, CheckCircle2, Truck, Clock, Package,
+  RotateCcw, CheckCircle2, Truck, Package,
   Search, MapPin, Phone, FileText, AlertTriangle,
   ChevronLeft, Lock, LockOpen, Layers,
 } from "lucide-react";
@@ -90,9 +90,10 @@ export default function ClientReturnsPage() {
     staleTime: 15_000,
   });
 
-  const all = returns ?? [];
+  // نعرض فقط الشحنات "مرتجع" فعلاً — الـ delayed وpartial_delivered برا الصفحة دي خالص
+  const all = (returns ?? []).filter(i => i.deliveryStatus === "returned");
 
-  // "تم الاستلام" = returnReceived === 1 (أو حالة مؤجلة اتحلت... نعتمد على returnReceived)
+  // "تم الاستلام" = returnReceived === 1
   const received = all.filter(i => i.returnReceived === 1);
   const pending = all.filter(i => i.returnReceived !== 1);
 
@@ -110,8 +111,7 @@ export default function ClientReturnsPage() {
 
   const totalValuePending = pending.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
   const totalValueReceived = received.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
-  const returnedCount = all.filter(i => i.deliveryStatus === "returned").length;
-  const delayedCount = all.filter(i => i.deliveryStatus === "delayed").length;
+  const returnedCount = all.length;
 
   const manifests = returnManifests ?? [];
   const openReturnManifest = manifests.find(m => m.status === "open") ?? null;
@@ -128,12 +128,12 @@ export default function ClientReturnsPage() {
             المرتجعات
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            كل الشحنات المرتجعة أو المؤجلة الخاصة بحسابك — مجمّعة من كل بياناتك
+            كل الشحنات المرتجعة الخاصة بحسابك — مجمّعة من كل بياناتك
           </p>
         </div>
 
         {/* ── Stat containers — glow + shadow + gradient ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <StatContainer
             tone="orange"
             icon={Truck}
@@ -153,12 +153,6 @@ export default function ClientReturnsPage() {
             icon={RotateCcw}
             value={returnedCount}
             label="إجمالي المرتجعات"
-          />
-          <StatContainer
-            tone="teal"
-            icon={Clock}
-            value={delayedCount}
-            label="إجمالي المؤجل"
           />
         </div>
 
