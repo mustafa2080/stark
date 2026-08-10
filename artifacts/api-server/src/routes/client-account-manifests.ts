@@ -346,6 +346,12 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
 // المعلَّق/قيد الانتظار أو المرتجع بسبب غير مالي).
 router.get("/client-account-manifests/balance/:clientId", async (req, res): Promise<void> => {
   try {
+    // منع أي كاش (ETag/304) على هذا الـ endpoint — الرصيد لازم يتحسب Fresh من
+    // السيرفر في كل مرة، لأنه بيعتمد على بيانات بتتغيّر باستمرار (حالة الشحنات،
+    // القيم المستلمة، السدادات). كاش الـ 304 كان بيرجّع للمتصفح رقم قديم مخزّن
+    // حتى بعد تعديل الكود، لأن الـ handler ماكانش بيتنفذ من الأساس.
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     const clientId = Number(req.params.clientId);
     if (!clientId) { res.status(400).json({ error: "معرّف العميل غير صالح" }); return; }
 
