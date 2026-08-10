@@ -1748,26 +1748,9 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
   const showPending  = filterMode === "all" || filterMode === "pending";
   const showReceived = filterMode === "all" || filterMode === "received";
 
-  const [manifestDialogOpen, setManifestDialogOpen] = useState(false);
-
   return (
     <div className="space-y-5 pt-1">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setManifestDialogOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-colors"
-        >
-          <ClipboardList className="w-3.5 h-3.5" />
-          بيان المرتجعات المفتوح
-        </button>
-      </div>
-
-      <ReturnManifestDialog
-        open={manifestDialogOpen}
-        onOpenChange={setManifestDialogOpen}
-        clientId={clientId}
-      />
+      <ReturnOpenManifestCard clientId={clientId} />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card
@@ -1890,19 +1873,18 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ReturnManifestDialog — عرض بيان المرتجعات المفتوح الحالي + طباعة + إغلاق
+// ReturnOpenManifestCard — كارت بيان المرتجعات المفتوح، مدمج داخل الصفحة
+// نفس شكل AdminOpenManifestCard (تاب البيانات) + طباعة + إغلاق
 // ════════════════════════════════════════════════════════════════════════════
-function ReturnManifestDialog({
-  open, onOpenChange, clientId,
-}: { open: boolean; onOpenChange: (v: boolean) => void; clientId: number }) {
+function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["client-return-manifests", clientId],
     queryFn: () => clientReturnManifestsApi.list(clientId),
-    enabled: open,
   });
 
   const openManifest = data?.manifests?.find(m => m.status === "open") ?? null;
@@ -1910,7 +1892,7 @@ function ReturnManifestDialog({
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["client-return-manifest-detail", openManifest?.id],
     queryFn: () => clientReturnManifestsApi.get(openManifest!.id),
-    enabled: open && !!openManifest,
+    enabled: !!openManifest,
   });
 
   const closeMutation = useMutation({
@@ -2028,109 +2010,132 @@ function ReturnManifestDialog({
     setTimeout(() => { win.print(); win.close(); }, 500);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-primary" />
-            بيان المرتجعات المفتوح
-          </DialogTitle>
-        </DialogHeader>
+  if (isLoading || detailLoading) {
+    return (
+      <div className="rounded-2xl border border-border bg-muted/20 p-5 text-center text-xs text-muted-foreground animate-pulse">
+        جاري تحميل بيان المرتجعات...
+      </div>
+    );
+  }
 
-        {isLoading || detailLoading ? (
-          <div className="py-10 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
-        ) : !openManifest ? (
-          <div className="py-10 text-center text-xs text-muted-foreground">
-            لا يوجد بيان مرتجعات مفتوح حاليًا لهذا العميل — سيتم إنشاء بيان جديد تلقائيًا أول ما يتم تسليم مرتجع للعميل.
+  if (!openManifest) {
+    return (
+      <div className="rounded-2xl border border-border bg-muted/20 p-5 text-center text-xs text-muted-foreground">
+        لا يوجد بيان مرتجعات مفتوح حاليًا — سيتم إنشاء بيان جديد تلقائيًا أول ما يتم تسليم مرتجع للعميل.
+      </div>
+    );
+  }
+
+  const total = items.length;
+
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-emerald-950/20 via-muted/20 to-transparent hover:border-emerald-600/60 transition-all p-4 sm:p-5">
+      <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-30 bg-emerald-500/30" />
+
+      <div className="relative flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <Hourglass className="w-3.5 h-3.5 text-amber-400 animate-[spin_2.5s_linear_infinite]" />
+          <span className="text-[11px] font-bold text-amber-300">
+            البيان حالياً قيد العمل — يتم إضافة شحنات العميل عليه
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => !c)}
+          className="text-muted-foreground/50 group-hover:text-primary transition-colors"
+        >
+          <ChevronLeft className={cn("w-4 h-4 transition-transform", collapsed && "-rotate-90")} />
+        </button>
+      </div>
+
+      <div className="relative flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+            <ClipboardList className="w-5 h-5" />
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-              <div>
-                <p className="text-xs font-bold">{openManifest.manifestNumber}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {items.length} مرتجع — بتاريخ {format(new Date(openManifest.createdAt), "yyyy/MM/dd")}
-                </p>
-              </div>
-              <span className="px-2 py-1 rounded-lg border border-blue-600 bg-blue-900/20 text-blue-400 text-[10px] font-bold">
-                مفتوح
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-black text-sm truncate">{openManifest.manifestNumber}</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 bg-emerald-900/30 text-emerald-400 border border-emerald-800">
+                <LockOpen className="w-2.5 h-2.5" /> مفتوح
               </span>
             </div>
-
-            {items.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground">لم يتم تسليم أي مرتجع للعميل بعد ضمن هذا البيان</div>
-            ) : (
-              <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto pr-1">
-                {items.map(it => (
-                  <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {it.shipmentNumber} {it.receiverCity ? `• ${it.receiverCity}` : ""}
-                      </p>
-                      {it.returnReason && (
-                        <p className="text-[10px] text-amber-400 mt-0.5">{returnReasonLabel(it.returnReason)}</p>
-                      )}
-                    </div>
-                    <p className="text-xs font-bold text-primary shrink-0">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {items.length > 0 && (
-              <div className="flex items-center justify-between rounded-xl border border-emerald-800/40 bg-emerald-950/20 px-3 py-2.5">
-                <span className="text-[11px] font-bold text-emerald-400">إجمالي قيمة البيان</span>
-                <span className="text-sm font-black text-emerald-400">{formatCurrency(totalCod)}</span>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="outline"
-                className="flex-1"
-                disabled={!items.length}
-                onClick={handlePrint}
-              >
-                <Printer className="w-3.5 h-3.5 ml-1.5" />
-                طباعة البيان
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1"
-                disabled={!items.length || closeMutation.isPending}
-                onClick={() => setCloseConfirmOpen(true)}
-              >
-                <Lock className="w-3.5 h-3.5 ml-1.5" />
-                إغلاق البيان
-              </Button>
-            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {format(new Date(openManifest.createdAt), "d MMMM yyyy", { locale: ar })}
+            </p>
           </div>
-        )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button
+            size="sm" variant="outline"
+            className="gap-1 h-8 text-xs px-3"
+            disabled={!items.length}
+            onClick={handlePrint}
+          >
+            <Printer className="w-3 h-3" />طباعة
+          </Button>
+          <Button
+            size="sm" variant="outline"
+            className="gap-1 h-8 text-xs px-3 border-emerald-700 text-emerald-400 hover:bg-emerald-900/20"
+            disabled={!items.length || closeMutation.isPending}
+            onClick={() => setCloseConfirmOpen(true)}
+          >
+            <Lock className="w-3 h-3" />إغلاق
+          </Button>
+        </div>
+      </div>
 
-        <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
-          <AlertDialogContent dir="rtl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>تأكيد إغلاق بيان المرتجعات</AlertDialogTitle>
-              <AlertDialogDescription>
-                هل أنت متأكد من إغلاق البيان <strong>{openManifest?.manifestNumber}</strong>؟
-                <br />سيتم فتح بيان مرتجعات جديد تلقائيًا لاستقبال أي مرتجعات قادمة.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-white hover:bg-destructive/90"
-                onClick={() => { setCloseConfirmOpen(false); closeMutation.mutate(); }}
-              >
-                نعم، إغلاق البيان
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </DialogContent>
-    </Dialog>
+      <div className="relative grid grid-cols-2 gap-2">
+        <AdminManifestMiniStat icon={CheckCircle2} value={total} label="عدد المرتجعات في البيان" tone="emerald" />
+        <AdminManifestMiniStat icon={Package} value={Number(totalCod.toFixed(0))} label="إجمالي القيمة (ج.م)" />
+      </div>
+
+      {!collapsed && (
+        <div className="relative mt-4 space-y-2">
+          {items.length === 0 ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">لم يتم تسليم أي مرتجع للعميل بعد ضمن هذا البيان</div>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto pr-1">
+              {items.map(it => (
+                <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {it.shipmentNumber} {it.receiverCity ? `• ${it.receiverCity}` : ""}
+                    </p>
+                    {it.returnReason && (
+                      <p className="text-[10px] text-amber-400 mt-0.5">{returnReasonLabel(it.returnReason)}</p>
+                    )}
+                  </div>
+                  <p className="text-xs font-bold text-primary shrink-0">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد إغلاق بيان المرتجعات</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من إغلاق البيان <strong>{openManifest?.manifestNumber}</strong>؟
+              <br />سيتم فتح بيان مرتجعات جديد تلقائيًا لاستقبال أي مرتجعات قادمة.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => { setCloseConfirmOpen(false); closeMutation.mutate(); }}
+            >
+              نعم، إغلاق البيان
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
