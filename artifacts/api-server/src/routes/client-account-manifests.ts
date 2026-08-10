@@ -362,14 +362,12 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
 
     const manifestIds = allManifests.map(m => m.id);
     let totalBalance = 0;
-    console.log("[DEBUG manifests]", JSON.stringify({ clientId, manifestIds, manifestsData: allManifests.map(m => ({ id: m.id, status: (m as any).status })) }));
 
     if (manifestIds.length) {
       const items = await db
         .select()
         .from(clientAccountManifestItemsTable)
         .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
-      console.log("[DEBUG items]", JSON.stringify({ itemsCount: items.length, shipmentIds: items.map(i => i.shipmentId) }));
 
       const shipmentIds = items.map(i => i.shipmentId);
       const shipments = shipmentIds.length
@@ -445,10 +443,13 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
       // ── نفس منطق getCollectedAmount + displayedShippingCost بالظبط
       // (client-account-manifest-detail.tsx، كارت "الرصيد المستحق" الثابت) ──
       const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
-      const isShippingZeroedRow = (item: any, st: string) => {
+      const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
         if (st === "postponed" || st === "delayed" || st === "pending") return true;
         if (st === "returned") {
-          const reason = item.returnReason ?? item?.shipment?.returnReason ?? null;
+          // item هنا صف خام من client_account_manifest_items ومفهوش خاصية .shipment
+          // (دي موجودة بس في enrichedItems بتاع GET /:id) — لازم ناخد shipment.returnReason
+          // كـ fallback من الـ shipment الفعلية اللي بعتناها، مش من item.shipment اللي دايمًا undefined.
+          const reason = item.returnReason ?? shipment?.returnReason ?? null;
           if (!RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) return true;
         }
         return false;
@@ -485,15 +486,10 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
         }
         totalBalance += collected;
 
-        if (!isShippingZeroedRow(item, st)) {
+        if (!isShippingZeroedRow(item, st, shipment)) {
           // repExtraCost بنفس شرط enrichment بالظبط: بس لو zoneShippingForItem > 0 وعندها parcelType.
           const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
           totalBalance -= (zoneShippingForItem + repExtraCost);
-          if (collected !== 0 || (zoneShippingForItem + repExtraCost) !== 0) {
-            console.log("[DEBUG row]", shipment.shipmentNumber, st, "collected=", collected, "shipping=", zoneShippingForItem + repExtraCost, "runningTotal=", totalBalance);
-          }
-        } else if (collected !== 0) {
-          console.log("[DEBUG row]", shipment.shipmentNumber, st, "collected=", collected, "shipping=0(zeroed)", "runningTotal=", totalBalance);
         }
       }
     }
@@ -504,7 +500,6 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
       .from(clientAccountPaymentsTable)
       .where(eq(clientAccountPaymentsTable.clientId, clientId));
     const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-    console.log("[DEBUG balance/:clientId]", JSON.stringify({ clientId, manifestIds, itemsProcessed: manifestIds.length ? "yes" : "no", balanceBeforePayments: totalBalance + totalPaid, totalPaid, finalBalance: totalBalance - totalPaid }));
     totalBalance -= totalPaid;
 
     res.json({ clientId, balance: totalBalance, manifestsCount: manifestIds.length });
