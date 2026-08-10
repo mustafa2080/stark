@@ -449,6 +449,46 @@ async function ensureClientAccountManifestsTables() {
 }
 ensureClientAccountManifestsTables();
 
+// ─── Ensure client_return_manifests / client_return_manifest_items tables exist ──
+async function ensureClientReturnManifestsTables() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS client_return_manifests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NULL,
+        manifest_number VARCHAR(100) NOT NULL,
+        client_id INT NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'open',
+        notes TEXT NULL,
+        created_at DATETIME NOT NULL,
+        closed_at DATETIME NULL,
+        INDEX idx_crm_client (client_id),
+        INDEX idx_crm_tenant (tenant_id)
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS client_return_manifest_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        manifest_id INT NOT NULL,
+        shipment_id INT NOT NULL,
+        shipment_number VARCHAR(100) NOT NULL,
+        receiver_name VARCHAR(255) NULL,
+        receiver_phone VARCHAR(50) NULL,
+        receiver_city VARCHAR(100) NULL,
+        cod_amount DECIMAL(10,2) NULL,
+        return_reason VARCHAR(100) NULL,
+        added_at DATETIME NOT NULL,
+        INDEX idx_crmi_manifest (manifest_id),
+        INDEX idx_crmi_shipment (shipment_id)
+      )
+    `);
+    logger.info("client_return_manifests tables ensured");
+  } catch (err: any) {
+    logger.error({ err }, "Failed to ensure client_return_manifests tables");
+  }
+}
+ensureClientReturnManifestsTables();
+
 
 // ─── Ensure employee_profiles.avatar column exists ────────────────────────────
 async function ensureEmployeeProfileAvatar() {

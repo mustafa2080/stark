@@ -39,6 +39,7 @@ export * from "./zone_costs";
 export * from "./parcel_type_pricing";
 export * from "./shipment_manifests";
 export * from "./client_account_manifests";
+export * from "./client_return_manifests";
 export * from "./shipment_ratings";
 export * from "./representative_wallet_transactions";
 

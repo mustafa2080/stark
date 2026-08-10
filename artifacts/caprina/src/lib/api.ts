@@ -2155,6 +2155,53 @@ export const clientAccountManifestsApi = {
     ),
 };
 
+// ─── Client Return Manifests API (بيان مرتجعات العميل) ────────────────────
+export interface ClientReturnManifestListItem {
+  id: number;
+  tenantId: number | null;
+  manifestNumber: string;
+  clientId: number;
+  status: "open" | "closed";
+  notes: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  itemsCount: number;
+  clientName: string | null;
+}
+
+export interface ClientReturnManifestItem {
+  id: number;
+  manifestId: number;
+  shipmentId: number;
+  shipmentNumber: string;
+  receiverName: string | null;
+  receiverPhone: string | null;
+  receiverCity: string | null;
+  codAmount: string | null;
+  returnReason: string | null;
+  addedAt: string;
+}
+
+export interface ClientReturnManifestDetail extends ClientReturnManifestListItem {
+  manifest: ClientReturnManifestListItem;
+  items: ClientReturnManifestItem[];
+}
+
+export const clientReturnManifestsApi = {
+  list: (clientId?: number) =>
+    apiFetch<{ manifests: ClientReturnManifestListItem[] }>(`/client-return-manifests${clientId ? `?clientId=${clientId}` : ""}`),
+  get: (id: number) =>
+    apiFetch<{ manifest: ClientReturnManifestListItem; items: ClientReturnManifestItem[] }>(`/client-return-manifests/${id}`),
+  confirmDelivery: (clientId: number, shipmentId: number) =>
+    apiFetch<{ success: boolean; manifestId: number }>(
+      `/client-return-manifests/${clientId}/confirm-delivery/${shipmentId}`, { method: "POST" }
+    ),
+  close: (id: number, notes?: string | null) =>
+    apiFetch<{ success: boolean }>(`/client-return-manifests/${id}`, {
+      method: "PATCH", body: JSON.stringify({ status: "closed", notes }),
+    }),
+};
+
 // ─── Sale Order Manifests API (بيان فواتير البيع للعميل) ──────────────────
 export interface SaleOrderManifestListItem {
   id: number;

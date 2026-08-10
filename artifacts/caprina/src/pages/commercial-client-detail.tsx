@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
-import { apiFetch, clientAccountManifestsApi, shipmentsApi, type ClientAccountManifestListItem } from "@/lib/api";
+import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipmentsApi, type ClientAccountManifestListItem } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
 import {
@@ -1672,7 +1672,7 @@ export default function CommercialClientDetailPage() {
 
       {/* ══════════════════════════ Tab: المرتجعات ══════════════════════════ */}
       {activeTab === "returns" && (
-        <ReturnsTabContent shipments={clientShipments} />
+        <ReturnsTabContent shipments={clientShipments} clientId={clientId} />
       )}
 
       {/* ─── Dialog: إنشاء بيان جديد ─── */}
@@ -1723,7 +1723,7 @@ export default function CommercialClientDetailPage() {
 // ════════════════════════════════════════════════════════════════════════════
 // ─── ReturnsTabContent — تبويب المرتجعات: تم تسليمها / لم تُسلَّم بعد ──────
 // ════════════════════════════════════════════════════════════════════════════
-function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
+function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[]; clientId: number }) {
   const allReturns = useMemo(
     () => shipments.filter(s => s.status === "returned"),
     [shipments]
@@ -1784,7 +1784,7 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
           </div>
           <div className="flex flex-col gap-2">
             {pendingReturns.map(s => (
-              <ReturnShipmentRow key={s.id} s={s} />
+              <ReturnShipmentRow key={s.id} s={s} clientId={clientId} />
             ))}
           </div>
         </div>
@@ -1844,7 +1844,7 @@ function ReturnsTabContent({ shipments }: { shipments: ClientShipment[] }) {
 }
 
 // ─── صف شحنة مرتجعة لسه عند شركة الشحن — بزرارين تفاعليين ─────────────────
-function ReturnShipmentRow({ s }: { s: ClientShipment }) {
+function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: number }) {
   const isPartial = s.manifestDeliveryStatus === "partial_received" || s.manifestDeliveryStatus === "partial_delivered";
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5">
@@ -1862,10 +1862,7 @@ function ReturnShipmentRow({ s }: { s: ClientShipment }) {
       </div>
       <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
         {s.manifestId ? (
-          <>
-            <SimpleReturnReceivedButton shipment={s} received={true} />
-            <SimpleReturnReceivedButton shipment={s} received={false} />
-          </>
+          <SimpleReturnReceivedButton shipment={s} clientId={clientId} />
         ) : (
           <span className="text-[10px] text-muted-foreground px-2">غير مرتبط ببيان</span>
         )}
@@ -1874,81 +1871,56 @@ function ReturnShipmentRow({ s }: { s: ClientShipment }) {
   );
 }
 
-// ─── زرار "تم الاستلام" / "لم يتم بعد" — نسخة مستقلة تعمل على أي شحنة من أي بيان ───
-function SimpleReturnReceivedButton({ shipment, received }: { shipment: ClientShipment; received: boolean }) {
+// ─── زرار "تم الاستلام" (= تأكيد تسليم المرتجع للعميل) ─────────────────────
+// دوسة الزرار = ترحيل المرتجع لبيان مرتجعات مفتوح + وضع علامة returnReceived=1
+// على بند البيان الأصلي (يختفي من "لم يتم تسليمها بعد").
+function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientShipment; clientId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const currentRR = shipment.manifestReturnReceived;
-  const isActive = received ? currentRR === 1 : currentRR === 0;
-  const [confirmReceive, setConfirmReceive] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      clientAccountManifestsApi.updateItem(shipment.manifestId!, shipment.id, {
-        deliveryStatus: shipment.manifestDeliveryStatus ?? "returned",
-        partialQuantity: shipment.manifestPartialQty ?? null,
-        returnReceived: received,
-      }),
+    mutationFn: () => clientReturnManifestsApi.confirmDelivery(clientId, shipment.id),
     onSuccess: () => {
-      toast({
-        title: received ? "تم الاستلام ✅" : "لم يتم الاستلام بعد",
-        description: received ? "تمت إضافة البضاعة للمخزن" : undefined,
-      });
+      toast({ title: "تم تسليم المرتجع للعميل ✅", description: "تم ترحيله لبيان المرتجعات المفتوح" });
       qc.invalidateQueries({ queryKey: ["client-shipments"] });
+      qc.invalidateQueries({ queryKey: ["client-return-manifests"] });
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  if (received) {
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => !isActive && setConfirmReceive(true)}
-          disabled={mutation.isPending}
-          className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
-            isActive
-              ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
-              : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          <span className="text-sm">✅</span>
-          <span>تم الاستلام</span>
-        </button>
-        <AlertDialog open={confirmReceive} onOpenChange={setConfirmReceive}>
-          <AlertDialogContent dir="rtl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>تأكيد استلام البضاعة</AlertDialogTitle>
-              <AlertDialogDescription>
-                هل أنت متأكد من استلام بضاعة شحنة <strong>{shipment.shipmentNumber}</strong> ({shipment.receiverName}) من مندوب الشحن؟
-                <br />سيتم إضافتها للمخزن فورًا.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-emerald-700 text-white hover:bg-emerald-600"
-                onClick={() => { setConfirmReceive(false); mutation.mutate(); }}
-              >
-                نعم، تم الاستلام
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </>
-    );
-  }
-
   return (
-    <button
-      type="button"
-      onClick={() => !isActive && mutation.mutate()}
-      disabled={mutation.isPending}
-      className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-orange-500 bg-orange-900/40 text-orange-300 disabled:opacity-50 disabled:cursor-not-allowed`}
-    >
-      <span className="text-sm">🚚</span>
-      <span>لم يتم بعد</span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        disabled={mutation.isPending}
+        className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <span className="text-sm">✅</span>
+        <span>تم الاستلام</span>
+      </button>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد تسليم المرتجع للعميل</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من تسليم مرتجع الشحنة <strong>{shipment.shipmentNumber}</strong> ({shipment.receiverName}) للعميل؟
+              <br />سيتم ترحيله لبيان المرتجعات المفتوح الخاص بالعميل.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-700 text-white hover:bg-emerald-600"
+              onClick={() => { setConfirmOpen(false); mutation.mutate(); }}
+            >
+              نعم، تم التسليم
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
