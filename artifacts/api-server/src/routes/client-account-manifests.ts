@@ -409,6 +409,31 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
         }
       }
 
+      // ── returnValueReceived للمرتجع بالأسباب المالية — نفس fallback في GET /:id بالظبط:
+      // القيمة الحقيقية مسجّلة في جدول بيان الشحن (shipment_manifest_items) مش في جدول
+      // بيان حساب العميل (item.returnValueReceived) اللي بيفضل null غالبًا. من غير الـ
+      // fallback ده، القيمة المستلمة للمرتجع المالي بتتحسب صفر غلط بدل قيمتها الحقيقية.
+      let shipmentReturnValueMap: Record<number, number> = {};
+      if (shipmentIds.length) {
+        const smItems = await db
+          .select({
+            shipmentId: shipmentManifestItemsTable.shipmentId,
+            returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
+            addedAt: shipmentManifestItemsTable.addedAt,
+          })
+          .from(shipmentManifestItemsTable)
+          .where(and(
+            inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+            eq(shipmentManifestItemsTable.deliveryStatus, "returned"),
+          ));
+        smItems
+          .filter(r => r.returnValueReceived != null)
+          .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+          .forEach(row => {
+            shipmentReturnValueMap[row.shipmentId] = Number(row.returnValueReceived);
+          });
+      }
+
       // ── نفس منطق getCollectedAmount + displayedShippingCost بالظبط
       // (client-account-manifest-detail.tsx، كارت "الرصيد المستحق" الثابت) ──
       const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
@@ -445,8 +470,10 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
           const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
           collected = pq != null ? Math.round(Number(pq)) : 0;
         } else if (isReturnedWithValue) {
+          // نفس fallback GET /:id بالظبط: item.returnValueReceived (جدول بيان حساب
+          // العميل) بيفضل null غالبًا؛ القيمة الحقيقية مسجّلة في shipment_manifest_items.
           const rvr = (item as any).returnValueReceived;
-          collected = rvr != null ? Number(rvr) : 0;
+          collected = rvr != null ? Number(rvr) : (shipmentReturnValueMap[item.shipmentId] ?? 0);
         }
         totalBalance += collected;
 
