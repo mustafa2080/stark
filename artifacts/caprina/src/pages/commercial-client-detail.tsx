@@ -1757,7 +1757,6 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
 
   return (
     <div className="space-y-5 pt-1">
-      <ReturnOpenManifestCard clientId={clientId} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card
@@ -1921,17 +1920,21 @@ function ReturnManifestsListSection({ clientId }: { clientId: number }) {
   });
 
   const manifests = data?.manifests ?? [];
+  const closedManifests = useMemo(() => manifests.filter(m => m.status !== "open"), [manifests]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return manifests;
-    return manifests.filter(m => m.manifestNumber.toLowerCase().includes(q));
-  }, [manifests, search]);
+    if (!q) return closedManifests;
+    return closedManifests.filter(m => m.manifestNumber.toLowerCase().includes(q));
+  }, [closedManifests, search]);
 
   return (
-    <div className="rounded-xl border-2 border-sky-500/50 bg-sky-950/10 p-4">
+    <div className="space-y-4">
+      <ReturnOpenManifestCard clientId={clientId} />
+
+      <div className="rounded-xl border-2 border-sky-500/50 bg-sky-950/10 p-4">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <ClipboardList className="w-4 h-4 text-sky-400" />
-        <h2 className="font-bold text-sm text-sky-400">بيانات المرتجعات ({filtered.length})</h2>
+        <h2 className="font-bold text-sm text-sky-400">البيانات المغلقة ({filtered.length})</h2>
         <div className="relative flex-1 min-w-[160px] max-w-xs mr-auto">
           <Search className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -1948,7 +1951,7 @@ function ReturnManifestsListSection({ clientId }: { clientId: number }) {
         <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
       ) : filtered.length === 0 ? (
         <div className="py-8 text-center text-xs text-muted-foreground">
-          {search ? "لا توجد بيانات مطابقة للبحث" : "لا توجد بيانات مرتجعات لهذا العميل بعد"}
+          {search ? "لا توجد بيانات مطابقة للبحث" : "لا توجد بيانات مرتجعات مغلقة بعد"}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -1962,6 +1965,7 @@ function ReturnManifestsListSection({ clientId }: { clientId: number }) {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -2089,6 +2093,7 @@ function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
   const [courierName, setCourierName] = useState("");
   const [closeNotes, setCloseNotes] = useState("");
   const [selfDelivered, setSelfDelivered] = useState(false);
+  const [itemsSearch, setItemsSearch] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["client-return-manifests", clientId],
@@ -2122,6 +2127,16 @@ function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
 
   const items = detail?.items ?? [];
   const totalCod = items.reduce((sum, it) => sum + parseFloat(it.codAmount ?? "0"), 0);
+  const filteredItems = useMemo(() => {
+    const q = itemsSearch.trim();
+    if (!q) return items;
+    const qDigits = q.replace(/\D/g, "");
+    return items.filter(it =>
+      (qDigits && (it.receiverPhone ?? "").replace(/\D/g, "").includes(qDigits)) ||
+      (it.receiverName ?? "").includes(q) ||
+      it.shipmentNumber.toLowerCase().includes(q.toLowerCase())
+    );
+  }, [items, itemsSearch]);
 
   const handlePrint = () => {
     if (!openManifest || !items.length) return;
@@ -2307,16 +2322,29 @@ function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
 
       {!collapsed && (
         <div className="relative mt-4 space-y-2">
+          {items.length > 0 && (
+            <div className="relative">
+              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={itemsSearch}
+                onChange={(e) => setItemsSearch(e.target.value)}
+                placeholder="بحث برقم التليفون أو الاسم أو رقم الشحنة..."
+                className="h-8 pr-8 text-xs bg-card"
+              />
+            </div>
+          )}
           {items.length === 0 ? (
             <div className="py-6 text-center text-xs text-muted-foreground">لم يتم تسليم أي مرتجع للعميل بعد ضمن هذا البيان</div>
+          ) : filteredItems.length === 0 ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">لا توجد نتائج مطابقة للبحث</div>
           ) : (
             <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto pr-1">
-              {items.map(it => (
+              {filteredItems.map(it => (
                 <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
                   <div className="min-w-0">
                     <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
                     <p className="text-[10px] text-muted-foreground truncate">
-                      {it.shipmentNumber} {it.receiverCity ? `• ${it.receiverCity}` : ""}
+                      {it.shipmentNumber} {it.receiverPhone ? `• ${it.receiverPhone}` : ""} {it.receiverCity ? `• ${it.receiverCity}` : ""}
                     </p>
                     {it.returnReason && (
                       <p className="text-[10px] text-amber-400 mt-0.5">{returnReasonLabel(it.returnReason)}</p>
