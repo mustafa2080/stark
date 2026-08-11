@@ -2805,6 +2805,9 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
             )}
           </div>
 
+          {/* أوامر البيع — تظهر فقط لو للعميل أوامر بيع فعلية (نظام قديم) */}
+          {orders.length > 0 && (
+          <>
           {/* الجدول — Desktop (تفاصيل أوامر البيع فقط) */}
           <h3 className="text-xs font-bold text-muted-foreground pt-1">تفاصيل أوامر البيع</h3>
           <div className="hidden sm:block rounded-lg border border-border overflow-hidden">
@@ -2897,6 +2900,8 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
               );
             })}
           </div>
+          </>
+          )}
       </div>
     </div>
   );
