@@ -3,6 +3,7 @@ import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable,
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
+import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
 import { z } from "zod";
 
 const router = Router();
@@ -439,6 +440,64 @@ router.get("/finance/clients/:id/statement", async (req, res): Promise<void> => 
     const totalAmount = orders.reduce((s, o) => s + parseFloat(o.totalAmount ?? "0"), 0);
     const totalPaid   = orders.reduce((s, o) => s + parseFloat(o.paidAmount  ?? "0"), 0);
 
+    // ── كشف حساب موحّد: بيانات حساب عميل مقفولة (شحن) + سدادات + أوامر بيع (لو موجودة) ──
+    // نفس منطق كارت "رصيد العميل" بالداشبورد بالظبط (computeClosedManifestsForClient)
+    // — عشان العميل اللي مالوش أوامر بيع (عميل شحن بحت) يشوف حركته الحقيقية بدل
+    // كشف حساب فاضي، ويشوف السدادات اللي اتسجلت له بدل ما تختفي.
+    const { manifests: closedManifests, payments: accountPayments } = await computeClosedManifestsForClient(id);
+
+    const fromDate = req.query.from ? new Date(req.query.from as string) : null;
+    const toDate = req.query.to ? new Date(req.query.to as string + "T23:59:59") : null;
+    const inRange = (d: Date) => (!fromDate || d >= fromDate) && (!toDate || d <= toDate);
+
+    type Txn = { type: "manifest" | "payment" | "sale_order"; date: Date; label: string; amount: number; direction: "due" | "paid"; refId: number };
+    const transactions: Txn[] = [];
+
+    for (const m of closedManifests) {
+      const d = m.closedAt ?? m.createdAt;
+      if (!inRange(d)) continue;
+      transactions.push({
+        type: "manifest", date: d, refId: m.id,
+        label: `بيان مرتجعات مغلق ${m.manifestNumber} (${m.itemsCount} شحنة)`,
+        amount: m.value, direction: "due",
+      });
+    }
+    for (const p of accountPayments) {
+      if (!inRange(p.createdAt)) continue;
+      transactions.push({
+        type: "payment", date: p.createdAt, refId: p.id,
+        label: p.notes ? `سداد حساب عميل — ${p.notes}` : "سداد حساب عميل",
+        amount: p.amount, direction: "paid",
+      });
+    }
+    for (const o of orders) {
+      const d = new Date(o.createdAt);
+      const t = parseFloat(o.totalAmount ?? "0");
+      const pd = o.paymentStatus === "paid" ? t : parseFloat(o.paidAmount ?? "0");
+      transactions.push({
+        type: "sale_order", date: d, refId: o.id,
+        label: `أمر بيع ${o.soNumber}`,
+        amount: t, direction: "due",
+      });
+      if (pd > 0) {
+        transactions.push({
+          type: "sale_order", date: d, refId: o.id,
+          label: `تحصيل أمر بيع ${o.soNumber}`,
+          amount: pd, direction: "paid",
+        });
+      }
+    }
+
+    transactions.sort((a, b) => a.date.getTime() - b.date.getTime());
+    let running = 0;
+    const transactionsWithRunningBalance = transactions.map(t => {
+      running += t.direction === "due" ? t.amount : -t.amount;
+      return { ...t, runningBalance: Number(running.toFixed(2)) };
+    }).reverse(); // الأحدث أولاً للعرض
+
+    const manifestsTotal = closedManifests.reduce((s, m) => s + m.value, 0);
+    const paymentsTotal = accountPayments.reduce((s, p) => s + p.amount, 0);
+
     res.json({
       client,
       orders,
@@ -447,6 +506,14 @@ router.get("/finance/clients/:id/statement", async (req, res): Promise<void> => 
         totalAmount,
         totalPaid,
         totalUnpaid: totalAmount - totalPaid,
+      },
+      transactions: transactionsWithRunningBalance,
+      transactionsSummary: {
+        manifestsTotal: Number(manifestsTotal.toFixed(2)),
+        paymentsTotal: Number(paymentsTotal.toFixed(2)),
+        saleOrdersTotal: Number(totalAmount.toFixed(2)),
+        saleOrdersPaidTotal: Number(totalPaid.toFixed(2)),
+        netBalance: Number((manifestsTotal + totalAmount - paymentsTotal - totalPaid).toFixed(2)),
       },
     });
   } catch (err: any) {

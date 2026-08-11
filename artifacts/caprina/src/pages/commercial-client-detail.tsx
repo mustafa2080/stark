@@ -1711,6 +1711,7 @@ export default function CommercialClientDetailPage() {
       {activeTab === "statement" && client && (
         <ClientStatementDialog
           client={client}
+          clientId={clientId}
           orders={allOrders}
           from={statementFrom}
           to={statementTo}
@@ -2207,8 +2208,19 @@ function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientSh
 // ════════════════════════════════════════════════════════════════════════════
 // ─── ClientStatementDialog — كشف حساب تفاعلي بفلترة تاريخ ──────────────────
 // ════════════════════════════════════════════════════════════════════════════
-function ClientStatementDialog({ client, orders, from, to, onFromChange, onToChange, onClose }: {
+type StatementTxn = {
+  type: "manifest" | "payment" | "sale_order";
+  date: string;
+  label: string;
+  amount: number;
+  direction: "due" | "paid";
+  refId: number;
+  runningBalance: number;
+};
+
+function ClientStatementDialog({ client, clientId, orders, from, to, onFromChange, onToChange, onClose }: {
   client: Client;
+  clientId: number;
   orders: SaleOrder[];
   from: string;
   to: string;
@@ -2217,6 +2229,19 @@ function ClientStatementDialog({ client, orders, from, to, onFromChange, onToCha
   onClose: () => void;
 }) {
   const [exporting, setExporting] = useState<"excel" | null>(null);
+
+  // ── كشف الحساب الموحّد: بيانات مغلقة (شحن) + سدادات + أوامر بيع ──
+  // نفس الرقم بالظبط اللي بيظهر في كارت "رصيد العميل" بالداشبورد (endpoint مشترك).
+  const { data: statementData, isLoading: statementLoading } = useQuery<{
+    transactions: StatementTxn[];
+    transactionsSummary: { manifestsTotal: number; paymentsTotal: number; saleOrdersTotal: number; saleOrdersPaidTotal: number; netBalance: number };
+  }>({
+    queryKey: ["client-statement", clientId, from, to],
+    queryFn: () => apiFetch(`/finance/clients/${clientId}/statement${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}` : ""}`),
+    enabled: !!clientId,
+  });
+  const transactions = statementData?.transactions ?? [];
+  const txnSummary = statementData?.transactionsSummary;
 
   const filtered = useMemo(() => {
     return orders.filter(o => {
@@ -2718,7 +2743,64 @@ function ClientStatementDialog({ client, orders, from, to, onFromChange, onToCha
             </Card>
           </div>
 
-          {/* الجدول — Desktop */}
+          {/* ─── الحركة المالية الموحّدة: بيانات مغلقة + سدادات + أوامر بيع ─── */}
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-xs font-bold flex items-center gap-1.5">
+                <ClipboardList className="w-3.5 h-3.5 text-primary" />
+                الحركة المالية الكاملة (شحن + مبيعات + سدادات)
+              </h3>
+              {txnSummary && (
+                <span className={`text-xs font-black ${txnSummary.netBalance > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                  الرصيد الصافي: {fmt(Math.abs(txnSummary.netBalance))} ج.م {txnSummary.netBalance > 0 ? "(مستحق)" : txnSummary.netBalance < 0 ? "(له)" : ""}
+                </span>
+              )}
+            </div>
+
+            {statementLoading ? (
+              <p className="text-center text-muted-foreground text-xs py-6">جاري تحميل الحركات...</p>
+            ) : transactions.length === 0 ? (
+              <p className="text-center text-muted-foreground text-xs py-6">لا توجد حركات مالية مسجّلة لهذا العميل حتى الآن</p>
+            ) : (
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/90 backdrop-blur">
+                      <tr className="text-muted-foreground">
+                        <th className="px-3 py-2 font-bold text-center">التاريخ</th>
+                        <th className="px-3 py-2 font-bold text-right">الحركة</th>
+                        <th className="px-3 py-2 font-bold text-center">المبلغ</th>
+                        <th className="px-3 py-2 font-bold text-center">الرصيد بعدها</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transactions.map((t, i) => (
+                        <tr key={`${t.type}-${t.refId}-${i}`} className={i % 2 === 0 ? "bg-card" : "bg-muted/10"}>
+                          <td className="px-3 py-2 text-center text-muted-foreground whitespace-nowrap">
+                            {format(new Date(t.date), "yyyy/M/d")}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <span className={t.type === "payment" ? "text-emerald-400" : t.type === "manifest" ? "text-sky-400" : "text-amber-400"}>
+                              {t.label}
+                            </span>
+                          </td>
+                          <td className={`px-3 py-2 text-center font-bold ${t.direction === "paid" ? "text-emerald-400" : "text-foreground"}`}>
+                            {t.direction === "paid" ? "−" : "+"}{fmt(t.amount)} ج.م
+                          </td>
+                          <td className={`px-3 py-2 text-center font-bold ${t.runningBalance > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                            {fmt(Math.abs(t.runningBalance))} ج.م
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* الجدول — Desktop (تفاصيل أوامر البيع فقط) */}
+          <h3 className="text-xs font-bold text-muted-foreground pt-1">تفاصيل أوامر البيع</h3>
           <div className="hidden sm:block rounded-lg border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">

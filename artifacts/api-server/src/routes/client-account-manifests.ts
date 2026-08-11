@@ -22,6 +22,7 @@ import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY } from "../lib/manifestSync.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
+import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -357,157 +358,12 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
 
     // إجمالي رصيد العميل بيحسب بس من البيانات المقفولة (status = closed) — البيان
     // المفتوح لسه قيد التحرير ومش نهائي، فرصيده ميظهرش في الإجمالي لحد ما يتقفل.
-    const allManifests = await db
-      .select()
-      .from(clientAccountManifestsTable)
-      .where(and(
-        eq(clientAccountManifestsTable.clientId, clientId),
-        eq(clientAccountManifestsTable.status, "closed"),
-      ));
+    // منطق الحساب مستخرج في computeClosedManifestsForClient (lib/clientAccountBalance.ts)
+    // عشان يتشارك بين الـ endpoint ده وبين كشف الحساب /finance/clients/:id/statement —
+    // لازم يفضلوا متطابقين تمامًا، ده الرقم المرجعي الوحيد الصحيح.
+    const { balance, manifests } = await computeClosedManifestsForClient(clientId);
 
-    const manifestIds = allManifests.map(m => m.id);
-    let totalBalance = 0;
-
-    if (manifestIds.length) {
-      const items = await db
-        .select()
-        .from(clientAccountManifestItemsTable)
-        .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
-
-      const shipmentIds = items.map(i => i.shipmentId);
-      const shipments = shipmentIds.length
-        ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
-        : [];
-      const shipmentMap: Record<number, any> = {};
-      shipments.forEach(s => { shipmentMap[s.id] = s; });
-
-      // ── سعر الشحن حسب نوع العميل (VIP/تجاري/عادي) — نفس getZoneShipping في GET /:id ──
-      const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
-      const clientType = client?.clientType ?? "normal";
-      const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
-      let zoneShippingMap: Record<number, number> = {};
-      if (zoneIds.length) {
-        const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
-        zoneShippingMap = Object.fromEntries(zones.map(z => {
-          const priceByType =
-            clientType === "vip"        ? z.priceVip :
-            clientType === "commercial" ? z.priceCommercial :
-            z.priceNormal;
-          const resolved = priceByType != null && Number(priceByType) > 0 ? priceByType : z.price;
-          return [z.id, Number(resolved) || 0];
-        }));
-      }
-      const getZoneShipping = (shipment: any) =>
-        shipment?.zoneId ? (zoneShippingMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
-
-      // ── إضافات نوع الطرد (basePrice) على سعر العميل — نفس repExtraCost في GET /:id ──
-      const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
-      let parcelBasePriceMap: Record<string, number> = {};
-      if (parcelTypes.length) {
-        const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
-        const tenantId = allManifests[0]?.tenantId ?? null;
-        if (tenantId !== null && tenantId !== undefined) {
-          conds.push(or(eq(parcelTypePricingTable.tenantId, tenantId), isNull(parcelTypePricingTable.tenantId)));
-        }
-        const pricingRows = await db
-          .select({ tenantId: parcelTypePricingTable.tenantId, parcelType: parcelTypePricingTable.parcelType, basePrice: parcelTypePricingTable.basePrice })
-          .from(parcelTypePricingTable)
-          .where(and(...conds));
-        for (const row of pricingRows) {
-          const existing = parcelBasePriceMap[row.parcelType];
-          const isTenantRow = row.tenantId != null && row.tenantId === tenantId;
-          if (existing === undefined || isTenantRow) parcelBasePriceMap[row.parcelType] = Number(row.basePrice ?? 0);
-        }
-      }
-
-      // ── returnValueReceived للمرتجع بالأسباب المالية — نفس fallback في GET /:id بالظبط:
-      // القيمة الحقيقية مسجّلة في جدول بيان الشحن (shipment_manifest_items) مش في جدول
-      // بيان حساب العميل (item.returnValueReceived) اللي بيفضل null غالبًا. من غير الـ
-      // fallback ده، القيمة المستلمة للمرتجع المالي بتتحسب صفر غلط بدل قيمتها الحقيقية.
-      let shipmentReturnValueMap: Record<number, number> = {};
-      if (shipmentIds.length) {
-        const smItems = await db
-          .select({
-            shipmentId: shipmentManifestItemsTable.shipmentId,
-            returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
-            addedAt: shipmentManifestItemsTable.addedAt,
-          })
-          .from(shipmentManifestItemsTable)
-          .where(and(
-            inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
-            eq(shipmentManifestItemsTable.deliveryStatus, "returned"),
-          ));
-        smItems
-          .filter(r => r.returnValueReceived != null)
-          .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
-          .forEach(row => {
-            shipmentReturnValueMap[row.shipmentId] = Number(row.returnValueReceived);
-          });
-      }
-
-      // ── نفس منطق getCollectedAmount + displayedShippingCost بالظبط
-      // (client-account-manifest-detail.tsx، كارت "الرصيد المستحق" الثابت) ──
-      const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
-      const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
-        if (st === "postponed" || st === "delayed" || st === "pending") return true;
-        if (st === "returned") {
-          // item هنا صف خام من client_account_manifest_items ومفهوش خاصية .shipment
-          // (دي موجودة بس في enrichedItems بتاع GET /:id) — لازم ناخد shipment.returnReason
-          // كـ fallback من الـ shipment الفعلية اللي بعتناها، مش من item.shipment اللي دايمًا undefined.
-          const reason = item.returnReason ?? shipment?.returnReason ?? null;
-          if (!RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) return true;
-        }
-        return false;
-      };
-
-      for (const item of items) {
-        const shipment = shipmentMap[item.shipmentId];
-        if (!shipment) continue;
-        const st = item.deliveryStatus;
-        const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
-        const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
-        // نفس شرط enrichment الحقيقي (GET /:id، سطر ~674): سعر الشحن صفر لو مرتجع
-        // بسبب غير مالي أو بلا سبب — مش بس عند الطرح النهائي، لأن totalPrice نفسها
-        // (للحالة delivered) لازم تطابق نفس القيمة المخزنة فعليًا في enrichment.
-        const zoneShippingForItem = (st !== "returned" || isReturnedWithValue) ? getZoneShipping(shipment) : 0;
-        const totalPrice = Number(shipment.codAmount ?? shipment.totalAmount ?? 0) + zoneShippingForItem;
-
-        let collected = 0;
-        if (st === "delivered") {
-          const dvr = (item as any).deliveredValueReceived;
-          collected = dvr != null ? Number(dvr) : totalPrice;
-        } else if (st === "partial_delivered") {
-          const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
-          collected = pq != null ? Number(pq) : 0;
-        } else if (st === "partial_received") {
-          // partialQuantity هنا فعليًا مبلغ الفلوس المُستلم، بيتقرّب — نفس getCollectedAmount بالفرونت إند بالظبط.
-          const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
-          collected = pq != null ? Math.round(Number(pq)) : 0;
-        } else if (isReturnedWithValue) {
-          // نفس fallback GET /:id بالظبط: item.returnValueReceived (جدول بيان حساب
-          // العميل) بيفضل null غالبًا؛ القيمة الحقيقية مسجّلة في shipment_manifest_items.
-          const rvr = (item as any).returnValueReceived;
-          collected = rvr != null ? Number(rvr) : (shipmentReturnValueMap[item.shipmentId] ?? 0);
-        }
-        totalBalance += collected;
-
-        if (!isShippingZeroedRow(item, st, shipment)) {
-          // repExtraCost بنفس شرط enrichment بالظبط: بس لو zoneShippingForItem > 0 وعندها parcelType.
-          const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
-          totalBalance -= (zoneShippingForItem + repExtraCost);
-        }
-      }
-    }
-
-    // ── سدادات سبق دفعها للعميل كمصروف "سداد حساب عميل" — بتتخصم من الرصيد ──
-    const payments = await db
-      .select({ amount: clientAccountPaymentsTable.amount })
-      .from(clientAccountPaymentsTable)
-      .where(eq(clientAccountPaymentsTable.clientId, clientId));
-    const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-    totalBalance -= totalPaid;
-
-    res.json({ clientId, balance: totalBalance, manifestsCount: manifestIds.length });
+    res.json({ clientId, balance, manifestsCount: manifests.length });
   } catch (e) {
     console.error("[GET /client-account-manifests/balance/:clientId]", e);
     res.status(500).json({ error: "خطأ في حساب رصيد العميل" });
