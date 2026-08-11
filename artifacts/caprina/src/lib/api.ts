@@ -2175,9 +2175,12 @@ export interface ClientReturnManifestItem {
   manifestId: number;
   shipmentId: number;
   shipmentNumber: string;
+  senderName: string | null;
   receiverName: string | null;
   receiverPhone: string | null;
   receiverCity: string | null;
+  costPrice: string | null;
+  shippingFee: string | null;
   codAmount: string | null;
   returnReason: string | null;
   addedAt: string;
