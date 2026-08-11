@@ -1976,124 +1976,52 @@ function ReturnManifestListRow({ manifest, isOpen, onToggle }: {
   isOpen: boolean;
   onToggle: () => void;
 }) {
-  const { data: detail, isLoading } = useQuery({
-    queryKey: ["client-return-manifest-detail", manifest.id],
-    queryFn: () => clientReturnManifestsApi.get(manifest.id),
-    enabled: isOpen,
-  });
-
-  const items = detail?.items ?? [];
-  const totalCod = items.reduce((sum, it) => sum + parseFloat(it.codAmount ?? "0"), 0);
+  const [, navigate] = useLocation();
 
   return (
-    <div className="rounded-lg border border-border bg-card/50 overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className={cn(
-            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-            manifest.status === "open" ? "bg-emerald-500/10 text-emerald-400" : "bg-muted text-muted-foreground"
-          )}>
-            <FileText className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 text-right">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-xs truncate">{manifest.manifestNumber}</span>
-              {manifest.status === "open" ? (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 bg-emerald-900/30 text-emerald-400 border border-emerald-800">
-                  <LockOpen className="w-2.5 h-2.5" /> مفتوح
-                </span>
-              ) : (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 bg-muted text-muted-foreground border border-border">
-                  <Lock className="w-2.5 h-2.5" /> مغلق
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
-              {manifest.itemsCount != null && ` — ${manifest.itemsCount} مرتجع`}
-            </p>
-          </div>
+    <button
+      type="button"
+      onClick={() => navigate(`/finance/return-manifest/${manifest.id}`)}
+      className="group w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border bg-card/50 hover:bg-muted/30 hover:border-primary/40 transition-colors text-right"
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+          manifest.status === "open" ? "bg-emerald-500/10 text-emerald-400" : "bg-muted text-muted-foreground"
+        )}>
+          <FileText className="w-4 h-4" />
         </div>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", isOpen && "rotate-180")} />
-      </button>
-
-      {isOpen && (
-        <div className="border-t border-border px-3 py-3 space-y-3">
-          {isLoading ? (
-            <div className="py-4 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
-          ) : (
-            <>
-              {manifest.status === "closed" && (
-                <div className="rounded-lg border border-sky-800/40 bg-sky-950/20 px-3 py-2 space-y-1">
-                  {detail?.manifest.closedAt && (
-                    <p className="text-[11px] text-sky-300">
-                      أُغلق بتاريخ {format(new Date(detail.manifest.closedAt), "d MMMM yyyy", { locale: ar })}
-                    </p>
-                  )}
-                  {detail?.manifest.courierName ? (
-                    <p className="text-[11px] font-semibold text-sky-300">
-                      تم تسليم مرتجعات البيان من خلال المندوب: {detail.manifest.courierName}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground">لم يتم تسجيل اسم المندوب لهذا البيان</p>
-                  )}
-                  {detail?.manifest.notes && (
-                    <p className="text-[11px] text-amber-300/90">ملاحظات: {detail.manifest.notes}</p>
-                  )}
-                </div>
-              )}
-
-              {items.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد مرتجعات مسجّلة في هذا البيان</div>
-              ) : (
-                <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto pr-1">
-                  {items.map(it => (
-                    <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {it.shipmentNumber} {it.receiverPhone ? `• ${it.receiverPhone}` : ""} {it.receiverCity ? `• ${it.receiverCity}` : ""}
-                        </p>
-                        {it.returnReason && (
-                          <p className="text-[10px] text-amber-400 mt-0.5">{returnReasonLabel(it.returnReason)}</p>
-                        )}
-                      </div>
-                      <p className="text-xs font-bold text-primary shrink-0">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {items.length > 0 && (
-                <div className="flex items-center justify-between rounded-lg border border-emerald-800/40 bg-emerald-950/20 px-3 py-2">
-                  <span className="text-[11px] font-bold text-emerald-400">إجمالي قيمة البيان</span>
-                  <span className="text-sm font-black text-emerald-400">{formatCurrency(totalCod)}</span>
-                </div>
-              )}
-            </>
-          )}
+        <div className="min-w-0 text-right">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-xs truncate">{manifest.manifestNumber}</span>
+            {manifest.status === "open" ? (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 bg-emerald-900/30 text-emerald-400 border border-emerald-800">
+                <LockOpen className="w-2.5 h-2.5" /> مفتوح
+              </span>
+            ) : (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 bg-muted text-muted-foreground border border-border">
+                <Lock className="w-2.5 h-2.5" /> مغلق
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
+            {manifest.itemsCount != null && ` — ${manifest.itemsCount} مرتجع`}
+          </p>
         </div>
-      )}
-    </div>
+      </div>
+      <span className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground group-hover:text-primary shrink-0 transition-colors">
+        عرض التفاصيل <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+      </span>
+    </button>
   );
 }
 // ════════════════════════════════════════════════════════════════════════════
 // ReturnOpenManifestCard — كارت بيان المرتجعات المفتوح، مدمج داخل الصفحة
-// نفس شكل AdminOpenManifestCard (تاب البيانات) + طباعة + إغلاق
+// نفس شكل AdminOpenManifestCard (تاب البيانات) — كارت ملخّص + رابط لصفحة التفاصيل المستقلة
 // ════════════════════════════════════════════════════════════════════════════
 function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [courierName, setCourierName] = useState("");
-  const [closeNotes, setCloseNotes] = useState("");
-  const [selfDelivered, setSelfDelivered] = useState(false);
-  const [itemsSearch, setItemsSearch] = useState("");
+  const [, navigate] = useLocation();
 
   const { data, isLoading } = useQuery({
     queryKey: ["client-return-manifests", clientId],
@@ -2108,137 +2036,8 @@ function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
     enabled: !!openManifest,
   });
 
-  const closeMutation = useMutation({
-    mutationFn: () => clientReturnManifestsApi.close(
-      openManifest!.id,
-      selfDelivered ? (closeNotes.trim() || "العميل تم استلام مرتجعاته بنفسه") : (closeNotes.trim() || null),
-      selfDelivered ? null : courierName.trim(),
-    ),
-    onSuccess: () => {
-      toast({ title: "تم إغلاق البيان ✅", description: "تم فتح بيان مرتجعات جديد تلقائيًا" });
-      qc.invalidateQueries({ queryKey: ["client-return-manifests", clientId] });
-      qc.invalidateQueries({ queryKey: ["client-return-manifest-detail"] });
-      setCourierName("");
-      setCloseNotes("");
-      setSelfDelivered(false);
-    },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
-  });
-
   const items = detail?.items ?? [];
   const totalCod = items.reduce((sum, it) => sum + parseFloat(it.codAmount ?? "0"), 0);
-  const filteredItems = useMemo(() => {
-    const q = itemsSearch.trim();
-    if (!q) return items;
-    const qDigits = q.replace(/\D/g, "");
-    return items.filter(it =>
-      (qDigits && (it.receiverPhone ?? "").replace(/\D/g, "").includes(qDigits)) ||
-      (it.receiverName ?? "").includes(q) ||
-      it.shipmentNumber.toLowerCase().includes(q.toLowerCase())
-    );
-  }, [items, itemsSearch]);
-
-  const handlePrint = () => {
-    if (!openManifest || !items.length) return;
-    const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) { window.print(); return; }
-
-    const rowsHtml = items.map((it, i) => `
-      <tr class="${i % 2 === 1 ? "mp-row-alt" : ""}">
-        <td class="mp-td-center">${i + 1}</td>
-        <td>${it.receiverName ?? "-"}<div class="mp-sub">${it.shipmentNumber}</div></td>
-        <td class="mp-td-ltr">${it.receiverPhone ?? "-"}</td>
-        <td>${it.receiverCity ?? "-"}</td>
-        <td>${it.returnReason ? returnReasonLabel(it.returnReason) : "-"}</td>
-        <td class="mp-td-center mp-td-bold">${formatCurrency(parseFloat(it.codAmount ?? "0"))}</td>
-      </tr>`).join("");
-
-    win.document.write(`<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-  <meta charset="UTF-8"/>
-  <title>بيان مرتجعات — ${openManifest.manifestNumber}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4 portrait; margin: 8mm 10mm; }
-    body { font-family:'Cairo','Segoe UI',Arial,sans-serif; font-size:10pt; color:#111; background:#fff; direction:rtl; padding:0 2mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:4mm; }
-    .mp-title { font-size:17pt; font-weight:900; color:#1e3a5f; }
-    .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
-    .mp-company-name { font-size:14pt; font-weight:900; color:#1e3a5f; text-align:left; }
-    .mp-table { width:100%; border-collapse:collapse; margin-bottom:4mm; font-size:9.5pt; border:2.5px solid #1e3a5f; }
-    .mp-table thead tr { background:#1e3a5f; }
-    .mp-table th { color:#fff; font-size:9pt; font-weight:700; padding:2.5mm 3mm; text-align:right; border:2px solid rgba(255,255,255,0.5); }
-    .mp-table td { padding:2.5mm 3mm; border:2px solid #94a3b8; vertical-align:middle; line-height:1.5; }
-    .mp-row-alt td { background:#f0f4f8; }
-    .mp-td-center { text-align:center; } .mp-td-bold { font-weight:700; }
-    .mp-td-ltr { direction:ltr; text-align:right; }
-    .mp-sub { font-size:7.5pt; color:#94a3b8; margin-top:0.5mm; }
-    .mp-totals { display:flex; justify-content:flex-end; gap:4mm; margin-bottom:5mm; }
-    .mp-total-card { border:2.5px solid #15803d; border-radius:2mm; padding:3mm 6mm; text-align:center; background:#f0fdf4; }
-    .mp-total-lbl { font-size:8pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
-    .mp-total-val { font-size:13pt; font-weight:900; color:#15803d; }
-    .mp-footer { border-top:1.5px solid #e2e8f0; padding-top:4mm; margin-top:6mm; display:flex; justify-content:space-between; align-items:flex-end; }
-    .mp-sig { min-width:50mm; text-align:center; }
-    .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
-    .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
-    .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
-  </style>
-</head>
-<body>
-  <div class="mp-header">
-    <div>
-      <div class="mp-title">بيان مرتجعات</div>
-      <div class="mp-meta">
-        رقم البيان: ${openManifest.manifestNumber}<br/>
-        العميل: ${openManifest.clientName ?? "-"}<br/>
-        التاريخ: ${format(new Date(), "yyyy/MM/dd")}
-      </div>
-    </div>
-    <div class="mp-company-name">STARK</div>
-  </div>
-  <table class="mp-table">
-    <thead>
-      <tr>
-        <th class="mp-td-center">#</th>
-        <th>اسم العميل</th>
-        <th>رقم التليفون</th>
-        <th>المدينة</th>
-        <th>سبب المرتجع</th>
-        <th class="mp-td-center">سعر الشحنة</th>
-      </tr>
-    </thead>
-    <tbody>${rowsHtml}</tbody>
-  </table>
-  <div class="mp-totals">
-    <div class="mp-total-card">
-      <div class="mp-total-lbl">عدد المرتجعات</div>
-      <div class="mp-total-val">${items.length}</div>
-    </div>
-    <div class="mp-total-card">
-      <div class="mp-total-lbl">إجمالي القيمة</div>
-      <div class="mp-total-val">${formatCurrency(totalCod)}</div>
-    </div>
-  </div>
-  <div class="mp-footer">
-    <div class="mp-sig">
-      <div class="mp-sig-title">توقيع المندوب</div>
-      <div class="mp-sig-line"></div>
-    </div>
-    <div class="mp-sig">
-      <div class="mp-sig-title">توقيع العميل / المستلم</div>
-      <div class="mp-sig-line"></div>
-      <div class="mp-sig-name">${openManifest.clientName ?? ""}</div>
-    </div>
-  </div>
-</body>
-</html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 500);
-  };
 
   if (isLoading || detailLoading) {
     return (
@@ -2259,23 +2058,18 @@ function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
   const total = items.length;
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-emerald-950/20 via-muted/20 to-transparent hover:border-emerald-600/60 transition-all p-4 sm:p-5">
+    <button
+      type="button"
+      onClick={() => navigate(`/finance/return-manifest/${openManifest.id}`)}
+      className="group relative overflow-hidden w-full text-right rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-emerald-950/20 via-muted/20 to-transparent hover:border-emerald-600/60 transition-all p-4 sm:p-5"
+    >
       <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-30 bg-emerald-500/30" />
 
-      <div className="relative flex items-center justify-between flex-wrap gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <Hourglass className="w-3.5 h-3.5 text-amber-400 animate-[spin_2.5s_linear_infinite]" />
-          <span className="text-[11px] font-bold text-amber-300">
-            البيان حالياً قيد العمل — يتم إضافة شحنات العميل عليه
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed(c => !c)}
-          className="text-muted-foreground/50 group-hover:text-primary transition-colors"
-        >
-          <ChevronLeft className={cn("w-4 h-4 transition-transform", collapsed && "-rotate-90")} />
-        </button>
+      <div className="relative flex items-center gap-2 mb-3">
+        <Hourglass className="w-3.5 h-3.5 text-amber-400 animate-[spin_2.5s_linear_infinite]" />
+        <span className="text-[11px] font-bold text-amber-300">
+          البيان حالياً قيد العمل — يتم إضافة شحنات العميل عليه
+        </span>
       </div>
 
       <div className="relative flex items-center justify-between gap-3 mb-4 flex-wrap">
@@ -2295,130 +2089,16 @@ function ReturnOpenManifestCard({ clientId }: { clientId: number }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Button
-            size="sm" variant="outline"
-            className="gap-1 h-8 text-xs px-3"
-            disabled={!items.length}
-            onClick={handlePrint}
-          >
-            <Printer className="w-3 h-3" />طباعة
-          </Button>
-          <Button
-            size="sm" variant="outline"
-            className="gap-1 h-8 text-xs px-3 border-emerald-700 text-emerald-400 hover:bg-emerald-900/20"
-            disabled={!items.length || closeMutation.isPending}
-            onClick={() => setCloseConfirmOpen(true)}
-          >
-            <Lock className="w-3 h-3" />إغلاق
-          </Button>
-        </div>
+        <span className="flex items-center gap-1 text-[11px] font-bold text-primary shrink-0">
+          عرض التفاصيل <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+        </span>
       </div>
 
       <div className="relative grid grid-cols-2 gap-2">
         <AdminManifestMiniStat icon={CheckCircle2} value={total} label="عدد المرتجعات في البيان" tone="emerald" />
         <AdminManifestMiniStat icon={Package} value={Number(totalCod.toFixed(0))} label="إجمالي القيمة (ج.م)" />
       </div>
-
-      {!collapsed && (
-        <div className="relative mt-4 space-y-2">
-          {items.length > 0 && (
-            <div className="relative">
-              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={itemsSearch}
-                onChange={(e) => setItemsSearch(e.target.value)}
-                placeholder="بحث برقم التليفون أو الاسم أو رقم الشحنة..."
-                className="h-8 pr-8 text-xs bg-card"
-              />
-            </div>
-          )}
-          {items.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">لم يتم تسليم أي مرتجع للعميل بعد ضمن هذا البيان</div>
-          ) : filteredItems.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">لا توجد نتائج مطابقة للبحث</div>
-          ) : (
-            <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto pr-1">
-              {filteredItems.map(it => (
-                <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {it.shipmentNumber} {it.receiverPhone ? `• ${it.receiverPhone}` : ""} {it.receiverCity ? `• ${it.receiverCity}` : ""}
-                    </p>
-                    {it.returnReason && (
-                      <p className="text-[10px] text-amber-400 mt-0.5">{returnReasonLabel(it.returnReason)}</p>
-                    )}
-                  </div>
-                  <p className="text-xs font-bold text-primary shrink-0">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
-        <DialogContent dir="rtl" className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-emerald-400" /> إغلاق بيان المرتجعات
-            </DialogTitle>
-          </DialogHeader>
-
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            سيتم إغلاق البيان <strong>{openManifest?.manifestNumber}</strong>، وفتح بيان مرتجعات جديد تلقائيًا لاستقبال أي مرتجعات قادمة.
-          </p>
-
-          <label className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={selfDelivered}
-              onChange={e => setSelfDelivered(e.target.checked)}
-              className="w-4 h-4 accent-primary"
-            />
-            <span className="text-xs font-semibold">العميل استلم مرتجعاته بنفسه (بدون مندوب)</span>
-          </label>
-
-          {!selfDelivered && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">
-                يرجى إدخال اسم المندوب الذي سيتم تسليم المرتجع للعميل <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={courierName}
-                onChange={e => setCourierName(e.target.value)}
-                placeholder="اسم المندوب"
-                className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 outline-none focus:border-primary"
-              />
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground">ملاحظات (اختياري)</label>
-            <textarea
-              value={closeNotes}
-              onChange={e => setCloseNotes(e.target.value)}
-              placeholder="مثال: العميل تم استلام مرتجعاته بنفسه"
-              rows={2}
-              className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 outline-none focus:border-primary resize-none"
-            />
-          </div>
-
-          <div className="flex gap-2 pt-1">
-            <Button
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={(!selfDelivered && !courierName.trim()) || closeMutation.isPending}
-              onClick={() => { setCloseConfirmOpen(false); closeMutation.mutate(); }}
-            >
-              {closeMutation.isPending ? "جاري الإغلاق..." : "تأكيد الإغلاق"}
-            </Button>
-            <Button variant="outline" onClick={() => setCloseConfirmOpen(false)}>إلغاء</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </button>
   );
 }
 
