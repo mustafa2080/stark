@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight, ClipboardList, Search, Printer, FileText, FileSpreadsheet,
@@ -410,21 +411,35 @@ export default function ClientReturnManifestDetailPage() {
         ) : filteredItems.length === 0 ? (
           <div className="py-10 text-center text-xs text-muted-foreground">لا توجد نتائج مطابقة للبحث</div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {filteredItems.map(it => (
-              <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
-                  <p className="text-[10px] text-muted-foreground truncate" dir="ltr">
-                    {it.receiverPhone ?? "-"} <span dir="rtl">• {it.receiverCity ?? "-"}</span>
-                  </p>
-                  <p className="text-[10px] font-bold text-primary mt-0.5">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
-                </div>
-                {it.returnReason && (
-                  <p className="text-[10px] text-amber-400 shrink-0 text-left max-w-[45%]">{returnReasonLabel(it.returnReason)}</p>
-                )}
-              </div>
-            ))}
+          <div className="rounded-lg border border-border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right">الحالة</TableHead>
+                  <TableHead className="text-right">الإجمالي</TableHead>
+                  <TableHead className="text-right">المحافظة</TableHead>
+                  <TableHead className="text-right">الهاتف</TableHead>
+                  <TableHead className="text-right">المستلم</TableHead>
+                  <TableHead className="text-right">#</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map(it => (
+                  <TableRow key={it.id}>
+                    <TableCell className="text-[11px] text-amber-400 whitespace-nowrap">
+                      {it.returnReason ? returnReasonLabel(it.returnReason) : "-"}
+                    </TableCell>
+                    <TableCell className="text-xs font-bold text-primary whitespace-nowrap">
+                      {formatCurrency(parseFloat(it.codAmount ?? "0"))}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{it.receiverCity ?? "-"}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap" dir="ltr">{it.receiverPhone ?? "-"}</TableCell>
+                    <TableCell className="text-xs font-medium whitespace-nowrap">{it.receiverName ?? "-"}</TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">{it.shipmentNumber}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
