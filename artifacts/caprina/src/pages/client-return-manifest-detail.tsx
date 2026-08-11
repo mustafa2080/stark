@@ -98,6 +98,10 @@ export default function ClientReturnManifestDetailPage() {
   const [filterModeOn, setFilterModeOn] = useState(false);
   const [reasonFilter, setReasonFilter] = useState<Set<string> | null>(null);
   const [cityFilter, setCityFilter] = useState<Set<string> | null>(null);
+  const [amountFilter, setAmountFilter] = useState<Set<string> | null>(null);
+  const [phoneFilter, setPhoneFilter] = useState<Set<string> | null>(null);
+  const [receiverFilter, setReceiverFilter] = useState<Set<string> | null>(null);
+  const [shipmentFilter, setShipmentFilter] = useState<Set<string> | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [courierName, setCourierName] = useState("");
   const [closeNotes, setCloseNotes] = useState("");
@@ -116,17 +120,23 @@ export default function ClientReturnManifestDetailPage() {
 
   const reasonLabelOf = (it: typeof items[number]) => it.returnReason ? returnReasonLabel(it.returnReason) : "-";
   const cityOf = (it: typeof items[number]) => it.receiverCity ?? "-";
+  const amountOf = (it: typeof items[number]) => formatCurrency(parseFloat(it.codAmount ?? "0"));
+  const phoneOf = (it: typeof items[number]) => it.receiverPhone ?? "-";
+  const receiverOf = (it: typeof items[number]) => it.receiverName ?? "-";
+  const shipmentOf = (it: typeof items[number]) => it.shipmentNumber;
 
-  const uniqueReasons = useMemo(
-    () => Array.from(new Set(items.map(reasonLabelOf))).sort(),
-    [items]
-  );
-  const uniqueCities = useMemo(
-    () => Array.from(new Set(items.map(cityOf))).sort(),
-    [items]
-  );
+  const uniqueReasons = useMemo(() => Array.from(new Set(items.map(reasonLabelOf))).sort(), [items]);
+  const uniqueCities = useMemo(() => Array.from(new Set(items.map(cityOf))).sort(), [items]);
+  const uniqueAmounts = useMemo(() => Array.from(new Set(items.map(amountOf))).sort(), [items]);
+  const uniquePhones = useMemo(() => Array.from(new Set(items.map(phoneOf))).sort(), [items]);
+  const uniqueReceivers = useMemo(() => Array.from(new Set(items.map(receiverOf))).sort(), [items]);
+  const uniqueShipments = useMemo(() => Array.from(new Set(items.map(shipmentOf))).sort(), [items]);
 
-  const clearAllFilters = () => { setReasonFilter(null); setCityFilter(null); setFilterModeOn(false); };
+  const clearAllFilters = () => {
+    setReasonFilter(null); setCityFilter(null); setAmountFilter(null);
+    setPhoneFilter(null); setReceiverFilter(null); setShipmentFilter(null);
+    setFilterModeOn(false);
+  };
   const toggleFilterMode = () => {
     if (filterModeOn) { clearAllFilters(); } else { setFilterModeOn(true); }
   };
@@ -137,6 +147,10 @@ export default function ClientReturnManifestDetailPage() {
     return items.filter(it => {
       if (reasonFilter !== null && !reasonFilter.has(reasonLabelOf(it))) return false;
       if (cityFilter !== null && !cityFilter.has(cityOf(it))) return false;
+      if (amountFilter !== null && !amountFilter.has(amountOf(it))) return false;
+      if (phoneFilter !== null && !phoneFilter.has(phoneOf(it))) return false;
+      if (receiverFilter !== null && !receiverFilter.has(receiverOf(it))) return false;
+      if (shipmentFilter !== null && !shipmentFilter.has(shipmentOf(it))) return false;
       if (!q) return true;
       return (
         (qDigits && (it.receiverPhone ?? "").replace(/\D/g, "").includes(qDigits)) ||
@@ -144,7 +158,7 @@ export default function ClientReturnManifestDetailPage() {
         it.shipmentNumber.toLowerCase().includes(q.toLowerCase())
       );
     });
-  }, [items, itemsSearch, reasonFilter, cityFilter]);
+  }, [items, itemsSearch, reasonFilter, cityFilter, amountFilter, phoneFilter, receiverFilter, shipmentFilter]);
 
   const closeMutation = useMutation({
     mutationFn: () => clientReturnManifestsApi.close(
@@ -514,41 +528,69 @@ export default function ClientReturnManifestDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-right">
-                    <div className="flex items-center gap-1.5">
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
                       <span>الحالة</span>
                       {filterModeOn && (
                         <ColumnFilterButton values={uniqueReasons} selected={reasonFilter} onChange={setReasonFilter} />
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="text-right">الإجمالي</TableHead>
-                  <TableHead className="text-right">
-                    <div className="flex items-center gap-1.5">
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>الإجمالي</span>
+                      {filterModeOn && (
+                        <ColumnFilterButton values={uniqueAmounts} selected={amountFilter} onChange={setAmountFilter} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
                       <span>المحافظة</span>
                       {filterModeOn && (
                         <ColumnFilterButton values={uniqueCities} selected={cityFilter} onChange={setCityFilter} />
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="text-right">الهاتف</TableHead>
-                  <TableHead className="text-right">المستلم</TableHead>
-                  <TableHead className="text-right">#</TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>الهاتف</span>
+                      {filterModeOn && (
+                        <ColumnFilterButton values={uniquePhones} selected={phoneFilter} onChange={setPhoneFilter} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>المستلم</span>
+                      {filterModeOn && (
+                        <ColumnFilterButton values={uniqueReceivers} selected={receiverFilter} onChange={setReceiverFilter} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>#</span>
+                      {filterModeOn && (
+                        <ColumnFilterButton values={uniqueShipments} selected={shipmentFilter} onChange={setShipmentFilter} />
+                      )}
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredItems.map(it => (
                   <TableRow key={it.id}>
-                    <TableCell className="text-[11px] text-amber-400 whitespace-nowrap">
+                    <TableCell className="text-center text-[11px] text-amber-400 whitespace-nowrap">
                       {it.returnReason ? returnReasonLabel(it.returnReason) : "-"}
                     </TableCell>
-                    <TableCell className="text-xs font-bold text-primary whitespace-nowrap">
+                    <TableCell className="text-center text-xs font-bold text-primary whitespace-nowrap">
                       {formatCurrency(parseFloat(it.codAmount ?? "0"))}
                     </TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">{it.receiverCity ?? "-"}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap" dir="ltr">{it.receiverPhone ?? "-"}</TableCell>
-                    <TableCell className="text-xs font-medium whitespace-nowrap">{it.receiverName ?? "-"}</TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">{it.shipmentNumber}</TableCell>
+                    <TableCell className="text-center text-xs whitespace-nowrap">{it.receiverCity ?? "-"}</TableCell>
+                    <TableCell className="text-center text-xs whitespace-nowrap" dir="ltr">{it.receiverPhone ?? "-"}</TableCell>
+                    <TableCell className="text-center text-xs font-medium whitespace-nowrap">{it.receiverName ?? "-"}</TableCell>
+                    <TableCell className="text-center text-[11px] text-muted-foreground whitespace-nowrap">{it.shipmentNumber}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
