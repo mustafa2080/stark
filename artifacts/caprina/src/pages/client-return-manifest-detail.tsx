@@ -95,6 +95,7 @@ export default function ClientReturnManifestDetailPage() {
   const qc = useQueryClient();
 
   const [itemsSearch, setItemsSearch] = useState("");
+  const [filterModeOn, setFilterModeOn] = useState(false);
   const [reasonFilter, setReasonFilter] = useState<Set<string> | null>(null);
   const [cityFilter, setCityFilter] = useState<Set<string> | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -125,8 +126,10 @@ export default function ClientReturnManifestDetailPage() {
     [items]
   );
 
-  const hasColumnFilters = reasonFilter !== null || cityFilter !== null;
-  const clearAllFilters = () => { setReasonFilter(null); setCityFilter(null); setItemsSearch(""); };
+  const clearAllFilters = () => { setReasonFilter(null); setCityFilter(null); setFilterModeOn(false); };
+  const toggleFilterMode = () => {
+    if (filterModeOn) { clearAllFilters(); } else { setFilterModeOn(true); }
+  };
 
   const filteredItems = useMemo(() => {
     const q = itemsSearch.trim();
@@ -490,17 +493,15 @@ export default function ClientReturnManifestDetailPage() {
                 className="h-9 pr-8 text-xs"
               />
             </div>
-            {(hasColumnFilters || itemsSearch.trim()) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 text-[11px] gap-1 shrink-0"
-                onClick={clearAllFilters}
-              >
-                <FilterX className="w-3.5 h-3.5" />
-                مسح الكل
-              </Button>
-            )}
+            <Button
+              variant={filterModeOn ? "default" : "outline"}
+              size="sm"
+              className="h-9 text-[11px] gap-1 shrink-0"
+              onClick={toggleFilterMode}
+            >
+              {filterModeOn ? <FilterX className="w-3.5 h-3.5" /> : <Filter className="w-3.5 h-3.5" />}
+              {filterModeOn ? "إلغاء الفلتر" : "إنشاء فلتر"}
+            </Button>
           </div>
         )}
 
@@ -516,14 +517,18 @@ export default function ClientReturnManifestDetailPage() {
                   <TableHead className="text-right">
                     <div className="flex items-center gap-1.5">
                       <span>الحالة</span>
-                      <ColumnFilterButton values={uniqueReasons} selected={reasonFilter} onChange={setReasonFilter} />
+                      {filterModeOn && (
+                        <ColumnFilterButton values={uniqueReasons} selected={reasonFilter} onChange={setReasonFilter} />
+                      )}
                     </div>
                   </TableHead>
                   <TableHead className="text-right">الإجمالي</TableHead>
                   <TableHead className="text-right">
                     <div className="flex items-center gap-1.5">
                       <span>المحافظة</span>
-                      <ColumnFilterButton values={uniqueCities} selected={cityFilter} onChange={setCityFilter} />
+                      {filterModeOn && (
+                        <ColumnFilterButton values={uniqueCities} selected={cityFilter} onChange={setCityFilter} />
+                      )}
                     </div>
                   </TableHead>
                   <TableHead className="text-right">الهاتف</TableHead>
