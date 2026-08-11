@@ -2179,7 +2179,7 @@ export interface ClientReturnManifestItem {
   receiverName: string | null;
   receiverPhone: string | null;
   receiverCity: string | null;
-  costPrice: string | null;
+  shipmentCodAmount: string | null;
   shippingFee: string | null;
   codAmount: string | null;
   returnReason: string | null;

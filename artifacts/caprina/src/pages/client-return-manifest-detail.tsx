@@ -103,7 +103,7 @@ export default function ClientReturnManifestDetailPage() {
   const [receiverFilter, setReceiverFilter] = useState<Set<string> | null>(null);
   const [shipmentFilter, setShipmentFilter] = useState<Set<string> | null>(null);
   const [senderFilter, setSenderFilter] = useState<Set<string> | null>(null);
-  const [costPriceFilter, setCostPriceFilter] = useState<Set<string> | null>(null);
+  const [shipmentCodAmountFilter, setShipmentCodAmountFilter] = useState<Set<string> | null>(null);
   const [shippingFeeFilter, setShippingFeeFilter] = useState<Set<string> | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [courierName, setCourierName] = useState("");
@@ -119,16 +119,17 @@ export default function ClientReturnManifestDetailPage() {
 
   const manifest = data?.manifest ?? null;
   const items = data?.items ?? [];
-  const totalCod = items.reduce((sum, it) => sum + parseFloat(it.codAmount ?? "0"), 0);
 
   const reasonLabelOf = (it: typeof items[number]) => it.returnReason ? returnReasonLabel(it.returnReason) : "-";
   const cityOf = (it: typeof items[number]) => it.receiverCity ?? "-";
-  const amountOf = (it: typeof items[number]) => formatCurrency(parseFloat(it.codAmount ?? "0"));
+  const totalOf = (it: typeof items[number]) =>
+    parseFloat(it.shipmentCodAmount ?? "0") + parseFloat(it.shippingFee ?? "0");
+  const amountOf = (it: typeof items[number]) => formatCurrency(totalOf(it));
   const phoneOf = (it: typeof items[number]) => it.receiverPhone ?? "-";
   const receiverOf = (it: typeof items[number]) => it.receiverName ?? "-";
   const shipmentOf = (it: typeof items[number]) => it.shipmentNumber;
   const senderOf = (it: typeof items[number]) => it.senderName ?? "-";
-  const costPriceOf = (it: typeof items[number]) => it.costPrice != null ? formatCurrency(parseFloat(it.costPrice)) : "-";
+  const shipmentCodAmountOf = (it: typeof items[number]) => it.shipmentCodAmount != null ? formatCurrency(parseFloat(it.shipmentCodAmount)) : "-";
   const shippingFeeOf = (it: typeof items[number]) => it.shippingFee != null ? formatCurrency(parseFloat(it.shippingFee)) : "-";
 
   const uniqueReasons = useMemo(() => Array.from(new Set(items.map(reasonLabelOf))).sort(), [items]);
@@ -138,13 +139,15 @@ export default function ClientReturnManifestDetailPage() {
   const uniqueReceivers = useMemo(() => Array.from(new Set(items.map(receiverOf))).sort(), [items]);
   const uniqueShipments = useMemo(() => Array.from(new Set(items.map(shipmentOf))).sort(), [items]);
   const uniqueSenders = useMemo(() => Array.from(new Set(items.map(senderOf))).sort(), [items]);
-  const uniqueCostPrices = useMemo(() => Array.from(new Set(items.map(costPriceOf))).sort(), [items]);
+  const uniqueShipmentCodAmounts = useMemo(() => Array.from(new Set(items.map(shipmentCodAmountOf))).sort(), [items]);
   const uniqueShippingFees = useMemo(() => Array.from(new Set(items.map(shippingFeeOf))).sort(), [items]);
+
+  const totalCod = items.reduce((sum, it) => sum + totalOf(it), 0);
 
   const clearAllFilters = () => {
     setReasonFilter(null); setCityFilter(null); setAmountFilter(null);
     setPhoneFilter(null); setReceiverFilter(null); setShipmentFilter(null);
-    setSenderFilter(null); setCostPriceFilter(null); setShippingFeeFilter(null);
+    setSenderFilter(null); setShipmentCodAmountFilter(null); setShippingFeeFilter(null);
     setFilterModeOn(false);
   };
   const toggleFilterMode = () => {
@@ -162,7 +165,7 @@ export default function ClientReturnManifestDetailPage() {
       if (receiverFilter !== null && !receiverFilter.has(receiverOf(it))) return false;
       if (shipmentFilter !== null && !shipmentFilter.has(shipmentOf(it))) return false;
       if (senderFilter !== null && !senderFilter.has(senderOf(it))) return false;
-      if (costPriceFilter !== null && !costPriceFilter.has(costPriceOf(it))) return false;
+      if (shipmentCodAmountFilter !== null && !shipmentCodAmountFilter.has(shipmentCodAmountOf(it))) return false;
       if (shippingFeeFilter !== null && !shippingFeeFilter.has(shippingFeeOf(it))) return false;
       if (!q) return true;
       return (
@@ -171,7 +174,7 @@ export default function ClientReturnManifestDetailPage() {
         it.shipmentNumber.toLowerCase().includes(q.toLowerCase())
       );
     });
-  }, [items, itemsSearch, reasonFilter, cityFilter, amountFilter, phoneFilter, receiverFilter, shipmentFilter, senderFilter, costPriceFilter, shippingFeeFilter]);
+  }, [items, itemsSearch, reasonFilter, cityFilter, amountFilter, phoneFilter, receiverFilter, shipmentFilter, senderFilter, shipmentCodAmountFilter, shippingFeeFilter]);
 
   const closeMutation = useMutation({
     mutationFn: () => clientReturnManifestsApi.close(
@@ -585,7 +588,7 @@ export default function ClientReturnManifestDetailPage() {
                     <div className="flex items-center justify-center gap-1.5">
                       <span>سعر الشحنة</span>
                       {filterModeOn && (
-                        <ColumnFilterButton values={uniqueCostPrices} selected={costPriceFilter} onChange={setCostPriceFilter} />
+                        <ColumnFilterButton values={uniqueShipmentCodAmounts} selected={shipmentCodAmountFilter} onChange={setShipmentCodAmountFilter} />
                       )}
                     </div>
                   </TableHead>
@@ -624,13 +627,13 @@ export default function ClientReturnManifestDetailPage() {
                     <TableCell className="text-center text-xs whitespace-nowrap" dir="ltr">{it.receiverPhone ?? "-"}</TableCell>
                     <TableCell className="text-center text-xs whitespace-nowrap">{it.receiverCity ?? "-"}</TableCell>
                     <TableCell className="text-center text-xs whitespace-nowrap">
-                      {it.costPrice != null ? formatCurrency(parseFloat(it.costPrice)) : "-"}
+                      {it.shipmentCodAmount != null ? formatCurrency(parseFloat(it.shipmentCodAmount)) : "-"}
                     </TableCell>
                     <TableCell className="text-center text-xs whitespace-nowrap">
                       {it.shippingFee != null ? formatCurrency(parseFloat(it.shippingFee)) : "-"}
                     </TableCell>
                     <TableCell className="text-center text-xs font-bold text-primary whitespace-nowrap">
-                      {formatCurrency(parseFloat(it.codAmount ?? "0"))}
+                      {formatCurrency(totalOf(it))}
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap">
                       <div className="flex flex-col items-center gap-0.5">

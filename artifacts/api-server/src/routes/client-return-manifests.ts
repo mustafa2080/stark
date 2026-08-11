@@ -171,7 +171,7 @@ router.get("/client-return-manifests/:id", async (req, res): Promise<void> => {
       .select({
         item: clientReturnManifestItemsTable,
         senderName: shipmentsTable.senderName,
-        costPrice: shipmentsTable.costPrice,
+        shipmentCodAmount: shipmentsTable.codAmount,
         shippingFee: shipmentsTable.shippingFee,
       })
       .from(clientReturnManifestItemsTable)
@@ -182,7 +182,8 @@ router.get("/client-return-manifests/:id", async (req, res): Promise<void> => {
     const items = itemRows.map(row => ({
       ...row.item,
       senderName: row.senderName ?? null,
-      costPrice: row.costPrice != null ? String(row.costPrice) : null,
+      // "سعر الشحنة" الحي من جدول الشحنات (مطابق لصفحة قائمة الشحنات) — بدل السنابشوت المخزّن
+      shipmentCodAmount: row.shipmentCodAmount != null ? String(row.shipmentCodAmount) : null,
       shippingFee: row.shippingFee != null ? String(row.shippingFee) : null,
     }));
 
