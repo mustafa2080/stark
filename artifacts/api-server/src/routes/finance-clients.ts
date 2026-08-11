@@ -155,20 +155,25 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       clientId:        shipmentsTable.clientId,
       totalAmount:     shipmentsTable.totalAmount,
       collectedAmount: shipmentsTable.collectedAmount,
+      costPrice:       shipmentsTable.costPrice,
+      shippingFee:     shipmentsTable.shippingFee,
+      insuranceFee:    shipmentsTable.insuranceFee,
       status:          shipmentsTable.status,
     }).from(shipmentsTable)
       .where(and(...shipConds));
 
     // تجميع الأرقام لكل عميل حسب clientId — لا حاجة لمطابقة أسماء نصية
-    const statsMap: Record<number, { totalOrders: number; totalSales: number; totalPaid: number }> = {};
+    const statsMap: Record<number, { totalOrders: number; totalSales: number; totalPaid: number; totalCost: number }> = {};
     for (const s of allShipments) {
       if (s.clientId == null) continue;
-      if (!statsMap[s.clientId]) statsMap[s.clientId] = { totalOrders: 0, totalSales: 0, totalPaid: 0 };
+      if (!statsMap[s.clientId]) statsMap[s.clientId] = { totalOrders: 0, totalSales: 0, totalPaid: 0, totalCost: 0 };
       const t = parseFloat(s.totalAmount ?? "0");
       const p = parseFloat(s.collectedAmount ?? "0");
+      const c = parseFloat(s.costPrice ?? "0") + parseFloat(s.shippingFee ?? "0") + parseFloat(s.insuranceFee ?? "0");
       statsMap[s.clientId].totalOrders++;
       statsMap[s.clientId].totalSales += t;
       statsMap[s.clientId].totalPaid  += p;
+      statsMap[s.clientId].totalCost  += c;
     }
 
     // هل كل عميل مرتبط بحساب دخول (يوزر) بالفعل؟
@@ -180,7 +185,9 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     }
 
     const enriched = clients.map(c => {
-      const s = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
+      const s = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0, totalCost: 0 };
+      const netRevenue = s.totalSales - s.totalCost;
+      const profitMargin = s.totalSales > 0 ? Math.round((netRevenue / s.totalSales) * 100) : 0;
       return {
         ...c,
         warehouseId: warehouseMap[c.id] ?? null,
@@ -189,6 +196,8 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         totalOrders: s.totalOrders,
         totalSales:  String(s.totalSales),
         totalPaid:   String(s.totalPaid),
+        netRevenue:  String(netRevenue),
+        profitMargin,
         hasAccount:  accountClientIds.has(c.id),
       };
     });

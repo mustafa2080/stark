@@ -17,7 +17,7 @@ import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
   ChevronDown, Lock, Unlock, Truck, Package, Search, SlidersHorizontal, X,
-  LayoutGrid, List, Check,
+  LayoutGrid, List, Check, Wallet,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -34,6 +34,7 @@ type Client = {
   email: string | null; address: string | null; city: string | null; region: string | null;
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
+  netRevenue?: string; profitMargin?: number;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
   warehouseId: number | null;
 };
@@ -602,6 +603,22 @@ export default function ClientAccountManifestsPage() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" />إجمالي المبيعات</span>
                     <span className="font-bold" style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}>{formatCurrency(parseFloat(client.totalSales ?? "0"))}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1"><Wallet className="w-3 h-3" />صافي الإيراد</span>
+                    <span className={`font-bold ${parseFloat(client.netRevenue ?? "0") >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {formatCurrency(parseFloat(client.netRevenue ?? "0"))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">هامش الربح</span>
+                    <span className={`font-bold ${
+                      (client.profitMargin ?? 0) >= 20 ? "text-emerald-400"
+                      : (client.profitMargin ?? 0) >= 10 ? "text-amber-400"
+                      : "text-red-400"
+                    }`}>
+                      {client.profitMargin ?? 0}%
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">عدد الطلبات</span>
