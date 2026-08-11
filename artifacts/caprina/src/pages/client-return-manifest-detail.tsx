@@ -415,14 +415,14 @@ export default function ClientReturnManifestDetailPage() {
               <div key={it.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="text-xs font-medium truncate">{it.receiverName ?? "-"}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">
-                    {it.shipmentNumber} {it.receiverPhone ? `• ${it.receiverPhone}` : ""} {it.receiverCity ? `• ${it.receiverCity}` : ""}
+                  <p className="text-[10px] text-muted-foreground truncate" dir="ltr">
+                    {it.receiverPhone ?? "-"} <span dir="rtl">• {it.receiverCity ?? "-"}</span>
                   </p>
-                  {it.returnReason && (
-                    <p className="text-[10px] text-amber-400 mt-0.5">{returnReasonLabel(it.returnReason)}</p>
-                  )}
+                  <p className="text-[10px] font-bold text-primary mt-0.5">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
                 </div>
-                <p className="text-xs font-bold text-primary shrink-0">{formatCurrency(parseFloat(it.codAmount ?? "0"))}</p>
+                {it.returnReason && (
+                  <p className="text-[10px] text-amber-400 shrink-0 text-left max-w-[45%]">{returnReasonLabel(it.returnReason)}</p>
+                )}
               </div>
             ))}
           </div>
