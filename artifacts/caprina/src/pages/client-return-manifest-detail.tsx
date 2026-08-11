@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight, ClipboardList, Search, Printer, FileText, FileSpreadsheet,
-  Lock, LockOpen, Package, CheckCircle2, Hourglass, Loader2,
+  Lock, LockOpen, Package, CheckCircle2, Hourglass, Loader2, Filter, FilterX,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -18,6 +20,68 @@ import { jsPDF } from "jspdf";
 import { clientReturnManifestsApi } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
+
+// ════════════════════════════════════════════════════════════════════════════
+// فلتر عمود بطريقة إكسل — أيقونة تفتح قايمة القيم الفريدة مع تحديد متعدد
+// ════════════════════════════════════════════════════════════════════════════
+function ColumnFilterButton({
+  values, selected, onChange,
+}: {
+  values: string[];
+  selected: Set<string> | null;
+  onChange: (next: Set<string> | null) => void;
+}) {
+  const isActive = selected !== null;
+  const allChecked = (v: string) => (selected === null ? true : selected.has(v));
+
+  const toggle = (v: string) => {
+    const base = selected === null ? new Set(values) : new Set(selected);
+    if (base.has(v)) base.delete(v); else base.add(v);
+    onChange(base.size === values.length ? null : base);
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center justify-center w-4 h-4 rounded transition-colors",
+            isActive ? "text-primary" : "text-muted-foreground/50 hover:text-muted-foreground"
+          )}
+        >
+          {isActive ? <FilterX className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent dir="rtl" align="start" className="w-56 p-2 space-y-1">
+        <div className="flex items-center justify-between px-1 pb-1.5 border-b border-border/60">
+          <button
+            type="button"
+            className="text-[11px] font-bold text-primary hover:underline"
+            onClick={() => onChange(null)}
+          >
+            مسح الفلتر
+          </button>
+          <button
+            type="button"
+            className="text-[11px] text-muted-foreground hover:underline"
+            onClick={() => onChange(new Set())}
+          >
+            إلغاء تحديد الكل
+          </button>
+        </div>
+        <div className="max-h-56 overflow-y-auto space-y-0.5">
+          {values.map(v => (
+            <label key={v} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-muted/40 cursor-pointer text-xs">
+              <Checkbox checked={allChecked(v)} onCheckedChange={() => toggle(v)} />
+              <span className="truncate">{v}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // صفحة تفاصيل بيان مرتجعات واحد — مستقلة بالكامل (بدل القائمة المنسدلة)
@@ -31,6 +95,8 @@ export default function ClientReturnManifestDetailPage() {
   const qc = useQueryClient();
 
   const [itemsSearch, setItemsSearch] = useState("");
+  const [reasonFilter, setReasonFilter] = useState<Set<string> | null>(null);
+  const [cityFilter, setCityFilter] = useState<Set<string> | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [courierName, setCourierName] = useState("");
   const [closeNotes, setCloseNotes] = useState("");
@@ -47,16 +113,35 @@ export default function ClientReturnManifestDetailPage() {
   const items = data?.items ?? [];
   const totalCod = items.reduce((sum, it) => sum + parseFloat(it.codAmount ?? "0"), 0);
 
+  const reasonLabelOf = (it: typeof items[number]) => it.returnReason ? returnReasonLabel(it.returnReason) : "-";
+  const cityOf = (it: typeof items[number]) => it.receiverCity ?? "-";
+
+  const uniqueReasons = useMemo(
+    () => Array.from(new Set(items.map(reasonLabelOf))).sort(),
+    [items]
+  );
+  const uniqueCities = useMemo(
+    () => Array.from(new Set(items.map(cityOf))).sort(),
+    [items]
+  );
+
+  const hasColumnFilters = reasonFilter !== null || cityFilter !== null;
+  const clearAllFilters = () => { setReasonFilter(null); setCityFilter(null); setItemsSearch(""); };
+
   const filteredItems = useMemo(() => {
     const q = itemsSearch.trim();
-    if (!q) return items;
     const qDigits = q.replace(/\D/g, "");
-    return items.filter(it =>
-      (qDigits && (it.receiverPhone ?? "").replace(/\D/g, "").includes(qDigits)) ||
-      (it.receiverName ?? "").includes(q) ||
-      it.shipmentNumber.toLowerCase().includes(q.toLowerCase())
-    );
-  }, [items, itemsSearch]);
+    return items.filter(it => {
+      if (reasonFilter !== null && !reasonFilter.has(reasonLabelOf(it))) return false;
+      if (cityFilter !== null && !cityFilter.has(cityOf(it))) return false;
+      if (!q) return true;
+      return (
+        (qDigits && (it.receiverPhone ?? "").replace(/\D/g, "").includes(qDigits)) ||
+        (it.receiverName ?? "").includes(q) ||
+        it.shipmentNumber.toLowerCase().includes(q.toLowerCase())
+      );
+    });
+  }, [items, itemsSearch, reasonFilter, cityFilter]);
 
   const closeMutation = useMutation({
     mutationFn: () => clientReturnManifestsApi.close(
@@ -395,14 +480,27 @@ export default function ClientReturnManifestDetailPage() {
       {/* ─── قايمة المرتجعات ─── */}
       <div className="space-y-2">
         {items.length > 0 && (
-          <div className="relative">
-            <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={itemsSearch}
-              onChange={(e) => setItemsSearch(e.target.value)}
-              placeholder="بحث برقم التليفون أو الاسم أو رقم الشحنة..."
-              className="h-9 pr-8 text-xs"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={itemsSearch}
+                onChange={(e) => setItemsSearch(e.target.value)}
+                placeholder="بحث برقم التليفون أو الاسم أو رقم الشحنة..."
+                className="h-9 pr-8 text-xs"
+              />
+            </div>
+            {(hasColumnFilters || itemsSearch.trim()) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 text-[11px] gap-1 shrink-0"
+                onClick={clearAllFilters}
+              >
+                <FilterX className="w-3.5 h-3.5" />
+                مسح الكل
+              </Button>
+            )}
           </div>
         )}
 
@@ -415,9 +513,19 @@ export default function ClientReturnManifestDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-right">الحالة</TableHead>
+                  <TableHead className="text-right">
+                    <div className="flex items-center gap-1.5">
+                      <span>الحالة</span>
+                      <ColumnFilterButton values={uniqueReasons} selected={reasonFilter} onChange={setReasonFilter} />
+                    </div>
+                  </TableHead>
                   <TableHead className="text-right">الإجمالي</TableHead>
-                  <TableHead className="text-right">المحافظة</TableHead>
+                  <TableHead className="text-right">
+                    <div className="flex items-center gap-1.5">
+                      <span>المحافظة</span>
+                      <ColumnFilterButton values={uniqueCities} selected={cityFilter} onChange={setCityFilter} />
+                    </div>
+                  </TableHead>
                   <TableHead className="text-right">الهاتف</TableHead>
                   <TableHead className="text-right">المستلم</TableHead>
                   <TableHead className="text-right">#</TableHead>
