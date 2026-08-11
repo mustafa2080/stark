@@ -220,7 +220,7 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
       >
         <span className="flex items-center gap-1.5">
           <Truck className="w-3.5 h-3.5" />
-          شحنات العميل {data ? `(${data.total})` : ""}
+          البيانات {data ? `(${data.total})` : ""}
         </span>
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </Button>
