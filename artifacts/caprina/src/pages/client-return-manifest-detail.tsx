@@ -197,12 +197,19 @@ export default function ClientReturnManifestDetailPage() {
     if (!manifest) return "";
     const rowsHtml = items.map((it, i) => `
       <tr class="${i % 2 === 1 ? "mp-row-alt" : ""}">
-        <td class="mp-td-center">${i + 1}</td>
-        <td>${it.receiverName ?? "-"}<div class="mp-sub">${it.shipmentNumber}</div></td>
-        <td class="mp-td-ltr">${it.receiverPhone ?? "-"}</td>
-        <td>${it.receiverCity ?? "-"}</td>
-        <td>${it.returnReason ? returnReasonLabel(it.returnReason) : "-"}</td>
-        <td class="mp-td-center mp-td-bold">${formatCurrency(parseFloat(it.codAmount ?? "0"))}</td>
+        <td class="mp-td-center mp-td-muted">${i + 1}</td>
+        <td class="mp-td-center mp-td-mono">${it.shipmentNumber}</td>
+        <td>${it.senderName ?? "-"}</td>
+        <td class="mp-td-bold">${it.receiverName ?? "-"}</td>
+        <td class="mp-td-ltr mp-td-center">${it.receiverPhone ?? "-"}</td>
+        <td class="mp-td-center">${it.receiverCity ?? "-"}</td>
+        <td class="mp-td-center">${it.shipmentCodAmount != null ? formatCurrency(parseFloat(it.shipmentCodAmount)) : "-"}</td>
+        <td class="mp-td-center">${it.shippingFee != null ? formatCurrency(parseFloat(it.shippingFee)) : "-"}</td>
+        <td class="mp-td-center mp-td-bold mp-td-primary">${formatCurrency(totalOf(it))}</td>
+        <td class="mp-td-center">
+          <span class="mp-badge">مرتجع</span>
+          <div class="mp-sub">${it.returnReason ? returnReasonLabel(it.returnReason) : "-"}</div>
+        </td>
       </tr>`).join("");
 
     return `<!DOCTYPE html>
@@ -214,32 +221,40 @@ export default function ClientReturnManifestDetailPage() {
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4 portrait; margin: 8mm 10mm; }
-    body { font-family:'Cairo','Segoe UI',Arial,sans-serif; font-size:10pt; color:#111; background:#fff; direction:rtl; padding:0 2mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:4mm; }
+    @page { size: A4 landscape; margin: 8mm 10mm; }
+    body { font-family:'Cairo','Segoe UI',Arial,sans-serif; font-size:9.5pt; color:#111; background:#fff; direction:rtl; padding:0 2mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .mp-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:4mm; }
     .mp-title { font-size:17pt; font-weight:900; color:#1e3a5f; }
-    .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
-    .mp-company-name { font-size:14pt; font-weight:900; color:#1e3a5f; text-align:left; }
-    .mp-status { display:inline-block; font-size:8pt; font-weight:700; padding:1mm 3mm; border-radius:3mm; margin-top:1.5mm; }
+    .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.8; }
+    .mp-meta b { color:#1e293b; font-weight:700; }
+    .mp-company-name { font-size:15pt; font-weight:900; color:#1e3a5f; text-align:left; letter-spacing:0.5px; }
+    .mp-status { display:inline-block; font-size:8pt; font-weight:700; padding:1mm 3.5mm; border-radius:3mm; margin-top:2mm; }
     .mp-status-open { background:#dcfce7; color:#15803d; }
     .mp-status-closed { background:#e2e8f0; color:#475569; }
-    .mp-table { width:100%; border-collapse:collapse; margin-bottom:4mm; font-size:9.5pt; border:2.5px solid #1e3a5f; }
+    .mp-summary { display:flex; gap:3mm; margin-bottom:4mm; }
+    .mp-sum-card { flex:1; border:1.5px solid #cbd5e1; border-radius:2mm; padding:2.5mm 3mm; text-align:center; background:#f8fafc; }
+    .mp-sum-card.mp-sum-total { border-color:#15803d; background:#f0fdf4; }
+    .mp-sum-lbl { font-size:7.5pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
+    .mp-sum-val { font-size:12pt; font-weight:900; color:#1e3a5f; }
+    .mp-sum-total .mp-sum-val { color:#15803d; }
+    .mp-table { width:100%; border-collapse:collapse; margin-bottom:4mm; font-size:8.3pt; border:2px solid #1e3a5f; }
     .mp-table thead tr { background:#1e3a5f; }
-    .mp-table th { color:#fff; font-size:9pt; font-weight:700; padding:2.5mm 3mm; text-align:right; border:2px solid rgba(255,255,255,0.5); }
-    .mp-table td { padding:2.5mm 3mm; border:2px solid #94a3b8; vertical-align:middle; line-height:1.5; }
-    .mp-row-alt td { background:#f0f4f8; }
+    .mp-table th { color:#fff; font-size:8pt; font-weight:700; padding:2.2mm 2mm; text-align:center; border:1px solid rgba(255,255,255,0.4); white-space:nowrap; }
+    .mp-table td { padding:2mm 2mm; border:1px solid #cbd5e1; vertical-align:middle; line-height:1.4; }
+    .mp-row-alt td { background:#f4f7fa; }
     .mp-td-center { text-align:center; } .mp-td-bold { font-weight:700; }
-    .mp-td-ltr { direction:ltr; text-align:right; }
-    .mp-sub { font-size:7.5pt; color:#94a3b8; margin-top:0.5mm; }
-    .mp-totals { display:flex; justify-content:flex-end; gap:4mm; margin-bottom:5mm; }
-    .mp-total-card { border:2.5px solid #15803d; border-radius:2mm; padding:3mm 6mm; text-align:center; background:#f0fdf4; }
-    .mp-total-lbl { font-size:8pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
-    .mp-total-val { font-size:13pt; font-weight:900; color:#15803d; }
+    .mp-td-ltr { direction:ltr; }
+    .mp-td-muted { color:#94a3b8; font-size:7.8pt; }
+    .mp-td-mono { color:#64748b; font-size:7.8pt; }
+    .mp-td-primary { color:#15803d; }
+    .mp-sub { font-size:7pt; color:#b45309; margin-top:0.5mm; }
+    .mp-badge { display:inline-block; font-size:7.3pt; font-weight:700; color:#b91c1c; background:#fee2e2; border-radius:2mm; padding:0.3mm 2mm; }
     .mp-footer { border-top:1.5px solid #e2e8f0; padding-top:4mm; margin-top:6mm; display:flex; justify-content:space-between; align-items:flex-end; }
     .mp-sig { min-width:50mm; text-align:center; }
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+    .mp-print-footer { text-align:center; font-size:7.5pt; color:#94a3b8; margin-top:6mm; border-top:1px solid #e2e8f0; padding-top:2mm; }
   </style>
 </head>
 <body>
@@ -247,9 +262,9 @@ export default function ClientReturnManifestDetailPage() {
     <div>
       <div class="mp-title">بيان مرتجعات</div>
       <div class="mp-meta">
-        رقم البيان: ${manifest.manifestNumber}<br/>
-        العميل: ${manifest.clientName ?? "-"}<br/>
-        التاريخ: ${format(new Date(), "yyyy/MM/dd")}
+        رقم البيان: <b>${manifest.manifestNumber}</b><br/>
+        العميل: <b>${manifest.clientName ?? "-"}</b><br/>
+        تاريخ الطباعة: <b>${format(new Date(), "yyyy/MM/dd")}</b>
       </div>
       <span class="mp-status ${manifest.status === "open" ? "mp-status-open" : "mp-status-closed"}">
         ${manifest.status === "open" ? "بيان مفتوح" : "بيان مغلق"}
@@ -257,29 +272,36 @@ export default function ClientReturnManifestDetailPage() {
     </div>
     <div class="mp-company-name">STARK</div>
   </div>
+
+  <div class="mp-summary">
+    <div class="mp-sum-card">
+      <div class="mp-sum-lbl">عدد المرتجعات</div>
+      <div class="mp-sum-val">${items.length}</div>
+    </div>
+    <div class="mp-sum-card mp-sum-total">
+      <div class="mp-sum-lbl">إجمالي القيمة</div>
+      <div class="mp-sum-val">${formatCurrency(totalCod)}</div>
+    </div>
+  </div>
+
   <table class="mp-table">
     <thead>
       <tr>
-        <th class="mp-td-center">#</th>
-        <th>اسم العميل</th>
-        <th>رقم التليفون</th>
-        <th>المدينة</th>
-        <th>سبب المرتجع</th>
-        <th class="mp-td-center">سعر الشحنة</th>
+        <th>#</th>
+        <th>رقم الشحنة</th>
+        <th>الراسل</th>
+        <th>المستلم</th>
+        <th>الهاتف</th>
+        <th>المحافظة</th>
+        <th>سعر الشحنة</th>
+        <th>سعر الشحن</th>
+        <th>الإجمالي</th>
+        <th>الحالة</th>
       </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
   </table>
-  <div class="mp-totals">
-    <div class="mp-total-card">
-      <div class="mp-total-lbl">عدد المرتجعات</div>
-      <div class="mp-total-val">${items.length}</div>
-    </div>
-    <div class="mp-total-card">
-      <div class="mp-total-lbl">إجمالي القيمة</div>
-      <div class="mp-total-val">${formatCurrency(totalCod)}</div>
-    </div>
-  </div>
+
   <div class="mp-footer">
     <div class="mp-sig">
       <div class="mp-sig-title">توقيع المندوب</div>
@@ -291,6 +313,8 @@ export default function ClientReturnManifestDetailPage() {
       <div class="mp-sig-name">${manifest.clientName ?? ""}</div>
     </div>
   </div>
+
+  <div class="mp-print-footer">تم إنشاء هذا البيان بواسطة نظام STARK — ${format(new Date(), "yyyy/MM/dd HH:mm")}</div>
 </body>
 </html>`;
   };
@@ -308,15 +332,19 @@ export default function ClientReturnManifestDetailPage() {
 
   const handleExportExcel = () => {
     if (!manifest || !items.length) return;
-    const header = ["#", "اسم المستلم", "رقم التليفون", "رقم الشحنة", "المدينة", "سبب المرتجع", "سعر الشحنة"];
+    const header = ["#", "رقم الشحنة", "الراسل", "المستلم", "الهاتف", "المحافظة", "سعر الشحنة", "سعر الشحن", "الإجمالي", "الحالة", "سبب المرتجع"];
     const rows = items.map((it, i) => [
       i + 1,
+      it.shipmentNumber,
+      it.senderName ?? "-",
       it.receiverName ?? "-",
       it.receiverPhone ?? "-",
-      it.shipmentNumber,
       it.receiverCity ?? "-",
+      it.shipmentCodAmount != null ? parseFloat(it.shipmentCodAmount) : 0,
+      it.shippingFee != null ? parseFloat(it.shippingFee) : 0,
+      totalOf(it),
+      "مرتجع",
       it.returnReason ? returnReasonLabel(it.returnReason) : "-",
-      parseFloat(it.codAmount ?? "0"),
     ]);
     const infoRows = [
       ["رقم البيان", manifest.manifestNumber],
@@ -327,7 +355,7 @@ export default function ClientReturnManifestDetailPage() {
       [],
     ];
     const ws = XLSX.utils.aoa_to_sheet([...infoRows, header, ...rows]);
-    ws["!cols"] = [{ wch: 5 }, { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }];
+    ws["!cols"] = [{ wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 18 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "بيان المرتجعات");
     XLSX.writeFile(wb, `بيان-مرتجعات-${manifest.manifestNumber}.xlsx`);
@@ -340,7 +368,7 @@ export default function ClientReturnManifestDetailPage() {
     try {
       const html = buildPrintHtml();
       const iframe = document.createElement("iframe");
-      iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:0;";
+      iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:1123px;height:794px;border:0;";
       document.body.appendChild(iframe);
       const doc = iframe.contentDocument;
       if (!doc) throw new Error("تعذر تجهيز المستند");
@@ -362,7 +390,7 @@ export default function ClientReturnManifestDetailPage() {
       });
       document.body.removeChild(iframe);
 
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
       const margin = 8;
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
