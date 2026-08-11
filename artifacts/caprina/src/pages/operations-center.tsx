@@ -542,20 +542,28 @@ function useShipmentCharts() {
 }
 
 // ── جلب ملخص الربح لكل الفترات (اليوم/الأسبوع/الشهر) — من بيانات المناديب + الخزينة ────
-function usePeriodProfit() {
+function usePeriodProfit(ocPeriodFilter: OcPeriodFilter) {
+  const isCustom = ocPeriodFilter.type === "custom";
   const results = useQuery({
-    queryKey: ["analytics-manifests-pnl-summary-periods-oc"],
+    queryKey: [
+      "analytics-manifests-pnl-summary-periods-oc",
+      isCustom ? ocPeriodFilter.from : null,
+      isCustom ? ocPeriodFilter.to : null,
+    ],
     queryFn: async () => {
-      const [today, week, month] = await Promise.all([
+      const [today, week, month, custom] = await Promise.all([
         analyticsApi.manifestsPnlSummary({ period: "today" }),
         analyticsApi.manifestsPnlSummary({ period: "week" }),
         analyticsApi.manifestsPnlSummary({ period: "month" }),
+        isCustom
+          ? analyticsApi.manifestsPnlSummary({ period: "custom", from: ocPeriodFilter.from, to: ocPeriodFilter.to })
+          : Promise.resolve(null as ManifestsPnlSummary | null),
       ]);
-      return { today, week, month };
+      return { today, week, month, custom };
     },
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    placeholderData: (prev: { today: ManifestsPnlSummary; week: ManifestsPnlSummary; month: ManifestsPnlSummary } | undefined) => prev,
+    placeholderData: (prev: { today: ManifestsPnlSummary; week: ManifestsPnlSummary; month: ManifestsPnlSummary; custom: ManifestsPnlSummary | null } | undefined) => prev,
   });
   return results;
 }
@@ -1146,7 +1154,7 @@ export default function OperationsCenterPage() {
   const totalCash = cashRegisters?.totalBalance ?? 0;
   const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(ocPeriodFilter);
   const { data: manifestsPnlSummary, isLoading: manifestsPnlLoading } = useManifestsPnlSummary(ocPeriodFilter);
-  const { data: periodProfitData, isLoading: periodProfitLoading } = usePeriodProfit();
+  const { data: periodProfitData, isLoading: periodProfitLoading } = usePeriodProfit(ocPeriodFilter);
   const { data: shipmentChartsOc, isLoading: shipmentChartsOcLoading } = useShipmentCharts();
   const { data: smartAlertsData } = useSmartAlerts();
   const smartHighAlerts = smartAlertsData?.alerts.filter((a) => a.severity === "high" && a.type !== "HIGH_RETURN") ?? [];
@@ -1477,24 +1485,36 @@ export default function OperationsCenterPage() {
       </Card>
 
       {/* ── ربح الفترات: اليوم / الأسبوع / الشهر (منقول من لوحة التحكم) ──── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className={`grid grid-cols-1 sm:grid-cols-3 ${ocPeriodFilter.type === "custom" && periodProfitData?.custom ? "xl:grid-cols-4" : ""} gap-3`}>
         {periodProfitLoading && !periodProfitData ? (
           [1, 2, 3].map((i) => <Card key={i} className="oc-kpi-card animate-pulse h-40" />)
         ) : periodProfitData ? (
-          ([
-            { key: "today" as const, label: "اليوم", data: periodProfitData.today, tone: "#3b82f6" },
-            { key: "week" as const, label: "هذا الأسبوع", data: periodProfitData.week, tone: "#10b981" },
-            { key: "month" as const, label: "هذا الشهر", data: periodProfitData.month, tone: "#f59e0b" },
-          ]).map(({ key, label, data, tone }) => (
-            <OcPeriodCard
-              key={key}
-              label={label}
-              data={data}
-              tone={tone}
-              active={ocPeriodFilter.type === key}
-              onClick={() => setOcPeriodFilter({ type: key })}
-            />
-          ))
+          <>
+            {([
+              { key: "today" as const, label: "اليوم", data: periodProfitData.today, tone: "#3b82f6" },
+              { key: "week" as const, label: "هذا الأسبوع", data: periodProfitData.week, tone: "#10b981" },
+              { key: "month" as const, label: "هذا الشهر", data: periodProfitData.month, tone: "#f59e0b" },
+            ]).map(({ key, label, data, tone }) => (
+              <OcPeriodCard
+                key={key}
+                label={label}
+                data={data}
+                tone={tone}
+                active={ocPeriodFilter.type === key}
+                onClick={() => setOcPeriodFilter({ type: key })}
+              />
+            ))}
+            {ocPeriodFilter.type === "custom" && periodProfitData.custom && (
+              <OcPeriodCard
+                key="custom"
+                label="الفترة المحددة"
+                data={periodProfitData.custom}
+                tone="#8b5cf6"
+                active={true}
+                onClick={() => {}}
+              />
+            )}
+          </>
         ) : null}
       </div>
 
