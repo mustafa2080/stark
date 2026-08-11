@@ -88,12 +88,9 @@ router.post("/client-return-manifests/:clientId/confirm-delivery/:shipmentId", a
       manifestId,
       shipmentId,
       shipmentNumber: shipment.shipmentNumber,
-      senderName:     shipment.senderName ?? null,
       receiverName:   shipment.receiverName ?? null,
       receiverPhone:  shipment.receiverPhone ?? null,
       receiverCity:   shipment.receiverCity ?? null,
-      costPrice:      shipment.costPrice != null ? String(shipment.costPrice) : null,
-      shippingFee:    shipment.shippingFee != null ? String(shipment.shippingFee) : null,
       codAmount:      shipment.codAmount != null ? String(shipment.codAmount) : null,
       returnReason:   (shipment as any).returnReason ?? null,
       addedAt:        now,
@@ -170,9 +167,24 @@ router.get("/client-return-manifests/:id", async (req, res): Promise<void> => {
       .where(eq(clientReturnManifestsTable.id, manifestId)).limit(1);
     if (!manifest) { res.status(404).json({ error: "بيان المرتجعات غير موجود" }); return; }
 
-    const items = await db.select().from(clientReturnManifestItemsTable)
+    const itemRows = await db
+      .select({
+        item: clientReturnManifestItemsTable,
+        senderName: shipmentsTable.senderName,
+        costPrice: shipmentsTable.costPrice,
+        shippingFee: shipmentsTable.shippingFee,
+      })
+      .from(clientReturnManifestItemsTable)
+      .leftJoin(shipmentsTable, eq(shipmentsTable.id, clientReturnManifestItemsTable.shipmentId))
       .where(eq(clientReturnManifestItemsTable.manifestId, manifestId))
       .orderBy(desc(clientReturnManifestItemsTable.addedAt));
+
+    const items = itemRows.map(row => ({
+      ...row.item,
+      senderName: row.senderName ?? null,
+      costPrice: row.costPrice != null ? String(row.costPrice) : null,
+      shippingFee: row.shippingFee != null ? String(row.shippingFee) : null,
+    }));
 
     const [client] = await db.select({ id: clientsTable.id, name: clientsTable.name })
       .from(clientsTable).where(eq(clientsTable.id, manifest.clientId)).limit(1);
