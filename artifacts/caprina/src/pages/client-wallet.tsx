@@ -52,12 +52,23 @@ interface InvoiceRow {
   createdAt: string;
 }
 
+interface ManifestTxnRow {
+  type: "manifest" | "manifest_payment";
+  date: string;
+  label: string;
+  amount: number;
+  manifestId?: number;
+  manifestNumber?: string;
+}
+
 interface WalletResponse {
   payments: PaymentRow[];
   invoices: InvoiceRow[];
   creditLimit: string;
   accountStatus: string;
   clientBalance: number;
+  manifestTransactions: ManifestTxnRow[];
+  manifestTransactionsSummary: { totalManifestsValue: number; totalManifestsPaid: number; netBalance: number };
 }
 
 // ── Summary card (glow + shadow + gradient) ────────────────────────────────
@@ -172,6 +183,7 @@ export default function ClientWalletPage() {
 
   const payments = data?.payments ?? [];
   const invoices = data?.invoices ?? [];
+  const manifestTxns = data?.manifestTransactions ?? [];
 
   const totalCollected = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalInvoiced = invoices.reduce((s, i) => s + Number(i.totalAmount || 0), 0);
@@ -216,6 +228,25 @@ export default function ClientWalletPage() {
           </div>
           <Wallet size={32} className="text-emerald-400 opacity-30" />
         </div>
+
+        {/* ── تفاصيل حركة حساب الشحن (بيانات مغلقة + سدادات) ── */}
+        {manifestTxns.length > 0 && (
+          <SectionCard title="تفاصيل حركة حساب الشحن" icon={FileText}>
+            <div className="divide-y divide-border/60">
+              {manifestTxns.map((t, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-foreground truncate">{t.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{fd(t.date)}</p>
+                  </div>
+                  <span className={cn("text-sm font-black shrink-0", t.amount >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    {t.amount >= 0 ? "+" : ""}{fc(t.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
 
         {/* ── Summary cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

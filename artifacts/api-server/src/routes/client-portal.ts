@@ -20,6 +20,7 @@ import {
   clientAccountPaymentsTable,
   clientReturnManifestsTable,
   clientReturnManifestItemsTable,
+  shipmentManifestItemsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import multer from "multer";
@@ -29,6 +30,7 @@ import { requireAuth } from "../middlewares/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
 import { generateShipmentNumber, syncShipmentInventory } from "./shipments.js";
 import { pushNotification } from "../lib/notifications.js";
+import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
 import { autoAddShipmentToClientAccountManifest } from "./client-account-manifests.js";
 
 const router: IRouter = Router();
@@ -468,68 +470,11 @@ async function getClientShipments(tenantId: number | null, normalizedPhone: stri
 
 
 // ─── إجمالي رصيد العميل = مجموع صافي المستحق لكل البيانات "المقفولة" الخاصة به ──
-// (نفس معادلة netDueFromClient في /client-account-manifests/:id — إجمالي المُسلَّم فعليًا − تكلفة الشحن)
+// (نفس الدالة المشتركة المستخدمة في لوحة الأدمن — computeClosedManifestsForClient —
+// لضمان تطابق 100% بين رصيد العميل في البوابة ورصيده في لوحة الأدمن)
 async function computeClientBalance(clientId: number): Promise<number> {
-  const closedManifests = await db
-    .select({ id: clientAccountManifestsTable.id })
-    .from(clientAccountManifestsTable)
-    .where(and(
-      eq(clientAccountManifestsTable.clientId, clientId),
-      eq(clientAccountManifestsTable.status, "closed"),
-    ));
-
-  const manifestIds = closedManifests.map(m => m.id);
-
-  // ── سدادات سبق دفعها للعميل كمصروف "سداد حساب عميل" — بتتخصم من الرصيد دايمًا ──
-  const payments = await db
-    .select({ amount: clientAccountPaymentsTable.amount })
-    .from(clientAccountPaymentsTable)
-    .where(eq(clientAccountPaymentsTable.clientId, clientId));
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-
-  if (manifestIds.length === 0) return -totalPaid;
-
-  const items = await db
-    .select()
-    .from(clientAccountManifestItemsTable)
-    .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
-
-  const shipmentIds = items.map(i => i.shipmentId);
-  const shipments = shipmentIds.length
-    ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
-    : [];
-  const shipmentMap: Record<number, any> = {};
-  shipments.forEach(s => { shipmentMap[s.id] = s; });
-
-  let deliveredGross = 0;
-  let totalShippingCost = 0;
-
-  for (const item of items) {
-    const shipment = shipmentMap[item.shipmentId];
-    if (!shipment) continue;
-    const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
-    const shipping = Number(shipment.shippingFee ?? 0);
-
-    if (item.deliveryStatus === "delivered") {
-      const dvr = (item as any).deliveredValueReceived;
-      const actualCod = dvr != null ? Number(dvr) : cod;
-      deliveredGross += actualCod;
-      totalShippingCost += shipping;
-    } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
-      totalShippingCost += shipping;
-      deliveredGross += Number(item.partialQuantity);
-    } else if (item.deliveryStatus === "returned") {
-      const returnReasonHasValue = ["refused_paid", "refused_unpaid", "quality"].includes((item as any).returnReason);
-      if (returnReasonHasValue) {
-        deliveredGross += Number((item as any).returnValueReceived ?? 0);
-        totalShippingCost += shipping;
-      } else if ((item as any).returnReceived === 1) {
-        totalShippingCost += shipping;
-      }
-    }
-  }
-
-  return deliveredGross - totalShippingCost - totalPaid;
+  const { balance } = await computeClosedManifestsForClient(clientId);
+  return balance;
 }
 
 // ─── GET /client-portal/stats — إحصائيات دائرية (زي الصورة) + KPIs ─────────
@@ -1295,9 +1240,49 @@ router.get("/client-portal/wallet", async (req, res): Promise<void> => {
     if (user.tenantId !== null && user.tenantId !== undefined) invConds.push(eq(clientInvoicesTable.tenantId, user.tenantId));
     const invoices = await db.select().from(clientInvoicesTable).where(and(...invConds)).orderBy(desc(clientInvoicesTable.createdAt)).limit(50);
 
-    const clientBalance = await computeClientBalance(client.id);
+    // ── حركة حساب الشحن الموحدة (بيانات مغلقة + سدادات) — نفس الدالة المشتركة
+    // المستخدمة في كشف حساب الأدمن، لضمان تطابق تام في الأرقام ────────────────
+    const { manifests: closedManifests, payments: manifestPayments, totalManifestsValue, totalPaid: manifestTotalPaid, balance: clientBalance } =
+      await computeClosedManifestsForClient(client.id);
 
-    res.json({ payments, invoices, creditLimit: client.creditLimit, accountStatus: client.accountStatus, clientBalance });
+    type WalletTxn = {
+      type: "manifest" | "manifest_payment";
+      date: string;
+      label: string;
+      amount: number;
+      manifestId?: number;
+      manifestNumber?: string;
+    };
+    const manifestTxns: WalletTxn[] = [
+      ...closedManifests.map(m => ({
+        type: "manifest" as const,
+        date: (m.closedAt ?? m.createdAt).toString(),
+        label: `بيان شحن مغلق (${m.manifestNumber}) — ${m.itemsCount} شحنة`,
+        amount: m.value,
+        manifestId: m.id,
+        manifestNumber: m.manifestNumber,
+      })),
+      ...manifestPayments.map(p => ({
+        type: "manifest_payment" as const,
+        date: p.createdAt.toString(),
+        label: p.notes ? `سداد حساب — ${p.notes}` : "سداد حساب شحن",
+        amount: -p.amount,
+      })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    res.json({
+      payments,
+      invoices,
+      creditLimit: client.creditLimit,
+      accountStatus: client.accountStatus,
+      clientBalance,
+      manifestTransactions: manifestTxns,
+      manifestTransactionsSummary: {
+        totalManifestsValue,
+        totalManifestsPaid: manifestTotalPaid,
+        netBalance: clientBalance,
+      },
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
