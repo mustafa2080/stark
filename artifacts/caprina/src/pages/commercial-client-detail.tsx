@@ -2723,23 +2723,29 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
             </div>
           </div>
 
-          {/* بطاقات الملخص */}
+          {/* بطاقات الملخص — من الحركة الموحدة (بيانات مغلقة + سدادات + أوامر بيع) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <Card className="p-3 text-center border-red-900/40" style={GLOW.red.style}>
               <p className="text-[10px] text-red-400 mb-1 font-bold">المتبقي</p>
-              <p className="text-base sm:text-xl font-black text-red-400 truncate">{fmt(totalUnpaid)} ج.م</p>
+              <p className="text-base sm:text-xl font-black text-red-400 truncate">
+                {fmt(txnSummary?.netBalance ?? totalUnpaid)} ج.م
+              </p>
             </Card>
             <Card className="p-3 text-center border-emerald-900/40" style={GLOW.emerald.style}>
               <p className="text-[10px] text-emerald-400 mb-1 font-bold">المدفوع</p>
-              <p className="text-base sm:text-xl font-black text-emerald-400 truncate">{fmt(totalPaid)} ج.م</p>
+              <p className="text-base sm:text-xl font-black text-emerald-400 truncate">
+                {fmt((txnSummary?.paymentsTotal ?? 0) + (txnSummary?.saleOrdersPaidTotal ?? totalPaid))} ج.م
+              </p>
             </Card>
             <Card className="p-3 text-center border-amber-900/40" style={GLOW.amber.style}>
-              <p className="text-[10px] text-amber-400 mb-1 font-bold">إجمالي المشتريات</p>
-              <p className="text-base sm:text-xl font-black text-amber-400 truncate">{fmt(totalAmount)} ج.م</p>
+              <p className="text-[10px] text-amber-400 mb-1 font-bold">إجمالي المستحق</p>
+              <p className="text-base sm:text-xl font-black text-amber-400 truncate">
+                {fmt((txnSummary?.manifestsTotal ?? 0) + (txnSummary?.saleOrdersTotal ?? totalAmount))} ج.م
+              </p>
             </Card>
             <Card className="p-3 text-center border-primary/30" style={GLOW.blue.style}>
-              <p className="text-[10px] text-primary mb-1 font-bold">إجمالي الأوامر</p>
-              <p className="text-base sm:text-xl font-black text-primary">{filtered.length}</p>
+              <p className="text-[10px] text-primary mb-1 font-bold">عدد الحركات</p>
+              <p className="text-base sm:text-xl font-black text-primary">{transactions.length}</p>
             </Card>
           </div>
 
