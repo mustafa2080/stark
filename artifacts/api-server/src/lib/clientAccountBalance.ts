@@ -361,10 +361,11 @@ export async function computeClientBalancesForAllClients(
 
 // ─── صافي الإيراد المستحق مجمّع لكل عميل — نفس منطق "صافي الإيراد المستحق" في ─
 // client-account-manifest-detail.tsx (كارت البيان الفردي) بالظبط، لكن مجمّع
-// على كل بيانات العميل المقفولة مع بعض. لكل شحنة: (سعر الشحن + إضافة نوع
-// الشحنة) - تكلفة المندوب الحقيقية (zone_costs.deliveryCost أو سعر شركة الشحن
-// الثابت حسب costMode) — بنفس شرط تصفير الصفوف (مؤجل/معلَّق/قيد الانتظار، أو
-// مرتجع بسبب غير مالي = صفر بالكامل).
+// على كل بيانات العميل (مفتوحة ومقفولة مع بعض — بخلاف رصيد العميل اللي بيتجمع
+// من المقفولة بس، الرقم ده حسب طلب المدير لازم يعرض حتى قبل قفل البيان). لكل
+// شحنة: (سعر الشحن + إضافة نوع الشحنة) - تكلفة المندوب الحقيقية (zone_costs
+// .deliveryCost أو سعر شركة الشحن الثابت حسب costMode) — بنفس شرط تصفير
+// الصفوف (مؤجل/معلَّق/قيد الانتظار، أو مرتجع بسبب غير مالي = صفر بالكامل).
 export async function computeNetRevenueDueForAllClients(
   clientIds: number[],
 ): Promise<Record<number, number>> {
@@ -375,10 +376,7 @@ export async function computeNetRevenueDueForAllClients(
   const allManifests = await db
     .select()
     .from(clientAccountManifestsTable)
-    .where(and(
-      inArray(clientAccountManifestsTable.clientId, clientIds),
-      eq(clientAccountManifestsTable.status, "closed"),
-    ));
+    .where(inArray(clientAccountManifestsTable.clientId, clientIds));
   if (!allManifests.length) return result;
 
   const manifestIds = allManifests.map(m => m.id);
