@@ -3692,7 +3692,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       if (!byClient.has(r.clientId)) byClient.set(r.clientId, { clientId: r.clientId, shipmentsCount: 0, revenue: 0, delivered: 0 });
       const b = byClient.get(r.clientId)!;
       b.shipmentsCount++;
-      b.revenue += Number(r.collectedAmount || r.totalAmount || 0);
+      b.revenue += Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
       if (normalize(r.status) === "received") b.delivered++;
     }
 
