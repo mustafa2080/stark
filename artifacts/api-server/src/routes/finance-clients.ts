@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, shipmentManifestsTable, shipmentManifestItemsTable, shippingCompaniesTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -163,17 +163,69 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       .where(and(...shipConds));
 
     // تجميع الأرقام لكل عميل حسب clientId — لا حاجة لمطابقة أسماء نصية
-    const statsMap: Record<number, { totalOrders: number; totalSales: number; totalPaid: number; totalCost: number }> = {};
+    // (totalOrders/totalSales/totalPaid بتفضل من بيانات الشحنات الخام زي ما هي)
+    const statsMap: Record<number, { totalOrders: number; totalSales: number; totalPaid: number }> = {};
     for (const s of allShipments) {
       if (s.clientId == null) continue;
-      if (!statsMap[s.clientId]) statsMap[s.clientId] = { totalOrders: 0, totalSales: 0, totalPaid: 0, totalCost: 0 };
+      if (!statsMap[s.clientId]) statsMap[s.clientId] = { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       const t = parseFloat(s.totalAmount ?? "0");
       const p = parseFloat(s.collectedAmount ?? "0");
-      const c = parseFloat(s.costPrice ?? "0") + parseFloat(s.shippingFee ?? "0") + parseFloat(s.insuranceFee ?? "0");
       statsMap[s.clientId].totalOrders++;
       statsMap[s.clientId].totalSales += t;
       statsMap[s.clientId].totalPaid  += p;
-      statsMap[s.clientId].totalCost  += c;
+    }
+
+    // ── صافي الإيراد الحقيقي لكل عميل — نفس منطق computeManifestsPnl (analytics.ts) ──
+    // مبني فقط على شحنات ضمن بيانات مناديب مُقفلة فعليًا (status = "closed")،
+    // وبنفس تعريف الربح لكل شحنة (delivered/partial_delivered/returned مع الأسباب المؤهلة)
+    // والتكلفة الحقيقية = تكلفة شركة الشحن/المندوب (courierCostPerShipment) مش costPrice الخام.
+    // (بدون خصم مصروفات الخزنة العامة هنا لأنها مش مرتبطة بعميل بعينه).
+    const netRevConds: any[] = [eq(shipmentManifestsTable.status, "closed")];
+    if (tenantId !== null) netRevConds.push(eq(shipmentManifestsTable.tenantId, tenantId));
+
+    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
+    const netRevenueMap: Record<number, number> = {};
+
+    const pnlRows = await db
+      .select({
+        clientId:        shipmentsTable.clientId,
+        deliveryStatus:  shipmentManifestItemsTable.deliveryStatus,
+        returnReason:    shipmentManifestItemsTable.returnReason,
+        partialQuantity: shipmentManifestItemsTable.partialQuantity,
+        returnValueReceived:   shipmentManifestItemsTable.returnValueReceived,
+        deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+        codAmount:       shipmentsTable.codAmount,
+        courierCostPerShipment: shippingCompaniesTable.shippingCost,
+      })
+      .from(shipmentManifestItemsTable)
+      .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+      .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
+      .where(and(...netRevConds));
+
+    for (const r of pnlRows) {
+      if (r.clientId == null) continue;
+      const isEligible =
+        r.deliveryStatus === "delivered" ||
+        r.deliveryStatus === "partial_delivered" ||
+        (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
+      if (!isEligible) continue;
+
+      let revenue = 0;
+      if (r.deliveryStatus === "partial_delivered" && r.partialQuantity != null) {
+        revenue = Number(r.partialQuantity);
+      } else if (r.deliveryStatus === "returned") {
+        revenue = Number(r.returnValueReceived ?? 0);
+      } else {
+        revenue = r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
+      }
+
+      let courierCost = 0;
+      if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
+        courierCost = Math.abs(Number(r.courierCostPerShipment ?? 0));
+      }
+
+      netRevenueMap[r.clientId] = (netRevenueMap[r.clientId] ?? 0) + (revenue - courierCost);
     }
 
     // هل كل عميل مرتبط بحساب دخول (يوزر) بالفعل؟
@@ -185,8 +237,8 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     }
 
     const enriched = clients.map(c => {
-      const s = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0, totalCost: 0 };
-      const netRevenue = s.totalSales - s.totalCost;
+      const s = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
+      const netRevenue = netRevenueMap[c.id] ?? 0;
       const profitMargin = s.totalSales > 0 ? Math.round((netRevenue / s.totalSales) * 100) : 0;
       return {
         ...c,
