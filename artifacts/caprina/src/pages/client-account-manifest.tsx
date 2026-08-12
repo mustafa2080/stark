@@ -610,8 +610,8 @@ export default function ClientAccountManifestsPage() {
                       {formatCurrency(parseFloat(client.netRevenue ?? "0"))}
                     </span>
                   </div>
-                  {/* هامش الربح — الحساب الحالي (على إجمالي المبيعات الخام) غير دقيق ومربك، مخفي بطلب المدير لحد ما يتصلح المنطق. الكود متسيب هنا وشغال، بس معروض بشرط false. */}
-                  {false && (
+                  {/* هامش الربح — بيعتمد دلوقتي على نفس منطق computeManifestsPnl (مناديب مقفولة فعليًا)، رجّعناه للعرض بطلب المدير */}
+                  {(
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">هامش الربح</span>
                       <span className={`font-bold ${
