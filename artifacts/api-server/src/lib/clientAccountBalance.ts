@@ -6,6 +6,9 @@ import {
   clientAccountPaymentsTable,
   shipmentsTable,
   shipmentZonesTable,
+  zoneCostsTable,
+  shippingCompaniesTable,
+  shipmentManifestsTable as shippingManifestsTable,
   parcelTypePricingTable,
   shipmentManifestItemsTable,
   clientsTable,
@@ -351,6 +354,174 @@ export async function computeClientBalancesForAllClients(
     r.totalManifestsValue = Number(r.totalManifestsValue.toFixed(2));
     r.totalPaid = Number(r.totalPaid.toFixed(2));
     r.balance = Number((r.totalManifestsValue - r.totalPaid).toFixed(2));
+  }
+
+  return result;
+}
+
+// ─── صافي الإيراد المستحق مجمّع لكل عميل — نفس منطق "صافي الإيراد المستحق" في ─
+// client-account-manifest-detail.tsx (كارت البيان الفردي) بالظبط، لكن مجمّع
+// على كل بيانات العميل المقفولة مع بعض. لكل شحنة: (سعر الشحن + إضافة نوع
+// الشحنة) - تكلفة المندوب الحقيقية (zone_costs.deliveryCost أو سعر شركة الشحن
+// الثابت حسب costMode) — بنفس شرط تصفير الصفوف (مؤجل/معلَّق/قيد الانتظار، أو
+// مرتجع بسبب غير مالي = صفر بالكامل).
+export async function computeNetRevenueDueForAllClients(
+  clientIds: number[],
+): Promise<Record<number, number>> {
+  const result: Record<number, number> = {};
+  for (const id of clientIds) result[id] = 0;
+  if (!clientIds.length) return result;
+
+  const allManifests = await db
+    .select()
+    .from(clientAccountManifestsTable)
+    .where(and(
+      inArray(clientAccountManifestsTable.clientId, clientIds),
+      eq(clientAccountManifestsTable.status, "closed"),
+    ));
+  if (!allManifests.length) return result;
+
+  const manifestIds = allManifests.map(m => m.id);
+  const manifestClientMap: Record<number, number> = {};
+  allManifests.forEach(m => { manifestClientMap[m.id] = m.clientId; });
+
+  const items = await db
+    .select()
+    .from(clientAccountManifestItemsTable)
+    .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
+  if (!items.length) return result;
+
+  const shipmentIds = items.map(i => i.shipmentId);
+  const shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+  const shipmentMap: Record<number, any> = {};
+  shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+  const clients = await db.select().from(clientsTable).where(inArray(clientsTable.id, clientIds));
+  const clientTypeMap: Record<number, string> = {};
+  clients.forEach(c => { clientTypeMap[c.id] = (c as any).clientType ?? "normal"; });
+
+  // ── سعر الشحن (على العميل) لكل منطقة، حسب تصنيف العميل ──────────────────
+  const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+  let zoneRowsById: Record<number, any> = {};
+  if (zoneIds.length) {
+    const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+    zones.forEach(z => { zoneRowsById[z.id] = z; });
+  }
+  const getZoneShipping = (shipment: any, clientType: string) => {
+    if (!shipment?.zoneId) return Number(shipment?.shippingFee ?? 0);
+    const z = zoneRowsById[shipment.zoneId];
+    if (!z) return Number(shipment.shippingFee ?? 0);
+    const priceByType =
+      clientType === "vip"        ? z.priceVip :
+      clientType === "commercial" ? z.priceCommercial :
+      z.priceNormal;
+    const resolved = priceByType != null && Number(priceByType) > 0 ? priceByType : z.price;
+    return Number(resolved) || Number(shipment.shippingFee ?? 0) || 0;
+  };
+
+  // ── تكلفة المندوب الحقيقية — من بيان المندوب (شحن) اللي الشحنة اتضافتله ──
+  // نفس منطق getZoneCost في GET /client-account-manifests/:id بالظبط.
+  let shipmentToCompanyId: Record<number, number> = {};
+  if (shipmentIds.length) {
+    const manifestLinkRows = await db
+      .select({
+        shipmentId: shipmentManifestItemsTable.shipmentId,
+        addedAt: shipmentManifestItemsTable.addedAt,
+        companyId: shippingManifestsTable.shippingCompanyId,
+      })
+      .from(shipmentManifestItemsTable)
+      .innerJoin(shippingManifestsTable, eq(shipmentManifestItemsTable.manifestId, shippingManifestsTable.id))
+      .where(and(
+        inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+        isNull(shippingManifestsTable.clientId),
+      ));
+    manifestLinkRows
+      .filter(r => r.companyId != null)
+      .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+      .forEach(row => { shipmentToCompanyId[row.shipmentId] = row.companyId as number; });
+  }
+  const shipmentCompanyIds = [...new Set([
+    ...shipments.map(s => s.shippingCompanyId).filter((v): v is number => !!v),
+    ...Object.values(shipmentToCompanyId),
+  ])];
+  let companyCostModeMap: Record<number, { costMode: string; shippingCost: number }> = {};
+  if (shipmentCompanyIds.length) {
+    const companyRows = await db.select({
+      id: shippingCompaniesTable.id,
+      costMode: shippingCompaniesTable.costMode,
+      shippingCost: shippingCompaniesTable.shippingCost,
+    }).from(shippingCompaniesTable).where(inArray(shippingCompaniesTable.id, shipmentCompanyIds));
+    companyCostModeMap = Object.fromEntries(companyRows.map(c => [c.id, {
+      costMode: c.costMode === "zone" ? "zone" : "rep",
+      shippingCost: Math.abs(Number(c.shippingCost ?? 0)),
+    }]));
+  }
+  let zoneCostMap: Record<number, number> = {};
+  if (zoneIds.length) {
+    const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+    zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+  }
+  const getZoneCost = (shipment: any) => {
+    if (!shipment) return 0;
+    const companyId = shipment.shippingCompanyId ?? shipmentToCompanyId[shipment.id];
+    const company = companyId ? companyCostModeMap[companyId] : null;
+    if (company) {
+      return company.costMode === "zone"
+        ? (shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0)
+        : company.shippingCost;
+    }
+    return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+  };
+
+  // ── إضافة نوع الشحنة (basePrice على سعر العميل) ──────────────────────────
+  const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
+  let parcelBasePriceMap: Record<string, number> = {};
+  if (parcelTypes.length) {
+    const tenantIds = [...new Set(allManifests.map(m => m.tenantId).filter((v): v is number => v != null))];
+    const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
+    if (tenantIds.length) {
+      conds.push(or(inArray(parcelTypePricingTable.tenantId, tenantIds), isNull(parcelTypePricingTable.tenantId)));
+    }
+    const pricingRows = await db
+      .select({ tenantId: parcelTypePricingTable.tenantId, parcelType: parcelTypePricingTable.parcelType, basePrice: parcelTypePricingTable.basePrice })
+      .from(parcelTypePricingTable)
+      .where(and(...conds));
+    for (const row of pricingRows) {
+      const existing = parcelBasePriceMap[row.parcelType];
+      const isTenantRow = row.tenantId != null;
+      if (existing === undefined || isTenantRow) parcelBasePriceMap[row.parcelType] = Number(row.basePrice ?? 0);
+    }
+  }
+
+  const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
+  const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
+    if (st === "postponed" || st === "delayed" || st === "pending") return true;
+    if (st === "returned") {
+      const reason = item.returnReason ?? shipment?.returnReason ?? null;
+      if (!RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) return true;
+    }
+    return false;
+  };
+
+  for (const item of items) {
+    const shipment = shipmentMap[item.shipmentId];
+    if (!shipment) continue;
+    const clientId = manifestClientMap[item.manifestId];
+    if (clientId == null || !(clientId in result)) continue;
+    const clientType = clientTypeMap[clientId] ?? "normal";
+    const st = item.deliveryStatus;
+
+    if (isShippingZeroedRow(item, st, shipment)) continue;
+
+    const zoneShippingForItem = getZoneShipping(shipment, clientType);
+    const zoneCostForItem = getZoneCost(shipment);
+    const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
+
+    result[clientId] += (zoneShippingForItem + repExtraCost) - zoneCostForItem;
+  }
+
+  for (const id of clientIds) {
+    result[id] = Number(result[id].toFixed(2));
   }
 
   return result;

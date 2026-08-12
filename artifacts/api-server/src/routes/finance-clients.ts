@@ -3,7 +3,7 @@ import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable,
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
-import { computeClosedManifestsForClient, computeClientBalancesForAllClients } from "../lib/clientAccountBalance.js";
+import { computeClosedManifestsForClient, computeClientBalancesForAllClients, computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
 import { z } from "zod";
 
 const router = Router();
@@ -233,12 +233,17 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     // رصيد العميل = إجمالي قيمة البيانات المقفولة (لا يتغير بالسداد)
     // المتبقي = رصيد العميل - المدفوعات الفعلية اللي اتسددت للعميل
     const accountBalances = await computeClientBalancesForAllClients(ids);
+    // إجمالي صافي الإيراد (المستحق) — مجموع "صافي الإيراد المستحق" لكل بيانات
+    // حساب العميل المقفولة (نفس الرقم المعروض في صفحة تفاصيل البيان الفردي تحت
+    // "صافي الإيراد المستحق")، مجمّع على مستوى العميل بالكامل.
+    const netRevenueDueMap = await computeNetRevenueDueForAllClients(ids);
 
     const enriched = clients.map(c => {
       const stat = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       const netRevenue = netRevenueMap[c.id] ?? 0;
       const profitMargin = stat.totalSales > 0 ? Math.round((netRevenue / stat.totalSales) * 100) : 0;
       const acct = accountBalances[c.id] ?? { totalManifestsValue: 0, totalPaid: 0, balance: 0 };
+      const netRevenueDue = netRevenueDueMap[c.id] ?? 0;
 
       return {
         ...c,
@@ -253,6 +258,9 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         // رصيد العميل (إجمالي البيانات المقفولة) والمتبقي (رصيد العميل - المسدد فعليًا)
         accountBalance: acct.totalManifestsValue,
         accountRemaining: acct.balance,
+        // إجمالي صافي الإيراد المستحق (من البيانات المقفولة فقط) — القيمة اللي
+        // تظهر بره في كارت العميل جنب "إجمالي صافي الإيراد".
+        netRevenueDue: netRevenueDue.toFixed(2),
       };
     });
 

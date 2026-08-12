@@ -35,7 +35,7 @@ type Client = {
   email: string | null; address: string | null; city: string | null; region: string | null;
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
-  netRevenue?: string; profitMargin?: number;
+  netRevenue?: string; profitMargin?: number; netRevenueDue?: string;
   accountBalance?: number; accountRemaining?: number;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
   warehouseId: number | null;
@@ -606,7 +606,7 @@ export default function ClientAccountManifestsPage() {
                     <span className="font-bold" style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}>{formatCurrency(parseFloat(client.totalSales ?? "0"))}</span>
                   </div>
 
-                  {/* صافي الإيراد وهامش الربح — كارت مطوي، بيبان بس لما تدوس عليه */}
+                  {/* إجمالي صافي الإيراد وهامش صافي الإيراد — كارت مطوي، بيبان بس لما تدوس عليه */}
                   <Collapsible>
                     <CollapsibleTrigger asChild>
                       <button
@@ -617,18 +617,23 @@ export default function ClientAccountManifestsPage() {
                         <span className="text-muted-foreground flex items-center gap-1">
                           <Wallet className="w-3 h-3" />إجمالي صافي الإيراد
                         </span>
-                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform group-data-[state=open]/nr:rotate-180" />
+                        <div className="flex items-center gap-1.5">
+                          <span className={`font-bold ${parseFloat(client.netRevenueDue ?? "0") >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {formatCurrency(parseFloat(client.netRevenueDue ?? "0"))}
+                          </span>
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform group-data-[state=open]/nr:rotate-180" />
+                        </div>
                       </button>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-2 space-y-2">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground pr-4">صافي الإيراد</span>
+                        <span className="text-muted-foreground pr-4">إجمالي صافي الإيراد</span>
                         <span className={`font-bold ${parseFloat(client.netRevenue ?? "0") >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                           {formatCurrency(parseFloat(client.netRevenue ?? "0"))}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground pr-4">هامش الربح</span>
+                        <span className="text-muted-foreground pr-4">هامش صافي الإيراد</span>
                         <span className={`font-bold ${
                           (client.profitMargin ?? 0) >= 20 ? "text-emerald-400"
                           : (client.profitMargin ?? 0) >= 10 ? "text-amber-400"
