@@ -610,6 +610,19 @@ export default function ClientAccountManifestsPage() {
                       {formatCurrency(parseFloat(client.netRevenue ?? "0"))}
                     </span>
                   </div>
+                  {/* هامش الربح — الحساب الحالي (على إجمالي المبيعات الخام) غير دقيق ومربك، مخفي بطلب المدير لحد ما يتصلح المنطق. الكود متسيب هنا وشغال، بس معروض بشرط false. */}
+                  {false && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">هامش الربح</span>
+                      <span className={`font-bold ${
+                        (client.profitMargin ?? 0) >= 20 ? "text-emerald-400"
+                        : (client.profitMargin ?? 0) >= 10 ? "text-amber-400"
+                        : "text-red-400"
+                      }`}>
+                        {client.profitMargin ?? 0}%
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">عدد الطلبات</span>
                     <span className="font-bold">{client.totalOrders ?? 0}</span>
