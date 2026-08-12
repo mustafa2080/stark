@@ -24,8 +24,11 @@ function ensureRtlTextPlugin() {
 }
 
 // خرائط أساسية مجانية (بدون مفتاح API)
-const STYLE_LIGHT = "https://tiles.openfreemap.org/styles/positron";
-const STYLE_DARK = "https://tiles.openfreemap.org/styles/dark";
+// ملحوظة: استخدمنا نفس ستايل "Liberty" (خريطة واقعية بتفاصيل شوارع/مباني واضحة)
+// في الوضعين الفاتح والداكن بدل ستايل "dark" المبسّط اللي كان بيظهر كبقعة سوداء
+// شبه مجردة بدون تفاصيل — بناءً على طلب المدير أن تكون الخريطة واقعية وواضحة.
+const STYLE_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
+const STYLE_DARK = "https://tiles.openfreemap.org/styles/liberty";
 
 interface LiveMapProps {
   cities: LiveMapCity[];

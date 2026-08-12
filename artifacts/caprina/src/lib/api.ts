@@ -814,8 +814,11 @@ export interface ShipmentsProfitResponse {
 }
 
 export interface TopClient {
+  clientId: number;
   name: string;
-  phone: string;
+  phone: string | null;
+  avatar: string | null;
+  clientType: string;
   shipmentsCount: number;
   revenue: number;
   successRate: number;
@@ -833,7 +836,8 @@ export interface TopRep {
 export interface TopPerformersResponse {
   topClients: TopClient[];
   topReps: TopRep[];
-  periodDays: number;
+  period: string;
+  periodLabel: string;
   generatedAt: string;
 }
 
@@ -922,16 +926,37 @@ export const analyticsApi = {
       `/analytics/monthly-sales${month ? `?month=${month}` : ""}`
     ),
   shipmentCharts: () => apiFetch<ShipmentChartsData>("/analytics/shipment-charts"),
-  operationsKpis: () => apiFetch<OperationsKpisResponse>("/analytics/operations-kpis"),
+  operationsKpis: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<OperationsKpisResponse>(`/analytics/operations-kpis${qs ? `?${qs}` : ""}`);
+  },
   statusDistribution: () => apiFetch<StatusDistributionResponse>("/analytics/status-distribution"),
-  performanceMetrics: () => apiFetch<PerformanceMetricsResponse>("/analytics/performance-metrics"),
+  performanceMetrics: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<PerformanceMetricsResponse>(`/analytics/performance-metrics${qs ? `?${qs}` : ""}`);
+  },
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
   operationsCenter: () => apiFetch<OperationsCenterResponse>("/analytics/operations-center"),
   liveMap: () => apiFetch<LiveMapResponse>("/analytics/live-map"),
   financialDashboard: () => apiFetch<FinancialDashboardResponse>("/analytics/financial-dashboard"),
   shipmentsProfit: () => apiFetch<ShipmentsProfitResponse>("/analytics/shipments-profit"),
-  topPerformers: () => apiFetch<TopPerformersResponse>("/analytics/top-performers"),
+  topPerformers: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<TopPerformersResponse>(`/analytics/top-performers${qs ? `?${qs}` : ""}`);
+  },
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),
   recentShipments: () => apiFetch<RecentShipmentsResponse>("/analytics/recent-shipments"),
   executiveSummary: () => apiFetch<ExecutiveSummaryResponse>("/analytics/executive-summary"),

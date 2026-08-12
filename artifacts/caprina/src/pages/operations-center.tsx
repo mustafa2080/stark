@@ -214,11 +214,14 @@ function RepAvatar({ avatar, name }: { avatar: string | null; name: string }) {
   );
 }
 
-// ── جلب أفضل العملاء (بيانات حقيقية من الباك اند) ────────────────────────────
-function useTopPerformers() {
+// ── جلب أفضل العملاء والمندوبين (بيانات حقيقية من الباك اند) — حسب الفترة المختارة ──
+function useTopPerformers(filter: OcPeriodFilter) {
+  const params = filter.type === "custom"
+    ? { period: "custom", from: filter.from, to: filter.to }
+    : { period: filter.type };
   return useQuery({
-    queryKey: ["analytics-top-performers"],
-    queryFn: analyticsApi.topPerformers,
+    queryKey: ["analytics-top-performers", filter],
+    queryFn: () => analyticsApi.topPerformers(params),
     staleTime: 3 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
@@ -226,11 +229,14 @@ function useTopPerformers() {
   });
 }
 
-// ── جلب كروت KPI الرئيسية (بيانات حقيقية من الباك اند) ───────────────────────
-function useOperationsKpis() {
+// ── جلب كروت KPI الرئيسية (بيانات حقيقية من الباك اند) — حسب الفترة المختارة ──
+function useOperationsKpis(filter: OcPeriodFilter) {
+  const params = filter.type === "custom"
+    ? { period: "custom", from: filter.from, to: filter.to }
+    : { period: filter.type };
   return useQuery({
-    queryKey: ["analytics-operations-kpis"],
-    queryFn: analyticsApi.operationsKpis,
+    queryKey: ["analytics-operations-kpis", filter],
+    queryFn: () => analyticsApi.operationsKpis(params),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
@@ -322,11 +328,14 @@ function useExecutiveSummary() {
   });
 }
 
-// ── جلب مؤشرات الأداء الدائرية (بيانات حقيقية من الباك اند) ───────────────────
-function usePerformanceMetrics() {
+// ── جلب مؤشرات الأداء الدائرية (بيانات حقيقية من الباك اند) — حسب الفترة المختارة ──
+function usePerformanceMetrics(filter: OcPeriodFilter) {
+  const params = filter.type === "custom"
+    ? { period: "custom", from: filter.from, to: filter.to }
+    : { period: filter.type };
   return useQuery({
-    queryKey: ["analytics-performance-metrics"],
-    queryFn: analyticsApi.performanceMetrics,
+    queryKey: ["analytics-performance-metrics", filter],
+    queryFn: () => analyticsApi.performanceMetrics(params),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
@@ -1159,10 +1168,10 @@ export default function OperationsCenterPage() {
   const { data: smartAlertsData } = useSmartAlerts();
   const smartHighAlerts = smartAlertsData?.alerts.filter((a) => a.severity === "high" && a.type !== "HIGH_RETURN") ?? [];
   const smartAllAlerts = smartAlertsData?.alerts ?? [];
-  const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers();
+  const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers(ocPeriodFilter);
   const topClients = topPerformers?.topClients ?? [];
   const topReps = topPerformers?.topReps ?? [];
-  const { data: opsKpis, isLoading: opsKpisLoading } = useOperationsKpis();
+  const { data: opsKpis, isLoading: opsKpisLoading } = useOperationsKpis(ocPeriodFilter);
   const overviewCards = opsKpis?.cards ?? [];
   const { data: opsCenter, isLoading: opsCenterLoading } = useOperationsCenter();
   const delayedShipments = opsCenter?.delayedShipments ?? [];
@@ -1189,7 +1198,7 @@ export default function OperationsCenterPage() {
   const { data: opsAlertsData, isLoading: opsAlertsLoading } = useOpsAlerts();
   const aiInsights = opsAlertsData?.alerts ?? [];
   const { data: executiveSummary, isLoading: executiveSummaryLoading } = useExecutiveSummary();
-  const { data: perfMetricsData, isLoading: perfMetricsLoading } = usePerformanceMetrics();
+  const { data: perfMetricsData, isLoading: perfMetricsLoading } = usePerformanceMetrics(ocPeriodFilter);
   const performanceMetrics = perfMetricsData?.metrics ?? [];
   const { data: revenueTrendData, isLoading: revenueTrendLoading } = useRevenueTrend();
   const revenueTrend = revenueTrendData?.days ?? [];
@@ -1214,7 +1223,7 @@ export default function OperationsCenterPage() {
           : null,
         statusDistribution,
         topClients: topClients.map((c) => ({
-          name: c.name, phone: c.phone ?? null, shipmentsCount: c.shipmentsCount, revenue: c.revenue, successRate: c.successRate,
+          name: c.name, phone: c.phone, shipmentsCount: c.shipmentsCount, revenue: c.revenue, successRate: c.successRate,
         })),
         topReps: topReps.map((r) => ({
           name: r.name, assigned: r.assigned, successRate: r.successRate, avgRating: r.avgRating, ratingsCount: r.ratingsCount,
@@ -1348,6 +1357,10 @@ export default function OperationsCenterPage() {
       )}
 
       {/* ── صف الكروت العلوي ────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span className="text-xs text-muted-foreground font-semibold">نظرة عامة على الشحنات والإيرادات</span>
+        <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {opsKpisLoading && overviewCards.length === 0 ? (
           Array.from({ length: 6 }).map((_, i) => (
@@ -1583,10 +1596,10 @@ export default function OperationsCenterPage() {
       </div>
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch">
-        {/* العمود الجانبي — مركز العمليات */}
-        <div className="xl:col-span-1 flex flex-col gap-3">
-          <Card className="oc-kpi-card max-h-[420px] flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch xl:h-[680px]">
+        {/* العمود الجانبي — مركز العمليات (سكرول واحد موحّد للحاويات الأربع) */}
+        <div className="xl:col-span-1 flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0">
+          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
@@ -1619,13 +1632,13 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
 
-          <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#f59e0b" }}>
-            <CardHeader className="pb-2">
+          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#f59e0b" }}>
+            <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500" /> شحنات فيها مشكلة
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 pr-4 pl-2">
               {opsCenterLoading && problemShipments.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0 animate-pulse">
@@ -1652,13 +1665,13 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
 
-          <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#0ea5e9" }}>
-            <CardHeader className="pb-2">
+          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#0ea5e9" }}>
+            <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Truck className="w-4 h-4 text-sky-500" /> المندوبين الموجودين حالياً
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 pr-4 pl-2">
               {opsCenterLoading && representatives.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="h-8 rounded bg-muted animate-pulse" />
@@ -1682,13 +1695,13 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
 
-          <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#d946ef" }}>
-            <CardHeader className="pb-2">
+          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#d946ef" }}>
+            <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Phone className="w-4 h-4 text-fuchsia-500" /> عملاء محتاجين متابعة
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 pr-4 pl-2">
               {opsCenterLoading && clientsNeedingFollowup.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="h-8 rounded bg-muted animate-pulse" />
@@ -1816,9 +1829,9 @@ export default function OperationsCenterPage() {
                 )}
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><div className="text-muted-foreground">أرباح اليوم</div><div className="font-bold">{fc(financialData?.today.netProfit ?? 0)}</div></div>
-                  <div><div className="text-muted-foreground">أرباح الشهر</div><div className="font-bold">{fc(financialData?.month.netProfit ?? 0)}</div></div>
-                  <div><div className="text-muted-foreground">تكلفة التشغيل</div><div className="font-bold">{fc(financialData?.month.operatingCost ?? 0)}</div></div>
+                  <div><div className="text-muted-foreground">أرباح اليوم</div><div className={`font-bold ${(periodProfitData?.today.netRevenue ?? 0) >= 0 ? "" : "text-red-600 dark:text-red-400"}`}>{fc(periodProfitData?.today.netRevenue ?? 0)}</div></div>
+                  <div><div className="text-muted-foreground">أرباح الشهر</div><div className={`font-bold ${(periodProfitData?.month.netRevenue ?? 0) >= 0 ? "" : "text-red-600 dark:text-red-400"}`}>{fc(periodProfitData?.month.netRevenue ?? 0)}</div></div>
+                  <div><div className="text-muted-foreground">تكلفة التشغيل</div><div className="font-bold">{fc(periodProfitData?.month.totalExpenses ?? 0)}</div></div>
                 </div>
               </>
             )}
@@ -1895,7 +1908,7 @@ export default function OperationsCenterPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-500" /> أفضل العملاء
-              <span className="text-[10px] font-normal text-muted-foreground">(آخر 30 يوم)</span>
+              <span className="text-[10px] font-normal text-muted-foreground">({topPerformers?.periodLabel ?? "هذا الشهر"})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1916,10 +1929,15 @@ export default function OperationsCenterPage() {
                 </thead>
                 <tbody>
                   {topClients.map((c) => (
-                    <tr key={`${c.name}-${c.phone}`} className="border-b last:border-0">
+                    <tr key={c.clientId} className="border-b last:border-0">
                       <td className="py-2">
-                        <div className="font-semibold">{c.name}</div>
-                        {c.phone && <div className="text-[10px] text-muted-foreground" dir="ltr">{c.phone}</div>}
+                        <div className="flex items-center gap-2">
+                          <RepAvatar avatar={c.avatar} name={c.name} />
+                          <div>
+                            <div className="font-semibold">{c.name}</div>
+                            {c.phone && <div className="text-[10px] text-muted-foreground" dir="ltr">{c.phone}</div>}
+                          </div>
+                        </div>
                       </td>
                       <td className="py-2">{fn(c.shipmentsCount)}</td>
                       <td className="py-2">{fc(c.revenue)}</td>
@@ -1941,7 +1959,7 @@ export default function OperationsCenterPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Truck className="w-4 h-4 text-sky-500" /> أفضل المندوبين
-              <span className="text-[10px] font-normal text-muted-foreground">(آخر 30 يوم)</span>
+              <span className="text-[10px] font-normal text-muted-foreground">({topPerformers?.periodLabel ?? "هذا الشهر"})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>

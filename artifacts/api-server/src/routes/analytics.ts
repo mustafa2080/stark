@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable } from "@workspace/db";
 import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -617,6 +617,99 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
   }
 });
 
+// ─── Helper: نفس منطق manifests-pnl-summary لكن قابل لإعادة الاستخدام ────────
+// (بيستخدمه route الخاص بيه وكمان executive-summary عشان الرقمين يفضلوا متطابقين
+// ومبنيين على نفس مصدر الحقيقة — بيانات المناديب المقفولة + مصروفات الخزنة الفعلية).
+async function computeManifestsPnl(tenantId: number | null, fromDate: Date | null, toDate: Date | null) {
+  const manifestConditions: any[] = [eq(shipmentManifestsTable.status, "closed")];
+  if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
+  if (fromDate) manifestConditions.push(gte(shipmentManifestsTable.closedAt, fromDate));
+  if (toDate) manifestConditions.push(lte(shipmentManifestsTable.closedAt, toDate));
+
+  const rows = await db
+    .select({
+      deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
+      returnReason: shipmentManifestItemsTable.returnReason,
+      partialQuantity: shipmentManifestItemsTable.partialQuantity,
+      returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
+      deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+      codAmount: shipmentsTable.codAmount,
+      shippingFee: shipmentsTable.shippingFee,
+      courierCostPerShipment: shippingCompaniesTable.shippingCost,
+    })
+    .from(shipmentManifestItemsTable)
+    .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+    .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+    .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
+    .where(and(...manifestConditions));
+
+  const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
+
+  let totalRevenue = 0;
+  let totalCourierCost = 0;
+  let deliveredShippingFees = 0;
+  let eligibleCount = 0;
+  let returnCount = 0;
+
+  for (const r of rows) {
+    const isEligible =
+      r.deliveryStatus === "delivered" ||
+      r.deliveryStatus === "partial_delivered" ||
+      (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
+    if (!isEligible) continue;
+
+    eligibleCount++;
+    if (r.deliveryStatus === "returned") returnCount++;
+
+    if (r.deliveryStatus === "partial_delivered" && r.partialQuantity != null) {
+      totalRevenue += Number(r.partialQuantity);
+    } else if (r.deliveryStatus === "returned") {
+      totalRevenue += Number(r.returnValueReceived ?? 0);
+    } else {
+      totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
+    }
+
+    deliveredShippingFees += Number(r.shippingFee ?? 0);
+
+    if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
+      totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
+    }
+  }
+
+  const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
+  const netProfitWithReps = deliveredShippingFees - totalCourierCost;
+
+  const cashExpenseConditions: any[] = [
+    sql`${cashTransactionsTable.type} IN ('withdrawal', 'expense_paid', 'purchase_paid')`,
+    sql`(${cashTransactionsTable.expenseId} IS NULL OR ${cashTransactionsTable.expenseId} NOT IN (
+      SELECT id FROM expenses WHERE category = 'client_payment'
+    ))`,
+  ];
+  if (tenantId !== null) {
+    cashExpenseConditions.push(
+      sql`${cashTransactionsTable.registerId} IN (SELECT id FROM cash_registers WHERE tenant_id = ${tenantId})`
+    );
+  }
+  if (fromDate) cashExpenseConditions.push(gte(cashTransactionsTable.transactionDate, fromDate));
+  if (toDate) cashExpenseConditions.push(lte(cashTransactionsTable.transactionDate, toDate));
+
+  const [{ totalExpenses }] = await db
+    .select({ totalExpenses: sql<number>`COALESCE(SUM(CAST(${cashTransactionsTable.amount} AS DECIMAL(14,2))), 0)` })
+    .from(cashTransactionsTable)
+    .where(and(...cashExpenseConditions));
+
+  const netRevenue = netProfitWithReps - Number(totalExpenses ?? 0);
+
+  return {
+    totalRevenue: netProfitWithReps,
+    totalExpenses: Number(totalExpenses ?? 0),
+    netRevenue,
+    orders: eligibleCount,
+    returnCount,
+    returnRate,
+  };
+}
+
 // ─── GET /api/analytics/manifests-pnl-summary ───────────────────────────────
 // ملخص أرباح المناديب (بيانات الشحن) + مصروفات الخزنة، مجمّعين على مستوى الشركة كلها.
 // نفس منطق realNetProfit في shipment-manifests.ts (لبيان واحد) لكن على كل البيانات
@@ -657,108 +750,8 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
       fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     }
 
-    // ── جلب كل بنود البيانات المقفولة بس (status = closed) مع الشحنة وشركة الشحن ──
-    const manifestConditions: any[] = [eq(shipmentManifestsTable.status, "closed")];
-    if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
-    if (fromDate) manifestConditions.push(gte(shipmentManifestsTable.closedAt, fromDate));
-    if (toDate) manifestConditions.push(lte(shipmentManifestsTable.closedAt, toDate));
-
-    const rows = await db
-      .select({
-        deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
-        returnReason: shipmentManifestItemsTable.returnReason,
-        partialQuantity: shipmentManifestItemsTable.partialQuantity,
-        returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
-        deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
-        codAmount: shipmentsTable.codAmount,
-        shippingFee: shipmentsTable.shippingFee,
-        courierCostPerShipment: shippingCompaniesTable.shippingCost,
-      })
-      .from(shipmentManifestItemsTable)
-      .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
-      .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
-      .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
-      .where(and(...manifestConditions));
-
-    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
-
-    // "إجمالي الإيرادات" = نفس معادلة "إجمالي الإيرادات" في صفحة تفاصيل بيان المندوب (deliveredCOD)،
-    // مجمّعة على مستوى كل البيانات المقفولة فقط — القيمة المستلمة فعليًا من العميل.
-    let totalRevenue = 0;
-    let totalCourierCost = 0; // إجمالي تكلفة المناديب
-    let deliveredShippingFees = 0; // إجمالي رسوم الشحن للشحنات المؤهلة (لحساب صافي الربح الحقيقي)
-    let eligibleCount = 0;    // عدد الشحنات المؤهلة (مسلَّم/مسلَّم جزئي/مرتجع بأسباب مالية)
-    let returnCount = 0;      // عدد المرتجعات بالأسباب المالية
-
-    for (const r of rows) {
-      const isEligible =
-        r.deliveryStatus === "delivered" ||
-        r.deliveryStatus === "partial_delivered" ||
-        (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
-      if (!isEligible) continue;
-
-      eligibleCount++;
-      if (r.deliveryStatus === "returned") returnCount++;
-
-      if (r.deliveryStatus === "partial_delivered" && r.partialQuantity != null) {
-        totalRevenue += Number(r.partialQuantity);
-      } else if (r.deliveryStatus === "returned") {
-        totalRevenue += Number(r.returnValueReceived ?? 0);
-      } else {
-        // مسلَّم بالكامل: القيمة الفعلية المستلمة لو المندوب دخلها، وإلا قيمة الشحنة (COD) كاملة
-        totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
-      }
-
-      // صافي الربح الحقيقي = إجمالي رسوم الشحن (shippingFee) للشحنات المؤهلة − تكلفة المندوب
-      // (نفس معادلة realNetProfit في shipment-manifests.ts، لبيان واحد — هنا مجمّعة على البيانات المقفولة)
-      deliveredShippingFees += Number(r.shippingFee ?? 0);
-
-      // تكلفة المندوب (courierCostManual) بتتحسب فقط على delivered + returned بأسباب مالية،
-      // مش partial_delivered — نفس شرط courierCostPerShipment × (delivered + returnedWithShippingCost)
-      // في shipment-manifests.ts، عشان يفضل الرقم مطابق تمامًا لصفحة تفاصيل البيان.
-      if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
-        totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
-      }
-    }
-
-    const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
-
-    const netProfitWithReps = deliveredShippingFees - totalCourierCost; // صافي الربح الحقيقي التراكمي للبيانات المقفولة
-
-    // ── مصروفات الخزنة الفعلية (نفس الفترة، بنفس فلتر تاريخ إغلاق البيانات) ──
-    // إجمالي كل حركة خزنة بالسالب (سحب/دفع مصروف/دفع مورد) — تحويل بين الخزن (transfer_out) مُستبعد
-    // لأنه نقل داخلي مش مصروف حقيقي.
-    // "سداد حساب عميل" (client_payment) مُستبعد كمان من حساب "المصروفات المؤثرة على الربح" —
-    // ده مش مصروف تشغيلي، هو خصم من الخزنة بس (بيتخصم من رصيد العميل، مش بيقلل الربح).
-    const cashExpenseConditions: any[] = [
-      sql`${cashTransactionsTable.type} IN ('withdrawal', 'expense_paid', 'purchase_paid')`,
-      sql`(${cashTransactionsTable.expenseId} IS NULL OR ${cashTransactionsTable.expenseId} NOT IN (
-        SELECT id FROM expenses WHERE category = 'client_payment'
-      ))`,
-    ];
-    if (tenantId !== null) {
-      cashExpenseConditions.push(
-        sql`${cashTransactionsTable.registerId} IN (SELECT id FROM cash_registers WHERE tenant_id = ${tenantId})`
-      );
-    }
-    if (fromDate) cashExpenseConditions.push(gte(cashTransactionsTable.transactionDate, fromDate));
-    if (toDate) cashExpenseConditions.push(lte(cashTransactionsTable.transactionDate, toDate));
-
-    const [{ totalExpenses }] = await db
-      .select({ totalExpenses: sql<number>`COALESCE(SUM(CAST(${cashTransactionsTable.amount} AS DECIMAL(14,2))), 0)` })
-      .from(cashTransactionsTable)
-      .where(and(...cashExpenseConditions));
-
-    const netRevenue = netProfitWithReps - Number(totalExpenses ?? 0);
-
-    res.json({
-      totalRevenue: netProfitWithReps, // إجمالي صافي أرباح البيانات المقفولة (تراكمي)
-      totalExpenses: Number(totalExpenses ?? 0),
-      netRevenue,
-      orders: eligibleCount,
-      returnCount,
-      returnRate,
-    });
+    const pnl = await computeManifestsPnl(tenantId, fromDate, toDate);
+    res.json(pnl);
   } catch (err) {
     console.error("[analytics/manifests-pnl-summary]", err);
     res.status(500).json({ error: "فشل تحميل ملخص أرباح المناديب", detail: String(err) });
@@ -2430,11 +2423,16 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
 });
 
 // ─── GET /analytics/operations-kpis ──────────────────────────────────────────
-// لوحة العمليات: 7 كروت KPI + نسبة تغيّر عن أمس + بيانات آخر 7 أيام (sparkline) لكل كارت
+// لوحة العمليات: 6 كروت KPI مبنية على الفترة المختارة (اليوم/أسبوع/شهر/سنة/فترة محددة).
+// نسبة التغيّر ("change") دايمًا بتقارن اليوم بأمس بغض النظر عن الفترة المختارة،
+// لأنها مؤشر "حركة النهاردة" مش جزء من نطاق الفترة نفسها.
 router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cacheKey = `operations-kpis:${tenantId ?? "global"}`;
+    const period = (req.query.period as string | undefined) ?? "week";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `operations-kpis:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
@@ -2442,10 +2440,27 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
       new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 
     const now = new Date();
-    // آخر 8 أيام (اليوم + 7 قبله) عشان نقدر نحسب %تغيّر اليوم مقابل إمبارح كمان
-    const from = new Date(now);
-    from.setDate(from.getDate() - 7);
-    from.setHours(0, 0, 0, 0);
+
+    // ── تحديد نطاق التجميع اليومي حسب الفترة المختارة ──────────────────────
+    // كل الفترات بتتجمّع يوميًا (buckets) عشان نقدر نطلع sparkline لكل كارت،
+    // لكن نطاق الأيام نفسه بيختلف حسب الفترة (يوم واحد / أسبوع / شهر / فترة مخصصة).
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "month") {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      // "week" (الافتراضي) — آخر 7 أيام زي المنطق القديم
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    }
+    // للـ sparkline والمقارنة اليوم/أمس محتاجين بيانات يوم أمس على الأقل حتى لو الفترة "اليوم" بس
+    const fetchFrom = new Date(Math.min(rangeFrom.getTime(), new Date(now).setDate(now.getDate() - 1)));
 
     const LEGACY_MAP: Record<string, string> = {
       picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
@@ -2454,8 +2469,8 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
     const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
 
     const cond = tenantId !== null
-      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, from))
-      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, from));
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, fetchFrom), lte(shipmentsTable.createdAt, rangeTo))
+      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, fetchFrom), lte(shipmentsTable.createdAt, rangeTo));
 
     const rows = await db
       .select({
@@ -2468,24 +2483,34 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
       .from(shipmentsTable)
       .where(cond);
 
-    // ── تجميع يومي لآخر 7 أيام ──────────────────────────────────────────────
+    // ── تجميع يومي لكل الأيام ضمن نطاق الفترة (لعرض sparkline) ──────────────
     const days: string[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      days.push(localDateStr(d));
+    {
+      const cursor = new Date(rangeFrom);
+      cursor.setHours(0, 0, 0, 0);
+      const end = new Date(rangeTo);
+      end.setHours(0, 0, 0, 0);
+      while (cursor <= end) {
+        days.push(localDateStr(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      if (days.length === 0) days.push(localDateStr(now));
     }
-    const todayStr = days[days.length - 1];
-    const yesterdayStr = days[days.length - 2];
+    const todayStr = localDateStr(now);
+    const yesterdayD = new Date(now); yesterdayD.setDate(yesterdayD.getDate() - 1);
+    const yesterdayStr = localDateStr(yesterdayD);
 
     type DayBucket = { total: number; delivered: number; inShipping: number; returned: number; delayed: number; revenue: number };
     const emptyBucket = (): DayBucket => ({ total: 0, delivered: 0, inShipping: 0, returned: 0, delayed: 0, revenue: 0 });
     const buckets: Record<string, DayBucket> = {};
     for (const day of days) buckets[day] = emptyBucket();
+    // نضمن وجود اليوم وأمس حتى لو خارج نطاق الفترة (لحساب change بدقة)
+    if (!buckets[todayStr]) buckets[todayStr] = emptyBucket();
+    if (!buckets[yesterdayStr]) buckets[yesterdayStr] = emptyBucket();
 
     for (const r of rows) {
       const day = localDateStr(new Date(r.createdAt));
-      if (!buckets[day]) continue; // خارج نطاق الـ 7 أيام
+      if (!buckets[day]) continue;
       const status = normalize(r.status);
       const b = buckets[day];
       b.total += 1;
@@ -2506,15 +2531,18 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
       return Math.round(((curr - prev) / prev) * 1000) / 10;
     };
 
-    // ── إجماليات كل الفترة (7 أيام) للكروت الرئيسية ─────────────────────────
-    const totals = Object.values(buckets).reduce((acc, b) => ({
-      total: acc.total + b.total,
-      delivered: acc.delivered + b.delivered,
-      inShipping: acc.inShipping + b.inShipping,
-      returned: acc.returned + b.returned,
-      delayed: acc.delayed + b.delayed,
-      revenue: acc.revenue + b.revenue,
-    }), { total: 0, delivered: 0, inShipping: 0, returned: 0, delayed: 0, revenue: 0 });
+    // ── إجماليات الفترة المختارة بس (مش fetchFrom كامل، لو الفترة "اليوم" مثلاً) ──
+    const totals = days.reduce((acc, d) => {
+      const b = buckets[d];
+      return {
+        total: acc.total + b.total,
+        delivered: acc.delivered + b.delivered,
+        inShipping: acc.inShipping + b.inShipping,
+        returned: acc.returned + b.returned,
+        delayed: acc.delayed + b.delayed,
+        revenue: acc.revenue + b.revenue,
+      };
+    }, { total: 0, delivered: 0, inShipping: 0, returned: 0, delayed: 0, revenue: 0 });
 
     const result = {
       cards: [
@@ -2623,11 +2651,15 @@ router.get("/analytics/status-distribution", requireAuth, async (req, res): Prom
 
 // ─── GET /analytics/performance-metrics ──────────────────────────────────────
 // لوحة العمليات: 6 مؤشرات دائرية — الالتزام، وقت التوصيل، المرتجعات،
-// التأخير، تقييم العملاء، زمن الاستلام. كل مؤشر مع نسبة تغيّر عن أمس.
+// التأخير، تقييم العملاء، زمن الاستلام. مبنية على الفترة المختارة (اليوم/أسبوع/شهر/سنة/فترة محددة).
+// كل مؤشر مع نسبة تغيّر عن أمس (بغض النظر عن الفترة المختارة).
 router.get("/analytics/performance-metrics", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cacheKey = `performance-metrics:${tenantId ?? "global"}`;
+    const period = (req.query.period as string | undefined) ?? "week";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `performance-metrics:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
@@ -2639,6 +2671,24 @@ router.get("/analytics/performance-metrics", requireAuth, async (req, res): Prom
 
     const now = new Date();
     const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+
+    // ── تحديد نطاق الفترة المختارة ──────────────────────────────────────────
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "week") {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "month") {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    }
 
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
@@ -2709,24 +2759,30 @@ router.get("/analytics/performance-metrics", requireAuth, async (req, res): Prom
       };
     }
 
+    // "overall" دلوقتي = بيانات الفترة المختارة فقط (مش كل التاريخ زي قبل كده)
+    const periodRows = rows.filter((r: typeof rows[number]) => {
+      const d = new Date(r.createdAt);
+      return d >= rangeFrom && d <= rangeTo;
+    });
     const todayRows = rows.filter((r: typeof rows[number]) => new Date(r.createdAt) >= new Date(now.toDateString()));
     const yesterdayRows = rows.filter((r: typeof rows[number]) => {
       const d = new Date(r.createdAt);
       return d >= new Date(yesterday.toDateString()) && d < new Date(now.toDateString());
     });
 
-    const overall = computeMetrics(rows);
+    const overall = computeMetrics(periodRows);
     const todayMetrics = computeMetrics(todayRows);
     const yesterdayMetrics = computeMetrics(yesterdayRows);
 
     const pctPointChange = (curr: number, prev: number): number =>
       Math.round((curr - prev) * 10) / 10;
 
-    // ─── متوسط تقييم العملاء من جدول shipment_ratings ─────────────────────────
-    const ratingCond = tenantId !== null ? eq(shipmentRatingsTable.tenantId, tenantId) : undefined;
+    // ─── متوسط تقييم العملاء من جدول shipment_ratings (بنفس نطاق الفترة) ───────
+    const ratingConditions: any[] = [gte(shipmentRatingsTable.createdAt, rangeFrom), lte(shipmentRatingsTable.createdAt, rangeTo)];
+    if (tenantId !== null) ratingConditions.push(eq(shipmentRatingsTable.tenantId, tenantId));
     const ratingRows = await db.select({ rating: shipmentRatingsTable.rating })
       .from(shipmentRatingsTable)
-      .where(ratingCond);
+      .where(and(...ratingConditions));
     const avgRating = ratingRows.length > 0
       ? Math.round((ratingRows.reduce((s: number, r: typeof ratingRows[number]) => s + r.rating, 0) / ratingRows.length) * 10) / 10
       : 0;
@@ -3543,12 +3599,16 @@ router.get("/analytics/financial-dashboard", requirePermission("orders.financial
 });
 
 // ─── GET /analytics/top-performers ────────────────────────────────────────────
-// لوحة العمليات: أفضل العملاء (الأكثر تعاملاً بالشحنات) + أفضل المندوبين
-// (بأعلى متوسط تقييم عملاء) — آخر 30 يوم، بيانات حقيقية 100%.
+// لوحة العمليات: أفضل العملاء (من جدول العملاء التجاريين الحقيقي عبر clientId،
+// مش من اسم/هاتف المستلم النصي) + أفضل المندوبين — حسب الفترة المختارة
+// (اليوم/أسبوع/شهر/سنة/فترة مخصصة)، بيانات حقيقية 100%.
 router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cacheKey = `top-performers:${tenantId ?? "global"}`;
+    const period = (req.query.period as string | undefined) ?? "month";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `top-performers:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
@@ -3558,19 +3618,42 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
     };
     const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
 
+    // ── تحديد نطاق الفترة (نفس منطق /analytics/operations-kpis) ────────────
+    const now = new Date();
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    let periodLabel: string;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+      periodLabel = "اليوم";
+    } else if (period === "week") {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+      periodLabel = "آخر 7 أيام";
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+      periodLabel = "هذا العام";
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+      periodLabel = "الفترة المحددة";
+    } else {
+      // "month" (الافتراضي)
+      rangeFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+      periodLabel = "هذا الشهر";
+    }
+
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
       : isNull(shipmentsTable.deletedAt);
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const dateCond = and(cond, gte(shipmentsTable.createdAt, thirtyDaysAgo));
+    const dateCond = and(cond, gte(shipmentsTable.createdAt, rangeFrom), lte(shipmentsTable.createdAt, rangeTo));
 
-    // ═══ 1) أفضل العملاء — تجميع حسب اسم + رقم هاتف المستلم ═══
+    // ═══ 1) أفضل العملاء — تجميع حسب clientId الحقيقي (جدول العملاء التجاريين clients) ═══
+    // ملحوظة: بنستبعد الشحنات اللي مالهاش clientId (عميل تجاري مسجّل) — دي شحنات
+    // فردية بدون حساب عميل، مش المطلوب في "أفضل العملاء".
     type ShipmentPerfRow = {
       id: number;
-      receiverName: string | null;
-      receiverPhone: string | null;
+      clientId: number | null;
       status: string | null;
       totalAmount: string | null;
       collectedAmount: string | null;
@@ -3579,8 +3662,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
     const shipmentRows: ShipmentPerfRow[] = await db
       .select({
         id: shipmentsTable.id,
-        receiverName: shipmentsTable.receiverName,
-        receiverPhone: shipmentsTable.receiverPhone,
+        clientId: shipmentsTable.clientId,
         status: shipmentsTable.status,
         totalAmount: shipmentsTable.totalAmount,
         collectedAmount: shipmentsTable.collectedAmount,
@@ -3589,30 +3671,42 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       .from(shipmentsTable)
       .where(dateCond);
 
-    type ClientBucket = { name: string; phone: string; shipmentsCount: number; revenue: number; delivered: number };
-    const byClient = new Map<string, ClientBucket>();
+    type ClientBucket = { clientId: number; shipmentsCount: number; revenue: number; delivered: number };
+    const byClient = new Map<number, ClientBucket>();
     for (const r of shipmentRows) {
-      const name = (r.receiverName ?? "").trim();
-      const phone = (r.receiverPhone ?? "").trim();
-      if (!name) continue;
-      const key = `${name}|${phone}`;
-      if (!byClient.has(key)) byClient.set(key, { name, phone, shipmentsCount: 0, revenue: 0, delivered: 0 });
-      const b = byClient.get(key)!;
+      if (!r.clientId) continue;
+      if (!byClient.has(r.clientId)) byClient.set(r.clientId, { clientId: r.clientId, shipmentsCount: 0, revenue: 0, delivered: 0 });
+      const b = byClient.get(r.clientId)!;
       b.shipmentsCount++;
       b.revenue += Number(r.collectedAmount || r.totalAmount || 0);
       if (normalize(r.status) === "received") b.delivered++;
     }
 
-    const topClients = Array.from(byClient.values())
+    const topClientBuckets = Array.from(byClient.values())
       .sort((a, b) => b.shipmentsCount - a.shipmentsCount)
-      .slice(0, 5)
-      .map(c => ({
-        name: c.name,
-        phone: c.phone,
+      .slice(0, 5);
+
+    const topClientIds = topClientBuckets.map(c => c.clientId);
+    type ClientInfoRow = { id: number; name: string; phone: string | null; avatar: string | null; clientType: string | null };
+    const clientInfoRows: ClientInfoRow[] = topClientIds.length > 0
+      ? await db.select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, avatar: clientsTable.avatar, clientType: clientsTable.clientType })
+          .from(clientsTable).where(inArray(clientsTable.id, topClientIds))
+      : [];
+    const clientInfoMap = new Map(clientInfoRows.map(c => [c.id, c]));
+
+    const topClients = topClientBuckets.map(c => {
+      const info = clientInfoMap.get(c.clientId);
+      return {
+        clientId: c.clientId,
+        name: info?.name ?? `عميل #${c.clientId}`,
+        phone: info?.phone ?? null,
+        avatar: info?.avatar ?? null,
+        clientType: info?.clientType ?? "normal",
         shipmentsCount: c.shipmentsCount,
         revenue: Math.round(c.revenue),
         successRate: c.shipmentsCount > 0 ? Math.round((c.delivered / c.shipmentsCount) * 100) : 0,
-      }));
+      };
+    });
 
     // ═══ 2) أفضل المندوبين — تجميع حسب المندوب المسؤول + التقييمات ═══
     const repIds = Array.from(new Set(shipmentRows.map((r): number | null => r.assignedUserId).filter((id): id is number => !!id)));
@@ -3638,7 +3732,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       ? await db.select({ shipmentId: shipmentRatingsTable.shipmentId, rating: shipmentRatingsTable.rating })
           .from(shipmentRatingsTable)
           .innerJoin(shipmentsTable, eq(shipmentRatingsTable.shipmentId, shipmentsTable.id))
-          .where(and(inArray(shipmentsTable.assignedUserId, repIds), gte(shipmentRatingsTable.createdAt, thirtyDaysAgo)))
+          .where(and(inArray(shipmentsTable.assignedUserId, repIds), gte(shipmentRatingsTable.createdAt, rangeFrom), lte(shipmentRatingsTable.createdAt, rangeTo)))
       : [];
 
     // نحتاج ربط التقييم بالمندوب عبر الشحنة — نجيب خريطة shipmentId → assignedUserId
@@ -3675,7 +3769,8 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
     const result = {
       topClients,
       topReps,
-      periodDays: 30,
+      period,
+      periodLabel,
       generatedAt: new Date().toISOString(),
     };
 
@@ -3849,59 +3944,34 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
     const daysElapsedThisMonth = Math.max(1, Math.ceil((now.getTime() - monthStart.getTime()) / (24 * 60 * 60 * 1000)));
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
+    // ── إيرادات/أرباح حقيقية: نفس مصدر "رقم الـ 300" (بيانات المناديب المقفولة + مصروفات الخزنة) ──
+    // بدل الحساب القديم من shipmentsTable مباشرة اللي كان بيديلي رقم مختلف عن باقي الشاشة.
+    const [currentMonthPnl, prevMonthPnl] = await Promise.all([
+      computeManifestsPnl(tenantId, monthStart, null),
+      computeManifestsPnl(tenantId, prevMonthStart, monthStart),
+    ]);
+    const monthProfit = currentMonthPnl.netRevenue;
+    const prevMonthProfit = prevMonthPnl.netRevenue;
+    const growthRate = prevMonthProfit !== 0
+      ? Math.round(((monthProfit - prevMonthProfit) / Math.abs(prevMonthProfit)) * 1000) / 10
+      : 0;
+
+    // ── عدد الشحنات ونسبة النجاح وأكثر منطقة نشاطًا: تبقى من shipmentsTable (شهر حالي) ──
     const rows = await db
       .select({
         status: shipmentsTable.status,
         createdAt: shipmentsTable.createdAt,
-        collectedAmount: shipmentsTable.collectedAmount,
-        totalAmount: shipmentsTable.totalAmount,
-        costPrice: shipmentsTable.costPrice,
-        shippingFee: shipmentsTable.shippingFee,
-        insuranceFee: shipmentsTable.insuranceFee,
         receiverCity: shipmentsTable.receiverCity,
-        senderName: shipmentsTable.senderName,
       })
       .from(shipmentsTable)
-      .where(and(cond, gte(shipmentsTable.createdAt, prevMonthStart)));
+      .where(and(cond, gte(shipmentsTable.createdAt, monthStart)));
 
-    const monthRows = rows.filter(r => new Date(r.createdAt) >= monthStart);
-    const prevMonthRows = rows.filter(r => new Date(r.createdAt) >= prevMonthStart && new Date(r.createdAt) < monthStart);
-
-    function sumRevenue(subset: typeof rows) {
-      let revenue = 0;
-      for (const r of subset) {
-        if (normalize(r.status) !== "received") continue;
-        revenue += Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
-      }
-      return revenue;
-    }
-    function sumProfit(subset: typeof rows) {
-      let profit = 0;
-      for (const r of subset) {
-        if (normalize(r.status) !== "received") continue;
-        const revenue = Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
-        const cost = Number(r.costPrice ?? 0) + Number(r.shippingFee ?? 0) + Number(r.insuranceFee ?? 0);
-        profit += revenue - cost;
-      }
-      return profit;
-    }
-
-    const monthRevenue = sumRevenue(monthRows);
-    const monthProfit = sumProfit(monthRows);
-    const prevMonthRevenue = sumRevenue(prevMonthRows);
-    const growthRate = prevMonthRevenue > 0
-      ? Math.round(((monthRevenue - prevMonthRevenue) / prevMonthRevenue) * 1000) / 10
-      : 0;
-
-    const shipmentsCount = monthRows.length;
-    const deliveredCount = monthRows.filter(r => normalize(r.status) === "received").length;
+    const shipmentsCount = rows.length;
+    const deliveredCount = rows.filter(r => normalize(r.status) === "received").length;
     const successRate = shipmentsCount > 0 ? Math.round((deliveredCount / shipmentsCount) * 100) : 0;
 
-    const clientsSet = new Set(monthRows.map(r => (r.senderName ?? "").trim()).filter(Boolean));
-    const clientsCount = clientsSet.size;
-
     const cityCounts = new Map<string, number>();
-    for (const r of monthRows) {
+    for (const r of rows) {
       const city = (r.receiverCity ?? "").trim() || "غير محدد";
       cityCounts.set(city, (cityCounts.get(city) ?? 0) + 1);
     }
@@ -3911,12 +3981,19 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       if (count > topAreaCount) { topArea = city; topAreaCount = count; }
     }
 
-    // توقع مبسّط: المعدل اليومي الحالي × عدد أيام الشهر القادم (نفس عدد أيام هذا الشهر تقريبًا)
-    const dailyAvgRevenue = monthRevenue / daysElapsedThisMonth;
-    const nextMonthForecast = Math.round(dailyAvgRevenue * daysInMonth);
+    // ── عدد العملاء التجاريين الحقيقي: من جدول العملاء نفسه (receiver_clients) مش distinct sender ──
+    // (بدون فلتر على accountStatus عمدًا — العميل الموقوف مؤقتًا يفضل عميل تجاري مسجل)
+    const clientsCountRows = tenantId !== null
+      ? await db.select({ clientsCount: count() }).from(receiverClientsTable).where(eq(receiverClientsTable.tenantId, tenantId))
+      : await db.select({ clientsCount: count() }).from(receiverClientsTable);
+    const clientsCount = clientsCountRows[0]?.clientsCount ?? 0;
+
+    // توقع مبسّط للشهر القادم: بناءً على صافي الربح الحقيقي (netRevenue) لا الإيراد الخام
+    const dailyAvgProfit = monthProfit / daysElapsedThisMonth;
+    const nextMonthForecast = Math.round(dailyAvgProfit * daysInMonth);
 
     const result = {
-      revenue: Math.round(monthRevenue),
+      revenue: Math.round(currentMonthPnl.totalRevenue),
       profit: Math.round(monthProfit),
       growthRate,
       clientsCount,
@@ -3933,8 +4010,11 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
   }
 });
 
-// لوحة العمليات: اتجاه الإيرادات والأرباح اليومي — آخر 7 أيام، مبني على نفس
-// منطق financial-dashboard (الإيراد = المبلغ المحصَّل فعليًا بعد التسليم).
+// لوحة العمليات: اتجاه الإيرادات والأرباح اليومي — آخر 7 أيام.
+// نفس منطق manifests-pnl-summary بالظبط (بيانات مقفولة فقط، status="closed")،
+// لكن مجمّعة يوميًا على أساس تاريخ إغلاق البيان (closedAt) بدل رقم إجمالي واحد.
+// خط "الأرباح" = صافي ربح المناديب بس (deliveredShippingFees − totalCourierCost)
+// بدون خصم مصاريف الخزنة — حسب طلب المدير.
 router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
@@ -3942,32 +4022,36 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
-    const LEGACY_MAP: Record<string, string> = {
-      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
-      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
-    };
-    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
-
-    const cond = tenantId !== null
-      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
-      : isNull(shipmentsTable.deletedAt);
-
     const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const manifestConditions: any[] = [
+      eq(shipmentManifestsTable.status, "closed"),
+      gte(shipmentManifestsTable.closedAt, sevenDaysAgo),
+    ];
+    if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
 
     const rows = await db
       .select({
-        status: shipmentsTable.status,
-        createdAt: shipmentsTable.createdAt,
-        collectedAmount: shipmentsTable.collectedAmount,
-        totalAmount: shipmentsTable.totalAmount,
-        costPrice: shipmentsTable.costPrice,
+        closedAt: shipmentManifestsTable.closedAt,
+        deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
+        returnReason: shipmentManifestItemsTable.returnReason,
+        partialQuantity: shipmentManifestItemsTable.partialQuantity,
+        returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
+        deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+        codAmount: shipmentsTable.codAmount,
         shippingFee: shipmentsTable.shippingFee,
-        insuranceFee: shipmentsTable.insuranceFee,
+        courierCostPerShipment: shippingCompaniesTable.shippingCost,
       })
-      .from(shipmentsTable)
-      .where(and(cond, gte(shipmentsTable.createdAt, sevenDaysAgo)));
+      .from(shipmentManifestItemsTable)
+      .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+      .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
+      .where(and(...manifestConditions));
+
+    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
 
     const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
     const buckets: { day: string; date: string; revenue: number; profit: number }[] = [];
@@ -3980,14 +4064,31 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
     const bucketByDate = new Map(buckets.map(b => [b.date, b]));
 
     for (const r of rows) {
-      if (normalize(r.status) !== "received") continue;
-      const dateKey = new Date(r.createdAt).toISOString().slice(0, 10);
+      const isEligible =
+        r.deliveryStatus === "delivered" ||
+        r.deliveryStatus === "partial_delivered" ||
+        (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
+      if (!isEligible || !r.closedAt) continue;
+
+      const dateKey = new Date(r.closedAt).toISOString().slice(0, 10);
       const bucket = bucketByDate.get(dateKey);
       if (!bucket) continue;
-      const revenue = Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
-      const cost = Number(r.costPrice ?? 0) + Number(r.shippingFee ?? 0) + Number(r.insuranceFee ?? 0);
+
+      let revenue = 0;
+      if (r.deliveryStatus === "partial_delivered" && r.partialQuantity != null) {
+        revenue = Number(r.partialQuantity);
+      } else if (r.deliveryStatus === "returned") {
+        revenue = Number(r.returnValueReceived ?? 0);
+      } else {
+        revenue = r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
+      }
       bucket.revenue += revenue;
-      bucket.profit += revenue - cost;
+
+      // صافي الربح = رسوم الشحن (shippingFee) − تكلفة المندوب (نفس معادلة manifests-pnl-summary)
+      bucket.profit += Number(r.shippingFee ?? 0);
+      if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
+        bucket.profit -= Math.abs(Number(r.courierCostPerShipment ?? 0));
+      }
     }
     for (const b of buckets) {
       b.revenue = Math.round(b.revenue);
