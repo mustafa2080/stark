@@ -523,6 +523,126 @@ function OcPeriodFilterBar({
   );
 }
 
+// ── فلتر فترة مصغّر ومستقل خاص بجدول "أفضل المندوبين" (اليوم/أسبوع + فترة محددة) ──
+function RepPeriodFilterBar({
+  value, onChange,
+}: {
+  value: OcPeriodFilter;
+  onChange: (v: OcPeriodFilter) => void;
+}) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [draftRange, setDraftRange] = useState<{ from?: Date; to?: Date }>(() =>
+    value.type === "custom"
+      ? { from: new Date(value.from), to: new Date(value.to) }
+      : {}
+  );
+  const [navMonth, setNavMonth] = useState<Date>(() =>
+    value.type === "custom" ? new Date(value.from) : new Date()
+  );
+
+  const REP_MONTH_NAMES = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const navYear = navMonth.getFullYear();
+  const navMonthIdx = navMonth.getMonth();
+  const repYearOptions = Array.from({ length: (new Date().getFullYear() + 1) - 2020 + 1 }, (_, i) => 2020 + i);
+
+  const isCustom = value.type === "custom";
+  const customLabel = isCustom
+    ? `${ocFmtDate(new Date(value.from))} - ${ocFmtDate(new Date(value.to))}`
+    : "فترة محددة";
+
+  const applyCustomRange = () => {
+    if (!draftRange.from || !draftRange.to) return;
+    const toYmd = (d: Date) => d.toISOString().slice(0, 10);
+    onChange({ type: "custom", from: toYmd(draftRange.from), to: toYmd(draftRange.to) });
+    setPopoverOpen(false);
+  };
+
+  return (
+    <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5 flex-wrap">
+      {[{ key: "today" as const, label: "يومي" }, { key: "week" as const, label: "أسبوعي" }].map((t) => (
+        <button
+          key={t.key}
+          onClick={() => onChange({ type: t.key })}
+          className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
+            value.type === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+      <Dialog open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <DialogTrigger asChild>
+          <button
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
+              isCustom ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
+            }`}
+          >
+            <CalendarIcon className="w-2.5 h-2.5" />
+            {customLabel}
+            <ChevronDown className="w-2.5 h-2.5" />
+          </button>
+        </DialogTrigger>
+        <DialogContent className="w-auto max-w-fit p-4">
+          <div className="flex flex-col items-center gap-3" dir="rtl">
+            <div className="flex items-center gap-2 w-full justify-center">
+              <Select
+                value={String(navMonthIdx)}
+                onValueChange={(v) => setNavMonth(new Date(navYear, Number(v), 1))}
+              >
+                <SelectTrigger className="h-8 w-[110px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {REP_MONTH_NAMES.map((name, idx) => (
+                    <SelectItem key={idx} value={String(idx)} className="text-xs">
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={String(navYear)}
+                onValueChange={(v) => setNavMonth(new Date(Number(v), navMonthIdx, 1))}
+              >
+                <SelectTrigger className="h-8 w-[90px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {repYearOptions.map((y) => (
+                    <SelectItem key={y} value={String(y)} className="text-xs">
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Calendar
+              mode="range"
+              selected={draftRange}
+              onSelect={(r: any) => setDraftRange(r ?? {})}
+              month={navMonth}
+              onMonthChange={setNavMonth}
+              numberOfMonths={2}
+              dir="rtl"
+              className="scale-110 origin-top"
+            />
+            <div className="flex items-center justify-between gap-3 w-full pt-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                {draftRange.from && draftRange.to
+                  ? `${ocFmtDate(draftRange.from)} → ${ocFmtDate(draftRange.to)}`
+                  : "اختر تاريخ البداية والنهاية"}
+              </span>
+              <Button size="sm" disabled={!draftRange.from || !draftRange.to} onClick={applyCustomRange}>
+                تطبيق
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── جلب ملخص أرباح المناديب + مصروفات الخزنة حسب الفترة ───────────────────────
 function useManifestsPnlSummary(filter: OcPeriodFilter) {
   const params = filter.type === "custom"
@@ -1158,6 +1278,8 @@ export default function OperationsCenterPage() {
   const [perfMetricModal, setPerfMetricModal] = useState<{ key: string; label: string; value: number; unit: string; max: number | null } | null>(null);
   const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
   const [ocPeriodFilter, setOcPeriodFilter] = useState<OcPeriodFilter>({ type: "today" });
+  const [repsPeriodFilter, setRepsPeriodFilter] = useState<OcPeriodFilter>({ type: "week" });
+  const { data: repsPerformers, isLoading: repsPerformersLoading } = useTopPerformers(repsPeriodFilter);
   const [isTreasuryOpen, setIsTreasuryOpen] = useState(false);
   const { data: cashRegisters, isLoading: cashRegistersLoading } = useCashRegisters();
   const totalCash = cashRegisters?.totalBalance ?? 0;
@@ -1170,7 +1292,7 @@ export default function OperationsCenterPage() {
   const smartAllAlerts = smartAlertsData?.alerts ?? [];
   const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers(ocPeriodFilter);
   const topClients = topPerformers?.topClients ?? [];
-  const topReps = topPerformers?.topReps ?? [];
+  const topReps = repsPerformers?.topReps ?? [];
   const { data: opsKpis, isLoading: opsKpisLoading } = useOperationsKpis(ocPeriodFilter);
   const overviewCards = opsKpis?.cards ?? [];
   const { data: opsCenter, isLoading: opsCenterLoading } = useOperationsCenter();
@@ -1957,13 +2079,16 @@ export default function OperationsCenterPage() {
 
         <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#0ea5e9" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Truck className="w-4 h-4 text-sky-500" /> أفضل المندوبين
-              <span className="text-[10px] font-normal text-muted-foreground">({topPerformers?.periodLabel ?? "هذا الشهر"})</span>
+            <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
+              <span className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-sky-500" /> أفضل المندوبين
+                <span className="text-[10px] font-normal text-muted-foreground">({repsPerformers?.periodLabel ?? "أسبوع"})</span>
+              </span>
+              <RepPeriodFilterBar value={repsPeriodFilter} onChange={setRepsPeriodFilter} />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {topPerformersLoading && topReps.length === 0 ? (
+            {repsPerformersLoading && topReps.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">جاري تحميل البيانات...</div>
             ) : topReps.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</div>
