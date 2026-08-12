@@ -3,7 +3,7 @@ import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable,
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
-import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
+import { computeClosedManifestsForClient, computeClientBalancesForAllClients } from "../lib/clientAccountBalance.js";
 import { z } from "zod";
 
 const router = Router();
@@ -228,29 +228,31 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       netRevenueMap[r.clientId] = (netRevenueMap[r.clientId] ?? 0) + (revenue - courierCost);
     }
 
-    // هل كل عميل مرتبط بحساب دخول (يوزر) بالفعل؟
-    let accountClientIds = new Set<number>();
-    if (ids.length) {
-      const linkedUsers = await db.select({ clientId: usersTable.clientId })
-        .from(usersTable).where(inArray(usersTable.clientId, ids));
-      accountClientIds = new Set(linkedUsers.map(u => u.clientId).filter((v): v is number => v != null));
-    }
+    // ── رصيد العميل والمتبقي — نفس منطق computeClientBalancesForAllClients ────
+    // (بيانات حساب عميل مقفولة clientAccountManifestsTable + clientAccountPaymentsTable)
+    // رصيد العميل = إجمالي قيمة البيانات المقفولة (لا يتغير بالسداد)
+    // المتبقي = رصيد العميل - المدفوعات الفعلية اللي اتسددت للعميل
+    const accountBalances = await computeClientBalancesForAllClients(ids);
 
     const enriched = clients.map(c => {
-      const s = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
+      const stat = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       const netRevenue = netRevenueMap[c.id] ?? 0;
-      const profitMargin = s.totalSales > 0 ? Math.round((netRevenue / s.totalSales) * 100) : 0;
+      const profitMargin = stat.totalSales > 0 ? Math.round((netRevenue / stat.totalSales) * 100) : 0;
+      const acct = accountBalances[c.id] ?? { totalManifestsValue: 0, totalPaid: 0, balance: 0 };
+
       return {
         ...c,
         warehouseId: warehouseMap[c.id] ?? null,
-        region:      regionMap[c.id] ?? (c as any).region ?? null,
-        whatsappGroupLink: whatsappGroupLinkMap[c.id] ?? (c as any).whatsappGroupLink ?? null,
-        totalOrders: s.totalOrders,
-        totalSales:  String(s.totalSales),
-        totalPaid:   String(s.totalPaid),
-        netRevenue:  String(netRevenue),
+        region: regionMap[c.id] ?? null,
+        whatsappGroupLink: whatsappGroupLinkMap[c.id] ?? null,
+        totalOrders: stat.totalOrders,
+        totalSales: stat.totalSales.toFixed(2),
+        totalPaid: stat.totalPaid.toFixed(2),
+        netRevenue: netRevenue.toFixed(2),
         profitMargin,
-        hasAccount:  accountClientIds.has(c.id),
+        // رصيد العميل (إجمالي البيانات المقفولة) والمتبقي (رصيد العميل - المسدد فعليًا)
+        accountBalance: acct.totalManifestsValue,
+        accountRemaining: acct.balance,
       };
     });
 

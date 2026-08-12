@@ -188,3 +188,170 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     balance: Number((totalManifestsValue - totalPaid).toFixed(2)),
   };
 }
+
+// ─── نفس حساب computeClosedManifestsForClient، بس لكل العملاء دفعة واحدة ──────
+// مُستخدمة في كارت العميل بصفحة /finance/client-account-sheet (اللست الكاملة)
+// عشان نعرض "رصيد العميل" و"المتبقي" لكل عميل من غير ما ننادي الدالة الفردية
+// N مرة (N+1 queries). نفس الجداول ونفس شرط status = "closed" بالضبط — أي رقم
+// هنا لازم يطابق تمامًا اللي هيرجع لو ناديت computeClosedManifestsForClient
+// لأي عميل واحد بمفرده.
+export async function computeClientBalancesForAllClients(
+  clientIds: number[],
+): Promise<Record<number, { totalManifestsValue: number; totalPaid: number; balance: number }>> {
+  const result: Record<number, { totalManifestsValue: number; totalPaid: number; balance: number }> = {};
+  for (const id of clientIds) result[id] = { totalManifestsValue: 0, totalPaid: 0, balance: 0 };
+  if (!clientIds.length) return result;
+
+  const allManifests = await db
+    .select()
+    .from(clientAccountManifestsTable)
+    .where(and(
+      inArray(clientAccountManifestsTable.clientId, clientIds),
+      eq(clientAccountManifestsTable.status, "closed"),
+    ));
+
+  if (allManifests.length) {
+    const manifestIds = allManifests.map(m => m.id);
+    const manifestClientMap: Record<number, number> = {};
+    allManifests.forEach(m => { manifestClientMap[m.id] = m.clientId; });
+
+    const items = await db
+      .select()
+      .from(clientAccountManifestItemsTable)
+      .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
+
+    const shipmentIds = items.map(i => i.shipmentId);
+    const shipments = shipmentIds.length
+      ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+      : [];
+    const shipmentMap: Record<number, any> = {};
+    shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    const clients = await db.select().from(clientsTable).where(inArray(clientsTable.id, clientIds));
+    const clientTypeMap: Record<number, string> = {};
+    clients.forEach(c => { clientTypeMap[c.id] = (c as any).clientType ?? "normal"; });
+
+    const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+    let zoneRowsById: Record<number, any> = {};
+    if (zoneIds.length) {
+      const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+      zones.forEach(z => { zoneRowsById[z.id] = z; });
+    }
+    const getZoneShipping = (shipment: any, clientType: string) => {
+      if (!shipment?.zoneId) return Number(shipment?.shippingFee ?? 0);
+      const z = zoneRowsById[shipment.zoneId];
+      if (!z) return Number(shipment.shippingFee ?? 0);
+      const priceByType =
+        clientType === "vip"        ? z.priceVip :
+        clientType === "commercial" ? z.priceCommercial :
+        z.priceNormal;
+      const resolved = priceByType != null && Number(priceByType) > 0 ? priceByType : z.price;
+      return Number(resolved) || Number(shipment.shippingFee ?? 0) || 0;
+    };
+
+    const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
+    let parcelBasePriceMap: Record<string, number> = {};
+    if (parcelTypes.length) {
+      const tenantIds = [...new Set(allManifests.map(m => m.tenantId).filter((v): v is number => v != null))];
+      const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
+      if (tenantIds.length) {
+        conds.push(or(inArray(parcelTypePricingTable.tenantId, tenantIds), isNull(parcelTypePricingTable.tenantId)));
+      }
+      const pricingRows = await db
+        .select({ tenantId: parcelTypePricingTable.tenantId, parcelType: parcelTypePricingTable.parcelType, basePrice: parcelTypePricingTable.basePrice })
+        .from(parcelTypePricingTable)
+        .where(and(...conds));
+      for (const row of pricingRows) {
+        const existing = parcelBasePriceMap[row.parcelType];
+        const isTenantRow = row.tenantId != null;
+        if (existing === undefined || isTenantRow) parcelBasePriceMap[row.parcelType] = Number(row.basePrice ?? 0);
+      }
+    }
+
+    let shipmentReturnValueMap: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const smItems = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
+          addedAt: shipmentManifestItemsTable.addedAt,
+        })
+        .from(shipmentManifestItemsTable)
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          eq(shipmentManifestItemsTable.deliveryStatus, "returned"),
+        ));
+      smItems
+        .filter(r => r.returnValueReceived != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => {
+          shipmentReturnValueMap[row.shipmentId] = Number(row.returnValueReceived);
+        });
+    }
+
+    const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
+    const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
+      if (st === "postponed" || st === "delayed" || st === "pending") return true;
+      if (st === "returned") {
+        const reason = item.returnReason ?? shipment?.returnReason ?? null;
+        if (!RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) return true;
+      }
+      return false;
+    };
+
+    for (const item of items) {
+      const shipment = shipmentMap[item.shipmentId];
+      if (!shipment) continue;
+      const clientId = manifestClientMap[item.manifestId];
+      if (clientId == null) continue;
+      const clientType = clientTypeMap[clientId] ?? "normal";
+
+      const st = item.deliveryStatus;
+      const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
+      const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
+      const zoneShippingForItem = (st !== "returned" || isReturnedWithValue) ? getZoneShipping(shipment, clientType) : 0;
+      const totalPrice = Number(shipment.codAmount ?? shipment.totalAmount ?? 0) + zoneShippingForItem;
+
+      let collected = 0;
+      if (st === "delivered") {
+        const dvr = (item as any).deliveredValueReceived;
+        collected = dvr != null ? Number(dvr) : totalPrice;
+      } else if (st === "partial_delivered") {
+        const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
+        collected = pq != null ? Number(pq) : 0;
+      } else if (st === "partial_received") {
+        const pq = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
+        collected = pq != null ? Math.round(Number(pq)) : 0;
+      } else if (isReturnedWithValue) {
+        const rvr = (item as any).returnValueReceived;
+        collected = rvr != null ? Number(rvr) : (shipmentReturnValueMap[item.shipmentId] ?? 0);
+      }
+
+      let rowValue = collected;
+      if (!isShippingZeroedRow(item, st, shipment)) {
+        const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
+        rowValue -= (zoneShippingForItem + repExtraCost);
+      }
+
+      result[clientId].totalManifestsValue += rowValue;
+    }
+  }
+
+  const paymentRows = await db
+    .select({ clientId: clientAccountPaymentsTable.clientId, amount: clientAccountPaymentsTable.amount })
+    .from(clientAccountPaymentsTable)
+    .where(inArray(clientAccountPaymentsTable.clientId, clientIds));
+  for (const p of paymentRows) {
+    if (p.clientId == null || !result[p.clientId]) continue;
+    result[p.clientId].totalPaid += Number(p.amount ?? 0);
+  }
+
+  for (const id of clientIds) {
+    const r = result[id];
+    r.totalManifestsValue = Number(r.totalManifestsValue.toFixed(2));
+    r.totalPaid = Number(r.totalPaid.toFixed(2));
+    r.balance = Number((r.totalManifestsValue - r.totalPaid).toFixed(2));
+  }
+
+  return result;
+}

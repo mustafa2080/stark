@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
@@ -35,6 +36,7 @@ type Client = {
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
   netRevenue?: string; profitMargin?: number;
+  accountBalance?: number; accountRemaining?: number;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
   warehouseId: number | null;
 };
@@ -510,7 +512,6 @@ export default function ClientAccountManifestsPage() {
             ];
             const p = palettes[idx % palettes.length];
             const isActive = client.isActive;
-            const remaining = parseFloat(client.totalSales ?? "0") - parseFloat(client.totalPaid ?? "0");
             return (
               <div key={client.id} className="relative overflow-hidden rounded-2xl p-5 transition-all duration-300"
                 style={{
@@ -604,36 +605,54 @@ export default function ClientAccountManifestsPage() {
                     <span className="text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" />إجمالي المبيعات</span>
                     <span className="font-bold" style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}>{formatCurrency(parseFloat(client.totalSales ?? "0"))}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1"><Wallet className="w-3 h-3" />صافي الإيراد</span>
-                    <span className={`font-bold ${parseFloat(client.netRevenue ?? "0") >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {formatCurrency(parseFloat(client.netRevenue ?? "0"))}
-                    </span>
-                  </div>
-                  {/* هامش الربح — بيعتمد دلوقتي على نفس منطق computeManifestsPnl (مناديب مقفولة فعليًا)، رجّعناه للعرض بطلب المدير */}
-                  {(
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">هامش الربح</span>
-                      <span className={`font-bold ${
-                        (client.profitMargin ?? 0) >= 20 ? "text-emerald-400"
-                        : (client.profitMargin ?? 0) >= 10 ? "text-amber-400"
-                        : "text-red-400"
-                      }`}>
-                        {client.profitMargin ?? 0}%
-                      </span>
-                    </div>
-                  )}
+
+                  {/* صافي الإيراد وهامش الربح — كارت مطوي، بيبان بس لما تدوس عليه */}
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between text-xs group/nr"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Wallet className="w-3 h-3" />إجمالي صافي الإيراد
+                        </span>
+                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform group-data-[state=open]/nr:rotate-180" />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground pr-4">صافي الإيراد</span>
+                        <span className={`font-bold ${parseFloat(client.netRevenue ?? "0") >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {formatCurrency(parseFloat(client.netRevenue ?? "0"))}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground pr-4">هامش الربح</span>
+                        <span className={`font-bold ${
+                          (client.profitMargin ?? 0) >= 20 ? "text-emerald-400"
+                          : (client.profitMargin ?? 0) >= 10 ? "text-amber-400"
+                          : "text-red-400"
+                        }`}>
+                          {client.profitMargin ?? 0}%
+                        </span>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">عدد الطلبات</span>
                     <span className="font-bold">{client.totalOrders ?? 0}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">المحصَّل</span>
-                    <span className="font-bold text-emerald-400">{formatCurrency(parseFloat(client.totalPaid ?? "0"))}</span>
+                    <span className="text-muted-foreground">رصيد العميل</span>
+                    <span className="font-bold text-emerald-400">{formatCurrency(client.accountBalance ?? 0)}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">المتبقي</span>
-                    <span className={`font-bold ${remaining > 0 ? "text-amber-400" : "text-emerald-400"}`}>{formatCurrency(remaining)}</span>
+                    <span className={`font-bold ${(client.accountRemaining ?? 0) > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                      {formatCurrency(client.accountRemaining ?? 0)}
+                    </span>
                   </div>
                 </div>
 
