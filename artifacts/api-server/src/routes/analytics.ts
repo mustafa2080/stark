@@ -3648,17 +3648,16 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
 
     const dateCond = and(cond, gte(shipmentsTable.createdAt, rangeFrom), lte(shipmentsTable.createdAt, rangeTo));
 
-    // ═══ 1) أفضل العملاء — تجميع حسب clientId الحقيقي، للعملاء التجاريين (clientType = "commercial") فقط ═══
-    // ملحوظة: بنستبعد الشحنات اللي مالهاش clientId (عميل تجاري مسجّل) — دي شحنات
+    // ═══ 1) أفضل العملاء — تجميع حسب clientId الحقيقي، لكل العملاء (تجاري + عادي) ═══
+    // ملحوظة: بنستبعد الشحنات اللي مالهاش clientId (عميل مسجّل) — دي شحنات
     // فردية بدون حساب عميل، مش المطلوب في "أفضل العملاء".
-    const commercialClientCond = tenantId !== null
-      ? and(eq(clientsTable.clientType, "commercial"), eq(clientsTable.tenantId, tenantId))
-      : eq(clientsTable.clientType, "commercial");
-    const commercialClientRows = await db
-      .select({ id: clientsTable.id })
-      .from(clientsTable)
-      .where(commercialClientCond);
-    const commercialClientIdSet = new Set(commercialClientRows.map(c => c.id));
+    const allClientCond = tenantId !== null
+      ? eq(clientsTable.tenantId, tenantId)
+      : undefined;
+    const allClientRows = allClientCond
+      ? await db.select({ id: clientsTable.id }).from(clientsTable).where(allClientCond)
+      : await db.select({ id: clientsTable.id }).from(clientsTable);
+    const allClientIdSet = new Set(allClientRows.map(c => c.id));
 
     type ShipmentPerfRow = {
       id: number;
@@ -3684,7 +3683,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
     const byClient = new Map<number, ClientBucket>();
     for (const r of shipmentRows) {
       if (!r.clientId) continue;
-      if (!commercialClientIdSet.has(r.clientId)) continue; // بس العملاء التجاريون
+      if (!allClientIdSet.has(r.clientId)) continue; // لازم يكون عميل مسجّل فعليًا
       if (!byClient.has(r.clientId)) byClient.set(r.clientId, { clientId: r.clientId, shipmentsCount: 0, revenue: 0, delivered: 0 });
       const b = byClient.get(r.clientId)!;
       b.shipmentsCount++;
