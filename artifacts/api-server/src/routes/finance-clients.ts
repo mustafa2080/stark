@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, shipmentManifestsTable, shipmentManifestItemsTable, shippingCompaniesTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -175,58 +175,12 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       statsMap[s.clientId].totalPaid  += p;
     }
 
-    // ── صافي الإيراد الحقيقي لكل عميل — نفس منطق computeManifestsPnl (analytics.ts) ──
-    // مبني فقط على شحنات ضمن بيانات مناديب مُقفلة فعليًا (status = "closed")،
-    // وبنفس تعريف الربح لكل شحنة (delivered/partial_delivered/returned مع الأسباب المؤهلة)
-    // والتكلفة الحقيقية = تكلفة شركة الشحن/المندوب (courierCostPerShipment) مش costPrice الخام.
-    // (بدون خصم مصروفات الخزنة العامة هنا لأنها مش مرتبطة بعميل بعينه).
-    const netRevConds: any[] = [eq(shipmentManifestsTable.status, "closed")];
-    if (tenantId !== null) netRevConds.push(eq(shipmentManifestsTable.tenantId, tenantId));
-
-    const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
-    const netRevenueMap: Record<number, number> = {};
-
-    const pnlRows = await db
-      .select({
-        clientId:        shipmentsTable.clientId,
-        deliveryStatus:  shipmentManifestItemsTable.deliveryStatus,
-        returnReason:    shipmentManifestItemsTable.returnReason,
-        partialQuantity: shipmentManifestItemsTable.partialQuantity,
-        returnValueReceived:   shipmentManifestItemsTable.returnValueReceived,
-        deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
-        codAmount:       shipmentsTable.codAmount,
-        courierCostPerShipment: shippingCompaniesTable.shippingCost,
-      })
-      .from(shipmentManifestItemsTable)
-      .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
-      .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
-      .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
-      .where(and(...netRevConds));
-
-    for (const r of pnlRows) {
-      if (r.clientId == null) continue;
-      const isEligible =
-        r.deliveryStatus === "delivered" ||
-        r.deliveryStatus === "partial_delivered" ||
-        (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
-      if (!isEligible) continue;
-
-      let revenue = 0;
-      if (r.deliveryStatus === "partial_delivered" && r.partialQuantity != null) {
-        revenue = Number(r.partialQuantity);
-      } else if (r.deliveryStatus === "returned") {
-        revenue = Number(r.returnValueReceived ?? 0);
-      } else {
-        revenue = r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
-      }
-
-      let courierCost = 0;
-      if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
-        courierCost = Math.abs(Number(r.courierCostPerShipment ?? 0));
-      }
-
-      netRevenueMap[r.clientId] = (netRevenueMap[r.clientId] ?? 0) + (revenue - courierCost);
-    }
+    // ── إجمالي صافي الإيراد لكل عميل — نفس منطق "صافي الإيراد المستحق" في ────
+    // client-account-manifest-detail.tsx (بيانات حساب العميل clientAccountManifestsTable
+    // نفسها)، مجمّع على مستوى العميل. ملحوظة: ده استبدل الحساب القديم اللي كان
+    // مبني على shipmentManifestsTable (بيانات كل المناديب/شركات الشحن) — ده كان
+    // بيدي رقم غير مرتبط ببيان العميل الفعلي (ممكن يجيب قيمة من بيان مندوب
+    // تاني خالص)، فبقى بيتحسب هنا فقط من computeNetRevenueDueForAllClients تحت.
 
     // ── رصيد العميل والمتبقي — نفس منطق computeClientBalancesForAllClients ────
     // (بيانات حساب عميل مقفولة clientAccountManifestsTable + clientAccountPaymentsTable)
@@ -240,10 +194,11 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
 
     const enriched = clients.map(c => {
       const stat = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
-      const netRevenue = netRevenueMap[c.id] ?? 0;
-      const profitMargin = stat.totalSales > 0 ? Math.round((netRevenue / stat.totalSales) * 100) : 0;
       const acct = accountBalances[c.id] ?? { totalManifestsValue: 0, totalPaid: 0, balance: 0 };
       const netRevenueDue = netRevenueDueMap[c.id] ?? 0;
+      // هامش صافي الإيراد = صافي الإيراد المستحق كنسبة من إجمالي المبيعات —
+      // نفس مصدر الحقيقة (netRevenueDue) المستخدم في كل مكان تاني في الكارت.
+      const profitMargin = stat.totalSales > 0 ? Math.round((netRevenueDue / stat.totalSales) * 100) : 0;
 
       return {
         ...c,
@@ -253,13 +208,14 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         totalOrders: stat.totalOrders,
         totalSales: stat.totalSales.toFixed(2),
         totalPaid: stat.totalPaid.toFixed(2),
-        netRevenue: netRevenue.toFixed(2),
+        // إجمالي صافي الإيراد = صافي الإيراد المستحق (من بيانات حساب العميل
+        // نفسها) — نفس القيمة في netRevenueDue، عشان "إجمالي صافي الإيراد"
+        // اللي بره وجوه الكولابسيبل يفضلوا رقم واحد متطابق دايمًا.
+        netRevenue: netRevenueDue.toFixed(2),
         profitMargin,
         // رصيد العميل (إجمالي البيانات المقفولة) والمتبقي (رصيد العميل - المسدد فعليًا)
         accountBalance: acct.totalManifestsValue,
         accountRemaining: acct.balance,
-        // إجمالي صافي الإيراد المستحق (من البيانات المقفولة فقط) — القيمة اللي
-        // تظهر بره في كارت العميل جنب "إجمالي صافي الإيراد".
         netRevenueDue: netRevenueDue.toFixed(2),
       };
     });
