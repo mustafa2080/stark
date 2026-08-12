@@ -3654,10 +3654,13 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
     const allClientCond = tenantId !== null
       ? eq(clientsTable.tenantId, tenantId)
       : undefined;
-    const allClientRows = allClientCond
-      ? await db.select({ id: clientsTable.id }).from(clientsTable).where(allClientCond)
-      : await db.select({ id: clientsTable.id }).from(clientsTable);
-    const allClientIdSet = new Set(allClientRows.map(c => c.id));
+    type ClientInfoRow = { id: number; name: string; phone: string | null; avatar: string | null; clientType: string | null };
+    const allClientInfoRows: ClientInfoRow[] = allClientCond
+      ? await db.select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, avatar: clientsTable.avatar, clientType: clientsTable.clientType })
+          .from(clientsTable).where(allClientCond)
+      : await db.select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, avatar: clientsTable.avatar, clientType: clientsTable.clientType })
+          .from(clientsTable);
+    const allClientIdSet = new Set(allClientInfoRows.map(c => c.id));
 
     type ShipmentPerfRow = {
       id: number;
@@ -3693,31 +3696,22 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       if (normalize(r.status) === "received") b.delivered++;
     }
 
-    const topClientBuckets = Array.from(byClient.values())
+    const topClients = allClientInfoRows
+      .map(info => {
+        const bucket = byClient.get(info.id);
+        return {
+          clientId: info.id,
+          name: info.name,
+          phone: info.phone,
+          avatar: info.avatar,
+          clientType: info.clientType ?? "normal",
+          shipmentsCount: bucket?.shipmentsCount ?? 0,
+          revenue: Math.round(bucket?.revenue ?? 0),
+          successRate: bucket && bucket.shipmentsCount > 0 ? Math.round((bucket.delivered / bucket.shipmentsCount) * 100) : 0,
+        };
+      })
       .sort((a, b) => b.shipmentsCount - a.shipmentsCount)
-      .slice(0, 5);
-
-    const topClientIds = topClientBuckets.map(c => c.clientId);
-    type ClientInfoRow = { id: number; name: string; phone: string | null; avatar: string | null; clientType: string | null };
-    const clientInfoRows: ClientInfoRow[] = topClientIds.length > 0
-      ? await db.select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, avatar: clientsTable.avatar, clientType: clientsTable.clientType })
-          .from(clientsTable).where(inArray(clientsTable.id, topClientIds))
-      : [];
-    const clientInfoMap = new Map(clientInfoRows.map(c => [c.id, c]));
-
-    const topClients = topClientBuckets.map(c => {
-      const info = clientInfoMap.get(c.clientId);
-      return {
-        clientId: c.clientId,
-        name: info?.name ?? `عميل #${c.clientId}`,
-        phone: info?.phone ?? null,
-        avatar: info?.avatar ?? null,
-        clientType: info?.clientType ?? "normal",
-        shipmentsCount: c.shipmentsCount,
-        revenue: Math.round(c.revenue),
-        successRate: c.shipmentsCount > 0 ? Math.round((c.delivered / c.shipmentsCount) * 100) : 0,
-      };
-    });
+      .slice(0, 10);
 
     // ═══ 2) أفضل المندوبين — دي فعليًا "مناديب Stark" (شركات الشحن)، مش حسابات users.
     // الشحنة ترتبط بالمندوب عبر shipments.shippingCompanyId، مش assignedUserId.
