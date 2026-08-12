@@ -3666,6 +3666,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       totalAmount: string | null;
       collectedAmount: string | null;
       assignedUserId: number | null;
+      shippingCompanyId: number | null;
     };
     const shipmentRows: ShipmentPerfRow[] = await db
       .select({
@@ -3675,6 +3676,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
         totalAmount: shipmentsTable.totalAmount,
         collectedAmount: shipmentsTable.collectedAmount,
         assignedUserId: shipmentsTable.assignedUserId,
+        shippingCompanyId: shipmentsTable.shippingCompanyId,
       })
       .from(shipmentsTable)
       .where(dateCond);
@@ -3717,38 +3719,39 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       };
     });
 
-    // ═══ 2) أفضل المندوبين — تجميع حسب المندوب المسؤول + التقييمات ═══
-    const repIds = Array.from(new Set(shipmentRows.map((r): number | null => r.assignedUserId).filter((id): id is number => !!id)));
+    // ═══ 2) أفضل المندوبين — دي فعليًا "مناديب Stark" (شركات الشحن)، مش حسابات users.
+    // الشحنة ترتبط بالمندوب عبر shipments.shippingCompanyId، مش assignedUserId.
+    // بنعرض كل المندوبين المسجّلين (حتى لو مالهمش شحنات في الفترة)، مرتبين من
+    // الأفضل نسبة نجاح للأقل، عشان "أفضل المندوبين" يبقى ترتيب كامل مش قايمة جزئية.
+    const repCompanies = tenantId !== null
+      ? await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name })
+          .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+      : await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name })
+          .from(shippingCompaniesTable);
 
-    type RepBucket = { userId: number; assigned: number; delivered: number };
+    type RepBucket = { companyId: number; assigned: number; delivered: number };
     const byRep = new Map<number, RepBucket>();
     for (const r of shipmentRows) {
-      if (!r.assignedUserId) continue;
-      if (!byRep.has(r.assignedUserId)) byRep.set(r.assignedUserId, { userId: r.assignedUserId, assigned: 0, delivered: 0 });
-      const b = byRep.get(r.assignedUserId)!;
+      const companyId = r.shippingCompanyId;
+      if (!companyId) continue;
+      if (!byRep.has(companyId)) byRep.set(companyId, { companyId, assigned: 0, delivered: 0 });
+      const b = byRep.get(companyId)!;
       b.assigned++;
       if (normalize(r.status) === "received") b.delivered++;
     }
 
-    type RepUserRow = { id: number; displayName: string; avatar: string | null };
-    type RatingRow = { shipmentId: number; rating: number };
-
-    const repUsers: RepUserRow[] = repIds.length > 0
-      ? await db.select({ id: usersTable.id, displayName: usersTable.displayName, avatar: usersTable.avatar })
-          .from(usersTable).where(inArray(usersTable.id, repIds))
-      : [];
-    const ratingRows: RatingRow[] = repIds.length > 0
-      ? await db.select({ shipmentId: shipmentRatingsTable.shipmentId, rating: shipmentRatingsTable.rating })
+    const companyIds = repCompanies.map(c => c.id);
+    type RatingRow = { shipmentId: number; rating: number; shippingCompanyId: number | null };
+    const ratingRows: RatingRow[] = companyIds.length > 0
+      ? await db.select({ shipmentId: shipmentRatingsTable.shipmentId, rating: shipmentRatingsTable.rating, shippingCompanyId: shipmentsTable.shippingCompanyId })
           .from(shipmentRatingsTable)
           .innerJoin(shipmentsTable, eq(shipmentRatingsTable.shipmentId, shipmentsTable.id))
-          .where(and(inArray(shipmentsTable.assignedUserId, repIds), gte(shipmentRatingsTable.createdAt, rangeFrom), lte(shipmentRatingsTable.createdAt, rangeTo)))
+          .where(and(inArray(shipmentsTable.shippingCompanyId, companyIds), gte(shipmentRatingsTable.createdAt, rangeFrom), lte(shipmentRatingsTable.createdAt, rangeTo)))
       : [];
 
-    // نحتاج ربط التقييم بالمندوب عبر الشحنة — نجيب خريطة shipmentId → assignedUserId
-    const shipmentToRep = new Map(shipmentRows.map(r => [r.id, r.assignedUserId]));
     const ratingSumByRep = new Map<number, { sum: number; count: number }>();
     for (const rt of ratingRows) {
-      const repId = shipmentToRep.get(rt.shipmentId);
+      const repId = rt.shippingCompanyId;
       if (!repId) continue;
       if (!ratingSumByRep.has(repId)) ratingSumByRep.set(repId, { sum: 0, count: 0 });
       const acc = ratingSumByRep.get(repId)!;
@@ -3756,24 +3759,23 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       acc.count++;
     }
 
-    const userMap = new Map(repUsers.map(u => [u.id, u]));
-    const topReps = Array.from(byRep.values())
-      .map(rep => {
-        const user = userMap.get(rep.userId);
-        const ratingAcc = ratingSumByRep.get(rep.userId);
+    const topReps = repCompanies
+      .map(company => {
+        const bucket = byRep.get(company.id) ?? { companyId: company.id, assigned: 0, delivered: 0 };
+        const ratingAcc = ratingSumByRep.get(company.id);
         return {
-          userId: rep.userId,
-          name: user?.displayName ?? `مندوب #${rep.userId}`,
-          avatar: user?.avatar ?? null,
-          assigned: rep.assigned,
-          delivered: rep.delivered,
-          successRate: rep.assigned > 0 ? Math.round((rep.delivered / rep.assigned) * 100) : 0,
+          userId: company.id,
+          name: company.name,
+          avatar: null as string | null,
+          assigned: bucket.assigned,
+          delivered: bucket.delivered,
+          successRate: bucket.assigned > 0 ? Math.round((bucket.delivered / bucket.assigned) * 100) : 0,
           avgRating: ratingAcc && ratingAcc.count > 0 ? Math.round((ratingAcc.sum / ratingAcc.count) * 10) / 10 : 0,
           ratingsCount: ratingAcc?.count ?? 0,
         };
       })
-      .sort((a, b) => b.avgRating - a.avgRating || b.successRate - a.successRate)
-      .slice(0, 5);
+      .sort((a, b) => b.successRate - a.successRate || b.assigned - a.assigned)
+      .slice(0, 10);
 
     const result = {
       topClients,
