@@ -427,10 +427,11 @@ const ocToYmd = (d: Date) => {
 
 // ── فلتر الفترة الزمني الموحّد: تبويبات + زر "فترة محددة" بتقويم منبثق ─────────
 function OcPeriodFilterBar({
-  value, onChange,
+  value, onChange, compact = false,
 }: {
   value: OcPeriodFilter;
   onChange: (v: OcPeriodFilter) => void;
+  compact?: boolean;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [draftRange, setDraftRange] = useState<{ from?: Date; to?: Date }>(() =>
@@ -479,8 +480,8 @@ function OcPeriodFilterBar({
   };
 
   return (
-    <div className="flex items-center gap-1 rounded-xl border bg-muted/35 p-1 flex-wrap" dir="rtl">
-      {OC_PERIOD_TABS.map((t) => (
+    <div className={`flex items-center gap-1 rounded-xl border bg-muted/35 p-1 flex-wrap ${compact ? "w-full justify-center border-primary/20 bg-primary/5" : ""}`} dir="rtl">
+      {!compact && OC_PERIOD_TABS.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange({ type: t.key })}
@@ -494,12 +495,12 @@ function OcPeriodFilterBar({
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
           <button
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-black transition-all ${compact ? "w-full px-3 py-2" : "px-3 py-1.5"} ${
               isCustom ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70"
             }`}
           >
             <CalendarIcon className="w-3 h-3" />
-            {customLabel}
+            {compact ? (isCustom ? customLabel : "اختيار فترة محددة") : customLabel}
             <ChevronDown className="w-3 h-3" />
           </button>
         </PopoverTrigger>
@@ -1981,12 +1982,23 @@ export default function OperationsCenterPage() {
         {/* مؤشرات الأداء الرئيسية */}
         <div className="xl:col-span-1">
           <Card className="oc-kpi-card h-full" style={{ ["--tone" as any]: "#6366f1" }}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-500" /> مؤشرات الأداء
-              </CardTitle>
+            <CardHeader className="pb-2 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-500" /> مؤشرات الأداء
+                </CardTitle>
+                {perfMetricsLoading && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                )}
+              </div>
+              <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} compact />
+                <p className="mt-2 text-center text-[10px] font-semibold text-muted-foreground">
+                  يتم تحديث مؤشرات الأداء حسب الفترة المختارة
+                </p>
+              </div>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-1">
+            <CardContent className="grid grid-cols-2 gap-1 pt-1">
               {perfMetricsLoading && performanceMetrics.length === 0 ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="h-20 rounded bg-muted animate-pulse" />
