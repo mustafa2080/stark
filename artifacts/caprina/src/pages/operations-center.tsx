@@ -2220,9 +2220,9 @@ export default function OperationsCenterPage() {
             ) : topClients.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</div>
             ) : (
-              <div className="overflow-x-auto -mx-2 px-2">
+              <div className="overflow-x-auto overflow-y-auto max-h-[320px] -mx-2 px-2">
               <table className="w-full text-xs min-w-[420px]">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-card">
                   <tr className="text-muted-foreground border-b">
                     <th className="text-right font-medium pb-2">العميل</th>
                     <th className="text-right font-medium pb-2">الشحنات</th>
@@ -2272,9 +2272,9 @@ export default function OperationsCenterPage() {
             ) : topReps.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا توجد بيانات كافية بعد</div>
             ) : (
-              <div className="overflow-x-auto -mx-2 px-2">
+              <div className="overflow-x-auto overflow-y-auto max-h-[320px] -mx-2 px-2">
               <table className="w-full text-xs min-w-[420px]">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-card">
                   <tr className="text-muted-foreground border-b">
                     <th className="text-right font-medium pb-2">المندوب</th>
                     <th className="text-right font-medium pb-2">التقييم</th>
