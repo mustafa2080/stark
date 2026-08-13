@@ -19,7 +19,7 @@ import {
   Search, Bell, Sun, Moon, Clock, Download, Loader2, Building2,
   Package, PackageCheck, Truck, Undo2, Star, DollarSign,
   AlertTriangle, AlertOctagon, AlertCircle, Users, Phone, MapPin,
-  Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
+  Brain, Zap, TrendingUp, TrendingDown, Minus, Plus, Upload, Briefcase,
   UserPlus, FileText, LogOut, Wallet, Activity, X,
   Calendar as CalendarIcon, ChevronDown, Check, RotateCcw,
 } from "lucide-react";
@@ -207,6 +207,28 @@ function RepAvatar({ avatar, name }: { avatar: string | null; name: string }) {
     <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
       style={{ background: repAvatarColor(name) }}>
       {repInitials(name)}
+    </div>
+  );
+}
+
+// ── خلية نسبة النجاح: شريط تقدّم متدرّج + نسبة + اتجاه (بديل عصري لباج ثابت) ──
+function SuccessRateCell({ value }: { value: number }) {
+  const v = Math.max(0, Math.min(100, Math.round(value || 0)));
+  const tone =
+    v >= 80 ? { bar: "#10b981", text: "text-emerald-600", track: "bg-emerald-500/10" } :
+    v >= 50 ? { bar: "#f59e0b", text: "text-amber-600", track: "bg-amber-500/10" } :
+              { bar: "#ef4444", text: "text-red-600", track: "bg-red-500/10" };
+  const Icon = v >= 80 ? TrendingUp : v >= 50 ? Minus : TrendingDown;
+  return (
+    <div className="flex items-center gap-2 min-w-[110px]">
+      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${tone.track}`}>
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${v}%`, background: tone.bar }}
+        />
+      </div>
+      <span className={`text-[11px] font-bold tabular-nums shrink-0 ${tone.text}`}>{v}%</span>
+      <Icon className={`w-3 h-3 shrink-0 ${tone.text}`} />
     </div>
   );
 }
@@ -2223,9 +2245,7 @@ export default function OperationsCenterPage() {
                       <td className="py-2">{fn(c.shipmentsCount)}</td>
                       <td className="py-2">{fc(c.revenue)}</td>
                       <td className="py-2">
-                        <Badge className={`text-[10px] ${c.successRate >= 80 ? "bg-emerald-500/15 text-emerald-600 border-emerald-300" :
-                          c.successRate >= 50 ? "bg-amber-500/15 text-amber-600 border-amber-300" :
-                          "bg-red-500/15 text-red-600 border-red-300"}`}>{c.successRate}%</Badge>
+                        <SuccessRateCell value={c.successRate} />
                       </td>
                     </tr>
                   ))}
@@ -2283,9 +2303,7 @@ export default function OperationsCenterPage() {
                       </td>
                       <td className="py-2">{fn(r.assigned)}</td>
                       <td className="py-2">
-                        <Badge className={`text-[10px] ${r.successRate >= 80 ? "bg-emerald-500/15 text-emerald-600 border-emerald-300" :
-                          r.successRate >= 50 ? "bg-amber-500/15 text-amber-600 border-amber-300" :
-                          "bg-red-500/15 text-red-600 border-red-300"}`}>{r.successRate}%</Badge>
+                        <SuccessRateCell value={r.successRate} />
                       </td>
                     </tr>
                   ))}
