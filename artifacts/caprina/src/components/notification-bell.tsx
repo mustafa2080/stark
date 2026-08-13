@@ -143,11 +143,14 @@ export function NotificationBell({ className }: { className?: string }) {
       >
         <Bell className="w-4 h-4 text-foreground/70" />
         {unreadCount > 0 && (
-          <span
-            className="absolute -top-1 -left-1 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none ring-2"
-            style={{ boxShadow: "0 0 6px rgba(239,68,68,0.7)", ringColor: "hsl(var(--card))" } as any}
-          >
-            {unreadCount > 99 ? "99+" : unreadCount}
+          <span className="absolute -top-1.5 -left-1.5 flex">
+            <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-60" />
+            <span
+              className="relative min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center leading-none ring-2"
+              style={{ boxShadow: "0 0 8px rgba(239,68,68,0.8)", ringColor: "hsl(var(--card))" } as any}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
           </span>
         )}
       </button>
