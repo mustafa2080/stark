@@ -3889,7 +3889,7 @@ router.get("/analytics/recent-shipments", requireAuth, async (req, res): Promise
       .from(shipmentsTable)
       .where(cond)
       .orderBy(desc(shipmentsTable.updatedAt))
-      .limit(10);
+      .limit(20);
 
     const STATUS_META: Record<string, { label: string; color: string }> = {
       pending:          { label: "قيد الانتظار",  color: "amber" },
