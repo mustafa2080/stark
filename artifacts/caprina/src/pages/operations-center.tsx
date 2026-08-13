@@ -2051,9 +2051,9 @@ export default function OperationsCenterPage() {
               <>
                 <MiniLeaderLineDonut
                   centerLabel="الإجمالي"
-                  centerValue={fc(financialData?.month.revenue ?? 0)}
+                  centerValue={fc(manifestsPnlSummary?.totalRevenue ?? 0)}
                   data={[
-                    { key: "revenue", label: "إيرادات", color: "#10b981", value: financialData?.month.revenue ?? 0 },
+                    { key: "revenue", label: "إيرادات", color: "#10b981", value: manifestsPnlSummary?.totalRevenue ?? 0 },
                     { key: "cost", label: "تكلفة", color: "#ef4444", value: financialData?.month.cost ?? 0 },
                     { key: "shippingSpend", label: "شحن", color: "#f59e0b", value: financialData?.month.shippingSpend ?? 0 },
                     { key: "otherExpenses", label: "أخرى", color: "#64748b", value: financialData?.month.otherExpenses ?? 0 },
