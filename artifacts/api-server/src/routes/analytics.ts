@@ -4,6 +4,7 @@ import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from 
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
 
 // ── In-memory cache for heavy analytics endpoints ─────────────────────────────
 const analyticsCache = new Map<string, { data: any; expiresAt: number }>();
@@ -3868,6 +3869,10 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       : await db.select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, avatar: clientsTable.avatar, clientType: clientsTable.clientType })
           .from(clientsTable);
     const allClientIdSet = new Set(allClientInfoRows.map(c => c.id));
+    const clientNetRevenueDueMap = await computeNetRevenueDueForAllClients(
+      allClientInfoRows.map(c => c.id),
+      { from: rangeFrom, to: rangeTo },
+    );
 
     type ShipmentPerfRow = {
       id: number;
@@ -3891,15 +3896,14 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       .from(shipmentsTable)
       .where(dateCond);
 
-    type ClientBucket = { clientId: number; shipmentsCount: number; revenue: number; delivered: number };
+    type ClientBucket = { clientId: number; shipmentsCount: number; delivered: number };
     const byClient = new Map<number, ClientBucket>();
     for (const r of shipmentRows) {
       if (!r.clientId) continue;
       if (!allClientIdSet.has(r.clientId)) continue; // لازم يكون عميل مسجّل فعليًا
-      if (!byClient.has(r.clientId)) byClient.set(r.clientId, { clientId: r.clientId, shipmentsCount: 0, revenue: 0, delivered: 0 });
+      if (!byClient.has(r.clientId)) byClient.set(r.clientId, { clientId: r.clientId, shipmentsCount: 0, delivered: 0 });
       const b = byClient.get(r.clientId)!;
       b.shipmentsCount++;
-      b.revenue += Number(r.collectedAmount) > 0 ? Number(r.collectedAmount) : Number(r.totalAmount ?? 0);
       if (normalize(r.status) === "received") b.delivered++;
     }
 
@@ -3913,11 +3917,11 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
           avatar: info.avatar,
           clientType: info.clientType ?? "normal",
           shipmentsCount: bucket?.shipmentsCount ?? 0,
-          revenue: Math.round(bucket?.revenue ?? 0),
+          revenue: Math.round(clientNetRevenueDueMap[info.id] ?? 0),
           successRate: bucket && bucket.shipmentsCount > 0 ? Math.round((bucket.delivered / bucket.shipmentsCount) * 100) : 0,
         };
       })
-      .sort((a, b) => b.shipmentsCount - a.shipmentsCount)
+      .sort((a, b) => b.revenue - a.revenue || b.shipmentsCount - a.shipmentsCount)
       .slice(0, 10);
 
     // ═══ 2) أفضل المندوبين — دي فعليًا "مناديب Stark" (شركات الشحن)، مش حسابات users.

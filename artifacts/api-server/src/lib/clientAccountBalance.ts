@@ -1,4 +1,4 @@
-import { eq, and, inArray, or, isNull } from "drizzle-orm";
+import { eq, and, inArray, or, isNull, gte, lte } from "drizzle-orm";
 import {
   db,
   clientAccountManifestsTable,
@@ -368,15 +368,20 @@ export async function computeClientBalancesForAllClients(
 // الصفوف (مؤجل/معلَّق/قيد الانتظار، أو مرتجع بسبب غير مالي = صفر بالكامل).
 export async function computeNetRevenueDueForAllClients(
   clientIds: number[],
+  options?: { from?: Date; to?: Date },
 ): Promise<Record<number, number>> {
   const result: Record<number, number> = {};
   for (const id of clientIds) result[id] = 0;
   if (!clientIds.length) return result;
 
+  const manifestConds: any[] = [inArray(clientAccountManifestsTable.clientId, clientIds)];
+  if (options?.from) manifestConds.push(gte(clientAccountManifestsTable.createdAt, options.from));
+  if (options?.to) manifestConds.push(lte(clientAccountManifestsTable.createdAt, options.to));
+
   const allManifests = await db
     .select()
     .from(clientAccountManifestsTable)
-    .where(inArray(clientAccountManifestsTable.clientId, clientIds));
+    .where(and(...manifestConds));
   if (!allManifests.length) return result;
 
   const manifestIds = allManifests.map(m => m.id);
