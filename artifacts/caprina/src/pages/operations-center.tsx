@@ -2234,11 +2234,11 @@ export default function OperationsCenterPage() {
                   {topClients.map((c) => (
                     <tr key={c.clientId} className="border-b last:border-0">
                       <td className="py-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-[140px] max-w-[160px]">
                           <RepAvatar avatar={c.avatar} name={c.name} />
-                          <div>
-                            <div className="font-semibold">{c.name}</div>
-                            {c.phone && <div className="text-[10px] text-muted-foreground" dir="ltr">{c.phone}</div>}
+                          <div className="min-w-0">
+                            <div className="font-semibold truncate">{c.name}</div>
+                            {c.phone && <div className="text-[10px] text-muted-foreground truncate" dir="ltr">{c.phone}</div>}
                           </div>
                         </div>
                       </td>
@@ -2286,9 +2286,9 @@ export default function OperationsCenterPage() {
                   {topReps.map((r) => (
                     <tr key={r.userId} className="border-b last:border-0">
                       <td className="py-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-[110px] max-w-[130px]">
                           <RepAvatar avatar={r.avatar} name={r.name} />
-                          <span className="font-semibold">{r.name}</span>
+                          <span className="font-semibold truncate">{r.name}</span>
                         </div>
                       </td>
                       <td className="py-2">
