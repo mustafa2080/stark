@@ -18,7 +18,7 @@ import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
   ChevronDown, Lock, Unlock, Truck, Package, Search, SlidersHorizontal, X,
-  LayoutGrid, List, Check, Wallet,
+  LayoutGrid, List, Check, Wallet, FileText,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -199,18 +199,36 @@ const SHIPMENT_STATUS_COLORS: Record<string, string> = {
   cancelled: "border-red-500/40 bg-red-500/10 text-red-500",
 };
 
-/** قائمة منسدلة تعرض شحنات العميل الفعلية (من قسم الشحنات) — بالضغط على أي شحنة يودّي لتفاصيلها */
+type ClientAccountManifestItem = {
+  id: number;
+  manifestNumber: string;
+  status: string;
+  createdAt: string;
+  closedAt: string | null;
+  shipmentCount: number;
+  statusCounts: { pending: number; delayed: number; returned: number; delivered: number; partial: number };
+};
+
+const MANIFEST_STATUS_LABELS: Record<string, string> = {
+  open: "مفتوح", closed: "مغلق",
+};
+const MANIFEST_STATUS_COLORS: Record<string, string> = {
+  open: "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+  closed: "border-border text-muted-foreground",
+};
+
+/** قائمة منسدلة تعرض البيان المفتوح (وباقي بيانات العميل) — بالضغط عليها يودّي لتفاصيل البيان */
 function ClientManifestsDropdown({ clientId }: { clientId: number }) {
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
 
-  const { data, isLoading } = useQuery<{ shipments: ClientShipmentItem[]; total: number }>({
-    queryKey: ["client-shipments-dropdown", clientId],
-    queryFn: () => apiFetch(`/finance/clients/${clientId}/shipments`),
+  const { data, isLoading } = useQuery<ClientAccountManifestItem[]>({
+    queryKey: ["client-account-manifests-dropdown", clientId],
+    queryFn: () => apiFetch(`/client-account-manifests?clientId=${clientId}`),
     enabled: open,
   });
-  const shipments = data?.shipments ?? [];
-  const shown = shipments.slice(0, 8);
+  const manifests = data ?? [];
+  const shown = manifests.slice(0, 8);
 
   return (
     <div>
@@ -222,7 +240,7 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
       >
         <span className="flex items-center gap-1.5">
           <Truck className="w-3.5 h-3.5" />
-          البيانات {data ? `(${data.total})` : ""}
+          البيانات {data ? `(${data.length})` : ""}
         </span>
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </Button>
@@ -236,46 +254,46 @@ function ClientManifestsDropdown({ clientId }: { clientId: number }) {
             <div className="p-3 text-center text-xs text-muted-foreground">جاري التحميل...</div>
           ) : shown.length ? (
             <>
-              {shown.map((s) => (
+              {shown.map((m) => (
                 <button
-                  key={s.id}
+                  key={m.id}
                   className="w-full flex items-center justify-between gap-2 px-3 py-2 text-right hover:bg-muted/30 border-b border-border/30 last:border-b-0 transition-colors"
-                  onClick={() => navigate(`/finance/client-shipment/${s.id}`)}
+                  onClick={() => navigate(`/finance/client-account-sheet/manifest/${m.id}`)}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Package className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
                     <div className="min-w-0 text-right">
-                      <p className="text-xs font-bold truncate">{s.shipmentNumber}</p>
+                      <p className="text-xs font-bold truncate">{m.manifestNumber}</p>
                       <p className="text-[10px] text-muted-foreground truncate">
-                        {fmtDate(s.createdAt)} · {s.receiverName}{s.receiverCity ? ` — ${s.receiverCity}` : ""}
+                        {fmtDate(m.createdAt)} · {m.shipmentCount} شحنة
                       </p>
                     </div>
                   </div>
                   <Badge
                     variant="outline"
-                    className={`text-[9px] font-bold shrink-0 ${SHIPMENT_STATUS_COLORS[s.status] ?? "border-border text-muted-foreground"}`}
+                    className={`text-[9px] font-bold shrink-0 ${MANIFEST_STATUS_COLORS[m.status] ?? "border-border text-muted-foreground"}`}
                   >
-                    {SHIPMENT_STATUS_LABELS[s.status] ?? s.status}
+                    {MANIFEST_STATUS_LABELS[m.status] ?? m.status}
                   </Badge>
                 </button>
               ))}
-              {data && data.total > shown.length && (
+              {manifests.length > shown.length && (
                 <button
                   className="w-full px-3 py-2 text-center text-[11px] font-bold text-primary hover:bg-muted/30 transition-colors"
-                  onClick={() => navigate(`/finance/clients/${clientId}`)}
+                  onClick={() => navigate(`/finance/client-account-sheet/client/${clientId}`)}
                 >
-                  عرض كل الشحنات ({data.total}) ←
+                  عرض كل البيانات ({manifests.length}) ←
                 </button>
               )}
             </>
           ) : (
             <div className="p-3 text-center">
-              <p className="text-xs text-muted-foreground mb-2">لا يوجد شحنات لهذا العميل بعد</p>
+              <p className="text-xs text-muted-foreground mb-2">لا يوجد بيانات لهذا العميل بعد</p>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-7 text-[11px] gap-1.5 w-full"
-                onClick={() => navigate(`/finance/clients/${clientId}`)}
+                onClick={() => navigate(`/finance/client-account-sheet/client/${clientId}`)}
               >
                 <Truck className="w-3 h-3" />
                 عرض حساب العميل
