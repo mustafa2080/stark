@@ -3363,8 +3363,14 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
 router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const period = (req.query.period as string) === "week" ? "week" : "today";
-    const cacheKey = `reps-daily:${tenantId ?? "global"}:${period}`;
+    const periodParam = req.query.period as string;
+    const period: "today" | "week" | "custom" =
+      periodParam === "week" ? "week" : periodParam === "custom" ? "custom" : "today";
+    const fromParam = req.query.from as string | undefined;
+    const toParam = req.query.to as string | undefined;
+    const cacheKey = period === "custom"
+      ? `reps-daily:${tenantId ?? "global"}:custom:${fromParam}:${toParam}`
+      : `reps-daily:${tenantId ?? "global"}:${period}`;
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
@@ -3375,15 +3381,25 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
     const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
 
     const now = new Date();
-    const rangeStart = new Date(now);
-    if (period === "week") {
-      rangeStart.setDate(now.getDate() - 6);
+    let rangeStart: Date;
+    let rangeEnd: Date;
+    if (period === "custom" && fromParam && toParam) {
+      rangeStart = new Date(fromParam);
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd = new Date(toParam);
+      rangeEnd.setHours(23, 59, 59, 999);
+    } else {
+      rangeStart = new Date(now);
+      if (period === "week") {
+        rangeStart.setDate(now.getDate() - 6);
+      }
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd = now;
     }
-    rangeStart.setHours(0, 0, 0, 0);
 
     const cond = tenantId !== null
-      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart))
-      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart));
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart), lte(shipmentsTable.createdAt, rangeEnd))
+      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart), lte(shipmentsTable.createdAt, rangeEnd));
 
     const [rows, companies] = await Promise.all([
       db.select({

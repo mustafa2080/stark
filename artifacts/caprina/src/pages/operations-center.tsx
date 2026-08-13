@@ -355,11 +355,14 @@ function useRevenueTrend() {
   });
 }
 
-// ── جلب جدول المندوبين اليومي — فلتر فترة مستقل (اليوم/الأسبوع) ──────────────
-function useRepsDaily(period: "today" | "week") {
+// ── جلب جدول المندوبين اليومي — فلتر فترة مستقل (اليوم/الأسبوع/فترة محددة) ───
+function useRepsDaily(filter: OcPeriodFilter) {
+  const params = filter.type === "custom"
+    ? { period: "custom" as const, from: filter.from, to: filter.to }
+    : { period: filter.type };
   return useQuery({
-    queryKey: ["analytics-reps-daily", period],
-    queryFn: () => analyticsApi.repsDaily(period),
+    queryKey: ["analytics-reps-daily", filter],
+    queryFn: () => analyticsApi.repsDaily(params as any),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
@@ -1338,8 +1341,8 @@ export default function OperationsCenterPage() {
   const revenueTrend = revenueTrendData?.days ?? [];
   const { data: liveMapData, isLoading: liveMapLoading } = useLiveMap();
   const liveMapCities = liveMapData?.cities ?? [];
-  const [repsDailyPeriod, setRepsDailyPeriod] = useState<"today" | "week">("today");
-  const { data: repsDailyData, isLoading: repsDailyLoading } = useRepsDaily(repsDailyPeriod);
+  const [repsDailyFilter, setRepsDailyFilter] = useState<OcPeriodFilter>({ type: "today" });
+  const { data: repsDailyData, isLoading: repsDailyLoading } = useRepsDaily(repsDailyFilter);
   const repsDailyRows = repsDailyData?.representatives ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
@@ -2271,28 +2274,13 @@ export default function OperationsCenterPage() {
         </Card>
 
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#0ea5e9" }}>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Truck className="w-4 h-4 text-sky-500" /> جدول المندوبين اليومي
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
+              <span className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-sky-500" /> جدول المندوبين اليومي
+              </span>
+              <RepPeriodFilterBar value={repsDailyFilter} onChange={setRepsDailyFilter} />
             </CardTitle>
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant={repsDailyPeriod === "today" ? "default" : "outline"}
-                className="h-6 px-2 text-[11px]"
-                onClick={() => setRepsDailyPeriod("today")}
-              >
-                اليوم
-              </Button>
-              <Button
-                size="sm"
-                variant={repsDailyPeriod === "week" ? "default" : "outline"}
-                className="h-6 px-2 text-[11px]"
-                onClick={() => setRepsDailyPeriod("week")}
-              >
-                الأسبوع
-              </Button>
-            </div>
           </CardHeader>
           <CardContent>
             {repsDailyLoading && repsDailyRows.length === 0 ? (

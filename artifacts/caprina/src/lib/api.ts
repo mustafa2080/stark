@@ -898,7 +898,7 @@ export interface RepDailyRow {
   successRate: number;
 }
 export interface RepsDailyResponse {
-  period: "today" | "week";
+  period: "today" | "week" | "custom";
   representatives: RepDailyRow[];
   generatedAt: string;
 }
@@ -974,8 +974,12 @@ export const analyticsApi = {
   recentShipments: () => apiFetch<RecentShipmentsResponse>("/analytics/recent-shipments"),
   executiveSummary: () => apiFetch<ExecutiveSummaryResponse>("/analytics/executive-summary"),
   revenueTrend: () => apiFetch<RevenueTrendResponse>("/analytics/revenue-trend"),
-  repsDaily: (period: "today" | "week") =>
-    apiFetch<RepsDailyResponse>(`/analytics/reps-daily?period=${period}`),
+  repsDaily: (params: { period: "today" | "week" } | { period: "custom"; from: string; to: string }) => {
+    const q = new URLSearchParams();
+    q.set("period", params.period);
+    if (params.period === "custom") { q.set("from", params.from); q.set("to", params.to); }
+    return apiFetch<RepsDailyResponse>(`/analytics/reps-daily?${q.toString()}`);
+  },
 };
 
 export interface BatchCreateOrderBody {
