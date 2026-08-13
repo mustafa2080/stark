@@ -1479,6 +1479,7 @@ export default function OperationsCenterPage() {
   const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
   const [ocPeriodFilter, setOcPeriodFilter] = useState<OcPeriodFilter>({ type: "today" });
   const [repsPeriodFilter, setRepsPeriodFilter] = useState<OcPeriodFilter>({ type: "week" });
+  const [clientsPeriodFilter, setClientsPeriodFilter] = useState<OcPeriodFilter>({ type: "week" });
   const [revenueTrendFilter, setRevenueTrendFilter] = useState<OcPeriodFilter>({ type: "week" });
   const { data: repsPerformers, isLoading: repsPerformersLoading } = useTopPerformers(repsPeriodFilter);
   const [isTreasuryOpen, setIsTreasuryOpen] = useState(false);
@@ -1492,7 +1493,7 @@ export default function OperationsCenterPage() {
   const { data: smartAlertsData } = useSmartAlerts();
   const smartHighAlerts = smartAlertsData?.alerts.filter((a) => a.severity === "high" && a.type !== "HIGH_RETURN") ?? [];
   const smartAllAlerts = smartAlertsData?.alerts ?? [];
-  const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers(ocPeriodFilter);
+  const { data: topPerformers, isLoading: topPerformersLoading } = useTopPerformers(clientsPeriodFilter);
   const topClients = topPerformers?.topClients ?? [];
   const topReps = repsPerformers?.topReps ?? [];
   const { data: opsKpis, isLoading: opsKpisLoading } = useOperationsKpis(ocPeriodFilter);
@@ -2277,9 +2278,12 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#a855f7" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="w-4 h-4 text-purple-500" /> أفضل العملاء
-              <span className="text-[10px] font-normal text-muted-foreground">({topPerformers?.periodLabel ?? "هذا الشهر"})</span>
+            <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
+              <span className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-purple-500" /> أفضل العملاء
+                <span className="text-[10px] font-normal text-muted-foreground">({topPerformers?.periodLabel ?? "أسبوع"})</span>
+              </span>
+              <RepPeriodFilterBar value={clientsPeriodFilter} onChange={setClientsPeriodFilter} />
             </CardTitle>
           </CardHeader>
           <CardContent>
