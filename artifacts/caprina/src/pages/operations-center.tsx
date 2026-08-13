@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type RepsDailyResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
@@ -352,6 +352,18 @@ function useRevenueTrend() {
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
     placeholderData: (prev: RevenueTrendResponse | undefined) => prev,
+  });
+}
+
+// ── جلب جدول المندوبين اليومي — فلتر فترة مستقل (اليوم/الأسبوع) ──────────────
+function useRepsDaily(period: "today" | "week") {
+  return useQuery({
+    queryKey: ["analytics-reps-daily", period],
+    queryFn: () => analyticsApi.repsDaily(period),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: RepsDailyResponse | undefined) => prev,
   });
 }
 
@@ -1326,6 +1338,9 @@ export default function OperationsCenterPage() {
   const revenueTrend = revenueTrendData?.days ?? [];
   const { data: liveMapData, isLoading: liveMapLoading } = useLiveMap();
   const liveMapCities = liveMapData?.cities ?? [];
+  const [repsDailyPeriod, setRepsDailyPeriod] = useState<"today" | "week">("today");
+  const { data: repsDailyData, isLoading: repsDailyLoading } = useRepsDaily(repsDailyPeriod);
+  const repsDailyRows = repsDailyData?.representatives ?? [];
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   const handleExportReport = async () => {
@@ -2256,15 +2271,33 @@ export default function OperationsCenterPage() {
         </Card>
 
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#0ea5e9" }}>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
               <Truck className="w-4 h-4 text-sky-500" /> جدول المندوبين اليومي
             </CardTitle>
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant={repsDailyPeriod === "today" ? "default" : "outline"}
+                className="h-6 px-2 text-[11px]"
+                onClick={() => setRepsDailyPeriod("today")}
+              >
+                اليوم
+              </Button>
+              <Button
+                size="sm"
+                variant={repsDailyPeriod === "week" ? "default" : "outline"}
+                className="h-6 px-2 text-[11px]"
+                onClick={() => setRepsDailyPeriod("week")}
+              >
+                الأسبوع
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            {opsCenterLoading && representatives.length === 0 ? (
+            {repsDailyLoading && repsDailyRows.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">جاري تحميل البيانات...</div>
-            ) : representatives.length === 0 ? (
+            ) : repsDailyRows.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6">لا يوجد مندوبين حالياً</div>
             ) : (
               <div className="overflow-x-auto -mx-2 px-2">
@@ -2278,7 +2311,7 @@ export default function OperationsCenterPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {representatives.map((r) => (
+                  {repsDailyRows.map((r) => (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="py-2 font-semibold">{r.displayName}</td>
                       <td className="py-2">{r.totalShipments}</td>

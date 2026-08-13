@@ -3357,6 +3357,68 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
   }
 });
 
+// ─── GET /analytics/reps-daily ────────────────────────────────────────────────
+// لوحة العمليات: "جدول المندوبين اليومي" — نفس منطق representatives في
+// operations-center، لكن بفلتر فترة مستقل (اليوم/الأسبوع) بدل تثبيت 30 يوم.
+router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = (req.query.period as string) === "week" ? "week" : "today";
+    const cacheKey = `reps-daily:${tenantId ?? "global"}:${period}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    const normalize = (s: string | null) => (s ? (LEGACY_MAP[s] ?? s) : "pending");
+
+    const now = new Date();
+    const rangeStart = new Date(now);
+    if (period === "week") {
+      rangeStart.setDate(now.getDate() - 6);
+    }
+    rangeStart.setHours(0, 0, 0, 0);
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart))
+      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart));
+
+    const [rows, companies] = await Promise.all([
+      db.select({
+          status: shipmentsTable.status,
+          shippingCompanyId: shipmentsTable.shippingCompanyId,
+        })
+        .from(shipmentsTable)
+        .where(cond),
+      tenantId !== null
+        ? db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name })
+            .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+        : db.select({ id: shippingCompaniesTable.id, displayName: shippingCompaniesTable.name })
+            .from(shippingCompaniesTable),
+    ]);
+
+    const representatives = companies.map((c) => {
+      const repShipments = rows.filter((r) => r.shippingCompanyId === c.id);
+      const delivered = repShipments.filter((r) => normalize(r.status) === "received").length;
+      return {
+        id: c.id,
+        displayName: c.displayName,
+        totalShipments: repShipments.length,
+        deliveredShipments: delivered,
+        successRate: repShipments.length > 0 ? Math.round((delivered / repShipments.length) * 100) : 0,
+      };
+    }).sort((a, b) => b.totalShipments - a.totalShipments);
+
+    const result = { period, representatives, generatedAt: now.toISOString() };
+    setCached(cacheKey, result, 2 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /analytics/shipments-profit ─────────────────────────────────────────
 // لوحة العمليات: ملخص الأرباح (donut) + اتجاه الإيرادات والأرباح اليومي (line chart).
 // مبني بالكامل على shipmentsTable (وليس ordersTable) — الإيرادات = المبلغ المحصَّل

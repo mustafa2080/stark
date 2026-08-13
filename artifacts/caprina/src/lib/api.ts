@@ -890,6 +890,19 @@ export interface RevenueTrendResponse {
   generatedAt: string;
 }
 
+export interface RepDailyRow {
+  id: number;
+  displayName: string;
+  totalShipments: number;
+  deliveredShipments: number;
+  successRate: number;
+}
+export interface RepsDailyResponse {
+  period: "today" | "week";
+  representatives: RepDailyRow[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -961,6 +974,8 @@ export const analyticsApi = {
   recentShipments: () => apiFetch<RecentShipmentsResponse>("/analytics/recent-shipments"),
   executiveSummary: () => apiFetch<ExecutiveSummaryResponse>("/analytics/executive-summary"),
   revenueTrend: () => apiFetch<RevenueTrendResponse>("/analytics/revenue-trend"),
+  repsDaily: (period: "today" | "week") =>
+    apiFetch<RepsDailyResponse>(`/analytics/reps-daily?period=${period}`),
 };
 
 export interface BatchCreateOrderBody {
