@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { Bell, CheckCheck, Package, AlertTriangle, Undo2, PackageCheck, Receipt, Boxes, Info, Lock } from "lucide-react";
 import { useNotifications, type AppNotification } from "@/hooks/useNotifications";
@@ -70,27 +70,38 @@ export function NotificationBell({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [coords, setCoords] = useState<{ top?: number; bottom?: number; right: number; maxHeight: number } | null>(null);
+  const portalId = `notification-bell-portal-${useId()}`;
+  const [coords, setCoords] = useState<{ top: number; right: number; maxHeight: number } | null>(null);
   const [, navigate] = useLocation();
 
   useEffect(() => {
     if (!open) return;
-    const DROPDOWN_HEIGHT = 420; // تقريبي: هيدر + قائمة بأقصى ارتفاع
-    const GAP = 8;
+    const HEADER_HEIGHT = 44; // ارتفاع هيدر "الإشعارات" الثابت
+    const GAP = 10;
+    const MARGIN = 12; // هامش أمان من حواف الشاشة
+    const MIN_LIST_HEIGHT = 160;
     const updateCoords = () => {
       const rect = btnRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const right = window.innerWidth - rect.right;
+      if (!rect || rect.width === 0) return; // زرار مخفي فعليًا (نسخة تانية جوه sidebar مطوي) → تجاهل
+      const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
+      const spaceAbove = rect.top - MARGIN;
+      const right = Math.max(MARGIN, window.innerWidth - rect.right);
 
-      if (spaceBelow >= DROPDOWN_HEIGHT || spaceBelow >= spaceAbove) {
-        // مساحة كافية تحت (أو أكبر من فوق) → افتح لتحت
-        setCoords({ top: rect.bottom + GAP, right, maxHeight: Math.max(200, spaceBelow - GAP - 16) });
+      let top: number;
+      let maxHeight: number;
+      if (spaceBelow >= HEADER_HEIGHT + MIN_LIST_HEIGHT || spaceBelow >= spaceAbove) {
+        // افتح لتحت الزرار
+        top = rect.bottom + GAP;
+        maxHeight = Math.max(HEADER_HEIGHT + MIN_LIST_HEIGHT, spaceBelow - GAP);
       } else {
-        // مفيش مساحة كافية تحت → افتح لفوق
-        setCoords({ bottom: window.innerHeight - rect.top + GAP, right, maxHeight: Math.max(200, spaceAbove - GAP - 16) });
+        // مفيش مساحة كافية تحت → افتح لفوق (بس دايمًا جوه حدود الشاشة، أبدًا يطلع بره top:0)
+        maxHeight = Math.max(HEADER_HEIGHT + MIN_LIST_HEIGHT, spaceAbove - GAP);
+        top = Math.max(MARGIN, rect.top - GAP - maxHeight);
       }
+      // ضمان نهائي: القائمة أبدًا متطلعش بره أعلى أو أسفل الشاشة
+      top = Math.min(Math.max(MARGIN, top), window.innerHeight - MARGIN - HEADER_HEIGHT - MIN_LIST_HEIGHT);
+      maxHeight = Math.min(maxHeight, window.innerHeight - top - MARGIN);
+      setCoords({ top, right, maxHeight });
     };
     updateCoords();
     window.addEventListener("resize", updateCoords);
@@ -106,13 +117,13 @@ export function NotificationBell({ className }: { className?: string }) {
     const onClick = (e: MouseEvent) => {
       const target = e.target as Node;
       if (wrapRef.current && wrapRef.current.contains(target)) return;
-      const dropdownEl = document.getElementById("notification-bell-portal");
+      const dropdownEl = document.getElementById(portalId);
       if (dropdownEl && dropdownEl.contains(target)) return;
       setOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  }, [open, portalId]);
 
   const handleItemClick = (n: AppNotification) => {
     if (!n.isRead) markRead(n.id);
@@ -132,8 +143,8 @@ export function NotificationBell({ className }: { className?: string }) {
         <Bell className="w-4 h-4 text-foreground/70" />
         {unreadCount > 0 && (
           <span
-            className="absolute -top-0.5 -left-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none"
-            style={{ boxShadow: "0 0 6px rgba(239,68,68,0.8)" }}
+            className="absolute -top-1 -left-1 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none ring-2"
+            style={{ boxShadow: "0 0 6px rgba(239,68,68,0.7)", ringColor: "hsl(var(--card))" } as any}
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
@@ -142,31 +153,42 @@ export function NotificationBell({ className }: { className?: string }) {
 
       {open && coords && createPortal(
         <div
-          id="notification-bell-portal"
+          id={portalId}
           dir="rtl"
-          className="fixed w-72 max-w-[85vw] rounded-xl border shadow-2xl overflow-hidden"
+          className="fixed w-80 max-w-[90vw] rounded-2xl border shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
           style={{
-            ...(coords.top !== undefined ? { top: coords.top } : { bottom: coords.bottom }),
-            right: Math.max(8, coords.right),
+            top: coords.top,
+            right: coords.right,
+            maxHeight: coords.maxHeight,
             zIndex: 9999,
             background: "hsl(var(--card))",
             borderColor: "hsl(var(--border))",
           }}
         >
-          <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: "hsl(var(--border))" }}>
-            <p className="text-xs font-black text-foreground">الإشعارات</p>
+          <div
+            className="flex items-center justify-between px-4 py-3 border-b shrink-0"
+            style={{ borderColor: "hsl(var(--border))", background: "hsl(var(--muted) / 0.4)" }}
+          >
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-black text-foreground">الإشعارات</p>
+              {unreadCount > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center leading-none">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </div>
             {unreadCount > 0 && (
               <button
                 type="button"
                 onClick={() => markAllRead()}
-                className="flex items-center gap-1 text-[10px] text-primary hover:underline font-bold"
+                className="flex items-center gap-1 text-[11px] text-primary hover:underline font-bold shrink-0"
               >
-                <CheckCheck className="w-3 h-3" /> تعليم الكل كمقروء
+                <CheckCheck className="w-3.5 h-3.5" /> تعليم الكل كمقروء
               </button>
             )}
           </div>
 
-          <div className="overflow-y-auto" style={{ maxHeight: coords.maxHeight }}>
+          <div className="overflow-y-auto min-h-0">
             {isLoading ? (
               <p className="text-center text-xs text-muted-foreground py-8">جارِ التحميل...</p>
             ) : notifications.length === 0 ? (
