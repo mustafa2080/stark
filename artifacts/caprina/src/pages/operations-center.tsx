@@ -1396,6 +1396,7 @@ export default function OperationsCenterPage() {
   const totalCash = cashRegisters?.totalBalance ?? 0;
   const { data: cashPeriodSummary, isLoading: cashPeriodLoading } = useFinancialSummary(ocPeriodFilter);
   const { data: manifestsPnlSummary, isLoading: manifestsPnlLoading } = useManifestsPnlSummary(ocPeriodFilter);
+  const { data: revenueTrendPnlSummary, isLoading: revenueTrendPnlLoading } = useManifestsPnlSummary(revenueTrendFilter);
   const { data: periodProfitData, isLoading: periodProfitLoading } = usePeriodProfit(ocPeriodFilter);
   const { data: shipmentChartsOc, isLoading: shipmentChartsOcLoading } = useShipmentCharts();
   const { data: smartAlertsData } = useSmartAlerts();
@@ -2049,21 +2050,31 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {financialLoading && !financialData ? (
+            {(financialLoading && !financialData) || (revenueTrendPnlLoading && !revenueTrendPnlSummary) ? (
               <div className="h-40 rounded bg-muted animate-pulse" />
             ) : (
               <>
                 <MiniLeaderLineDonut
                   centerLabel="الإجمالي"
-                  centerValue={fc(manifestsPnlSummary?.totalRevenue ?? 0)}
+                  centerValue={fc(revenueTrendPnlSummary?.totalRevenue ?? 0)}
                   data={[
-                    { key: "revenue", label: "إيرادات", color: "#10b981", value: manifestsPnlSummary?.totalRevenue ?? 0 },
+                    { key: "revenue", label: "إيرادات", color: "#10b981", value: revenueTrendPnlSummary?.totalRevenue ?? 0 },
                     { key: "cost", label: "تكلفة", color: "#ef4444", value: financialData?.month.cost ?? 0 },
                     { key: "shippingSpend", label: "شحن", color: "#f59e0b", value: financialData?.month.shippingSpend ?? 0 },
                     { key: "otherExpenses", label: "أخرى", color: "#64748b", value: financialData?.month.otherExpenses ?? 0 },
                   ]}
                   onSegmentClick={(key, label, color) => setFinancialModal({ key, label, color })}
                 />
+                <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-muted-foreground">
+                  {revenueTrendPnlLoading && <Loader2 className="w-3 h-3 animate-spin text-teal-500" />}
+                  <span>
+                    نفس فترة اتجاه الإيرادات:
+                    {" "}
+                    {revenueTrendFilter.type === "custom"
+                      ? `${ocFmtDate(new Date(revenueTrendFilter.from))} - ${ocFmtDate(new Date(revenueTrendFilter.to))}`
+                      : "آخر 7 أيام"}
+                  </span>
+                </div>
 
                 {financialModal && (
                   <FinancialBreakdownDropdown
