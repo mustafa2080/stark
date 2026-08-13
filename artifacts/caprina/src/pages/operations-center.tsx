@@ -1536,7 +1536,7 @@ export default function OperationsCenterPage() {
                   </div>
                   <div>
                     <div className="text-xl font-black">
-                      {c.key === "revenue" ? fc(c.value) : fn(c.value)}
+                      {c.key === "revenue" ? fc(manifestsPnlSummary?.totalRevenue ?? 0) : fn(c.value)}
                     </div>
                     <div className="text-xs text-muted-foreground">{c.label}</div>
                   </div>
