@@ -201,8 +201,16 @@ function repInitials(name: string): string {
   return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : (name || "؟").slice(0, 2);
 }
 function RepAvatar({ avatar, name }: { avatar: string | null; name: string }) {
-  if (avatar)
-    return <img src={avatar} alt={name} className="w-7 h-7 rounded-full object-cover border border-border/50 shrink-0" />;
+  const [broken, setBroken] = useState(false);
+  if (avatar && !broken)
+    return (
+      <img
+        src={avatar}
+        alt={name}
+        className="w-7 h-7 rounded-full object-cover border border-border/50 shrink-0"
+        onError={() => setBroken(true)}
+      />
+    );
   return (
     <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
       style={{ background: repAvatarColor(name) }}>
