@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -20,7 +21,7 @@ import {
   AlertTriangle, AlertOctagon, AlertCircle, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Plus, Upload, Briefcase,
   UserPlus, FileText, LogOut, Wallet, Activity, X,
-  Calendar as CalendarIcon, ChevronDown,
+  Calendar as CalendarIcon, ChevronDown, Check, RotateCcw,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Line,
@@ -414,6 +415,16 @@ const OC_PERIOD_TABS: { key: "today" | "week" | "month" | "year"; label: string 
 const ocFmtDate = (d: Date) =>
   d.toLocaleDateString("ar-EG", { day: "numeric", month: "short" });
 
+const ocFmtFullDate = (d?: Date) =>
+  d ? d.toLocaleDateString("ar-EG", { day: "numeric", month: "short", year: "numeric" }) : "غير محدد";
+
+const ocToYmd = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 // ── فلتر الفترة الزمني الموحّد: تبويبات + زر "فترة محددة" بتقويم منبثق ─────────
 function OcPeriodFilterBar({
   value, onChange,
@@ -440,73 +451,138 @@ function OcPeriodFilterBar({
   const customLabel = isCustom
     ? `${ocFmtDate(new Date(value.from))} - ${ocFmtDate(new Date(value.to))}`
     : "فترة محددة";
+  const hasDraftRange = Boolean(draftRange.from && draftRange.to);
+  const draftCaption = hasDraftRange
+    ? `${ocFmtFullDate(draftRange.from)} - ${ocFmtFullDate(draftRange.to)}`
+    : draftRange.from
+      ? "اختر تاريخ النهاية لإكمال الفترة"
+      : "اختر بداية ونهاية الفترة";
 
   const applyCustomRange = () => {
     if (!draftRange.from || !draftRange.to) return;
-    const toYmd = (d: Date) => d.toISOString().slice(0, 10);
-    onChange({ type: "custom", from: toYmd(draftRange.from), to: toYmd(draftRange.to) });
+    onChange({ type: "custom", from: ocToYmd(draftRange.from), to: ocToYmd(draftRange.to) });
     setPopoverOpen(false);
   };
 
+  const setQuickRange = (days: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - (days - 1));
+    setDraftRange({ from, to });
+    onChange({ type: "custom", from: ocToYmd(from), to: ocToYmd(to) });
+    setPopoverOpen(false);
+  };
+
+  const clearDraft = () => {
+    setDraftRange({});
+    setNavMonth(new Date());
+  };
+
   return (
-    <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5 flex-wrap">
+    <div className="flex items-center gap-1 rounded-xl border bg-muted/35 p-1 flex-wrap" dir="rtl">
       {OC_PERIOD_TABS.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange({ type: t.key })}
-          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
-            value.type === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
+          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+            value.type === t.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70"
           }`}
         >
           {t.label}
         </button>
       ))}
-      <Dialog open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <DialogTrigger asChild>
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger asChild>
           <button
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
-              isCustom ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+              isCustom ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70"
             }`}
           >
             <CalendarIcon className="w-3 h-3" />
             {customLabel}
             <ChevronDown className="w-3 h-3" />
           </button>
-        </DialogTrigger>
-        <DialogContent className="w-auto max-w-fit p-4">
-          <div className="flex flex-col items-center gap-3" dir="rtl">
-            <div className="flex items-center gap-2 w-full justify-center">
-              <Select
-                value={String(navMonthIdx)}
-                onValueChange={(v) => setNavMonth(new Date(navYear, Number(v), 1))}
-              >
-                <SelectTrigger className="h-8 w-[110px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {OC_MONTH_NAMES.map((name, idx) => (
-                    <SelectItem key={idx} value={String(idx)} className="text-xs">
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={String(navYear)}
-                onValueChange={(v) => setNavMonth(new Date(Number(v), navMonthIdx, 1))}
-              >
-                <SelectTrigger className="h-8 w-[90px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ocYearOptions.map((y) => (
-                    <SelectItem key={y} value={String(y)} className="text-xs">
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        </PopoverTrigger>
+        <PopoverContent align="end" sideOffset={8} className="w-[min(92vw,720px)] overflow-hidden rounded-2xl border p-0 shadow-2xl" dir="rtl">
+          <div className="border-b px-4 py-3" style={{ background: "linear-gradient(135deg, hsl(var(--muted)/0.75), rgba(59,130,246,0.10))" }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-foreground">تحديد فترة مؤشرات الأداء</p>
+                <p className="mt-1 text-[11px] font-semibold text-muted-foreground">{draftCaption}</p>
+              </div>
+              <div className="grid min-w-[250px] grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <div className="rounded-xl border bg-background/55 px-3 py-2">
+                  <p className="text-[9px] font-bold text-muted-foreground">من</p>
+                  <p className="mt-0.5 truncate text-[11px] font-black">{ocFmtFullDate(draftRange.from)}</p>
+                </div>
+                <span className="text-muted-foreground">←</span>
+                <div className="rounded-xl border bg-background/55 px-3 py-2">
+                  <p className="text-[9px] font-bold text-muted-foreground">إلى</p>
+                  <p className="mt-0.5 truncate text-[11px] font-black">{ocFmtFullDate(draftRange.to)}</p>
+                </div>
+              </div>
             </div>
+          </div>
+
+          <div className="grid gap-4 p-4 lg:grid-cols-[150px_1fr]">
+            <div className="flex flex-row flex-wrap gap-2 lg:flex-col">
+              {[
+                { label: "آخر 7 أيام", days: 7 },
+                { label: "آخر 30 يوم", days: 30 },
+                { label: "آخر 90 يوم", days: 90 },
+              ].map((item) => (
+                <button
+                  key={item.days}
+                  type="button"
+                  onClick={() => setQuickRange(item.days)}
+                  className="rounded-xl border px-3 py-2 text-[11px] font-extrabold text-muted-foreground transition hover:bg-muted"
+                >
+                  {item.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={clearDraft}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold text-muted-foreground transition hover:bg-muted"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                مسح الاختيار
+              </button>
+            </div>
+
+            <div className="min-w-0">
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <Select
+                  value={String(navMonthIdx)}
+                  onValueChange={(v) => setNavMonth(new Date(navYear, Number(v), 1))}
+                >
+                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OC_MONTH_NAMES.map((name, idx) => (
+                      <SelectItem key={idx} value={String(idx)} className="text-xs">
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(navYear)}
+                  onValueChange={(v) => setNavMonth(new Date(Number(v), navMonthIdx, 1))}
+                >
+                  <SelectTrigger className="h-8 w-[95px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ocYearOptions.map((y) => (
+                      <SelectItem key={y} value={String(y)} className="text-xs">
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             <Calendar
               mode="range"
               selected={draftRange}
@@ -515,21 +591,28 @@ function OcPeriodFilterBar({
               onMonthChange={setNavMonth}
               numberOfMonths={2}
               dir="rtl"
-              className="scale-110 origin-top"
+              className="mx-auto"
             />
-            <div className="flex items-center justify-between gap-3 w-full pt-3 border-t border-border">
-              <span className="text-xs text-muted-foreground">
-                {draftRange.from && draftRange.to
-                  ? `${ocFmtDate(draftRange.from)} → ${ocFmtDate(draftRange.to)}`
-                  : "اختر تاريخ البداية والنهاية"}
-              </span>
-              <Button size="sm" disabled={!draftRange.from || !draftRange.to} onClick={applyCustomRange}>
-                تطبيق
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+            <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black"
+              style={{ background: hasDraftRange ? "rgba(34,197,94,0.14)" : "hsl(var(--muted)/0.6)", color: hasDraftRange ? "#10b981" : "hsl(var(--muted-foreground))" }}>
+              <Check className="h-3.5 w-3.5" />
+              {hasDraftRange ? "الفترة جاهزة للتطبيق" : "بانتظار اختيار التاريخين"}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setPopoverOpen(false)}>
+                إلغاء
+              </Button>
+              <Button size="sm" disabled={!hasDraftRange} onClick={applyCustomRange}>
+                تطبيق الفترة
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
