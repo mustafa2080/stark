@@ -80,6 +80,7 @@ export function NotificationBell({ className }: { className?: string }) {
     const GAP = 10;
     const MARGIN = 12; // هامش أمان من حواف الشاشة
     const MIN_LIST_HEIGHT = 160;
+    const MAX_TOTAL_HEIGHT = 440; // سقف أقصى ثابت لطول القائمة كلها (هيدر + عناصر) — يمنعها من التمدد لطول الشاشة
     const updateCoords = () => {
       const rect = btnRef.current?.getBoundingClientRect();
       if (!rect || rect.width === 0) return; // زرار مخفي فعليًا (نسخة تانية جوه sidebar مطوي) → تجاهل
@@ -92,10 +93,10 @@ export function NotificationBell({ className }: { className?: string }) {
       if (spaceBelow >= HEADER_HEIGHT + MIN_LIST_HEIGHT || spaceBelow >= spaceAbove) {
         // افتح لتحت الزرار
         top = rect.bottom + GAP;
-        maxHeight = Math.max(HEADER_HEIGHT + MIN_LIST_HEIGHT, spaceBelow - GAP);
+        maxHeight = Math.min(MAX_TOTAL_HEIGHT, Math.max(HEADER_HEIGHT + MIN_LIST_HEIGHT, spaceBelow - GAP));
       } else {
         // مفيش مساحة كافية تحت → افتح لفوق (بس دايمًا جوه حدود الشاشة، أبدًا يطلع بره top:0)
-        maxHeight = Math.max(HEADER_HEIGHT + MIN_LIST_HEIGHT, spaceAbove - GAP);
+        maxHeight = Math.min(MAX_TOTAL_HEIGHT, Math.max(HEADER_HEIGHT + MIN_LIST_HEIGHT, spaceAbove - GAP));
         top = Math.max(MARGIN, rect.top - GAP - maxHeight);
       }
       // ضمان نهائي: القائمة أبدًا متطلعش بره أعلى أو أسفل الشاشة
