@@ -589,6 +589,14 @@ export interface ShipmentChartsData {
   statusBreakdownThisWeek: { status: string; count: number }[];
 }
 
+export interface ShipmentChartsRangeResponse {
+  granularity: "day" | "week" | "month";
+  from: string;
+  to: string;
+  points: ShipmentDayItem[];
+  total: { count: number; codAmount: number };
+}
+
 export interface OperationsKpiCard {
   key: string;
   label: string;
@@ -939,6 +947,14 @@ export const analyticsApi = {
       `/analytics/monthly-sales${month ? `?month=${month}` : ""}`
     ),
   shipmentCharts: () => apiFetch<ShipmentChartsData>("/analytics/shipment-charts"),
+  shipmentChartsRange: (params: { period?: "lastYear" | "custom"; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params.period) q.set("period", params.period);
+    if (params.from)   q.set("from", params.from);
+    if (params.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<ShipmentChartsRangeResponse>(`/analytics/shipment-charts-range${qs ? `?${qs}` : ""}`);
+  },
   operationsKpis: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
     if (params?.period) q.set("period", params.period);

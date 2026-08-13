@@ -2422,6 +2422,135 @@ router.get("/analytics/shipment-charts", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /analytics/shipment-charts-range ────────────────────────────────────
+// بيانات الشحنات لفترة "السنة الماضية" (12 شهر) أو فترة مخصصة (from/to).
+// التجميع تلقائي حسب طول الفترة: يومي (≤31 يوم) / أسبوعي (≤180 يوم) / شهري (أكبر).
+router.get("/analytics/shipment-charts-range", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = (req.query.period as string | undefined) ?? "custom";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `shipment-charts-range:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const localDateStr = (d: Date): string =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+
+    const now = new Date();
+
+    // ─── تحديد نطاق الفترة ────────────────────────────────────────────────────
+    let rangeFrom: Date;
+    let rangeTo: Date;
+    if (period === "lastYear") {
+      // آخر 12 شهر بالكامل (من أول الشهر اللي فاته 11 شهر لحد النهاردة)
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 11, 1, 0, 0, 0, 0);
+      rangeTo = now;
+    } else if (customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      res.status(400).json({ error: "من فضلك حدد from (و to اختياري) أو period=lastYear" });
+      return;
+    }
+    if (rangeFrom > rangeTo) {
+      res.status(400).json({ error: "تاريخ البداية أكبر من تاريخ النهاية" });
+      return;
+    }
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeFrom), lte(shipmentsTable.createdAt, rangeTo))
+      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeFrom), lte(shipmentsTable.createdAt, rangeTo));
+
+    const rows = await db
+      .select({
+        createdAt: shipmentsTable.createdAt,
+        codAmount: shipmentsTable.codAmount,
+        collectedAmount: shipmentsTable.collectedAmount,
+      })
+      .from(shipmentsTable)
+      .where(cond);
+
+    // ─── تحديد نوع التجميع تلقائيًا حسب طول الفترة ──────────────────────────
+    const spanDays = Math.ceil((rangeTo.getTime() - rangeFrom.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const granularity: "day" | "week" | "month" = period === "lastYear"
+      ? "month"
+      : spanDays <= 31 ? "day" : spanDays <= 180 ? "week" : "month";
+
+    type Point = { date: string; label: string; count: number; codAmount: number };
+    const points: Point[] = [];
+    const MONTH_LABELS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+
+    if (granularity === "day") {
+      const cur = new Date(rangeFrom);
+      while (cur <= rangeTo) {
+        const dateStr = localDateStr(cur);
+        const mmdd = `${String(cur.getMonth() + 1).padStart(2, "0")}/${String(cur.getDate()).padStart(2, "0")}`;
+        points.push({ date: dateStr, label: mmdd, count: 0, codAmount: 0 });
+        cur.setDate(cur.getDate() + 1);
+      }
+    } else if (granularity === "week") {
+      const cur = new Date(rangeFrom);
+      cur.setHours(0, 0, 0, 0);
+      while (cur <= rangeTo) {
+        const weekEnd = new Date(cur);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        const label = `${String(cur.getMonth() + 1).padStart(2, "0")}/${String(cur.getDate()).padStart(2, "0")}`;
+        points.push({ date: localDateStr(cur), label, count: 0, codAmount: 0 });
+        cur.setDate(cur.getDate() + 7);
+      }
+    } else {
+      // شهري
+      const cur = new Date(rangeFrom.getFullYear(), rangeFrom.getMonth(), 1);
+      const end = new Date(rangeTo.getFullYear(), rangeTo.getMonth(), 1);
+      while (cur <= end) {
+        const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-01`;
+        points.push({ date: dateStr, label: `${MONTH_LABELS[cur.getMonth()]} ${cur.getFullYear()}`, count: 0, codAmount: 0 });
+        cur.setMonth(cur.getMonth() + 1);
+      }
+    }
+
+    // ─── تعبئة البيانات في الـ buckets المناسبة ─────────────────────────────
+    for (const s of rows) {
+      const d = new Date(s.createdAt);
+      const cod = Number(s.collectedAmount ?? s.codAmount ?? 0);
+      let bucket: Point | undefined;
+
+      if (granularity === "day") {
+        const dateStr = localDateStr(d);
+        bucket = points.find(p => p.date === dateStr);
+      } else if (granularity === "week") {
+        // آخر نقطة تاريخها <= تاريخ الشحنة
+        for (let i = points.length - 1; i >= 0; i--) {
+          if (points[i].date <= localDateStr(d)) { bucket = points[i]; break; }
+        }
+      } else {
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+        bucket = points.find(p => p.date === dateStr);
+      }
+
+      if (bucket) { bucket.count++; bucket.codAmount += cod; }
+    }
+
+    const totalCount = points.reduce((s, p) => s + p.count, 0);
+    const totalCod = points.reduce((s, p) => s + p.codAmount, 0);
+
+    const result = {
+      granularity,
+      from: localDateStr(rangeFrom),
+      to: localDateStr(rangeTo),
+      points,
+      total: { count: totalCount, codAmount: totalCod },
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /analytics/operations-kpis ──────────────────────────────────────────
 // لوحة العمليات: 6 كروت KPI مبنية على الفترة المختارة (اليوم/أسبوع/شهر/سنة/فترة محددة).
 // نسبة التغيّر ("change") دايمًا بتقارن اليوم بأمس بغض النظر عن الفترة المختارة،

@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type RepsDailyResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type RepsDailyResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type ShipmentChartsRangeResponse, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
@@ -122,14 +122,10 @@ function OcPeriodCard({
                 </p>
                 <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الإيراد</p>
               </div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
+              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
                 <div className="min-w-0">
                   <p className="text-[9px] text-muted-foreground leading-tight">إيرادات</p>
                   <p className="text-[11px] sm:text-xs font-bold text-primary truncate">{fc(data.totalRevenue)}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[9px] text-muted-foreground leading-tight">التكلفة</p>
-                  <p className="text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-400 truncate">{fc(data.totalExpenses)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] text-muted-foreground leading-tight">الطلبات</p>
@@ -682,6 +678,18 @@ function useShipmentCharts() {
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
     placeholderData: (prev: ShipmentChartsData | undefined) => prev,
+  });
+}
+
+// ── جلب بيانات الشحنات لـ "السنة الماضية" أو "فترة محددة" — بيتفعّل بس لما اليوزر يختارها ──
+function useShipmentChartsRange(params: { period?: "lastYear" | "custom"; from?: string; to?: string } | null) {
+  return useQuery({
+    queryKey: ["analytics-shipment-charts-range-oc", params],
+    queryFn: () => analyticsApi.shipmentChartsRange(params!),
+    enabled: !!params && (params.period === "lastYear" || (!!params.from)),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev: ShipmentChartsRangeResponse | undefined) => prev,
   });
 }
 

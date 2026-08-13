@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useListOrders } from "@workspace/api-client-react";
 import { analyticsApi, apiFetch, type ChartsData, type ChartDayItem, type ShipmentChartsData } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -1121,18 +1122,20 @@ export { WeeklyBars };
 
 // SHIPMENT_STATUS_CFG معرّف بالفعل في السطر 66 كـ alias لـ STATUS_CFG
 
-type ShipmentView = "current" | "prev" | "monthly";
+type ShipmentView = "current" | "prev" | "monthly" | "lastYear" | "custom";
 const SHIPMENT_VIEW_TABS: { id: ShipmentView; label: string; emoji: string; color: string }[] = [
   { id: "current", label: "الأسبوع الحالي", emoji: "📅", color: "#FFD54F" },
   { id: "prev",    label: "الأسبوع الماضي", emoji: "⏪", color: "#7E57C2" },
   { id: "monthly", label: "الشهر الحالي",   emoji: "📆", color: "#26A69A" },
+  { id: "lastYear", label: "السنة الماضية", emoji: "📊", color: "#42A5F5" },
+  { id: "custom", label: "فترة محددة", emoji: "🗓️", color: "#EC4899" },
 ];
 
 function ShipmentXTick({ x, y, payload, enriched }: any) {
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const item = (enriched ?? []).find((d: any) => d.label === payload.value);
   const isToday = item?.date === todayStr;
-  const [dayName, mmdd] = String(payload.value).split(" ");
+  const [dayName, mmdd = ""] = String(payload.value).split(" ");
   return (
     <g transform={`translate(${x},${y})`}>
       <text
@@ -1184,7 +1187,22 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
   data: ShipmentChartsData | undefined | null;
 }) {
   const [view, setView] = React.useState<ShipmentView>("current");
+  const [customRange, setCustomRange] = React.useState<{ from?: Date; to?: Date }>({});
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const customFrom = customRange.from ? format(customRange.from, "yyyy-MM-dd") : undefined;
+  const customTo = customRange.to ? format(customRange.to, "yyyy-MM-dd") : undefined;
+
+  const { data: rangeData, isFetching: isRangeFetching } = useQuery({
+    queryKey: ["analytics-shipment-charts-range", view, customFrom, customTo],
+    queryFn: () =>
+      view === "lastYear"
+        ? analyticsApi.shipmentChartsRange({ period: "lastYear" })
+        : analyticsApi.shipmentChartsRange({ period: "custom", from: customFrom, to: customTo }),
+    enabled: view === "lastYear" || (view === "custom" && Boolean(customFrom && customTo)),
+    staleTime: 5 * 60_000,
+    refetchInterval: view === "lastYear" ? 5 * 60_000 : false,
+    refetchOnWindowFocus: false,
+  });
 
   const weeklyEnriched  = useMemo(() =>
     (data?.weeklyShipments  ?? []).map(d => ({ ...d, isToday: d.date === todayStr })),
@@ -1198,8 +1216,18 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
     (data?.monthlyShipments ?? []).map(d => ({ ...d, isToday: d.date === todayStr })),
     [data, todayStr]
   );
+  const rangeEnriched = useMemo(() =>
+    (rangeData?.points ?? []).map(d => ({ ...d, isToday: d.date === todayStr })),
+    [rangeData, todayStr]
+  );
 
-  const activeData = view === "current" ? weeklyEnriched : view === "prev" ? prevWeekEnriched : monthlyEnriched;
+  const activeData = view === "current"
+    ? weeklyEnriched
+    : view === "prev"
+      ? prevWeekEnriched
+      : view === "monthly"
+        ? monthlyEnriched
+        : rangeEnriched;
 
   const totalCount   = activeData.reduce((s, d) => s + d.count, 0);
   const totalCod     = activeData.reduce((s, d) => s + d.codAmount, 0);
@@ -1207,7 +1235,9 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
   const maxCount     = Math.max(...activeData.map(d => d.count), 1);
   const yMax         = Math.ceil(maxCount / 5) * 5 + 2;
   const wc           = data?.weekComparison;
-  const activeColor  = view === "current" ? GLASS_BAR_COLOR : view === "prev" ? GLASS_PURPLE : GLASS_GREEN;
+  const activeColor  = view === "current" ? GLASS_BAR_COLOR : view === "prev" ? GLASS_PURPLE : view === "monthly" ? GLASS_GREEN : view === "lastYear" ? "#42A5F5" : "#EC4899";
+  const xAxisInterval = activeData.length > 18 ? "preserveStartEnd" : 0;
+  const customRangeLabel = customFrom && customTo ? `${customFrom} إلى ${customTo}` : "اختر بداية ونهاية الفترة";
 
   const statCards = [
     {
@@ -1262,6 +1292,33 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
         })}
       </div>
 
+      {view === "custom" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-3 py-2"
+          style={{ background: "hsl(var(--muted)/0.35)", borderColor: "hsl(var(--border))" }}>
+          <span className="text-[11px] font-bold text-muted-foreground">الفترة: {customRangeLabel}</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="rounded-full border px-3 py-1.5 text-[11px] font-extrabold transition hover:bg-muted"
+                style={{ borderColor: "#EC489966", color: "#EC4899" }}
+              >
+                اختيار الفترة
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-2" dir="rtl">
+              <Calendar
+                mode="range"
+                selected={customRange}
+                onSelect={(range) => setCustomRange(range ?? {})}
+                numberOfMonths={2}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
+
       {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {statCards.map(card => (
@@ -1282,13 +1339,22 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
         style={{ background: "hsl(var(--muted)/0.3)", border: "1px solid hsl(var(--border))" }}>
         <div className="mb-3 px-2">
           <p className="text-[11px] font-bold text-foreground/80">
-            {view === "current" ? "شحنات الأسبوع الحالي" : view === "prev" ? "شحنات الأسبوع الماضي" : "شحنات الشهر الحالي"}
+            {view === "current" ? "شحنات الأسبوع الحالي" : view === "prev" ? "شحنات الأسبوع الماضي" : view === "monthly" ? "شحنات الشهر الحالي" : view === "lastYear" ? "شحنات السنة الماضية" : "شحنات الفترة المحددة"}
           </p>
           <p className="text-[10px] text-muted-foreground">
-            {view === "current" ? "من بداية الأسبوع حتى اليوم" : view === "prev" ? "بيانات الأسبوع السابق" : "من أول الشهر حتى اليوم"}
+            {view === "current" ? "من بداية الأسبوع حتى اليوم" : view === "prev" ? "بيانات الأسبوع السابق" : view === "monthly" ? "من أول الشهر حتى اليوم" : view === "lastYear" ? "آخر 12 شهر مجمعة شهريًا" : rangeData ? `${rangeData.from} إلى ${rangeData.to} · تجميع ${rangeData.granularity === "day" ? "يومي" : rangeData.granularity === "week" ? "أسبوعي" : "شهري"}` : "اختر الفترة لعرض البيانات"}
           </p>
         </div>
         <div style={{ height: 220 }}>
+          {view === "custom" && !customFrom && !customTo ? (
+            <div className="flex h-full items-center justify-center text-xs font-bold text-muted-foreground">
+              اختر فترة من التقويم لعرض الشحنات
+            </div>
+          ) : isRangeFetching ? (
+            <div className="flex h-full items-center justify-center text-xs font-bold text-muted-foreground">
+              جاري تحميل بيانات الشحنات...
+            </div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={activeData} margin={{ top: 10, right: 8, left: -22, bottom: 48 }}>
               <defs>
@@ -1300,7 +1366,7 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
               <CartesianGrid strokeDasharray="2 5" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="label"
                 tick={(props: any) => <ShipmentXTick {...props} enriched={activeData} />}
-                axisLine={false} tickLine={false} interval={0} />
+                axisLine={false} tickLine={false} interval={xAxisInterval as any} />
               <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 axisLine={false} tickLine={false} allowDecimals={false} domain={[0, yMax]} />
               <Tooltip content={<ShipmentBarTip />} cursor={{ stroke: activeColor, strokeWidth: 1, strokeOpacity: 0.3 }} />
@@ -1329,6 +1395,7 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
               />
             </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         {/* مقارنة الأسبوعين */}
