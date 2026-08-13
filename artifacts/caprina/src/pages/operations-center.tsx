@@ -776,7 +776,7 @@ function RepPeriodFilterBar({
 
   return (
     <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5 flex-wrap">
-      {[{ key: "today" as const, label: "يومي" }, { key: "week" as const, label: "أسبوعي" }].map((t) => (
+      {[{ key: "today" as const, label: "يومي" }, { key: "week" as const, label: "أسبوعي" }, { key: "month" as const, label: "شهري" }].map((t) => (
         <button
           key={t.key}
           onClick={() => onChange({ type: t.key })}
