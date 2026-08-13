@@ -7,6 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import { CalendarDays, Check, RotateCcw } from "lucide-react";
 import {
   PieChart, Pie, Cell, Sector, ResponsiveContainer,
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1188,9 +1189,11 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
 }) {
   const [view, setView] = React.useState<ShipmentView>("current");
   const [customRange, setCustomRange] = React.useState<{ from?: Date; to?: Date }>({});
+  const [customPickerOpen, setCustomPickerOpen] = React.useState(false);
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const customFrom = customRange.from ? format(customRange.from, "yyyy-MM-dd") : undefined;
   const customTo = customRange.to ? format(customRange.to, "yyyy-MM-dd") : undefined;
+  const hasCompleteCustomRange = Boolean(customFrom && customTo);
 
   const { data: rangeData, isFetching: isRangeFetching } = useQuery({
     queryKey: ["analytics-shipment-charts-range", view, customFrom, customTo],
@@ -1198,7 +1201,7 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
       view === "lastYear"
         ? analyticsApi.shipmentChartsRange({ period: "lastYear" })
         : analyticsApi.shipmentChartsRange({ period: "custom", from: customFrom, to: customTo }),
-    enabled: view === "lastYear" || (view === "custom" && Boolean(customFrom && customTo)),
+    enabled: view === "lastYear" || (view === "custom" && hasCompleteCustomRange),
     staleTime: 5 * 60_000,
     refetchInterval: view === "lastYear" ? 5 * 60_000 : false,
     refetchOnWindowFocus: false,
@@ -1237,7 +1240,21 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
   const wc           = data?.weekComparison;
   const activeColor  = view === "current" ? GLASS_BAR_COLOR : view === "prev" ? GLASS_PURPLE : view === "monthly" ? GLASS_GREEN : view === "lastYear" ? "#42A5F5" : "#EC4899";
   const xAxisInterval = activeData.length > 18 ? "preserveStartEnd" : 0;
-  const customRangeLabel = customFrom && customTo ? `${customFrom} إلى ${customTo}` : "اختر بداية ونهاية الفترة";
+  const formatCustomDate = (date?: Date) =>
+    date ? date.toLocaleDateString("ar-EG", { day: "numeric", month: "short", year: "numeric" }) : "غير محدد";
+  const setQuickRange = (days: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - (days - 1));
+    setCustomRange({ from, to });
+    setCustomPickerOpen(false);
+  };
+  const resetCustomRange = () => setCustomRange({});
+  const customRangeCaption = hasCompleteCustomRange
+    ? `${formatCustomDate(customRange.from)} - ${formatCustomDate(customRange.to)}`
+    : customRange.from
+      ? "اختر تاريخ النهاية لإكمال الفترة"
+      : "اختر تاريخ البداية والنهاية";
 
   const statCards = [
     {
@@ -1293,29 +1310,93 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
       </div>
 
       {view === "custom" && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-3 py-2"
-          style={{ background: "hsl(var(--muted)/0.35)", borderColor: "hsl(var(--border))" }}>
-          <span className="text-[11px] font-bold text-muted-foreground">الفترة: {customRangeLabel}</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="rounded-full border px-3 py-1.5 text-[11px] font-extrabold transition hover:bg-muted"
-                style={{ borderColor: "#EC489966", color: "#EC4899" }}
-              >
-                اختيار الفترة
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto p-2" dir="rtl">
-              <Calendar
-                mode="range"
-                selected={customRange}
-                onSelect={(range) => setCustomRange(range ?? {})}
-                numberOfMonths={2}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+        <div
+          className="rounded-[22px] border p-3 sm:p-4"
+          style={{
+            background: "linear-gradient(135deg, rgba(236,72,153,0.13) 0%, hsl(var(--muted)/0.38) 46%, rgba(255,255,255,0.035) 100%)",
+            borderColor: hasCompleteCustomRange ? "#EC489966" : "hsl(var(--border))",
+            boxShadow: hasCompleteCustomRange ? "0 14px 34px rgba(236,72,153,0.14)" : "none",
+          }}
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[12px] font-black text-foreground">
+                <CalendarDays className="h-4 w-4" style={{ color: "#EC4899" }} />
+                فترة الشحنات المحددة
+              </div>
+              <p className="mt-1 text-[10px] font-semibold text-muted-foreground">{customRangeCaption}</p>
+            </div>
+
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_1fr] lg:min-w-[430px]">
+              <div className="rounded-2xl border px-3 py-2 text-right" style={{ background: "rgba(255,255,255,0.04)", borderColor: "hsl(var(--border))" }}>
+                <p className="text-[9px] font-bold text-muted-foreground">من</p>
+                <p className="mt-0.5 truncate text-[12px] font-black text-foreground">{formatCustomDate(customRange.from)}</p>
+              </div>
+              <div className="hidden items-center text-muted-foreground sm:flex">←</div>
+              <div className="rounded-2xl border px-3 py-2 text-right" style={{ background: "rgba(255,255,255,0.04)", borderColor: "hsl(var(--border))" }}>
+                <p className="text-[9px] font-bold text-muted-foreground">إلى</p>
+                <p className="mt-0.5 truncate text-[12px] font-black text-foreground">{formatCustomDate(customRange.to)}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {[7, 30, 90].map(days => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setQuickRange(days)}
+                  className="rounded-full border px-3 py-1.5 text-[10px] font-extrabold transition hover:bg-muted"
+                  style={{ borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))" }}
+                >
+                  آخر {days} يوم
+                </button>
+              ))}
+              <Popover open={customPickerOpen} onOpenChange={setCustomPickerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-black transition hover:bg-muted"
+                    style={{ borderColor: "#EC489966", color: "#EC4899", boxShadow: "0 0 14px rgba(236,72,153,0.18)" }}
+                  >
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    تغيير الفترة
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto overflow-hidden rounded-2xl border p-0 shadow-2xl" dir="rtl" sideOffset={8}>
+                  <div className="border-b px-4 py-3" style={{ background: "hsl(var(--muted)/0.45)", borderColor: "hsl(var(--border))" }}>
+                    <p className="text-[12px] font-black text-foreground">اختيار فترة الشحنات</p>
+                    <p className="mt-1 text-[10px] font-semibold text-muted-foreground">حدد يوم البداية ثم يوم النهاية</p>
+                  </div>
+                  <Calendar
+                    mode="range"
+                    selected={customRange}
+                    onSelect={(range) => {
+                      setCustomRange(range ?? {});
+                      if (range?.from && range?.to) setCustomPickerOpen(false);
+                    }}
+                    numberOfMonths={2}
+                    initialFocus
+                    className="p-3"
+                  />
+                  <div className="flex items-center justify-between gap-2 border-t px-3 py-3" style={{ borderColor: "hsl(var(--border))" }}>
+                    <button
+                      type="button"
+                      onClick={resetCustomRange}
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold text-muted-foreground transition hover:bg-muted"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      مسح
+                    </button>
+                    <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black"
+                      style={{ background: hasCompleteCustomRange ? "rgba(34,197,94,0.14)" : "hsl(var(--muted)/0.55)", color: hasCompleteCustomRange ? GLASS_GREEN : "hsl(var(--muted-foreground))" }}>
+                      <Check className="h-3.5 w-3.5" />
+                      {hasCompleteCustomRange ? "الفترة جاهزة" : "بانتظار الاختيار"}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1346,9 +1427,9 @@ export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
           </p>
         </div>
         <div style={{ height: 220 }}>
-          {view === "custom" && !customFrom && !customTo ? (
+          {view === "custom" && !hasCompleteCustomRange ? (
             <div className="flex h-full items-center justify-center text-xs font-bold text-muted-foreground">
-              اختر فترة من التقويم لعرض الشحنات
+              {customRange.from ? "اختر تاريخ النهاية لعرض الشحنات" : "اختر فترة من لوحة التواريخ لعرض الشحنات"}
             </div>
           ) : isRangeFetching ? (
             <div className="flex h-full items-center justify-center text-xs font-bold text-muted-foreground">
