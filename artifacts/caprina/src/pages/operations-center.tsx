@@ -2471,7 +2471,9 @@ export default function OperationsCenterPage() {
                       <td className="py-2 font-semibold">{r.displayName}</td>
                       <td className="py-2">{r.totalShipments}</td>
                       <td className="py-2">{r.deliveredShipments}</td>
-                      <td className="py-2">{r.successRate}%</td>
+                      <td className="py-2">
+                        <SuccessRateCell value={r.successRate} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
