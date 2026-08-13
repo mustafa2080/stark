@@ -989,7 +989,14 @@ export const analyticsApi = {
   recentEvents: () => apiFetch<RecentEventsResponse>("/analytics/recent-events"),
   recentShipments: () => apiFetch<RecentShipmentsResponse>("/analytics/recent-shipments"),
   executiveSummary: () => apiFetch<ExecutiveSummaryResponse>("/analytics/executive-summary"),
-  revenueTrend: () => apiFetch<RevenueTrendResponse>("/analytics/revenue-trend"),
+  revenueTrend: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<RevenueTrendResponse>(`/analytics/revenue-trend${qs ? `?${qs}` : ""}`);
+  },
   repsDaily: (params: { period: "today" | "week" } | { period: "custom"; from: string; to: string }) => {
     const q = new URLSearchParams();
     q.set("period", params.period);

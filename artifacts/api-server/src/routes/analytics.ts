@@ -4226,7 +4226,7 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
   }
 });
 
-// لوحة العمليات: اتجاه الإيرادات والأرباح اليومي — آخر 7 أيام.
+// لوحة العمليات: اتجاه الإيرادات والأرباح اليومي — آخر 7 أيام أو فترة محددة.
 // نفس منطق manifests-pnl-summary بالظبط (بيانات مقفولة فقط، status="closed")،
 // لكن مجمّعة يوميًا على أساس تاريخ إغلاق البيان (closedAt) بدل رقم إجمالي واحد.
 // خط "الأرباح" = صافي ربح المناديب بس (deliveredShippingFees − totalCourierCost)
@@ -4234,18 +4234,35 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
 router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cacheKey = `revenue-trend:${tenantId ?? "global"}`;
+    const period = String(req.query.period ?? "week");
+    const fromQ = typeof req.query.from === "string" ? req.query.from : "";
+    const toQ = typeof req.query.to === "string" ? req.query.to : "";
+    const cacheKey = `revenue-trend:${tenantId ?? "global"}:${period}:${fromQ}:${toQ}`;
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
     const now = new Date();
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 6);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
+    let fromDate = new Date(now);
+    let toDate = new Date(now);
+
+    if (period === "custom" && fromQ && toQ) {
+      fromDate = new Date(`${fromQ}T00:00:00`);
+      toDate = new Date(`${toQ}T23:59:59.999`);
+    } else {
+      fromDate.setDate(now.getDate() - 6);
+      fromDate.setHours(0, 0, 0, 0);
+      toDate.setHours(23, 59, 59, 999);
+    }
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      res.status(400).json({ error: "Invalid from/to date range" });
+      return;
+    }
+    if (fromDate > toDate) [fromDate, toDate] = [toDate, fromDate];
 
     const manifestConditions: any[] = [
       eq(shipmentManifestsTable.status, "closed"),
-      gte(shipmentManifestsTable.closedAt, sevenDaysAgo),
+      gte(shipmentManifestsTable.closedAt, fromDate),
+      lte(shipmentManifestsTable.closedAt, toDate),
     ];
     if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
 
@@ -4271,11 +4288,15 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
 
     const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
     const buckets: { day: string; date: string; revenue: number; profit: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
+    const cursor = new Date(fromDate);
+    cursor.setHours(0, 0, 0, 0);
+    const lastDay = new Date(toDate);
+    lastDay.setHours(0, 0, 0, 0);
+    while (cursor <= lastDay) {
+      const d = new Date(cursor);
       d.setHours(0, 0, 0, 0);
       buckets.push({ day: DAY_NAMES[d.getDay()], date: d.toISOString().slice(0, 10), revenue: 0, profit: 0 });
+      cursor.setDate(cursor.getDate() + 1);
     }
     const bucketByDate = new Map(buckets.map(b => [b.date, b]));
 

@@ -341,10 +341,13 @@ function usePerformanceMetrics(filter: OcPeriodFilter) {
 }
 
 // ── جلب اتجاه الإيرادات والأرباح اليومي (بيانات حقيقية من الباك اند) ──────────
-function useRevenueTrend() {
+function useRevenueTrend(filter: OcPeriodFilter) {
+  const params = filter.type === "custom"
+    ? { period: "custom", from: filter.from, to: filter.to }
+    : { period: "week" };
   return useQuery({
-    queryKey: ["analytics-revenue-trend"],
-    queryFn: analyticsApi.revenueTrend,
+    queryKey: ["analytics-revenue-trend", filter],
+    queryFn: () => analyticsApi.revenueTrend(params),
     staleTime: 2 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
@@ -1386,6 +1389,7 @@ export default function OperationsCenterPage() {
   const [overviewCardModal, setOverviewCardModal] = useState<string | null>(null);
   const [ocPeriodFilter, setOcPeriodFilter] = useState<OcPeriodFilter>({ type: "today" });
   const [repsPeriodFilter, setRepsPeriodFilter] = useState<OcPeriodFilter>({ type: "week" });
+  const [revenueTrendFilter, setRevenueTrendFilter] = useState<OcPeriodFilter>({ type: "week" });
   const { data: repsPerformers, isLoading: repsPerformersLoading } = useTopPerformers(repsPeriodFilter);
   const [isTreasuryOpen, setIsTreasuryOpen] = useState(false);
   const { data: cashRegisters, isLoading: cashRegistersLoading } = useCashRegisters();
@@ -1429,7 +1433,7 @@ export default function OperationsCenterPage() {
   const { data: executiveSummary, isLoading: executiveSummaryLoading } = useExecutiveSummary();
   const { data: perfMetricsData, isLoading: perfMetricsLoading } = usePerformanceMetrics(ocPeriodFilter);
   const performanceMetrics = perfMetricsData?.metrics ?? [];
-  const { data: revenueTrendData, isLoading: revenueTrendLoading } = useRevenueTrend();
+  const { data: revenueTrendData, isLoading: revenueTrendLoading } = useRevenueTrend(revenueTrendFilter);
   const revenueTrend = revenueTrendData?.days ?? [];
   const { data: liveMapData, isLoading: liveMapLoading } = useLiveMap();
   const liveMapCities = liveMapData?.cities ?? [];
@@ -2083,10 +2087,33 @@ export default function OperationsCenterPage() {
 
         {/* اتجاه الإيرادات والأرباح */}
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#3b82f6" }}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-500" /> اتجاه الإيرادات والأرباح
-            </CardTitle>
+          <CardHeader className="pb-2 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-500" /> اتجاه الإيرادات والأرباح
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {revenueTrendLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
+                {revenueTrendFilter.type === "custom" && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-2 text-[10px] font-bold"
+                    onClick={() => setRevenueTrendFilter({ type: "week" })}
+                  >
+                    آخر 7 أيام
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+              <OcPeriodFilterBar value={revenueTrendFilter} onChange={setRevenueTrendFilter} compact />
+              <span className="rounded-full bg-blue-500/10 px-3 py-1.5 text-center text-[10px] font-black text-blue-600 dark:text-blue-400">
+                {revenueTrendFilter.type === "custom"
+                  ? `${ocFmtDate(new Date(revenueTrendFilter.from))} - ${ocFmtDate(new Date(revenueTrendFilter.to))}`
+                  : "آخر 7 أيام"}
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             {revenueTrendLoading && revenueTrend.length === 0 ? (
