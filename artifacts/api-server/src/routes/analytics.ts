@@ -4068,11 +4068,11 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       if (count > topAreaCount) { topArea = city; topAreaCount = count; }
     }
 
-    // ── عدد العملاء التجاريين فقط: من جدول العملاء (clients) بفلتر clientType = 'commercial' ──
-    const commercialClientsCond = tenantId !== null
-      ? and(eq(clientsTable.tenantId, tenantId), eq(clientsTable.clientType, "commercial"))
-      : eq(clientsTable.clientType, "commercial");
-    const clientsCountRows = await db.select({ clientsCount: count() }).from(clientsTable).where(commercialClientsCond);
+    // ── عدد العملاء: من جدول العملاء (clients) — نفس مصدر شاشة "العملاء التجاريون" بالكامل ──
+    const clientsCountCond = tenantId !== null ? eq(clientsTable.tenantId, tenantId) : undefined;
+    const clientsCountRows = clientsCountCond
+      ? await db.select({ clientsCount: count() }).from(clientsTable).where(clientsCountCond)
+      : await db.select({ clientsCount: count() }).from(clientsTable);
     const clientsCount = clientsCountRows[0]?.clientsCount ?? 0;
 
     // توقع مبسّط للشهر القادم: بناءً على صافي الربح الحقيقي (netRevenue) لا الإيراد الخام
