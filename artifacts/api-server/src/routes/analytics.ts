@@ -4039,7 +4039,11 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       ? Math.round(((monthProfit - prevMonthProfit) / Math.abs(prevMonthProfit)) * 1000) / 10
       : 0;
 
-    // ── عدد الشحنات ونسبة النجاح وأكثر منطقة نشاطًا: تبقى من shipmentsTable (شهر حالي) ──
+    // ── عدد الشحنات: إجمالي كل الشحنات المسجلة (زي قسم الشحنات) — بدون فلتر شهر ──
+    const totalShipmentsCountRows = await db.select({ c: count() }).from(shipmentsTable).where(cond);
+    const shipmentsCount = totalShipmentsCountRows[0]?.c ?? 0;
+
+    // ── نسبة النجاح وأكثر منطقة نشاطًا: تبقى من شحنات الشهر الحالي (دلالة تشغيلية) ──
     const rows = await db
       .select({
         status: shipmentsTable.status,
@@ -4049,9 +4053,9 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       .from(shipmentsTable)
       .where(and(cond, gte(shipmentsTable.createdAt, monthStart)));
 
-    const shipmentsCount = rows.length;
+    const monthShipmentsCount = rows.length;
     const deliveredCount = rows.filter(r => normalize(r.status) === "received").length;
-    const successRate = shipmentsCount > 0 ? Math.round((deliveredCount / shipmentsCount) * 100) : 0;
+    const successRate = monthShipmentsCount > 0 ? Math.round((deliveredCount / monthShipmentsCount) * 100) : 0;
 
     const cityCounts = new Map<string, number>();
     for (const r of rows) {
@@ -4064,11 +4068,11 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       if (count > topAreaCount) { topArea = city; topAreaCount = count; }
     }
 
-    // ── عدد العملاء التجاريين الحقيقي: من جدول العملاء نفسه (receiver_clients) مش distinct sender ──
-    // (بدون فلتر على accountStatus عمدًا — العميل الموقوف مؤقتًا يفضل عميل تجاري مسجل)
-    const clientsCountRows = tenantId !== null
-      ? await db.select({ clientsCount: count() }).from(receiverClientsTable).where(eq(receiverClientsTable.tenantId, tenantId))
-      : await db.select({ clientsCount: count() }).from(receiverClientsTable);
+    // ── عدد العملاء التجاريين فقط: من جدول العملاء (clients) بفلتر clientType = 'commercial' ──
+    const commercialClientsCond = tenantId !== null
+      ? and(eq(clientsTable.tenantId, tenantId), eq(clientsTable.clientType, "commercial"))
+      : eq(clientsTable.clientType, "commercial");
+    const clientsCountRows = await db.select({ clientsCount: count() }).from(clientsTable).where(commercialClientsCond);
     const clientsCount = clientsCountRows[0]?.clientsCount ?? 0;
 
     // توقع مبسّط للشهر القادم: بناءً على صافي الربح الحقيقي (netRevenue) لا الإيراد الخام
