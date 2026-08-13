@@ -3929,9 +3929,9 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
     // بنعرض كل المندوبين المسجّلين (حتى لو مالهمش شحنات في الفترة)، مرتبين من
     // الأفضل نسبة نجاح للأقل، عشان "أفضل المندوبين" يبقى ترتيب كامل مش قايمة جزئية.
     const repCompanies = tenantId !== null
-      ? await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name })
+      ? await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name, logo: shippingCompaniesTable.logo })
           .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
-      : await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name })
+      : await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name, logo: shippingCompaniesTable.logo })
           .from(shippingCompaniesTable);
 
     type RepBucket = { companyId: number; assigned: number; delivered: number };
@@ -3971,7 +3971,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
         return {
           userId: company.id,
           name: company.name,
-          avatar: null as string | null,
+          avatar: company.logo ?? null,
           assigned: bucket.assigned,
           delivered: bucket.delivered,
           successRate: bucket.assigned > 0 ? Math.round((bucket.delivered / bucket.assigned) * 100) : 0,
