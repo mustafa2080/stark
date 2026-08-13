@@ -21,7 +21,7 @@ import {
   AlertTriangle, AlertOctagon, AlertCircle, Users, Phone, MapPin,
   Brain, Zap, TrendingUp, TrendingDown, Minus, Plus, Upload, Briefcase,
   UserPlus, FileText, LogOut, Wallet, Activity, X,
-  Calendar as CalendarIcon, ChevronDown, Check, RotateCcw,
+  Calendar as CalendarIcon, ChevronDown, Check, RotateCcw, ChevronRight, ChevronLeft,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Line,
@@ -458,6 +458,95 @@ const ocToYmd = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
+// ── رأس تنقّل شهر/سنة عصري واحترافي: أسهم شهر + بادج سنة قابل للفتح + زر "اليوم" ──
+const OC_NAV_MONTH_NAMES = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+
+function OcMonthYearNav({
+  month, onMonthChange, minYear = 2020,
+}: {
+  month: Date;
+  onMonthChange: (d: Date) => void;
+  minYear?: number;
+}) {
+  const [yearOpen, setYearOpen] = useState(false);
+  const year = month.getFullYear();
+  const monthIdx = month.getMonth();
+  const maxYear = new Date().getFullYear() + 1;
+  const yearOptions = Array.from({ length: maxYear - minYear + 1 }, (_, i) => maxYear - i);
+
+  const goMonth = (delta: number) => {
+    onMonthChange(new Date(year, monthIdx + delta, 1));
+  };
+  const goToday = () => onMonthChange(new Date());
+  const isCurrentMonth = year === new Date().getFullYear() && monthIdx === new Date().getMonth();
+
+  return (
+    <div className="flex items-center justify-center gap-1.5" dir="rtl">
+      <button
+        type="button"
+        onClick={() => goMonth(-1)}
+        className="flex h-7 w-7 items-center justify-center rounded-lg border bg-background/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        aria-label="الشهر السابق"
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
+
+      <div className="flex items-center gap-1 rounded-lg border bg-background/60 px-1 py-0.5">
+        <span className="min-w-[52px] px-1 text-center text-[11px] font-black text-foreground">
+          {OC_NAV_MONTH_NAMES[monthIdx]}
+        </span>
+
+        <Popover open={yearOpen} onOpenChange={setYearOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-black text-primary transition hover:bg-primary/20"
+            >
+              {year}
+              <ChevronDown className="h-2.5 w-2.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="center" sideOffset={6} className="w-[168px] p-2">
+            <div className="grid max-h-[220px] grid-cols-3 gap-1 overflow-y-auto" dir="rtl">
+              {yearOptions.map((y) => (
+                <button
+                  key={y}
+                  type="button"
+                  onClick={() => { onMonthChange(new Date(y, monthIdx, 1)); setYearOpen(false); }}
+                  className={`rounded-md px-2 py-1.5 text-[11px] font-bold transition ${
+                    y === year ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => goMonth(1)}
+        className="flex h-7 w-7 items-center justify-center rounded-lg border bg-background/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        aria-label="الشهر التالي"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+
+      {!isCurrentMonth && (
+        <button
+          type="button"
+          onClick={goToday}
+          className="mr-1 rounded-lg border border-primary/25 bg-primary/5 px-2 py-1 text-[10px] font-extrabold text-primary transition hover:bg-primary/10"
+        >
+          اليوم
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── فلتر الفترة الزمني الموحّد: تبويبات + زر "فترة محددة" بتقويم منبثق ─────────
 function OcPeriodFilterBar({
   value, onChange, compact = false,
@@ -712,37 +801,8 @@ function RepPeriodFilterBar({
         </DialogTrigger>
         <DialogContent className="w-auto max-w-fit p-4">
           <div className="flex flex-col items-center gap-3" dir="rtl">
-            <div className="flex items-center gap-2 w-full justify-center">
-              <Select
-                value={String(navMonthIdx)}
-                onValueChange={(v) => setNavMonth(new Date(navYear, Number(v), 1))}
-              >
-                <SelectTrigger className="h-8 w-[110px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {REP_MONTH_NAMES.map((name, idx) => (
-                    <SelectItem key={idx} value={String(idx)} className="text-xs">
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={String(navYear)}
-                onValueChange={(v) => setNavMonth(new Date(Number(v), navMonthIdx, 1))}
-              >
-                <SelectTrigger className="h-8 w-[90px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {repYearOptions.map((y) => (
-                    <SelectItem key={y} value={String(y)} className="text-xs">
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center justify-center w-full">
+              <OcMonthYearNav month={navMonth} onMonthChange={setNavMonth} />
             </div>
             <Calendar
               mode="range"
