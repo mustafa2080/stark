@@ -4,7 +4,7 @@ import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from 
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
+import { computeNetRevenueDueForAllClients, computeExpectedRevenueTotalForTenant } from "../lib/clientAccountBalance.js";
 
 // ── In-memory cache for heavy analytics endpoints ─────────────────────────────
 const analyticsCache = new Map<string, { data: any; expiresAt: number }>();
@@ -4157,8 +4157,6 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const daysElapsedThisMonth = Math.max(1, Math.ceil((now.getTime() - monthStart.getTime()) / (24 * 60 * 60 * 1000)));
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
     // ── إيرادات/أرباح حقيقية: نفس مصدر "رقم الـ 300" (بيانات المناديب المقفولة + مصروفات الخزنة) ──
     // بدل الحساب القديم من shipmentsTable مباشرة اللي كان بيديلي رقم مختلف عن باقي الشاشة.
@@ -4208,9 +4206,10 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       : await db.select({ clientsCount: count() }).from(clientsTable);
     const clientsCount = clientsCountRows[0]?.clientsCount ?? 0;
 
-    // توقع مبسّط للشهر القادم: بناءً على صافي الربح الحقيقي (netRevenue) لا الإيراد الخام
-    const dailyAvgProfit = monthProfit / daysElapsedThisMonth;
-    const nextMonthForecast = Math.round(dailyAvgProfit * daysInMonth);
+    // توقع الشهر القادم: مجموع هامش كل الشحنات الجارية حاليًا فى النظام (قيد الشحن
+    // فى المخزن / قيد الشحن) مضروبة فى نسبة تسليم ثابتة 60%، بدل الـ extrapolation
+    // القديم من متوسط الأداء التاريخي.
+    const nextMonthForecast = Math.round(await computeExpectedRevenueTotalForTenant(tenantId));
 
     const result = {
       revenue: Math.round(currentMonthPnl.totalRevenue),
