@@ -54,6 +54,12 @@ const DEFAULT_TEMPLATES: WaTemplate[] = [
     body: "أهلاً يا {customerName} 👋\n\nبنتابع معاك بخصوص أوردرك رقم *#{orderNumber}*.\n\n📌 المنتج: *{product}*\n💰 المبلغ: *{amount}*\n\nإيه الوقت المناسب ليك نعيد التوصيل؟ 🙏",
     isDefault: false,
   },
+  {
+    id: "default_shipping_followup",
+    name: "متابعة الشحن",
+    body: "مرحباً {customerName} 👋\n\nمعاك فريق *STARK* بخصوص شحنتك رقم *#{orderNumber}*\n\n📦 المنتج: *{product}*\n🚚 شركة الشحن: *{shippingCompany}*\n🔖 رقم التتبع: *{trackingNumber}*\n⏳ مدة الشحن: *{daysPending} يوم*\n\nحبينا نطمّن عليك ونتأكد إن كل حاجة تمام معاك 🙏\nلو الشحنة وصلتك، تقدر تأكدلنا وتقفل الطلب.\nولو لسه ماوصلتش أو حابب تسأل عن أي تفصيلة، احنا هنا في خدمتك في أي وقت.\n\nشكراً لثقتك في *STARK* ⚡",
+    isDefault: false,
+  },
 ];
 
 async function getTemplates(tenantId: number | null): Promise<WaTemplate[]> {
