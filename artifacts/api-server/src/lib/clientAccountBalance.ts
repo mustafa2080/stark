@@ -375,12 +375,21 @@ export async function computeNetRevenueDueForAllClients(
   if (!clientIds.length) return result;
 
   const manifestConds: any[] = [inArray(clientAccountManifestsTable.clientId, clientIds)];
-  if (options?.from) manifestConds.push(gte(clientAccountManifestsTable.createdAt, options.from));
-  if (options?.to) manifestConds.push(lte(clientAccountManifestsTable.createdAt, options.to));
   // closedOnly: يُستخدم لعرض "إيراد العميل" فى أفضل العملاء بمركز العمليات —
   // لازم البيان يكون مقفول فعليًا عشان "يسمع" الإيراد (زى ما طلب المدير)، بخلاف
   // الاستخدام الافتراضى (رصيد العميل بصفحة المالية) اللى بيحسب من كل البيانات.
-  if (options?.closedOnly) manifestConds.push(eq(clientAccountManifestsTable.status, "closed"));
+  // ملحوظة مهمة: فى وضع closedOnly، فلتر الفترة (from/to) لازم يتطبّق على تاريخ
+  // *إغلاق* البيان (closedAt) مش تاريخ إنشائه (createdAt) — لأن المطلوب هو "الإيراد
+  // اللى اتقفل/اتسمع خلال الفترة دى"، مش "البيانات اللى اتفتحت فى الفترة دى" (بيان
+  // ممكن يتفتح فى شهر ويتقفل فى شهر تانى، والإيراد بيُحسب على شهر القفل).
+  if (options?.closedOnly) {
+    manifestConds.push(eq(clientAccountManifestsTable.status, "closed"));
+    if (options?.from) manifestConds.push(gte(clientAccountManifestsTable.closedAt, options.from));
+    if (options?.to) manifestConds.push(lte(clientAccountManifestsTable.closedAt, options.to));
+  } else {
+    if (options?.from) manifestConds.push(gte(clientAccountManifestsTable.createdAt, options.from));
+    if (options?.to) manifestConds.push(lte(clientAccountManifestsTable.createdAt, options.to));
+  }
 
   const allManifests = await db
     .select()
@@ -529,6 +538,122 @@ export async function computeNetRevenueDueForAllClients(
 
   for (const id of clientIds) {
     result[id] = Number(result[id].toFixed(2));
+  }
+
+  return result;
+}
+
+// ─── الإيراد المتوقع لكل عميل — من الشحنات الجارية حاليًا (قيد الشحن فى المخزن ─
+// / قيد الشحن)، لسه ملهاش مصير نهائى (مش هى نفسها شحنات "صافى الإيراد المستحق"
+// اللى بتتحسب من بيانات مقفولة). لكل شحنة: نفس صيغة (سعر الشحن + إضافة نوع
+// الشحنة) - تكلفة المندوب، ثم يُضرب الإجمالى فى نسبة تسليم ثابتة (افتراضيًا 60%)
+// عشان يعكس إن مش كل الشحنات الجارية هتوصل فعليًا. تُستخدم فى عمود "إيراد
+// العميل" بأفضل العملاء بمركز العمليات — بتُجمع مع صافى الإيراد المستحق المقفول.
+const EXPECTED_REVENUE_DELIVERY_RATE = 0.6;
+
+export async function computeExpectedRevenueForAllClients(
+  clientIds: number[],
+): Promise<Record<number, number>> {
+  const result: Record<number, number> = {};
+  for (const id of clientIds) result[id] = 0;
+  if (!clientIds.length) return result;
+
+  const shipments = await db
+    .select()
+    .from(shipmentsTable)
+    .where(and(
+      inArray(shipmentsTable.clientId, clientIds),
+      inArray(shipmentsTable.status, ["warehouse_ready", "in_shipping"]),
+    ));
+  if (!shipments.length) return result;
+
+  const clients = await db.select().from(clientsTable).where(inArray(clientsTable.id, clientIds));
+  const clientTypeMap: Record<number, string> = {};
+  clients.forEach(c => { clientTypeMap[c.id] = (c as any).clientType ?? "normal"; });
+
+  // ── سعر الشحن (على العميل) لكل منطقة، حسب تصنيف العميل — نفس منطق أعلاه ──
+  const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
+  let zoneRowsById: Record<number, any> = {};
+  if (zoneIds.length) {
+    const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+    zones.forEach(z => { zoneRowsById[z.id] = z; });
+  }
+  const getZoneShipping = (shipment: any, clientType: string) => {
+    if (!shipment?.zoneId) return Number(shipment?.shippingFee ?? 0);
+    const z = zoneRowsById[shipment.zoneId];
+    if (!z) return Number(shipment.shippingFee ?? 0);
+    const priceByType =
+      clientType === "vip"        ? z.priceVip :
+      clientType === "commercial" ? z.priceCommercial :
+      z.priceNormal;
+    const resolved = priceByType != null && Number(priceByType) > 0 ? priceByType : z.price;
+    return Number(resolved) || Number(shipment.shippingFee ?? 0) || 0;
+  };
+
+  // ── تكلفة المندوب الحقيقية — من شركة الشحن المرتبطة بالشحنة مباشرة ───────
+  const shipmentCompanyIds = [...new Set(shipments.map(s => s.shippingCompanyId).filter((v): v is number => !!v))];
+  let companyCostModeMap: Record<number, { costMode: string; shippingCost: number }> = {};
+  if (shipmentCompanyIds.length) {
+    const companyRows = await db.select({
+      id: shippingCompaniesTable.id,
+      costMode: shippingCompaniesTable.costMode,
+      shippingCost: shippingCompaniesTable.shippingCost,
+    }).from(shippingCompaniesTable).where(inArray(shippingCompaniesTable.id, shipmentCompanyIds));
+    companyCostModeMap = Object.fromEntries(companyRows.map(c => [c.id, {
+      costMode: c.costMode === "zone" ? "zone" : "rep",
+      shippingCost: Math.abs(Number(c.shippingCost ?? 0)),
+    }]));
+  }
+  let zoneCostMap: Record<number, number> = {};
+  if (zoneIds.length) {
+    const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+    zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+  }
+  const getZoneCost = (shipment: any) => {
+    if (!shipment?.shippingCompanyId) return shipment?.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+    const company = companyCostModeMap[shipment.shippingCompanyId];
+    if (company) {
+      return company.costMode === "zone"
+        ? (shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0)
+        : company.shippingCost;
+    }
+    return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+  };
+
+  // ── إضافة نوع الشحنة (basePrice على سعر العميل) ──────────────────────────
+  const parcelTypes = [...new Set(shipments.map(s => s.parcelType).filter((v): v is string => !!v))];
+  let parcelBasePriceMap: Record<string, number> = {};
+  if (parcelTypes.length) {
+    const tenantIds = [...new Set(clients.map(c => (c as any).tenantId).filter((v): v is number => v != null))];
+    const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
+    if (tenantIds.length) {
+      conds.push(or(inArray(parcelTypePricingTable.tenantId, tenantIds), isNull(parcelTypePricingTable.tenantId)));
+    }
+    const pricingRows = await db
+      .select({ tenantId: parcelTypePricingTable.tenantId, parcelType: parcelTypePricingTable.parcelType, basePrice: parcelTypePricingTable.basePrice })
+      .from(parcelTypePricingTable)
+      .where(and(...conds));
+    for (const row of pricingRows) {
+      const existing = parcelBasePriceMap[row.parcelType];
+      const isTenantRow = row.tenantId != null;
+      if (existing === undefined || isTenantRow) parcelBasePriceMap[row.parcelType] = Number(row.basePrice ?? 0);
+    }
+  }
+
+  for (const shipment of shipments) {
+    const clientId = shipment.clientId;
+    if (clientId == null || !(clientId in result)) continue;
+    const clientType = clientTypeMap[clientId] ?? "normal";
+
+    const zoneShippingForItem = getZoneShipping(shipment, clientType);
+    const zoneCostForItem = getZoneCost(shipment);
+    const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
+
+    result[clientId] += (zoneShippingForItem + repExtraCost) - zoneCostForItem;
+  }
+
+  for (const id of clientIds) {
+    result[id] = Number((result[id] * EXPECTED_REVENUE_DELIVERY_RATE).toFixed(2));
   }
 
   return result;
