@@ -90,8 +90,8 @@ export default function ShippingFollowupPage() {
   });
 
   const shippingTemplate =
+    waSettings?.templates?.find(t => t.id === "default_shipping_followup") ??
     waSettings?.templates?.find(t => t.name === "متابعة الشحن") ??
-    waSettings?.templates?.find(t => t.isDefault) ??
     null;
 
   const handleRefresh = async () => {
