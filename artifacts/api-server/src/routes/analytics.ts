@@ -3871,7 +3871,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
     const allClientIdSet = new Set(allClientInfoRows.map(c => c.id));
     const clientNetRevenueDueMap = await computeNetRevenueDueForAllClients(
       allClientInfoRows.map(c => c.id),
-      { from: rangeFrom, to: rangeTo },
+      { from: rangeFrom, to: rangeTo, closedOnly: true },
     );
 
     type ShipmentPerfRow = {

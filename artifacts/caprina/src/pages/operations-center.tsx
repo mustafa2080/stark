@@ -2298,7 +2298,7 @@ export default function OperationsCenterPage() {
                   <tr className="text-muted-foreground border-b">
                     <th className="text-right font-medium pb-2">العميل</th>
                     <th className="text-right font-medium pb-2">الشحنات</th>
-                    <th className="text-right font-medium pb-2">ربح العميل</th>
+                    <th className="text-right font-medium pb-2">إيراد العميل</th>
                     <th className="text-right font-medium pb-2">نسبة النجاح</th>
                   </tr>
                 </thead>

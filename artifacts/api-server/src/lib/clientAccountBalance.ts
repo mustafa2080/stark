@@ -368,7 +368,7 @@ export async function computeClientBalancesForAllClients(
 // الصفوف (مؤجل/معلَّق/قيد الانتظار، أو مرتجع بسبب غير مالي = صفر بالكامل).
 export async function computeNetRevenueDueForAllClients(
   clientIds: number[],
-  options?: { from?: Date; to?: Date },
+  options?: { from?: Date; to?: Date; closedOnly?: boolean },
 ): Promise<Record<number, number>> {
   const result: Record<number, number> = {};
   for (const id of clientIds) result[id] = 0;
@@ -377,6 +377,10 @@ export async function computeNetRevenueDueForAllClients(
   const manifestConds: any[] = [inArray(clientAccountManifestsTable.clientId, clientIds)];
   if (options?.from) manifestConds.push(gte(clientAccountManifestsTable.createdAt, options.from));
   if (options?.to) manifestConds.push(lte(clientAccountManifestsTable.createdAt, options.to));
+  // closedOnly: يُستخدم لعرض "إيراد العميل" فى أفضل العملاء بمركز العمليات —
+  // لازم البيان يكون مقفول فعليًا عشان "يسمع" الإيراد (زى ما طلب المدير)، بخلاف
+  // الاستخدام الافتراضى (رصيد العميل بصفحة المالية) اللى بيحسب من كل البيانات.
+  if (options?.closedOnly) manifestConds.push(eq(clientAccountManifestsTable.status, "closed"));
 
   const allManifests = await db
     .select()
