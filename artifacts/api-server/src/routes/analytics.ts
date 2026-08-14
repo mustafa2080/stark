@@ -1,6 +1,6 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable } from "@workspace/db";
-import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable } from "@workspace/db";
+import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { getTenantId } from "../middlewares/requireTenant.js";
@@ -635,6 +635,10 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
       deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
       codAmount: shipmentsTable.codAmount,
+      shippingFee: shipmentsTable.shippingFee,
+      zoneId: shipmentsTable.zoneId,
+      returnReceived: shipmentManifestItemsTable.returnReceived,
+      shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
     })
     .from(shipmentManifestItemsTable)
     .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
@@ -694,17 +698,49 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
 
   const operatingExpenses = Number(totalExpenses ?? 0);
 
-  // صافي الإيراد المستحق لا يُحسب هنا بصيغة مبسّطة: نستخدم نفس الدالة المشتركة
-  // التي تغذّي صفحة client-account-sheet وبيان العميل نفسه، لتراعي تكلفة المنطقة
-  // الفعلية وإضافات نوع الشحنة وطريقة تكلفة شركة الشحن.
-  const clientRows = tenantId !== null
-    ? await db.select({ id: clientsTable.id }).from(clientsTable).where(eq(clientsTable.tenantId, tenantId))
-    : await db.select({ id: clientsTable.id }).from(clientsTable);
-  const netRevenueByClient = await computeNetRevenueDueForAllClients(
-    clientRows.map((client) => client.id),
-    { from: fromDate ?? undefined, to: toDate ?? undefined, closedOnly: true },
-  );
-  const netRevenue = Object.values(netRevenueByClient).reduce((sum, amount) => sum + amount, 0);
+  const companyIds = [...new Set(rows.map(r => r.shippingCompanyId).filter((id): id is number => id != null))];
+  const companies = companyIds.length
+    ? await db.select({ id: shippingCompaniesTable.id, costMode: shippingCompaniesTable.costMode, shippingCost: shippingCompaniesTable.shippingCost })
+        .from(shippingCompaniesTable)
+        .where(inArray(shippingCompaniesTable.id, companyIds))
+    : [];
+  const companyMap = new Map(companies.map(c => [c.id, c]));
+
+  const zoneIds = [...new Set(rows.map(r => r.zoneId).filter((id): id is number => id != null))];
+  const zoneCosts = zoneIds.length
+    ? await db.select({ zoneId: zoneCostsTable.zoneId, deliveryCost: zoneCostsTable.deliveryCost })
+        .from(zoneCostsTable)
+        .where(and(
+          inArray(zoneCostsTable.zoneId, zoneIds),
+          tenantId !== null
+            ? or(eq(zoneCostsTable.tenantId, tenantId), isNull(zoneCostsTable.tenantId))
+            : undefined,
+        ))
+    : [];
+  const zoneCostMap = new Map(zoneCosts.map(z => [z.zoneId, Number(z.deliveryCost ?? 0)]));
+
+  let deliveredShippingFeesClosed = 0;
+  let courierCostClosed = 0;
+  for (const r of rows) {
+    const hasShippingFee =
+      r.deliveryStatus === "delivered" ||
+      r.deliveryStatus === "partial_delivered" ||
+      (r.deliveryStatus === "partial_received" && (r as any).returnReceived === 1) ||
+      (r.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(r.returnReason ?? ""));
+    if (!hasShippingFee) continue;
+
+    const shipping = Number(r.shippingFee ?? 0);
+    deliveredShippingFeesClosed += shipping;
+
+    const company = r.shippingCompanyId != null ? companyMap.get(r.shippingCompanyId) : undefined;
+    const companyCostMode = (company as any)?.costMode === "zone" ? "zone" : "rep";
+    const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
+    courierCostClosed += companyCostMode === "zone"
+      ? Number(zoneCostMap.get(r.zoneId ?? -1) ?? 0)
+      : courierCostPerShipment;
+  }
+
+  const netRevenue = deliveredShippingFeesClosed - courierCostClosed;
 
   return {
     totalRevenue,
