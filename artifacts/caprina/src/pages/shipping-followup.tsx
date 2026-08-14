@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, AlertTriangle, Phone, Package, Truck, Link2, RefreshCw, Hash, MessageCircle, CheckCircle2 } from "lucide-react";
+import { Clock, AlertTriangle, Phone, Package, Truck, Link2, RefreshCw, Hash, MessageCircle, CheckCircle2, MapPin, UserCircle2, FileText, Wallet, User } from "lucide-react";
 import { analyticsApi, ordersApi, apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -180,8 +180,14 @@ export default function ShippingFollowupPage() {
               className={`rounded-xl border p-4 space-y-3 ${urgencyColor(o.daysPending)}`}
             >
               <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono opacity-60">#{o.id}</span>
+                  {o.invoiceNumber && (
+                    <span className="flex items-center gap-1 text-xs font-mono opacity-70">
+                      <FileText className="h-3 w-3" />
+                      {o.invoiceNumber}
+                    </span>
+                  )}
                   <Badge
                     variant="outline"
                     className="text-xs border-current"
@@ -196,10 +202,10 @@ export default function ShippingFollowupPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                  <Link href={`/orders/${o.id}`}>
+                  <Link href={`/shipments/${o.id}`}>
                     <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-current bg-white/50 dark:bg-black/20">
                       <Link2 className="h-3 w-3" />
-                      فتح الطلب
+                      فتح الشحنة
                     </Button>
                   </Link>
                   {o.phone && (
@@ -242,20 +248,39 @@ export default function ShippingFollowupPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Package className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm truncate">{o.customerName}</div>
-                    {o.city && <div className="text-xs opacity-70">{o.city}</div>}
+              {/* بيانات العميل الأساسية */}
+              <div className="flex items-center gap-2.5 pb-2.5 border-b border-current/15">
+                <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-current/10 border border-current/20">
+                  <User className="h-4.5 w-4.5 opacity-80" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-sm truncate">{o.customerName}</div>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                    {o.phone && (
+                      <a href={`tel:${o.phone}`} className="flex items-center gap-1 text-xs opacity-80 hover:underline hover:opacity-100">
+                        <Phone className="h-3 w-3" />
+                        {o.phone}
+                      </a>
+                    )}
+                    {o.city && (
+                      <span className="flex items-center gap-1 text-xs opacity-80">
+                        <span className="opacity-40">•</span>
+                        <MapPin className="h-3 w-3" />
+                        {o.city}
+                      </span>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                <div className="flex items-center gap-2 min-w-0">
-                  <Phone className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                  <a href={`tel:${o.phone}`} className="text-sm hover:underline truncate">{o.phone || "—"}</a>
+              {o.address && (
+                <div className="flex items-start gap-2 text-xs opacity-75">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5 opacity-60" />
+                  <span className="leading-relaxed">{o.address}</span>
                 </div>
+              )}
 
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Truck className="h-3.5 w-3.5 shrink-0 opacity-60" />
                   <span className="text-sm truncate">{o.shippingCompany ?? "—"}</span>
@@ -265,11 +290,23 @@ export default function ShippingFollowupPage() {
                   <Hash className="h-3.5 w-3.5 shrink-0 opacity-60" />
                   <span className="text-sm font-mono truncate">{o.trackingNumber || <span className="opacity-50">لا يوجد تتبع</span>}</span>
                 </div>
+
+                <div className="flex items-center gap-2 min-w-0">
+                  <Wallet className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                  <span className="text-sm truncate">{o.shippingCost ? formatCurrency(o.shippingCost) : "—"} <span className="opacity-50 text-xs">شحن</span></span>
+                </div>
+
+                {o.assignedUserName && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <UserCircle2 className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                    <span className="text-sm truncate">{o.assignedUserName}</span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between text-xs opacity-70 pt-1 border-t border-current/20">
-                <span>{o.product}</span>
-                <span className="font-medium">{formatCurrency(o.totalPrice)}</span>
+                <span className="truncate">{o.product}</span>
+                <span className="font-medium shrink-0">{formatCurrency(o.totalPrice)}</span>
               </div>
             </div>
           );
