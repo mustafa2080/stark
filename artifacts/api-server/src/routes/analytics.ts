@@ -2187,12 +2187,12 @@ router.get("/analytics/orders-by-status", requireAuth, async (req, res): Promise
 });
 
 // ─── GET /api/analytics/shipping-followup ───────────────────────────────────
-// Returns shipments still "on the road" (not delivered/returned/cancelled) pending > 3 days
+// يرجع الشحنات اللي حالتها: قيد الشحن في المخزن / قيد الشحن / مؤجل — فقط
+// ومر عليها أكتر من 3 أيام منذ الإنشاء
 // المصدر: جدول الشحنات (shipmentsTable) نفسه — مش جدول الطلبات (orders)
 // daysPending = based on createdAt (oldest date) to avoid reset on edits
 const SHIPPING_FOLLOWUP_ACTIVE_STATUSES = [
-  "waiting", "pending", "confirmed", "picked_up", "warehouse_ready",
-  "in_transit", "in_shipping", "out_for_delivery", "delayed",
+  "warehouse_ready", "in_shipping", "delayed",
 ] as const;
 
 router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promise<void> => {
