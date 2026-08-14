@@ -93,6 +93,7 @@ const ALL_NAV = [
   { href: "/my-dashboard",      label: "لوحتي",              icon: LayoutDashboard, exact: true, permission: null, section: null, employeeOnly: true,  iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/operations-center", label: "لوحة التحكم",       icon: Layers,          exact: true, permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-emerald-400",    group: "dashboard"    },
   { href: "/finance/clients",   label: "العملاء التجاريون",   icon: UserCheck,                   permission: "finance.view",            section: "section_dashboard",          iconColor: "text-cyan-400",       group: "clients_business" },
+  { href: "/finance/client-account-sheet", label: "حسابات العملاء", icon: UserCheck,               permission: "finance.view",            section: "section_dashboard",          iconColor: "text-cyan-400",       group: "clients_business" },
   { href: "/shipments-list",    label: "الشحنات",             icon: Package,                     permission: "orders.view",             section: "section_orders",             iconColor: "text-orange-400",     group: "orders"       },
   { href: "/shipments/new",     label: "شحنة جديدة",            icon: Plus,                        permission: "orders.create",           section: "section_new_order",          iconColor: "text-emerald-400",    group: "orders"       },
   { href: "/invoices",          label: "فواتير الشحن",             icon: FileText,                    permission: "invoices.view",           section: "section_invoices",           iconColor: "text-yellow-400",     group: "orders"       },
@@ -120,7 +121,6 @@ const ALL_NAV = [
 ];
 
 const FINANCE_NAV = [
-  { href: "/finance/client-account-sheet", label: "حسابات العملاء", icon: UserCheck,    iconColor: "text-cyan-400"     },
   { href: "/finance/cash",              label: "الخزنة",             icon: Wallet,       iconColor: "text-yellow-400"   },
   { href: "/finance/expenses",          label: "المصروفات",         icon: Receipt,      iconColor: "text-rose-400"      },
   { href: "/finance",                   label: "لوحة الماليات",     icon: DollarSign,   iconColor: "text-emerald-400"  },
@@ -1105,7 +1105,7 @@ export default function Layout({ children }: LayoutProps) {
             )}
 
             {visibleNav.some(i => i.group === "clients_business") && (
-              <NavGroup label="العملاء التجاريون" icon={UserCheck} iconColor="text-cyan-400" location={location} prefixes={["/finance/clients"]} isOpen={openGroup === "clients_business"} onToggle={() => toggleGroup("clients_business", visibleNav.find(i => i.group === "clients_business")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "clients_business")?.href} groupKey="clients_business">
+              <NavGroup label="العملاء التجاريون" icon={UserCheck} iconColor="text-cyan-400" location={location} prefixes={["/finance/clients", "/finance/client-account-sheet"]} isOpen={openGroup === "clients_business"} onToggle={() => toggleGroup("clients_business", visibleNav.find(i => i.group === "clients_business")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "clients_business")?.href} groupKey="clients_business">
                 {visibleNav.filter(i => i.group === "clients_business").map(item => <NavItem key={item.href} item={item} location={location} sub />)}
               </NavGroup>
             )}
@@ -1117,7 +1117,7 @@ export default function Layout({ children }: LayoutProps) {
             )}
 
             {can("finance.view") && (
-              <NavGroup label="الماليات" icon={DollarSign} iconColor="text-emerald-400" location={location} prefixes={["/finance"]} excludePrefixes={["/finance/cash/analytics","/finance/clients"]} isOpen={openGroup === "finance"} onToggle={() => toggleGroup("finance", FINANCE_NAV[0]?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={FINANCE_NAV[0]?.href} groupKey="finance">
+              <NavGroup label="الماليات" icon={DollarSign} iconColor="text-emerald-400" location={location} prefixes={["/finance"]} excludePrefixes={["/finance/cash/analytics","/finance/clients","/finance/client-account-sheet"]} isOpen={openGroup === "finance"} onToggle={() => toggleGroup("finance", FINANCE_NAV[0]?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={FINANCE_NAV[0]?.href} groupKey="finance">
                 {FINANCE_NAV.map((item) => {
                   const isActive = location === item.href;
                   const Icon = item.icon;
