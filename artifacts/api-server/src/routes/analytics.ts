@@ -635,10 +635,13 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
       deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
       codAmount: shipmentsTable.codAmount,
+      shippingFee: shipmentsTable.shippingFee,
+      courierCostPerShipment: shippingCompaniesTable.shippingCost,
     })
     .from(shipmentManifestItemsTable)
     .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
     .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+    .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
     .where(and(...manifestConditions));
 
   const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
@@ -647,6 +650,8 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
   // لا نستخدم صافي رسوم الشحن لهذا الرقم حتى يظل مطابقًا لإجمالي الإيرادات
   // الظاهر في مركز العمليات.
   let totalRevenue = 0;
+  let deliveredShippingFees = 0;
+  let totalCourierCost = 0;
   let eligibleCount = 0;
   let returnCount = 0;
 
@@ -668,6 +673,12 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
     }
 
+    // نفس معادلة "صافي الإيراد المستحق" في بيان حساب العميل:
+    // إجمالي سعر الشحن − تكلفة المندوب.
+    deliveredShippingFees += Number(r.shippingFee ?? 0);
+    if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
+      totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
+    }
   }
 
   const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
@@ -693,7 +704,7 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
     .where(and(...cashExpenseConditions));
 
   const operatingExpenses = Number(totalExpenses ?? 0);
-  const netRevenue = totalRevenue - operatingExpenses;
+  const netRevenue = deliveredShippingFees - totalCourierCost;
 
   return {
     totalRevenue,

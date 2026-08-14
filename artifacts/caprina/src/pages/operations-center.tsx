@@ -1528,7 +1528,9 @@ export default function OperationsCenterPage() {
     return {
       totalRevenue,
       totalExpenses,
-      netRevenue: totalRevenue - totalExpenses,
+      // لا نخلط صافي الإيراد المستحق بمصاريف الخزينة؛ هذه القيمة هي نفس
+      // "صافي الإيراد المستحق" الظاهرة في صفحة بيان حساب العميل.
+      netRevenue: Number(revenueTrendPnlSummary?.netRevenue ?? 0),
       orders: revenueTrendPnlSummary?.orders ?? financialData?.month.orders ?? 0,
       returnCount: revenueTrendPnlSummary?.returnCount ?? 0,
       returnRate: revenueTrendPnlSummary?.returnRate ?? 0,
