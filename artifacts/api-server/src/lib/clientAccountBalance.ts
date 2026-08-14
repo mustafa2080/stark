@@ -543,19 +543,41 @@ export async function computeNetRevenueDueForAllClients(
   return result;
 }
 
+// ─── نسبة التسليم الفعلية لآخر 7 أيام (على مستوى الشركة كلها) ────────────────
+// من كل الشحنات اللي وصلت لحالة نهائية (اتسلمت "received" أو رجعت "returned")
+// خلال آخر 7 أيام، بنحسب كام بالمية منهم اتسلمت فعليًا. النسبة دي هي اللي
+// بتتضرب فيها هامش الشحنات الجارية فى computeExpectedRevenueTotalForTenant
+// بدل رقم ثابت مفترض، عشان تعكس الأداء الفعلي الحالي للتسليم.
+async function computeRecentDeliveryRateForTenant(tenantId: number | null): Promise<number> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const conds: any[] = [
+    inArray(shipmentsTable.status, ["received", "returned"]),
+    gte(shipmentsTable.updatedAt, sevenDaysAgo),
+  ];
+  if (tenantId !== null) conds.push(eq(shipmentsTable.tenantId, tenantId));
+  const rows = await db
+    .select({ status: shipmentsTable.status })
+    .from(shipmentsTable)
+    .where(and(...conds));
+  if (!rows.length) return 0.6; // مفيش بيانات كافية لآخر 7 أيام — نرجع لنسبة افتراضية محافظة
+  const deliveredCount = rows.filter(r => r.status === "received").length;
+  return deliveredCount / rows.length;
+}
+
 // ─── الإيراد المتوقع الإجمالي (على مستوى الشركة) — لكارت "توقعات الشهر القادم" ─
 // فى شاشة المدير التنفيذي. بيتحسب من كل الشحنات الجارية حاليًا فى النظام (قيد
 // الشحن فى المخزن / قيد الشحن)، بغض النظر عن تاريخها، بنفس صيغة (سعر الشحن +
-// إضافة نوع الشحنة) - تكلفة المندوب لكل شحنة، والمجموع بيُضرب فى نسبة تسليم
-// ثابتة (افتراضيًا 60%) عشان يعكس إن مش كل الشحنات الجارية هتوصل فعليًا.
-const EXPECTED_REVENUE_DELIVERY_RATE = 0.6;
-
+// إضافة نوع الشحنة) - تكلفة المندوب لكل شحنة، والمجموع بيُضرب فى نسبة التسليم
+// الفعلية لآخر 7 أيام (مش رقم ثابت) عشان يعكس إن مش كل الشحنات الجارية هتوصل فعليًا.
 export async function computeExpectedRevenueTotalForTenant(
   tenantId: number | null,
 ): Promise<number> {
   const shipmentConds: any[] = [inArray(shipmentsTable.status, ["warehouse_ready", "in_shipping"])];
   if (tenantId !== null) shipmentConds.push(eq(shipmentsTable.tenantId, tenantId));
-  const shipments = await db.select().from(shipmentsTable).where(and(...shipmentConds));
+  const [shipments, deliveryRate] = await Promise.all([
+    db.select().from(shipmentsTable).where(and(...shipmentConds)),
+    computeRecentDeliveryRateForTenant(tenantId),
+  ]);
   if (!shipments.length) return 0;
 
   const clientIds = [...new Set(shipments.map(s => s.clientId).filter((v): v is number => !!v))];
@@ -642,6 +664,6 @@ export async function computeExpectedRevenueTotalForTenant(
     total += (zoneShippingForItem + repExtraCost) - zoneCostForItem;
   }
 
-  return Number((total * EXPECTED_REVENUE_DELIVERY_RATE).toFixed(2));
+  return Number((total * deliveryRate).toFixed(2));
 }
 
