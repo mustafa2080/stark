@@ -740,10 +740,11 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       : courierCostPerShipment;
   }
 
-  const netRevenue = deliveredShippingFeesClosed - courierCostClosed;
+  const repNetDue = deliveredShippingFeesClosed - courierCostClosed;
+  const netRevenue = repNetDue - operatingExpenses;
 
   return {
-    totalRevenue,
+    totalRevenue: repNetDue,
     totalExpenses: operatingExpenses,
     netRevenue,
     orders: eligibleCount,
