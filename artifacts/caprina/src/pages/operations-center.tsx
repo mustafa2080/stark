@@ -2162,8 +2162,8 @@ export default function OperationsCenterPage() {
             ) : (
               <>
                 <MiniLeaderLineDonut
-                  centerLabel="الإجمالي"
-                  centerValue={fc(donutPnlSummary.totalRevenue)}
+                  centerLabel="صافي الإيراد"
+                  centerValue={fc(donutPnlSummary.netRevenue)}
                   data={[
                     { key: "revenue", label: "إيرادات", color: "#10b981", value: donutPnlSummary.totalRevenue },
                     { key: "operatingExpenses", label: "تكلفة التشغيل", color: "#ef4444", value: donutPnlSummary.totalExpenses },
