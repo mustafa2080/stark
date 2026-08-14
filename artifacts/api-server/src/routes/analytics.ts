@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, clientAccountManifestsTable, clientAccountManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable } from "@workspace/db";
 import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -622,23 +622,23 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
 // (بيستخدمه route الخاص بيه وكمان executive-summary عشان الرقمين يفضلوا متطابقين
 // ومبنيين على نفس مصدر الحقيقة — بيانات المناديب المقفولة + مصروفات الخزنة الفعلية).
 async function computeManifestsPnl(tenantId: number | null, fromDate: Date | null, toDate: Date | null) {
-  const manifestConditions: any[] = [eq(shipmentManifestsTable.status, "closed")];
-  if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
-  if (fromDate) manifestConditions.push(gte(shipmentManifestsTable.closedAt, fromDate));
-  if (toDate) manifestConditions.push(lte(shipmentManifestsTable.closedAt, toDate));
+  const manifestConditions: any[] = [eq(clientAccountManifestsTable.status, "closed")];
+  if (tenantId !== null) manifestConditions.push(eq(clientAccountManifestsTable.tenantId, tenantId));
+  if (fromDate) manifestConditions.push(gte(clientAccountManifestsTable.closedAt, fromDate));
+  if (toDate) manifestConditions.push(lte(clientAccountManifestsTable.closedAt, toDate));
 
   const rows = await db
     .select({
-      deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
-      returnReason: shipmentManifestItemsTable.returnReason,
-      partialQuantity: shipmentManifestItemsTable.partialQuantity,
-      returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
-      deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
-      codAmount: shipmentsTable.codAmount,
+      deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+      returnReason: clientAccountManifestItemsTable.returnReason,
+      partialQuantity: clientAccountManifestItemsTable.partialQuantity,
+      returnValueReceived: clientAccountManifestItemsTable.returnValueReceived,
+      deliveredValueReceived: clientAccountManifestItemsTable.deliveredValueReceived,
+      totalAmount: shipmentsTable.totalAmount,
     })
-    .from(shipmentManifestItemsTable)
-    .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
-    .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
+    .from(clientAccountManifestItemsTable)
+    .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
+    .innerJoin(shipmentsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
     .where(and(...manifestConditions));
 
   const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
@@ -665,7 +665,7 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
     } else if (r.deliveryStatus === "returned") {
       totalRevenue += Number(r.returnValueReceived ?? 0);
     } else {
-      totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
+      totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.totalAmount ?? 0);
     }
 
   }
