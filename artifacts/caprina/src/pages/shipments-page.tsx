@@ -1396,9 +1396,11 @@ export default function Orders() {
     const link = buildWhatsAppLink(phone, message);
     window.open(link, "_blank", "noopener,noreferrer");
 
-    // تحويل الحالة → warehouse_ready عند الضغط على واتساب (إلا لو استلم أو مرتجع)
-    const FINAL_STATUSES = ["received", "returned", "partial_received"];
-    if (!FINAL_STATUSES.includes(status)) {
+    // تحويل الحالة → warehouse_ready عند الضغط على واتساب، لكن فقط لو الشحنة
+    // لسه في حالة مبكرة (pending/delayed) — عشان لو كانت أصلاً in_shipping
+    // (قيد الشحن) ماترجعش للخلف لـ warehouse_ready لمجرد إعادة إرسال متابعة
+    const STATUSES_TO_ADVANCE = ["pending", "delayed"];
+    if (STATUSES_TO_ADVANCE.includes(status)) {
       updateShipment.mutate(
         { id: order.id, data: { status: "warehouse_ready" } },
         { onSuccess: () => {
