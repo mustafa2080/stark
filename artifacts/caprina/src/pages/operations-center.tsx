@@ -2202,12 +2202,12 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
-        {/* اتجاه الإيرادات والأرباح */}
+        {/* اتجاه صافي الإيرادات */}
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#3b82f6" }}>
           <CardHeader className="pb-2 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-blue-500" /> اتجاه الإيرادات والأرباح
+                <TrendingUp className="w-4 h-4 text-blue-500" /> اتجاه صافي الإيرادات
               </CardTitle>
               <div className="flex items-center gap-2">
                 {revenueTrendLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
@@ -2248,9 +2248,8 @@ export default function OperationsCenterPage() {
                   <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                   <XAxis dataKey="day" fontSize={11} />
                   <YAxis fontSize={11} />
-                  <Tooltip formatter={(v: number) => fc(v)} />
+                  <Tooltip formatter={(v: number) => [fc(v), "إجمالي الإيرادات"]} />
                   <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#rev-grad)" strokeWidth={2} />
-                  <Line type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
