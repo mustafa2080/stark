@@ -702,7 +702,7 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
     : await db.select({ id: clientsTable.id }).from(clientsTable);
   const netRevenueByClient = await computeNetRevenueDueForAllClients(
     clientRows.map((client) => client.id),
-    { from: fromDate ?? undefined, to: toDate ?? undefined },
+    { from: fromDate ?? undefined, to: toDate ?? undefined, closedOnly: true },
   );
   const netRevenue = Object.values(netRevenueByClient).reduce((sum, amount) => sum + amount, 0);
 
