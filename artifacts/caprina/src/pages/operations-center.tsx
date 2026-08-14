@@ -1517,6 +1517,23 @@ export default function OperationsCenterPage() {
   const { data: recentShipmentsData, isLoading: recentShipmentsLoading } = useRecentShipments();
   const recentShipments = recentShipmentsData?.shipments ?? [];
   const { data: financialData, isLoading: financialLoading } = useFinancialDashboard();
+  // قد لا توجد بيانات مغلقة في بيانات المناديب للفترة المختارة، رغم وجود شحنات
+  // مسلَّمة ومُحصَّلة. في هذه الحالة نعرض الإيراد الإجمالي الفعلي حتى لا تختفي
+  // الدائرة، بينما تظل مصروفات التشغيل من مصدر الخزنة المستثني لحسابات العملاء.
+  const donutPnlSummary = useMemo<ManifestsPnlSummary>(() => {
+    const manifestRevenue = Number(revenueTrendPnlSummary?.totalRevenue ?? 0);
+    const shipmentRevenue = Number(financialData?.month.revenue ?? 0);
+    const totalRevenue = manifestRevenue > 0 ? manifestRevenue : shipmentRevenue;
+    const totalExpenses = Math.max(0, Number(revenueTrendPnlSummary?.totalExpenses ?? 0));
+    return {
+      totalRevenue,
+      totalExpenses,
+      netRevenue: totalRevenue - totalExpenses,
+      orders: revenueTrendPnlSummary?.orders ?? financialData?.month.orders ?? 0,
+      returnCount: revenueTrendPnlSummary?.returnCount ?? 0,
+      returnRate: revenueTrendPnlSummary?.returnRate ?? 0,
+    };
+  }, [financialData?.month.orders, financialData?.month.revenue, revenueTrendPnlSummary]);
   const { data: opsAlertsData, isLoading: opsAlertsLoading } = useOpsAlerts();
   const aiInsights = opsAlertsData?.alerts ?? [];
   const { data: executiveSummary, isLoading: executiveSummaryLoading } = useExecutiveSummary();
@@ -2144,11 +2161,11 @@ export default function OperationsCenterPage() {
               <>
                 <MiniLeaderLineDonut
                   centerLabel="الإجمالي"
-                  centerValue={fc(revenueTrendPnlSummary?.totalRevenue ?? 0)}
+                  centerValue={fc(donutPnlSummary.totalRevenue)}
                   data={[
-                    { key: "revenue", label: "إيرادات", color: "#10b981", value: revenueTrendPnlSummary?.totalRevenue ?? 0 },
-                    { key: "operatingExpenses", label: "تكلفة التشغيل", color: "#ef4444", value: revenueTrendPnlSummary?.totalExpenses ?? 0 },
-                    { key: "netRevenue", label: "صافي الإيراد", color: "#f59e0b", value: revenueTrendPnlSummary?.netRevenue ?? 0 },
+                    { key: "revenue", label: "إيرادات", color: "#10b981", value: donutPnlSummary.totalRevenue },
+                    { key: "operatingExpenses", label: "تكلفة التشغيل", color: "#ef4444", value: donutPnlSummary.totalExpenses },
+                    { key: "netRevenue", label: "صافي الإيراد", color: "#f59e0b", value: donutPnlSummary.netRevenue },
                   ]}
                   onSegmentClick={(key, label, color) => setFinancialModal({ key, label, color })}
                 />
@@ -2168,7 +2185,7 @@ export default function OperationsCenterPage() {
                     itemKey={financialModal.key}
                     label={financialModal.label}
                     color={financialModal.color}
-                    pnlSummary={revenueTrendPnlSummary}
+                    pnlSummary={donutPnlSummary}
                     onClose={() => setFinancialModal(null)}
                   />
                 )}
