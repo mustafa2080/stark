@@ -2211,6 +2211,7 @@ export default function OperationsCenterPage() {
               </CardTitle>
               <div className="flex items-center gap-2">
                 {revenueTrendLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
+                <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-black text-blue-600 dark:text-blue-400">إجمالي الإيرادات: {manifestsPnlLoading ? "—" : fc(manifestsPnlSummary?.totalRevenue ?? 0)}</span>
                 {revenueTrendFilter.type === "custom" && (
                   <Button
                     size="sm"
