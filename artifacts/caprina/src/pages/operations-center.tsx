@@ -2153,7 +2153,7 @@ export default function OperationsCenterPage() {
         <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#14b8a6" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-teal-500" /> ملخص الأرباح
+              <DollarSign className="w-4 h-4 text-teal-500" /> ملخص الإيرادات
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -2193,8 +2193,8 @@ export default function OperationsCenterPage() {
                 )}
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><div className="text-muted-foreground">أرباح اليوم</div><div className={`font-bold ${(periodProfitData?.today.netRevenue ?? 0) >= 0 ? "" : "text-red-600 dark:text-red-400"}`}>{fc(periodProfitData?.today.netRevenue ?? 0)}</div></div>
-                  <div><div className="text-muted-foreground">أرباح الشهر</div><div className={`font-bold ${(periodProfitData?.month.netRevenue ?? 0) >= 0 ? "" : "text-red-600 dark:text-red-400"}`}>{fc(periodProfitData?.month.netRevenue ?? 0)}</div></div>
+                  <div><div className="text-muted-foreground">إيراد اليوم</div><div className={`font-bold ${(periodProfitData?.today.netRevenue ?? 0) >= 0 ? "" : "text-red-600 dark:text-red-400"}`}>{fc(periodProfitData?.today.netRevenue ?? 0)}</div></div>
+                  <div><div className="text-muted-foreground">إيراد الشهر</div><div className={`font-bold ${(periodProfitData?.month.netRevenue ?? 0) >= 0 ? "" : "text-red-600 dark:text-red-400"}`}>{fc(periodProfitData?.month.netRevenue ?? 0)}</div></div>
                   <div><div className="text-muted-foreground">تكلفة التشغيل</div><div className="font-bold">{fc(periodProfitData?.month.totalExpenses ?? 0)}</div></div>
                 </div>
               </>
