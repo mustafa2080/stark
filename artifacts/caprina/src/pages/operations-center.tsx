@@ -1521,21 +1521,21 @@ export default function OperationsCenterPage() {
   // مسلَّمة ومُحصَّلة. في هذه الحالة نعرض الإيراد الإجمالي الفعلي حتى لا تختفي
   // الدائرة، بينما تظل مصروفات التشغيل من مصدر الخزنة المستثني لحسابات العملاء.
   const donutPnlSummary = useMemo<ManifestsPnlSummary>(() => {
-    const manifestRevenue = Number(revenueTrendPnlSummary?.totalRevenue ?? 0);
+    const manifestRevenue = Number(manifestsPnlSummary?.totalRevenue ?? 0);
     const shipmentRevenue = Number(financialData?.month.revenue ?? 0);
     const totalRevenue = manifestRevenue > 0 ? manifestRevenue : shipmentRevenue;
-    const totalExpenses = Math.max(0, Number(revenueTrendPnlSummary?.totalExpenses ?? 0));
+    const totalExpenses = Math.max(0, Number(manifestsPnlSummary?.totalExpenses ?? 0));
     return {
       totalRevenue,
       totalExpenses,
       // لا نخلط صافي الإيراد المستحق بمصاريف الخزينة؛ هذه القيمة هي نفس
       // "صافي الإيراد المستحق" الظاهرة في صفحة بيان حساب العميل.
       netRevenue: totalRevenue,
-      orders: revenueTrendPnlSummary?.orders ?? financialData?.month.orders ?? 0,
-      returnCount: revenueTrendPnlSummary?.returnCount ?? 0,
-      returnRate: revenueTrendPnlSummary?.returnRate ?? 0,
+      orders: manifestsPnlSummary?.orders ?? financialData?.month.orders ?? 0,
+      returnCount: manifestsPnlSummary?.returnCount ?? 0,
+      returnRate: manifestsPnlSummary?.returnRate ?? 0,
     };
-  }, [financialData?.month.orders, financialData?.month.revenue, revenueTrendPnlSummary]);
+  }, [financialData?.month.orders, financialData?.month.revenue, manifestsPnlSummary]);
   const { data: opsAlertsData, isLoading: opsAlertsLoading } = useOpsAlerts();
   const aiInsights = opsAlertsData?.alerts ?? [];
   const { data: executiveSummary, isLoading: executiveSummaryLoading } = useExecutiveSummary();
