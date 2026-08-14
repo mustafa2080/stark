@@ -2578,7 +2578,7 @@ export default function OperationsCenterPage() {
           ) : (
             <>
               <div><div className="text-lg font-black">{fc(executiveSummary?.revenue ?? 0)}</div><div className="text-[11px] text-muted-foreground">الإيرادات</div></div>
-              <div><div className="text-lg font-black">{fc(executiveSummary?.profit ?? 0)}</div><div className="text-[11px] text-muted-foreground">الأرباح</div></div>
+              <div><div className="text-lg font-black">{fc(executiveSummary?.profit ?? 0)}</div><div className="text-[11px] text-muted-foreground">صافي الإيرادات</div></div>
               <div><div className={`text-lg font-black ${(executiveSummary?.growthRate ?? 0) >= 0 ? "text-emerald-500" : "text-red-500"}`}>{executiveSummary?.growthRate ?? 0}%</div><div className="text-[11px] text-muted-foreground">معدل النمو</div></div>
               <div><div className="text-lg font-black">{fn(executiveSummary?.clientsCount ?? 0)}</div><div className="text-[11px] text-muted-foreground">عدد العملاء</div></div>
               <div><div className="text-lg font-black">{fn(executiveSummary?.shipmentsCount ?? 0)}</div><div className="text-[11px] text-muted-foreground">عدد الشحنات</div></div>
