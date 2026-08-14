@@ -4,7 +4,7 @@ import { eq, isNull, and, desc, lte, gte, sql, inArray, count, isNotNull } from 
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { computeNetRevenueDueForAllClients, computeExpectedRevenueForAllClients } from "../lib/clientAccountBalance.js";
+import { computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
 
 // ── In-memory cache for heavy analytics endpoints ─────────────────────────────
 const analyticsCache = new Map<string, { data: any; expiresAt: number }>();
@@ -3874,7 +3874,6 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       { from: rangeFrom, to: rangeTo, closedOnly: true },
     );
 
-    const clientExpectedRevenueMap = await computeExpectedRevenueForAllClients(allClientInfoRows.map(c => c.id));
     type ShipmentPerfRow = {
       id: number;
       clientId: number | null;
@@ -3918,7 +3917,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
           avatar: info.avatar,
           clientType: info.clientType ?? "normal",
           shipmentsCount: bucket?.shipmentsCount ?? 0,
-          revenue: Math.round((clientNetRevenueDueMap[info.id] ?? 0) + (clientExpectedRevenueMap[info.id] ?? 0)),
+          revenue: Math.round(clientNetRevenueDueMap[info.id] ?? 0),
           successRate: bucket && bucket.shipmentsCount > 0 ? Math.round((bucket.delivered / bucket.shipmentsCount) * 100) : 0,
         };
       })
