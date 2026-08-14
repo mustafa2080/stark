@@ -37,18 +37,18 @@ function buildDefaultShippingMessage(o: {
   daysPending: number;
 }): string {
   const orderNum = o.id.toString().padStart(4, "0");
-  const tracking = o.trackingNumber ? `• رقم التتبع: *${o.trackingNumber}*\n` : "";
-  const company  = o.shippingCompany ? `• شركة الشحن: *${o.shippingCompany}*\n` : "";
+  const tracking = o.trackingNumber ? `🔖 رقم التتبع: *${o.trackingNumber}*\n` : "";
+  const company  = o.shippingCompany ? `🚚 شركة الشحن: *${o.shippingCompany}*\n` : "";
   return (
-    `السلام عليكم يا ${o.customerName},\n\n` +
-    `بنتواصل معاكم من *CAPRINA* بخصوص طلبكم رقم *#${orderNum}*.\n\n` +
-    `*تفاصيل الطلب:*\n` +
-    `• المنتج: *${o.product}*\n` +
+    `مرحباً ${o.customerName} 👋\n\n` +
+    `معاك فريق *STARK* بخصوص شحنتك رقم *#${orderNum}*\n\n` +
+    `📦 المنتج: *${o.product}*\n` +
     `${company}${tracking}` +
-    `• مدة الشحن: *${o.daysPending} يوم*\n\n` +
-    `هل وصلكم الطلب بشكل سليم؟\n` +
-    `لو عندكم أي استفسار إحنا دايماً هنا.\n\n` +
-    `شكراً لثقتكم في CAPRINA`
+    `⏳ مدة الشحن: *${o.daysPending} يوم*\n\n` +
+    `حبينا نطمّن عليك ونتأكد إن كل حاجة تمام معاك 🙏\n` +
+    `لو الشحنة وصلتك، تقدر تأكدلنا وتقفل الطلب.\n` +
+    `ولو لسه ماوصلتش أو حابب تسأل عن أي تفصيلة، احنا هنا في خدمتك في أي وقت.\n\n` +
+    `شكراً لثقتك في *STARK* ⚡`
   );
 }
 
