@@ -1030,23 +1030,20 @@ function MiniLeaderLineDonut({
 
 // ── قائمة منسدلة لتفاصيل بند مالي معيّن (تُفتح أسفل دونة ملخص الأرباح) ───────
 function FinancialBreakdownDropdown({
-  itemKey, label, color, financialData, onClose,
+  itemKey, label, color, pnlSummary, onClose,
 }: {
   itemKey: string;
   label: string;
   color: string;
-  financialData: FinancialDashboardResponse | undefined;
+  pnlSummary: ManifestsPnlSummary | undefined;
   onClose: () => void;
 }) {
-  const FIELD_MAP: Record<string, keyof FinancialDashboardPeriod> = {
-    revenue: "revenue",
-    cost: "cost",
-    shippingSpend: "shippingSpend",
-    otherExpenses: "otherExpenses",
+  const FIELD_MAP: Record<string, keyof Pick<ManifestsPnlSummary, "totalRevenue" | "totalExpenses" | "netRevenue">> = {
+    revenue: "totalRevenue",
+    operatingExpenses: "totalExpenses",
+    netRevenue: "netRevenue",
   };
   const field = FIELD_MAP[itemKey] ?? "revenue";
-  const today = financialData?.today;
-  const month = financialData?.month;
 
   return (
     <div className="relative mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1071,16 +1068,16 @@ function FinancialBreakdownDropdown({
 
         <div className="p-3 space-y-2 text-xs">
           <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-muted-foreground">اليوم</span>
-            <span className="font-bold">{fc(today ? Number(today[field] ?? 0) : 0)}</span>
+            <span className="text-muted-foreground">الفترة المعروضة</span>
+            <span className="font-bold">{fc(Number(pnlSummary?.[field] ?? 0))}</span>
           </div>
           <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-muted-foreground">الشهر الحالي</span>
-            <span className="font-bold">{fc(month ? Number(month[field] ?? 0) : 0)}</span>
+            <span className="text-muted-foreground">إجمالي الإيرادات قبل المصاريف</span>
+            <span className="font-bold">{fc(pnlSummary?.totalRevenue ?? 0)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">عدد الطلبات (الشهر)</span>
-            <span className="font-bold">{fn(month?.orders ?? 0)}</span>
+            <span className="text-muted-foreground">عدد الشحنات المؤهلة</span>
+            <span className="font-bold">{fn(pnlSummary?.orders ?? 0)}</span>
           </div>
         </div>
       </div>
@@ -2141,7 +2138,7 @@ export default function OperationsCenterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {(financialLoading && !financialData) || (revenueTrendPnlLoading && !revenueTrendPnlSummary) ? (
+            {revenueTrendPnlLoading && !revenueTrendPnlSummary ? (
               <div className="h-40 rounded bg-muted animate-pulse" />
             ) : (
               <>
@@ -2150,9 +2147,8 @@ export default function OperationsCenterPage() {
                   centerValue={fc(revenueTrendPnlSummary?.totalRevenue ?? 0)}
                   data={[
                     { key: "revenue", label: "إيرادات", color: "#10b981", value: revenueTrendPnlSummary?.totalRevenue ?? 0 },
-                    { key: "cost", label: "تكلفة", color: "#ef4444", value: financialData?.month.cost ?? 0 },
-                    { key: "shippingSpend", label: "شحن", color: "#f59e0b", value: financialData?.month.shippingSpend ?? 0 },
-                    { key: "otherExpenses", label: "أخرى", color: "#64748b", value: financialData?.month.otherExpenses ?? 0 },
+                    { key: "operatingExpenses", label: "تكلفة التشغيل", color: "#ef4444", value: revenueTrendPnlSummary?.totalExpenses ?? 0 },
+                    { key: "netRevenue", label: "صافي الإيراد", color: "#f59e0b", value: revenueTrendPnlSummary?.netRevenue ?? 0 },
                   ]}
                   onSegmentClick={(key, label, color) => setFinancialModal({ key, label, color })}
                 />
@@ -2172,7 +2168,7 @@ export default function OperationsCenterPage() {
                     itemKey={financialModal.key}
                     label={financialModal.label}
                     color={financialModal.color}
-                    financialData={financialData}
+                    pnlSummary={revenueTrendPnlSummary}
                     onClose={() => setFinancialModal(null)}
                   />
                 )}

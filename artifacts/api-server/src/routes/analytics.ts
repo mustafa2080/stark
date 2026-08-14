@@ -635,20 +635,18 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
       deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
       codAmount: shipmentsTable.codAmount,
-      shippingFee: shipmentsTable.shippingFee,
-      courierCostPerShipment: shippingCompaniesTable.shippingCost,
     })
     .from(shipmentManifestItemsTable)
     .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
     .innerJoin(shipmentsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
-    .leftJoin(shippingCompaniesTable, eq(shipmentManifestsTable.shippingCompanyId, shippingCompaniesTable.id))
     .where(and(...manifestConditions));
 
   const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
 
+  // الإيراد هنا هو كل ما تم تحصيله من الشحنات المؤهلة، قبل خصم أي مصروف.
+  // لا نستخدم صافي رسوم الشحن لهذا الرقم حتى يظل مطابقًا لإجمالي الإيرادات
+  // الظاهر في مركز العمليات.
   let totalRevenue = 0;
-  let totalCourierCost = 0;
-  let deliveredShippingFees = 0;
   let eligibleCount = 0;
   let returnCount = 0;
 
@@ -670,16 +668,11 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       totalRevenue += r.deliveredValueReceived != null ? Number(r.deliveredValueReceived) : Number(r.codAmount ?? 0);
     }
 
-    deliveredShippingFees += Number(r.shippingFee ?? 0);
-
-    if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
-      totalCourierCost += Math.abs(Number(r.courierCostPerShipment ?? 0));
-    }
   }
 
   const returnRate = eligibleCount > 0 ? Math.round((returnCount / eligibleCount) * 100) : 0;
-  const netProfitWithReps = deliveredShippingFees - totalCourierCost;
-
+  // تكلفة التشغيل = كل المصروفات الخارجة من الخزائن، مع استبعاد حركات
+  // حسابات العملاء؛ فهي تسويات أرصدة وليست مصروف تشغيل للشركة.
   const cashExpenseConditions: any[] = [
     sql`${cashTransactionsTable.type} IN ('withdrawal', 'expense_paid', 'purchase_paid')`,
     sql`(${cashTransactionsTable.expenseId} IS NULL OR ${cashTransactionsTable.expenseId} NOT IN (
@@ -699,11 +692,12 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
     .from(cashTransactionsTable)
     .where(and(...cashExpenseConditions));
 
-  const netRevenue = netProfitWithReps - Number(totalExpenses ?? 0);
+  const operatingExpenses = Number(totalExpenses ?? 0);
+  const netRevenue = totalRevenue - operatingExpenses;
 
   return {
-    totalRevenue: netProfitWithReps,
-    totalExpenses: Number(totalExpenses ?? 0),
+    totalRevenue,
+    totalExpenses: operatingExpenses,
     netRevenue,
     orders: eligibleCount,
     returnCount,
