@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable } from "@workspace/db";
 import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -2215,6 +2215,11 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
     : await db.select().from(shippingCompaniesTable);
   const companyMap = new Map(shippingCompanies.map(c => [c.id, c.name]));
 
+  const warehouses = tenantId !== null
+    ? await db.select().from(warehousesTable).where(eq(warehousesTable.tenantId, tenantId))
+    : await db.select().from(warehousesTable);
+  const warehouseMap = new Map(warehouses.map(w => [w.id, w.name]));
+
   // اسماء المناديب/الموظفين المسؤولين عن الشحنات
   const assignedUserIds = Array.from(new Set(shipments.map(s => s.assignedUserId).filter((v): v is number => !!v)));
   const assignedUsers = assignedUserIds.length > 0
@@ -2240,6 +2245,7 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
         invoiceNumber: s.shipmentNumber,
         trackingNumber: s.trackingNumber,
         shippingCompany: s.shippingCompanyId ? companyMap.get(s.shippingCompanyId) ?? null : null,
+        warehouseName: s.warehouseId ? warehouseMap.get(s.warehouseId) ?? null : null,
         assignedUserName: s.assignedUserId ? (userNameMap.get(s.assignedUserId) ?? s.createdByName ?? null) : (s.createdByName ?? null),
         status: s.status,
         daysPending: Math.floor((now - createdAt.getTime()) / (1000 * 60 * 60 * 24)),

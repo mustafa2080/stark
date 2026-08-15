@@ -287,7 +287,7 @@ export default function ShippingFollowupPage() {
                       <UserCircle2 className="h-4.5 w-4.5 opacity-80" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[10px] uppercase tracking-wide opacity-50 mb-0.5">المرسل</div>
+                      <div className="text-[10px] uppercase tracking-wide opacity-50 mb-0.5">اسم الراسل</div>
                       <div className="font-bold text-sm truncate">{o.senderName}</div>
                     </div>
                   </div>
@@ -302,7 +302,7 @@ export default function ShippingFollowupPage() {
               )}
 
               {/* شبكة بيانات موحدة: كل حقل بعنوان صغير فوقه وقيمة واضحة تحته */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg bg-current/5 border border-current/10 p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 rounded-lg bg-current/5 border border-current/10 p-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-50 mb-1">
                     <Truck className="h-3 w-3" />
@@ -317,6 +317,14 @@ export default function ShippingFollowupPage() {
                     رقم التتبع
                   </div>
                   <div className="text-sm font-mono truncate">{o.trackingNumber || <span className="opacity-50">لا يوجد</span>}</div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-50 mb-1">
+                    <Package className="h-3 w-3" />
+                    المخزن
+                  </div>
+                  <div className="text-sm font-medium truncate">{o.warehouseName ?? "—"}</div>
                 </div>
 
                 <div className="min-w-0">
@@ -336,9 +344,13 @@ export default function ShippingFollowupPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs opacity-70 pt-1 border-t border-current/20">
-                <span className="truncate">{o.product}</span>
-                <span className="font-medium shrink-0">{formatCurrency(o.totalPrice)}</span>
+              {/* إجمالي سعر الشحنة — بارز وواضح */}
+              <div className="flex items-center justify-between rounded-lg border border-current/20 bg-current/10 px-4 py-3">
+                <span className="text-sm opacity-80 truncate">{o.product}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs opacity-70">إجمالي الشحنة</span>
+                  <span className="text-xl font-extrabold">{formatCurrency(o.totalPrice)}</span>
+                </div>
               </div>
             </div>
           );
