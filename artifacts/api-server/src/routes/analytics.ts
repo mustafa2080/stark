@@ -2227,6 +2227,13 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
     : [];
   const userNameMap = new Map(assignedUsers.map(u => [u.id, u.name]));
 
+  // صورة بروفايل الراسل — لو الشحنة مربوطة بعميل مسجّل (clientId)، بنجيب صورته الحقيقية من جدول clients
+  const senderClientIds = Array.from(new Set(shipments.map(s => s.clientId).filter((v): v is number => !!v)));
+  const senderClients = senderClientIds.length > 0
+    ? await db.select({ id: clientsTable.id, avatar: clientsTable.avatar }).from(clientsTable).where(inArray(clientsTable.id, senderClientIds))
+    : [];
+  const senderAvatarMap = new Map(senderClients.map(c => [c.id, c.avatar]));
+
   const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
   const now = Date.now();
 
@@ -2238,6 +2245,7 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
         shipmentNumber: s.shipmentNumber,
         customerName: s.receiverName,
         senderName: s.senderName,
+        senderAvatar: s.clientId ? (senderAvatarMap.get(s.clientId) ?? null) : null,
         phone: s.receiverPhone,
         city: s.receiverCity,
         address: s.receiverAddress,

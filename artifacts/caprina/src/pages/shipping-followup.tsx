@@ -59,6 +59,26 @@ function buildDefaultShippingMessage(o: {
   );
 }
 
+/** أفاتار الراسل — صورة البروفايل الحقيقية للعميل المسجّل لو متاحة، وإلا أيقونة بديلة أنيقة */
+function SenderAvatar({ avatar, name }: { avatar?: string | null; name: string }) {
+  const [broken, setBroken] = useState(false);
+  if (avatar && !broken) {
+    return (
+      <img
+        src={avatar}
+        alt={name}
+        className="shrink-0 w-10 h-10 rounded-full object-cover shadow-sm shadow-indigo-500/30 ring-2 ring-indigo-500/40 dark:ring-indigo-400/30"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm shadow-indigo-500/30 ring-2 ring-white/60 dark:ring-black/20">
+      <Send className="h-4.5 w-4.5 text-white" />
+    </div>
+  );
+}
+
 const FOLLOWED_KEY = "shippingFollowedUp";
 
 export default function ShippingFollowupPage() {
@@ -283,9 +303,7 @@ export default function ShippingFollowupPage() {
 
                 {o.senderName && (
                   <div className="flex items-center gap-2.5">
-                    <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm shadow-indigo-500/30 ring-2 ring-white/60 dark:ring-black/20">
-                      <Send className="h-4.5 w-4.5 text-white" />
-                    </div>
+                    <SenderAvatar avatar={o.senderAvatar} name={o.senderName} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1 text-xs uppercase tracking-wide opacity-50 mb-0.5">
                         <span>اسم الراسل</span>
