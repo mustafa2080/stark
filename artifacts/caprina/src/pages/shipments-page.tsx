@@ -962,7 +962,9 @@ export default function Orders() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   // ── Pagination (server-side) ─────────────────────────────────────────────
-  const PAGE_SIZE = 1000;
+  // 100 default. اليوزر يقدر يغيّرها لـ 25/50/200 من الـ selector جنب الـ pagination bar.
+  const [pageSize, setPageSize] = useState(100);
+  const PAGE_SIZE = pageSize;
   const [page, setPage] = useState(1);
 
   // mutation لتحديث حالة الشحنة
@@ -1143,10 +1145,31 @@ export default function Orders() {
     if (page > totalPages) setPage(1);
   }, [totalPages]);
   const paginatedRows = displayRows;
-  // أي تغيير في الفلاتر أو الحالة يرجّع للصفحة الأولى (السيرفر هيجيب من جديد)
+  // أي تغيير في الفلاتر أو الحالة أو حجم الصفحة يرجّع للصفحة الأولى (السيرفر هيجيب من جديد)
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, status, dateFrom, dateTo]);
+  }, [debouncedSearch, status, dateFrom, dateTo, pageSize]);
+
+  // أرقام الصفحات المعروضة في الـ pagination bar (مع "..." لو الصفحات كتير)
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    if (totalPages <= maxButtons + 2) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const nums = new Set<number>([1, totalPages, page]);
+    if (page > 1) nums.add(page - 1);
+    if (page < totalPages) nums.add(page + 1);
+    const sorted = [...nums].sort((a, b) => a - b);
+    const withGaps: (number | "gap")[] = [];
+    sorted.forEach((n, i) => {
+      if (i > 0 && n - sorted[i - 1] > 1) withGaps.push("gap");
+      withGaps.push(n);
+    });
+    return withGaps;
+  }, [page, totalPages]);
+
+  // مفتاح صغير بيتغيّر مع كل صفحة عشان يشغّل انيميشن fade/slide على صفوف الجدول
+  const pageTransitionKey = `${page}-${pageSize}-${debouncedSearch}-${status}-${dateFrom}-${dateTo}`;
 
   const hasActiveFilter = search || customerSearch || status !== "all" || dateFrom || dateTo;
 
@@ -1823,7 +1846,7 @@ export default function Orders() {
         ) : filtered.length > 0 ? (
           <>
             {/* ── Mobile ── */}
-            <div className="sm:hidden divide-y divide-border">
+            <div key={`mobile-${pageTransitionKey}`} className="sm:hidden divide-y divide-border animate-in fade-in slide-in-from-bottom-1 duration-300">
               {paginatedRows.map((order) => {
                 const isGroup = !!(order as any)._groupCount && (order as any)._groupCount > 1;
                 const canWhatsApp = canWriteOrders && !bulkSelectMode;
@@ -2086,7 +2109,7 @@ export default function Orders() {
                     <TableHead className="text-center text-xs w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody key={`desktop-${pageTransitionKey}`} className="animate-in fade-in duration-300">
                   {paginatedRows.map((order, rowIndex) => {
                     const o = order as any;
                     const senderPhone = o.senderPhone || o.receiverPhone || o.phone || "";
@@ -2267,21 +2290,69 @@ export default function Orders() {
               </Table>
             </div>
 
-            {/* ── Pagination (server-side) ── */}
-            {(ordersTotal ?? 0) > PAGE_SIZE && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-border gap-2 flex-wrap">
-                <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
-                  عرض {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, ordersTotal ?? 0)} من {ordersTotal ?? 0}
-                </span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button variant="outline" size="sm" className="h-8 text-xs" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
-                    السابق
-                  </Button>
-                  <span className="text-xs text-muted-foreground">{page} / {totalPages}</span>
-                  <Button variant="outline" size="sm" className="h-8 text-xs" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
-                    التالي
-                  </Button>
+            {/* ── Pagination (server-side) — احترافية مع أرقام صفحات + انيميشن ── */}
+            {(ordersTotal ?? 0) > 0 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border gap-3 flex-wrap animate-in fade-in duration-300">
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                    عرض <span className="font-semibold text-foreground">{(page - 1) * PAGE_SIZE + 1}</span>
+                    –<span className="font-semibold text-foreground">{Math.min(page * PAGE_SIZE, ordersTotal ?? 0)}</span>
+                    {" "}من <span className="font-semibold text-foreground">{ordersTotal ?? 0}</span>
+                  </span>
+                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                    <SelectTrigger className="h-7 w-[92px] text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25 / صفحة</SelectItem>
+                      <SelectItem value="50">50 / صفحة</SelectItem>
+                      <SelectItem value="100">100 / صفحة</SelectItem>
+                      <SelectItem value="200">200 / صفحة</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-8 w-8 p-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
+                      disabled={page <= 1}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      title="السابق"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    </Button>
+
+                    {pageNumbers.map((n, i) =>
+                      n === "gap" ? (
+                        <span key={`gap-${i}`} className="w-8 h-8 flex items-center justify-center text-xs text-muted-foreground select-none">···</span>
+                      ) : (
+                        <button
+                          key={n}
+                          onClick={() => setPage(n)}
+                          className={`w-8 h-8 rounded-lg text-xs font-medium transition-all duration-200 ${
+                            n === page
+                              ? "bg-primary text-primary-foreground shadow-md scale-105"
+                              : "text-muted-foreground hover:bg-muted hover:scale-105 active:scale-95"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      )
+                    )}
+
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-8 w-8 p-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      title="التالي"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </>
