@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, AlertTriangle, Phone, Package, Truck, Link2, RefreshCw, Hash, MessageCircle, CheckCircle2, MapPin, UserCircle2, FileText, Wallet, User } from "lucide-react";
+import { Clock, AlertTriangle, Phone, Package, Truck, Link2, RefreshCw, Hash, MessageCircle, CheckCircle2, MapPin, UserCircle2, FileText, Wallet, User, Send } from "lucide-react";
 import { analyticsApi, ordersApi, apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -283,12 +283,19 @@ export default function ShippingFollowupPage() {
 
                 {o.senderName && (
                   <div className="flex items-center gap-2.5">
-                    <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-current/10 border border-current/20">
-                      <UserCircle2 className="h-5 w-5 opacity-80" />
+                    <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm shadow-indigo-500/30 ring-2 ring-white/60 dark:ring-black/20">
+                      <Send className="h-4.5 w-4.5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs uppercase tracking-wide opacity-50 mb-0.5">اسم الراسل</div>
-                      <div className="font-bold text-base truncate">{o.senderName}</div>
+                      <div className="flex items-center gap-1 text-xs uppercase tracking-wide opacity-50 mb-0.5">
+                        <span>اسم الراسل</span>
+                        <Badge className="h-4 px-1.5 py-0 text-[10px] font-medium bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/20">
+                          مُرسِل
+                        </Badge>
+                      </div>
+                      <div className="font-bold text-base truncate bg-gradient-to-r from-indigo-700 to-violet-700 dark:from-indigo-300 dark:to-violet-300 bg-clip-text text-transparent">
+                        {o.senderName}
+                      </div>
                     </div>
                   </div>
                 )}
