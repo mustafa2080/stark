@@ -625,6 +625,24 @@ router.get("/shipments/stats", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /shipments/archived (الشحنات المحذوفة — تظهر في نفس صفحة الأرشيف) ────
+// ملحوظة: لازم يتعرّف قبل GET /shipments/:id، وإلا Express هيفسّر "archived" كـ :id
+// (parseInt("archived") = NaN) والراوت الديناميكي هياخد الطلب بدل الراوت الصح.
+router.get("/shipments/archived", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const conditions: any[] = [isNotNull(shipmentsTable.deletedAt)];
+    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
+    const rows = await db.select().from(shipmentsTable)
+      .where(and(...conditions))
+      .orderBy(desc(shipmentsTable.deletedAt));
+    res.json(rows);
+  } catch (e) {
+    console.error("[GET /shipments/archived]", e);
+    res.status(500).json({ error: "خطأ في جلب الشحنات المؤرشفة" });
+  }
+});
+
 // ─── GET /shipments/:id ───────────────────────────────────────────────────────
 router.get("/shipments/:id", async (req, res): Promise<void> => {
   try {
@@ -1281,22 +1299,6 @@ router.delete("/shipments/bulk", async (req, res): Promise<void> => {
     res.json({ deleted, skipped });
   } catch (e: any) {
     res.status(500).json({ error: "خطأ في الحذف الجماعي" });
-  }
-});
-
-// ─── GET /shipments/archived (الشحنات المحذوفة — تظهر في نفس صفحة الأرشيف) ────
-router.get("/shipments/archived", async (req, res): Promise<void> => {
-  try {
-    const tenantId = getTenantId(req);
-    const conditions: any[] = [isNotNull(shipmentsTable.deletedAt)];
-    if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
-    const rows = await db.select().from(shipmentsTable)
-      .where(and(...conditions))
-      .orderBy(desc(shipmentsTable.deletedAt));
-    res.json(rows);
-  } catch (e) {
-    console.error("[GET /shipments/archived]", e);
-    res.status(500).json({ error: "خطأ في جلب الشحنات المؤرشفة" });
   }
 });
 
