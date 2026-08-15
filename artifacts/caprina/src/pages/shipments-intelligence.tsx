@@ -7,7 +7,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, TrendingUp, TrendingDown, Package, CheckCircle2, RotateCcw,
-  Clock, MapPin, Truck, Users, AlertTriangle, AlertCircle,
+  Clock, MapPin, Truck, AlertTriangle, AlertCircle,
   Info, ChevronDown, ChevronUp, Activity, Timer, Percent, Zap, Gauge,
 } from "lucide-react";
 import { analyticsApi, ShipmentsIntelligenceResponse } from "@/lib/api";
@@ -769,20 +769,6 @@ export default function ShipmentsIntelligencePage() {
           <DeliveryIntelligencePanel data={data} />
         </SectionCard>
       </div>
-
-      {/* أداء المناديب */}
-      <SectionCard>
-        <SectionHeader icon={Users} title="أداء المناديب / المسؤولين عن الشحنات" subtitle="أعلى 10 حسب حجم الشحنات المُدارة" />
-        {data.repPerformance.length === 0 ? (
-          <p className="text-center text-sm text-white/40 py-8">لا توجد شحنات مرتبطة بمناديب في هذه الفترة</p>
-        ) : (
-          <div className="space-y-1">
-            {data.repPerformance.map((r, i) => (
-              <RankedRow key={r.userId} rank={i + 1} name={r.name} total={r.total} successRate={r.successRate} sub={`${fmt(r.returned)} مرتجع`} />
-            ))}
-          </div>
-        )}
-      </SectionCard>
 
       {/* Footer */}
       <p className="text-center text-[11px] text-white/25 pb-2">
