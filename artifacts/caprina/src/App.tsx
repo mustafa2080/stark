@@ -194,6 +194,7 @@ const TeamPage              = lazy(() => import("@/pages/team"));
 const SmartAnalyticsPage    = lazy(() => import("@/pages/smart-analytics"));
 const ArchivePage           = lazy(() => import("@/pages/archive"));
 const ShippingFollowupPage  = lazy(() => import("@/pages/shipping-followup"));
+const ShipmentsIntelligencePage = lazy(() => import("@/pages/shipments-intelligence"));
 const WhatsAppSettingsPage  = lazy(() => import("@/pages/whatsapp-settings"));
 const SessionsReportPage    = lazy(() => import("@/pages/sessions-report"));
 const ExportPage            = lazy(() => import("@/pages/export"));
@@ -588,6 +589,7 @@ function Router() {
           <Route path="/smart"                    component={() => <ProtectedRoute permission="analytics.smart" component={SmartAnalyticsPage} />} />
           <Route path="/archive"                  component={() => <ProtectedRoute permission="orders.view" component={ArchivePage} />} />
           <Route path="/shipping-followup"        component={() => <ProtectedRoute permission="orders.view" component={ShippingFollowupPage} />} />
+          <Route path="/shipments-intelligence"   component={() => <ProtectedRoute permission="analytics.smart" component={ShipmentsIntelligencePage} />} />
           <Route path="/whatsapp"                 component={() => <ProtectedRoute permission="settings.whatsapp" component={WhatsAppSettingsPage} />} />
           <Route path="/sessions-report"          component={() => <ProtectedRoute permission="settings.users" component={SessionsReportPage} />} />
           <Route path="/export"                   component={() => <ProtectedRoute permission="import.view" component={ExportPage} />} />

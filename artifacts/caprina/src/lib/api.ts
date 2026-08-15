@@ -911,6 +911,39 @@ export interface RepsDailyResponse {
   generatedAt: string;
 }
 
+export interface ShipmentsIntelligenceResponse {
+  period: string;
+  rangeFrom: string;
+  rangeTo: string;
+  healthScore: number;
+  healthGrade: "excellent" | "good" | "warning" | "critical";
+  kpis: {
+    total: number;
+    delivered: number;
+    returned: number;
+    deliveryRate: number;
+    returnRate: number;
+    onTimeRate: number;
+    avgDeliveryHours: number;
+  };
+  statusDistribution: { status: string; label: string; color: string; value: number; pct: number }[];
+  cityPerformance: { city: string; total: number; delivered: number; returned: number; codValue: number; successRate: number; returnRate: number }[];
+  companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; totalFees: number }[];
+  agingAnalysis: { key: string; label: string; count: number }[];
+  returnReasons: { reason: string; label: string; count: number; pct: number }[];
+  financialPulse: {
+    codExpected: number;
+    codCollected: number;
+    collectionRate: number;
+    shippingFeesTotal: number;
+    paymentMix: { cod: number; prepaid: number; deferred: number };
+  };
+  repPerformance: { userId: number; name: string; total: number; delivered: number; returned: number; successRate: number }[];
+  trend: { date: string; total: number; delivered: number; returned: number }[];
+  alerts: { level: "critical" | "warning" | "info"; message: string }[];
+  generatedAt: string;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -941,6 +974,14 @@ export const analyticsApi = {
   stockIntelligence: () => apiFetch<StockIntelligenceResponse>("/analytics/stock-intelligence"),
   smartInsights: () => apiFetch<SmartInsights>("/analytics/smart-insights"),
   shippingFollowup: () => apiFetch<any[]>("/analytics/shipping-followup"),
+  shipmentsIntelligence: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<ShipmentsIntelligenceResponse>(`/analytics/shipments-intelligence${qs ? `?${qs}` : ""}`);
+  },
   charts: () => apiFetch<ChartsData>("/analytics/charts"),
   monthlySales: (month?: string) =>
     apiFetch<{ month: string; days: ChartDayItem[]; totalOrders: number; totalRevenue: number; daysCount: number; avgPerDay: string }>(

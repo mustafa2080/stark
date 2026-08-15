@@ -4375,4 +4375,357 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /analytics/shipments-intelligence
+// المصدر الوحيد: جدول الشحنات (shipmentsTable) — صفحة "تحليل الشحنات"
+// بيرجع كل حاجة محتاجها الصفحة في نداء واحد: health score، توزيع الحالات،
+// أداء المدن، أداء شركات الشحن، تحليل زمن التسليم/الأعمار، أسباب المرتجعات،
+// النبض المالي (COD)، أداء المناديب، الترند الزمني، وتنبيهات ذكية.
+// ═══════════════════════════════════════════════════════════════════════════
+const SI_LEGACY_MAP: Record<string, string> = {
+  picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+  delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+};
+const SI_normalize = (s: string | null) => (s ? (SI_LEGACY_MAP[s] ?? s) : "pending");
+
+const SI_STATUS_META: Record<string, { label: string; color: string }> = {
+  pending:          { label: "قيد الانتظار",         color: "#eab308" },
+  warehouse_ready:  { label: "قيد الشحن في المخزن",  color: "#14b8a6" },
+  in_shipping:      { label: "قيد الشحن",             color: "#3b82f6" },
+  delayed:          { label: "مؤجلة",                 color: "#8b5cf6" },
+  partial_received: { label: "استلام جزئي",           color: "#06b6d4" },
+  received:         { label: "تم التسليم",            color: "#22c55e" },
+  returned:         { label: "مرتجعة",                color: "#ef4444" },
+};
+
+const SI_RETURN_REASON_LABELS: Record<string, string> = {
+  refused_paid:     "رفض بعد المعاينة (دفع الشحن)",
+  refused_unpaid:   "رفض بعد المعاينة (بدون دفع)",
+  quality:          "تهرب من الاستلام",
+  unaware:          "لا يعلم عن الشحنة",
+  cancel_requested: "طلب إلغاء",
+  no_answer:        "لا يوجد رد",
+  out_of_coverage:  "خارج نطاق التغطية",
+  closed:           "مغلق",
+};
+
+router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = (req.query.period as string | undefined) ?? "month"; // today | week | month | year | custom
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `shipments-intelligence:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const now = new Date();
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "week") {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "month") {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    }
+
+    const baseCond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    // كل الشحنات النشطة (لغرض توزيع الحالة الحالي — مش محصور بالفترة عشان نعرف الصورة الكاملة)
+    const allActiveRows = await db
+      .select({
+        id: shipmentsTable.id,
+        status: shipmentsTable.status,
+        receiverCity: shipmentsTable.receiverCity,
+        senderCity: shipmentsTable.senderCity,
+        shippingCompanyId: shipmentsTable.shippingCompanyId,
+        assignedUserId: shipmentsTable.assignedUserId,
+        codAmount: shipmentsTable.codAmount,
+        shippingFee: shipmentsTable.shippingFee,
+        collectedAmount: shipmentsTable.collectedAmount,
+        totalAmount: shipmentsTable.totalAmount,
+        returnReason: shipmentsTable.returnReason,
+        paymentMethod: shipmentsTable.paymentMethod,
+        weight: shipmentsTable.weight,
+        pieces: shipmentsTable.pieces,
+        createdAt: shipmentsTable.createdAt,
+        updatedAt: shipmentsTable.updatedAt,
+        estimatedDelivery: shipmentsTable.estimatedDelivery,
+        actualDelivery: shipmentsTable.actualDelivery,
+      })
+      .from(shipmentsTable)
+      .where(baseCond);
+
+    // الشحنات اللي وقعت داخل الفترة المختارة (بالـ createdAt) — لاستخدامها في المؤشرات المرتبطة بالفترة
+    const rangeRows = allActiveRows.filter(r => {
+      const t = new Date(r.createdAt).getTime();
+      return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
+    });
+
+    const companies = tenantId !== null
+      ? await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+      : await db.select().from(shippingCompaniesTable);
+    const companyMap = new Map(companies.map(c => [c.id, c.name]));
+
+    const assignedUserIds = Array.from(new Set(allActiveRows.map(r => r.assignedUserId).filter((v): v is number => !!v)));
+    const users = assignedUserIds.length > 0
+      ? await db.select({ id: usersTable.id, name: usersTable.displayName }).from(usersTable).where(inArray(usersTable.id, assignedUserIds))
+      : [];
+    const userMap = new Map(users.map(u => [u.id, u.name]));
+
+    // ── 1) Health Score: مركّب من معدل التسليم + الالتزام بالمواعيد + معدل المرتجعات + السرعة ──
+    let delivered = 0, returned = 0, onTime = 0, deliveredWithEta = 0;
+    let deliveryHoursSum = 0, deliveryHoursCount = 0;
+    for (const r of rangeRows) {
+      const status = SI_normalize(r.status);
+      if (status === "received") {
+        delivered++;
+        const created = new Date(r.createdAt).getTime();
+        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
+        const hours = (finished - created) / (1000 * 60 * 60);
+        if (hours >= 0 && hours < 24 * 30) { deliveryHoursSum += hours; deliveryHoursCount++; }
+        if (r.estimatedDelivery) {
+          deliveredWithEta++;
+          if (finished <= new Date(r.estimatedDelivery).getTime()) onTime++;
+        }
+      }
+      if (status === "returned") returned++;
+    }
+    const totalInRange = rangeRows.length;
+    const deliveryRate = totalInRange > 0 ? (delivered / totalInRange) * 100 : 0;
+    const returnRate = totalInRange > 0 ? (returned / totalInRange) * 100 : 0;
+    const onTimeRate = deliveredWithEta > 0 ? (onTime / deliveredWithEta) * 100 : (delivered > 0 ? 100 : 0);
+    const avgDeliveryHours = deliveryHoursCount > 0 ? deliveryHoursSum / deliveryHoursCount : 0;
+    // سرعة التسليم كنسبة: كل ما قلّت الساعات عن 72 ساعة (3 أيام) كل ما زادت النقطة
+    const speedScore = avgDeliveryHours > 0 ? Math.max(0, Math.min(100, 100 - ((avgDeliveryHours - 24) / 96) * 100)) : 70;
+    const healthScore = Math.round(
+      deliveryRate * 0.35 + onTimeRate * 0.25 + (100 - returnRate) * 0.25 + speedScore * 0.15
+    );
+    const healthGrade = healthScore >= 85 ? "excellent" : healthScore >= 70 ? "good" : healthScore >= 50 ? "warning" : "critical";
+
+    // ── 2) توزيع الحالات الحالي (كل الشحنات النشطة، مش محصور بالفترة) ──────
+    const statusCounts: Record<string, number> = {};
+    for (const r of allActiveRows) {
+      const s = SI_normalize(r.status);
+      statusCounts[s] = (statusCounts[s] ?? 0) + 1;
+    }
+    const statusDistribution = Object.entries(statusCounts)
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, value]) => ({
+        status, value,
+        label: SI_STATUS_META[status]?.label ?? status,
+        color: SI_STATUS_META[status]?.color ?? "#94a3b8",
+        pct: allActiveRows.length > 0 ? Math.round((value / allActiveRows.length) * 100) : 0,
+      }));
+
+    // ── 3) أداء المدن (استلام/مرتجع/قيمة) — من receiverCity داخل الفترة ────
+    const cityMap = new Map<string, { total: number; delivered: number; returned: number; codValue: number }>();
+    for (const r of rangeRows) {
+      const city = (r.receiverCity || "غير محدد").trim() || "غير محدد";
+      if (!cityMap.has(city)) cityMap.set(city, { total: 0, delivered: 0, returned: 0, codValue: 0 });
+      const c = cityMap.get(city)!;
+      c.total++;
+      const status = SI_normalize(r.status);
+      if (status === "received") c.delivered++;
+      if (status === "returned") c.returned++;
+      c.codValue += Number(r.codAmount ?? 0);
+    }
+    const cityPerformance = Array.from(cityMap.entries())
+      .map(([city, d]) => ({
+        city, total: d.total, delivered: d.delivered, returned: d.returned,
+        codValue: Math.round(d.codValue),
+        successRate: d.total > 0 ? Math.round((d.delivered / d.total) * 100) : 0,
+        returnRate: d.total > 0 ? Math.round((d.returned / d.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 12);
+
+    // ── 4) أداء شركات الشحن ─────────────────────────────────────────────────
+    const companyStatsMap = new Map<number | "none", { total: number; delivered: number; returned: number; hoursSum: number; hoursCount: number; fee: number }>();
+    for (const r of rangeRows) {
+      const key = r.shippingCompanyId ?? "none";
+      if (!companyStatsMap.has(key)) companyStatsMap.set(key, { total: 0, delivered: 0, returned: 0, hoursSum: 0, hoursCount: 0, fee: 0 });
+      const c = companyStatsMap.get(key)!;
+      c.total++;
+      c.fee += Number(r.shippingFee ?? 0);
+      const status = SI_normalize(r.status);
+      if (status === "received") {
+        c.delivered++;
+        const created = new Date(r.createdAt).getTime();
+        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
+        const hours = (finished - created) / (1000 * 60 * 60);
+        if (hours >= 0 && hours < 24 * 30) { c.hoursSum += hours; c.hoursCount++; }
+      }
+      if (status === "returned") c.returned++;
+    }
+    const companyPerformance = Array.from(companyStatsMap.entries())
+      .map(([key, d]) => ({
+        companyId: key === "none" ? null : key,
+        companyName: key === "none" ? "بدون شركة شحن" : (companyMap.get(key as number) ?? "—"),
+        total: d.total, delivered: d.delivered, returned: d.returned,
+        successRate: d.total > 0 ? Math.round((d.delivered / d.total) * 100) : 0,
+        returnRate: d.total > 0 ? Math.round((d.returned / d.total) * 100) : 0,
+        avgDeliveryHours: d.hoursCount > 0 ? Math.round(d.hoursSum / d.hoursCount) : 0,
+        totalFees: Math.round(d.fee),
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    // ── 5) تحليل أعمار الشحنات النشطة (Aging buckets) — لكل الشحنات المعلقة حالياً ──
+    const AGING_BUCKETS = [
+      { key: "0-3",   label: "0-3 أيام",   min: 0,  max: 3 },
+      { key: "4-7",   label: "4-7 أيام",   min: 4,  max: 7 },
+      { key: "8-14",  label: "8-14 يوم",   min: 8,  max: 14 },
+      { key: "15+",   label: "15+ يوم",    min: 15, max: Infinity },
+    ];
+    const pendingStatuses = new Set(["pending", "warehouse_ready", "in_shipping", "delayed"]);
+    const agingCounts = AGING_BUCKETS.map(b => ({ ...b, count: 0 }));
+    for (const r of allActiveRows) {
+      const status = SI_normalize(r.status);
+      if (!pendingStatuses.has(status)) continue;
+      const days = Math.floor((now.getTime() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const bucket = agingCounts.find(b => days >= b.min && days <= b.max);
+      if (bucket) bucket.count++;
+    }
+    const agingAnalysis = agingCounts.map(({ key, label, count }) => ({ key, label, count }));
+
+    // ── 6) أسباب المرتجعات ──────────────────────────────────────────────────
+    const returnReasonCounts: Record<string, number> = {};
+    let returnedTotalInRange = 0;
+    for (const r of rangeRows) {
+      if (SI_normalize(r.status) !== "returned") continue;
+      returnedTotalInRange++;
+      const reason = r.returnReason || "غير محدد";
+      returnReasonCounts[reason] = (returnReasonCounts[reason] ?? 0) + 1;
+    }
+    const returnReasons = Object.entries(returnReasonCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([reason, count]) => ({
+        reason,
+        label: SI_RETURN_REASON_LABELS[reason] ?? reason,
+        count,
+        pct: returnedTotalInRange > 0 ? Math.round((count / returnedTotalInRange) * 100) : 0,
+      }));
+
+    // ── 7) النبض المالي (COD) ──────────────────────────────────────────────
+    let codExpected = 0, codCollected = 0, shippingFeesTotal = 0;
+    let codOrders = 0, prepaidOrders = 0, deferredOrders = 0;
+    for (const r of rangeRows) {
+      codExpected += Number(r.codAmount ?? 0);
+      codCollected += Number(r.collectedAmount ?? 0);
+      shippingFeesTotal += Number(r.shippingFee ?? 0);
+      if (r.paymentMethod === "cod") codOrders++;
+      else if (r.paymentMethod === "prepaid") prepaidOrders++;
+      else if (r.paymentMethod === "deferred") deferredOrders++;
+    }
+    const financialPulse = {
+      codExpected: Math.round(codExpected),
+      codCollected: Math.round(codCollected),
+      collectionRate: codExpected > 0 ? Math.round((codCollected / codExpected) * 100) : 0,
+      shippingFeesTotal: Math.round(shippingFeesTotal),
+      paymentMix: { cod: codOrders, prepaid: prepaidOrders, deferred: deferredOrders },
+    };
+
+    // ── 8) أداء المناديب/المسؤولين عن الشحنات ──────────────────────────────
+    const repMap = new Map<number, { total: number; delivered: number; returned: number }>();
+    for (const r of rangeRows) {
+      if (!r.assignedUserId) continue;
+      if (!repMap.has(r.assignedUserId)) repMap.set(r.assignedUserId, { total: 0, delivered: 0, returned: 0 });
+      const rp = repMap.get(r.assignedUserId)!;
+      rp.total++;
+      const status = SI_normalize(r.status);
+      if (status === "received") rp.delivered++;
+      if (status === "returned") rp.returned++;
+    }
+    const repPerformance = Array.from(repMap.entries())
+      .map(([userId, d]) => ({
+        userId, name: userMap.get(userId) ?? `#${userId}`,
+        total: d.total, delivered: d.delivered, returned: d.returned,
+        successRate: d.total > 0 ? Math.round((d.delivered / d.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    // ── 9) الترند الزمني (تجميع يومي لآخر 30 يوم أو حسب الفترة) ────────────
+    const trendDays = Math.min(60, Math.max(7, Math.ceil((rangeTo.getTime() - rangeFrom.getTime()) / (1000 * 60 * 60 * 24)) + 1));
+    const trendBuckets: { date: string; total: number; delivered: number; returned: number }[] = [];
+    for (let i = trendDays - 1; i >= 0; i--) {
+      const d = new Date(rangeTo); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0);
+      trendBuckets.push({ date: d.toISOString().slice(0, 10), total: 0, delivered: 0, returned: 0 });
+    }
+    const trendIndexByDate = new Map(trendBuckets.map((b, i) => [b.date, i]));
+    for (const r of rangeRows) {
+      const dateKey = new Date(r.createdAt).toISOString().slice(0, 10);
+      const idx = trendIndexByDate.get(dateKey);
+      if (idx === undefined) continue;
+      trendBuckets[idx].total++;
+      const status = SI_normalize(r.status);
+      if (status === "received") trendBuckets[idx].delivered++;
+      if (status === "returned") trendBuckets[idx].returned++;
+    }
+
+    // ── 10) تنبيهات ذكية ─────────────────────────────────────────────────
+    const alerts: { level: "critical" | "warning" | "info"; message: string }[] = [];
+    const criticalAging = agingAnalysis.find(b => b.key === "15+");
+    if (criticalAging && criticalAging.count > 0) {
+      alerts.push({ level: "critical", message: `${criticalAging.count} شحنة متأخرة أكتر من 15 يوم وتحتاج متابعة فورية` });
+    }
+    if (returnRate > 15) {
+      alerts.push({ level: "warning", message: `معدل المرتجعات ${Math.round(returnRate)}% أعلى من المعدل الصحي (15%)` });
+    }
+    const worstCity = cityPerformance.filter(c => c.total >= 5).sort((a, b) => b.returnRate - a.returnRate)[0];
+    if (worstCity && worstCity.returnRate > 25) {
+      alerts.push({ level: "warning", message: `مدينة "${worstCity.city}" بمعدل مرتجعات ${worstCity.returnRate}%` });
+    }
+    const worstCompany = companyPerformance.filter(c => c.total >= 5).sort((a, b) => a.successRate - b.successRate)[0];
+    if (worstCompany && worstCompany.successRate < 70) {
+      alerts.push({ level: "warning", message: `شركة "${worstCompany.companyName}" بمعدل نجاح ${worstCompany.successRate}% فقط` });
+    }
+    if (financialPulse.collectionRate < 85 && codExpected > 0) {
+      alerts.push({ level: "info", message: `نسبة تحصيل COD ${financialPulse.collectionRate}% — فرق ${Math.round(codExpected - codCollected)} ج.م لم يُحصّل بعد` });
+    }
+    if (alerts.length === 0) {
+      alerts.push({ level: "info", message: "كل المؤشرات ضمن النطاق الصحي — أداء ممتاز 👌" });
+    }
+
+    const result = {
+      period, rangeFrom: rangeFrom.toISOString(), rangeTo: rangeTo.toISOString(),
+      healthScore, healthGrade,
+      kpis: {
+        total: totalInRange,
+        delivered, returned,
+        deliveryRate: Math.round(deliveryRate * 10) / 10,
+        returnRate: Math.round(returnRate * 10) / 10,
+        onTimeRate: Math.round(onTimeRate * 10) / 10,
+        avgDeliveryHours: Math.round(avgDeliveryHours * 10) / 10,
+      },
+      statusDistribution,
+      cityPerformance,
+      companyPerformance,
+      agingAnalysis,
+      returnReasons,
+      financialPulse,
+      repPerformance,
+      trend: trendBuckets,
+      alerts,
+      generatedAt: now.toISOString(),
+    };
+
+    setCached(cacheKey, result, 3 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
