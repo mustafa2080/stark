@@ -48,6 +48,7 @@ export const ordersTable = mysqlTable("orders", {
   updatedAt: datetime("updated_at").notNull(),
 },
 (t) => [
+  index("idx_orders_tenant_id").on(t.tenantId),
   index("idx_orders_status").on(t.status),
   index("idx_orders_deleted_at").on(t.deletedAt),
   index("idx_orders_created_at").on(t.createdAt),
@@ -55,6 +56,8 @@ export const ordersTable = mysqlTable("orders", {
   index("idx_orders_shipping_company_id").on(t.shippingCompanyId),
   index("idx_orders_assigned_user_id").on(t.assignedUserId),
   index("idx_orders_invoice_number").on(t.invoiceNumber),
+  // composite index — نفس أشهر pattern فلترة زي shipments
+  index("idx_orders_tenant_status_deleted").on(t.tenantId, t.status, t.deletedAt),
 ]);
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true, totalPrice: true });

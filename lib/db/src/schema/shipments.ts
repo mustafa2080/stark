@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, decimal, text, datetime } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, decimal, text, datetime, index } from "drizzle-orm/mysql-core";
 
 // ─── حالات الشحنة ─────────────────────────────────────────────────────────────
 export const SHIPMENT_STATUSES = [
@@ -116,7 +116,22 @@ export const shipmentsTable = mysqlTable("shipments", {
   deletedAt:       datetime("deleted_at"),
   createdAt:       datetime("created_at").notNull(),
   updatedAt:       datetime("updated_at").notNull(),
-});
+},
+(t) => [
+  // ── indexes لتسريع أكتر الاستعلامات تكراراً (analytics, dashboard, operations-center) ──
+  index("idx_shipments_tenant_id").on(t.tenantId),
+  index("idx_shipments_status").on(t.status),
+  index("idx_shipments_created_at").on(t.createdAt),
+  index("idx_shipments_deleted_at").on(t.deletedAt),
+  index("idx_shipments_client_id").on(t.clientId),
+  index("idx_shipments_tracking_number").on(t.trackingNumber),
+  index("idx_shipments_shipment_number").on(t.shipmentNumber),
+  index("idx_shipments_assigned_user_id").on(t.assignedUserId),
+  index("idx_shipments_shipping_company_id").on(t.shippingCompanyId),
+  index("idx_shipments_warehouse_id").on(t.warehouseId),
+  // composite index — بيغطي أشهر pattern فلترة: tenant + status + non-deleted
+  index("idx_shipments_tenant_status_deleted").on(t.tenantId, t.status, t.deletedAt),
+]);
 
 export type InsertShipment = typeof shipmentsTable.$inferInsert;
 export type Shipment       = typeof shipmentsTable.$inferSelect;

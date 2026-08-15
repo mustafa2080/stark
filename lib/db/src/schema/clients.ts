@@ -1,4 +1,4 @@
-import { mysqlTable, text, longtext, int, datetime, varchar, decimal, boolean } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, longtext, int, datetime, varchar, decimal, boolean, index } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -62,7 +62,12 @@ export const clientsTable = mysqlTable("clients", {
   avatar:         longtext("avatar"),   // LONGTEXT عشان base64 الصور الكبيرة
   createdAt:      datetime("created_at").notNull(),
   updatedAt:      datetime("updated_at").notNull(),
-});
+},
+(t) => [
+  index("idx_clients_tenant_id").on(t.tenantId),
+  index("idx_clients_normalized_phone").on(t.normalizedPhone),
+  index("idx_clients_client_type").on(t.clientType),
+]);
 
 export const insertClientSchema = createInsertSchema(clientsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertClient = z.infer<typeof insertClientSchema>;
