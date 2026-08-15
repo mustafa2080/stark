@@ -27,6 +27,13 @@ function urgencyLabel(days: number) {
   return "متأخر";
 }
 
+function daysLabel(days: number) {
+  if (days === 1) return "يوم واحد";
+  if (days === 2) return "يومين";
+  if (days <= 10) return `${days} أيام`;
+  return `${days} يوم`;
+}
+
 /** رسالة متابعة الشحن الافتراضية (fallback لو مفيش قالب) */
 function buildDefaultShippingMessage(o: {
   id: number;
@@ -179,6 +186,7 @@ export default function ShippingFollowupPage() {
               key={o.id}
               className={`rounded-xl border p-4 space-y-3 ${urgencyColor(o.daysPending)}`}
             >
+              {/* هيدر: رقم الشحنة + شارة "متأخر قد إيه" بارزة + الإجراءات */}
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono opacity-60">#{o.id}</span>
@@ -188,11 +196,9 @@ export default function ShippingFollowupPage() {
                       {o.invoiceNumber}
                     </span>
                   )}
-                  <Badge
-                    variant="outline"
-                    className="text-xs border-current"
-                  >
-                    {urgencyLabel(o.daysPending)} — {o.daysPending} يوم
+                  <Badge className="text-xs gap-1 font-bold border-current bg-current/10">
+                    <Clock className="h-3 w-3" />
+                    {urgencyLabel(o.daysPending)} — متأخر منذ {daysLabel(o.daysPending)}
                   </Badge>
                   {isFollowed && (
                     <Badge className="text-xs gap-1 bg-green-600/20 text-green-700 dark:text-green-400 border border-green-600/40">
@@ -248,29 +254,44 @@ export default function ShippingFollowupPage() {
                 </div>
               </div>
 
-              {/* بيانات العميل الأساسية */}
-              <div className="flex items-center gap-2.5 pb-2.5 border-b border-current/15">
-                <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-current/10 border border-current/20">
-                  <User className="h-4.5 w-4.5 opacity-80" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-sm truncate">{o.customerName}</div>
-                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                    {o.phone && (
-                      <a href={`tel:${o.phone}`} className="flex items-center gap-1 text-xs opacity-80 hover:underline hover:opacity-100">
-                        <Phone className="h-3 w-3" />
-                        {o.phone}
-                      </a>
-                    )}
-                    {o.city && (
-                      <span className="flex items-center gap-1 text-xs opacity-80">
-                        <span className="opacity-40">•</span>
-                        <MapPin className="h-3 w-3" />
-                        {o.city}
-                      </span>
-                    )}
+              {/* بيانات المستقبِل (العميل) وبيانات المرسل جنب بعض */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2.5 border-b border-current/15">
+                <div className="flex items-center gap-2.5">
+                  <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-current/10 border border-current/20">
+                    <User className="h-4.5 w-4.5 opacity-80" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] uppercase tracking-wide opacity-50 mb-0.5">المستلم</div>
+                    <div className="font-bold text-sm truncate">{o.customerName}</div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      {o.phone && (
+                        <a href={`tel:${o.phone}`} className="flex items-center gap-1 text-xs opacity-80 hover:underline hover:opacity-100">
+                          <Phone className="h-3 w-3" />
+                          {o.phone}
+                        </a>
+                      )}
+                      {o.city && (
+                        <span className="flex items-center gap-1 text-xs opacity-80">
+                          <span className="opacity-40">•</span>
+                          <MapPin className="h-3 w-3" />
+                          {o.city}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {o.senderName && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-current/10 border border-current/20">
+                      <UserCircle2 className="h-4.5 w-4.5 opacity-80" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] uppercase tracking-wide opacity-50 mb-0.5">المرسل</div>
+                      <div className="font-bold text-sm truncate">{o.senderName}</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {o.address && (
@@ -280,28 +301,39 @@ export default function ShippingFollowupPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Truck className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                  <span className="text-sm truncate">{o.shippingCompany ?? "—"}</span>
-                </div>
-
-                <div className="flex items-center gap-2 min-w-0">
-                  <Hash className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                  <span className="text-sm font-mono truncate">{o.trackingNumber || <span className="opacity-50">لا يوجد تتبع</span>}</span>
-                </div>
-
-                <div className="flex items-center gap-2 min-w-0">
-                  <Wallet className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                  <span className="text-sm truncate">{o.shippingCost ? formatCurrency(o.shippingCost) : "—"} <span className="opacity-50 text-xs">شحن</span></span>
-                </div>
-
-                {o.assignedUserName && (
-                  <div className="flex items-center gap-2 min-w-0">
-                    <UserCircle2 className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                    <span className="text-sm truncate">{o.assignedUserName}</span>
+              {/* شبكة بيانات موحدة: كل حقل بعنوان صغير فوقه وقيمة واضحة تحته */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg bg-current/5 border border-current/10 p-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-50 mb-1">
+                    <Truck className="h-3 w-3" />
+                    شركة الشحن
                   </div>
-                )}
+                  <div className="text-sm font-medium truncate">{o.shippingCompany ?? "—"}</div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-50 mb-1">
+                    <Hash className="h-3 w-3" />
+                    رقم التتبع
+                  </div>
+                  <div className="text-sm font-mono truncate">{o.trackingNumber || <span className="opacity-50">لا يوجد</span>}</div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-50 mb-1">
+                    <Wallet className="h-3 w-3" />
+                    تكلفة الشحن
+                  </div>
+                  <div className="text-sm font-medium truncate">{o.shippingCost ? formatCurrency(o.shippingCost) : "—"}</div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-50 mb-1">
+                    <UserCircle2 className="h-3 w-3" />
+                    المسؤول
+                  </div>
+                  <div className="text-sm font-medium truncate">{o.assignedUserName ?? "—"}</div>
+                </div>
               </div>
 
               <div className="flex items-center justify-between text-xs opacity-70 pt-1 border-t border-current/20">

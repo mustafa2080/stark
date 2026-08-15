@@ -2232,6 +2232,7 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
         id: s.id,
         shipmentNumber: s.shipmentNumber,
         customerName: s.receiverName,
+        senderName: s.senderName,
         phone: s.receiverPhone,
         city: s.receiverCity,
         address: s.receiverAddress,
