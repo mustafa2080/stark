@@ -123,6 +123,10 @@ export default function ArchivePage() {
   useEffect(() => {
     setPage(1);
   }, [search, pageSize]);
+  // لما اليوزر يغيّر الصفحة، اسكرول لفوق تلقائيًا عشان يبدأ من أول صف بدل ما يفضل تحت
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
   const paginatedRows = groupedFiltered.slice((page - 1) * pageSize, page * pageSize);
 
   const pageNumbers = useMemo(() => {

@@ -1150,6 +1150,11 @@ export default function Orders() {
     setPage(1);
   }, [debouncedSearch, status, dateFrom, dateTo, pageSize]);
 
+  // لما اليوزر يغيّر الصفحة، اسكرول لفوق تلقائيًا عشان يبدأ من أول صف بدل ما يفضل تحت
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
+
   // أرقام الصفحات المعروضة في الـ pagination bar (مع "..." لو الصفحات كتير)
   const pageNumbers = useMemo(() => {
     const maxButtons = 5;
