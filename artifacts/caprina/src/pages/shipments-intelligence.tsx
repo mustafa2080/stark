@@ -1,14 +1,14 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, TrendingUp, TrendingDown, Package, CheckCircle2, RotateCcw,
-  Clock, MapPin, Truck, Wallet, Users, AlertTriangle, AlertCircle,
-  Info, ChevronDown, ChevronUp, Activity, Timer, Percent,
+  Clock, MapPin, Truck, Users, AlertTriangle, AlertCircle,
+  Info, ChevronDown, ChevronUp, Activity, Timer, Percent, Zap, Gauge,
 } from "lucide-react";
 import { analyticsApi, ShipmentsIntelligenceResponse } from "@/lib/api";
 
@@ -16,7 +16,6 @@ import { analyticsApi, ShipmentsIntelligenceResponse } from "@/lib/api";
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 const fmt = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n || 0));
-const fmtMoney = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n || 0)) + " ج.م";
 const fmtPct = (n: number) => `${n}%`;
 
 function rateColor(pct: number, invert = false): string {
@@ -41,54 +40,87 @@ const ALERT_META: Record<string, { icon: typeof AlertTriangle; color: string; bg
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Health Score Gauge — العنصر المميز في الصفحة
+// Ring Gauge — دائرة تقدّم موحّدة (نفس ستايل التطبيق: فجوة علوية + حواف مدورة)
+// تُستخدم لأي مؤشر دائري في الصفحة (Health Score، نسب النجاح، إلخ)
+// ═══════════════════════════════════════════════════════════════════════════
+function RingGauge({
+  value, max = 100, size = 220, strokeWidth = 20, color, label, sub,
+  gapDeg = 26,
+}: {
+  value: number; max?: number; size?: number; strokeWidth?: number; color: string;
+  label: string; sub?: string; gapDeg?: number;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  // فجوة علوية بمقدار gapDeg درجة، مقسومة على جانبين حول أعلى الدائرة (12 o'clock)
+  const gapLen = (gapDeg / 360) * circumference;
+  const arcLen = circumference - gapLen;
+  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  const filledLen = (pct / 100) * arcLen;
+
+  return (
+    <div
+      className="relative inline-flex items-center justify-center transition-transform duration-300"
+      style={{ width: size, height: size }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: `rotate(${90 + gapDeg / 2}deg)` }}>
+        {/* المسار الخلفي (الفاضي) */}
+        <circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round"
+          strokeDasharray={`${arcLen} ${circumference}`}
+        />
+        {/* المسار الممتلئ */}
+        <motion.circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
+          strokeDasharray={`${arcLen} ${circumference}`}
+          initial={{ strokeDashoffset: arcLen }}
+          animate={{
+            strokeDashoffset: arcLen - filledLen,
+            filter: hovered
+              ? `drop-shadow(0 0 16px ${color}) drop-shadow(0 0 4px ${color})`
+              : `drop-shadow(0 0 8px ${color}88)`,
+          }}
+          transition={{ strokeDashoffset: { duration: 1.2, ease: "easeOut" }, filter: { duration: 0.35, ease: "easeInOut" } }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <motion.span
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="font-black text-white tabular-nums"
+          style={{ fontSize: size * 0.19 }}
+        >
+          {fmt(value)}
+        </motion.span>
+        <span className="text-white/45 mt-0.5" style={{ fontSize: size * 0.055 }}>{label}</span>
+        {sub && (
+          <span
+            className="mt-2 px-2.5 py-0.5 rounded-full font-bold border transition-opacity duration-300"
+            style={{ color, borderColor: `${color}55`, background: `${color}15`, fontSize: size * 0.05, opacity: hovered ? 1 : 0.85 }}
+          >
+            {sub}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Health Score Gauge — العنصر المميز في الصفحة (يستخدم RingGauge)
 // ═══════════════════════════════════════════════════════════════════════════
 function HealthScoreGauge({ score, grade }: { score: number; grade: string }) {
   const meta = GRADE_META[grade] ?? GRADE_META.good;
-  const radius = 84;
-  const circumference = 2 * Math.PI * radius;
-  const pct = Math.max(0, Math.min(100, score));
-  const dashOffset = circumference * (1 - pct / 100);
-
   return (
-    <div className="relative flex flex-col items-center justify-center py-4">
-      <div className="relative" style={{ width: 220, height: 220 }}>
-        <svg width={220} height={220} viewBox="0 0 220 220" className="-rotate-90">
-          <circle cx={110} cy={110} r={radius} fill="none" stroke="#1a1a1a" strokeWidth={14} />
-          <motion.circle
-            cx={110} cy={110} r={radius} fill="none"
-            stroke={meta.color} strokeWidth={14} strokeLinecap="round"
-            strokeDasharray={circumference}
-            initial={{ strokeDashoffset: circumference }}
-            animate={{ strokeDashoffset: dashOffset }}
-            transition={{ duration: 1.4, ease: "easeOut" }}
-            style={{ filter: `drop-shadow(0 0 10px rgba(${meta.glow},0.65))` }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <motion.span
-            initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="text-5xl font-black tabular-nums"
-            style={{ color: meta.color, textShadow: `0 0 20px rgba(${meta.glow},0.5)` }}
-          >
-            {score}
-          </motion.span>
-          <span className="text-xs text-white/40 mt-1">من 100</span>
-          <span
-            className="mt-2 px-3 py-1 rounded-full text-xs font-bold border"
-            style={{ color: meta.color, borderColor: `${meta.color}55`, background: `${meta.color}15` }}
-          >
-            {meta.label}
-          </span>
-        </div>
-        <div
-          className="absolute inset-0 rounded-full pointer-events-none animate-pulse"
-          style={{ boxShadow: `0 0 40px 4px rgba(${meta.glow},0.15)` }}
-        />
-      </div>
-      <div className="mt-3 text-center">
+    <div className="flex flex-col items-center justify-center py-2">
+      <RingGauge value={score} max={100} size={220} strokeWidth={18} color={meta.color} label="من 100" sub={meta.label} />
+      <div className="mt-2 text-center">
         <h2 className="text-lg font-bold text-white flex items-center gap-2 justify-center">
           <Brain className="w-5 h-5" style={{ color: "#e8b93f" }} />
           مؤشر صحة الشحنات
@@ -112,11 +144,11 @@ function KpiTile({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-4 overflow-hidden"
-      style={{ boxShadow: `0 0 0 1px rgba(255,255,255,0.02) inset` }}
+      whileHover={{ y: -2 }}
+      className="group relative rounded-2xl border border-white/10 bg-white/[0.03] p-4 overflow-hidden transition-colors duration-300 hover:border-white/20"
     >
       <div
-        className="absolute -top-8 -left-8 w-24 h-24 rounded-full blur-2xl opacity-20"
+        className="absolute -top-8 -left-8 w-24 h-24 rounded-full blur-2xl opacity-20 transition-opacity duration-300 group-hover:opacity-35"
         style={{ background: color }}
       />
       <div className="relative flex items-start justify-between">
@@ -176,7 +208,7 @@ function ChartTooltip({ active, payload, label }: any) {
     <div className="rounded-lg border border-white/10 bg-[#0a0a0a]/95 px-3 py-2 text-xs shadow-xl backdrop-blur-sm">
       {label && <p className="text-white/50 mb-1">{label}</p>}
       {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color || p.fill }} className="font-bold">
+        <p key={i} style={{ color: p.color || p.stroke }} className="font-bold">
           {p.name}: {fmt(p.value)}
         </p>
       ))}
@@ -185,37 +217,44 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Status Distribution Donut
+// Status Distribution — دائرة رئيسية (إجمالي الشحنات) + تفصيل كل حالة بشريط
+// نفس ستايل الصورة المرجعية بالظبط
 // ═══════════════════════════════════════════════════════════════════════════
-function StatusDonut({ data }: { data: ShipmentsIntelligenceResponse["statusDistribution"] }) {
+function StatusDonut({ data, total }: { data: ShipmentsIntelligenceResponse["statusDistribution"]; total: number }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const top = hoveredIdx !== null ? data[hoveredIdx] : data[0];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-      <div style={{ height: 220 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data} dataKey="value" nameKey="label"
-              innerRadius={62} outerRadius={92} paddingAngle={2}
-              stroke="none"
-            >
-              {data.map((d, i) => <Cell key={i} fill={d.color} />)}
-            </Pie>
-            <Tooltip content={<ChartTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+      <div className="flex justify-center">
+        <RingGauge
+          value={total} max={total} size={210} strokeWidth={20}
+          color={top?.color ?? "#e8b93f"} label="إجمالي الشحنات"
+        />
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {data.map((d, i) => (
-          <div key={i} className="flex items-center justify-between text-sm">
+          <motion.div
+            key={d.status}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.04 }}
+            className="flex items-center justify-between text-sm rounded-lg px-2 py-1.5 transition-colors duration-200 cursor-default hover:bg-white/[0.04]"
+          >
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: d.color }} />
+              <span
+                className="w-2.5 h-2.5 rounded-full transition-transform duration-200"
+                style={{ background: d.color, transform: hoveredIdx === i ? "scale(1.3)" : "scale(1)" }}
+              />
               <span className="text-white/70">{d.label}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-white font-bold tabular-nums">{fmt(d.value)}</span>
               <span className="text-white/40 text-xs w-9 text-left">{d.pct}%</span>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -255,59 +294,89 @@ function TrendChart({ data }: { data: ShipmentsIntelligenceResponse["trend"] }) 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Aging Bars — أعمار الشحنات المعلقة حالياً
+// Aging Line — تحليل أعمار الشحنات المعلقة كخط احترافي (بدل الأعمدة)
 // ═══════════════════════════════════════════════════════════════════════════
-function AgingBars({ data }: { data: ShipmentsIntelligenceResponse["agingAnalysis"] }) {
-  const BUCKET_COLORS: Record<string, string> = {
-    "0-3": "#22c55e", "4-7": "#eab308", "8-14": "#f97316", "15+": "#ef4444",
-  };
+function AgingLine({ data }: { data: ShipmentsIntelligenceResponse["agingAnalysis"] }) {
+  const worst = data[data.length - 1];
+  const lineColor = worst && worst.count > 0 ? rateColor(0) : "#e8b93f"; // أحمر لو فيه تراكم في أعلى شريحة عمر
   return (
-    <div style={{ height: 200 }}>
+    <div style={{ height: 220 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+          <defs>
+            <linearGradient id="siAgingGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f97316" stopOpacity={0.32} />
+              <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip content={<ChartTooltip />} />
-          <Bar dataKey="count" name="عدد الشحنات" radius={[6, 6, 0, 0]}>
-            {data.map((d, i) => <Cell key={i} fill={BUCKET_COLORS[d.key] ?? "#e8b93f"} />)}
-          </Bar>
-        </BarChart>
+          <Area
+            type="monotone" dataKey="count" name="عدد الشحنات"
+            stroke="#f97316" strokeWidth={2.5} fill="url(#siAgingGrad)"
+            dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#0a0f1e" }}
+            activeDot={{ r: 6, fill: "#f97316", strokeWidth: 2, stroke: "#0a0f1e" }}
+          />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Ranked Row — شريط تقدّم متحرك (يُستخدم للمدن/الشركات/المناديب)
+// Mini Ring — دائرة صغيرة بنفس ستايل RingGauge، تُستخدم داخل الصفوف المرتّبة
+// ═══════════════════════════════════════════════════════════════════════════
+function MiniRing({ pct, color, size = 44 }: { pct: number; color: string; size?: number }) {
+  const [hovered, setHovered] = useState(false);
+  const strokeWidth = 5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const gapLen = (22 / 360) * circumference;
+  const arcLen = circumference - gapLen;
+  const filledLen = (Math.max(0, Math.min(100, pct)) / 100) * arcLen;
+  return (
+    <div
+      className="relative shrink-0"
+      style={{ width: size, height: size }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(101deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={`${arcLen} ${circumference}`} />
+        <motion.circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
+          strokeDasharray={`${arcLen} ${circumference}`}
+          initial={{ strokeDashoffset: arcLen }}
+          animate={{ strokeDashoffset: arcLen - filledLen, filter: hovered ? `drop-shadow(0 0 6px ${color})` : "none" }}
+          transition={{ strokeDashoffset: { duration: 0.8, ease: "easeOut" }, filter: { duration: 0.25 } }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold tabular-nums" style={{ color }}>
+        {Math.round(pct)}%
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ranked Row — صف مرتّب بدائرة صغيرة (يُستخدم للمدن/الشركات/المناديب)
 // ═══════════════════════════════════════════════════════════════════════════
 function RankedRow({
-  rank, name, total, successRate, sub, barColor,
+  rank, name, total, successRate, sub, ringColor,
 }: {
-  rank: number; name: string; total: number; successRate: number; sub?: string; barColor?: string;
+  rank: number; name: string; total: number; successRate: number; sub?: string; ringColor?: string;
 }) {
-  const color = barColor ?? rateColor(successRate);
+  const color = ringColor ?? rateColor(successRate);
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
+    <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] rounded-lg px-1">
       <span className="w-6 text-center text-xs font-bold text-white/30">{rank}</span>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-sm font-medium text-white truncate">{name}</span>
-          <span className="text-xs text-white/50 shrink-0 ms-2">{fmt(total)} شحنة{sub ? ` · ${sub}` : ""}</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${successRate}%` }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="h-full rounded-full"
-            style={{ background: color }}
-          />
-        </div>
+        <p className="text-sm font-medium text-white truncate">{name}</p>
+        <p className="text-xs text-white/45 mt-0.5">{fmt(total)} شحنة{sub ? ` · ${sub}` : ""}</p>
       </div>
-      <span className="w-11 text-left text-sm font-bold tabular-nums shrink-0" style={{ color }}>
-        {successRate}%
-      </span>
+      <MiniRing pct={successRate} color={color} />
     </div>
   );
 }
@@ -347,7 +416,7 @@ function DetailTable<T extends Record<string, any>>({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.3) }}
-              className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]"
+              className="border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02]"
             >
               {columns.map(c => (
                 <td key={c.key} className={`py-2.5 px-2 whitespace-nowrap ${c.align === "end" ? "text-left" : "text-right"}`}>
@@ -365,7 +434,7 @@ function DetailTable<T extends Record<string, any>>({
 function Pill({ children, color }: { children: React.ReactNode; color: string }) {
   return (
     <span
-      className="px-2 py-0.5 rounded-full text-xs font-bold"
+      className="px-2 py-0.5 rounded-full text-xs font-bold transition-opacity duration-200 hover:opacity-80"
       style={{ color, background: `${color}18`, border: `1px solid ${color}33` }}
     >
       {children}
@@ -384,7 +453,7 @@ function ReturnReasonsBreakdown({ data }: { data: ShipmentsIntelligenceResponse[
   return (
     <div className="space-y-3">
       {data.map((d, i) => (
-        <div key={d.reason}>
+        <div key={d.reason} className="group">
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm text-white/80">{d.label}</span>
             <span className="text-xs text-white/50">
@@ -396,72 +465,12 @@ function ReturnReasonsBreakdown({ data }: { data: ShipmentsIntelligenceResponse[
               initial={{ width: 0 }}
               animate={{ width: `${(d.count / maxCount) * 100}%` }}
               transition={{ duration: 0.7, delay: i * 0.05, ease: "easeOut" }}
-              className="h-full rounded-full"
+              className="h-full rounded-full transition-opacity duration-200 group-hover:opacity-80"
               style={{ background: "linear-gradient(90deg,#ef4444,#f97316)" }}
             />
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Financial Pulse Panel — النبض المالي (COD)
-// ═══════════════════════════════════════════════════════════════════════════
-function FinancialPulsePanel({ data }: { data: ShipmentsIntelligenceResponse["financialPulse"] }) {
-  const gap = data.codExpected - data.codCollected;
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <p className="text-[11px] text-white/40 mb-1">COD متوقع</p>
-          <p className="text-lg font-black text-white tabular-nums">{fmtMoney(data.codExpected)}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <p className="text-[11px] text-white/40 mb-1">COD محصّل</p>
-          <p className="text-lg font-black text-[#22c55e] tabular-nums">{fmtMoney(data.codCollected)}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <p className="text-[11px] text-white/40 mb-1">فرق غير محصّل</p>
-          <p className="text-lg font-black tabular-nums" style={{ color: gap > 0 ? "#ef4444" : "#22c55e" }}>
-            {fmtMoney(Math.abs(gap))}
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <p className="text-[11px] text-white/40 mb-1">إجمالي مصاريف الشحن</p>
-          <p className="text-lg font-black text-[#e8b93f] tabular-nums">{fmtMoney(data.shippingFeesTotal)}</p>
-        </div>
-      </div>
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-sm text-white/70">نسبة التحصيل</span>
-          <span className="text-sm font-bold" style={{ color: rateColor(data.collectionRate) }}>{data.collectionRate}%</span>
-        </div>
-        <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${data.collectionRate}%` }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="h-full rounded-full"
-            style={{ background: rateColor(data.collectionRate) }}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div className="text-center rounded-xl border border-white/10 bg-white/[0.02] py-2.5">
-          <p className="text-base font-bold text-white">{fmt(data.paymentMix.cod)}</p>
-          <p className="text-[11px] text-white/40">دفع عند الاستلام</p>
-        </div>
-        <div className="text-center rounded-xl border border-white/10 bg-white/[0.02] py-2.5">
-          <p className="text-base font-bold text-white">{fmt(data.paymentMix.prepaid)}</p>
-          <p className="text-[11px] text-white/40">مدفوع مقدمًا</p>
-        </div>
-        <div className="text-center rounded-xl border border-white/10 bg-white/[0.02] py-2.5">
-          <p className="text-base font-bold text-white">{fmt(data.paymentMix.deferred)}</p>
-          <p className="text-[11px] text-white/40">آجل</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -481,13 +490,72 @@ function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alert
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
-            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm ${meta.bg}`}
+            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm transition-colors duration-200 hover:bg-white/[0.03] ${meta.bg}`}
           >
             <Icon className="w-4 h-4 shrink-0" style={{ color: meta.color }} />
             <span className="text-white/85">{a.message}</span>
           </motion.div>
         );
       })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Delivery Intelligence Panel — تحليل زمن التسليم الذكي (بديل القسم المالي)
+// مبني بالكامل على بيانات الشحنات: الالتزام بالمواعيد + سرعة كل شركة
+// ═══════════════════════════════════════════════════════════════════════════
+function DeliveryIntelligencePanel({ data }: { data: ShipmentsIntelligenceResponse }) {
+  const { kpis, companyPerformance } = data;
+  const fastest = [...companyPerformance].filter(c => c.avgDeliveryHours > 0).sort((a, b) => a.avgDeliveryHours - b.avgDeliveryHours)[0];
+  const slowest = [...companyPerformance].filter(c => c.avgDeliveryHours > 0).sort((a, b) => b.avgDeliveryHours - a.avgDeliveryHours)[0];
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+        <div className="flex justify-center">
+          <RingGauge value={kpis.onTimeRate} max={100} size={150} strokeWidth={13} color={rateColor(kpis.onTimeRate)} label="الالتزام بالمواعيد" sub={`${kpis.avgDeliveryHours} ساعة متوسط`} />
+        </div>
+        <div className="space-y-2.5">
+          {fastest && (
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="w-8 h-8 rounded-lg bg-[#22c55e]/15 text-[#22c55e] flex items-center justify-center shrink-0">
+                <Zap className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-white/45">الأسرع في التسليم</p>
+                <p className="text-sm font-bold text-white truncate">{fastest.companyName} · {fastest.avgDeliveryHours} ساعة</p>
+              </div>
+            </div>
+          )}
+          {slowest && (
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="w-8 h-8 rounded-lg bg-[#ef4444]/15 text-[#ef4444] flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-white/45">الأبطأ في التسليم</p>
+                <p className="text-sm font-bold text-white truncate">{slowest.companyName} · {slowest.avgDeliveryHours} ساعة</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-bold text-white/40 mb-2">متوسط زمن التسليم لكل شركة</p>
+        <div className="space-y-1">
+          {companyPerformance.filter(c => c.avgDeliveryHours > 0).sort((a, b) => a.avgDeliveryHours - b.avgDeliveryHours).slice(0, 6).map((c, i) => (
+            <div key={String(c.companyId)} className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] rounded-lg px-1">
+              <span className="w-6 text-center text-xs font-bold text-white/30">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{c.companyName}</p>
+                <p className="text-xs text-white/45 mt-0.5">{fmt(c.total)} شحنة · نجاح {c.successRate}%</p>
+              </div>
+              <span className="text-sm font-bold tabular-nums text-[#06b6d4] shrink-0">{c.avgDeliveryHours} س</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -509,7 +577,7 @@ function PeriodSwitcher({ value, onChange }: { value: string; onChange: (v: stri
         <button
           key={p.key}
           onClick={() => onChange(p.key)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors duration-200 ${
             value === p.key ? "bg-[#e8b93f] text-black" : "text-white/60 hover:text-white"
           }`}
         >
@@ -529,7 +597,7 @@ function CollapsibleDetail({ title, children, defaultOpen = false }: { title: st
     <div className="mt-4 border-t border-white/5 pt-4">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 text-sm font-bold text-white/70 hover:text-white transition-colors mb-3"
+        className="flex items-center gap-2 text-sm font-bold text-white/70 hover:text-white transition-colors duration-200 mb-3"
       >
         {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         {title}
@@ -627,7 +695,7 @@ export default function ShipmentsIntelligencePage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard>
           <SectionHeader icon={Activity} title="توزيع حالات الشحنات" subtitle="الصورة الحالية لكل الشحنات النشطة" />
-          <StatusDonut data={data.statusDistribution} />
+          <StatusDonut data={data.statusDistribution} total={data.statusDistribution.reduce((s, d) => s + d.value, 0)} />
         </SectionCard>
         <SectionCard>
           <SectionHeader icon={TrendingUp} title="الاتجاه الزمني" subtitle="إجمالي / تم التسليم / مرتجع خلال الفترة" />
@@ -635,10 +703,10 @@ export default function ShipmentsIntelligencePage() {
         </SectionCard>
       </div>
 
-      {/* Aging */}
+      {/* Aging — line chart احترافي */}
       <SectionCard>
         <SectionHeader icon={Clock} title="تحليل أعمار الشحنات المعلقة" subtitle="عدد الشحنات المعلقة حاليًا حسب عمرها منذ الإنشاء" />
-        <AgingBars data={data.agingAnalysis} />
+        <AgingLine data={data.agingAnalysis} />
       </SectionCard>
 
       {/* أداء المدن — تفصيلي كامل */}
@@ -660,7 +728,6 @@ export default function ShipmentsIntelligencePage() {
               { key: "returned", label: "مرتجع", render: r => <span className="text-[#ef4444]">{fmt(r.returned)}</span>, align: "end" },
               { key: "successRate", label: "نسبة النجاح", render: r => <Pill color={rateColor(r.successRate)}>{r.successRate}%</Pill>, align: "end" },
               { key: "returnRate", label: "نسبة المرتجع", render: r => <Pill color={rateColor(r.returnRate, true)}>{r.returnRate}%</Pill>, align: "end" },
-              { key: "codValue", label: "قيمة COD", render: r => <span className="tabular-nums">{fmtMoney(r.codValue)}</span>, align: "end" },
             ]}
           />
         </CollapsibleDetail>
@@ -686,21 +753,20 @@ export default function ShipmentsIntelligencePage() {
               { key: "successRate", label: "نسبة النجاح", render: r => <Pill color={rateColor(r.successRate)}>{r.successRate}%</Pill>, align: "end" },
               { key: "returnRate", label: "نسبة المرتجع", render: r => <Pill color={rateColor(r.returnRate, true)}>{r.returnRate}%</Pill>, align: "end" },
               { key: "avgDeliveryHours", label: "متوسط زمن التسليم", render: r => `${r.avgDeliveryHours} س`, align: "end" },
-              { key: "totalFees", label: "إجمالي مصاريف الشحن", render: r => <span className="tabular-nums">{fmtMoney(r.totalFees)}</span>, align: "end" },
             ]}
           />
         </CollapsibleDetail>
       </SectionCard>
 
-      {/* أسباب المرتجعات + النبض المالي */}
+      {/* أسباب المرتجعات + تحليل زمن التسليم الذكي (بديل القسم المالي) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard>
           <SectionHeader icon={RotateCcw} title="تحليل أسباب المرتجعات" subtitle="تفصيل كل سبب بالعدد والنسبة" />
           <ReturnReasonsBreakdown data={data.returnReasons} />
         </SectionCard>
         <SectionCard>
-          <SectionHeader icon={Wallet} title="النبض المالي" subtitle="التحصيل النقدي عند الاستلام (COD) ومصاريف الشحن" />
-          <FinancialPulsePanel data={data.financialPulse} />
+          <SectionHeader icon={Gauge} title="تحليل زمن التسليم الذكي" subtitle="الالتزام بالمواعيد وسرعة كل شركة شحن" />
+          <DeliveryIntelligencePanel data={data} />
         </SectionCard>
       </div>
 
