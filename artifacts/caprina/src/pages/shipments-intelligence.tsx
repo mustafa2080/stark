@@ -1,163 +1,219 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Brain, TrendingUp, TrendingDown, Package, CheckCircle2, RotateCcw,
+  Clock, MapPin, Truck, Wallet, Users, AlertTriangle, AlertCircle,
+  Info, ChevronDown, ChevronUp, Activity, Timer, Percent,
+} from "lucide-react";
+import { analyticsApi, ShipmentsIntelligenceResponse } from "@/lib/api";
 
-// ─── شريط التنبيهات الذكية — مولّدة تلقائيًا من الباك اند حسب حالة الأرقام ───
-function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alerts"] }) {
-  if (!alerts || alerts.length === 0) return null;
+// ═══════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+const fmt = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n || 0));
+const fmtMoney = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n || 0)) + " ج.م";
+const fmtPct = (n: number) => `${n}%`;
+
+function rateColor(pct: number, invert = false): string {
+  const good = invert ? pct <= 10 : pct >= 80;
+  const warn = invert ? pct <= 25 : pct >= 60;
+  if (good) return "#22c55e";
+  if (warn) return "#eab308";
+  return "#ef4444";
+}
+
+const GRADE_META: Record<string, { label: string; color: string; glow: string }> = {
+  excellent: { label: "ممتاز", color: "#22c55e", glow: "34,197,94" },
+  good:      { label: "جيد",   color: "#e8b93f", glow: "232,185,63" },
+  warning:   { label: "متوسط", color: "#f97316", glow: "249,115,22" },
+  critical:  { label: "حرج",   color: "#ef4444", glow: "239,68,68" },
+};
+
+const ALERT_META: Record<string, { icon: typeof AlertTriangle; color: string; bg: string }> = {
+  critical: { icon: AlertTriangle, color: "#ef4444", bg: "bg-red-500/10 border-red-500/30" },
+  warning:  { icon: AlertCircle,   color: "#f97316", bg: "bg-orange-500/10 border-orange-500/30" },
+  info:     { icon: Info,          color: "#06b6d4", bg: "bg-cyan-500/10 border-cyan-500/30" },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Health Score Gauge — العنصر المميز في الصفحة
+// ═══════════════════════════════════════════════════════════════════════════
+function HealthScoreGauge({ score, grade }: { score: number; grade: string }) {
+  const meta = GRADE_META[grade] ?? GRADE_META.good;
+  const radius = 84;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.max(0, Math.min(100, score));
+  const dashOffset = circumference * (1 - pct / 100);
+
   return (
-    <div className="space-y-2">
-      {alerts.map((a, i) => {
-        const meta = ALERT_META[a.level] ?? ALERT_META.info;
-        const Icon = meta.icon;
-        return (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: i * 0.06 }}
-            className="flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5"
-            style={{ background: meta.bg, borderColor: `${meta.color}33` }}
+    <div className="relative flex flex-col items-center justify-center py-4">
+      <div className="relative" style={{ width: 220, height: 220 }}>
+        <svg width={220} height={220} viewBox="0 0 220 220" className="-rotate-90">
+          <circle cx={110} cy={110} r={radius} fill="none" stroke="#1a1a1a" strokeWidth={14} />
+          <motion.circle
+            cx={110} cy={110} r={radius} fill="none"
+            stroke={meta.color} strokeWidth={14} strokeLinecap="round"
+            strokeDasharray={circumference}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: dashOffset }}
+            transition={{ duration: 1.4, ease: "easeOut" }}
+            style={{ filter: `drop-shadow(0 0 10px rgba(${meta.glow},0.65))` }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <motion.span
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="text-5xl font-black tabular-nums"
+            style={{ color: meta.color, textShadow: `0 0 20px rgba(${meta.glow},0.5)` }}
           >
-            <Icon className="w-4 h-4 shrink-0" style={{ color: meta.color }} />
-            <p className="text-xs font-medium text-gray-200">{a.message}</p>
-          </motion.div>
-        );
-      })}
+            {score}
+          </motion.span>
+          <span className="text-xs text-white/40 mt-1">من 100</span>
+          <span
+            className="mt-2 px-3 py-1 rounded-full text-xs font-bold border"
+            style={{ color: meta.color, borderColor: `${meta.color}55`, background: `${meta.color}15` }}
+          >
+            {meta.label}
+          </span>
+        </div>
+        <div
+          className="absolute inset-0 rounded-full pointer-events-none animate-pulse"
+          style={{ boxShadow: `0 0 40px 4px rgba(${meta.glow},0.15)` }}
+        />
+      </div>
+      <div className="mt-3 text-center">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2 justify-center">
+          <Brain className="w-5 h-5" style={{ color: "#e8b93f" }} />
+          مؤشر صحة الشحنات
+        </h2>
+        <p className="text-xs text-white/40 mt-1">مركّب من معدل التسليم + الالتزام بالمواعيد + المرتجعات + السرعة</p>
+      </div>
     </div>
   );
 }
 
-// ─── حاوية قسم زجاجية موحّدة لكل الصفحة ──────────────────────────────────────
-function SectionCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
-      className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-sm p-4 md:p-5"
-      style={{ boxShadow: "0 8px 30px -12px rgba(0,0,0,0.5)" }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-// ─── KPI Card صغير — للصف العلوي، مع مقارنة اتجاه لو موجودة ─────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// KPI Tile
+// ═══════════════════════════════════════════════════════════════════════════
 function KpiTile({
-  icon: Icon, label, value, sub, color, delay,
-}: { icon: any; label: string; value: string; sub?: string; color: string; delay: number }) {
+  icon: Icon, label, value, sub, color = "#e8b93f", trend,
+}: {
+  icon: typeof Package; label: string; value: string; sub?: string; color?: string; trend?: number;
+}) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay, ease: "easeOut" }}
-      whileHover={{ y: -3 }}
-      className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 transition-shadow duration-300"
-      style={{ boxShadow: `0 4px 20px -6px ${color}30` }}
+      transition={{ duration: 0.4 }}
+      className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-4 overflow-hidden"
+      style={{ boxShadow: `0 0 0 1px rgba(255,255,255,0.02) inset` }}
     >
-      <div className="absolute -top-8 -left-8 h-20 w-20 rounded-full opacity-25 blur-2xl" style={{ background: color }} />
-      <div className="relative flex items-center justify-between mb-2">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${color}1f` }}>
-          <Icon className="w-4.5 h-4.5" style={{ color }} />
+      <div
+        className="absolute -top-8 -left-8 w-24 h-24 rounded-full blur-2xl opacity-20"
+        style={{ background: color }}
+      />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-xs text-white/50 mb-1">{label}</p>
+          <p className="text-2xl font-black text-white tabular-nums">{value}</p>
+          {sub && <p className="text-[11px] text-white/40 mt-1">{sub}</p>}
+        </div>
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `${color}20`, color }}
+        >
+          <Icon className="w-4.5 h-4.5" />
         </div>
       </div>
-      <p className="relative text-[11px] font-medium text-gray-400 mb-0.5">{label}</p>
-      <p className="relative text-xl font-black text-white tabular-nums">{value}</p>
-      {sub && <p className="relative text-[10px] text-gray-500 mt-0.5">{sub}</p>}
+      {trend !== undefined && (
+        <div className="relative mt-2 flex items-center gap-1 text-[11px]" style={{ color: trend >= 0 ? "#22c55e" : "#ef4444" }}>
+          {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          {Math.abs(trend)}%
+        </div>
+      )}
     </motion.div>
   );
 }
 
-// ─── عنوان قسم موحّد مع وصف تفصيلي دايمًا يشرح الرقم إيه معناه ──────────────
-function SectionHeader({ icon: Icon, title, subtitle, color, badge }: { icon: any; title: string; subtitle?: string; color: string; badge?: string }) {
+// ═══════════════════════════════════════════════════════════════════════════
+// Section header + wrapper card
+// ═══════════════════════════════════════════════════════════════════════════
+function SectionHeader({ icon: Icon, title, subtitle }: { icon: typeof Package; title: string; subtitle?: string }) {
   return (
-    <div className="flex items-center justify-between gap-2.5 mb-4">
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}1f`, boxShadow: `0 0 14px -4px ${color}55` }}>
-          <Icon className="w-4 h-4" style={{ color }} />
-        </div>
-        <div>
-          <h3 className="text-sm font-bold text-white">{title}</h3>
-          {subtitle && <p className="text-[11px] text-gray-500">{subtitle}</p>}
-        </div>
+    <div className="flex items-center gap-2.5 mb-4">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#e8b93f]/15 text-[#e8b93f]">
+        <Icon className="w-4 h-4" />
       </div>
-      {badge && (
-        <span className="text-[10px] font-bold px-2 py-1 rounded-full shrink-0" style={{ color, background: `${color}18` }}>
-          {badge}
-        </span>
-      )}
+      <div>
+        <h3 className="text-base font-bold text-white">{title}</h3>
+        {subtitle && <p className="text-[11px] text-white/40">{subtitle}</p>}
+      </div>
     </div>
   );
 }
 
-const ChartTooltip = ({ active, payload, label }: any) => {
+function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl border border-white/10 bg-white/[0.02] p-4 md:p-5 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chart tooltip (shared)
+// ═══════════════════════════════════════════════════════════════════════════
+function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0d1220]/95 backdrop-blur-md px-3 py-2 text-xs shadow-xl">
-      {label && <p className="text-gray-400 mb-1">{label}</p>}
+    <div className="rounded-lg border border-white/10 bg-[#0a0a0a]/95 px-3 py-2 text-xs shadow-xl backdrop-blur-sm">
+      {label && <p className="text-white/50 mb-1">{label}</p>}
       {payload.map((p: any, i: number) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.fill }} />
-          <span className="text-gray-300">{p.name}:</span>
-          <span className="font-bold text-white">{fmt(p.value)}</span>
-        </div>
+        <p key={i} style={{ color: p.color || p.fill }} className="font-bold">
+          {p.name}: {fmt(p.value)}
+        </p>
       ))}
     </div>
   );
-};
+}
 
-// ─── توزيع الحالات — Donut تفاعلي مع تفاصيل رقمية كاملة لكل حالة ────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// Status Distribution Donut
+// ═══════════════════════════════════════════════════════════════════════════
 function StatusDonut({ data }: { data: ShipmentsIntelligenceResponse["statusDistribution"] }) {
-  const [active, setActive] = useState<number | null>(null);
-  const total = data.reduce((a, d) => a + d.value, 0);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-      <div className="relative h-56">
+      <div style={{ height: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data} dataKey="value" nameKey="label"
-              cx="50%" cy="50%" innerRadius={62} outerRadius={92}
-              paddingAngle={2} cornerRadius={6}
-              isAnimationActive animationDuration={900}
-              onMouseEnter={(_, i) => setActive(i)}
-              onMouseLeave={() => setActive(null)}
+              innerRadius={62} outerRadius={92} paddingAngle={2}
+              stroke="none"
             >
-              {data.map((d, i) => (
-                <Cell
-                  key={d.status}
-                  fill={d.color}
-                  stroke="none"
-                  style={{
-                    filter: active === i ? `drop-shadow(0 0 10px ${d.color}aa)` : "none",
-                    opacity: active === null || active === i ? 1 : 0.45,
-                    transition: "all .25s ease",
-                  }}
-                />
-              ))}
+              {data.map((d, i) => <Cell key={i} fill={d.color} />)}
             </Pie>
             <Tooltip content={<ChartTooltip />} />
           </PieChart>
         </ResponsiveContainer>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-2xl font-black text-white">{fmt(total)}</span>
-          <span className="text-[10px] text-gray-500">إجمالي الشحنات</span>
-        </div>
       </div>
       <div className="space-y-2">
         {data.map((d, i) => (
-          <div
-            key={d.status}
-            onMouseEnter={() => setActive(i)}
-            onMouseLeave={() => setActive(null)}
-            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 transition-colors"
-            style={{ background: active === i ? `${d.color}14` : "transparent" }}
-          >
+          <div key={i} className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: d.color, boxShadow: `0 0 6px ${d.color}88` }} />
-              <span className="text-xs text-gray-300">{d.label}</span>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: d.color }} />
+              <span className="text-white/70">{d.label}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white tabular-nums">{fmt(d.value)}</span>
-              <span className="text-[10px] text-gray-500 w-8 text-left">{d.pct}%</span>
+              <span className="text-white font-bold tabular-nums">{fmt(d.value)}</span>
+              <span className="text-white/40 text-xs w-9 text-left">{d.pct}%</span>
             </div>
           </div>
         ))}
@@ -166,130 +222,120 @@ function StatusDonut({ data }: { data: ShipmentsIntelligenceResponse["statusDist
   );
 }
 
-// ─── ترند الشحنات على مدار الفترة — يومي مع مقارنة إجمالي/تسليم/مرتجع ───────
+// ═══════════════════════════════════════════════════════════════════════════
+// Trend Area Chart
+// ═══════════════════════════════════════════════════════════════════════════
 function TrendChart({ data }: { data: ShipmentsIntelligenceResponse["trend"] }) {
-  const chartData = data.map(d => ({
-    ...d,
-    dateLabel: new Date(d.date).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }),
-  }));
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("ar-EG", { day: "numeric", month: "short" });
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-        <defs>
-          <linearGradient id="siTotalGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="siDeliveredGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22c55e" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="siReturnedGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-        <XAxis dataKey="dateLabel" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={24} />
-        <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
-        <Tooltip content={<ChartTooltip />} />
-        <Area type="monotone" dataKey="total" name="إجمالي" stroke="#a78bfa" strokeWidth={2} fill="url(#siTotalGrad)" isAnimationActive animationDuration={900} />
-        <Area type="monotone" dataKey="delivered" name="تم التسليم" stroke="#22c55e" strokeWidth={2} fill="url(#siDeliveredGrad)" isAnimationActive animationDuration={900} />
-        <Area type="monotone" dataKey="returned" name="مرتجع" stroke="#ef4444" strokeWidth={2} fill="url(#siReturnedGrad)" isAnimationActive animationDuration={900} />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-// ─── أعمار الشحنات المعلقة حاليًا — تفصيل زمني كامل مش رقم واحد ─────────────
-function AgingBars({ data }: { data: ShipmentsIntelligenceResponse["agingAnalysis"] }) {
-  const colors = ["#22c55e", "#eab308", "#f97316", "#ef4444"];
-  const total = data.reduce((a, d) => a + d.count, 0);
-  return (
-    <div>
-      <ResponsiveContainer width="100%" height={190}>
-        <BarChart data={data} margin={{ top: 18, right: 8, left: -18, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} width={26} />
-          <Tooltip content={<ChartTooltip />} />
-          <Bar dataKey="count" name="عدد الشحنات" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={900}>
-            {data.map((d, i) => <Cell key={d.key} fill={colors[i] ?? "#94a3b8"} />)}
-            <LabelList dataKey="count" position="top" fill="#e5e7eb" fontSize={11} fontWeight={700} />
-          </Bar>
-        </BarChart>
+    <div style={{ height: 260 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+          <defs>
+            <linearGradient id="siTotalGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#e8b93f" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#e8b93f" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="siDeliveredGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+          <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <Tooltip content={<ChartTooltip />} labelFormatter={fmtDate} />
+          <Area type="monotone" dataKey="total" name="إجمالي" stroke="#e8b93f" fill="url(#siTotalGrad)" strokeWidth={2} />
+          <Area type="monotone" dataKey="delivered" name="تم التسليم" stroke="#22c55e" fill="url(#siDeliveredGrad)" strokeWidth={2} />
+          <Area type="monotone" dataKey="returned" name="مرتجع" stroke="#ef4444" fill="transparent" strokeWidth={1.5} strokeDasharray="4 3" />
+        </AreaChart>
       </ResponsiveContainer>
-      <p className="text-[11px] text-gray-500 text-center mt-1">
-        إجمالي الشحنات المعلقة حاليًا: <span className="text-white font-bold">{fmt(total)}</span> شحنة
-      </p>
     </div>
   );
 }
 
-// ─── صف مُرتّب بشريط تقدّم — نظرة سريعة على العنصر ──────────────────────────
-function RankedRow({
-  rank, title, subtitle, value, valueLabel, pct, pctColor, icon: Icon, delay,
-}: {
-  rank: number; title: string; subtitle?: string; value: string; valueLabel: string;
-  pct: number; pctColor: string; icon: any; delay: number;
-}) {
+// ═══════════════════════════════════════════════════════════════════════════
+// Aging Bars — أعمار الشحنات المعلقة حالياً
+// ═══════════════════════════════════════════════════════════════════════════
+function AgingBars({ data }: { data: ShipmentsIntelligenceResponse["agingAnalysis"] }) {
+  const BUCKET_COLORS: Record<string, string> = {
+    "0-3": "#22c55e", "4-7": "#eab308", "8-14": "#f97316", "15+": "#ef4444",
+  };
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.4, delay, ease: "easeOut" }}
-      className="group relative rounded-xl border border-white/8 bg-white/[0.02] p-3 hover:bg-white/[0.05] hover:border-white/15 transition-all duration-300"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-white/5 text-[11px] font-bold text-gray-400">
-            {rank}
-          </div>
-          <Icon className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-white truncate">{title}</p>
-            {subtitle && <p className="text-[10px] text-gray-500 truncate">{subtitle}</p>}
-          </div>
-        </div>
-        <div className="text-left shrink-0">
-          <p className="text-xs font-bold text-white tabular-nums">{value}</p>
-          <p className="text-[10px] text-gray-500">{valueLabel}</p>
-        </div>
-      </div>
-      <div className="mt-2 h-1.5 rounded-full bg-white/5 overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-          transition={{ duration: 0.8, delay: delay + 0.1, ease: "easeOut" }}
-          className="h-full rounded-full"
-          style={{ background: pctColor, boxShadow: `0 0 8px ${pctColor}88` }}
-        />
-      </div>
-    </motion.div>
+    <div style={{ height: 200 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+          <XAxis dataKey="label" tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar dataKey="count" name="عدد الشحنات" radius={[6, 6, 0, 0]}>
+            {data.map((d, i) => <Cell key={i} fill={BUCKET_COLORS[d.key] ?? "#e8b93f"} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
-// ─── جدول تفصيلي — كل الأرقام لكل عنصر جنب بعض (مش تلخيص، تفصيل كامل) ───────
-function DetailTable({
-  columns, rows, accentColor,
+// ═══════════════════════════════════════════════════════════════════════════
+// Ranked Row — شريط تقدّم متحرك (يُستخدم للمدن/الشركات/المناديب)
+// ═══════════════════════════════════════════════════════════════════════════
+function RankedRow({
+  rank, name, total, successRate, sub, barColor,
 }: {
-  columns: { key: string; label: string; align?: "right" | "left" | "center" }[];
-  rows: Array<Record<string, any>>;
-  accentColor: string;
+  rank: number; name: string; total: number; successRate: number; sub?: string; barColor?: string;
 }) {
+  const color = barColor ?? rateColor(successRate);
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/8">
-      <table className="w-full text-xs">
+    <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
+      <span className="w-6 text-center text-xs font-bold text-white/30">{rank}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm font-medium text-white truncate">{name}</span>
+          <span className="text-xs text-white/50 shrink-0 ms-2">{fmt(total)} شحنة{sub ? ` · ${sub}` : ""}</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${successRate}%` }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="h-full rounded-full"
+            style={{ background: color }}
+          />
+        </div>
+      </div>
+      <span className="w-11 text-left text-sm font-bold tabular-nums shrink-0" style={{ color }}>
+        {successRate}%
+      </span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Detail Table — جدول تفصيلي كامل (كل الأعمدة/الأرقام) للمدن وشركات الشحن
+// ═══════════════════════════════════════════════════════════════════════════
+type DetailColumn<T> = { key: string; label: string; render: (row: T) => React.ReactNode; align?: "start" | "end" };
+
+function DetailTable<T extends Record<string, any>>({
+  rows, columns, emptyLabel = "لا توجد بيانات",
+}: {
+  rows: T[]; columns: DetailColumn<T>[]; emptyLabel?: string;
+}) {
+  if (!rows.length) {
+    return <p className="text-center text-sm text-white/40 py-8">{emptyLabel}</p>;
+  }
+  return (
+    <div className="overflow-x-auto -mx-1">
+      <table className="w-full text-sm min-w-[640px]">
         <thead>
-          <tr className="bg-white/[0.04] border-b border-white/8">
-            {columns.map(col => (
+          <tr className="border-b border-white/10">
+            {columns.map(c => (
               <th
-                key={col.key}
-                className={`px-3 py-2.5 font-bold text-gray-400 whitespace-nowrap ${
-                  col.align === "left" ? "text-left" : col.align === "center" ? "text-center" : "text-right"
-                }`}
+                key={c.key}
+                className={`py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap ${c.align === "end" ? "text-left" : "text-right"}`}
               >
-                {col.label}
+                {c.label}
               </th>
             ))}
           </tr>
@@ -300,139 +346,130 @@ function DetailTable({
               key={i}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.3, delay: i * 0.03 }}
-              className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors"
+              transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.3) }}
+              className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]"
             >
-              {columns.map(col => (
-                <td
-                  key={col.key}
-                  className={`px-3 py-2.5 whitespace-nowrap ${
-                    col.align === "left" ? "text-left" : col.align === "center" ? "text-center" : "text-right"
-                  } ${col.key === columns[0].key ? "font-semibold text-white" : "text-gray-300 tabular-nums"}`}
-                  style={col.key === "successRate" || col.key === "returnRate" ? { color: row[`${col.key}Color`] ?? undefined } : undefined}
-                >
-                  {row[col.key]}
+              {columns.map(c => (
+                <td key={c.key} className={`py-2.5 px-2 whitespace-nowrap ${c.align === "end" ? "text-left" : "text-right"}`}>
+                  {c.render(row)}
                 </td>
               ))}
             </motion.tr>
           ))}
-          {rows.length === 0 && (
-            <tr><td colSpan={columns.length} className="px-3 py-8 text-center text-gray-500">لا توجد بيانات كافية للفترة المختارة</td></tr>
-          )}
         </tbody>
       </table>
     </div>
   );
 }
 
-// ─── تلوين ديناميكي حسب قيمة النسبة (نجاح = أخضر، خطر = أحمر) ───────────────
-function rateColor(pct: number, inverted = false): string {
-  const p = inverted ? 100 - pct : pct;
-  if (p >= 80) return "#22c55e";
-  if (p >= 60) return "#38bdf8";
-  if (p >= 40) return "#f59e0b";
-  return "#ef4444";
+function Pill({ children, color }: { children: React.ReactNode; color: string }) {
+  return (
+    <span
+      className="px-2 py-0.5 rounded-full text-xs font-bold"
+      style={{ color, background: `${color}18`, border: `1px solid ${color}33` }}
+    >
+      {children}
+    </span>
+  );
 }
 
-// ─── أسباب المرتجعات — تفصيل كامل لكل سبب بالعدد والنسبة وشريط مقارنة ────────
+// ═══════════════════════════════════════════════════════════════════════════
+// Return Reasons Breakdown — تفصيلي: عدد + نسبة لكل سبب
+// ═══════════════════════════════════════════════════════════════════════════
 function ReturnReasonsBreakdown({ data }: { data: ShipmentsIntelligenceResponse["returnReasons"] }) {
-  const maxCount = Math.max(...data.map(d => d.count), 1);
-  if (data.length === 0) {
-    return <p className="text-center text-gray-500 text-xs py-10">لا توجد مرتجعات مسجّلة في هذه الفترة 🎉</p>;
+  if (!data.length) {
+    return <p className="text-center text-sm text-white/40 py-8">لا توجد مرتجعات في الفترة المختارة 👌</p>;
   }
+  const maxCount = Math.max(...data.map(d => d.count));
   return (
-    <div className="space-y-2.5">
-      {data.map((r, i) => (
-        <motion.div
-          key={r.reason}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: i * 0.05 }}
-          className="rounded-lg border border-white/8 bg-white/[0.02] p-3"
-        >
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-white">{r.label}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-red-400 tabular-nums">{fmt(r.count)}</span>
-              <span className="text-[10px] text-gray-500">({r.pct}%)</span>
-            </div>
+    <div className="space-y-3">
+      {data.map((d, i) => (
+        <div key={d.reason}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm text-white/80">{d.label}</span>
+            <span className="text-xs text-white/50">
+              <span className="font-bold text-white">{fmt(d.count)}</span> شحنة · {d.pct}%
+            </span>
           </div>
-          <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+          <div className="h-2 rounded-full bg-white/5 overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${(r.count / maxCount) * 100}%` }}
-              transition={{ duration: 0.7, delay: i * 0.05 + 0.1 }}
-              className="h-full rounded-full bg-gradient-to-l from-red-500 to-orange-400"
-              style={{ boxShadow: "0 0 8px rgba(239,68,68,0.5)" }}
+              animate={{ width: `${(d.count / maxCount) * 100}%` }}
+              transition={{ duration: 0.7, delay: i * 0.05, ease: "easeOut" }}
+              className="h-full rounded-full"
+              style={{ background: "linear-gradient(90deg,#ef4444,#f97316)" }}
             />
           </div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );
 }
 
-// ─── النبض المالي — تفصيل كامل: متوقع/محصّل/فرق/نسبة تحصيل/مزيج طرق الدفع ───
+// ═══════════════════════════════════════════════════════════════════════════
+// Financial Pulse Panel — النبض المالي (COD)
+// ═══════════════════════════════════════════════════════════════════════════
 function FinancialPulsePanel({ data }: { data: ShipmentsIntelligenceResponse["financialPulse"] }) {
   const gap = data.codExpected - data.codCollected;
-  const mixTotal = data.paymentMix.cod + data.paymentMix.prepaid + data.paymentMix.deferred || 1;
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-          <p className="text-[10px] text-gray-500 mb-1">المبلغ المتوقع تحصيله (COD)</p>
-          <p className="text-lg font-black text-white">{fc(data.codExpected)}</p>
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <p className="text-[11px] text-white/40 mb-1">COD متوقع</p>
+          <p className="text-lg font-black text-white tabular-nums">{fmtMoney(data.codExpected)}</p>
         </div>
-        <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-          <p className="text-[10px] text-gray-500 mb-1">المبلغ المحصَّل فعليًا</p>
-          <p className="text-lg font-black text-emerald-400">{fc(data.codCollected)}</p>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <p className="text-[11px] text-white/40 mb-1">COD محصّل</p>
+          <p className="text-lg font-black text-[#22c55e] tabular-nums">{fmtMoney(data.codCollected)}</p>
         </div>
-        <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-          <p className="text-[10px] text-gray-500 mb-1">الفرق (لم يُحصّل بعد)</p>
-          <p className={`text-lg font-black ${gap > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fc(Math.abs(gap))}</p>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <p className="text-[11px] text-white/40 mb-1">فرق غير محصّل</p>
+          <p className="text-lg font-black tabular-nums" style={{ color: gap > 0 ? "#ef4444" : "#22c55e" }}>
+            {fmtMoney(Math.abs(gap))}
+          </p>
         </div>
-        <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-          <p className="text-[10px] text-gray-500 mb-1">إجمالي رسوم الشحن</p>
-          <p className="text-lg font-black text-cyan-400">{fc(data.shippingFeesTotal)}</p>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <p className="text-[11px] text-white/40 mb-1">إجمالي مصاريف الشحن</p>
+          <p className="text-lg font-black text-[#e8b93f] tabular-nums">{fmtMoney(data.shippingFeesTotal)}</p>
         </div>
       </div>
-
       <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] text-gray-400">نسبة التحصيل</span>
-          <span className="text-xs font-bold" style={{ color: rateColor(data.collectionRate) }}>{data.collectionRate}%</span>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm text-white/70">نسبة التحصيل</span>
+          <span className="text-sm font-bold" style={{ color: rateColor(data.collectionRate) }}>{data.collectionRate}%</span>
         </div>
-        <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+        <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${data.collectionRate}%` }}
-            transition={{ duration: 0.9, ease: "easeOut" }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
             className="h-full rounded-full"
-            style={{ background: rateColor(data.collectionRate), boxShadow: `0 0 10px ${rateColor(data.collectionRate)}88` }}
+            style={{ background: rateColor(data.collectionRate) }}
           />
         </div>
       </div>
-
-      <div>
-        <p className="text-[11px] text-gray-400 mb-2">توزيع طرق الدفع</p>
-        <div className="flex h-2.5 rounded-full overflow-hidden bg-white/5">
-          <div style={{ width: `${(data.paymentMix.cod / mixTotal) * 100}%`, background: "#f59e0b" }} />
-          <div style={{ width: `${(data.paymentMix.prepaid / mixTotal) * 100}%`, background: "#22c55e" }} />
-          <div style={{ width: `${(data.paymentMix.deferred / mixTotal) * 100}%`, background: "#a78bfa" }} />
+      <div className="grid grid-cols-3 gap-3">
+        <div className="text-center rounded-xl border border-white/10 bg-white/[0.02] py-2.5">
+          <p className="text-base font-bold text-white">{fmt(data.paymentMix.cod)}</p>
+          <p className="text-[11px] text-white/40">دفع عند الاستلام</p>
         </div>
-        <div className="flex items-center gap-4 mt-2 text-[10px] text-gray-400 flex-wrap">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" />الدفع عند الاستلام: {fmt(data.paymentMix.cod)}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />مدفوع مسبقًا: {fmt(data.paymentMix.prepaid)}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-400" />آجل: {fmt(data.paymentMix.deferred)}</span>
+        <div className="text-center rounded-xl border border-white/10 bg-white/[0.02] py-2.5">
+          <p className="text-base font-bold text-white">{fmt(data.paymentMix.prepaid)}</p>
+          <p className="text-[11px] text-white/40">مدفوع مقدمًا</p>
+        </div>
+        <div className="text-center rounded-xl border border-white/10 bg-white/[0.02] py-2.5">
+          <p className="text-base font-bold text-white">{fmt(data.paymentMix.deferred)}</p>
+          <p className="text-[11px] text-white/40">آجل</p>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── شريط التنبيهات الذكية — مولّدة تلقائيًا من الباك اند حسب حالة الأرقام ───
+// ═══════════════════════════════════════════════════════════════════════════
+// Alerts Banner
+// ═══════════════════════════════════════════════════════════════════════════
 function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alerts"] }) {
-  if (!alerts || alerts.length === 0) return null;
   return (
     <div className="space-y-2">
       {alerts.map((a, i) => {
@@ -441,14 +478,13 @@ function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alert
         return (
           <motion.div
             key={i}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: i * 0.06 }}
-            className="flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5"
-            style={{ background: meta.bg, borderColor: `${meta.color}33` }}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.05 }}
+            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm ${meta.bg}`}
           >
             <Icon className="w-4 h-4 shrink-0" style={{ color: meta.color }} />
-            <p className="text-xs font-medium text-gray-200">{a.message}</p>
+            <span className="text-white/85">{a.message}</span>
           </motion.div>
         );
       })}
@@ -456,111 +492,95 @@ function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alert
   );
 }
 
-// ─── حاوية قسم زجاجية موحّدة لكل الصفحة ──────────────────────────────────────
-function SectionCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
-      className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-sm p-4 md:p-5"
-      style={{ boxShadow: "0 8px 30px -12px rgba(0,0,0,0.5)" }}
-    >
-      {children}
-    </motion.div>
-  );
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// Period Switcher
+// ═══════════════════════════════════════════════════════════════════════════
+const PERIODS: { key: string; label: string }[] = [
+  { key: "today", label: "اليوم" },
+  { key: "week", label: "أسبوع" },
+  { key: "month", label: "شهر" },
+  { key: "year", label: "سنة" },
+];
 
-// ─── مفتاح تبديل الفترة الزمنية (اليوم/أسبوع/شهر/سنة) ───────────────────────
-function PeriodSwitcher({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
+function PeriodSwitcher({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
-      {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
+      {PERIODS.map(p => (
         <button
-          key={p}
-          onClick={() => onChange(p)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            value === p ? "bg-gradient-to-l from-cyan-500/90 to-violet-500/90 text-white shadow-lg" : "text-gray-400 hover:text-white hover:bg-white/5"
+          key={p.key}
+          onClick={() => onChange(p.key)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+            value === p.key ? "bg-[#e8b93f] text-black" : "text-white/60 hover:text-white"
           }`}
         >
-          {PERIOD_LABELS[p]}
+          {p.label}
         </button>
       ))}
     </div>
   );
 }
 
-// ─── الصفحة الرئيسية — تجميع كل الأقسام + فلتر الفترة + حالات التحميل/الخطأ ──
-export default function ShipmentsIntelligencePage() {
-  const [period, setPeriod] = useState<Period>("month");
+// ═══════════════════════════════════════════════════════════════════════════
+// Collapsible section wrapper — للأقسام التفصيلية الطويلة
+// ═══════════════════════════════════════════════════════════════════════════
+function CollapsibleDetail({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="mt-4 border-t border-white/5 pt-4">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 text-sm font-bold text-white/70 hover:text-white transition-colors mb-3"
+      >
+        {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {title}
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ overflow: "hidden" }}
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["shipments-intelligence", period],
+// ═══════════════════════════════════════════════════════════════════════════
+// الصفحة الرئيسية
+// ═══════════════════════════════════════════════════════════════════════════
+export default function ShipmentsIntelligencePage() {
+  const [period, setPeriod] = useState("month");
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["analytics", "shipments-intelligence", period],
     queryFn: () => analyticsApi.shipmentsIntelligence({ period }),
     staleTime: 60_000,
   });
 
-  const cityRows = useMemo(() => {
-    if (!data) return [];
-    return data.cityPerformance.map(c => ({
-      city: c.city,
-      total: fmt(c.total),
-      delivered: fmt(c.delivered),
-      returned: fmt(c.returned),
-      codValue: fc(c.codValue),
-      successRate: `${c.successRate}%`,
-      successRateColor: rateColor(c.successRate),
-      returnRate: `${c.returnRate}%`,
-      returnRateColor: rateColor(c.returnRate, true),
-    }));
-  }, [data]);
-
-  const companyRows = useMemo(() => {
-    if (!data) return [];
-    return data.companyPerformance.map(c => ({
-      companyName: c.companyName,
-      total: fmt(c.total),
-      delivered: fmt(c.delivered),
-      returned: fmt(c.returned),
-      successRate: `${c.successRate}%`,
-      successRateColor: rateColor(c.successRate),
-      returnRate: `${c.returnRate}%`,
-      returnRateColor: rateColor(c.returnRate, true),
-      avgDeliveryHours: `${c.avgDeliveryHours} س`,
-      totalFees: fc(c.totalFees),
-    }));
-  }, [data]);
-
-  const topCities = useMemo(() => {
-    if (!data) return [];
-    return [...data.cityPerformance].sort((a, b) => b.total - a.total).slice(0, 6);
-  }, [data]);
-
-  const topReps = useMemo(() => {
-    if (!data) return [];
-    return [...data.repPerformance].sort((a, b) => b.total - a.total).slice(0, 8);
-  }, [data]);
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0f1e] text-white flex flex-col items-center justify-center gap-3" dir="rtl">
-        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
-        <p className="text-sm text-gray-400">جارِ تحليل بيانات الشحنات…</p>
+      <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 flex items-center justify-center" dir="rtl">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-[#e8b93f]/30 border-t-[#e8b93f] animate-spin" />
+          <p className="text-white/50 text-sm">جاري تحميل تحليل الشحنات الذكي...</p>
+        </div>
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-[#0a0f1e] text-white flex flex-col items-center justify-center gap-3 p-6" dir="rtl">
-        <AlertOctagon className="w-8 h-8 text-red-400" />
-        <p className="text-sm text-gray-400">تعذّر تحميل تحليل الشحنات، حاول مرة أخرى</p>
-        <button
-          onClick={() => refetch()}
-          className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold hover:bg-white/10 transition-colors"
-        >
-          إعادة المحاولة
-        </button>
+      <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 flex items-center justify-center" dir="rtl">
+        <div className="text-center">
+          <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+          <p className="text-white/70">تعذّر تحميل البيانات{error instanceof Error ? `: ${error.message}` : ""}</p>
+        </div>
       </div>
     );
   }
@@ -569,185 +589,138 @@ export default function ShipmentsIntelligencePage() {
 
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 space-y-6" dir="rtl">
-      {/* ── الهيدر ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
-            style={{
-              background: "linear-gradient(135deg, rgba(56,189,248,0.18), rgba(167,139,250,0.18))",
-              boxShadow: "0 0 20px -4px rgba(167,139,250,0.4)",
-            }}
-          >
-            <Brain className="w-5.5 h-5.5 text-violet-300" />
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-500/20 border border-cyan-400/20 flex items-center justify-center">
+            <Brain className="w-5.5 h-5.5 text-cyan-300" />
           </div>
           <div>
-            <h1 className="text-lg font-black text-white flex items-center gap-2">
-              تحليل الشحنات الذكي
-              {isFetching && <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />}
-            </h1>
-            <p className="text-[11px] text-gray-500">
-              من {new Date(data.rangeFrom).toLocaleDateString("ar-EG")} إلى {new Date(data.rangeTo).toLocaleDateString("ar-EG")}
-            </p>
+            <h1 className="text-xl md:text-2xl font-black text-white">تحليل الشحنات الذكي</h1>
+            <p className="text-xs text-white/40">تحليل تفصيلي شامل لأداء الشحنات — مبني على بيانات الشحنات الفعلية فقط</p>
           </div>
         </div>
         <PeriodSwitcher value={period} onChange={setPeriod} />
       </div>
 
-      {/* ── التنبيهات الذكية ── */}
+      {/* Alerts */}
       <AlertsBanner alerts={data.alerts} />
 
-      {/* ── Hero: Health Score + KPIs ── */}
+      {/* Hero: Health Score + KPIs */}
       <SectionCard>
-        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-center">
           <HealthScoreGauge score={data.healthScore} grade={data.healthGrade} />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#a78bfa" delay={0.05} />
-            <KpiTile icon={CheckCircle2} label="نسبة التسليم" value={`${kpis.deliveryRate}%`} sub={`${fmt(kpis.delivered)} شحنة`} color="#22c55e" delay={0.1} />
-            <KpiTile icon={RotateCcw} label="نسبة المرتجع" value={`${kpis.returnRate}%`} sub={`${fmt(kpis.returned)} شحنة`} color="#ef4444" delay={0.15} />
-            <KpiTile icon={Clock} label="الالتزام بالوقت" value={`${kpis.onTimeRate}%`} color="#38bdf8" delay={0.2} />
-            <KpiTile icon={Timer} label="متوسط زمن التسليم" value={`${kpis.avgDeliveryHours} س`} sub="من الاستلام للتسليم" color="#f59e0b" delay={0.25} />
-            <KpiTile icon={Wallet} label="نسبة التحصيل" value={`${data.financialPulse.collectionRate}%`} color="#f59e0b" delay={0.3} />
-            <KpiTile icon={Banknote} label="إجمالي COD محصَّل" value={fc(data.financialPulse.codCollected)} color="#22c55e" delay={0.35} />
-            <KpiTile icon={CreditCard} label="إجمالي رسوم الشحن" value={fc(data.financialPulse.shippingFeesTotal)} color="#38bdf8" delay={0.4} />
+            <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#e8b93f" />
+            <KpiTile icon={CheckCircle2} label="تم التسليم" value={fmt(kpis.delivered)} sub={`${kpis.deliveryRate}%`} color="#22c55e" />
+            <KpiTile icon={RotateCcw} label="مرتجعة" value={fmt(kpis.returned)} sub={`${kpis.returnRate}%`} color="#ef4444" />
+            <KpiTile icon={Timer} label="الالتزام بالمواعيد" value={fmtPct(kpis.onTimeRate)} color="#06b6d4" />
+            <KpiTile icon={Clock} label="متوسط زمن التسليم" value={`${kpis.avgDeliveryHours} س`} color="#8b5cf6" />
+            <KpiTile icon={Percent} label="معدل التسليم" value={fmtPct(kpis.deliveryRate)} color="#22c55e" />
+            <KpiTile icon={Activity} label="معدل المرتجعات" value={fmtPct(kpis.returnRate)} color="#ef4444" />
+            <KpiTile icon={Truck} label="شركات الشحن النشطة" value={fmt(data.companyPerformance.length)} color="#f97316" />
           </div>
         </div>
       </SectionCard>
 
-      {/* ── توزيع الحالات + الترند الزمني ── */}
+      {/* Status distribution + Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard delay={0.05}>
-          <SectionHeader icon={PieChartIcon} title="توزيع حالات الشحنات" subtitle="كل الحالات بالعدد والنسبة المئوية" color="#a78bfa" />
+        <SectionCard>
+          <SectionHeader icon={Activity} title="توزيع حالات الشحنات" subtitle="الصورة الحالية لكل الشحنات النشطة" />
           <StatusDonut data={data.statusDistribution} />
         </SectionCard>
-        <SectionCard delay={0.1}>
-          <SectionHeader icon={Activity} title="الترند الزمني" subtitle="إجمالي الشحنات مقابل التسليم والمرتجع يوميًا" color="#38bdf8" />
+        <SectionCard>
+          <SectionHeader icon={TrendingUp} title="الاتجاه الزمني" subtitle="إجمالي / تم التسليم / مرتجع خلال الفترة" />
           <TrendChart data={data.trend} />
         </SectionCard>
       </div>
 
-      {/* ── أعمار الشحنات المعلقة ── */}
-      <SectionCard delay={0.1}>
-        <SectionHeader
-          icon={Clock}
-          title="تحليل أعمار الشحنات المعلقة"
-          subtitle="كل الشحنات اللي لسه في الطريق، مقسّمة حسب عدد الأيام من غير تحديث"
-          color="#f59e0b"
-          badge={`${data.agingAnalysis.reduce((a, d) => a + d.count, 0)} شحنة معلّقة`}
-        />
+      {/* Aging */}
+      <SectionCard>
+        <SectionHeader icon={Clock} title="تحليل أعمار الشحنات المعلقة" subtitle="عدد الشحنات المعلقة حاليًا حسب عمرها منذ الإنشاء" />
         <AgingBars data={data.agingAnalysis} />
       </SectionCard>
 
-      {/* ── أداء المدن — نظرة سريعة + جدول تفصيلي كامل ── */}
-      <SectionCard delay={0.1}>
-        <SectionHeader
-          icon={MapPin}
-          title="أداء المدن الجغرافي"
-          subtitle="كل مدينة: إجمالي الشحنات، نسبة النجاح، نسبة الإرجاع، وقيمة التحصيل"
-          color="#22c55e"
-          badge={`${data.cityPerformance.length} مدينة`}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-5">
-          {topCities.map((c, i) => (
-            <RankedRow
-              key={c.city}
-              rank={i + 1}
-              title={c.city}
-              subtitle={`${fmt(c.delivered)} تسليم · ${fmt(c.returned)} مرتجع`}
-              value={fmt(c.total)}
-              valueLabel="شحنة"
-              pct={c.successRate}
-              pctColor={rateColor(c.successRate)}
-              icon={MapPin}
-              delay={i * 0.04}
-            />
+      {/* أداء المدن — تفصيلي كامل */}
+      <SectionCard>
+        <SectionHeader icon={MapPin} title="أداء المدن" subtitle="ترتيب حسب حجم الشحنات — تفصيل كامل لكل مدينة" />
+        <div className="space-y-1">
+          {data.cityPerformance.slice(0, 8).map((c, i) => (
+            <RankedRow key={c.city} rank={i + 1} name={c.city} total={c.total} successRate={c.successRate} />
           ))}
         </div>
-        <DetailTable
-          accentColor="#22c55e"
-          columns={[
-            { key: "city", label: "المدينة" },
-            { key: "total", label: "الإجمالي", align: "center" },
-            { key: "delivered", label: "تم التسليم", align: "center" },
-            { key: "returned", label: "مرتجع", align: "center" },
-            { key: "codValue", label: "قيمة COD", align: "center" },
-            { key: "successRate", label: "نسبة النجاح", align: "center" },
-            { key: "returnRate", label: "نسبة الإرجاع", align: "center" },
-          ]}
-          rows={cityRows}
-        />
+        <CollapsibleDetail title={`عرض الجدول التفصيلي الكامل (${data.cityPerformance.length} مدينة)`}>
+          <DetailTable
+            rows={data.cityPerformance}
+            emptyLabel="لا توجد بيانات مدن في هذه الفترة"
+            columns={[
+              { key: "city", label: "المدينة", render: r => <span className="font-bold text-white">{r.city}</span> },
+              { key: "total", label: "إجمالي", render: r => fmt(r.total), align: "end" },
+              { key: "delivered", label: "تم التسليم", render: r => <span className="text-[#22c55e]">{fmt(r.delivered)}</span>, align: "end" },
+              { key: "returned", label: "مرتجع", render: r => <span className="text-[#ef4444]">{fmt(r.returned)}</span>, align: "end" },
+              { key: "successRate", label: "نسبة النجاح", render: r => <Pill color={rateColor(r.successRate)}>{r.successRate}%</Pill>, align: "end" },
+              { key: "returnRate", label: "نسبة المرتجع", render: r => <Pill color={rateColor(r.returnRate, true)}>{r.returnRate}%</Pill>, align: "end" },
+              { key: "codValue", label: "قيمة COD", render: r => <span className="tabular-nums">{fmtMoney(r.codValue)}</span>, align: "end" },
+            ]}
+          />
+        </CollapsibleDetail>
       </SectionCard>
 
-      {/* ── أداء شركات الشحن — جدول تفصيلي كامل ── */}
-      <SectionCard delay={0.1}>
-        <SectionHeader
-          icon={Truck}
-          title="أداء شركات الشحن"
-          subtitle="مقارنة كاملة بين شركات الشحن: نسبة النجاح، متوسط زمن التسليم، وإجمالي الرسوم"
-          color="#38bdf8"
-          badge={`${data.companyPerformance.length} شركة`}
-        />
-        <DetailTable
-          accentColor="#38bdf8"
-          columns={[
-            { key: "companyName", label: "شركة الشحن" },
-            { key: "total", label: "الإجمالي", align: "center" },
-            { key: "delivered", label: "تم التسليم", align: "center" },
-            { key: "returned", label: "مرتجع", align: "center" },
-            { key: "successRate", label: "نسبة النجاح", align: "center" },
-            { key: "returnRate", label: "نسبة الإرجاع", align: "center" },
-            { key: "avgDeliveryHours", label: "متوسط زمن التسليم", align: "center" },
-            { key: "totalFees", label: "إجمالي الرسوم", align: "center" },
-          ]}
-          rows={companyRows}
-        />
+      {/* أداء شركات الشحن — تفصيلي كامل */}
+      <SectionCard>
+        <SectionHeader icon={Truck} title="أداء شركات الشحن" subtitle="مقارنة كاملة بين كل شركات الشحن المستخدمة" />
+        <div className="space-y-1">
+          {data.companyPerformance.slice(0, 6).map((c, i) => (
+            <RankedRow key={String(c.companyId)} rank={i + 1} name={c.companyName} total={c.total} successRate={c.successRate} sub={`${c.avgDeliveryHours} س متوسط`} />
+          ))}
+        </div>
+        <CollapsibleDetail title={`عرض الجدول التفصيلي الكامل (${data.companyPerformance.length} شركة)`}>
+          <DetailTable
+            rows={data.companyPerformance}
+            emptyLabel="لا توجد بيانات شركات شحن في هذه الفترة"
+            columns={[
+              { key: "companyName", label: "الشركة", render: r => <span className="font-bold text-white">{r.companyName}</span> },
+              { key: "total", label: "إجمالي", render: r => fmt(r.total), align: "end" },
+              { key: "delivered", label: "تم التسليم", render: r => <span className="text-[#22c55e]">{fmt(r.delivered)}</span>, align: "end" },
+              { key: "returned", label: "مرتجع", render: r => <span className="text-[#ef4444]">{fmt(r.returned)}</span>, align: "end" },
+              { key: "successRate", label: "نسبة النجاح", render: r => <Pill color={rateColor(r.successRate)}>{r.successRate}%</Pill>, align: "end" },
+              { key: "returnRate", label: "نسبة المرتجع", render: r => <Pill color={rateColor(r.returnRate, true)}>{r.returnRate}%</Pill>, align: "end" },
+              { key: "avgDeliveryHours", label: "متوسط زمن التسليم", render: r => `${r.avgDeliveryHours} س`, align: "end" },
+              { key: "totalFees", label: "إجمالي مصاريف الشحن", render: r => <span className="tabular-nums">{fmtMoney(r.totalFees)}</span>, align: "end" },
+            ]}
+          />
+        </CollapsibleDetail>
       </SectionCard>
 
-      {/* ── أسباب المرتجعات + النبض المالي ── */}
+      {/* أسباب المرتجعات + النبض المالي */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard delay={0.1}>
-          <SectionHeader icon={RotateCcw} title="تحليل أسباب المرتجعات" subtitle="كل سبب إرجاع بالعدد والنسبة المئوية من إجمالي المرتجعات" color="#ef4444" />
+        <SectionCard>
+          <SectionHeader icon={RotateCcw} title="تحليل أسباب المرتجعات" subtitle="تفصيل كل سبب بالعدد والنسبة" />
           <ReturnReasonsBreakdown data={data.returnReasons} />
         </SectionCard>
-        <SectionCard delay={0.15}>
-          <SectionHeader icon={Wallet} title="النبض المالي" subtitle="تحصيل الدفع عند الاستلام ومزيج طرق الدفع" color="#f59e0b" />
+        <SectionCard>
+          <SectionHeader icon={Wallet} title="النبض المالي" subtitle="التحصيل النقدي عند الاستلام (COD) ومصاريف الشحن" />
           <FinancialPulsePanel data={data.financialPulse} />
         </SectionCard>
       </div>
 
-      {/* ── أداء المناديب/المندوبين ── */}
-      <SectionCard delay={0.1}>
-        <SectionHeader
-          icon={Users}
-          title="أداء المناديب"
-          subtitle="ترتيب المناديب حسب عدد الشحنات ونسبة النجاح في نفس الفترة"
-          color="#a78bfa"
-          badge={`${data.repPerformance.length} مندوب`}
-        />
-        {topReps.length === 0 ? (
-          <p className="text-center text-gray-500 text-xs py-10">لا يوجد بيانات مناديب كافية لهذه الفترة</p>
+      {/* أداء المناديب */}
+      <SectionCard>
+        <SectionHeader icon={Users} title="أداء المناديب / المسؤولين عن الشحنات" subtitle="أعلى 10 حسب حجم الشحنات المُدارة" />
+        {data.repPerformance.length === 0 ? (
+          <p className="text-center text-sm text-white/40 py-8">لا توجد شحنات مرتبطة بمناديب في هذه الفترة</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            {topReps.map((r, i) => (
-              <RankedRow
-                key={r.userId}
-                rank={i + 1}
-                title={r.name}
-                subtitle={`${fmt(r.delivered)} تسليم · ${fmt(r.returned)} مرتجع`}
-                value={fmt(r.total)}
-                valueLabel="شحنة"
-                pct={r.successRate}
-                pctColor={rateColor(r.successRate)}
-                icon={Users}
-                delay={i * 0.04}
-              />
+          <div className="space-y-1">
+            {data.repPerformance.map((r, i) => (
+              <RankedRow key={r.userId} rank={i + 1} name={r.name} total={r.total} successRate={r.successRate} sub={`${fmt(r.returned)} مرتجع`} />
             ))}
           </div>
         )}
       </SectionCard>
 
-      <p className="text-center text-[10px] text-gray-600 pb-2">
-        آخر تحديث: {new Date(data.generatedAt).toLocaleString("ar-EG")}
+      {/* Footer */}
+      <p className="text-center text-[11px] text-white/25 pb-2">
+        آخر تحديث: {new Date(data.generatedAt).toLocaleString("ar-EG")} — البيانات مبنية على جدول الشحنات فقط
       </p>
     </div>
   );
