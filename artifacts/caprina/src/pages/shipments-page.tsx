@@ -1151,8 +1151,14 @@ export default function Orders() {
   }, [debouncedSearch, status, dateFrom, dateTo, pageSize]);
 
   // لما اليوزر يغيّر الصفحة، اسكرول لفوق تلقائيًا عشان يبدأ من أول صف بدل ما يفضل تحت
+  // ملاحظة: الـ scroll الفعلي بيحصل جوه container داخلي (#main-scroll-area) مش على الـ window نفسه
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const scrollContainer = document.getElementById("main-scroll-area");
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }, [page]);
 
   // أرقام الصفحات المعروضة في الـ pagination bar (مع "..." لو الصفحات كتير)
