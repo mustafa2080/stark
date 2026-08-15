@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, RotateCcw, AlertTriangle, Package, Search, Trash2, CheckSquare, Square } from "lucide-react";
 import { ordersApi, shipmentsApi, apiFetch } from "@/lib/api";
@@ -44,6 +44,10 @@ export default function ArchivePage() {
   const { isAdmin } = useAuth();
   const [search, setSearch] = useState("");
   const [restoring, setRestoring] = useState<number | null>(null);
+
+  // ── Pagination (client-side على النتيجة المجمّعة بالفاتورة) ─────────────
+  const [pageSize, setPageSize] = useState(50);
+  const [page, setPage] = useState(1);
 
   // ── تحديد ── مفتاح مركب "type:id" عشان نفرّق بين order وshipment بنفس الرقم ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -110,6 +114,33 @@ export default function ArchivePage() {
       return rep;
     });
   })();
+
+  // ── Pagination (client-side) — بعد التجميع بالفاتورة عشان الأرقام تكون دقيقة ──
+  const totalPages = Math.max(1, Math.ceil(groupedFiltered.length / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(1);
+  }, [totalPages]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+  const paginatedRows = groupedFiltered.slice((page - 1) * pageSize, page * pageSize);
+
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    if (totalPages <= maxButtons + 2) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const nums = new Set<number>([1, totalPages, page]);
+    if (page > 1) nums.add(page - 1);
+    if (page < totalPages) nums.add(page + 1);
+    const sorted = [...nums].sort((a, b) => a - b);
+    const withGaps: (number | "gap")[] = [];
+    sorted.forEach((n, i) => {
+      if (i > 0 && n - sorted[i - 1] > 1) withGaps.push("gap");
+      withGaps.push(n);
+    });
+    return withGaps;
+  }, [page, totalPages]);
 
   // ── تحديد الكل / إلغاء الكل ────────────────────────────────────────────
   const allGroupKeys = groupedFiltered.flatMap(o => (o as any)._groupKeys as string[]);
@@ -276,8 +307,8 @@ export default function ArchivePage() {
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {groupedFiltered.map(o => {
+                <TableBody key={`${page}-${pageSize}-${search}`} className="animate-in fade-in duration-300">
+                  {paginatedRows.map(o => {
                     const isShipment = (o as any)._type === "shipment";
                     const labelsMap = isShipment ? SHIPMENT_STATUS_LABELS : STATUS_LABELS;
                     const statusInfo = labelsMap[o.status] ?? { label: o.status, color: "bg-gray-100 text-gray-600" };
@@ -341,6 +372,70 @@ export default function ArchivePage() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* ── Pagination (client-side) — أرقام صفحات + انيميشن، زي صفحة الشحنات ── */}
+          {groupedFiltered.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border gap-3 flex-wrap animate-in fade-in duration-300">
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                  عرض <span className="font-semibold text-foreground">{(page - 1) * pageSize + 1}</span>
+                  –<span className="font-semibold text-foreground">{Math.min(page * pageSize, groupedFiltered.length)}</span>
+                  {" "}من <span className="font-semibold text-foreground">{groupedFiltered.length}</span>
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={e => setPageSize(Number(e.target.value))}
+                  className="h-7 text-[11px] rounded-md border border-border bg-background px-2"
+                >
+                  <option value="25">25 / صفحة</option>
+                  <option value="50">50 / صفحة</option>
+                  <option value="100">100 / صفحة</option>
+                </select>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="outline" size="sm"
+                    className="h-8 w-8 p-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
+                    disabled={page <= 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    title="السابق"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  </Button>
+
+                  {pageNumbers.map((n, i) =>
+                    n === "gap" ? (
+                      <span key={`gap-${i}`} className="w-8 h-8 flex items-center justify-center text-xs text-muted-foreground select-none">···</span>
+                    ) : (
+                      <button
+                        key={n}
+                        onClick={() => setPage(n)}
+                        className={`w-8 h-8 rounded-lg text-xs font-medium transition-all duration-200 ${
+                          n === page
+                            ? "bg-primary text-primary-foreground shadow-md scale-105"
+                            : "text-muted-foreground hover:bg-muted hover:scale-105 active:scale-95"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    )
+                  )}
+
+                  <Button
+                    variant="outline" size="sm"
+                    className="h-8 w-8 p-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    title="التالي"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
