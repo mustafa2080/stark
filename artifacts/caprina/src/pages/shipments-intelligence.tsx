@@ -102,20 +102,24 @@ function RingGauge({
           transition={{ strokeDashoffset: { duration: 1.2, ease: "easeOut" }, filter: { duration: 0.35, ease: "easeInOut" } }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
+      <div
+        className="absolute inset-0 flex flex-col items-center justify-center text-center"
+        style={{ left: 0, right: 0, top: 0, bottom: 0 }}
+      >
         <motion.span
           initial={{ opacity: 0, scale: 0.7 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="font-black text-white tabular-nums"
+          className="font-black text-white tabular-nums text-center"
+          dir="ltr"
           style={{ fontSize: size * 0.19 }}
         >
           {fmt(value)}
         </motion.span>
-        <span className="text-white/45 mt-0.5" style={{ fontSize: size * 0.055 }}>{label}</span>
+        <span className="text-white/45 mt-0.5 text-center" style={{ fontSize: size * 0.055 }}>{label}</span>
         {sub && (
           <span
-            className="mt-2 px-2.5 py-0.5 rounded-full font-bold border transition-opacity duration-300"
+            className="mt-2 px-2.5 py-0.5 rounded-full font-bold border transition-opacity duration-300 text-center"
             style={{ color, borderColor: `${color}55`, background: `${color}15`, fontSize: size * 0.05, opacity: hovered ? 1 : 0.85 }}
           >
             {sub}
