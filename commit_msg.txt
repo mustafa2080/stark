@@ -1,5 +1,0 @@
-fix(shipments-intelligence): إصلاح تشوّه/انكسار قوس الدايرة في RingGauge/MiniRing
-
-- السبب الجذري: framer-motion بيتحكم في transform الخاص بـ motion.circle داخلياً، فأي SVG transform attribute (rotate) موضوع مباشرة عليه بيتلغى/يتجاهل من المتصفح، وده كان بيخلي القوس الممتلئ (motion.circle) ما يدورش بنفس زاوية القوس الخلفي (circle العادي) فيبان الشكل متقطع/بيضاوي بدل قوس دائري متصل
-- الإصلاح: رجّعنا الدوران (rotate) ليكون CSS transform على عنصر الـ <svg> نفسه بالكامل (مش على كل circle لوحده)، مع transformOrigin: center center صريح، فالدايرتين (الخلفية والممتلئة) بتدوروا مع بعض بانسجام تام
-- الـ padding الإضافي حوالين الدايرة (لإصلاح قصّ الـ glow من الكومِت السابق) اتفظ عليه كما هو
