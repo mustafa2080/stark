@@ -975,7 +975,7 @@ export default function ShipmentsIntelligencePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen text-white p-4 md:p-6 flex items-center justify-center" dir="rtl">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full border-2 border-[#e8b93f]/30 border-t-[#e8b93f] animate-spin" />
           <p className="text-white/50 text-sm">جاري تحميل تحليل الشحنات الذكي...</p>
@@ -986,7 +986,7 @@ export default function ShipmentsIntelligencePage() {
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen text-white p-4 md:p-6 flex items-center justify-center" dir="rtl">
         <div className="text-center">
           <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-3" />
           <p className="text-white/70">تعذّر تحميل البيانات{error instanceof Error ? `: ${error.message}` : ""}</p>
@@ -1003,7 +1003,7 @@ export default function ShipmentsIntelligencePage() {
   const statusLabels = Object.fromEntries(data.statusDistribution.map(s => [s.status, s.label]));
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 space-y-6" dir="rtl">
+    <div className="min-h-screen text-white p-4 md:p-6 space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3">
