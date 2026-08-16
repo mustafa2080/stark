@@ -4571,6 +4571,15 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     );
     const healthGrade = healthScore >= 85 ? "excellent" : healthScore >= 70 ? "good" : healthScore >= 50 ? "warning" : "critical";
 
+    // ── تفصيل مكوّنات مؤشر الصحة — عشان يبقى للرقم معنى واضح للمدير ────────
+    const returnRateInverted = 100 - returnRate;
+    const healthScoreBreakdown = [
+      { key: "deliveryRate", label: "معدل التسليم", value: Math.round(deliveryRate * 10) / 10, weight: 35, points: Math.round(deliveryRate * 0.35 * 10) / 10, unit: "%" },
+      { key: "onTimeRate", label: "الالتزام بالمواعيد", value: Math.round(onTimeRate * 10) / 10, weight: 25, points: Math.round(onTimeRate * 0.25 * 10) / 10, unit: "%" },
+      { key: "returnRate", label: "معدل المرتجعات", value: Math.round(returnRate * 10) / 10, weight: 25, points: Math.round(returnRateInverted * 0.25 * 10) / 10, unit: "%", invert: true },
+      { key: "speedScore", label: "سرعة التسليم", value: Math.round(avgDeliveryHours * 10) / 10, weight: 15, points: Math.round(speedScore * 0.15 * 10) / 10, unit: "س" },
+    ];
+
     // ── 2) توزيع الحالات الحالي (كل الشحنات النشطة، مش محصور بالفترة) ──────
     const statusCounts: Record<string, number> = {};
     for (const r of allActiveRows) {
@@ -4758,7 +4767,7 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
 
     const result = {
       period, rangeFrom: rangeFrom.toISOString(), rangeTo: rangeTo.toISOString(),
-      healthScore, healthGrade,
+      healthScore, healthGrade, healthScoreBreakdown,
       kpis: {
         total: totalInRange,
         delivered, returned,

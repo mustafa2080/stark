@@ -917,6 +917,7 @@ export interface ShipmentsIntelligenceResponse {
   rangeTo: string;
   healthScore: number;
   healthGrade: "excellent" | "good" | "warning" | "critical";
+  healthScoreBreakdown: { key: string; label: string; value: number; weight: number; points: number; unit: string; invert?: boolean }[];
   kpis: {
     total: number;
     delivered: number;

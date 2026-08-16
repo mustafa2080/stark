@@ -130,19 +130,56 @@ function RingGauge({
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Health Score Gauge — العنصر المميز في الصفحة (يستخدم RingGauge)
+// بيعرض تفصيل مكوّنات المؤشر تحت الدايرة عشان الرقم يبقى له معنى واضح
 // ═══════════════════════════════════════════════════════════════════════════
-function HealthScoreGauge({ score, grade }: { score: number; grade: string }) {
-  const meta = GRADE_META[grade] ?? GRADE_META.good;
+type HealthBreakdownItem = { key: string; label: string; value: number; weight: number; points: number; unit: string; invert?: boolean };
+
+function HealthFactorRow({ item }: { item: HealthBreakdownItem }) {
+  // نسبة الإنجاز الفعلية من الوزن المتاح لهذا المكوّن (100% = استغل كل نقاطه المحتملة)
+  const achievedPct = item.weight > 0 ? Math.max(0, Math.min(100, (item.points / item.weight) * 100)) : 0;
+  const color = achievedPct >= 80 ? "#22c55e" : achievedPct >= 50 ? "#eab308" : "#ef4444";
   return (
-    <div className="flex flex-col items-center justify-center py-2">
-      <RingGauge value={score} max={100} size={220} strokeWidth={18} color={meta.color} label="من 100" sub={meta.label} />
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-white/60">{item.label}</span>
+        <span className="text-white/80 font-bold tabular-nums" dir="ltr">
+          {item.unit === "س" ? `${fmt(item.value)} س` : `${item.value}%`}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${achievedPct}%`, background: color }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HealthScoreGauge({ score, grade, breakdown }: { score: number; grade: string; breakdown: HealthBreakdownItem[] }) {
+  const meta = GRADE_META[grade] ?? GRADE_META.good;
+  const weakest = breakdown.length > 0
+    ? [...breakdown].sort((a, b) => (a.points / (a.weight || 1)) - (b.points / (b.weight || 1)))[0]
+    : null;
+  return (
+    <div className="flex flex-col items-center py-2">
+      <RingGauge value={score} max={100} size={200} strokeWidth={16} color={meta.color} label="من 100" sub={meta.label} />
       <div className="mt-2 text-center">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2 justify-center">
-          <Brain className="w-5 h-5" style={{ color: "#e8b93f" }} />
+        <h2 className="text-base font-bold text-white flex items-center gap-2 justify-center">
+          <Brain className="w-4 h-4" style={{ color: "#e8b93f" }} />
           مؤشر صحة الشحنات
         </h2>
-        <p className="text-xs text-white/40 mt-1">مركّب من معدل التسليم + الالتزام بالمواعيد + المرتجعات + السرعة</p>
+        {weakest && (
+          <p className="text-[11px] text-white/40 mt-1">
+            أكتر حاجة شادّة المؤشر لتحت: <span className="font-bold" style={{ color: "#f97316" }}>{weakest.label}</span>
+          </p>
+        )}
       </div>
+      {breakdown.length > 0 && (
+        <div className="mt-3 w-full max-w-[220px] space-y-2.5">
+          {breakdown.map((item) => <HealthFactorRow key={item.key} item={item} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -855,7 +892,7 @@ export default function ShipmentsIntelligencePage() {
       {/* Hero: Health Score + Monthly Goal + KPIs */}
       <SectionCard>
         <div className="grid grid-cols-1 lg:grid-cols-[220px_220px_1fr] gap-6 items-center">
-          <HealthScoreGauge score={data.healthScore} grade={data.healthGrade} />
+          <HealthScoreGauge score={data.healthScore} grade={data.healthGrade} breakdown={data.healthScoreBreakdown} />
           <div className="border-t lg:border-t-0 lg:border-r border-white/10 pt-4 lg:pt-0 lg:pr-6">
             <MonthlyGoalCard actualCount={kpis.total} />
           </div>
