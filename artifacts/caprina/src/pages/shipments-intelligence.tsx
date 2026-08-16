@@ -707,6 +707,47 @@ function PackagingAnalysis({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Route Analysis — خريطة اتجاه الشحن (مدينة الإرسال → مدينة الاستلام)
+// بيوضح أكتر المسارات تكرارًا وأداء كل مسار لوحده — مش نظرة لكل مدينة منفصلة
+// ═══════════════════════════════════════════════════════════════════════════
+function RouteRow({ route, rank }: { route: ShipmentsIntelligenceResponse["routeAnalysis"][number]; rank: number }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] rounded-lg px-1">
+      <span className="w-6 text-center text-xs font-bold text-white/30">{rank}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-white truncate flex items-center gap-1.5">
+          <span className="truncate">{route.from}</span>
+          <span className="text-white/30 shrink-0">←</span>
+          <span className="truncate">{route.to}</span>
+        </p>
+        <p className="text-xs text-white/45 mt-0.5">
+          {fmt(route.total)} شحنة{route.avgDeliveryHours > 0 ? ` · ${route.avgDeliveryHours} س متوسط` : ""}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Pill color={rateColor(route.successRate)}>{route.successRate}%</Pill>
+        {route.returnRate > 0 && (
+          <Pill color={rateColor(route.returnRate, true)}>مرتجع {route.returnRate}%</Pill>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RouteAnalysis({ data }: { data: ShipmentsIntelligenceResponse["routeAnalysis"] }) {
+  if (!data.length) {
+    return <p className="text-center text-sm text-white/40 py-8">لا توجد مسارات شحن متكررة كافية في هذه الفترة (يلزم شحنتين على الأقل لنفس المسار)</p>;
+  }
+  return (
+    <div className="space-y-1">
+      {data.map((r, i) => (
+        <RouteRow key={`${r.from}→${r.to}`} route={r} rank={i + 1} />
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Alerts Banner
 // ═══════════════════════════════════════════════════════════════════════════
 function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alerts"] }) {
@@ -974,6 +1015,12 @@ export default function ShipmentsIntelligencePage() {
       <SectionCard>
         <SectionHeader icon={Package} title="تحليل التغليف مقابل معدل النجاح" subtitle="هل الشحنات التقيلة أو متعددة القطع بترجع أكتر؟" />
         <PackagingAnalysis weightAnalysis={data.weightAnalysis} piecesAnalysis={data.piecesAnalysis} />
+      </SectionCard>
+
+      {/* خريطة اتجاه الشحن — أداء أكتر المسارات (مدينة الإرسال → الاستلام) تكرارًا */}
+      <SectionCard>
+        <SectionHeader icon={MapPin} title="خريطة اتجاه الشحن" subtitle="أداء أكتر المسارات (من ← إلى) تكرارًا خلال الفترة" />
+        <RouteAnalysis data={data.routeAnalysis} />
       </SectionCard>
 
       {/* أسباب المرتجعات + تحليل زمن التسليم الذكي (بديل القسم المالي) */}

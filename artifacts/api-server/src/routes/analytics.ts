@@ -4754,6 +4754,39 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       })
       .filter(b => b.total > 0);
 
+    // ── 4.6) خريطة اتجاه الشحن (Sender City → Receiver City) ────────────────
+    // أكتر المسارات تكرارًا وأداء كل مسار لوحده — بيفيد في معرفة مثلاً
+    // إن مسار "القاهرة → الإسكندرية" بيرجع أكتر من غيره، حتى لو كل مدينة لوحدها شكلها كويس
+    const routeMap = new Map<string, { from: string; to: string; total: number; delivered: number; returned: number; hoursSum: number; hoursCount: number }>();
+    for (const r of rangeRows) {
+      const from = (r.senderCity || "غير محدد").trim() || "غير محدد";
+      const to = (r.receiverCity || "غير محدد").trim() || "غير محدد";
+      const key = `${from}→${to}`;
+      if (!routeMap.has(key)) routeMap.set(key, { from, to, total: 0, delivered: 0, returned: 0, hoursSum: 0, hoursCount: 0 });
+      const rt = routeMap.get(key)!;
+      rt.total++;
+      const status = SI_normalize(r.status);
+      if (status === "received") {
+        rt.delivered++;
+        const created = new Date(r.createdAt).getTime();
+        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
+        const hours = (finished - created) / (1000 * 60 * 60);
+        if (hours >= 0 && hours < 24 * 30) { rt.hoursSum += hours; rt.hoursCount++; }
+      }
+      if (status === "returned") rt.returned++;
+    }
+    const routeAnalysis = Array.from(routeMap.values())
+      .filter(r => r.total >= 2) // نستبعد المسارات النادرة اللي شحنة واحدة فقط — مش كافية لاستنتاج نمط
+      .map(r => ({
+        from: r.from, to: r.to,
+        total: r.total, delivered: r.delivered, returned: r.returned,
+        successRate: r.total > 0 ? Math.round((r.delivered / r.total) * 100) : 0,
+        returnRate: r.total > 0 ? Math.round((r.returned / r.total) * 100) : 0,
+        avgDeliveryHours: r.hoursCount > 0 ? Math.round((r.hoursSum / r.hoursCount) * 10) / 10 : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 15);
+
     // ── 5) تحليل أعمار الشحنات النشطة (Aging buckets) — لكل الشحنات المعلقة حالياً ──
     const AGING_BUCKETS = [
       { key: "0-3",   label: "0-3 أيام",   min: 0,  max: 3 },
@@ -4912,6 +4945,7 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       companyPerformance,
       weightAnalysis,
       piecesAnalysis,
+      routeAnalysis,
       agingAnalysis,
       returnReasons,
       financialPulse,

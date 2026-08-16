@@ -957,6 +957,7 @@ export interface ShipmentsIntelligenceResponse {
   companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; totalFees: number }[];
   weightAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   piecesAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
+  routeAnalysis: { from: string; to: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number }[];
   agingAnalysis: { key: string; label: string; count: number }[];
   returnReasons: { reason: string; label: string; count: number; pct: number }[];
   financialPulse: {
