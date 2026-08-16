@@ -4495,6 +4495,12 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     }
 
+    // ── فترة المقارنة (السابقة): نفس مدة الفترة الحالية بالظبط، فورًا قبلها ──
+    // مثال: لو الفترة الحالية "آخر 30 يوم"، السابقة هي الـ 30 يوم اللي قبلها مباشرة
+    const rangeDurationMs = rangeTo.getTime() - rangeFrom.getTime();
+    const prevRangeTo = new Date(rangeFrom.getTime() - 1); // لحظة قبل بداية الفترة الحالية مباشرة
+    const prevRangeFrom = new Date(prevRangeTo.getTime() - rangeDurationMs);
+
     const baseCond = tenantId !== null
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
       : isNull(shipmentsTable.deletedAt);
@@ -4528,6 +4534,12 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     const rangeRows = allActiveRows.filter(r => {
       const t = new Date(r.createdAt).getTime();
       return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
+    });
+
+    // نفس الفلترة لكن للفترة السابقة — عشان نقدر نقارن (مقارنة فترات: هل تحسّنّا ولا لأ)
+    const prevRangeRows = allActiveRows.filter(r => {
+      const t = new Date(r.createdAt).getTime();
+      return t >= prevRangeFrom.getTime() && t <= prevRangeTo.getTime();
     });
 
     const companies = tenantId !== null
@@ -4570,6 +4582,42 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       deliveryRate * 0.35 + onTimeRate * 0.25 + (100 - returnRate) * 0.25 + speedScore * 0.15
     );
     const healthGrade = healthScore >= 85 ? "excellent" : healthScore >= 70 ? "good" : healthScore >= 50 ? "warning" : "critical";
+
+    // ── 1.5) نفس الحسابات لكن على الفترة السابقة — لمقارنة الفترات (This vs Last) ──
+    let prevDelivered = 0, prevReturned = 0, prevOnTime = 0, prevDeliveredWithEta = 0;
+    let prevDeliveryHoursSum = 0, prevDeliveryHoursCount = 0;
+    for (const r of prevRangeRows) {
+      const status = SI_normalize(r.status);
+      if (status === "received") {
+        prevDelivered++;
+        const created = new Date(r.createdAt).getTime();
+        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
+        const hours = (finished - created) / (1000 * 60 * 60);
+        if (hours >= 0 && hours < 24 * 30) { prevDeliveryHoursSum += hours; prevDeliveryHoursCount++; }
+        if (r.estimatedDelivery) {
+          prevDeliveredWithEta++;
+          if (finished <= new Date(r.estimatedDelivery).getTime()) prevOnTime++;
+        }
+      }
+      if (status === "returned") prevReturned++;
+    }
+    const prevTotalInRange = prevRangeRows.length;
+    const prevDeliveryRate = prevTotalInRange > 0 ? (prevDelivered / prevTotalInRange) * 100 : 0;
+    const prevReturnRate = prevTotalInRange > 0 ? (prevReturned / prevTotalInRange) * 100 : 0;
+    const prevOnTimeRate = prevDeliveredWithEta > 0 ? (prevOnTime / prevDeliveredWithEta) * 100 : (prevDelivered > 0 ? 100 : 0);
+    const prevAvgDeliveryHours = prevDeliveryHoursCount > 0 ? prevDeliveryHoursSum / prevDeliveryHoursCount : 0;
+
+    // نسبة التغيّر: (الحالي - السابق) / السابق × 100 — null لو مفيش بيانات كافية للمقارنة (مش صفر مضلل)
+    const pctChange = (curr: number, prev: number): number | null => {
+      if (prevTotalInRange === 0) return null; // مفيش فترة سابقة نقارن بيها أصلاً
+      if (prev === 0) return curr > 0 ? 100 : 0; // كان صفر وبقى فيه حاجة = تحسّن كامل
+      return Math.round(((curr - prev) / prev) * 1000) / 10;
+    };
+    // للمعدلات (نسب مئوية زي deliveryRate)، الفرق بالنقطة المئوية أوضح من نسبة التغيّر النسبية
+    const ptChange = (curr: number, prev: number): number | null => {
+      if (prevTotalInRange === 0) return null;
+      return Math.round((curr - prev) * 10) / 10;
+    };
 
     // ── تفصيل مكوّنات مؤشر الصحة — عشان يبقى للرقم معنى واضح للمدير ────────
     const returnRateInverted = 100 - returnRate;
@@ -4834,6 +4882,30 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
         returnRate: Math.round(returnRate * 10) / 10,
         onTimeRate: Math.round(onTimeRate * 10) / 10,
         avgDeliveryHours: Math.round(avgDeliveryHours * 10) / 10,
+      },
+      // ── مقارنة الفترات: نفس الـ KPIs لكن للفترة السابقة مباشرة + نسبة/فرق التغيّر ──
+      // hasPreviousPeriod = false لو مفيش شحنات في الفترة السابقة أصلاً (يمنع عرض "0%" مضلل)
+      previousPeriod: {
+        hasPreviousPeriod: prevTotalInRange > 0,
+        rangeFrom: prevRangeFrom.toISOString(),
+        rangeTo: prevRangeTo.toISOString(),
+        kpis: {
+          total: prevTotalInRange,
+          delivered: prevDelivered, returned: prevReturned,
+          deliveryRate: Math.round(prevDeliveryRate * 10) / 10,
+          returnRate: Math.round(prevReturnRate * 10) / 10,
+          onTimeRate: Math.round(prevOnTimeRate * 10) / 10,
+          avgDeliveryHours: Math.round(prevAvgDeliveryHours * 10) / 10,
+        },
+      },
+      kpiTrends: {
+        total: pctChange(totalInRange, prevTotalInRange),
+        delivered: pctChange(delivered, prevDelivered),
+        returned: pctChange(returned, prevReturned),
+        deliveryRate: ptChange(deliveryRate, prevDeliveryRate),
+        returnRate: ptChange(returnRate, prevReturnRate),
+        onTimeRate: ptChange(onTimeRate, prevOnTimeRate),
+        avgDeliveryHours: pctChange(avgDeliveryHours, prevAvgDeliveryHours),
       },
       statusDistribution,
       cityPerformance,

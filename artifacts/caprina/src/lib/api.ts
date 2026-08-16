@@ -927,6 +927,31 @@ export interface ShipmentsIntelligenceResponse {
     onTimeRate: number;
     avgDeliveryHours: number;
   };
+  // مقارنة فترات: نفس الـ KPIs بالظبط للفترة السابقة (نفس المدة، فورًا قبل الفترة الحالية)
+  previousPeriod: {
+    hasPreviousPeriod: boolean;
+    rangeFrom: string;
+    rangeTo: string;
+    kpis: {
+      total: number;
+      delivered: number;
+      returned: number;
+      deliveryRate: number;
+      returnRate: number;
+      onTimeRate: number;
+      avgDeliveryHours: number;
+    };
+  };
+  // نسبة/فرق التغيّر لكل KPI مقارنة بالفترة السابقة — null لو مفيش فترة سابقة للمقارنة
+  kpiTrends: {
+    total: number | null;
+    delivered: number | null;
+    returned: number | null;
+    deliveryRate: number | null;
+    returnRate: number | null;
+    onTimeRate: number | null;
+    avgDeliveryHours: number | null;
+  };
   statusDistribution: { status: string; label: string; color: string; value: number; pct: number }[];
   cityPerformance: { city: string; total: number; delivered: number; returned: number; codValue: number; successRate: number; returnRate: number }[];
   companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; totalFees: number }[];

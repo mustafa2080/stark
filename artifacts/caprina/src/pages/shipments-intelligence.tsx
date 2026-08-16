@@ -884,7 +884,11 @@ export default function ShipmentsIntelligencePage() {
     );
   }
 
-  const { kpis } = data;
+  const { kpis, kpiTrends } = data;
+  // للمقاييس اللي "الأقل أحسن" (مرتجعات، زمن تسليم) بنعكس الإشارة عشان السهم الأخضر
+  // يفضل يعني "تحسّن" دايمًا، مش مجرد "زيادة في الرقم"
+  const invertedTrend = (v: number | null) => (v === null ? undefined : -v);
+  const normalTrend = (v: number | null) => (v === null ? undefined : v);
 
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 space-y-6" dir="rtl">
@@ -912,13 +916,13 @@ export default function ShipmentsIntelligencePage() {
             <MonthlyGoalCard actualCount={kpis.total} />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:border-r lg:border-white/10 lg:pr-6">
-            <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#e8b93f" />
-            <KpiTile icon={CheckCircle2} label="تم التسليم" value={fmt(kpis.delivered)} sub={`${kpis.deliveryRate}%`} color="#22c55e" />
-            <KpiTile icon={RotateCcw} label="مرتجعة" value={fmt(kpis.returned)} sub={`${kpis.returnRate}%`} color="#ef4444" />
-            <KpiTile icon={Timer} label="الالتزام بالمواعيد" value={fmtPct(kpis.onTimeRate)} color="#06b6d4" />
-            <KpiTile icon={Clock} label="متوسط زمن التسليم" value={`${kpis.avgDeliveryHours} س`} color="#8b5cf6" />
-            <KpiTile icon={Percent} label="معدل التسليم" value={fmtPct(kpis.deliveryRate)} color="#22c55e" />
-            <KpiTile icon={Activity} label="معدل المرتجعات" value={fmtPct(kpis.returnRate)} color="#ef4444" />
+            <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#e8b93f" trend={normalTrend(kpiTrends.total)} />
+            <KpiTile icon={CheckCircle2} label="تم التسليم" value={fmt(kpis.delivered)} sub={`${kpis.deliveryRate}%`} color="#22c55e" trend={normalTrend(kpiTrends.delivered)} />
+            <KpiTile icon={RotateCcw} label="مرتجعة" value={fmt(kpis.returned)} sub={`${kpis.returnRate}%`} color="#ef4444" trend={invertedTrend(kpiTrends.returned)} />
+            <KpiTile icon={Timer} label="الالتزام بالمواعيد" value={fmtPct(kpis.onTimeRate)} color="#06b6d4" trend={normalTrend(kpiTrends.onTimeRate)} />
+            <KpiTile icon={Clock} label="متوسط زمن التسليم" value={`${kpis.avgDeliveryHours} س`} color="#8b5cf6" trend={invertedTrend(kpiTrends.avgDeliveryHours)} />
+            <KpiTile icon={Percent} label="معدل التسليم" value={fmtPct(kpis.deliveryRate)} color="#22c55e" trend={normalTrend(kpiTrends.deliveryRate)} />
+            <KpiTile icon={Activity} label="معدل المرتجعات" value={fmtPct(kpis.returnRate)} color="#ef4444" trend={invertedTrend(kpiTrends.returnRate)} />
             <KpiTile icon={Truck} label="شركات الشحن النشطة" value={fmt(data.companyPerformance.length)} color="#f97316" />
           </div>
         </div>
