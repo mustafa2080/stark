@@ -944,6 +944,11 @@ export interface ShipmentsIntelligenceResponse {
   generatedAt: string;
 }
 
+export interface ShipmentsMonthlyGoalResponse {
+  month: string;
+  target: number | null;
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -982,6 +987,14 @@ export const analyticsApi = {
     const qs = q.toString();
     return apiFetch<ShipmentsIntelligenceResponse>(`/analytics/shipments-intelligence${qs ? `?${qs}` : ""}`);
   },
+  shipmentsMonthlyGoal: (month?: string) =>
+    apiFetch<ShipmentsMonthlyGoalResponse>(`/analytics/shipments-monthly-goal${month ? `?month=${month}` : ""}`),
+  setShipmentsMonthlyGoal: (body: { month?: string; target: number }) =>
+    apiFetch<ShipmentsMonthlyGoalResponse>("/analytics/shipments-monthly-goal", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   charts: () => apiFetch<ChartsData>("/analytics/charts"),
   monthlySales: (month?: string) =>
     apiFetch<{ month: string; days: ChartDayItem[]; totalOrders: number; totalRevenue: number; daysCount: number; avgPerDay: string }>(

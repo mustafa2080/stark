@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, appSettingsTable } from "@workspace/db";
 import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -4408,6 +4408,64 @@ const SI_RETURN_REASON_LABELS: Record<string, string> = {
   out_of_coverage:  "خارج نطاق التغطية",
   closed:           "مغلق",
 };
+
+// ── هدف الشحنات الشهري (يُخزَّن في app_settings بمفتاح ديناميكي لكل tenant/شهر) ──
+function siMonthlyGoalKey(tenantId: number | null, yearMonth: string): string {
+  return `shipments_monthly_goal:${tenantId ?? "global"}:${yearMonth}`;
+}
+
+async function getMonthlyGoal(tenantId: number | null, yearMonth: string): Promise<number | null> {
+  const key = siMonthlyGoalKey(tenantId, yearMonth);
+  const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, key));
+  if (!row?.value) return null;
+  const n = Number(row.value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function setMonthlyGoal(tenantId: number | null, yearMonth: string, target: number): Promise<void> {
+  const key = siMonthlyGoalKey(tenantId, yearMonth);
+  await db.execute(
+    sql`INSERT INTO app_settings (\`key\`, \`value\`, \`updated_at\`)
+        VALUES (${key}, ${String(target)}, NOW())
+        ON DUPLICATE KEY UPDATE \`value\` = ${String(target)}, \`updated_at\` = NOW()`
+  );
+}
+
+// GET /analytics/shipments-monthly-goal?month=2026-08 — جلب هدف الشهر المحدد (أو الحالي)
+router.get("/analytics/shipments-monthly-goal", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const now = new Date();
+    const yearMonth = (req.query.month as string | undefined) ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const target = await getMonthlyGoal(tenantId, yearMonth);
+    res.json({ month: yearMonth, target });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /analytics/shipments-monthly-goal — تحديد/تحديث هدف شهر معيّن (أدمن فقط)
+router.put("/analytics/shipments-monthly-goal", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const { month, target } = req.body as { month?: string; target?: number };
+    const now = new Date();
+    const yearMonth = month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const targetNum = Number(target);
+    if (!Number.isFinite(targetNum) || targetNum <= 0) {
+      res.status(400).json({ error: "الهدف لازم يكون رقم أكبر من صفر" });
+      return;
+    }
+    await setMonthlyGoal(tenantId, yearMonth, Math.round(targetNum));
+    // امسح كاش شهر الحالي/كل الفترات لأن الهدف مرتبط بالـ response
+    for (const key of analyticsCache.keys()) {
+      if (key.startsWith(`shipments-intelligence:${tenantId ?? "global"}`)) analyticsCache.delete(key);
+    }
+    res.json({ month: yearMonth, target: Math.round(targetNum) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): Promise<void> => {
   try {

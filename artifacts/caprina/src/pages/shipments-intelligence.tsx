@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -9,8 +9,16 @@ import {
   Brain, TrendingUp, TrendingDown, Package, CheckCircle2, RotateCcw,
   Clock, MapPin, Truck, AlertTriangle, AlertCircle,
   Info, ChevronDown, ChevronUp, Activity, Timer, Percent, Zap, Gauge,
+  Target, Pencil,
 } from "lucide-react";
 import { analyticsApi, ShipmentsIntelligenceResponse } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -136,6 +144,164 @@ function HealthScoreGauge({ score, grade }: { score: number; grade: string }) {
         <p className="text-xs text-white/40 mt-1">مركّب من معدل التسليم + الالتزام بالمواعيد + المرتجعات + السرعة</p>
       </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Monthly Goal Ring — هدف عدد الشحنات الشهري القابل للتحديد من الأدمن
+// لو مفيش هدف محدد → دعوة لتحديده (أدمن) أو رسالة انتظار (موظف)
+// لو محدد → دايرة تقدّم (عدد الشحنات الفعلي ÷ الهدف) بنفس ستايل RingGauge
+// ═══════════════════════════════════════════════════════════════════════════
+function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
+  const { isAdmin } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const monthLabel = now.toLocaleDateString("ar-EG", { month: "long", year: "numeric" });
+
+  const { data: goalData, isLoading } = useQuery({
+    queryKey: ["analytics", "shipments-monthly-goal", yearMonth],
+    queryFn: () => analyticsApi.shipmentsMonthlyGoal(yearMonth),
+    staleTime: 60_000,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (target: number) => analyticsApi.setShipmentsMonthlyGoal({ month: yearMonth, target }),
+    onSuccess: (res) => {
+      queryClient.setQueryData(["analytics", "shipments-monthly-goal", yearMonth], res);
+      queryClient.invalidateQueries({ queryKey: ["analytics", "shipments-intelligence"] });
+      toast({ title: "تم تحديد هدف الشهر بنجاح" });
+      setDialogOpen(false);
+      setInputValue("");
+    },
+    onError: (err: any) => {
+      toast({ title: "تعذّر تحديد الهدف", description: err?.message, variant: "destructive" });
+    },
+  });
+
+  const target = goalData?.target ?? null;
+
+  const handleSubmit = () => {
+    const n = Number(inputValue);
+    if (!Number.isFinite(n) || n <= 0) {
+      toast({ title: "أدخل رقم صحيح أكبر من صفر", variant: "destructive" });
+      return;
+    }
+    mutation.mutate(Math.round(n));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-2" style={{ width: 220, height: 220 }}>
+        <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/40 animate-spin" />
+      </div>
+    );
+  }
+
+  // لا يوجد هدف محدد بعد
+  if (!target) {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center gap-3 py-2 text-center" style={{ minHeight: 220 }}>
+          <div className="w-14 h-14 rounded-full bg-white/[0.04] border border-white/10 flex items-center justify-center">
+            <Target className="w-6 h-6 text-white/30" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white">هدف {monthLabel}</h3>
+            <p className="text-xs text-white/40 mt-1">
+              {isAdmin ? "لسه مفيش هدف شحنات محدد للشهر ده" : "لسه المدير محددش هدف للشهر ده"}
+            </p>
+          </div>
+          {isAdmin && (
+            <Button size="sm" variant="outline" className="border-white/15 text-white/80 hover:text-white" onClick={() => setDialogOpen(true)}>
+              <Target className="w-3.5 h-3.5 ml-1.5" />
+              حدد هدف الشهر
+            </Button>
+          )}
+        </div>
+        <GoalDialog
+          open={dialogOpen} onOpenChange={setDialogOpen}
+          monthLabel={monthLabel} inputValue={inputValue} setInputValue={setInputValue}
+          onSubmit={handleSubmit} isPending={mutation.isPending}
+        />
+      </>
+    );
+  }
+
+  // هدف محدد — اعرض دايرة التقدّم
+  const pct = target > 0 ? (actualCount / target) * 100 : 0;
+  const color = pct >= 100 ? "#22c55e" : pct >= 60 ? "#e8b93f" : "#f97316";
+
+  return (
+    <>
+      <div className="flex flex-col items-center justify-center py-2">
+        <div className="relative">
+          <RingGauge
+            value={actualCount} max={target} size={220} strokeWidth={18}
+            color={color} label={`من ${fmt(target)}`} sub={`${Math.round(pct)}%`}
+          />
+        </div>
+        <div className="mt-2 text-center flex items-center gap-2 justify-center">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2 justify-center">
+              <Target className="w-5 h-5" style={{ color: "#e8b93f" }} />
+              هدف {monthLabel}
+            </h2>
+            <p className="text-xs text-white/40 mt-1">نسبة إنجاز عدد الشحنات من الهدف المحدد</p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => { setInputValue(String(target)); setDialogOpen(true); }}
+              className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.08] transition-colors"
+              title="تعديل الهدف"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      <GoalDialog
+        open={dialogOpen} onOpenChange={setDialogOpen}
+        monthLabel={monthLabel} inputValue={inputValue} setInputValue={setInputValue}
+        onSubmit={handleSubmit} isPending={mutation.isPending}
+      />
+    </>
+  );
+}
+
+function GoalDialog({
+  open, onOpenChange, monthLabel, inputValue, setInputValue, onSubmit, isPending,
+}: {
+  open: boolean; onOpenChange: (v: boolean) => void; monthLabel: string;
+  inputValue: string; setInputValue: (v: string) => void; onSubmit: () => void; isPending: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent dir="rtl" className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>تحديد هدف شحنات {monthLabel}</DialogTitle>
+        </DialogHeader>
+        <div className="py-2">
+          <label className="text-xs text-white/50 mb-1.5 block">عدد الشحنات المستهدف</label>
+          <Input
+            type="number" inputMode="numeric" min={1}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="مثلاً: 1000"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === "Enter") onSubmit(); }}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>إلغاء</Button>
+          <Button onClick={onSubmit} disabled={isPending}>{isPending ? "جاري الحفظ..." : "حفظ الهدف"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -686,10 +852,13 @@ export default function ShipmentsIntelligencePage() {
       {/* Alerts */}
       <AlertsBanner alerts={data.alerts} />
 
-      {/* Hero: Health Score + KPIs */}
+      {/* Hero: Health Score + Monthly Goal + KPIs */}
       <SectionCard>
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_220px_1fr] gap-6 items-center">
           <HealthScoreGauge score={data.healthScore} grade={data.healthGrade} />
+          <div className="border-t lg:border-t-0 lg:border-r border-white/10 pt-4 lg:pt-0 lg:pr-6">
+            <MonthlyGoalCard actualCount={kpis.total} />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#e8b93f" />
             <KpiTile icon={CheckCircle2} label="تم التسليم" value={fmt(kpis.delivered)} sub={`${kpis.deliveryRate}%`} color="#22c55e" />
