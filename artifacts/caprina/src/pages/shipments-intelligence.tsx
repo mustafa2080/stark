@@ -579,16 +579,16 @@ function MiniRing({ pct, color, size = 44 }: { pct: number; color: string; size?
 // Ranked Row — صف مرتّب بدائرة صغيرة (يُستخدم للمدن/الشركات/المناديب)
 // ═══════════════════════════════════════════════════════════════════════════
 function RankedRow({
-  rank, name, total, successRate, sub, ringColor,
+  rank, name, total, successRate, sub, ringColor, unassigned,
 }: {
-  rank: number; name: string; total: number; successRate: number; sub?: string; ringColor?: string;
+  rank: number; name: string; total: number; successRate: number; sub?: string; ringColor?: string; unassigned?: boolean;
 }) {
   const color = ringColor ?? rateColor(successRate);
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] rounded-lg px-1">
       <span className="w-6 text-center text-xs font-bold text-white/30">{rank}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate">{name}</p>
+        <p className={`text-sm font-medium truncate ${unassigned ? "text-amber-400/90 italic" : "text-white"}`}>{name}</p>
         <p className="text-xs text-white/45 mt-0.5">{fmt(total)} شحنة{sub ? ` · ${sub}` : ""}</p>
       </div>
       <MiniRing pct={successRate} color={color} />
@@ -956,7 +956,7 @@ export default function ShipmentsIntelligencePage() {
         <SectionHeader icon={Truck} title="أداء شركات الشحن" subtitle="مقارنة كاملة بين كل شركات الشحن المستخدمة" />
         <div className="space-y-1">
           {data.companyPerformance.slice(0, 6).map((c, i) => (
-            <RankedRow key={String(c.companyId)} rank={i + 1} name={c.companyName} total={c.total} successRate={c.successRate} sub={`${c.avgDeliveryHours} س متوسط`} />
+            <RankedRow key={String(c.companyId)} rank={i + 1} name={c.companyName} total={c.total} successRate={c.successRate} sub={`${c.avgDeliveryHours} س متوسط`} unassigned={c.companyId == null} />
           ))}
         </div>
         <CollapsibleDetail title={`عرض الجدول التفصيلي الكامل (${data.companyPerformance.length} شركة)`}>
@@ -964,7 +964,9 @@ export default function ShipmentsIntelligencePage() {
             rows={data.companyPerformance}
             emptyLabel="لا توجد بيانات شركات شحن في هذه الفترة"
             columns={[
-              { key: "companyName", label: "الشركة", render: r => <span className="font-bold text-white">{r.companyName}</span> },
+              { key: "companyName", label: "الشركة", render: r => r.companyId == null
+                ? <span className="font-medium text-amber-400/90 italic">{r.companyName}</span>
+                : <span className="font-bold text-white">{r.companyName}</span> },
               { key: "total", label: "إجمالي", render: r => fmt(r.total), align: "end" },
               { key: "delivered", label: "تم التسليم", render: r => <span className="text-[#22c55e]">{fmt(r.delivered)}</span>, align: "end" },
               { key: "returned", label: "مرتجع", render: r => <span className="text-[#ef4444]">{fmt(r.returned)}</span>, align: "end" },
