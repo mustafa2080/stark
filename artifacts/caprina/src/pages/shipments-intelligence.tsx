@@ -58,6 +58,12 @@ function RingGauge({
   const arcLen = circumference - gapLen;
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   const filledLen = (pct / 100) * arcLen;
+  // مساحة إضافية حول الدائرة عشان الـ drop-shadow (glow) ياخد حقه ويتمدد بشكل دائري
+  // من غير ما يتقطع/يتقص عند حواف مربع الـ SVG
+  const pad = strokeWidth + 24;
+  const svgSize = size + pad * 2;
+  const cx = svgSize / 2;
+  const cy = svgSize / 2;
 
   return (
     <div
@@ -68,18 +74,21 @@ function RingGauge({
       tabIndex={-1}
     >
       <svg
-        width={size} height={size} viewBox={`0 0 ${size} ${size}`}
-        style={{ transform: `rotate(${90 + gapDeg / 2}deg)`, outline: "none", display: "block" }}
+        width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`}
+        style={{
+          position: "absolute", top: -pad, left: -pad,
+          transform: `rotate(${90 + gapDeg / 2}deg)`, outline: "none", display: "block", overflow: "visible",
+        }}
       >
         {/* المسار الخلفي (الفاضي) */}
         <circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          cx={cx} cy={cy} r={radius} fill="none"
           stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round"
           strokeDasharray={`${arcLen} ${circumference}`}
         />
         {/* المسار الممتلئ */}
         <motion.circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          cx={cx} cy={cy} r={radius} fill="none"
           stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
           strokeDasharray={`${arcLen} ${circumference}`}
           initial={{ strokeDashoffset: arcLen }}
@@ -340,6 +349,10 @@ function MiniRing({ pct, color, size = 44 }: { pct: number; color: string; size?
   const gapLen = (22 / 360) * circumference;
   const arcLen = circumference - gapLen;
   const filledLen = (Math.max(0, Math.min(100, pct)) / 100) * arcLen;
+  const pad = strokeWidth + 8;
+  const svgSize = size + pad * 2;
+  const cx = svgSize / 2;
+  const cy = svgSize / 2;
   return (
     <div
       className="relative shrink-0 outline-none focus:outline-none border-0 select-none"
@@ -348,10 +361,13 @@ function MiniRing({ pct, color, size = 44 }: { pct: number; color: string; size?
       onMouseLeave={() => setHovered(false)}
       tabIndex={-1}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(101deg)", outline: "none", display: "block" }}>
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={`${arcLen} ${circumference}`} />
+      <svg
+        width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`}
+        style={{ position: "absolute", top: -pad, left: -pad, transform: "rotate(101deg)", outline: "none", display: "block", overflow: "visible" }}
+      >
+        <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={`${arcLen} ${circumference}`} />
         <motion.circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
+          cx={cx} cy={cy} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
           strokeDasharray={`${arcLen} ${circumference}`}
           initial={{ strokeDashoffset: arcLen }}
           animate={{ strokeDashoffset: arcLen - filledLen, filter: hovered ? `drop-shadow(0 0 6px ${color})` : "none" }}
