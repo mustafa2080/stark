@@ -958,6 +958,18 @@ export interface ShipmentsIntelligenceResponse {
   weightAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   piecesAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   routeAnalysis: { from: string; to: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number }[];
+  // تنبيه SLA حقيقي: فرق فعلي بالساعات بين الموعد المتوقع والتسليم الفعلي (أو الوقت الحالي لو لسه ماشية)
+  slaAnalysis: {
+    totalBreaches: number;
+    ongoingBreaches: number; // متأخرة دلوقتي فعليًا (مش اتسلمت لسه) — تحتاج متابعة فورية
+    avgDelayHours: number;
+    worstBreaches: {
+      id: number; shipmentNumber: string | null; receiverName: string;
+      receiverCity: string; status: string;
+      estimatedDelivery: string; actualDelivery: string | null;
+      delayHours: number; isOngoing: boolean;
+    }[];
+  };
   agingAnalysis: { key: string; label: string; count: number }[];
   returnReasons: { reason: string; label: string; count: number; pct: number }[];
   financialPulse: {

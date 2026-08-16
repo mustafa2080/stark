@@ -748,6 +748,76 @@ function RouteAnalysis({ data }: { data: ShipmentsIntelligenceResponse["routeAna
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SLA Breaches — تنبيه "SLA حقيقي": أكتر الشحنات تأخرًا عن الموعد المتوقع
+// isOngoing = لسه متأخرة دلوقتي فعليًا (محتاجة متابعة فورية)، غير كده اتسلمت متأخرة بالفعل
+// ═══════════════════════════════════════════════════════════════════════════
+const SI_STATUS_LABELS_FALLBACK: Record<string, string> = {
+  pending: "قيد الانتظار", warehouse_ready: "قيد الشحن في المخزن", in_shipping: "قيد الشحن",
+  delayed: "مؤجلة", partial_received: "استلام جزئي", received: "تم التسليم", returned: "مرتجعة",
+};
+
+function fmtDelay(hours: number): string {
+  if (hours < 24) return `${Math.round(hours)} ساعة`;
+  const days = Math.floor(hours / 24);
+  const rem = Math.round(hours % 24);
+  return rem > 0 ? `${days} يوم و${rem} س` : `${days} يوم`;
+}
+
+function SlaBreachesTable({ data, statusLabels }: {
+  data: ShipmentsIntelligenceResponse["slaAnalysis"];
+  statusLabels: Record<string, string>;
+}) {
+  if (!data.worstBreaches.length) {
+    return <p className="text-center text-sm text-white/40 py-8">لا توجد شحنات متأخرة عن ميعادها المتوقع 👌</p>;
+  }
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl bg-white/[0.03] border border-white/10 p-3 text-center">
+          <p className="text-lg font-black text-white tabular-nums">{fmt(data.totalBreaches)}</p>
+          <p className="text-[11px] text-white/45 mt-0.5">إجمالي التأخيرات</p>
+        </div>
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-center">
+          <p className="text-lg font-black text-red-400 tabular-nums">{fmt(data.ongoingBreaches)}</p>
+          <p className="text-[11px] text-white/45 mt-0.5">متأخرة الآن فعليًا</p>
+        </div>
+        <div className="rounded-xl bg-white/[0.03] border border-white/10 p-3 text-center">
+          <p className="text-lg font-black text-white tabular-nums">{fmtDelay(data.avgDelayHours)}</p>
+          <p className="text-[11px] text-white/45 mt-0.5">متوسط مدة التأخير</p>
+        </div>
+      </div>
+      <DetailTable
+        rows={data.worstBreaches}
+        emptyLabel="لا توجد شحنات متأخرة"
+        columns={[
+          {
+            key: "receiverName", label: "المستلم", render: r => (
+              <div>
+                <span className="font-bold text-white">{r.receiverName}</span>
+                {r.shipmentNumber && <span className="text-[11px] text-white/40 block">#{r.shipmentNumber}</span>}
+              </div>
+            ),
+          },
+          { key: "receiverCity", label: "المدينة", render: r => <span className="text-white/70">{r.receiverCity}</span> },
+          {
+            key: "status", label: "الحالة", render: r => (
+              <span className={r.isOngoing ? "text-amber-400" : "text-white/60"}>
+                {statusLabels[r.status] ?? SI_STATUS_LABELS_FALLBACK[r.status] ?? r.status}
+              </span>
+            ),
+          },
+          {
+            key: "delayHours", label: "مدة التأخير", align: "end", render: r => (
+              <Pill color={r.isOngoing ? "#ef4444" : "#f97316"}>{fmtDelay(r.delayHours)}</Pill>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Alerts Banner
 // ═══════════════════════════════════════════════════════════════════════════
 function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alerts"] }) {
@@ -930,6 +1000,7 @@ export default function ShipmentsIntelligencePage() {
   // يفضل يعني "تحسّن" دايمًا، مش مجرد "زيادة في الرقم"
   const invertedTrend = (v: number | null) => (v === null ? undefined : -v);
   const normalTrend = (v: number | null) => (v === null ? undefined : v);
+  const statusLabels = Object.fromEntries(data.statusDistribution.map(s => [s.status, s.label]));
 
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-white p-4 md:p-6 space-y-6" dir="rtl">
@@ -1021,6 +1092,12 @@ export default function ShipmentsIntelligencePage() {
       <SectionCard>
         <SectionHeader icon={MapPin} title="خريطة اتجاه الشحن" subtitle="أداء أكتر المسارات (من ← إلى) تكرارًا خلال الفترة" />
         <RouteAnalysis data={data.routeAnalysis} />
+      </SectionCard>
+
+      {/* تنبيه SLA حقيقي — الفرق الفعلي بالساعات بين الموعد المتوقع والتسليم الفعلي */}
+      <SectionCard>
+        <SectionHeader icon={AlertTriangle} title="تنبيه SLA حقيقي" subtitle="أكتر الشحنات تأخرًا عن ميعادها المتوقع بالساعات" />
+        <SlaBreachesTable data={data.slaAnalysis} statusLabels={statusLabels} />
       </SectionCard>
 
       {/* أسباب المرتجعات + تحليل زمن التسليم الذكي (بديل القسم المالي) */}

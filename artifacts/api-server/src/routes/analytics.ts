@@ -4509,6 +4509,8 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     const allActiveRows = await db
       .select({
         id: shipmentsTable.id,
+        shipmentNumber: shipmentsTable.shipmentNumber,
+        receiverName: shipmentsTable.receiverName,
         status: shipmentsTable.status,
         receiverCity: shipmentsTable.receiverCity,
         senderCity: shipmentsTable.senderCity,
@@ -4787,6 +4789,59 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       .sort((a, b) => b.total - a.total)
       .slice(0, 15);
 
+    // ── 4.7) تنبيه "SLA حقيقي" — الفرق الفعلي بالساعات بين الموعد المتوقع والتسليم الفعلي ──
+    // بيغطي حالتين: (أ) شحنات اتسلمت فعلاً لكن متأخرة عن estimatedDelivery
+    //              (ب) شحنات لسه ماشية (مش received/returned) وفات ميعادها المتوقع بالفعل (متأخرة دلوقتي)
+    // مصدر الداتا: allActiveRows (كل الشحنات النشطة، مش محصور بالفترة) — عشان التأخير الحالي يبان
+    // حتى لو الشحنة اتعملت من فترة أطول من الفترة المختارة في الفلتر
+    type SlaBreach = {
+      id: number; shipmentNumber: string | null; receiverName: string;
+      receiverCity: string; status: string;
+      estimatedDelivery: string; actualDelivery: string | null;
+      delayHours: number; isOngoing: boolean; // isOngoing = لسه متأخرة ومستنية، مش اتسلمت
+    };
+    const slaBreaches: SlaBreach[] = [];
+    for (const r of allActiveRows) {
+      if (!r.estimatedDelivery) continue; // مفيش ميعاد متوقع مسجّل أصلاً، مينفعش نقارن
+      const status = SI_normalize(r.status);
+      const estimatedTime = new Date(r.estimatedDelivery).getTime();
+      if (status === "received") {
+        // اتسلمت — قارن بالتسليم الفعلي (أو updatedAt لو مفيش actualDelivery مسجّل)
+        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
+        const delayHours = (finished - estimatedTime) / (1000 * 60 * 60);
+        if (delayHours > 0) {
+          slaBreaches.push({
+            id: r.id, shipmentNumber: r.shipmentNumber, receiverName: r.receiverName,
+            receiverCity: r.receiverCity || "غير محدد", status,
+            estimatedDelivery: r.estimatedDelivery.toISOString(),
+            actualDelivery: r.actualDelivery ? r.actualDelivery.toISOString() : null,
+            delayHours: Math.round(delayHours * 10) / 10, isOngoing: false,
+          });
+        }
+      } else if (status !== "returned") {
+        // لسه ماشية (pending/warehouse_ready/in_shipping/delayed) وفات ميعادها المتوقع فعلاً
+        const delayHours = (now.getTime() - estimatedTime) / (1000 * 60 * 60);
+        if (delayHours > 0) {
+          slaBreaches.push({
+            id: r.id, shipmentNumber: r.shipmentNumber, receiverName: r.receiverName,
+            receiverCity: r.receiverCity || "غير محدد", status,
+            estimatedDelivery: r.estimatedDelivery.toISOString(),
+            actualDelivery: null,
+            delayHours: Math.round(delayHours * 10) / 10, isOngoing: true,
+          });
+        }
+      }
+    }
+    slaBreaches.sort((a, b) => b.delayHours - a.delayHours);
+    const slaAnalysis = {
+      totalBreaches: slaBreaches.length,
+      ongoingBreaches: slaBreaches.filter(b => b.isOngoing).length, // متأخرة دلوقتي وليها متابعة فورية
+      avgDelayHours: slaBreaches.length > 0
+        ? Math.round((slaBreaches.reduce((s, b) => s + b.delayHours, 0) / slaBreaches.length) * 10) / 10
+        : 0,
+      worstBreaches: slaBreaches.slice(0, 20), // أكتر 20 شحنة تأخرًا
+    };
+
     // ── 5) تحليل أعمار الشحنات النشطة (Aging buckets) — لكل الشحنات المعلقة حالياً ──
     const AGING_BUCKETS = [
       { key: "0-3",   label: "0-3 أيام",   min: 0,  max: 3 },
@@ -4882,6 +4937,9 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
 
     // ── 10) تنبيهات ذكية ─────────────────────────────────────────────────
     const alerts: { level: "critical" | "warning" | "info"; message: string }[] = [];
+    if (slaAnalysis.ongoingBreaches > 0) {
+      alerts.push({ level: "critical", message: `${slaAnalysis.ongoingBreaches} شحنة متأخرة عن ميعادها المتوقع فعليًا ومستنية متابعة الآن` });
+    }
     const criticalAging = agingAnalysis.find(b => b.key === "15+");
     if (criticalAging && criticalAging.count > 0) {
       alerts.push({ level: "critical", message: `${criticalAging.count} شحنة متأخرة أكتر من 15 يوم وتحتاج متابعة فورية` });
@@ -4946,6 +5004,7 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       weightAnalysis,
       piecesAnalysis,
       routeAnalysis,
+      slaAnalysis,
       agingAnalysis,
       returnReasons,
       financialPulse,
