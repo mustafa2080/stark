@@ -930,6 +930,8 @@ export interface ShipmentsIntelligenceResponse {
   statusDistribution: { status: string; label: string; color: string; value: number; pct: number }[];
   cityPerformance: { city: string; total: number; delivered: number; returned: number; codValue: number; successRate: number; returnRate: number }[];
   companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; totalFees: number }[];
+  weightAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
+  piecesAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   agingAnalysis: { key: string; label: string; count: number }[];
   returnReasons: { reason: string; label: string; count: number; pct: number }[];
   financialPulse: {

@@ -635,6 +635,78 @@ function ReturnReasonsBreakdown({ data }: { data: ShipmentsIntelligenceResponse[
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Packaging Analysis — تحليل الوزن/عدد القطع مقابل معدل النجاح والمرتجعات
+// بيوضح هل الشحنات التقيلة أو متعددة القطع بترجع أكتر — يفيد في سياسة التغليف والتسعير
+// ═══════════════════════════════════════════════════════════════════════════
+function PackagingBucketRow({ item }: { item: ShipmentsIntelligenceResponse["weightAnalysis"][number] }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-white/80">{item.label}</span>
+        <span className="text-xs text-white/50">
+          <span className="font-bold text-white">{fmt(item.total)}</span> شحنة
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${item.successRate}%` }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="h-full rounded-full"
+            style={{ background: rateColor(item.successRate) }}
+          />
+        </div>
+        <span className="text-xs font-bold tabular-nums w-10 text-left" style={{ color: rateColor(item.successRate) }}>
+          {item.successRate}%
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${item.returnRate}%` }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="h-full rounded-full"
+            style={{ background: rateColor(item.returnRate, true) }}
+          />
+        </div>
+        <span className="text-[11px] tabular-nums w-10 text-left text-white/40">
+          مرتجع {item.returnRate}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PackagingAnalysis({
+  weightAnalysis, piecesAnalysis,
+}: {
+  weightAnalysis: ShipmentsIntelligenceResponse["weightAnalysis"];
+  piecesAnalysis: ShipmentsIntelligenceResponse["piecesAnalysis"];
+}) {
+  if (!weightAnalysis.length && !piecesAnalysis.length) {
+    return <p className="text-center text-sm text-white/40 py-8">لا توجد بيانات وزن أو عدد قطع مسجّلة في هذه الفترة</p>;
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <h4 className="text-xs font-bold text-white/40 mb-3">حسب الوزن</h4>
+        <div className="space-y-4">
+          {weightAnalysis.map(item => <PackagingBucketRow key={item.key} item={item} />)}
+        </div>
+      </div>
+      <div>
+        <h4 className="text-xs font-bold text-white/40 mb-3">حسب عدد القطع</h4>
+        <div className="space-y-4">
+          {piecesAnalysis.map(item => <PackagingBucketRow key={item.key} item={item} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Alerts Banner
 // ═══════════════════════════════════════════════════════════════════════════
 function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alerts"] }) {
@@ -919,6 +991,12 @@ export default function ShipmentsIntelligencePage() {
             ]}
           />
         </CollapsibleDetail>
+      </SectionCard>
+
+      {/* تحليل الوزن وعدد القطع مقابل معدل النجاح — يفيد سياسة التغليف والتسعير */}
+      <SectionCard>
+        <SectionHeader icon={Package} title="تحليل التغليف مقابل معدل النجاح" subtitle="هل الشحنات التقيلة أو متعددة القطع بترجع أكتر؟" />
+        <PackagingAnalysis weightAnalysis={data.weightAnalysis} piecesAnalysis={data.piecesAnalysis} />
       </SectionCard>
 
       {/* أسباب المرتجعات + تحليل زمن التسليم الذكي (بديل القسم المالي) */}

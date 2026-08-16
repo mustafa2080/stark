@@ -4648,6 +4648,64 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       }))
       .sort((a, b) => b.total - a.total);
 
+    // ── 4.5) تحليل الوزن وعدد القطع مقابل معدل النجاح ───────────────────────
+    // بيوضح هل الشحنات التقيلة/متعددة القطع بترجع أكتر — يفيد في سياسة التغليف والتسعير
+    const WEIGHT_BUCKETS = [
+      { key: "light",  label: "خفيفة (أقل من 1 كجم)", min: 0, max: 1 },
+      { key: "medium", label: "متوسطة (1 - 5 كجم)",    min: 1, max: 5 },
+      { key: "heavy",  label: "تقيلة (أكتر من 5 كجم)",  min: 5, max: Infinity },
+    ];
+    const weightStatsMap = new Map<string, { total: number; delivered: number; returned: number }>();
+    for (const r of rangeRows) {
+      const w = Number(r.weight);
+      if (!Number.isFinite(w) || w <= 0) continue; // استبعاد الشحنات بدون وزن مسجّل
+      const bucket = WEIGHT_BUCKETS.find(b => w > b.min && w <= b.max) ?? WEIGHT_BUCKETS[WEIGHT_BUCKETS.length - 1];
+      if (!weightStatsMap.has(bucket.key)) weightStatsMap.set(bucket.key, { total: 0, delivered: 0, returned: 0 });
+      const s = weightStatsMap.get(bucket.key)!;
+      s.total++;
+      const status = SI_normalize(r.status);
+      if (status === "received") s.delivered++;
+      if (status === "returned") s.returned++;
+    }
+    const weightAnalysis = WEIGHT_BUCKETS
+      .map(b => {
+        const s = weightStatsMap.get(b.key) ?? { total: 0, delivered: 0, returned: 0 };
+        return {
+          key: b.key, label: b.label, total: s.total, delivered: s.delivered, returned: s.returned,
+          successRate: s.total > 0 ? Math.round((s.delivered / s.total) * 100) : 0,
+          returnRate: s.total > 0 ? Math.round((s.returned / s.total) * 100) : 0,
+        };
+      })
+      .filter(b => b.total > 0);
+
+    const PIECES_BUCKETS = [
+      { key: "single", label: "قطعة واحدة",  min: 1, max: 1 },
+      { key: "few",    label: "2 - 3 قطع",   min: 2, max: 3 },
+      { key: "many",   label: "4 قطع فأكتر", min: 4, max: Infinity },
+    ];
+    const piecesStatsMap = new Map<string, { total: number; delivered: number; returned: number }>();
+    for (const r of rangeRows) {
+      const p = Number(r.pieces);
+      if (!Number.isFinite(p) || p <= 0) continue; // استبعاد الشحنات بدون عدد قطع مسجّل
+      const bucket = PIECES_BUCKETS.find(b => p >= b.min && p <= b.max) ?? PIECES_BUCKETS[PIECES_BUCKETS.length - 1];
+      if (!piecesStatsMap.has(bucket.key)) piecesStatsMap.set(bucket.key, { total: 0, delivered: 0, returned: 0 });
+      const s = piecesStatsMap.get(bucket.key)!;
+      s.total++;
+      const status = SI_normalize(r.status);
+      if (status === "received") s.delivered++;
+      if (status === "returned") s.returned++;
+    }
+    const piecesAnalysis = PIECES_BUCKETS
+      .map(b => {
+        const s = piecesStatsMap.get(b.key) ?? { total: 0, delivered: 0, returned: 0 };
+        return {
+          key: b.key, label: b.label, total: s.total, delivered: s.delivered, returned: s.returned,
+          successRate: s.total > 0 ? Math.round((s.delivered / s.total) * 100) : 0,
+          returnRate: s.total > 0 ? Math.round((s.returned / s.total) * 100) : 0,
+        };
+      })
+      .filter(b => b.total > 0);
+
     // ── 5) تحليل أعمار الشحنات النشطة (Aging buckets) — لكل الشحنات المعلقة حالياً ──
     const AGING_BUCKETS = [
       { key: "0-3",   label: "0-3 أيام",   min: 0,  max: 3 },
@@ -4780,6 +4838,8 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       statusDistribution,
       cityPerformance,
       companyPerformance,
+      weightAnalysis,
+      piecesAnalysis,
       agingAnalysis,
       returnReasons,
       financialPulse,
