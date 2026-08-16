@@ -77,7 +77,8 @@ function RingGauge({
         width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`}
         style={{
           position: "absolute", top: -pad, left: -pad,
-          transform: `rotate(${90 + gapDeg / 2}deg)`, outline: "none", display: "block", overflow: "visible",
+          transform: `rotate(${90 + gapDeg / 2}deg)`, transformOrigin: "center center",
+          outline: "none", display: "block", overflow: "visible",
         }}
       >
         {/* المسار الخلفي (الفاضي) */}
@@ -363,7 +364,7 @@ function MiniRing({ pct, color, size = 44 }: { pct: number; color: string; size?
     >
       <svg
         width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`}
-        style={{ position: "absolute", top: -pad, left: -pad, transform: "rotate(101deg)", outline: "none", display: "block", overflow: "visible" }}
+        style={{ position: "absolute", top: -pad, left: -pad, transform: "rotate(101deg)", transformOrigin: "center center", outline: "none", display: "block", overflow: "visible" }}
       >
         <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={`${arcLen} ${circumference}`} />
         <motion.circle
