@@ -4756,7 +4756,8 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     }
     const worstCompany = companyPerformance.filter(c => c.total >= 5).sort((a, b) => a.successRate - b.successRate)[0];
     if (worstCompany && worstCompany.successRate < 70) {
-      alerts.push({ level: "warning", message: `شركة "${worstCompany.companyName}" بمعدل نجاح ${worstCompany.successRate}% فقط` });
+      const worstCompanyLabel = worstCompany.companyId == null ? `"${worstCompany.companyName}"` : `شركة "${worstCompany.companyName}"`;
+      alerts.push({ level: "warning", message: `${worstCompanyLabel} بمعدل نجاح ${worstCompany.successRate}% فقط` });
     }
     if (financialPulse.collectionRate < 85 && codExpected > 0) {
       alerts.push({ level: "info", message: `نسبة تحصيل COD ${financialPulse.collectionRate}% — فرق ${Math.round(codExpected - codCollected)} ج.م لم يُحصّل بعد` });
