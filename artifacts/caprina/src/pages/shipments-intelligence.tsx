@@ -970,33 +970,6 @@ export default function ShipmentsIntelligencePage() {
         </CollapsibleDetail>
       </SectionCard>
 
-      {/* أداء شركات الشحن — تفصيلي كامل */}
-      <SectionCard>
-        <SectionHeader icon={Truck} title="أداء شركات الشحن" subtitle="مقارنة كاملة بين كل شركات الشحن المستخدمة" />
-        <div className="space-y-1">
-          {data.companyPerformance.slice(0, 6).map((c, i) => (
-            <RankedRow key={String(c.companyId)} rank={i + 1} name={c.companyName} total={c.total} successRate={c.successRate} sub={`${c.avgDeliveryHours} س متوسط`} unassigned={c.companyId == null} />
-          ))}
-        </div>
-        <CollapsibleDetail title={`عرض الجدول التفصيلي الكامل (${data.companyPerformance.length} شركة)`}>
-          <DetailTable
-            rows={data.companyPerformance}
-            emptyLabel="لا توجد بيانات شركات شحن في هذه الفترة"
-            columns={[
-              { key: "companyName", label: "الشركة", render: r => r.companyId == null
-                ? <span className="font-medium text-amber-400/90 italic">{r.companyName}</span>
-                : <span className="font-bold text-white">{r.companyName}</span> },
-              { key: "total", label: "إجمالي", render: r => fmt(r.total), align: "end" },
-              { key: "delivered", label: "تم التسليم", render: r => <span className="text-[#22c55e]">{fmt(r.delivered)}</span>, align: "end" },
-              { key: "returned", label: "مرتجع", render: r => <span className="text-[#ef4444]">{fmt(r.returned)}</span>, align: "end" },
-              { key: "successRate", label: "نسبة النجاح", render: r => <Pill color={rateColor(r.successRate)}>{r.successRate}%</Pill>, align: "end" },
-              { key: "returnRate", label: "نسبة المرتجع", render: r => <Pill color={rateColor(r.returnRate, true)}>{r.returnRate}%</Pill>, align: "end" },
-              { key: "avgDeliveryHours", label: "متوسط زمن التسليم", render: r => `${r.avgDeliveryHours} س`, align: "end" },
-            ]}
-          />
-        </CollapsibleDetail>
-      </SectionCard>
-
       {/* تحليل الوزن وعدد القطع مقابل معدل النجاح — يفيد سياسة التغليف والتسعير */}
       <SectionCard>
         <SectionHeader icon={Package} title="تحليل التغليف مقابل معدل النجاح" subtitle="هل الشحنات التقيلة أو متعددة القطع بترجع أكتر؟" />
