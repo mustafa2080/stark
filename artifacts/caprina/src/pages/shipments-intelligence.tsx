@@ -61,12 +61,16 @@ function RingGauge({
 
   return (
     <div
-      className="relative inline-flex items-center justify-center transition-transform duration-300"
-      style={{ width: size, height: size }}
+      className="relative inline-flex items-center justify-center transition-transform duration-300 outline-none focus:outline-none focus-visible:outline-none border-0 select-none"
+      style={{ width: size, height: size, WebkitTapHighlightColor: "transparent" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      tabIndex={-1}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: `rotate(${90 + gapDeg / 2}deg)` }}>
+      <svg
+        width={size} height={size} viewBox={`0 0 ${size} ${size}`}
+        style={{ transform: `rotate(${90 + gapDeg / 2}deg)`, outline: "none", display: "block" }}
+      >
         {/* المسار الخلفي (الفاضي) */}
         <circle
           cx={size / 2} cy={size / 2} r={radius} fill="none"
@@ -338,12 +342,13 @@ function MiniRing({ pct, color, size = 44 }: { pct: number; color: string; size?
   const filledLen = (Math.max(0, Math.min(100, pct)) / 100) * arcLen;
   return (
     <div
-      className="relative shrink-0"
-      style={{ width: size, height: size }}
+      className="relative shrink-0 outline-none focus:outline-none border-0 select-none"
+      style={{ width: size, height: size, WebkitTapHighlightColor: "transparent" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      tabIndex={-1}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(101deg)" }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(101deg)", outline: "none", display: "block" }}>
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={`${arcLen} ${circumference}`} />
         <motion.circle
           cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
