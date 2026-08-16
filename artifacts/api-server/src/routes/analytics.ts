@@ -4639,7 +4639,7 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     const companyPerformance = Array.from(companyStatsMap.entries())
       .map(([key, d]) => ({
         companyId: key === "none" ? null : key,
-        companyName: key === "none" ? "بدون مندوب شحن" : (companyMap.get(key as number) ?? "—"),
+        companyName: key === "none" ? "شحنة بدون مندوب شحن" : (companyMap.get(key as number) ?? "—"),
         total: d.total, delivered: d.delivered, returned: d.returned,
         successRate: d.total > 0 ? Math.round((d.delivered / d.total) * 100) : 0,
         returnRate: d.total > 0 ? Math.round((d.returned / d.total) * 100) : 0,
