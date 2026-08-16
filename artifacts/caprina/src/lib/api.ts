@@ -990,6 +990,72 @@ export interface ShipmentsMonthlyGoalResponse {
   target: number | null;
 }
 
+// ── التحليل الذكي لمناديب الشحن ──────────────────────────────────────────────
+export interface RepRankingRow {
+  rank: number;
+  id: number;
+  name: string;
+  logo: string | null;
+  rankingScore: number;
+  trend: { direction: "up" | "down" | "flat" | "new"; delta: number | null };
+  total: number;
+  delivered: number;
+  returned: number;
+  deliveryRate: number;
+  returnRate: number;
+  onTimeRate: number;
+  avgDeliveryHours: number;
+}
+export interface RepCostVsPerformanceRow {
+  id: number;
+  name: string;
+  shippingCost: number;
+  costPerDelivery: number | null;
+  deliveryRate: number;
+  avgDeliveryHours: number;
+  rankingScore: number;
+  total: number;
+  quadrant: "best_value" | "premium" | "budget_risk" | "underperformer";
+}
+export interface RepCodAnalysisRow {
+  id: number;
+  name: string;
+  codExpected: number;
+  codCollected: number;
+  collectionRate: number;
+  shippingFeesTotal: number;
+}
+export interface RepLoadBalanceRow {
+  id: number;
+  name: string;
+  total: number;
+  loadSharePct: number;
+}
+export interface RepAlert {
+  type: string;
+  severity: "critical" | "warning" | "info";
+  repId: number;
+  repName: string;
+  message: string;
+}
+export interface RepresentativesIntelligenceResponse {
+  period: string;
+  periodLabel: string;
+  generatedAt: string;
+  repsCount: number;
+  activeRepsCount: number;
+  totalShipmentsInRange: number;
+  ranking: RepRankingRow[];
+  costVsPerformance: RepCostVsPerformanceRow[];
+  codAnalysis: RepCodAnalysisRow[];
+  loadBalance: {
+    reps: RepLoadBalanceRow[];
+    topRepLoadSharePct: number;
+    status: "balanced" | "concentrated" | "critical";
+  };
+  alerts: RepAlert[];
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -1036,6 +1102,14 @@ export const analyticsApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
+  representativesIntelligence: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<RepresentativesIntelligenceResponse>(`/analytics/representatives-intelligence${qs ? `?${qs}` : ""}`);
+  },
   charts: () => apiFetch<ChartsData>("/analytics/charts"),
   monthlySales: (month?: string) =>
     apiFetch<{ month: string; days: ChartDayItem[]; totalOrders: number; totalRevenue: number; daysCount: number; avgPerDay: string }>(

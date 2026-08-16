@@ -5021,4 +5021,329 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /analytics/representatives-intelligence
+// المصدر الوحيد: جدول الشحنات (shipmentsTable) مربوطًا بـ shippingCompaniesTable
+// (كل صف في shipping_companies يمثّل "مندوب شحن" — الاسم القديم للجدول لسه company لأسباب تاريخية)
+// صفحة "التحليل الذكي لمناديب الشحن" — تحليل مخصص لأداء كل مندوب لوحده، مش نظرة عامة على الشحنات
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/analytics/representatives-intelligence", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = (req.query.period as string | undefined) ?? "month";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `representatives-intelligence:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const now = new Date();
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "week") {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "month") {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    }
+    // فترة سابقة بنفس المدة — لحساب اتجاه أداء كل مندوب (تحسّن/تراجع)
+    const rangeDurationMs = rangeTo.getTime() - rangeFrom.getTime();
+    const prevRangeTo = new Date(rangeFrom.getTime() - 1);
+    const prevRangeFrom = new Date(prevRangeTo.getTime() - rangeDurationMs);
+
+    const baseCond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const reps = tenantId !== null
+      ? await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+      : await db.select().from(shippingCompaniesTable);
+
+    const rows = await db
+      .select({
+        id: shipmentsTable.id,
+        status: shipmentsTable.status,
+        shippingCompanyId: shipmentsTable.shippingCompanyId,
+        codAmount: shipmentsTable.codAmount,
+        collectedAmount: shipmentsTable.collectedAmount,
+        shippingFee: shipmentsTable.shippingFee,
+        createdAt: shipmentsTable.createdAt,
+        updatedAt: shipmentsTable.updatedAt,
+        estimatedDelivery: shipmentsTable.estimatedDelivery,
+        actualDelivery: shipmentsTable.actualDelivery,
+      })
+      .from(shipmentsTable)
+      .where(baseCond);
+
+    const inRange = rows.filter(r => {
+      const t = new Date(r.createdAt).getTime();
+      return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
+    });
+    const inPrevRange = rows.filter(r => {
+      const t = new Date(r.createdAt).getTime();
+      return t >= prevRangeFrom.getTime() && t <= prevRangeTo.getTime();
+    });
+
+    // ── دالة حساب مجموعة كاملة من المقاييس لمندوب واحد في نطاق زمني معيّن ──
+    type RepMetrics = {
+      total: number; delivered: number; returned: number; ongoing: number;
+      deliveryRate: number; returnRate: number;
+      onTime: number; deliveredWithEta: number; onTimeRate: number;
+      deliveryHoursSum: number; deliveryHoursCount: number; avgDeliveryHours: number;
+      codExpected: number; codCollected: number; collectionRate: number;
+      shippingFeesTotal: number;
+    };
+    function computeRepMetrics(repRows: typeof rows): RepMetrics {
+      let total = 0, delivered = 0, returned = 0, ongoing = 0;
+      let onTime = 0, deliveredWithEta = 0;
+      let deliveryHoursSum = 0, deliveryHoursCount = 0;
+      let codExpected = 0, codCollected = 0, shippingFeesTotal = 0;
+      for (const r of repRows) {
+        total++;
+        const status = SI_normalize(r.status);
+        codExpected += Number(r.codAmount ?? 0);
+        codCollected += Number(r.collectedAmount ?? 0);
+        shippingFeesTotal += Number(r.shippingFee ?? 0);
+        if (status === "received") {
+          delivered++;
+          const created = new Date(r.createdAt).getTime();
+          const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
+          const hours = (finished - created) / (1000 * 60 * 60);
+          if (hours >= 0 && hours < 24 * 30) { deliveryHoursSum += hours; deliveryHoursCount++; }
+          if (r.estimatedDelivery) {
+            deliveredWithEta++;
+            if (finished <= new Date(r.estimatedDelivery).getTime()) onTime++;
+          }
+        } else if (status === "returned") {
+          returned++;
+        } else {
+          ongoing++;
+        }
+      }
+      const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
+      const returnRate = total > 0 ? (returned / total) * 100 : 0;
+      const onTimeRate = deliveredWithEta > 0 ? (onTime / deliveredWithEta) * 100 : (delivered > 0 ? 100 : 0);
+      const avgDeliveryHours = deliveryHoursCount > 0 ? deliveryHoursSum / deliveryHoursCount : 0;
+      const collectionRate = codExpected > 0 ? (codCollected / codExpected) * 100 : 0;
+      return {
+        total, delivered, returned, ongoing,
+        deliveryRate, returnRate, onTime, deliveredWithEta, onTimeRate,
+        deliveryHoursSum, deliveryHoursCount, avgDeliveryHours,
+        codExpected, codCollected, collectionRate, shippingFeesTotal,
+      };
+    }
+
+    // ── تجميع صفوف الفترة الحالية والسابقة حسب المندوب ──────────────────────
+    const rangeByRep = new Map<number, typeof rows>();
+    for (const r of inRange) {
+      if (!r.shippingCompanyId) continue;
+      if (!rangeByRep.has(r.shippingCompanyId)) rangeByRep.set(r.shippingCompanyId, []);
+      rangeByRep.get(r.shippingCompanyId)!.push(r);
+    }
+    const prevRangeByRep = new Map<number, typeof rows>();
+    for (const r of inPrevRange) {
+      if (!r.shippingCompanyId) continue;
+      if (!prevRangeByRep.has(r.shippingCompanyId)) prevRangeByRep.set(r.shippingCompanyId, []);
+      prevRangeByRep.get(r.shippingCompanyId)!.push(r);
+    }
+
+    // سرعة التسليم كنقاط (0-100): كل ما قلّت الساعات عن 72 ساعة (3 أيام) كل ما زادت النقطة — نفس منطق shipments-intelligence
+    const speedScoreOf = (avgDeliveryHours: number) =>
+      avgDeliveryHours > 0 ? Math.max(0, Math.min(100, 100 - ((avgDeliveryHours - 24) / 96) * 100)) : 70;
+
+    // ── 1) Ranking Score مركّب لكل مندوب: نجاح + سرعة + التزام بالمواعيد + (عكس) المرتجعات ──
+    // نفس أوزان health score بتاع shipments-intelligence عشان يبقى فيه اتساق بين الصفحتين
+    const rankingScoreOf = (m: RepMetrics) => {
+      const speedScore = speedScoreOf(m.avgDeliveryHours);
+      return Math.round(
+        m.deliveryRate * 0.35 + m.onTimeRate * 0.25 + (100 - m.returnRate) * 0.25 + speedScore * 0.15
+      );
+    };
+
+    // ── 2) اتجاه الأداء عبر الزمن (تحسّن/تراجع) — بمقارنة Ranking Score الحالي بالسابق ──
+    const trendOf = (currScore: number, prevMetrics: RepMetrics | null): { direction: "up" | "down" | "flat" | "new"; delta: number | null } => {
+      if (!prevMetrics || prevMetrics.total === 0) return { direction: "new", delta: null };
+      const prevScore = rankingScoreOf(prevMetrics);
+      const delta = Math.round((currScore - prevScore) * 10) / 10;
+      if (Math.abs(delta) < 2) return { direction: "flat", delta };
+      return { direction: delta > 0 ? "up" : "down", delta };
+    };
+
+    // ── حساب تكلفة الشحن الفعلية لكل مندوب (من shippingCompaniesTable.shippingCost) ──
+    // ملحوظة: costMode ممكن يكون "rep" (سعر ثابت) أو "zone" — بنستخدم shippingCost كتقدير موحّد لكل الحالتين
+    // لأن حساب تكلفة الزون الفعلي محتاج ربط بجدول zone_costs لكل شحنة، وده تفصيل زايد عن هدف "نظرة سريعة على التكلفة"
+    const repCostById = new Map(reps.map(r => [r.id, Number(r.shippingCost ?? 0)]));
+
+    // ── بناء صف تحليل كامل لكل مندوب ─────────────────────────────────────────
+    type RepInsight = {
+      id: number; name: string; logo: string | null; isActive: boolean;
+      metrics: RepMetrics;
+      rankingScore: number;
+      trend: { direction: "up" | "down" | "flat" | "new"; delta: number | null };
+      shippingCost: number;
+      costPerDelivery: number | null; // تكلفة الشحن / عدد الشحنات المُسلَّمة — كل ما قلّت كل ما كان أفضل
+      loadSharePct: number; // نسبة الشحنات اللي شايلها المندوب من إجمالي شحنات الفترة
+    };
+
+    const totalShipmentsInRange = inRange.length;
+    const repInsights: RepInsight[] = reps.map(rep => {
+      const repRows = rangeByRep.get(rep.id) ?? [];
+      const metrics = computeRepMetrics(repRows);
+      const prevMetrics = prevRangeByRep.has(rep.id) ? computeRepMetrics(prevRangeByRep.get(rep.id)!) : null;
+      const rankingScore = rankingScoreOf(metrics);
+      const trend = trendOf(rankingScore, prevMetrics);
+      const shippingCost = repCostById.get(rep.id) ?? 0;
+      const costPerDelivery = metrics.delivered > 0 && shippingCost > 0
+        ? Math.round((shippingCost * metrics.total / metrics.delivered) * 100) / 100
+        : null;
+      const loadSharePct = totalShipmentsInRange > 0 ? Math.round((metrics.total / totalShipmentsInRange) * 1000) / 10 : 0;
+      return {
+        id: rep.id, name: rep.name, logo: rep.logo ?? null, isActive: rep.isActive,
+        metrics, rankingScore, trend, shippingCost, costPerDelivery, loadSharePct,
+      };
+    });
+
+    // ── ترتيب المناديب: الأعلى نقاطًا أولاً، ثم الأكتر حجمًا للمتساويين ────
+    const ranking = [...repInsights]
+      .sort((a, b) => b.rankingScore - a.rankingScore || b.metrics.total - a.metrics.total)
+      .map((r, idx) => ({
+        rank: idx + 1,
+        id: r.id, name: r.name, logo: r.logo,
+        rankingScore: r.rankingScore,
+        trend: r.trend,
+        total: r.metrics.total,
+        delivered: r.metrics.delivered,
+        returned: r.metrics.returned,
+        deliveryRate: Math.round(r.metrics.deliveryRate * 10) / 10,
+        returnRate: Math.round(r.metrics.returnRate * 10) / 10,
+        onTimeRate: Math.round(r.metrics.onTimeRate * 10) / 10,
+        avgDeliveryHours: Math.round(r.metrics.avgDeliveryHours * 10) / 10,
+      }));
+
+    // ── 3) تحليل التكلفة مقابل الأداء — بس للمناديب اللي عندها تكلفة مسجّلة وشحنات فعلية ──
+    const costVsPerformance = repInsights
+      .filter(r => r.shippingCost > 0 && r.metrics.total > 0)
+      .map(r => ({
+        id: r.id, name: r.name,
+        shippingCost: r.shippingCost,
+        costPerDelivery: r.costPerDelivery,
+        deliveryRate: Math.round(r.metrics.deliveryRate * 10) / 10,
+        avgDeliveryHours: Math.round(r.metrics.avgDeliveryHours * 10) / 10,
+        rankingScore: r.rankingScore,
+        // تصنيف سريع: "قيمة ممتازة" = تكلفة أقل من المتوسط + أداء أعلى من المتوسط
+        total: r.metrics.total,
+      }))
+      .sort((a, b) => (a.costPerDelivery ?? Infinity) - (b.costPerDelivery ?? Infinity));
+
+    // تصنيف كل مندوب بالنسبة لمتوسط التكلفة ومتوسط الأداء في نفس المجموعة
+    const avgCostPerDelivery = costVsPerformance.length > 0
+      ? costVsPerformance.reduce((s, r) => s + (r.costPerDelivery ?? 0), 0) / costVsPerformance.length
+      : 0;
+    const avgRankingScore = costVsPerformance.length > 0
+      ? costVsPerformance.reduce((s, r) => s + r.rankingScore, 0) / costVsPerformance.length
+      : 0;
+    const costVsPerformanceLabeled = costVsPerformance.map(r => {
+      const cheap = (r.costPerDelivery ?? Infinity) <= avgCostPerDelivery;
+      const fast = r.rankingScore >= avgRankingScore;
+      const quadrant = cheap && fast ? "best_value" : !cheap && fast ? "premium" : cheap && !fast ? "budget_risk" : "underperformer";
+      return { ...r, quadrant };
+    });
+
+    // ── 4) تحليل COD (نسبة التحصيل الفعلي لكل مندوب) — بس للي عندهم COD في الفترة ──
+    const codAnalysis = repInsights
+      .filter(r => r.metrics.codExpected > 0)
+      .map(r => ({
+        id: r.id, name: r.name,
+        codExpected: Math.round(r.metrics.codExpected),
+        codCollected: Math.round(r.metrics.codCollected),
+        collectionRate: Math.round(r.metrics.collectionRate * 10) / 10,
+        shippingFeesTotal: Math.round(r.metrics.shippingFeesTotal),
+      }))
+      .sort((a, b) => a.collectionRate - b.collectionRate); // الأسوأ تحصيلاً أولاً — يحتاج انتباه
+
+    // ── 5) توزيع الحمل (Load Balance) — هل الشحنات موزّعة بعدل ولا مندوب واحد شايل كل الحمل؟ ──
+    const activeReps = repInsights.filter(r => r.metrics.total > 0);
+    const loadBalance = activeReps
+      .map(r => ({ id: r.id, name: r.name, total: r.metrics.total, loadSharePct: r.loadSharePct }))
+      .sort((a, b) => b.total - a.total);
+    // مؤشر التركّز: نسبة الشحنات اللي بيشيلها أعلى مندوب واحد فقط — كل ما زادت كل ما كان الاعتماد عليه خطر
+    const topRepLoadSharePct = loadBalance.length > 0 ? loadBalance[0].loadSharePct : 0;
+    const loadBalanceStatus: "balanced" | "concentrated" | "critical" =
+      topRepLoadSharePct >= 60 ? "critical" : topRepLoadSharePct >= 40 ? "concentrated" : "balanced";
+
+    // ── 6) تنبيهات ذكية خاصة بالمناديب ───────────────────────────────────────
+    type RepAlert = { type: string; severity: "critical" | "warning" | "info"; repId: number; repName: string; message: string };
+    const alerts: RepAlert[] = [];
+    for (const r of repInsights) {
+      if (r.metrics.total === 0) continue;
+      // مندوب معدل نجاحه بينزل بشكل واضح (تراجع 10+ نقطة في Ranking Score)
+      if (r.trend.direction === "down" && r.trend.delta !== null && r.trend.delta <= -10) {
+        alerts.push({
+          type: "declining_performance", severity: "warning", repId: r.id, repName: r.name,
+          message: `أداء "${r.name}" تراجع ${Math.abs(r.trend.delta)} نقطة عن الفترة السابقة`,
+        });
+      }
+      // مندوب معدل مرتجعاته مرتفع بشكل ملحوظ
+      if (r.metrics.total >= 5 && r.metrics.returnRate >= 25) {
+        alerts.push({
+          type: "high_return_rate", severity: "critical", repId: r.id, repName: r.name,
+          message: `"${r.name}" معدل مرتجعاته ${Math.round(r.metrics.returnRate)}% — أعلى من المعتاد`,
+        });
+      }
+      // مندوب شايل حمل غير متناسب (أكتر من 50% من إجمالي الشحنات)
+      if (r.loadSharePct >= 50) {
+        alerts.push({
+          type: "overloaded", severity: "warning", repId: r.id, repName: r.name,
+          message: `"${r.name}" شايل ${r.loadSharePct}% من إجمالي الشحنات — اعتماد مركّز عليه`,
+        });
+      }
+      // مندوب نسبة تحصيله للـ COD منخفضة
+      if (r.metrics.codExpected > 0 && r.metrics.collectionRate < 70) {
+        alerts.push({
+          type: "low_collection_rate", severity: "warning", repId: r.id, repName: r.name,
+          message: `نسبة تحصيل COD عند "${r.name}" ${Math.round(r.metrics.collectionRate)}% فقط`,
+        });
+      }
+      // مندوب التزامه بالمواعيد ضعيف رغم إنه بيسلّم
+      if (r.metrics.deliveredWithEta >= 5 && r.metrics.onTimeRate < 50) {
+        alerts.push({
+          type: "low_on_time_rate", severity: "info", repId: r.id, repName: r.name,
+          message: `"${r.name}" يلتزم بالمواعيد في ${Math.round(r.metrics.onTimeRate)}% فقط من شحناته`,
+        });
+      }
+    }
+    const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    const periodLabels: Record<string, string> = { today: "اليوم", week: "آخر 7 أيام", month: "آخر 30 يوم", year: "السنة الحالية", custom: "فترة مخصصة" };
+    const periodLabel = periodLabels[period] ?? "آخر 30 يوم";
+
+    const result = {
+      period, periodLabel,
+      generatedAt: new Date().toISOString(),
+      repsCount: reps.length,
+      activeRepsCount: activeReps.length,
+      totalShipmentsInRange,
+      ranking,
+      costVsPerformance: costVsPerformanceLabeled,
+      codAnalysis,
+      loadBalance: { reps: loadBalance, topRepLoadSharePct, status: loadBalanceStatus },
+      alerts,
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق زي باقي endpoints الثقيلة
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
