@@ -1056,6 +1056,82 @@ export interface RepresentativesIntelligenceResponse {
   alerts: RepAlert[];
 }
 
+// ── تحليل المناطق الذكي ───────────────────────────────────────────────────────
+export interface ZoneRankingRow {
+  rank: number;
+  id: number;
+  name: string;
+  fromGovernorate: string | null;
+  toGovernorate: string | null;
+  zoneScore: number;
+  trend: { direction: "up" | "down" | "flat" | "new"; delta: number | null };
+  total: number;
+  delivered: number;
+  returned: number;
+  deliveryRate: number;
+  returnRate: number;
+  onTimeRate: number;
+  avgDeliveryHours: number;
+}
+export interface ZoneProfitabilityRow {
+  id: number;
+  name: string;
+  deliveryCost: number;
+  avgRevenuePerShipment: number | null;
+  marginPerShipment: number | null;
+  marginPct: number | null;
+  totalMargin: number | null;
+  zoneScore: number;
+  total: number;
+  quadrant: "star_zone" | "underpriced" | "risky_margin" | "review_needed";
+}
+export interface ZoneCodAnalysisRow {
+  id: number;
+  name: string;
+  codExpected: number;
+  codCollected: number;
+  collectionRate: number;
+}
+export interface ZoneLoadBalanceRow {
+  id: number;
+  name: string;
+  total: number;
+  loadSharePct: number;
+}
+export interface ZoneGovernoratePerformanceRow {
+  governorate: string;
+  total: number;
+  delivered: number;
+  returned: number;
+  deliveryRate: number;
+  returnRate: number;
+}
+export interface ZoneAlert {
+  type: string;
+  severity: "critical" | "warning" | "info";
+  zoneId: number;
+  zoneName: string;
+  message: string;
+}
+export interface ZonesIntelligenceResponse {
+  period: string;
+  periodLabel: string;
+  generatedAt: string;
+  zonesCount: number;
+  activeZonesCount: number;
+  totalShipmentsInRange: number;
+  ranking: ZoneRankingRow[];
+  profitability: ZoneProfitabilityRow[];
+  codAnalysis: ZoneCodAnalysisRow[];
+  loadBalance: {
+    zones: ZoneLoadBalanceRow[];
+    topZoneLoadSharePct: number;
+    status: "balanced" | "concentrated" | "critical";
+  };
+  governoratePerformance: ZoneGovernoratePerformanceRow[];
+  alerts: ZoneAlert[];
+}
+
 export const analyticsApi = {
   profit: (params?: { period?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
@@ -1109,6 +1185,14 @@ export const analyticsApi = {
     if (params?.to)     q.set("to", params.to);
     const qs = q.toString();
     return apiFetch<RepresentativesIntelligenceResponse>(`/analytics/representatives-intelligence${qs ? `?${qs}` : ""}`);
+  },
+  zonesIntelligence: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<ZonesIntelligenceResponse>(`/analytics/zones-intelligence${qs ? `?${qs}` : ""}`);
   },
   charts: () => apiFetch<ChartsData>("/analytics/charts"),
   monthlySales: (month?: string) =>

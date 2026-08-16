@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, appSettingsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable } from "@workspace/db";
 import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -5336,6 +5336,375 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       costVsPerformance: costVsPerformanceLabeled,
       codAnalysis,
       loadBalance: { reps: loadBalance, topRepLoadSharePct, status: loadBalanceStatus },
+      alerts,
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000); // cache 5 دقائق زي باقي endpoints الثقيلة
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /analytics/zones-intelligence
+// المصدر: shipmentsTable مربوطًا بـ shipmentZonesTable (المناطق) وzoneCostsTable (تكلفة التوصيل)
+// صفحة "تحليل المناطق الذكي" — تحليل مخصص لأداء كل منطقة جغرافية لوحدها
+// (نجاح/مرتجعات/سرعة/ربحية/تركّز الحمل) — مش نظرة عامة على الشحنات
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/analytics/zones-intelligence", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = (req.query.period as string | undefined) ?? "month";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `zones-intelligence:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const now = new Date();
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "week") {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "month") {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    }
+    // فترة سابقة بنفس المدة — لحساب اتجاه أداء كل منطقة (تحسّن/تراجع)
+    const rangeDurationMs = rangeTo.getTime() - rangeFrom.getTime();
+    const prevRangeTo = new Date(rangeFrom.getTime() - 1);
+    const prevRangeFrom = new Date(prevRangeTo.getTime() - rangeDurationMs);
+
+    const baseCond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const zones = tenantId !== null
+      ? await db.select().from(shipmentZonesTable).where(eq(shipmentZonesTable.tenantId, tenantId))
+      : await db.select().from(shipmentZonesTable);
+    const zoneById = new Map(zones.map(z => [z.id, z]));
+
+    const rows = await db
+      .select({
+        id: shipmentsTable.id,
+        status: shipmentsTable.status,
+        zoneId: shipmentsTable.zoneId,
+        zonePrice: shipmentsTable.zonePrice,
+        receiverCity: shipmentsTable.receiverCity,
+        codAmount: shipmentsTable.codAmount,
+        collectedAmount: shipmentsTable.collectedAmount,
+        shippingFee: shipmentsTable.shippingFee,
+        createdAt: shipmentsTable.createdAt,
+        updatedAt: shipmentsTable.updatedAt,
+        estimatedDelivery: shipmentsTable.estimatedDelivery,
+        actualDelivery: shipmentsTable.actualDelivery,
+      })
+      .from(shipmentsTable)
+      .where(baseCond);
+
+    const inRange = rows.filter(r => {
+      const t = new Date(r.createdAt).getTime();
+      return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
+    });
+    const inPrevRange = rows.filter(r => {
+      const t = new Date(r.createdAt).getTime();
+      return t >= prevRangeFrom.getTime() && t <= prevRangeTo.getTime();
+    });
+
+    // ── تكلفة التوصيل الفعلية لكل منطقة (من zoneCostsTable) — تُستخدم لحساب هامش الربح ──
+    const zoneIds = [...new Set(zones.map(z => z.id))];
+    const zoneCosts = zoneIds.length
+      ? await db.select({ zoneId: zoneCostsTable.zoneId, deliveryCost: zoneCostsTable.deliveryCost })
+          .from(zoneCostsTable)
+          .where(and(
+            inArray(zoneCostsTable.zoneId, zoneIds),
+            tenantId !== null
+              ? or(eq(zoneCostsTable.tenantId, tenantId), isNull(zoneCostsTable.tenantId))
+              : undefined,
+          ))
+      : [];
+    const zoneCostMap = new Map(zoneCosts.map(z => [z.zoneId, Number(z.deliveryCost ?? 0)]));
+
+    // ── دالة حساب مجموعة كاملة من المقاييس لمنطقة واحدة في نطاق زمني معيّن ──
+    type ZoneMetrics = {
+      total: number; delivered: number; returned: number; ongoing: number;
+      deliveryRate: number; returnRate: number;
+      onTime: number; deliveredWithEta: number; onTimeRate: number;
+      deliveryHoursSum: number; deliveryHoursCount: number; avgDeliveryHours: number;
+      codExpected: number; codCollected: number; collectionRate: number;
+      revenueTotal: number; // إجمالي سعر الشحن المحصَّل من العملاء لشحنات هذه المنطقة
+    };
+    function computeZoneMetrics(zoneRows: typeof rows): ZoneMetrics {
+      let total = 0, delivered = 0, returned = 0, ongoing = 0;
+      let onTime = 0, deliveredWithEta = 0;
+      let deliveryHoursSum = 0, deliveryHoursCount = 0;
+      let codExpected = 0, codCollected = 0, revenueTotal = 0;
+      for (const r of zoneRows) {
+        total++;
+        const status = SI_normalize(r.status);
+        codExpected += Number(r.codAmount ?? 0);
+        codCollected += Number(r.collectedAmount ?? 0);
+        revenueTotal += Number(r.zonePrice ?? 0) || Number(r.shippingFee ?? 0);
+        if (status === "received") {
+          delivered++;
+          const created = new Date(r.createdAt).getTime();
+          const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
+          const hours = (finished - created) / (1000 * 60 * 60);
+          if (hours >= 0 && hours < 24 * 30) { deliveryHoursSum += hours; deliveryHoursCount++; }
+          if (r.estimatedDelivery) {
+            deliveredWithEta++;
+            if (finished <= new Date(r.estimatedDelivery).getTime()) onTime++;
+          }
+        } else if (status === "returned") {
+          returned++;
+        } else {
+          ongoing++;
+        }
+      }
+      const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
+      const returnRate = total > 0 ? (returned / total) * 100 : 0;
+      const onTimeRate = deliveredWithEta > 0 ? (onTime / deliveredWithEta) * 100 : (delivered > 0 ? 100 : 0);
+      const avgDeliveryHours = deliveryHoursCount > 0 ? deliveryHoursSum / deliveryHoursCount : 0;
+      const collectionRate = codExpected > 0 ? (codCollected / codExpected) * 100 : 0;
+      return {
+        total, delivered, returned, ongoing,
+        deliveryRate, returnRate, onTime, deliveredWithEta, onTimeRate,
+        deliveryHoursSum, deliveryHoursCount, avgDeliveryHours,
+        codExpected, codCollected, collectionRate, revenueTotal,
+      };
+    }
+
+    // ── تجميع صفوف الفترة الحالية والسابقة حسب المنطقة ──────────────────────
+    const rangeByZone = new Map<number, typeof rows>();
+    for (const r of inRange) {
+      if (!r.zoneId) continue;
+      if (!rangeByZone.has(r.zoneId)) rangeByZone.set(r.zoneId, []);
+      rangeByZone.get(r.zoneId)!.push(r);
+    }
+    const prevRangeByZone = new Map<number, typeof rows>();
+    for (const r of inPrevRange) {
+      if (!r.zoneId) continue;
+      if (!prevRangeByZone.has(r.zoneId)) prevRangeByZone.set(r.zoneId, []);
+      prevRangeByZone.get(r.zoneId)!.push(r);
+    }
+
+    // سرعة التسليم كنقاط (0-100) — نفس منطق shipments-intelligence وrepresentatives-intelligence
+    const speedScoreOf = (avgDeliveryHours: number) =>
+      avgDeliveryHours > 0 ? Math.max(0, Math.min(100, 100 - ((avgDeliveryHours - 24) / 96) * 100)) : 70;
+
+    // ── 1) Zone Score مركّب لكل منطقة: نجاح + سرعة + التزام بالمواعيد + (عكس) المرتجعات ──
+    // نفس أوزان health score بتاع shipments-intelligence وrepresentatives-intelligence عشان اتساق كامل بين الصفحات
+    const zoneScoreOf = (m: ZoneMetrics) => {
+      const speedScore = speedScoreOf(m.avgDeliveryHours);
+      return Math.round(
+        m.deliveryRate * 0.35 + m.onTimeRate * 0.25 + (100 - m.returnRate) * 0.25 + speedScore * 0.15
+      );
+    };
+
+    // ── 2) اتجاه الأداء عبر الزمن (تحسّن/تراجع) — بمقارنة Zone Score الحالي بالسابق ──
+    const trendOf = (currScore: number, prevMetrics: ZoneMetrics | null): { direction: "up" | "down" | "flat" | "new"; delta: number | null } => {
+      if (!prevMetrics || prevMetrics.total === 0) return { direction: "new", delta: null };
+      const prevScore = zoneScoreOf(prevMetrics);
+      const delta = Math.round((currScore - prevScore) * 10) / 10;
+      if (Math.abs(delta) < 2) return { direction: "flat", delta };
+      return { direction: delta > 0 ? "up" : "down", delta };
+    };
+
+    // ── بناء صف تحليل كامل لكل منطقة ─────────────────────────────────────────
+    type ZoneInsight = {
+      id: number; name: string; fromGovernorate: string | null; toGovernorate: string | null; isActive: boolean;
+      metrics: ZoneMetrics;
+      zoneScore: number;
+      trend: { direction: "up" | "down" | "flat" | "new"; delta: number | null };
+      deliveryCost: number; // تكلفة التوصيل المسجّلة للمنطقة (zone_costs)
+      avgRevenuePerShipment: number | null;
+      marginPerShipment: number | null; // متوسط السعر المحصَّل - تكلفة التوصيل — هامش الربح الفعلي للمنطقة
+      marginPct: number | null;
+      loadSharePct: number; // نسبة شحنات المنطقة من إجمالي شحنات الفترة
+    };
+
+    const totalShipmentsInRange = inRange.length;
+    const zoneInsights: ZoneInsight[] = zones.map(zone => {
+      const zoneRows = rangeByZone.get(zone.id) ?? [];
+      const metrics = computeZoneMetrics(zoneRows);
+      const prevMetrics = prevRangeByZone.has(zone.id) ? computeZoneMetrics(prevRangeByZone.get(zone.id)!) : null;
+      const zoneScore = zoneScoreOf(metrics);
+      const trend = trendOf(zoneScore, prevMetrics);
+      const deliveryCost = zoneCostMap.get(zone.id) ?? 0;
+      const avgRevenuePerShipment = metrics.total > 0 ? Math.round((metrics.revenueTotal / metrics.total) * 100) / 100 : null;
+      const marginPerShipment = avgRevenuePerShipment !== null && deliveryCost > 0
+        ? Math.round((avgRevenuePerShipment - deliveryCost) * 100) / 100
+        : null;
+      const marginPct = marginPerShipment !== null && avgRevenuePerShipment && avgRevenuePerShipment > 0
+        ? Math.round((marginPerShipment / avgRevenuePerShipment) * 1000) / 10
+        : null;
+      const loadSharePct = totalShipmentsInRange > 0 ? Math.round((metrics.total / totalShipmentsInRange) * 1000) / 10 : 0;
+      return {
+        id: zone.id, name: zone.name, fromGovernorate: zone.fromGovernorate ?? null, toGovernorate: zone.toGovernorate ?? null,
+        isActive: zone.isActive ?? true,
+        metrics, zoneScore, trend, deliveryCost, avgRevenuePerShipment, marginPerShipment, marginPct, loadSharePct,
+      };
+    });
+
+    // ── ترتيب المناطق: الأعلى نقاطًا أولاً، ثم الأكتر حجمًا للمتساويين ────
+    const ranking = [...zoneInsights]
+      .sort((a, b) => b.zoneScore - a.zoneScore || b.metrics.total - a.metrics.total)
+      .map((z, idx) => ({
+        rank: idx + 1,
+        id: z.id, name: z.name, fromGovernorate: z.fromGovernorate, toGovernorate: z.toGovernorate,
+        zoneScore: z.zoneScore,
+        trend: z.trend,
+        total: z.metrics.total,
+        delivered: z.metrics.delivered,
+        returned: z.metrics.returned,
+        deliveryRate: Math.round(z.metrics.deliveryRate * 10) / 10,
+        returnRate: Math.round(z.metrics.returnRate * 10) / 10,
+        onTimeRate: Math.round(z.metrics.onTimeRate * 10) / 10,
+        avgDeliveryHours: Math.round(z.metrics.avgDeliveryHours * 10) / 10,
+      }));
+
+    // ── 3) تحليل الربحية لكل منطقة — بس للمناطق اللي عندها تكلفة توصيل مسجّلة وشحنات فعلية ──
+    const profitability = zoneInsights
+      .filter(z => z.deliveryCost > 0 && z.metrics.total > 0)
+      .map(z => ({
+        id: z.id, name: z.name,
+        deliveryCost: z.deliveryCost,
+        avgRevenuePerShipment: z.avgRevenuePerShipment,
+        marginPerShipment: z.marginPerShipment,
+        marginPct: z.marginPct,
+        totalMargin: z.marginPerShipment !== null ? Math.round(z.marginPerShipment * z.metrics.total) : null,
+        zoneScore: z.zoneScore,
+        total: z.metrics.total,
+      }))
+      .sort((a, b) => (a.marginPct ?? -Infinity) - (b.marginPct ?? -Infinity)); // الأضعف هامشًا أولاً — يحتاج مراجعة تسعير
+
+    // تصنيف كل منطقة بالنسبة لمتوسط الهامش ومتوسط الأداء في نفس المجموعة (Quadrant زي المناديب)
+    const avgMarginPct = profitability.length > 0
+      ? profitability.reduce((s, z) => s + (z.marginPct ?? 0), 0) / profitability.length
+      : 0;
+    const avgZoneScore = profitability.length > 0
+      ? profitability.reduce((s, z) => s + z.zoneScore, 0) / profitability.length
+      : 0;
+    const profitabilityLabeled = profitability.map(z => {
+      const profitable = (z.marginPct ?? -Infinity) >= avgMarginPct;
+      const reliable = z.zoneScore >= avgZoneScore;
+      const quadrant = profitable && reliable ? "star_zone" : !profitable && reliable ? "underpriced" : profitable && !reliable ? "risky_margin" : "review_needed";
+      return { ...z, quadrant };
+    });
+
+    // ── 4) تحليل COD حسب المنطقة (نسبة التحصيل الفعلي) — بس للمناطق اللي عندها COD في الفترة ──
+    const codAnalysis = zoneInsights
+      .filter(z => z.metrics.codExpected > 0)
+      .map(z => ({
+        id: z.id, name: z.name,
+        codExpected: Math.round(z.metrics.codExpected),
+        codCollected: Math.round(z.metrics.codCollected),
+        collectionRate: Math.round(z.metrics.collectionRate * 10) / 10,
+      }))
+      .sort((a, b) => a.collectionRate - b.collectionRate); // الأسوأ تحصيلاً أولاً — يحتاج انتباه
+
+    // ── 5) توزيع الحمل بين المناطق (Load Balance) — هل الشحنات موزّعة جغرافيًا بعدل ولا منطقة واحدة شايلة كل الحمل؟ ──
+    const activeZones = zoneInsights.filter(z => z.metrics.total > 0);
+    const loadBalance = activeZones
+      .map(z => ({ id: z.id, name: z.name, total: z.metrics.total, loadSharePct: z.loadSharePct }))
+      .sort((a, b) => b.total - a.total);
+    const topZoneLoadSharePct = loadBalance.length > 0 ? loadBalance[0].loadSharePct : 0;
+    const loadBalanceStatus: "balanced" | "concentrated" | "critical" =
+      topZoneLoadSharePct >= 60 ? "critical" : topZoneLoadSharePct >= 40 ? "concentrated" : "balanced";
+
+    // ── 6) أداء حسب المحافظة (تجميع كل مناطق نفس محافظة الوجهة toGovernorate) ──
+    const byGovernorate = new Map<string, { total: number; delivered: number; returned: number }>();
+    for (const z of zoneInsights) {
+      const gov = z.toGovernorate || "غير محدد";
+      if (!byGovernorate.has(gov)) byGovernorate.set(gov, { total: 0, delivered: 0, returned: 0 });
+      const g = byGovernorate.get(gov)!;
+      g.total += z.metrics.total; g.delivered += z.metrics.delivered; g.returned += z.metrics.returned;
+    }
+    const governoratePerformance = [...byGovernorate.entries()]
+      .filter(([, g]) => g.total > 0)
+      .map(([governorate, g]) => ({
+        governorate, total: g.total, delivered: g.delivered, returned: g.returned,
+        deliveryRate: Math.round((g.delivered / g.total) * 1000) / 10,
+        returnRate: Math.round((g.returned / g.total) * 1000) / 10,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    // ── 7) تنبيهات ذكية خاصة بالمناطق ───────────────────────────────────────
+    type ZoneAlert = { type: string; severity: "critical" | "warning" | "info"; zoneId: number; zoneName: string; message: string };
+    const alerts: ZoneAlert[] = [];
+    for (const z of zoneInsights) {
+      if (z.metrics.total === 0) continue;
+      // منطقة معدل نجاحها بينزل بشكل واضح (تراجع 10+ نقطة في Zone Score)
+      if (z.trend.direction === "down" && z.trend.delta !== null && z.trend.delta <= -10) {
+        alerts.push({
+          type: "declining_performance", severity: "warning", zoneId: z.id, zoneName: z.name,
+          message: `أداء منطقة "${z.name}" تراجع ${Math.abs(z.trend.delta)} نقطة عن الفترة السابقة`,
+        });
+      }
+      // منطقة معدل مرتجعاتها مرتفع بشكل ملحوظ
+      if (z.metrics.total >= 5 && z.metrics.returnRate >= 25) {
+        alerts.push({
+          type: "high_return_rate", severity: "critical", zoneId: z.id, zoneName: z.name,
+          message: `منطقة "${z.name}" معدل مرتجعاتها ${Math.round(z.metrics.returnRate)}% — أعلى من المعتاد`,
+        });
+      }
+      // منطقة شايلة حمل غير متناسب (أكتر من 50% من إجمالي الشحنات) — خطر تركّز جغرافي
+      if (z.loadSharePct >= 50) {
+        alerts.push({
+          type: "overloaded", severity: "warning", zoneId: z.id, zoneName: z.name,
+          message: `منطقة "${z.name}" تستحوذ على ${z.loadSharePct}% من إجمالي الشحنات — اعتماد جغرافي مركّز`,
+        });
+      }
+      // منطقة هامش ربحها سالب أو ضعيف جدًا رغم وجود تكلفة مسجّلة — يحتاج مراجعة تسعير
+      if (z.marginPct !== null && z.marginPct < 5 && z.metrics.total >= 5) {
+        alerts.push({
+          type: "low_margin", severity: z.marginPct < 0 ? "critical" : "warning", zoneId: z.id, zoneName: z.name,
+          message: z.marginPct < 0
+            ? `منطقة "${z.name}" بتخسر فعليًا — سعر التوصيل أقل من التكلفة (هامش ${z.marginPct}%)`
+            : `هامش ربح منطقة "${z.name}" ضعيف جدًا (${z.marginPct}%) — يحتاج مراجعة تسعير`,
+        });
+      }
+      // منطقة التزامها بالمواعيد ضعيف رغم إنها بتسلّم
+      if (z.metrics.deliveredWithEta >= 5 && z.metrics.onTimeRate < 50) {
+        alerts.push({
+          type: "low_on_time_rate", severity: "info", zoneId: z.id, zoneName: z.name,
+          message: `منطقة "${z.name}" يُلتزم بمواعيدها في ${Math.round(z.metrics.onTimeRate)}% فقط من شحناتها`,
+        });
+      }
+      // منطقة نسبة تحصيل COD منخفضة
+      if (z.metrics.codExpected > 0 && z.metrics.collectionRate < 70) {
+        alerts.push({
+          type: "low_collection_rate", severity: "warning", zoneId: z.id, zoneName: z.name,
+          message: `نسبة تحصيل COD في منطقة "${z.name}" ${Math.round(z.metrics.collectionRate)}% فقط`,
+        });
+      }
+    }
+    const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    const periodLabels: Record<string, string> = { today: "اليوم", week: "آخر 7 أيام", month: "آخر 30 يوم", year: "السنة الحالية", custom: "فترة مخصصة" };
+    const periodLabel = periodLabels[period] ?? "آخر 30 يوم";
+
+    const result = {
+      period, periodLabel,
+      generatedAt: new Date().toISOString(),
+      zonesCount: zones.length,
+      activeZonesCount: activeZones.length,
+      totalShipmentsInRange,
+      ranking,
+      profitability: profitabilityLabeled,
+      codAnalysis,
+      loadBalance: { zones: loadBalance, topZoneLoadSharePct, status: loadBalanceStatus },
+      governoratePerformance,
       alerts,
     };
 
