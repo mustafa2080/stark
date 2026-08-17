@@ -400,11 +400,20 @@ router.get("/shipments", async (req, res): Promise<void> => {
       conditions.push(eq(shipmentsTable.clientId, parseInt(clientId)));
     }
     if (search) {
-      // مربع البحث ده بيدور برقم الهاتف بس (المستلم أو الراسل)
+      // مربع البحث بيدور برقم الهاتف (المستلم أو الراسل) وكمان بالاسم (المستلم أو الراسل)
+      // تقسيم النص لكلمات عشان البحث يشتغل حتى لو المستخدم كتب الاسم كامل (اسم أول + عائلة)
+      const words = search.trim().split(/\s+/).filter(Boolean);
+      const nameConditions = words.map((w: string) =>
+        or(
+          like(shipmentsTable.receiverName, `%${w}%`),
+          like(shipmentsTable.senderName,   `%${w}%`),
+        )
+      );
       conditions.push(
         or(
-          like(shipmentsTable.receiverPhone,    `%${search}%`),
-          like(shipmentsTable.senderPhone,      `%${search}%`),
+          like(shipmentsTable.receiverPhone, `%${search}%`),
+          like(shipmentsTable.senderPhone,   `%${search}%`),
+          and(...nameConditions),
         )
       );
     }
