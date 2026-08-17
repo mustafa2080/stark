@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable } from "@workspace/db";
-import { eq, desc, and, sql, or, like, isNull, inArray, notInArray } from "drizzle-orm";
+import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients, computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
@@ -51,7 +51,13 @@ function calcClientType(monthlyShipments: number): "normal" | "commercial" | "vi
 
 // ── مساعد: تحديث إحصائيات العميل من أوامر البيع ────────────────────────────
 async function syncClientStats(clientName: string, tenantId: number | null) {
-  const conds: any[] = [eq(saleOrdersTable.clientName, clientName)];
+  // ⚠️ استبعاد أوامر البيع "مسودة" (draft) — دي لسه معلقة ومكانتش اتأكدت،
+  // فمينفعش تتحسب ضمن إجمالي أوردرات/مبيعات العميل ولا تدخل في "تحقيق الهدف".
+  // نفس منطق استبعاد الشحنات "قيد الانتظار" (waiting/pending) من إجمالي الشحنات.
+  const conds: any[] = [
+    eq(saleOrdersTable.clientName, clientName),
+    ne(saleOrdersTable.status, "draft"),
+  ];
   if (tenantId !== null) conds.push(eq(saleOrdersTable.tenantId, tenantId));
 
   const orders = await db.select({
