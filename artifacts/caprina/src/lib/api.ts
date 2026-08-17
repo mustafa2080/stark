@@ -476,6 +476,76 @@ export interface StockIntelligenceItem {
   badge?: "fast" | "slow" | string;
 }
 
+// ── تحليل المخزون الذكي (صفحة مستقلة) ─────────────────────────────────────────
+export interface InvIntelRankingRow {
+  productId: number;
+  name: string;
+  sku: string | null;
+  availableQty: number;
+  category: "out" | "fast" | "medium" | "slow" | "stale";
+  velocityPerDay: number;
+  daysUntilStockout: number | null;
+  soldInRange: number;
+  trendPct: number | null;
+}
+export interface InvIntelFrozenCapitalRow {
+  productId: number;
+  name: string;
+  availableQty: number;
+  costPrice: number;
+  frozenCapital: number;
+  daysUntilStockout: number | null;
+  category: "out" | "fast" | "medium" | "slow" | "stale";
+}
+export interface InvIntelWarehouseRow {
+  id: number;
+  name: string;
+  city: string | null;
+  totalQty: number;
+  sharePct: number;
+}
+export interface InvIntelMovementReasonRow {
+  reason: string;
+  label: string;
+  in: number;
+  out: number;
+  total: number;
+}
+export interface InvIntelAlert {
+  type: string;
+  severity: "critical" | "warning" | "info";
+  productId: number;
+  productName: string;
+  message: string;
+}
+export interface InventoryIntelligenceResponse {
+  period: string;
+  periodLabel: string;
+  generatedAt: string;
+  kpis: {
+    totalProducts: number;
+    totalUnitsInStock: number;
+    totalFrozenCapital: number;
+    totalPotentialRevenue: number;
+    outOfStockCount: number;
+    lowStockCount: number;
+    fastMoversCount: number;
+    slowMoversCount: number;
+    totalSoldInRange: number;
+    totalDamagedInRange: number;
+    totalReturnedInRange: number;
+  };
+  ranking: InvIntelRankingRow[];
+  frozenCapitalRanking: InvIntelFrozenCapitalRow[];
+  warehouseDistribution: {
+    warehouses: InvIntelWarehouseRow[];
+    topWarehouseSharePct: number;
+    status: "balanced" | "concentrated" | "critical";
+  };
+  movementsBreakdown: InvIntelMovementReasonRow[];
+  alerts: InvIntelAlert[];
+}
+
 export interface StockIntelligenceResponse {
   items: StockIntelligenceItem[];
   summary: {
@@ -1193,6 +1263,14 @@ export const analyticsApi = {
     if (params?.to)     q.set("to", params.to);
     const qs = q.toString();
     return apiFetch<ZonesIntelligenceResponse>(`/analytics/zones-intelligence${qs ? `?${qs}` : ""}`);
+  },
+  inventoryIntelligence: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<InventoryIntelligenceResponse>(`/analytics/inventory-intelligence${qs ? `?${qs}` : ""}`);
   },
   charts: () => apiFetch<ChartsData>("/analytics/charts"),
   monthlySales: (month?: string) =>

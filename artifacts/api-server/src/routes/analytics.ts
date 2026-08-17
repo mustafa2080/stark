@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, inventoryMovementsTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable } from "@workspace/db";
 import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -5742,6 +5742,322 @@ router.get("/analytics/zones-intelligence", requireAuth, async (req, res): Promi
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /analytics/inventory-intelligence
+// المصدر: productsTable + productVariantsTable + warehouseStockTable + warehousesTable + inventoryMovementsTable
+// صفحة "تحليل المخزون الذكي" — تحليل مخصص لصحة المخزون: سرعة الحركة، رأس المال
+// المجمد، توزيع المخازن، اتجاه الحركة عبر الزمن، وتنبيهات ذكية للمنتجات الخطرة
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/analytics/inventory-intelligence", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = (req.query.period as string | undefined) ?? "month";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `inventory-intelligence:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const now = new Date();
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "week") {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "month") {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    }
+    const rangeDurationMs = rangeTo.getTime() - rangeFrom.getTime();
+    const prevRangeTo = new Date(rangeFrom.getTime() - 1);
+    const prevRangeFrom = new Date(prevRangeTo.getTime() - rangeDurationMs);
+
+    // ── منتجات الـ tenant (غير مؤرشفة فقط للتحليل الحي) ──────────────────────
+    const productConditions: any[] = [eq(productsTable.isArchived, false)];
+    if (tenantId !== null) productConditions.push(eq(productsTable.tenantId, tenantId));
+
+    const products = await db.select().from(productsTable).where(and(...productConditions));
+    const productIds = products.map(p => p.id);
+    const productById = new Map(products.map(p => [p.id, p]));
+
+    const variants = productIds.length
+      ? await db.select().from(productVariantsTable).where(inArray(productVariantsTable.productId, productIds))
+      : [];
+    const variantsByProduct = new Map<number, typeof variants>();
+    for (const v of variants) {
+      if (!variantsByProduct.has(v.productId)) variantsByProduct.set(v.productId, []);
+      variantsByProduct.get(v.productId)!.push(v);
+    }
+
+    const warehouses = tenantId !== null
+      ? await db.select().from(warehousesTable).where(eq(warehousesTable.tenantId, tenantId))
+      : await db.select().from(warehousesTable);
+    const warehouseById = new Map(warehouses.map(w => [w.id, w]));
+
+    const stockRows = productIds.length
+      ? await db.select().from(warehouseStockTable).where(inArray(warehouseStockTable.productId, productIds))
+      : [];
+
+    // ── حركات المخزون لكل منتجات الـ tenant (فترة موسّعة تكفي الفترة الحالية والسابقة) ──
+    const movementsWindowFrom = prevRangeFrom;
+    const movements = productIds.length
+      ? await db.select().from(inventoryMovementsTable).where(and(
+          inArray(inventoryMovementsTable.productId, productIds),
+          gte(inventoryMovementsTable.createdAt, movementsWindowFrom),
+        ))
+      : [];
+
+    const movementsInRange = movements.filter(m => {
+      const t = new Date(m.createdAt).getTime();
+      return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
+    });
+    const movementsInPrevRange = movements.filter(m => {
+      const t = new Date(m.createdAt).getTime();
+      return t >= prevRangeFrom.getTime() && t <= prevRangeTo.getTime();
+    });
+
+    // ── إجمالي الكمية الفعلية لكل منتج من warehouse_stock (أدق من totalQuantity الثابت) ──
+    const stockByProduct = new Map<number, number>();
+    const stockByProductWarehouse = new Map<number, Map<number, number>>();
+    for (const s of stockRows) {
+      if (!s.productId) continue;
+      stockByProduct.set(s.productId, (stockByProduct.get(s.productId) ?? 0) + Math.max(0, s.quantity));
+      if (!stockByProductWarehouse.has(s.productId)) stockByProductWarehouse.set(s.productId, new Map());
+      const whMap = stockByProductWarehouse.get(s.productId)!;
+      whMap.set(s.warehouseId, (whMap.get(s.warehouseId) ?? 0) + Math.max(0, s.quantity));
+    }
+    // منتجات بدون variants ومالهاش سجل في warehouse_stock — استخدم totalQuantity من المنتج نفسه
+    for (const p of products) {
+      if (!stockByProduct.has(p.id) && (variantsByProduct.get(p.id)?.length ?? 0) === 0) {
+        stockByProduct.set(p.id, Math.max(0, p.totalQuantity));
+      }
+    }
+
+    // ── تجميع حركات OUT (بيع/جزئي) لكل منتج في الفترة الحالية والسابقة — أساس السرعة ──
+    function soldQtyOf(rows: typeof movements): Map<number, number> {
+      const m = new Map<number, number>();
+      for (const mv of rows) {
+        if (!mv.productId) continue;
+        if (mv.type === "OUT" && (mv.reason === "sale" || mv.reason === "partial_sale")) {
+          m.set(mv.productId, (m.get(mv.productId) ?? 0) + mv.quantity);
+        }
+      }
+      return m;
+    }
+    const soldInRange = soldQtyOf(movementsInRange);
+    const soldInPrevRange = soldQtyOf(movementsInPrevRange);
+
+    // ── تجميع حركات التالف (damaged) والمرتجع (return) لكل منتج في الفترة الحالية ──
+    const damagedInRange = new Map<number, number>();
+    const returnedInRange = new Map<number, number>();
+    for (const mv of movementsInRange) {
+      if (!mv.productId) continue;
+      if (mv.type === "OUT" && mv.reason === "damaged") {
+        damagedInRange.set(mv.productId, (damagedInRange.get(mv.productId) ?? 0) + mv.quantity);
+      }
+      if (mv.type === "IN" && mv.reason === "return") {
+        returnedInRange.set(mv.productId, (returnedInRange.get(mv.productId) ?? 0) + mv.quantity);
+      }
+    }
+
+    const rangeDays = Math.max(1, Math.round(rangeDurationMs / (1000 * 60 * 60 * 24)));
+
+    // ── دالة تصنيف صحة منتج واحد (fast/medium/slow/stale/out) — نفس منطق stock-intelligence القديم لثبات الهوية ──
+    type StockCategory = "out" | "fast" | "medium" | "slow" | "stale";
+    function categorize(availableQty: number, hasHistory: boolean, daysUntilStockout: number | null): StockCategory {
+      if (availableQty <= 0) return hasHistory ? "out" : "stale";
+      if (daysUntilStockout !== null) {
+        if (daysUntilStockout <= 7) return "fast";
+        if (daysUntilStockout <= 30) return "medium";
+        return "slow";
+      }
+      return "stale";
+    }
+
+    type ProductInsight = {
+      productId: number; name: string; sku: string | null;
+      availableQty: number; reservedQty: number; lowStockThreshold: number;
+      costPrice: number; unitPrice: number;
+      soldInRange: number; soldInPrevRange: number; velocityPerDay: number;
+      daysUntilStockout: number | null; category: StockCategory;
+      frozenCapital: number; potentialRevenue: number;
+      damagedInRange: number; returnedInRange: number;
+      trendPct: number | null; // تغيّر سرعة البيع مقابل الفترة السابقة
+      warehouseSpread: number; // عدد المخازن اللي فيها كمية من المنتج
+      variantsCount: number;
+    };
+
+    const insights: ProductInsight[] = products.map(p => {
+      const hasVariants = (variantsByProduct.get(p.id)?.length ?? 0) > 0;
+      const availableQty = stockByProduct.get(p.id) ?? 0;
+      const sold = soldInRange.get(p.id) ?? 0;
+      const soldPrev = soldInPrevRange.get(p.id) ?? 0;
+      const velocity = sold / rangeDays;
+      const hasHistory = sold > 0 || soldPrev > 0;
+      let daysUntilStockout: number | null = null;
+      if (availableQty <= 0) daysUntilStockout = 0;
+      else if (velocity > 0) daysUntilStockout = Math.round(availableQty / velocity);
+      const category = categorize(availableQty, hasHistory, daysUntilStockout);
+      const trendPct = soldPrev > 0 ? Math.round(((sold - soldPrev) / soldPrev) * 1000) / 10 : (sold > 0 ? 100 : null);
+      const whMap = stockByProductWarehouse.get(p.id);
+      const warehouseSpread = whMap ? [...whMap.values()].filter(q => q > 0).length : 0;
+      return {
+        productId: p.id, name: p.name, sku: p.sku ?? null,
+        availableQty, reservedQty: Math.max(0, p.reservedQuantity), lowStockThreshold: p.lowStockThreshold,
+        costPrice: p.costPrice ?? 0, unitPrice: p.unitPrice,
+        soldInRange: sold, soldInPrevRange: soldPrev, velocityPerDay: Math.round(velocity * 100) / 100,
+        daysUntilStockout, category,
+        frozenCapital: availableQty * (p.costPrice ?? 0), potentialRevenue: availableQty * p.unitPrice,
+        damagedInRange: damagedInRange.get(p.id) ?? 0, returnedInRange: returnedInRange.get(p.id) ?? 0,
+        trendPct, warehouseSpread, variantsCount: variantsByProduct.get(p.id)?.length ?? 0,
+      };
+    });
+
+    // ── 1) KPIs عامة ──────────────────────────────────────────────────────────
+    const totalProducts = insights.length;
+    const totalUnitsInStock = insights.reduce((s, i) => s + i.availableQty, 0);
+    const totalFrozenCapital = insights.filter(i => i.category === "slow" || i.category === "stale").reduce((s, i) => s + i.frozenCapital, 0);
+    const totalPotentialRevenue = insights.reduce((s, i) => s + i.potentialRevenue, 0);
+    const outOfStockCount = insights.filter(i => i.category === "out").length;
+    const lowStockCount = insights.filter(i => i.availableQty > 0 && i.availableQty <= i.lowStockThreshold).length;
+    const fastMoversCount = insights.filter(i => i.category === "fast").length;
+    const slowMoversCount = insights.filter(i => i.category === "slow" || i.category === "stale").length;
+    const totalDamagedInRange = insights.reduce((s, i) => s + i.damagedInRange, 0);
+    const totalReturnedInRange = insights.reduce((s, i) => s + i.returnedInRange, 0);
+    const totalSoldInRange = insights.reduce((s, i) => s + i.soldInRange, 0);
+
+    // ── 2) الترتيب — الأسرع حركة أولاً (فرص) ثم الأبطأ (مخاطر) منفصلين ──────
+    const categoryOrder: Record<StockCategory, number> = { fast: 0, medium: 1, slow: 2, stale: 3, out: 4 };
+    const ranking = [...insights]
+      .sort((a, b) => categoryOrder[a.category] - categoryOrder[b.category] || b.velocityPerDay - a.velocityPerDay)
+      .map(i => ({
+        productId: i.productId, name: i.name, sku: i.sku,
+        availableQty: i.availableQty, category: i.category,
+        velocityPerDay: i.velocityPerDay, daysUntilStockout: i.daysUntilStockout,
+        soldInRange: i.soldInRange, trendPct: i.trendPct,
+      }));
+
+    // ── 3) رأس المال المجمّد — أعلى المنتجات تجميدًا لرأس المال (بطيئة/راكدة وعندها مخزون) ──
+    const frozenCapitalRanking = insights
+      .filter(i => (i.category === "slow" || i.category === "stale") && i.availableQty > 0 && i.frozenCapital > 0)
+      .sort((a, b) => b.frozenCapital - a.frozenCapital)
+      .slice(0, 15)
+      .map(i => ({
+        productId: i.productId, name: i.name, availableQty: i.availableQty,
+        costPrice: i.costPrice, frozenCapital: Math.round(i.frozenCapital),
+        daysUntilStockout: i.daysUntilStockout, category: i.category,
+      }));
+
+    // ── 4) توزيع المخزون على المخازن ─────────────────────────────────────────
+    const warehouseTotals = new Map<number, number>();
+    for (const whMap of stockByProductWarehouse.values()) {
+      for (const [whId, qty] of whMap.entries()) {
+        warehouseTotals.set(whId, (warehouseTotals.get(whId) ?? 0) + qty);
+      }
+    }
+    const totalStockAcrossWarehouses = [...warehouseTotals.values()].reduce((s, q) => s + q, 0);
+    const warehouseDistribution = warehouses
+      .map(w => {
+        const qty = warehouseTotals.get(w.id) ?? 0;
+        return {
+          id: w.id, name: w.name, city: w.city ?? null,
+          totalQty: qty,
+          sharePct: totalStockAcrossWarehouses > 0 ? Math.round((qty / totalStockAcrossWarehouses) * 1000) / 10 : 0,
+        };
+      })
+      .sort((a, b) => b.totalQty - a.totalQty);
+    const topWarehouseSharePct = warehouseDistribution.length > 0 ? warehouseDistribution[0].sharePct : 0;
+    const warehouseLoadStatus: "balanced" | "concentrated" | "critical" =
+      topWarehouseSharePct >= 70 ? "critical" : topWarehouseSharePct >= 50 ? "concentrated" : "balanced";
+
+    // ── 5) حركات المخزون حسب السبب في الفترة (توزيع IN/OUT) ────────────────
+    const reasonLabels: Record<string, string> = {
+      sale: "بيع", partial_sale: "بيع جزئي", return: "مرتجع", damaged: "تالف",
+      manual_in: "إضافة يدوية", manual_out: "خصم يدوي", adjustment: "تسوية",
+      to_shipping: "تحويل للشحن", from_shipping: "عودة من الشحن", transfer: "تحويل بين مخازن",
+    };
+    const movementsByReason = new Map<string, { in: number; out: number }>();
+    for (const mv of movementsInRange) {
+      if (!movementsByReason.has(mv.reason)) movementsByReason.set(mv.reason, { in: 0, out: 0 });
+      const r = movementsByReason.get(mv.reason)!;
+      if (mv.type === "IN") r.in += mv.quantity; else r.out += mv.quantity;
+    }
+    const movementsBreakdown = [...movementsByReason.entries()]
+      .map(([reason, v]) => ({ reason, label: reasonLabels[reason] ?? reason, in: v.in, out: v.out, total: v.in + v.out }))
+      .filter(r => r.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    // ── 6) تنبيهات ذكية ───────────────────────────────────────────────────────
+    type InventoryAlert = { type: string; severity: "critical" | "warning" | "info"; productId: number; productName: string; message: string };
+    const alerts: InventoryAlert[] = [];
+    for (const i of insights) {
+      if (i.category === "out" && i.soldInRange > 0) {
+        alerts.push({ type: "out_of_stock", severity: "critical", productId: i.productId, productName: i.name,
+          message: `منتج "${i.name}" نفد من المخزون رغم وجود طلب فعلي عليه (${i.soldInRange} بيعة في الفترة)` });
+      } else if (i.availableQty > 0 && i.availableQty <= i.lowStockThreshold) {
+        alerts.push({ type: "low_stock", severity: "warning", productId: i.productId, productName: i.name,
+          message: `مخزون "${i.name}" منخفض (${i.availableQty} قطعة) — أقل من أو يساوي حد الأمان (${i.lowStockThreshold})` });
+      }
+      if (i.daysUntilStockout !== null && i.daysUntilStockout > 0 && i.daysUntilStockout <= 5 && i.availableQty > 0) {
+        alerts.push({ type: "stockout_soon", severity: "warning", productId: i.productId, productName: i.name,
+          message: `منتج "${i.name}" هيخلص خلال ${i.daysUntilStockout} أيام بمعدل البيع الحالي` });
+      }
+      if ((i.category === "slow" || i.category === "stale") && i.frozenCapital >= 2000) {
+        alerts.push({ type: "frozen_capital", severity: "info", productId: i.productId, productName: i.name,
+          message: `منتج "${i.name}" مجمّد فيه ${Math.round(i.frozenCapital).toLocaleString("ar-EG")} ج.م رأس مال بدون حركة بيع كافية` });
+      }
+      if (i.trendPct !== null && i.trendPct <= -50 && i.soldInPrevRange >= 5) {
+        alerts.push({ type: "declining_velocity", severity: "warning", productId: i.productId, productName: i.name,
+          message: `سرعة بيع "${i.name}" تراجعت ${Math.abs(i.trendPct)}% عن الفترة السابقة` });
+      }
+      if (i.damagedInRange > 0 && i.damagedInRange >= Math.max(3, i.soldInRange * 0.15)) {
+        alerts.push({ type: "high_damage_rate", severity: "critical", productId: i.productId, productName: i.name,
+          message: `منتج "${i.name}" سجّل ${i.damagedInRange} قطعة تالفة في الفترة — نسبة مرتفعة مقارنة بالمبيعات` });
+      }
+    }
+    if (warehouseLoadStatus === "critical") {
+      const top = warehouseDistribution[0];
+      alerts.push({ type: "warehouse_concentration", severity: "warning", productId: 0, productName: top?.name ?? "",
+        message: `مخزن "${top?.name}" شايل ${top?.sharePct}% من إجمالي المخزون — اعتماد مركّز خطر` });
+    }
+    const invSeverityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    alerts.sort((a, b) => invSeverityOrder[a.severity] - invSeverityOrder[b.severity]);
+
+    const periodLabels: Record<string, string> = { today: "اليوم", week: "آخر 7 أيام", month: "آخر 30 يوم", year: "السنة الحالية", custom: "فترة مخصصة" };
+    const periodLabel = periodLabels[period] ?? "آخر 30 يوم";
+
+    const result = {
+      period, periodLabel,
+      generatedAt: new Date().toISOString(),
+      kpis: {
+        totalProducts, totalUnitsInStock,
+        totalFrozenCapital: Math.round(totalFrozenCapital),
+        totalPotentialRevenue: Math.round(totalPotentialRevenue),
+        outOfStockCount, lowStockCount, fastMoversCount, slowMoversCount,
+        totalSoldInRange, totalDamagedInRange, totalReturnedInRange,
+      },
+      ranking,
+      frozenCapitalRanking,
+      warehouseDistribution: { warehouses: warehouseDistribution, topWarehouseSharePct, status: warehouseLoadStatus },
+      movementsBreakdown,
+      alerts,
+    };
+
+    setCached(cacheKey, result, 5 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    console.error("[inventory-intelligence] error:", err?.message ?? err);
+    res.status(500).json({ error: "فشل تحليل المخزون الذكي", detail: err?.message ?? String(err) });
   }
 });
 
