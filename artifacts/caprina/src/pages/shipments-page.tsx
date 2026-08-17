@@ -967,6 +967,13 @@ export default function Orders() {
   const PAGE_SIZE = pageSize;
   const [page, setPage] = useState(1);
 
+  // لما البحث أو الفلاتر تتغيّر، لازم نرجع لأول صفحة عشان النتايج تظهر على طول
+  // بدل ما اليوزر يفضل واقف في صفحة بعيدة ملهاش نتايج
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, customerSearch, totalSearch, status, dateFrom, dateTo, filterShippingCo, colFilters]);
+
+
   // mutation لتحديث حالة الشحنة
   const updateShipment = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) =>
