@@ -4593,6 +4593,11 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       if (status === "returned") returned++;
     }
     const totalInRange = rangeRows.length;
+    // ⚠️ عدّاد "تحقيق الهدف" (kpis.total) لازم يستبعد الشحنات "قيد الانتظار" (waiting/pending)
+    // لأنها لسه معلقة ومكانتش اتأكدت في المخزن — نفس منطق استبعادها من إجمالي شحنات العميل.
+    // باقي المعدلات (deliveryRate, returnRate...) تفضل مبنية على totalInRange الشامل لأنها
+    // نسب محسوبة أصلاً من حالات فعلية (delivered/returned) مش من عدد pending.
+    const achievedInRange = rangeRows.filter(r => !["pending", "waiting"].includes(SI_normalize(r.status))).length;
     const deliveryRate = totalInRange > 0 ? (delivered / totalInRange) * 100 : 0;
     const returnRate = totalInRange > 0 ? (returned / totalInRange) * 100 : 0;
     const onTimeRate = deliveredWithEta > 0 ? (onTime / deliveredWithEta) * 100 : (delivered > 0 ? 100 : 0);
@@ -4623,6 +4628,8 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       if (status === "returned") prevReturned++;
     }
     const prevTotalInRange = prevRangeRows.length;
+    // نفس استبعاد "قيد الانتظار" من عدّاد الهدف، لكن للفترة السابقة (عشان مقارنة الفترات تفضل متسقة)
+    const prevAchievedInRange = prevRangeRows.filter(r => !["pending", "waiting"].includes(SI_normalize(r.status))).length;
     const prevDeliveryRate = prevTotalInRange > 0 ? (prevDelivered / prevTotalInRange) * 100 : 0;
     const prevReturnRate = prevTotalInRange > 0 ? (prevReturned / prevTotalInRange) * 100 : 0;
     const prevOnTimeRate = prevDeliveredWithEta > 0 ? (prevOnTime / prevDeliveredWithEta) * 100 : (prevDelivered > 0 ? 100 : 0);
@@ -4987,6 +4994,9 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       healthScore, healthGrade, healthScoreBreakdown,
       kpis: {
         total: totalInRange,
+        // achieved: نفس total لكن مستبعد منه الشحنات "قيد الانتظار" (waiting/pending) —
+        // ده اللي المفروض يتستخدم لحساب نسبة "تحقيق الهدف" الشهري (مش total الخام)
+        achieved: achievedInRange,
         delivered, returned,
         deliveryRate: Math.round(deliveryRate * 10) / 10,
         returnRate: Math.round(returnRate * 10) / 10,
@@ -5001,6 +5011,7 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
         rangeTo: prevRangeTo.toISOString(),
         kpis: {
           total: prevTotalInRange,
+          achieved: prevAchievedInRange,
           delivered: prevDelivered, returned: prevReturned,
           deliveryRate: Math.round(prevDeliveryRate * 10) / 10,
           returnRate: Math.round(prevReturnRate * 10) / 10,

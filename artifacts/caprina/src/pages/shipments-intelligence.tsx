@@ -1025,7 +1025,7 @@ export default function ShipmentsIntelligencePage() {
       <SectionCard>
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-center">
           <div>
-            <MonthlyGoalCard actualCount={kpis.total} />
+            <MonthlyGoalCard actualCount={kpis.achieved} />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:border-r lg:border-white/10 lg:pr-6">
             <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#e8b93f" trend={normalTrend(kpiTrends.total)} />
