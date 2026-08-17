@@ -959,6 +959,7 @@ export default function Orders() {
     setSortDir(dir);
   }, []);
   const debouncedSearch = useDebounce(search, 300);
+  const debouncedCustomerSearch = useDebounce(customerSearch, 300);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   // ── Pagination (server-side) ─────────────────────────────────────────────
@@ -1048,9 +1049,10 @@ export default function Orders() {
 
   const { data: ordersResponse, isLoading } = useQuery({
     // ── Pagination server-side حقيقي: كل صفحة = طلب API جديد بـ limit/offset مختلفين ──
-    queryKey: ["shipments-list", debouncedSearch, status, dateFrom, dateTo, page],
+    queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, page],
     queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(debouncedCustomerSearch ? { customerName: debouncedCustomerSearch } : {}),
       ...(status !== "all" ? { status } : {}),
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),
@@ -1080,13 +1082,9 @@ export default function Orders() {
   });
   const inManifestSet = new Set(inManifestData?.ids ?? []);
 
+  // ملاحظة: فلترة اسم العميل (customerSearch) بقت بتحصل على مستوى السيرفر (customerName param)
+  // عشان تدور على كل الشحنات مش بس الصفحة المحمّلة حاليًا — شوف الـ query فوق
   const filtered = (Array.isArray(orders) ? orders : []).filter((o: any) => {
-    if (customerSearch) {
-      const words = customerSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
-      const receiver = (o.receiverName ?? "").toLowerCase();
-      const matchesAll = words.every((w: string) => receiver.includes(w));
-      if (!matchesAll) return false;
-    }
     if (totalSearch && !String(Math.round(Number(o.totalAmount || 0))).includes(totalSearch)) return false;
     return true;
   });
@@ -1560,17 +1558,14 @@ export default function Orders() {
                 try {
                   const res = await apiFetch<any>(`/shipments?${new URLSearchParams({
                     ...(debouncedSearch ? { search: debouncedSearch } : {}),
+                    ...(debouncedCustomerSearch ? { customerName: debouncedCustomerSearch } : {}),
                     ...(status !== "all" ? { status } : {}),
                     ...(dateFrom ? { dateFrom } : {}),
                     ...(dateTo ? { dateTo } : {}),
                     limit: "1000000", // كل الشحنات المطابقة للفلتر — بدون سقف
                   }).toString()}`);
                   let allRows: any[] = res.data ?? res ?? [];
-                  // نفس فلاتر البحث المحلي (اسم مستلم / إجمالي) المطبقة على الشاشة
-                  if (customerSearch) {
-                    const words = customerSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
-                    allRows = allRows.filter((o: any) => words.every((w: string) => (o.receiverName ?? "").toLowerCase().includes(w)));
-                  }
+                  // نفس فلتر "الإجمالي" المحلي المطبق على الشاشة (اسم العميل بقى بيتفلتر من السيرفر فوق)
                   if (totalSearch) {
                     allRows = allRows.filter((o: any) => String(Math.round(Number(o.totalAmount || 0))).includes(totalSearch));
                   }

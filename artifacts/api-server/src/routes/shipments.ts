@@ -362,7 +362,7 @@ router.post("/shipments/track/:number/rating", async (req, res): Promise<void> =
 router.get("/shipments", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { status, search, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
+    const { status, search, customerName, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
 
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
@@ -398,6 +398,14 @@ router.get("/shipments", async (req, res): Promise<void> => {
     }
     if (clientId) {
       conditions.push(eq(shipmentsTable.clientId, parseInt(clientId)));
+    }
+    if (customerName) {
+      // مربع "ابحث باسم العميل" المنفصل — بيدور على اسم المستلم بس (العميل النهائي)
+      // بحث بكل الشحنات في السيرفر مش بس الصفحة الحالية المحمّلة في الفرونت
+      const nameWords = customerName.trim().split(/\s+/).filter(Boolean);
+      if (nameWords.length) {
+        conditions.push(and(...nameWords.map((w: string) => like(shipmentsTable.receiverName, `%${w}%`))));
+      }
     }
     if (search) {
       // مربع البحث بيدور برقم الهاتف (المستلم أو الراسل) وكمان بالاسم (المستلم أو الراسل)

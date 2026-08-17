@@ -13,6 +13,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
 
+// توحيد صيغ الحروف العربية المتشابهة عشان البحث يلاقي النتيجة حتى لو الكتابة مختلفة شكليًا
+// (أ/إ/آ → ا) و (ة → ه) و (ى → ي) — أكتر سبب شائع لفشل البحث بالاسم العربي
+const normalizeAr = (s: string): string =>
+  s
+    .replace(/[أإآا]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/[ىي]/g, "ي")
+    .replace(/\s+/g, " ")
+    .trim();
+
 interface ShipmentRow {
   id: number;
   trackingNumber: string | null;
@@ -252,8 +262,8 @@ export default function ClientShipmentsPage() {
         if (!group.includes(s.status)) return false;
       }
       if (customerSearch.trim()) {
-        const words = customerSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
-        const receiver = (s.receiverName ?? "").toLowerCase();
+        const words = normalizeAr(customerSearch.toLowerCase()).split(/\s+/).filter(Boolean);
+        const receiver = normalizeAr((s.receiverName ?? "").toLowerCase());
         const matchesAll = words.every(w => receiver.includes(w));
         if (!matchesAll) return false;
       }
