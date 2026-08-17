@@ -1,6 +1,0 @@
-fix: week filter in manifests-pnl-summary used rolling 7 days instead of calendar week
-
-كان فلتر "أسبوع" في /analytics/manifests-pnl-summary (مستخدم في operations-center)
-بيحسب آخر 7 أيام متدحرجة بدل بداية الأسبوع التقويمي الحالي، فكان ممكن في أول
-الشهر يرجع لبيانات الشهر اللي فات ويطلع رقمه أكبر من فلتر "شهر" نفسه.
-دلوقتي بيستخدم نفس منطق بداية الأسبوع زي فلتر "شهر" و"سنة" (نفس نظام /analytics/profit).
