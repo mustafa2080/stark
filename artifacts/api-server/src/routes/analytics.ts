@@ -2565,7 +2565,9 @@ router.get("/analytics/shipment-charts-range", requireAuth, async (req, res): Pr
           if (points[i].date <= localDateStr(d)) { bucket = points[i]; break; }
         }
       } else {
-        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+        // شهري: نستخرج السنة/الشهر بتوقيت القاهرة (مش UTC) عشان نفس منطق باقي الحبيبات
+        const cairoDateStr = localDateStr(d); // "YYYY-MM-DD" بتوقيت القاهرة
+        const dateStr = `${cairoDateStr.slice(0, 7)}-01`;
         bucket = points.find(p => p.date === dateStr);
       }
 
@@ -2680,7 +2682,9 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
 
     for (const r of rows) {
       const day = localDateStr(new Date(r.createdAt));
-      if (!buckets[day]) continue;
+      // لو اليوم مش موجود أصلاً في buckets (حافة توقيت بين نطاق rangeFrom/rangeTo
+      // المحسوب بتوقيت السيرفر الخام واليوم الفعلي بتوقيت القاهرة)، نضيفه بدل ما نضيّع الشحنة
+      if (!buckets[day]) buckets[day] = emptyBucket();
       const status = normalize(r.status);
       const b = buckets[day];
       b.total += 1;
@@ -2690,6 +2694,13 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
       if (status === "delayed") b.delayed += 1;
       b.revenue += Number(r.collectedAmount ?? r.codAmount ?? 0);
     }
+
+    // بعد إضافة أي أيام حدّية جديدة، لازم نحدّث days عشان totals/sparkline تشمل كل الـ buckets الفعلية
+    const allBucketDays = Object.keys(buckets).sort();
+    for (const d of allBucketDays) {
+      if (!days.includes(d)) days.push(d);
+    }
+    days.sort();
 
     const sparkline = (key: keyof DayBucket) => days.map(d => buckets[d][key]);
 
