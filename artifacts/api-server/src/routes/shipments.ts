@@ -402,13 +402,11 @@ router.get("/shipments", async (req, res): Promise<void> => {
     if (search) {
       // مربع البحث بيدور برقم الهاتف (المستلم أو الراسل) وكمان بالاسم (المستلم أو الراسل)
       // تقسيم النص لكلمات عشان البحث يشتغل حتى لو المستخدم كتب الاسم كامل (اسم أول + عائلة)
+      // مهم: كل الكلمات لازم تتطابق في نفس الحقل (كله receiverName أو كله senderName)
+      // مش تتقاطع بين الاتنين — عشان منجيبش نتيجة غلط لشخصين مختلفين بالغلط
       const words = search.trim().split(/\s+/).filter(Boolean);
-      const nameConditions = words.map((w: string) =>
-        or(
-          like(shipmentsTable.receiverName, `%${w}%`),
-          like(shipmentsTable.senderName,   `%${w}%`),
-        )
-      );
+      const receiverNameMatch = and(...words.map((w: string) => like(shipmentsTable.receiverName, `%${w}%`)));
+      const senderNameMatch   = and(...words.map((w: string) => like(shipmentsTable.senderName,   `%${w}%`)));
       // لو النص المكتوب أرقام بس (بحث برقم تليفون)، نبحث بـ "الرقم بينتهي بيهم بالظبط"
       // مش "بيحتويهم في أي مكان" — عشان آخر 4 أرقام مثلاً تجيب رقم التليفون الصحيح بدقة
       const isPhoneSearch = /^\d+$/.test(search.trim());
@@ -417,7 +415,8 @@ router.get("/shipments", async (req, res): Promise<void> => {
         or(
           like(shipmentsTable.receiverPhone, phonePattern),
           like(shipmentsTable.senderPhone,   phonePattern),
-          and(...nameConditions),
+          receiverNameMatch,
+          senderNameMatch,
         )
       );
     }
