@@ -787,7 +787,10 @@ router.get("/analytics/manifests-pnl-summary", requirePermission("orders.financi
         toDate = new Date(customTo + "T23:59:59");
       }
     } else if (period === "week") {
-      fromDate = new Date(now); fromDate.setDate(now.getDate() - 7);
+      // بداية الأسبوع التقويمي الحالي (نفس منطق startOfWeek في /analytics/profit)
+      // مش آخر 7 أيام متدحرجة — عشان في أول الشهر ما يرجعش لشهر فات ويطلع أكبر من فلتر "شهر"
+      fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      fromDate.setDate(fromDate.getDate() - fromDate.getDay());
     } else if (period === "month") {
       fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
     } else if (period === "year") {
