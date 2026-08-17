@@ -64,6 +64,18 @@ export async function autoAddShipmentToClientAccountManifest(
   if (!clientId) return;
 
   try {
+    // ⚠️ حماية مركزية: أي شحنة لسه "قيد الانتظار" (waiting/pending) متتضافش لبيان
+    // أبدًا، بغض النظر عن مين اللي بينادي الدالة دي (إنشاء شحنة، استيراد، مزامنة
+    // sync-warehouse-ready...). البيان بيتضاف بس لما الشحنة توصل "قيد الشحن في
+    // المخزن" (warehouse_ready) أو أبعد. بنجيب الحالة الحالية من الداتابيز هنا
+    // نفسها عشان الحماية تكون واحدة مركزية مش متفرقة على كل نقطة نداء.
+    const [shipmentRow] = await db
+      .select({ status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(eq(shipmentsTable.id, shipmentId))
+      .limit(1);
+    if (shipmentRow && ["waiting", "pending"].includes(shipmentRow.status)) return;
+
     // لو الشحنة دي مضافة بالفعل لبيان "مفتوح" لسه موجود فعليًا — متضافش تاني.
     // لو مضافة لبيان "مقفول" أو "ملغى" (اتقفل/اتلغى بعد كده)، لازم تتحرك لبيان جديد
     // بمجرد ما تدخل تاني "قيد الشحن في المخزن" — عشان كده بنشترط status = "open" هنا.
