@@ -2624,8 +2624,10 @@ router.get("/analytics/operations-kpis", requireAuth, async (req, res): Promise<
       rangeFrom = new Date(customFrom + "T00:00:00");
       rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
     } else {
-      // "week" (الافتراضي) — آخر 7 أيام زي المنطق القديم
-      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+      // "week" (الافتراضي) — بداية الأسبوع التقويمي الحالي (نفس منطق باقي endpoints)
+      // مش آخر 7 أيام متدحرجة — عشان في أول الشهر ما يرجعش لشهر فات ويطلع أكبر من "شهر"
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+      rangeFrom.setDate(rangeFrom.getDate() - rangeFrom.getDay());
     }
     // للـ sparkline والمقارنة اليوم/أمس محتاجين بيانات يوم أمس على الأقل حتى لو الفترة "اليوم" بس
     const fetchFrom = new Date(Math.min(rangeFrom.getTime(), new Date(now).setDate(now.getDate() - 1)));
