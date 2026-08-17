@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable } from "@workspace/db";
-import { eq, desc, and, sql, or, like, isNull, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, or, like, isNull, inArray, notInArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients, computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
@@ -834,7 +834,13 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
     // جلب الشحنات بالـ clientId أو بالاسم (استبعاد المحذوفة)
-    const shipConds: any[] = [isNull(shipmentsTable.deletedAt)];
+    // ⚠️ استبعاد الشحنات "قيد الانتظار" (pending/waiting) — دي لسه معلقة ومكانش
+    // اتأكد عليها في المخزن، فمينفعش تتحسب ضمن إجمالي شحنات العميل ولا تدخل بيان
+    // إلا لما تتحول لـ "قيد الشحن في المخزن" (warehouse_ready/picked_up) أو أبعد
+    const shipConds: any[] = [
+      isNull(shipmentsTable.deletedAt),
+      notInArray(shipmentsTable.status, ["pending", "waiting"]),
+    ];
     const idCond   = eq(shipmentsTable.clientId, id);
     const nameCond = eq(shipmentsTable.senderName, client.name);
     shipConds.push(or(idCond, nameCond)!);

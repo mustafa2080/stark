@@ -872,8 +872,10 @@ router.post("/shipments", async (req, res): Promise<void> => {
 
     res.status(201).json(newShipment[0]);
 
-    // إضافة تلقائية لبيان حساب العميل المفتوح فور إنشاء الشحنة (بغض النظر عن حالتها)
-    if (newShipment[0] && newShipment[0].clientId) {
+    // إضافة تلقائية لبيان حساب العميل المفتوح فور إنشاء الشحنة — بس لو مش "قيد الانتظار"
+    // (pending/waiting). الشحنة المعلقة لسه ملهاش بيان لحد ما تتحول لـ "قيد الشحن في المخزن"
+    // أو أبعد — نفس منطق تحديث الحالة تحت (updateData.status === "warehouse_ready")
+    if (newShipment[0] && newShipment[0].clientId && !["pending", "waiting"].includes(newShipment[0].status)) {
       autoAddShipmentToClientAccountManifest(
         insertId,
         newShipment[0].clientId,
