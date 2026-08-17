@@ -409,10 +409,14 @@ router.get("/shipments", async (req, res): Promise<void> => {
           like(shipmentsTable.senderName,   `%${w}%`),
         )
       );
+      // لو النص المكتوب أرقام بس (بحث برقم تليفون)، نبحث بـ "الرقم بينتهي بيهم بالظبط"
+      // مش "بيحتويهم في أي مكان" — عشان آخر 4 أرقام مثلاً تجيب رقم التليفون الصحيح بدقة
+      const isPhoneSearch = /^\d+$/.test(search.trim());
+      const phonePattern = isPhoneSearch ? `%${search.trim()}` : `%${search}%`;
       conditions.push(
         or(
-          like(shipmentsTable.receiverPhone, `%${search}%`),
-          like(shipmentsTable.senderPhone,   `%${search}%`),
+          like(shipmentsTable.receiverPhone, phonePattern),
+          like(shipmentsTable.senderPhone,   phonePattern),
           and(...nameConditions),
         )
       );
