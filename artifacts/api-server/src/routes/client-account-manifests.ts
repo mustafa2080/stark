@@ -204,62 +204,17 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
     const clientMap: Record<number, { name: string; avatar: string | null }> = {};
     clientsRows.forEach(c => { clientMap[c.id] = { name: c.name, avatar: c.avatar }; });
 
-    const openClientIds = [...new Set(manifests.filter(m => m.status === "open").map(m => m.clientId))];
-    const openClientNames = openClientIds
-      .map(id => clientMap[id]?.name)
-      .filter((name): name is string => !!name);
-    const openClientStatsMap: Record<number, { total: number; statusCounts: { pending: number; delayed: number; returned: number; delivered: number; partial: number } }> = {};
-    const openClientNameToId = new Map(openClientNames.map(name => {
-      const clientIdForName = openClientIds.find(id => clientMap[id]?.name === name);
-      return [name, clientIdForName] as const;
-    }).filter((entry): entry is readonly [string, number] => entry[1] != null));
-
-    if (openClientIds.length) {
-      const shipmentConds: any[] = [isNull(shipmentsTable.deletedAt)];
-      const clientMatchConds: any[] = [inArray(shipmentsTable.clientId, openClientIds)];
-      if (openClientNames.length) clientMatchConds.push(inArray(shipmentsTable.senderName, openClientNames));
-      shipmentConds.push(or(...clientMatchConds));
-      if (tenantId !== null) shipmentConds.push(eq(shipmentsTable.tenantId, tenantId));
-
-      const openClientShipments = await db.select({
-        clientId: shipmentsTable.clientId,
-        senderName: shipmentsTable.senderName,
-        status: shipmentsTable.status,
-      }).from(shipmentsTable).where(and(...shipmentConds));
-
-      for (const shipment of openClientShipments) {
-        const cid = shipment.clientId && openClientIds.includes(shipment.clientId)
-          ? shipment.clientId
-          : shipment.senderName
-            ? openClientNameToId.get(shipment.senderName)
-            : undefined;
-        if (!cid) continue;
-
-        const stat = openClientStatsMap[cid] ?? {
-          total: 0,
-          statusCounts: { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
-        };
-        stat.total += 1;
-
-        const st = String(shipment.status ?? "pending");
-        if (st === "delivered" || st === "received") stat.statusCounts.delivered += 1;
-        else if (st === "partial_received" || st === "partial_delivered") stat.statusCounts.partial += 1;
-        else if (st === "returned") stat.statusCounts.returned += 1;
-        else if (st === "delayed" || st === "postponed") stat.statusCounts.delayed += 1;
-        else stat.statusCounts.pending += 1;
-
-        openClientStatsMap[cid] = stat;
-      }
-    }
-
+    // ⚠️ ملحوظة: البيان المفتوح والمغلق بيتحسبوا بنفس المنطق بالظبط — من
+    // client_account_manifest_items مباشرة (مش من جدول shipments). قديمًا كان
+    // البيان المفتوح بيحسب "كل شحنات العميل" من shipments، وده كان بيخلي أي
+    // شحنة waiting/pending للعميل (حتى لو مش مرتبطة بالبيان أصلاً، أو اتشالت من
+    // items بعد ما كانت مضافة) تظهر غلط كـ "قيد عمل" في كارت البيان. الإضافة
+    // للبيان بتتم فقط عبر autoAddShipmentToClientAccountManifest لما الشحنة
+    // توصل warehouse_ready فعليًا، فالاعتماد على items هو المصدر الصحيح الوحيد.
     const result = manifests.map(m => ({
       ...m,
-      shipmentCount: m.status === "open"
-        ? (openClientStatsMap[m.clientId]?.total ?? countMap[m.id] ?? 0)
-        : (countMap[m.id] ?? 0),
-      statusCounts: m.status === "open"
-        ? (openClientStatsMap[m.clientId]?.statusCounts ?? statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 })
-        : (statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 }),
+      shipmentCount: countMap[m.id] ?? 0,
+      statusCounts: statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
       clientName: clientMap[m.clientId]?.name ?? "",
       clientAvatar: clientMap[m.clientId]?.avatar ?? null,
     }));
