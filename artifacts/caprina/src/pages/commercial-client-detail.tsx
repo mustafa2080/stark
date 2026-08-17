@@ -295,6 +295,21 @@ export default function CommercialClientDetailPage() {
     },
   });
 
+  // ── إعادة حساب إحصائيات العميل (عدد/مبلغ الأوردرات) من أوامر البيع الحالية ──
+  // مفيد بعد أي تعديل على منطق الحساب في الباك إند (مثلاً استبعاد أوردرات "مسودة")
+  // عشان القيم المخزّنة (client.totalOrders...) تتزامن مع الحساب الجديد فورًا.
+  const syncStatsMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<any>(`/finance/clients/${clientId}/sync`, { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-detail", clientId] });
+      toast({ title: "تم تحديث إحصائيات العميل بنجاح" });
+    },
+    onError: (err: any) => {
+      toast({ title: "تعذّر تحديث الإحصائيات", description: err?.message, variant: "destructive" });
+    },
+  });
+
   const startEdit = (currentLimit: number) => {
     setTargetInput(String(currentLimit > 0 ? currentLimit : 1_000_000));
     setEditingTarget(true);
@@ -953,7 +968,17 @@ export default function CommercialClientDetailPage() {
             className={`card-glow p-3 text-center border ${salesPct >= 75 ? "border-emerald-900/40" : salesPct >= 50 ? "border-amber-900/40" : "border-primary/30"}`}
             style={salesPct >= 75 ? GLOW.emerald.style : salesPct >= 50 ? GLOW.amber.style : GLOW.blue.style}
           >
-            <p className="text-[10px] text-muted-foreground mb-0.5">تحقيق الهدف</p>
+            <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+              تحقيق الهدف
+              <button
+                onClick={() => syncStatsMutation.mutate()}
+                disabled={syncStatsMutation.isPending}
+                title="تحديث الإحصائيات"
+                className="text-muted-foreground/50 hover:text-primary transition-colors disabled:opacity-40"
+              >
+                <RefreshCw className={`w-2.5 h-2.5 ${syncStatsMutation.isPending ? "animate-spin" : ""}`} />
+              </button>
+            </p>
             <p className={`text-2xl font-black ${salesPct >= 75 ? "text-emerald-400" : salesPct >= 50 ? "text-amber-400" : "text-primary"}`}>
               {salesPct.toFixed(1)}%
             </p>
