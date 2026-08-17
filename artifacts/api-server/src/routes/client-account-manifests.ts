@@ -357,6 +357,17 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
+    // ─── استبعاد الشحنات اللي حالتها الحالية "قيد الانتظار" (waiting/pending) من
+    // عرض تفاصيل البيان — ممكن تكون اتضافت للبيان لما كانت "قيد الشحن في المخزن"
+    // وبعدين حالتها اترجعت لقيد الانتظار (مثلاً اتلغى تجهيزها)، فمينفعش تفضل
+    // ظاهرة كأنها جزء فعلي من البيان رغم إن الحماية المركزية بتمنع إضافتها من الأساس.
+    // العنصر (row) بيفضل موجود في الجدول للتاريخ، بس بيتفلتر بره العرض والحسابات هنا.
+    const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
+    const visibleItems = items.filter(item => {
+      const sh = shipmentMap[item.shipmentId];
+      return !sh || !EXCLUDED_SHIPMENT_STATUSES.has(sh.status);
+    });
+
     // ── returnValueReceived للمرتجع بالأسباب المالية (رفض بعد المعاينة / تهرب) ──
     // القيمة دي بتتسجل في جدول بيان الشحن (shipment_manifest_items) مش في جدول
     // بيان حساب العميل نفسه، فبنجيبها هنا كـ fallback زي partialQuantity بالضبط.
@@ -527,7 +538,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
 
     const RETURN_REASONS_WITH_VALUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
 
-    const enrichedItems = items.map(item => {
+    const enrichedItems = visibleItems.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       // item.returnReason (جدول client_account_manifest_items) ممكن يفضل null حتى
       // لو السبب الحقيقي مسجّل على مستوى الشحنة نفسها (shipment.returnReason) — فبنعمل
@@ -610,11 +621,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       };
     });
 
-    const delivered = items.filter(i => i.deliveryStatus === "delivered").length;
-    const returned  = items.filter(i => i.deliveryStatus === "returned").length;
-    const pending   = items.filter(i => i.deliveryStatus === "pending").length;
-    const delayed   = items.filter(i => i.deliveryStatus === "delayed").length;
-    const partial   = items.filter(i => i.deliveryStatus === "partial_delivered").length;
+    const delivered = visibleItems.filter(i => i.deliveryStatus === "delivered").length;
+    const returned  = visibleItems.filter(i => i.deliveryStatus === "returned").length;
+    const pending   = visibleItems.filter(i => i.deliveryStatus === "pending").length;
+    const delayed   = visibleItems.filter(i => i.deliveryStatus === "delayed").length;
+    const partial   = visibleItems.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     // ─── حسابات مالية — من منظور حساب العميل (بدل شركة الشحن) ────────────────
     // نفس الأسباب المالية الثلاثة المستخدمة فوق (RETURN_REASONS_WITH_VALUE) — لازم تفضل
@@ -622,7 +633,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const RETURN_REASONS_WITH_SHIPPING = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
     let deliveredShippingFees = 0;
-    for (const item of items) {
+    for (const item of visibleItems) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
       const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
@@ -668,7 +679,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // المستحق بافتراض متفائل (كل الشحنات هتتحصّل بكامل قيمتها). هذا منفصل عن
     // netProfit/deliveredGross الأصليين اللي بيقيسوا الأداء الفعلي المُقفل فقط.
     let netDueFromClientAllStatuses = 0;
-    for (const item of items) {
+    for (const item of visibleItems) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
       const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
@@ -683,7 +694,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       client: client ?? null,
       items: enrichedItems,
       stats: {
-        total: items.length, delivered, returned, pending, delayed, partial,
+        total: visibleItems.length, delivered, returned, pending, delayed, partial,
         totalRevenue, totalCost, totalShippingCost, returnLosses,
         netProfit, deliveredGross,
         deliveredShippingFees,
