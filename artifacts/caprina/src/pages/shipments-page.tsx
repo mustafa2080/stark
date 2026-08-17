@@ -1047,12 +1047,17 @@ export default function Orders() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // فلتر عمود "الراسل" (customer) بيتبعت للسيرفر زي customerName بالظبط — عشان يشمل
+  // كل الشحنات المطابقة في الداتابيز مش بس الصفحة المحمّلة حاليًا في المتصفح
+  const senderNamesFilterKey = [...colFilters.customer].sort().join("||");
+
   const { data: ordersResponse, isLoading } = useQuery({
     // ── Pagination server-side حقيقي: كل صفحة = طلب API جديد بـ limit/offset مختلفين ──
-    queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, page],
+    queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, senderNamesFilterKey, page],
     queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(debouncedCustomerSearch ? { customerName: debouncedCustomerSearch } : {}),
+      ...(senderNamesFilterKey ? { senderNames: senderNamesFilterKey } : {}),
       ...(status !== "all" ? { status } : {}),
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),

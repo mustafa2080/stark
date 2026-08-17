@@ -362,7 +362,7 @@ router.post("/shipments/track/:number/rating", async (req, res): Promise<void> =
 router.get("/shipments", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { status, search, customerName, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
+    const { status, search, customerName, senderNames, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
 
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
@@ -405,6 +405,14 @@ router.get("/shipments", async (req, res): Promise<void> => {
       const nameWords = customerName.trim().split(/\s+/).filter(Boolean);
       if (nameWords.length) {
         conditions.push(and(...nameWords.map((w: string) => like(shipmentsTable.receiverName, `%${w}%`))));
+      }
+    }
+    if (senderNames) {
+      // فلتر عمود "الراسل" (Excel-style checkboxes) — قيم مطابقة بالظبط (مش بحث جزئي)
+      // بيتفلتر من السيرفر عشان يشمل كل الشحنات المطابقة مش بس الصفحة المحمّلة حاليًا
+      const names = senderNames.split("||").map(s => s.trim()).filter(Boolean);
+      if (names.length) {
+        conditions.push(inArray(shipmentsTable.senderName, names));
       }
     }
     if (search) {
