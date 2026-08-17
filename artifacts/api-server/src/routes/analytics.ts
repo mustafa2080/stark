@@ -275,9 +275,12 @@ router.get("/analytics/profit", requirePermission("orders.financials"), async (r
 
   const allOrders = filteredOrders;
 
-  const today = periodStats(filterByPeriod(allOrders, startOfToday), variantMap, productMap, shippingPerOrder);
-  const week = periodStats(filterByPeriod(allOrders, startOfWeek), variantMap, productMap, shippingPerOrder);
-  const month = periodStats(filterByPeriod(allOrders, startOfMonth), variantMap, productMap, shippingPerOrder);
+  // كروت اليوم/الأسبوع/الشهر لازم تتحسب دايمًا من كل الأوردرات (allOrdersRaw)
+  // مش من allOrders (اللي بيتفلتر بالـ period/from/to القادم من الفرونت)
+  // عشان لو المستخدم واقف على فلتر "أسبوع" مثلاً، كارت "الشهر" لازم يفضل يعرض إجمالي الشهر كامل
+  const today = periodStats(filterByPeriod(allOrdersRaw, startOfToday), variantMap, productMap, shippingPerOrder);
+  const week = periodStats(filterByPeriod(allOrdersRaw, startOfWeek), variantMap, productMap, shippingPerOrder);
+  const month = periodStats(filterByPeriod(allOrdersRaw, startOfMonth), variantMap, productMap, shippingPerOrder);
   const allTime = periodStats(allOrders, variantMap, productMap, shippingPerOrder);
 
   const productProfitMap: Record<string, {
