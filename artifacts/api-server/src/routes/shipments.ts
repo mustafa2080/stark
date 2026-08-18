@@ -1479,6 +1479,11 @@ router.post("/zone-costs", async (req, res): Promise<void> => {
     if (!zoneId) { res.status(400).json({ error: "اختر منطقة من تاب المناطق" }); return; }
     const [zone] = await db.select().from(shipmentZonesTable).where(eq(shipmentZonesTable.id, Number(zoneId))).limit(1);
     if (!zone) { res.status(400).json({ error: "المنطقة المختارة غير موجودة" }); return; }
+    const dupCond = tenantId !== null
+      ? and(eq(zoneCostsTable.zoneId, zone.id), eq(zoneCostsTable.tenantId, tenantId))
+      : eq(zoneCostsTable.zoneId, zone.id);
+    const [existing] = await db.select().from(zoneCostsTable).where(dupCond).limit(1);
+    if (existing) { res.status(400).json({ error: `منطقة "${zone.name}" مضافة بالفعل في تكاليف المناطق` }); return; }
     const result = await db.insert(zoneCostsTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
       zoneId: zone.id,

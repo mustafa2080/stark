@@ -180,7 +180,19 @@ function ZoneCostsMultiSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const activeZoneCosts = useMemo(() => zoneCosts.filter(z => z.isActive !== false), [zoneCosts]);
+  const activeZoneCosts = useMemo(() => {
+    const active = zoneCosts.filter(z => z.isActive !== false);
+    // إزالة أي تكرار بنفس id (أو نفس الاسم لو مفيش id) عشان بيانات قديمة مكررة متتعرضش مرتين
+    const seen = new Set<string | number>();
+    const deduped: typeof active = [];
+    for (const z of active) {
+      const key = z.id ?? z.name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(z);
+    }
+    return deduped;
+  }, [zoneCosts]);
 
   const filtered = useMemo(() =>
     activeZoneCosts.filter(z =>
