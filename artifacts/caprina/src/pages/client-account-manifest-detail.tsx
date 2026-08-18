@@ -1061,9 +1061,27 @@ function InvoiceGroupDeliveryRow({
 }) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
+  const [editingShipmentStatus, setEditingShipmentStatus] = useState(false);
 
   const rep = group[0];
   const groupKey = getManifestGroupKey(rep);
+
+  // ─── تعديل الحالة الفعلية للشحنة (status) مباشرة من داخل البيان ─────────
+  // (زي: قيد الشحن في المخزن → في الشحن → استلم) — بيستخدم نفس الـ endpoint
+  // العام لتعديل الشحنة (/shipments/:id PATCH) المستخدم في صفحة /shipments-list.
+  const shipmentStatusMutation = useMutation({
+    mutationFn: (newStatus: string) => {
+      const shipmentId = (rep as any).shipmentId ?? rep.id;
+      return shipmentsApi.patch(shipmentId, { status: newStatus as any });
+    },
+    onSuccess: () => {
+      toast({ title: "تم تحديث حالة الشحنة" });
+      setEditingShipmentStatus(false);
+      onSaved();
+    },
+    onError: (e: any) =>
+      toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received أو partial_delivered احسب الجزء المستلم فقط
   const totalPrice = group.reduce((s, o) => {
@@ -1457,9 +1475,41 @@ function InvoiceGroupDeliveryRow({
               </div>
             ) : (
               <div className="flex flex-col gap-0.5">
-                <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
-                  {displayOpt.label}
-                </Badge>
+                {/* لو لسه deliveryStatus مايتحددش (pending) بس فيه حالة شحنة فعلية (status) —
+                    نسمح بتغييرها مباشرة من هنا بدل ما ندخل صفحة الشحنة لوحدها */}
+                {!isShipmentManifest && !locked && displayStatus === "pending" && (rep as any).status && (rep as any).status !== "pending" ? (
+                  editingShipmentStatus ? (
+                    <Select
+                      value={(rep as any).status}
+                      onValueChange={(v) => shipmentStatusMutation.mutate(v)}
+                      disabled={shipmentStatusMutation.isPending}
+                    >
+                      <SelectTrigger className="h-6 text-[9px] px-1.5 w-[120px]" onClick={(e) => e.stopPropagation()}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent onClick={(e) => e.stopPropagation()}>
+                        {Object.entries(SHIPMENT_STATUS_STYLE)
+                          .filter(([k]) => ["warehouse_ready", "in_shipping", "received", "partial_received", "delayed", "returned"].includes(k))
+                          .map(([k, v]) => (
+                            <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color} cursor-pointer`}
+                      onClick={(e) => { e.stopPropagation(); setEditingShipmentStatus(true); }}
+                      title="اضغط لتغيير حالة الشحنة"
+                    >
+                      {displayOpt.label} ✎
+                    </Badge>
+                  )
+                ) : (
+                  <Badge variant="outline" className={`text-[9px] font-bold border ${displayOpt.bg} ${displayOpt.color}`}>
+                    {displayOpt.label}
+                  </Badge>
+                )}
                 {/* سبب التأجيل تحت الـ badge مباشرة */}
                 {(displayStatus === "delayed" || displayStatus === "postponed") && (
                   <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
@@ -3970,7 +4020,14 @@ export default function ShippingManifestPage() {
       // اللي تم استلامه → يختفي من الجدول
       const isConfirmedReturn = isReturnedOrPartial && isConfirmed;
       // لا نخفي الأوردرات المسلَّمة — تظهر في الجدول بحالة "مسلَّم"
-      return !isConfirmedReturn;
+      if (isConfirmedReturn) return false;
+      // ─── استبعاد الشحنات اللي حالتها الفعلية لسه "قيد الانتظار" ─────────────
+      // (لسه محدش استلمها في المخزن) — البيان يعرض بس اللي وصلت لمرحلة
+      // "قيد الشحن في المخزن" فيما فوق. لا نخفي إلا لو dStatus برضه pending
+      // (يعني ما اتسجلش أي إجراء تسليم/تأجيل عليها من قبل) عشان مانخفيش
+      // شحنة اتعمل لها إجراء فعلي واتفلترت الـ status بتاعها متأخر لأي سبب.
+      if (dStatus === "pending" && shipmentStatus === "pending") return false;
+      return true;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
     if (!manifestCustomerSearch && !manifestProductSearch && !manifestTotalSearch) return groups;
