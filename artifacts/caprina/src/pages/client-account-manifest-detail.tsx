@@ -4401,10 +4401,13 @@ export default function ShippingManifestPage() {
     return o.deliveryStatus === "returned" && (rr === 1 || rr === true || rr === "1");
   };
   const ordersExcludingPendingShipping = (manifest.orders ?? []).filter(
-    (o) => !isStillAtShipping(o) && !isReturnConfirmed(o)
+    (o) => !isReturnConfirmed(o)
   );
 
   // ─── كل العدادات (مسلَّم/مرتجع/جزئي/مؤجل/بانتظار/إجمالي) لازم تطابق صفوف جدول الطلبيات في البيان ───
+  // ملاحظة: الطلبيات المرتجعة اللي لسه عند شركة الشحن (isStillAtShipping) بتفضل محسوبة
+  // ضمن إجمالي البيان (كارت "إجمالي عدد الشحنات") فمن غير المفروض تتشال من هنا برضو —
+  // عشان مجموع كل الكروت والنسب يطابق العدد الكلي الظاهر فوق (manifest.orders.length).
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const allGroupedOrders = groupedManifestOrders;
   const manifestGroupPriority: Record<string, number> = {
