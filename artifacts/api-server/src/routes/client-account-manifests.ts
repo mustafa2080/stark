@@ -369,16 +369,14 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // ظاهرة كأنها جزء فعلي من البيان رغم إن الحماية المركزية بتمنع إضافتها من الأساس.
     // العنصر (row) بيفضل موجود في الجدول للتاريخ، بس بيتفلتر بره العرض والحسابات هنا.
     //
-    // ⚠️ كمان بنستبعد أي عنصر في البيان لسه deliveryStatus بتاعه "pending" (قيد
-    // الانتظار على مستوى التسليم للعميل) — البيان بيفترض إن الشحنة خرجت للتسليم
-    // بالفعل، فمفيش معنى تعرض فيه شحنة لسه منتظرة. الحالتين مختلفتين: الأولى
-    // بتتأكد إن الشحنة "خرجت من المخزن أصلاً"، والتانية بتتأكد إن حالة تسليمها
-    // اتحدثت (حتى لو خرجت من المخزن). محتاجين الاتنين مع بعض.
+    // ملحوظة: مبنستبعدش العنصر بناءً على item.deliveryStatus === "pending"،
+    // لأن "pending" هي القيمة الافتراضية لأي شحنة بتتضاف حديثًا للبيان (لسه محدش
+    // سجّل نتيجة تسليمها) — مش معناها إن الشحنة نفسها لسه منتظرة في المخزن.
+    // المعيار الوحيد لإخفاء الشحنة من عرض البيان هو حالتها الفعلية (shipment.status).
     const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
     const visibleItems = items.filter(item => {
       const sh = shipmentMap[item.shipmentId];
       if (sh && EXCLUDED_SHIPMENT_STATUSES.has(sh.status)) return false;
-      if (item.deliveryStatus === "pending") return false;
       return true;
     });
 
