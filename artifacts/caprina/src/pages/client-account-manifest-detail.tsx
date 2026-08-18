@@ -4023,10 +4023,13 @@ export default function ShippingManifestPage() {
       if (isConfirmedReturn) return false;
       // ─── استبعاد الشحنات اللي حالتها الفعلية لسه "قيد الانتظار" ─────────────
       // (لسه محدش استلمها في المخزن) — البيان يعرض بس اللي وصلت لمرحلة
-      // "قيد الشحن في المخزن" فيما فوق. بطلب صريح: أي شحنة deliveryStatus
-      // بتاعها لسه "pending" تتخفي من جدول البيان بغض النظر عن shipmentStatus،
-      // لأن الفرونت اند مش بيقرا shipmentStatus بشكل موثوق من كل مصدر.
-      if (dStatus === "pending") return false;
+      // "قيد الشحن في المخزن" فيما فوق. المعيار الصح هو shipmentStatus (حالة
+      // الشحنة الفعلية، sh.status الجاية صراحةً من الباك اند)، مش dStatus
+      // (deliveryStatus بتاع البيان) — لأن dStatus بتفضل "pending" افتراضيًا
+      // لأي شحنة اتضافت حديثًا للبيان، حتى لو الشحنة نفسها بقت "قيد الشحن"
+      // (in_shipping) فعليًا. الاستبعاد بـ dStatus === "pending" كان بيخفي
+      // شحنات in_shipping غلط رغم وصولها للمخزن.
+      if (shipmentStatus === "pending" || shipmentStatus === "waiting") return false;
       return true;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
