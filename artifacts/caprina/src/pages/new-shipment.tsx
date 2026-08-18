@@ -16,7 +16,7 @@ type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 
 interface ShipmentZone        { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; isActive?: boolean }
-interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; isActive?: boolean }
+interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; repExtraCost?: number; isActive?: boolean }
 interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null; defaultAdSource?: string | null }
 
 const PARCEL_LABELS: Record<string, string> = {
@@ -452,7 +452,14 @@ export default function NewShipmentPage() {
                     <SelectItem key={p.id} value={p.parcelType}>
                       <div className="flex items-center justify-between gap-4 w-full">
                         <span>{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</span>
-                        <span className="text-xs text-muted-foreground font-bold">{fc(p.basePrice)}</span>
+                        <span className="flex items-center gap-2 text-xs font-bold shrink-0">
+                          <span className="text-muted-foreground" title="سعر العميل">{fc(Number(p.basePrice))}</span>
+                          {Number(p.repExtraCost) > 0 && (
+                            <span className="text-emerald-600 dark:text-emerald-400" title="سعر المندوب">
+                              +{fc(Number(p.repExtraCost))} مندوب
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </SelectItem>
                   ))}
