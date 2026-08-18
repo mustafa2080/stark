@@ -1733,7 +1733,7 @@ function TaskCard({ task }: { task: any }) {
           <span className="text-[10px] text-muted-foreground/60">({task.zoneName})</span>
         )}
         <span className="text-[11px] font-bold text-emerald-400 mr-auto">
-          {Number(task.codAmount ?? 0).toLocaleString("ar-EG")} ج.م
+          {Number(task.totalAmount ?? (Number(task.codAmount ?? 0) + Number(task.shippingFee ?? 0))).toLocaleString("ar-EG")} ج.م
         </span>
       </div>
 
