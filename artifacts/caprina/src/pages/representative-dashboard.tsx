@@ -1798,8 +1798,22 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
   });
 
   const d = data as any;
-  const tasks: any[] = d?.tasks ?? [];
+  const allTasks: any[] = d?.tasks ?? [];
   const summary = d?.summary ?? { urgent: 0, outForDelivery: 0, pending: 0, total: 0 };
+
+  // ── بحث بالاسم أو آخر أرقام من التليفون ──
+  const [searchQuery, setSearchQuery] = useState("");
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const tasks = normalizedQuery
+    ? allTasks.filter(t => {
+        const name = (t.receiverName ?? "").toLowerCase();
+        const phoneDigits = (t.receiverPhone ?? "").replace(/\D/g, "");
+        const queryDigits = normalizedQuery.replace(/\D/g, "");
+        const nameMatch = name.includes(normalizedQuery);
+        const phoneMatch = queryDigits.length > 0 && phoneDigits.includes(queryDigits);
+        return nameMatch || phoneMatch;
+      })
+    : allTasks;
 
   // فصل المهام لمجموعات
   const urgentTasks   = tasks.filter(t => t.isUrgent);
@@ -1816,7 +1830,7 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
     );
   }
 
-  if (tasks.length === 0) {
+  if (allTasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
         <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
@@ -1830,6 +1844,34 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
 
   return (
     <div className="space-y-4">
+      {/* ── بحث بالاسم أو رقم التليفون ── */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          inputMode="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="ابحث بالاسم أو آخر أرقام التليفون..."
+          className="w-full rounded-2xl border border-border/60 bg-card/60 py-2.5 pr-9 pl-8 text-xs placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <XIcon className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {normalizedQuery && tasks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+          <p className="text-sm font-bold text-muted-foreground">مفيش نتائج لـ "{searchQuery}"</p>
+        </div>
+      ) : (
+      <>
       {/* ── بانر الشحنات المستعجلة في تاب "مهامي" (تنوير أحمر + صوت مستمر + كتم) ── */}
       {urgentTasks.length > 0 && (
         <UrgentBanner
@@ -1912,6 +1954,8 @@ function TodayTasksTab({ companyId }: { companyId: number | null }) {
           </p>
           {partialTasks.map(t => <TaskCard key={`${t.id}-${t.manifestId}`} task={t} />)}
         </div>
+      )}
+      </>
       )}
     </div>
   );
