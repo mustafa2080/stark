@@ -3878,6 +3878,9 @@ export default function ShippingManifestPage() {
               partial_received: "partial_delivered",
               delivered:        "delivered",
               received:         "delivered",
+              // الشحنة لسه في الشحن ولسه محدش سجّل نتيجة تسليمها في البيان —
+              // نعرضها كـ "قيد الشحن" بدل "قيد الانتظار" لأنها فعليًا خرجت للتسليم
+              in_shipping:      "postponed",
             };
             return (statusMap[sh.status] ?? item.deliveryStatus) as DeliveryStatus;
           }
