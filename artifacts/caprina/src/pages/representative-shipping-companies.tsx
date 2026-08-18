@@ -1484,9 +1484,12 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
                     .filter(Boolean);
                   if (!zoneCostNames.length) return null;
                   return (
-                    <div className="flex items-start gap-2 pt-1">
-                      <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground" />
-                      <div className="flex flex-wrap gap-1">
+                    <div className="pt-1 space-y-1">
+                      <p className="text-xs flex items-center gap-2">
+                        <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <span className="text-muted-foreground">تكلفة الشحنة (حسب المنطقة):</span>
+                      </p>
+                      <div className="flex flex-wrap gap-1 mr-5">
                         {zoneCostNames.map(z => (
                           <span
                             key={z!.id}
@@ -1502,6 +1505,7 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
                             }}
                           >
                             {z!.name}{z!.fromGovernorate || z!.toGovernorate ? ` · ${z!.fromGovernorate ?? "؟"} → ${z!.toGovernorate ?? "؟"}` : ""}
+                            {" · "}<strong>{formatCurrency(Number((z as any)!.deliveryCost ?? 0))}</strong>
                           </span>
                         ))}
                       </div>
