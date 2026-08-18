@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, TrendingUp, TrendingDown, Crown, AlertTriangle, AlertCircle, Info,
   Moon, Sparkles, Users, DollarSign, Activity, HeartPulse, ChevronDown, ChevronUp,
-  RefreshCw, Calendar,
+  RefreshCw, Calendar as CalendarIcon, CalendarDays, Check, RotateCcw,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { DateRange } from "react-day-picker";
 import { analyticsApi, ClientsIntelligenceResponse } from "@/lib/api";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -350,6 +354,91 @@ function AlertsBanner({ alerts }: { alerts: ClientsIntelligenceResponse["alerts"
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Date Range Picker — فترة مخصصة (نفس مكوّن shipments-intelligence.tsx لثبات الهوية البصرية)
+// ═══════════════════════════════════════════════════════════════════════════
+const fmtRangeDate = (d?: Date) =>
+  d ? d.toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : null;
+
+function DateRangePicker({
+  active,
+  range,
+  onApply,
+  onClear,
+}: {
+  active: boolean;
+  range: DateRange | undefined;
+  onApply: (range: DateRange) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<DateRange | undefined>(range);
+
+  useEffect(() => {
+    if (open) setDraft(range);
+  }, [open, range]);
+
+  const hasCompleteDraft = !!(draft?.from && draft?.to);
+  const label = active && range?.from
+    ? `${fmtRangeDate(range.from)} - ${fmtRangeDate(range.to)}`
+    : "فترة مخصصة";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors duration-200 border ${
+            active
+              ? "bg-[#e8b93f] text-black border-[#e8b93f]"
+              : "text-white/60 hover:text-white border-white/10 bg-white/[0.03]"
+          }`}
+        >
+          <CalendarDays className="w-3.5 h-3.5" />
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto overflow-hidden rounded-2xl border p-0 shadow-2xl" dir="rtl" sideOffset={8}>
+        <div className="border-b px-4 py-3" style={{ background: "hsl(var(--muted)/0.45)", borderColor: "hsl(var(--border))" }}>
+          <p className="text-[12px] font-black text-foreground">اختيار فترة مخصصة</p>
+          <p className="mt-1 text-[10px] font-semibold text-muted-foreground">حدد يوم البداية ثم يوم النهاية</p>
+        </div>
+        <Calendar
+          mode="range"
+          selected={draft}
+          onSelect={setDraft}
+          numberOfMonths={2}
+          initialFocus
+          className="p-3"
+        />
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-3" style={{ borderColor: "hsl(var(--border))" }}>
+          <button
+            type="button"
+            onClick={() => { onClear(); setDraft(undefined); setOpen(false); }}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold text-muted-foreground transition hover:bg-muted"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            مسح
+          </button>
+          <button
+            type="button"
+            disabled={!hasCompleteDraft}
+            onClick={() => { if (draft?.from && draft?.to) { onApply(draft); setOpen(false); } }}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black transition disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: hasCompleteDraft ? "rgba(34,197,94,0.14)" : "hsl(var(--muted)/0.55)",
+              color: hasCompleteDraft ? "#22c55e" : "hsl(var(--muted-foreground))",
+            }}
+          >
+            <Check className="h-3.5 w-3.5" />
+            تطبيق
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Period Switcher
 // ═══════════════════════════════════════════════════════════════════════════
 const PERIODS: { key: string; label: string }[] = [
@@ -413,11 +502,28 @@ function CollapsibleDetail({ title, children, defaultOpen = false }: { title: st
 // ═══════════════════════════════════════════════════════════════════════════
 export default function ClientIntelligencePage() {
   const [period, setPeriod] = useState("month");
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
   const [activeSegment, setActiveSegment] = useState<string | null>(null);
 
+  const toDateStr = (d: Date) => {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const isCustomActive = !!(customRange?.from && customRange?.to);
+  const effectivePeriod = isCustomActive ? "custom" : period;
+  const effectiveFrom = isCustomActive ? toDateStr(customRange!.from!) : undefined;
+  const effectiveTo = isCustomActive ? toDateStr(customRange!.to!) : undefined;
+
+  const handlePeriodChange = (v: string) => {
+    setCustomRange(undefined); // اختيار فترة سريعة يلغي أي فترة مخصصة مطبّقة
+    setPeriod(v);
+  };
+  const handleCustomApply = (range: DateRange) => setCustomRange(range);
+  const handleCustomClear = () => setCustomRange(undefined);
+
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["analytics", "client-intelligence", period],
-    queryFn: () => analyticsApi.clientsIntelligence({ period }),
+    queryKey: ["analytics", "client-intelligence", effectivePeriod, effectiveFrom, effectiveTo],
+    queryFn: () => analyticsApi.clientsIntelligence({ period: effectivePeriod, from: effectiveFrom, to: effectiveTo }),
     staleTime: 60_000,
   });
 
@@ -460,7 +566,15 @@ export default function ClientIntelligencePage() {
             <p className="text-xs text-white/40">تصنيف سلوكي، بصمة مرتجعات، نبضة نشاط، وتنبؤ إيراد لكل عميل</p>
           </div>
         </div>
-        <PeriodSwitcher value={period} onChange={setPeriod} />
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodSwitcher value={isCustomActive ? "" : period} onChange={handlePeriodChange} />
+          <DateRangePicker
+            active={isCustomActive}
+            range={customRange}
+            onApply={handleCustomApply}
+            onClear={handleCustomClear}
+          />
+        </div>
       </div>
 
       {/* Alerts */}
