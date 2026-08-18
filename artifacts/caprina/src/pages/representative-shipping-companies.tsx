@@ -1472,17 +1472,35 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
                 )}
                 {(() => {
                   // استخراج zoneCostIds من الشركة (المناطق المرتبطة بالمندوب)
+                  // البلوك ده خاص بحالة "سعر الزون" فقط — لو المندوب على سعر ثابت (rep) بلاش أي عرض هنا
+                  if ((company as any).costMode !== "zone") return null;
                   let zcIds: number[] = [];
                   if ((company as any).zoneCostIds) {
                     try { zcIds = JSON.parse((company as any).zoneCostIds); } catch {}
                   } else if ((company as any).zoneCostId) {
                     zcIds = [(company as any).zoneCostId];
                   }
-                  if (!zcIds.length) return null;
+                  if (!zcIds.length) {
+                    // مضبوط على "سعر الزون" بس مفيش منطقة متربطة بيه فعليًا — نوضح السبب بدل الاختفاء الصامت
+                    return (
+                      <p className="text-xs flex items-center gap-2 text-amber-400">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        تكلفة الشحنة: سعر الزون مفعّل لكن لا توجد منطقة مربوطة بالمندوب — الرجاء ربط منطقة من زر التعديل
+                      </p>
+                    );
+                  }
                   const zoneCostNames = zcIds
                     .map(id => zoneCosts.find(z => z.id === id))
                     .filter(Boolean);
-                  if (!zoneCostNames.length) return null;
+                  if (!zoneCostNames.length) {
+                    // zcIds موجودة بس مش متطابقة مع أي منطقة حالية في تاب "تكاليف المناطق" (اتحذفت مثلاً)
+                    return (
+                      <p className="text-xs flex items-center gap-2 text-amber-400">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        تكلفة الشحنة: المنطقة المربوطة بالمندوب لم تعد موجودة في تكاليف المناطق — الرجاء إعادة ربط منطقة
+                      </p>
+                    );
+                  }
                   return (
                     <div className="pt-1 space-y-1">
                       <p className="text-xs flex items-center gap-2">
