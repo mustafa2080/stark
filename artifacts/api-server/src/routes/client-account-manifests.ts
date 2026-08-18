@@ -172,10 +172,10 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
     let countMap: Record<number, number> = {};
     let statusCountMap: Record<number, { pending: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
     if (ids.length) {
-      // ⚠️ الشحنات "قيد الانتظار" (deliveryStatus = pending) مستبعدة بالكامل من
-      // عدادات بيان العميل التجاري — البيان بيفترض إن الشحنة خرجت للتسليم
-      // بالفعل، فمفيش معنى تتحسب فيه شحنة لسه منتظرة (شايفينها بس لسه ما
-      // اتحدثتش حالتها بعد إضافتها للبيان).
+      // ⚠️ كل الشحنات اللي جوة البيان بتتحسب هنا (بما فيها "قيد الانتظار" =
+      // pending)، عشان shipmentCount + مجموع statusCounts يطابقوا بالظبط عدد
+      // الشحنات الفعلي جوة البيان (زي تاب "الشحنات"). قديمًا كان pending بيتشال
+      // بالكامل من هنا فكان بيفرق مع الإجمالي الحقيقي المعروض فوق.
       const counts = await db
         .select({
           manifestId: clientAccountManifestItemsTable.manifestId,
@@ -183,10 +183,7 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
           cnt: count(),
         })
         .from(clientAccountManifestItemsTable)
-        .where(and(
-          inArray(clientAccountManifestItemsTable.manifestId, ids),
-          ne(clientAccountManifestItemsTable.deliveryStatus, "pending"),
-        ))
+        .where(inArray(clientAccountManifestItemsTable.manifestId, ids))
         .groupBy(clientAccountManifestItemsTable.manifestId, clientAccountManifestItemsTable.deliveryStatus);
 
       counts.forEach(r => {
@@ -199,6 +196,9 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
         else if (st === "returned") statusCountMap[mid].returned += n;
         else if (st === "delivered") statusCountMap[mid].delivered += n;
         else if (st === "partial_delivered") statusCountMap[mid].partial += n;
+        // pending + أي حالة تانية غير متوقعة بتتحسب "قيد العمل" (قيد الانتظار
+        // فعليًا)، عشان مجموع كل الحقول يطابق shipmentCount دايمًا.
+        else statusCountMap[mid].pending += n;
       });
     }
 

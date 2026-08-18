@@ -2943,6 +2943,10 @@ function AdminOpenManifestCard({ manifest, clientId, qc }: {
   const sc = manifest.statusCounts;
   const total = manifest.shipmentCount;
   const completed = (sc.delivered ?? 0) + (sc.partial ?? 0);
+  // "قيد العمل" = pending الحقيقي القادم من الـ API (مش طرح حسابي)، عشان
+  // مجموع كل الكروت (مسلَّم + مؤجل + مرتجع + استلم جزء + قيد العمل) يطابق
+  // total بالظبط دايمًا مهما كانت الحالات الموجودة جوة البيان.
+  const inProgress = sc.pending ?? 0;
   const deliveryPct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
@@ -2985,7 +2989,7 @@ function AdminOpenManifestCard({ manifest, clientId, qc }: {
         <AdminManifestMiniStat icon={Clock} value={sc.delayed ?? 0} label="مؤجل" tone="orange" loading />
         <AdminManifestMiniStat icon={RotateCcw} value={sc.returned ?? 0} label="مرتجع" tone="red" loading />
         <AdminManifestMiniStat icon={PackageCheck} value={sc.partial ?? 0} label="استلم جزء" tone="teal" loading />
-        <AdminManifestMiniStat icon={PackageX} value={Math.max(total - completed - (sc.delayed ?? 0) - (sc.returned ?? 0), 0)} label="قيد العمل" tone="rose" loading />
+        <AdminManifestMiniStat icon={PackageX} value={inProgress} label="قيد العمل" tone="rose" loading />
       </div>
 
       {total > 0 && (
