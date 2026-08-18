@@ -130,18 +130,26 @@ const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false) => {
 };
 
 // ─── حالة الشحنة الفعلية (shipment.status) — نفس الليبل/اللون المستخدمين في
-// صفحة "الشحنات" بالضبط. بتتعرض بدل "قيد الانتظار" لما البيان لسه deliveryStatus
+// صفحة "الشحنات" (/shipments-list) بالضبط (statusLabels/statusClasses في
+// shipments-page.tsx). بتتعرض بدل "قيد الانتظار" لما البيان لسه deliveryStatus
 // بتاعه "pending" (يعني لسه محدش سجّل نتيجة تسليم)، عشان توضح حالة الشحنة
 // الحقيقية بدل ما توهم إنها لسه منتظرة فعليًا.
 const SHIPMENT_STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  waiting:          { label: "انتظار",       color: "text-amber-700   dark:text-amber-400",   bg: "border-amber-300   dark:border-amber-700   bg-amber-50   dark:bg-amber-900/20" },
-  confirmed:        { label: "مؤكد",         color: "text-blue-700    dark:text-blue-400",    bg: "border-blue-300    dark:border-blue-700    bg-blue-50    dark:bg-blue-900/20" },
-  picked_up:        { label: "تم الاستلام",   color: "text-indigo-700  dark:text-indigo-400",  bg: "border-indigo-300  dark:border-indigo-700  bg-indigo-50  dark:bg-indigo-900/20" },
-  warehouse_ready:  { label: "جاهز",         color: "text-purple-700  dark:text-purple-400",  bg: "border-purple-300  dark:border-purple-700  bg-purple-50  dark:bg-purple-900/20" },
-  in_transit:       { label: "قيد الشحن",     color: "text-cyan-700    dark:text-cyan-400",    bg: "border-cyan-300    dark:border-cyan-700    bg-cyan-50    dark:bg-cyan-900/20" },
-  in_shipping:      { label: "في الشحن",      color: "text-cyan-700    dark:text-cyan-400",    bg: "border-cyan-300    dark:border-cyan-700    bg-cyan-50    dark:bg-cyan-900/20" },
-  out_for_delivery: { label: "خرج للتسليم",   color: "text-sky-700     dark:text-sky-400",     bg: "border-sky-300     dark:border-sky-700     bg-sky-50     dark:bg-sky-900/20" },
-  delayed:          { label: "مؤجل",         color: "text-orange-700  dark:text-orange-400",  bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  pending:          { label: "قيد الانتظار",       color: "text-amber-800   dark:text-amber-300",  bg: "border-amber-400   dark:border-amber-700   bg-amber-100   dark:bg-amber-900/40" },
+  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "text-teal-400",                          bg: "border-teal-400    bg-transparent" },
+  in_shipping:      { label: "قيد الشحن",          color: "text-sky-800     dark:text-sky-300",     bg: "border-sky-400     dark:border-sky-700     bg-sky-100     dark:bg-sky-900/40" },
+  received:         { label: "استلم",             color: "text-emerald-800 dark:text-emerald-300", bg: "border-emerald-400 dark:border-emerald-700 bg-emerald-100 dark:bg-emerald-900/40" },
+  partial_received: { label: "استلام جزئي",        color: "text-cyan-800    dark:text-cyan-300",    bg: "border-cyan-400    dark:border-cyan-700    bg-cyan-100    dark:bg-cyan-900/40" },
+  delayed:          { label: "مؤجل",              color: "text-violet-400",                        bg: "border-violet-400  bg-transparent" },
+  returned:         { label: "مرتجع",             color: "text-red-800     dark:text-red-300",     bg: "border-red-400     dark:border-red-700     bg-red-100     dark:bg-red-900/40" },
+  // fallback للقيم القديمة في الـ DB — زي ما هي في shipments-page.tsx
+  out_for_delivery: { label: "قيد الشحن",          color: "text-sky-800     dark:text-sky-300",     bg: "border-sky-400     dark:border-sky-700     bg-sky-100     dark:bg-sky-900/40" },
+  in_transit:       { label: "قيد الشحن",          color: "text-sky-800     dark:text-sky-300",     bg: "border-sky-400     dark:border-sky-700     bg-sky-100     dark:bg-sky-900/40" },
+  delivered:        { label: "استلم",             color: "text-emerald-800 dark:text-emerald-300", bg: "border-emerald-400 dark:border-emerald-700 bg-emerald-100 dark:bg-emerald-900/40" },
+  waiting:          { label: "قيد الانتظار",       color: "text-amber-800   dark:text-amber-300",  bg: "border-amber-400   dark:border-amber-700   bg-amber-100   dark:bg-amber-900/40" },
+  confirmed:        { label: "قيد الانتظار",       color: "text-amber-800   dark:text-amber-300",  bg: "border-amber-400   dark:border-amber-700   bg-amber-100   dark:bg-amber-900/40" },
+  picked_up:        { label: "قيد الشحن في المخزن", color: "text-teal-400",                          bg: "border-teal-400    bg-transparent" },
+  cancelled:        { label: "مرتجع",             color: "text-red-800     dark:text-red-300",     bg: "border-red-400     dark:border-red-700     bg-red-100     dark:bg-red-900/40" },
 };
 
 // بيرجع خيار العرض (label/color) المناسب لصف الطلب: لو البيان لسه pending
