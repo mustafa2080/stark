@@ -3737,7 +3737,7 @@ export default function ShippingManifestPage() {
   const { canViewFinancials, isAdmin } = useAuth();
   const { brand } = useBrand();
   // سعر المنطقة (لحاوية صافي المستحق) — نفس مصدر صافي الربح الحقيقي
-  const { data: pnlSettlementZones = [] } = useQuery<{ id: number; price: number }[]>({
+  const { data: pnlSettlementZones = [] } = useQuery<{ id: number; price: number; costPrice: number | null }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
   });
@@ -5077,11 +5077,26 @@ export default function ShippingManifestPage() {
                       // الخاصة بنوع الشحنة (repExtraCost) بتتبعت وتتعرض منفصلة كـ
                       // badge تحت السعر الأساسي (props: repExtraCost/repExtraReason).
                       // لو الشركة شغالة بنظام "zone": التكلفة = سعر أول منطقة مرتبطة بالشركة
-                      // (من جدول shipment_zones)، مش company.shippingCost (ده بيبقى فاضي غالبًا
-                      // لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
+                      // (من جدول تكاليف المناطق zone_costs.deliveryCost)، مش company.shippingCost
+                      // (ده بيبقى فاضي غالبًا لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
                       // لو الشركة شغالة بنظام "rep": التكلفة = company.shippingCost اليدوي.
+                      //
+                      // ملحوظة مهمة: التكلفة بتُحسب حسب زون *الشحنة نفسها* (repFirst.zoneId) —
+                      // كل شحنة تدفع تكلفة توصيلها الحقيقية حسب منطقتها هي، مش سعر موحد
+                      // لكل شحنات البيان. لو الشحنة مالهاش زون محدد، نرجع لزون الشركة
+                      // الافتراضي (fallback) عشان مايفضلش العمود فاضي بلا داعي.
                       const companyForCost = rawManifest?.company as any;
                       if (companyForCost?.costMode === "zone") {
+                        const shipmentZoneId = (repFirst as any)?.zoneId;
+                        if (shipmentZoneId != null) {
+                          const zoneForShipment = pnlSettlementZones.find(z => z.id === shipmentZoneId);
+                          if (zoneForShipment) {
+                            return zoneForShipment.costPrice != null
+                              ? Number(zoneForShipment.costPrice)
+                              : (zoneForShipment.price != null ? Number(zoneForShipment.price) : 0);
+                          }
+                        }
+                        // Fallback: مفيش زون معروف للشحنة → زون الشركة الافتراضي (أول زون مرتبط بها)
                         let zIdsForCost: number[] = [];
                         if (companyForCost?.zoneIds) {
                           try { zIdsForCost = JSON.parse(companyForCost.zoneIds); } catch {}
@@ -5090,7 +5105,9 @@ export default function ShippingManifestPage() {
                         }
                         if (!zIdsForCost.length) return 0;
                         const zoneForCost = pnlSettlementZones.find(z => z.id === zIdsForCost[0]);
-                        return zoneForCost?.price != null ? Number(zoneForCost.price) : 0;
+                        return zoneForCost?.costPrice != null
+                          ? Number(zoneForCost.costPrice)
+                          : (zoneForCost?.price != null ? Number(zoneForCost.price) : 0);
                       }
                       return companyForCost?.shippingCost != null ? Number(companyForCost.shippingCost) : 0;
                     })()}
