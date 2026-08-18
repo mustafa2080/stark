@@ -1652,7 +1652,7 @@ export default function ShippingCompanies() {
                             }}
                           >
                             {z!.name}{z!.fromGovernorate || z!.toGovernorate ? ` · ${z!.fromGovernorate ?? "؟"} → ${z!.toGovernorate ?? "؟"}` : ""}
-                            {" · "}<strong>{formatCurrency(Number((z as any)!.deliveryCost ?? 0))}</strong>
+                            {": "}<strong>{formatCurrency(Number((z as any)!.deliveryCost ?? 0))}</strong>
                           </span>
                         ))}
                       </div>
