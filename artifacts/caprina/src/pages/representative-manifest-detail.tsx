@@ -108,6 +108,55 @@ const SHIPMENT_DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: 
   { value: "returned",          label: "مرتجع",         color: "text-red-700     dark:text-red-400",                   bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
 ];
 
+// ─── مصدر واحد موحّد لحساب "تكلفة الشحن" لكل شحنة ───────────────────────────
+// دي نفس القيمة بالظبط اللي بتتعرض في عمود "شحن" لكل صف. أي حاوية إجمالي
+// (زي "إجمالي تكلفة الشحن" أسفل الصفحة) لازم تجمع نفس القيمة دي لكل شحنة —
+// مش تعيد حساب شرط منفصل ليها — عشان الإجمالي يطابق مجموع الصفوف 100% دايمًا،
+// مع أي مندوب وأي شركة شحن، بدل ما يتصلح لبيان واحد بس.
+//
+// القاعدة: شحن بيُحسب فقط لو الحالة delivered / partial_delivered / partial_received
+// أو returned بسبب مالي (رفض بعد معاينة مدفوع/غير مدفوع، أو مشكلة جودة) —
+// بغض النظر هل البضاعة اتأكد رجوعها للمخزن (returnReceived) ولا لسه، لأن تكلفة
+// التوصيل نفسها اتصرفت فعليًا بمجرد محاولة التسليم، سواء العميل استلم أو رفض.
+const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"] as const;
+
+function shipmentIncursShippingCost(order: any): boolean {
+  const status = order?.deliveryStatus;
+  if (status === "delivered" || status === "partial_delivered" || status === "partial_received") return true;
+  if (status === "returned") return RETURN_REASONS_WITH_SHIPPING_COST.includes(order?.returnReason);
+  return false;
+}
+
+// بيرجّع تكلفة شحن الشحنة الواحدة (0 لو الحالة مش من ضمن اللي بتستوجب شحن).
+// company: كائن الشركة (costMode/zoneIds/zoneId/shippingCost)، zones: قائمة مناطق التسوية.
+function getShipmentShippingCost(order: any, company: any, zones: Array<{ id: number; price?: number | null; costPrice?: number | null }>): number {
+  if (!shipmentIncursShippingCost(order)) return 0;
+  if (company?.costMode === "zone") {
+    const shipmentZoneId = order?.zoneId;
+    if (shipmentZoneId != null) {
+      const zoneForShipment = zones.find(z => z.id === shipmentZoneId);
+      if (zoneForShipment) {
+        return zoneForShipment.costPrice != null
+          ? Number(zoneForShipment.costPrice)
+          : (zoneForShipment.price != null ? Number(zoneForShipment.price) : 0);
+      }
+    }
+    // Fallback: مفيش زون معروف للشحنة → زون الشركة الافتراضي (أول زون مرتبط بها)
+    let fallbackZoneIds: number[] = [];
+    if (company?.zoneIds) {
+      try { fallbackZoneIds = JSON.parse(company.zoneIds); } catch {}
+    } else if (company?.zoneId) {
+      fallbackZoneIds = [company.zoneId];
+    }
+    if (!fallbackZoneIds.length) return 0;
+    const fallbackZone = zones.find(z => z.id === fallbackZoneIds[0]);
+    return fallbackZone?.costPrice != null
+      ? Number(fallbackZone.costPrice)
+      : (fallbackZone?.price != null ? Number(fallbackZone.price) : 0);
+  }
+  return company?.shippingCost != null ? Number(company.shippingCost) : 0;
+}
+
 const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false) => {
   const list = isShipmentManifest ? SHIPMENT_DELIVERY_OPTIONS : DELIVERY_OPTIONS;
   return list.find((o) => o.value === v) ?? list[0];
@@ -4114,42 +4163,14 @@ export default function ShippingManifestPage() {
         }, 0) + ordersForPnlLocal
           .filter((o: any) => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason))
           .reduce((s: number, o: any) => s + Number(o.returnValueReceived ?? 0), 0);
-        // نفس منطق حساب تكلفة الشحن في كارت "الرصيد المستحق من المندوب" —
-        // بما فيه دعم costMode="zone" وإضافات أنواع الشحنات (repExtraCostTotal)
+        // تكلفة الشحن (إغلاق البيان) — نفس المصدر الموحّد (getShipmentShippingCost)
+        // المستخدم في الكارت وحاوية "إجمالي تكلفة الشحن"، على *كل* أوردرات البيان
+        // (مش ordersForPnlLocal المفلترة) عشان تطابق مجموع الصفوف 100% مع أي مندوب.
         const companyAnyPnlLocal = (manifest as any)?.company;
-        const courierCostPerShipmentLocal = (() => {
-          if (companyAnyPnlLocal?.costMode === "zone") {
-            let zIdsPnlLocal: number[] = [];
-            if (companyAnyPnlLocal?.zoneIds) {
-              try { zIdsPnlLocal = JSON.parse(companyAnyPnlLocal.zoneIds); } catch {}
-            } else if (companyAnyPnlLocal?.zoneId) {
-              zIdsPnlLocal = [companyAnyPnlLocal.zoneId];
-            }
-            if (!zIdsPnlLocal.length) return 0;
-            const zonePnlLocal = pnlSettlementZones.find((z: any) => z.id === zIdsPnlLocal[0]);
-            return zonePnlLocal?.price != null ? Number(zonePnlLocal.price) : 0;
-          }
-          return companyAnyPnlLocal?.shippingCost != null ? Number(companyAnyPnlLocal.shippingCost) : 0;
-        })();
-        const shippingCostOrdersLocal = ordersForPnlLocal.filter((o: any) => {
-          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-          if (o.deliveryStatus === "partial_received") return true;
-          return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason);
-        });
+        const shippingCostOrdersLocal = (manifest.orders ?? []).filter((o: any) => shipmentIncursShippingCost(o));
         const repExtraCostTotalLocal = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
-        // تكلفة الشحن = مجموع تكلفة كل شحنة على حدة حسب زونها الفعلي (نفس منطق كارت
-        // "إجمالي تكلفة الشحن" وعمود "شحن" بالجدول بالظبط) بدل سعر ثابت × عدد.
         const shippingCostBaseLocal = shippingCostOrdersLocal.reduce((s: number, o: any) => {
-          if (companyAnyPnlLocal?.costMode === "zone") {
-            const oZoneId = o?.zoneId;
-            if (oZoneId != null) {
-              const oZone = pnlSettlementZones.find((z: any) => z.id === oZoneId);
-              if (oZone) {
-                return s + (oZone.costPrice != null ? Number(oZone.costPrice) : (oZone.price != null ? Number(oZone.price) : 0));
-              }
-            }
-          }
-          return s + courierCostPerShipmentLocal;
+          return s + getShipmentShippingCost(o, companyAnyPnlLocal, pnlSettlementZones);
         }, 0);
         const shippingCostLocal = shippingCostBaseLocal + repExtraCostTotalLocal;
         const due = deliveredCODLocal - shippingCostLocal;
@@ -4449,47 +4470,15 @@ export default function ShippingManifestPage() {
   }, 0) + ordersForPnlPrint
     .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
     .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
-  // رسوم الشحن = سعر منطقة كل شحنة (zoneId) لو موجود، وإلا تكلفة الشحن الثابتة على شركة الشحن (fallback)
-  const courierCostPerShipmentPrint = Number((manifest as any)?.company?.shippingCost ?? 0);
-  // partial_received: يدخل تكلفة الشحن (طباعة) بس لو اتأكد استلامه فعليًا (نفس منطق printDeliveredOrders فوق)
-  const shippingCostOrdersPrint = ordersForPnlPrint.filter(o => {
-    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-    if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
-    return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
-  });
-  // ── تكلفة الشحن (طباعة) — منسوخة بالحرف من نفس منطق الكارت (displayedShippingCost)
-  // عشان الاتنين يطابقوا بعض 100%. بيحترم costMode بتاع الشركة (rep/zone) ويضيف
-  // repExtraCostTotal فوقه، بالظبط زي الكارت. أي تعديل هنا لازم يتعمل في الكارت كمان.
+  // ── تكلفة الشحن (طباعة) — نفس المصدر الموحّد (getShipmentShippingCost) المستخدم
+  // في الكارت وفي حاوية "إجمالي تكلفة الشحن"، مطبَّق على *كل* أوردرات البيان
+  // (مش ordersForPnlPrint المفلترة) عشان تطابق مجموع الصفوف 100% مع أي مندوب.
   const companyAnyPrint = (rawManifest as any)?.company;
-  const courierShippingCostForCalcPrint = (() => {
-    if (companyAnyPrint?.costMode === "zone") {
-      let zIdsPrint: number[] = [];
-      if (companyAnyPrint?.zoneIds) {
-        try { zIdsPrint = JSON.parse(companyAnyPrint.zoneIds); } catch {}
-      } else if (companyAnyPrint?.zoneId) {
-        zIdsPrint = [companyAnyPrint.zoneId];
-      }
-      if (!zIdsPrint.length) return 0;
-      const zonePnlPrint = pnlSettlementZones.find(z => z.id === zIdsPrint[0]);
-      return zonePnlPrint?.price != null ? Number(zonePnlPrint.price) : 0;
-    }
-    return companyAnyPrint?.shippingCost != null ? Number(companyAnyPrint.shippingCost) : 0;
-  })();
-  // تكلفة الشحن (طباعة) = مجموع تكلفة كل شحنة على حدة حسب زونها الفعلي — نفس منطق
-  // الكارت وعمود "شحن" بالجدول بالظبط، بدل سعر ثابت × عدد.
-  const shippingCostOrdersBasePrint = shippingCostOrdersPrint.reduce((s: number, o: any) => {
-    if (companyAnyPrint?.costMode === "zone") {
-      const oZoneId = o?.zoneId;
-      if (oZoneId != null) {
-        const oZone = pnlSettlementZones.find(z => z.id === oZoneId);
-        if (oZone) {
-          return s + (oZone.costPrice != null ? Number(oZone.costPrice) : (oZone.price != null ? Number(oZone.price) : 0));
-        }
-      }
-    }
-    return s + courierShippingCostForCalcPrint;
-  }, 0);
-  const shippingCostPrint = shippingCostOrdersBasePrint;
+  const shippingCostOrdersPrint = (manifest.orders ?? []).filter(o => shipmentIncursShippingCost(o as any));
+  const shippingCostPrint = shippingCostOrdersPrint.reduce(
+    (s, o) => s + getShipmentShippingCost(o as any, companyAnyPrint, pnlSettlementZones),
+    0
+  );
   const repExtraCostTotalPrint = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
   const effectiveShipping = shippingCostPrint + repExtraCostTotalPrint;
 
@@ -5087,55 +5076,12 @@ export default function ShippingManifestPage() {
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
                     courierShippingCost={(() => {
-                      // تكلفة الشحن تُحسب فقط لو تمت عملية الشحن فعليًا:
-                      // مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع بأحد الأسباب الثلاثة
-                      // (رفض بعد معاينة مدفوع/غير مدفوع، أو هروب بدون معاينة).
-                      // أي حالة أو سبب تاني = صفر (مفيش شحن اتحسب عليه فعليًا).
+                      // تكلفة الشحن — مصدر موحّد (getShipmentShippingCost) يُستخدم هنا
+                      // وفي حاوية "إجمالي تكلفة الشحن" أسفل الصفحة بالظبط، عشان الإجمالي
+                      // يطابق مجموع الأرقام الظاهرة في الصفوف 100% مع كل مندوب وكل شركة.
                       const repFirst = group[0] as any;
-                      const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
-                      const shippingWasIncurred =
-                        repFirst?.deliveryStatus === "delivered" ||
-                        repFirst?.deliveryStatus === "partial_delivered" ||
-                        repFirst?.deliveryStatus === "partial_received" ||
-                        (repFirst?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(repFirst?.returnReason));
-                      if (!shippingWasIncurred) return 0;
-                      // قيمة السعر الأساسي بس (زي بيان الأدمن بالظبط) — الإضافة
-                      // الخاصة بنوع الشحنة (repExtraCost) بتتبعت وتتعرض منفصلة كـ
-                      // badge تحت السعر الأساسي (props: repExtraCost/repExtraReason).
-                      // لو الشركة شغالة بنظام "zone": التكلفة = سعر أول منطقة مرتبطة بالشركة
-                      // (من جدول تكاليف المناطق zone_costs.deliveryCost)، مش company.shippingCost
-                      // (ده بيبقى فاضي غالبًا لشركات الـ zone لأنها مالهاش رقم ثابت أصلًا).
-                      // لو الشركة شغالة بنظام "rep": التكلفة = company.shippingCost اليدوي.
-                      //
-                      // ملحوظة مهمة: التكلفة بتُحسب حسب زون *الشحنة نفسها* (repFirst.zoneId) —
-                      // كل شحنة تدفع تكلفة توصيلها الحقيقية حسب منطقتها هي، مش سعر موحد
-                      // لكل شحنات البيان. لو الشحنة مالهاش زون محدد، نرجع لزون الشركة
-                      // الافتراضي (fallback) عشان مايفضلش العمود فاضي بلا داعي.
                       const companyForCost = rawManifest?.company as any;
-                      if (companyForCost?.costMode === "zone") {
-                        const shipmentZoneId = (repFirst as any)?.zoneId;
-                        if (shipmentZoneId != null) {
-                          const zoneForShipment = pnlSettlementZones.find(z => z.id === shipmentZoneId);
-                          if (zoneForShipment) {
-                            return zoneForShipment.costPrice != null
-                              ? Number(zoneForShipment.costPrice)
-                              : (zoneForShipment.price != null ? Number(zoneForShipment.price) : 0);
-                          }
-                        }
-                        // Fallback: مفيش زون معروف للشحنة → زون الشركة الافتراضي (أول زون مرتبط بها)
-                        let zIdsForCost: number[] = [];
-                        if (companyForCost?.zoneIds) {
-                          try { zIdsForCost = JSON.parse(companyForCost.zoneIds); } catch {}
-                        } else if (companyForCost?.zoneId) {
-                          zIdsForCost = [companyForCost.zoneId];
-                        }
-                        if (!zIdsForCost.length) return 0;
-                        const zoneForCost = pnlSettlementZones.find(z => z.id === zIdsForCost[0]);
-                        return zoneForCost?.costPrice != null
-                          ? Number(zoneForCost.costPrice)
-                          : (zoneForCost?.price != null ? Number(zoneForCost.price) : 0);
-                      }
-                      return companyForCost?.shippingCost != null ? Number(companyForCost.shippingCost) : 0;
+                      return getShipmentShippingCost(repFirst, companyForCost, pnlSettlementZones);
                     })()}
                     repExtraCost={(() => {
                       const rf = group[0] as any;
@@ -5286,25 +5232,7 @@ export default function ShippingManifestPage() {
           return false;
         });
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
-        // سعر المنطقة = سعر أول منطقة مرتبطة بشركة الشحن (نفس مصدر صافي الربح الحقيقي فوق)
         const companyAnyPnl = (rawManifest as any)?.company;
-        // تكلفة الشحن = مجموع رسوم شحن الطلبيات (مسلَّم / مسلَّم جزئي / استلام جزئي / مرتجع مع دفع رسوم الشحن فقط)
-        // pending/delayed لا تُحسب أبدًا (صفر) حتى تتغيّر حالتها فعليًا
-        // لو الشحنة ليها zoneId وسعر منطقة محدد، بناخد سعر المنطقة كأولوية (بدل السعر الثابت على الشركة)
-        const courierShippingCostForCalc = (() => {
-          if (companyAnyPnl?.costMode === "zone") {
-            let zIdsPnl: number[] = [];
-            if (companyAnyPnl?.zoneIds) {
-              try { zIdsPnl = JSON.parse(companyAnyPnl.zoneIds); } catch {}
-            } else if (companyAnyPnl?.zoneId) {
-              zIdsPnl = [companyAnyPnl.zoneId];
-            }
-            if (!zIdsPnl.length) return 0;
-            const zonePnl = pnlSettlementZones.find(z => z.id === zIdsPnl[0]);
-            return zonePnl?.price != null ? Number(zonePnl.price) : 0;
-          }
-          return companyAnyPnl?.shippingCost != null ? Number(companyAnyPnl.shippingCost) : 0;
-        })();
         // أسباب المرتجع اللي بتدخل في الحسابات المالية (شحن فعليًا اتنفذ رغم الرفض/الهروب)
         const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"] as const;
         // إجمالي الإيرادات = القيمة المستلمة فعليًا (نفس عمود "مستلم" في الجدول)
@@ -5324,28 +5252,18 @@ export default function ShippingManifestPage() {
           .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason))
           .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
         const returnedCOD     = returnedOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
-        // partial_received: تدخل في تكلفة الشحن زي مسلَّم ومرتجع بالأسباب الثلاثة، بدون شرط إضافي
-        const shippingCostOrders = ordersForPnl.filter(o => {
-          if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-          if (o.deliveryStatus === "partial_received") return true;
-          return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason);
-        });
-        // تكلفة الشحن = مجموع تكلفة كل شحنة على حدة حسب زونها الفعلي (تكاليف المناطق)،
-        // بنفس منطق عمود "شحن" في الجدول بالظبط — عشان الإجمالي هنا يطابق مجموع
-        // الأرقام الظاهرة في الصفوف 100%. لو costMode != "zone" أو الشحنة معندهاش
-        // زون معروف، بيرجع لـ courierShippingCostForCalc (سعر ثابت/fallback) لكل شحنة.
-        const shippingCost = shippingCostOrders.reduce((s, o) => {
-          if (companyAnyPnl?.costMode === "zone") {
-            const oZoneId = (o as any).zoneId;
-            if (oZoneId != null) {
-              const oZone = pnlSettlementZones.find(z => z.id === oZoneId);
-              if (oZone) {
-                return s + (oZone.costPrice != null ? Number(oZone.costPrice) : (oZone.price != null ? Number(oZone.price) : 0));
-              }
-            }
-          }
-          return s + courierShippingCostForCalc;
-        }, 0);
+        // تكلفة الشحن — بتُحسب من *كل* أوردرات البيان (manifest.orders)، مش من
+        // ordersForPnl المفلترة، ومن نفس مصدر عمود "شحن" في الجدول بالظبط
+        // (getShipmentShippingCost) — عشان الإجمالي هنا يطابق مجموع الأرقام
+        // الظاهرة فعليًا في الصفوف 100%، حتى لو مرتجع بسبب مالي لسه عند شركة
+        // الشحن (returnReceived لسه معلَّق) — تكلفة التوصيل اتصرفت فعليًا بمجرد
+        // محاولة التسليم، بغض النظر عن رجوع البضاعة للمخزن. نفس القاعدة تنطبق
+        // مع أي مندوب وأي شركة شحن — مش حل خاص ببيان واحد.
+        const shippingCostOrders = (manifest.orders ?? []).filter(o => shipmentIncursShippingCost(o as any));
+        const shippingCost = shippingCostOrders.reduce(
+          (s, o) => s + getShipmentShippingCost(o as any, companyAnyPnl, pnlSettlementZones),
+          0
+        );
         // سعر المنطقة الفعلي لكل شحنة = من جدول shipment_zones الحالي حسب zoneId
         // بتاع كل شحنة (مش سعر ثابت للشركة ومش shippingFee المجمَّد وقت الإنشاء).
         // لو الشحنة مالهاش zoneId أو المنطقة مش موجودة في الجدول الحالي → صفر لها.
