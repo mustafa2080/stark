@@ -1254,6 +1254,8 @@ export default function ShippingCompanies() {
   const [repDialogMode, setRepDialogMode] = useState<"account" | "password">("account");
   const [form, setForm] = useState(emptyForm);
   const [searchQuery, setSearchQuery] = useState("");
+  // ── توسيع/طي قائمة "تكلفة الشحنة حسب المنطقة" لكل مندوب (لما تكون كتير) ────
+  const [expandedZoneCosts, setExpandedZoneCosts] = useState<Record<number, boolean>>({});
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     if (typeof window === "undefined") return "grid";
     return (localStorage.getItem("shipping-companies-view") as "grid" | "list") || "grid";
@@ -1630,30 +1632,58 @@ export default function ShippingCompanies() {
                       </p>
                     );
                   }
+                  const COLLAPSED_LIMIT = 4;
+                  const isExpanded = expandedZoneCosts[company.id] ?? false;
+                  const visibleZoneCosts = isExpanded ? zoneCostNames : zoneCostNames.slice(0, COLLAPSED_LIMIT);
+                  const hiddenCount = zoneCostNames.length - visibleZoneCosts.length;
                   return (
-                    <div className="pt-1 space-y-1">
-                      <p className="text-xs flex items-center gap-2">
-                        <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                        <span className="text-muted-foreground">تكلفة الشحنة (حسب المنطقة):</span>
-                      </p>
-                      <div className="flex flex-wrap gap-1 mr-5">
-                        {zoneCostNames.map(z => (
-                          <span
+                    <div className="pt-1 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs flex items-center gap-2">
+                          <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                          <span className="text-muted-foreground">تكلفة الشحنة حسب المنطقة</span>
+                          <span className="text-[10px] text-muted-foreground/70">({zoneCostNames.length})</span>
+                        </p>
+                        {zoneCostNames.length > COLLAPSED_LIMIT && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedZoneCosts(prev => ({ ...prev, [company.id]: !isExpanded }))}
+                            className="flex items-center gap-0.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                          >
+                            {isExpanded ? (
+                              <>طي <ChevronUp className="w-3 h-3" /></>
+                            ) : (
+                              <>عرض الكل (+{hiddenCount}) <ChevronDown className="w-3 h-3" /></>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      <div className={`grid gap-1 mr-5 ${isExpanded ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+                        {visibleZoneCosts.map(z => (
+                          <div
                             key={z!.id}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border"
+                            className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[10px] border"
                             style={isActive ? {
-                              background: `rgba(${p.rgb},0.12)`,
-                              borderColor: `rgba(${p.rgb},0.35)`,
-                              color: `rgba(${p.rgb},1)`,
+                              background: `rgba(${p.rgb},0.08)`,
+                              borderColor: `rgba(${p.rgb},0.25)`,
                             } : {
-                              background: "rgba(255,255,255,0.04)",
-                              borderColor: "rgba(255,255,255,0.12)",
-                              color: "rgba(255,255,255,0.5)",
+                              background: "rgba(255,255,255,0.03)",
+                              borderColor: "rgba(255,255,255,0.1)",
                             }}
                           >
-                            {z!.name}{z!.fromGovernorate || z!.toGovernorate ? ` · ${z!.fromGovernorate ?? "؟"} → ${z!.toGovernorate ?? "؟"}` : ""}
-                            {": "}<strong>{formatCurrency(Number((z as any)!.deliveryCost ?? 0))}</strong>
-                          </span>
+                            <span className="text-muted-foreground truncate">
+                              {z!.name}
+                              {z!.fromGovernorate || z!.toGovernorate ? (
+                                <span className="opacity-80"> · {z!.fromGovernorate ?? "؟"} → {z!.toGovernorate ?? "؟"}</span>
+                              ) : null}
+                            </span>
+                            <strong
+                              className="shrink-0 font-bold"
+                              style={isActive ? { color: `rgba(${p.rgb},1)` } : { color: "rgba(255,255,255,0.7)" }}
+                            >
+                              {formatCurrency(Number((z as any)!.deliveryCost ?? 0))}
+                            </strong>
+                          </div>
                         ))}
                       </div>
                     </div>
