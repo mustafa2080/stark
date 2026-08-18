@@ -4114,14 +4114,31 @@ export default function ShippingManifestPage() {
         }, 0) + ordersForPnlLocal
           .filter((o: any) => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason))
           .reduce((s: number, o: any) => s + Number(o.returnValueReceived ?? 0), 0);
-        const courierCostPerShipmentLocal = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+        // نفس منطق حساب تكلفة الشحن في كارت "الرصيد المستحق من المندوب" —
+        // بما فيه دعم costMode="zone" وإضافات أنواع الشحنات (repExtraCostTotal)
+        const companyAnyPnlLocal = (manifest as any)?.company;
+        const courierCostPerShipmentLocal = (() => {
+          if (companyAnyPnlLocal?.costMode === "zone") {
+            let zIdsPnlLocal: number[] = [];
+            if (companyAnyPnlLocal?.zoneIds) {
+              try { zIdsPnlLocal = JSON.parse(companyAnyPnlLocal.zoneIds); } catch {}
+            } else if (companyAnyPnlLocal?.zoneId) {
+              zIdsPnlLocal = [companyAnyPnlLocal.zoneId];
+            }
+            if (!zIdsPnlLocal.length) return 0;
+            const zonePnlLocal = pnlSettlementZones.find((z: any) => z.id === zIdsPnlLocal[0]);
+            return zonePnlLocal?.price != null ? Number(zonePnlLocal.price) : 0;
+          }
+          return companyAnyPnlLocal?.shippingCost != null ? Number(companyAnyPnlLocal.shippingCost) : 0;
+        })();
         const shippingCostOrdersLocal = ordersForPnlLocal.filter((o: any) => {
           if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
           if (o.deliveryStatus === "partial_received") return true;
           return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason);
         });
         const shippingCostGroupsCountLocal = groupManifestOrders(shippingCostOrdersLocal).length;
-        const shippingCostLocal = courierCostPerShipmentLocal * shippingCostGroupsCountLocal;
+        const repExtraCostTotalLocal = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
+        const shippingCostLocal = (courierCostPerShipmentLocal * shippingCostGroupsCountLocal) + repExtraCostTotalLocal;
         const due = deliveredCODLocal - shippingCostLocal;
         setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
       }
