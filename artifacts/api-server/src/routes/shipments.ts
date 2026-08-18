@@ -1393,7 +1393,15 @@ router.get("/shipment-zones", async (req, res): Promise<void> => {
       ? or(eq(shipmentZonesTable.tenantId, tenantId), isNull(shipmentZonesTable.tenantId))
       : undefined;
     const rows = await db.select().from(shipmentZonesTable).where(cond).orderBy(shipmentZonesTable.name);
-    res.json(rows);
+    // لو نفس المنطقة (بالاسم + المحافظتين) موجودة نسخة خاصة بالـ tenant ونسخة عامة مع بعض،
+    // بنفضّل نسخة الـ tenant ونشيل النسخة العامة المكررة عشان متتعرضش مرتين في القوائم
+    const seen = new Map<string, typeof rows[number]>();
+    for (const r of rows) {
+      const key = `${r.name}|${r.fromGovernorate ?? ""}|${r.toGovernorate ?? ""}`;
+      const existing = seen.get(key);
+      if (!existing || (existing.tenantId == null && r.tenantId != null)) seen.set(key, r);
+    }
+    res.json([...seen.values()].sort((a, b) => a.name.localeCompare(b.name, "ar")));
   } catch (e) { res.status(500).json({ error: "خطأ" }); }
 });
 
@@ -1402,6 +1410,14 @@ router.post("/shipment-zones", async (req, res): Promise<void> => {
     const tenantId = getTenantId(req);
     const { name, fromGovernorate, toGovernorate, price, priceNormal, priceCommercial, priceVip, isActive = true } = req.body;
     if (!name) { res.status(400).json({ error: "اسم المنطقة مطلوب" }); return; }
+    const fromCond = fromGovernorate ? eq(shipmentZonesTable.fromGovernorate, fromGovernorate) : isNull(shipmentZonesTable.fromGovernorate);
+    const toCond   = toGovernorate   ? eq(shipmentZonesTable.toGovernorate, toGovernorate)     : isNull(shipmentZonesTable.toGovernorate);
+    const dupCond = tenantId !== null
+      ? and(eq(shipmentZonesTable.name, name), fromCond, toCond,
+             or(eq(shipmentZonesTable.tenantId, tenantId), isNull(shipmentZonesTable.tenantId)))
+      : and(eq(shipmentZonesTable.name, name), fromCond, toCond);
+    const [dup] = await db.select().from(shipmentZonesTable).where(dupCond).limit(1);
+    if (dup) { res.status(400).json({ error: `منطقة "${name}" (${fromGovernorate ?? "—"} → ${toGovernorate ?? "—"}) مضافة بالفعل` }); return; }
     const normalPrice = priceNormal ?? price ?? 0;
     const result = await db.insert(shipmentZonesTable).values({
       ...(tenantId !== null ? { tenantId } : {}),

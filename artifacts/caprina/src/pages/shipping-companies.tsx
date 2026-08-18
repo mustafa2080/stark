@@ -44,13 +44,23 @@ function ZonesMultiSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
+  // إزالة أي تكرار (نفس الاسم + نفس المحافظتين) عشان بيانات قديمة مكررة متتعرضش مرتين
+  const dedupedZones = useMemo(() => {
+    const seen = new Map<string, typeof zones[number]>();
+    for (const z of zones) {
+      const key = `${z.name}|${z.fromGovernorate ?? ""}|${z.toGovernorate ?? ""}`;
+      if (!seen.has(key)) seen.set(key, z);
+    }
+    return [...seen.values()];
+  }, [zones]);
+
   const filtered = useMemo(() =>
-    zones.filter(z =>
+    dedupedZones.filter(z =>
       !search.trim() ||
       z.name.toLowerCase().includes(search.toLowerCase()) ||
       (z.fromGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
       (z.toGovernorate?.toLowerCase().includes(search.toLowerCase()) ?? false)
-    ), [zones, search]);
+    ), [dedupedZones, search]);
 
   const toggle = (id: number) => {
     onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
