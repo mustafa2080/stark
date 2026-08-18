@@ -603,6 +603,13 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
               : (shipmentReturnValueMap[item.shipmentId] ?? null))
           : null,
         shipment: sh,
+        // حالة الشحنة الفعلية (shipment.status) — لازم تتضاف صراحةً هنا (مش بس
+        // جوة shipment: sh) لأن الفرونت إند (orderStatusOpt في
+        // client-account-manifest-detail.tsx) بيقرا order.status مباشرة عشان
+        // يعرض الحالة الحقيقية (زي "قيد الشحن") بدل "قيد الانتظار" لما
+        // deliveryStatus البيان لسه "pending". من غيرها order.status بيفضل
+        // undefined دايمًا فيرجع "قيد الانتظار" حتى لو الشحنة فعليًا قيد الشحن.
+        status:        sh?.status ?? null,
         customerName:  sh?.receiverName  ?? "",
         phone:         sh?.receiverPhone ?? "",
         city:          sh?.receiverCity  ?? "",
