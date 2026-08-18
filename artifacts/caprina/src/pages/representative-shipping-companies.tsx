@@ -1507,7 +1507,7 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
                     return (
                       <p className="text-xs flex items-center gap-2 text-amber-400">
                         <MapPin className="w-3 h-3 shrink-0" />
-                        تكلفة الشحنة: سعر الزون مفعّل لكن لا توجد منطقة مربوطة بالمندوب — الرجاء ربط منطقة من زر التعديل
+                        تكلفة الشحنة: سعر الزون مفعّل، لكن لم يتم ربط "تكلفة منطقة" بالمندوب (مختلف عن مناطق التغطية) — الرجاء ربطها من زر التعديل
                       </p>
                     );
                   }
@@ -1668,7 +1668,25 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
                   )}
                 </div>
 
-                {form.costMode !== "zone" && (
+                {form.costMode === "zone" ? (
+                  <div className="mt-3">
+                    <Label className="text-[10px] text-muted-foreground mb-1 block flex items-center gap-1">
+                      <DollarSign className="w-3 h-3" />
+                      تكلفة المنطقة (السعر اللي هيتحسب على المندوب حسب المنطقة — مختلف عن مناطق التغطية)
+                    </Label>
+                    <ZoneCostsMultiSelect
+                      value={form.zoneCostIds}
+                      onChange={ids => setForm(f => ({ ...f, zoneCostIds: ids }))}
+                      zoneCosts={zoneCosts}
+                      formatCurrency={formatCurrency}
+                    />
+                    {form.zoneCostIds.length === 0 && (
+                      <p className="text-[10px] text-amber-400 mt-1">
+                        لازم تختار تكلفة منطقة واحدة على الأقل عشان يظهر سعر الشحن في كارت المندوب
+                      </p>
+                    )}
+                  </div>
+                ) : (
                   <div className="mt-2 space-y-2">
                     <Input
                       type="number"
