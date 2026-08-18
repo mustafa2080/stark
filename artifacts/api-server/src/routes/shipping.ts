@@ -45,6 +45,15 @@ router.post("/shipping-companies", async (req, res): Promise<void> => {
   const parsed = CreateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  // لو المندوب على "سعر الزون" لازم يكون مربوط بتكلفة منطقة واحدة على الأقل،
+  // وإلا الكارت هيفضل يعرض تحذير "مفيش تكلفة منطقة مربوطة" في كل الواجهات
+  const effectiveCostMode = parsed.data.costMode ?? "zone";
+  const hasZoneCost = (parsed.data.zoneCostIds?.length ?? 0) > 0 || parsed.data.zoneCostId != null;
+  if (effectiveCostMode === "zone" && !hasZoneCost) {
+    res.status(400).json({ error: "اختر تكلفة منطقة واحدة على الأقل عند استخدام سعر الزون" });
+    return;
+  }
+
   try {
     const now = new Date();
     now.setMilliseconds(0); // MySQL DATETIME لا يدعم milliseconds
@@ -244,6 +253,30 @@ router.patch("/shipping-companies/:id", async (req, res): Promise<void> => {
 
   const parsed = UpdateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [existing] = await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Company not found" }); return; }
+
+  // الـ validation دي بتتفعل بس لو الطلب فعليًا بيغيّر costMode أو zoneCostIds/zoneCostId —
+  // عشان متمنعش تعديلات تانية عادية (زي isActive أو notes) على مناديب قدام ليهم بيانات ناقصة من الأساس
+  const touchesCostFields = parsed.data.costMode !== undefined
+    || parsed.data.zoneCostIds !== undefined
+    || parsed.data.zoneCostId !== undefined;
+  if (touchesCostFields) {
+    const effectiveCostMode = parsed.data.costMode ?? (existing.costMode as "rep" | "zone" | null) ?? "zone";
+    let effectiveHasZoneCost: boolean;
+    if (parsed.data.zoneCostIds !== undefined || parsed.data.zoneCostId !== undefined) {
+      effectiveHasZoneCost = (parsed.data.zoneCostIds?.length ?? 0) > 0 || parsed.data.zoneCostId != null;
+    } else {
+      let existingIds: number[] = [];
+      if (existing.zoneCostIds) { try { existingIds = JSON.parse(existing.zoneCostIds as any); } catch {} }
+      effectiveHasZoneCost = existingIds.length > 0 || existing.zoneCostId != null;
+    }
+    if (effectiveCostMode === "zone" && !effectiveHasZoneCost) {
+      res.status(400).json({ error: "اختر تكلفة منطقة واحدة على الأقل عند استخدام سعر الزون" });
+      return;
+    }
+  }
 
   // بناء الـ update payload مع دعم zoneIds
   const updatePayload: Record<string, any> = { ...parsed.data };

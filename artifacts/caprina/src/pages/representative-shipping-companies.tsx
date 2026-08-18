@@ -1325,6 +1325,10 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
       toast({ title: "خطأ", description: "اختر منطقة تغطية واحدة على الأقل (المناطق اللي المندوب بيغطيها).", variant: "destructive" });
       return;
     }
+    if (form.costMode === "zone" && form.zoneCostIds.length === 0) {
+      toast({ title: "خطأ", description: "اختر تكلفة منطقة واحدة على الأقل عند استخدام سعر الزون (مختلف عن مناطق التغطية).", variant: "destructive" });
+      return;
+    }
     // في وضع "سعر الزون" التكلفة بتتحدد حسب منطقة كل شحنة وقت الفعلي (لا يوجد سعر إجمالي واحد)
     // في وضع "سعر المندوب" السعر بييجي يدوي من الـ input
     const resolvedCost = form.costMode === "zone"
