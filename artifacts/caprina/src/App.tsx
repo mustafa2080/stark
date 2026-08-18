@@ -198,6 +198,7 @@ const ShipmentsIntelligencePage = lazy(() => import("@/pages/shipments-intellige
 const RepresentativesIntelligencePage = lazy(() => import("@/pages/representatives-intelligence"));
 const ZonesIntelligencePage = lazy(() => import("@/pages/zones-intelligence"));
 const InventoryIntelligencePage = lazy(() => import("@/pages/inventory-intelligence"));
+const ClientIntelligencePage = lazy(() => import("@/pages/client-intelligence"));
 const WhatsAppSettingsPage  = lazy(() => import("@/pages/whatsapp-settings"));
 const SessionsReportPage    = lazy(() => import("@/pages/sessions-report"));
 const ExportPage            = lazy(() => import("@/pages/export"));
@@ -596,6 +597,7 @@ function Router() {
           <Route path="/representatives-intelligence" component={() => <ProtectedRoute permission="shipping.view" component={RepresentativesIntelligencePage} />} />
           <Route path="/zones-intelligence"       component={() => <ProtectedRoute permission="section_dashboard" component={ZonesIntelligencePage} />} />
           <Route path="/inventory-intelligence"   component={() => <ProtectedRoute permission="inventory.view" component={InventoryIntelligencePage} />} />
+          <Route path="/client-intelligence"      component={() => <ProtectedRoute permission="section_dashboard" component={ClientIntelligencePage} />} />
           <Route path="/whatsapp"                 component={() => <ProtectedRoute permission="settings.whatsapp" component={WhatsAppSettingsPage} />} />
           <Route path="/sessions-report"          component={() => <ProtectedRoute permission="settings.users" component={SessionsReportPage} />} />
           <Route path="/export"                   component={() => <ProtectedRoute permission="import.view" component={ExportPage} />} />

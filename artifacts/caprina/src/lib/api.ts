@@ -546,6 +546,47 @@ export interface InventoryIntelligenceResponse {
   alerts: InvIntelAlert[];
 }
 
+// ─── Clients Intelligence Types ──────────────────────────────────────────────
+export interface ClientIntelSegment {
+  key: string; label: string; color: string; icon: string;
+  count: number; totalRevenue: number; avgRevenue: number;
+}
+export interface ClientIntelSegmentClient {
+  id: number; name: string; phone: string | null; city: string | null;
+  total: number; delivered: number; returned: number; revenue: number;
+  idleDays: number | null; declaredType: string | null;
+}
+export interface ClientIntelReturnFingerprint {
+  id: number; name: string; phone: string | null;
+  totalReturns: number; returnRate: number;
+  topReason: string; topReasonLabel: string;
+  topReasonRate: number; baselineRate: number; deviation: number; flagged: boolean;
+}
+export interface ClientIntelWeeklyPulseRow { day: string; count: number; intensity: number }
+export interface ClientIntelMisclassified {
+  id: number; name: string; declared: "normal" | "commercial" | "vip";
+  actual: "normal" | "commercial" | "vip"; monthlyShipments: number;
+}
+export interface ClientIntelAlert { severity: "critical" | "warning" | "info"; message: string }
+export interface ClientsIntelligenceResponse {
+  period: string; periodLabel: string; generatedAt: string;
+  kpis: {
+    totalClients: number; activeClients90d: number; healthScore: number;
+    totalRevenue: number; avgOrderValue: number;
+    atRiskCount: number; risingCount: number;
+  };
+  segments: ClientIntelSegment[];
+  segmentClients: Record<string, ClientIntelSegmentClient[]>;
+  returnFingerprints: ClientIntelReturnFingerprint[];
+  weeklyPulse: ClientIntelWeeklyPulseRow[];
+  misclassified: ClientIntelMisclassified[];
+  forecast: {
+    nextMonthEstimate: number; lastMonthActual: number;
+    growthRate: number; confidence: number;
+  } | null;
+  alerts: ClientIntelAlert[];
+}
+
 export interface StockIntelligenceResponse {
   items: StockIntelligenceItem[];
   summary: {
@@ -1271,6 +1312,14 @@ export const analyticsApi = {
     if (params?.to)     q.set("to", params.to);
     const qs = q.toString();
     return apiFetch<InventoryIntelligenceResponse>(`/analytics/inventory-intelligence${qs ? `?${qs}` : ""}`);
+  },
+  clientsIntelligence: (params?: { period?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.period) q.set("period", params.period);
+    if (params?.from)   q.set("from", params.from);
+    if (params?.to)     q.set("to", params.to);
+    const qs = q.toString();
+    return apiFetch<ClientsIntelligenceResponse>(`/analytics/clients-intelligence${qs ? `?${qs}` : ""}`);
   },
   charts: () => apiFetch<ChartsData>("/analytics/charts"),
   monthlySales: (month?: string) =>

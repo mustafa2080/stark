@@ -6061,4 +6061,360 @@ router.get("/analytics/inventory-intelligence", requireAuth, async (req, res): P
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /analytics/clients-intelligence
+// المصدر: clientsTable مربوطًا بـ shipmentsTable (عن طريق clientId)
+// صفحة "التحليل الذكي للعملاء" — تصنيف سلوكي للعملاء (RFM)، بصمة المرتجعات،
+// نبضة النشاط الأسبوعية، تنبؤ إيراد بسيط، ومقارنة التصنيف التلقائي بالسلوك الفعلي.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/analytics/clients-intelligence", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const period = (req.query.period as string | undefined) ?? "month";
+    const customFrom = req.query.from as string | undefined;
+    const customTo = req.query.to as string | undefined;
+    const cacheKey = `clients-intelligence:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const now = new Date();
+    let rangeFrom: Date;
+    let rangeTo: Date = now;
+    if (period === "today") {
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "week") {
+      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
+    } else if (period === "month") {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    } else if (period === "year") {
+      rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "custom" && customFrom) {
+      rangeFrom = new Date(customFrom + "T00:00:00");
+      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+    } else {
+      rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    }
+
+    const clientCond = tenantId !== null ? eq(clientsTable.tenantId, tenantId) : undefined;
+    const clients = await db
+      .select({
+        id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone,
+        city: clientsTable.city, region: clientsTable.region,
+        clientType: clientsTable.clientType, isActive: clientsTable.isActive,
+        creditLimit: clientsTable.creditLimit, createdAt: clientsTable.createdAt,
+      })
+      .from(clientsTable)
+      .where(clientCond);
+
+    if (clients.length === 0) {
+      const empty = {
+        period, generatedAt: new Date().toISOString(),
+        kpis: { totalClients: 0, activeClients90d: 0, healthScore: 0, totalRevenue: 0, avgOrderValue: 0 },
+        segments: [], segmentClients: {}, returnFingerprints: [], weeklyPulse: [],
+        misclassified: [], forecast: null, alerts: [],
+      };
+      res.json(empty); return;
+    }
+
+    const clientIds = clients.map(c => c.id);
+    const shipCond = tenantId !== null
+      ? and(inArray(shipmentsTable.clientId, clientIds), isNull(shipmentsTable.deletedAt), eq(shipmentsTable.tenantId, tenantId))
+      : and(inArray(shipmentsTable.clientId, clientIds), isNull(shipmentsTable.deletedAt));
+
+    const rows = await db
+      .select({
+        id: shipmentsTable.id, clientId: shipmentsTable.clientId, status: shipmentsTable.status,
+        codAmount: shipmentsTable.codAmount, collectedAmount: shipmentsTable.collectedAmount,
+        shippingFee: shipmentsTable.shippingFee, returnReason: shipmentsTable.returnReason,
+        receiverCity: shipmentsTable.receiverCity, createdAt: shipmentsTable.createdAt,
+      })
+      .from(shipmentsTable)
+      .where(shipCond);
+
+    const byClient = new Map<number, typeof rows>();
+    for (const r of rows) {
+      if (r.clientId == null) continue;
+      if (!byClient.has(r.clientId)) byClient.set(r.clientId, []);
+      byClient.get(r.clientId)!.push(r);
+    }
+
+    // ── دالة تصنّف حالة الشحنة لثلاث حالات مبسّطة (تسليم/مرتجع/جاري) ──
+    const CI_LEGACY_MAP: Record<string, string> = {
+      picked_up: "warehouse_ready", in_transit: "in_shipping", out_for_delivery: "in_shipping",
+      delivered: "received", waiting: "pending", confirmed: "pending", cancelled: "returned",
+    };
+    function CI_normalize(status: string): string { return CI_LEGACY_MAP[status] ?? status; }
+
+    const CI_RETURN_REASON_LABELS: Record<string, string> = {
+      refused_paid: "رفض بعد معاينة (مدفوع)", refused_unpaid: "رفض بعد معاينة (غير مدفوع)",
+      quality: "مشكلة جودة", no_answer: "لم يتم الرد", wrong_address: "عنوان خاطئ",
+      postponed: "تأجيل متكرر", other: "أخرى",
+    };
+
+    const msDay = 24 * 60 * 60 * 1000;
+
+    type ClientMetrics = {
+      id: number; name: string; phone: string | null; city: string | null; region: string | null;
+      declaredType: string | null; isActive: boolean | null; createdAt: Date;
+      total: number; delivered: number; returned: number; ongoing: number;
+      revenue: number; codCollected: number;
+      lastShipmentAt: Date | null; firstShipmentAt: Date | null;
+      last30: number; last90: number; prev90: number;
+      returnReasonCounts: Record<string, number>;
+      weekdayCounts: number[]; // 0=أحد..6=سبت
+    };
+
+    const clientMetrics: ClientMetrics[] = clients.map(c => {
+      const shipments = byClient.get(c.id) ?? [];
+      let delivered = 0, returned = 0, ongoing = 0, revenue = 0, codCollected = 0;
+      let lastShipmentAt: Date | null = null, firstShipmentAt: Date | null = null;
+      let last30 = 0, last90 = 0, prev90 = 0;
+      const returnReasonCounts: Record<string, number> = {};
+      const weekdayCounts = [0, 0, 0, 0, 0, 0, 0];
+      for (const s of shipments) {
+        const st = CI_normalize(s.status);
+        const created = new Date(s.createdAt);
+        const ageMs = now.getTime() - created.getTime();
+        revenue += Number(s.shippingFee ?? 0);
+        codCollected += Number(s.collectedAmount ?? 0);
+        if (!lastShipmentAt || created > lastShipmentAt) lastShipmentAt = created;
+        if (!firstShipmentAt || created < firstShipmentAt) firstShipmentAt = created;
+        if (st === "received") delivered++;
+        else if (st === "returned") {
+          returned++;
+          const reason = s.returnReason ?? "other";
+          returnReasonCounts[reason] = (returnReasonCounts[reason] ?? 0) + 1;
+        } else ongoing++;
+        if (ageMs <= 30 * msDay) last30++;
+        if (ageMs <= 90 * msDay) last90++;
+        else if (ageMs <= 180 * msDay) prev90++;
+        weekdayCounts[created.getDay()]++;
+      }
+      return {
+        id: c.id, name: c.name, phone: c.phone, city: c.city, region: c.region,
+        declaredType: c.clientType, isActive: c.isActive, createdAt: new Date(c.createdAt),
+        total: shipments.length, delivered, returned, ongoing, revenue, codCollected,
+        lastShipmentAt, firstShipmentAt, last30, last90, prev90,
+        returnReasonCounts, weekdayCounts,
+      };
+    });
+
+    // ── 1) تصنيف RFM مبسّط: نجوم / في خطر / واعد / نايم / عادي ──────────────
+    type Segment = "stars" | "at_risk" | "rising" | "dormant" | "regular";
+    const SEGMENT_META: Record<Segment, { label: string; color: string; icon: string }> = {
+      stars:    { label: "نجوم",  color: "#f59e0b", icon: "crown" },
+      at_risk:  { label: "في خطر", color: "#ef4444", icon: "alert" },
+      rising:   { label: "واعد",  color: "#22c55e", icon: "trending-up" },
+      dormant:  { label: "نايم",  color: "#64748b", icon: "moon" },
+      regular:  { label: "عادي",  color: "#06b6d4", icon: "user" },
+    };
+    const revenues = clientMetrics.map(c => c.revenue).filter(v => v > 0).sort((a, b) => a - b);
+    const revenueP70 = revenues.length ? revenues[Math.floor(revenues.length * 0.7)] ?? revenues[revenues.length - 1] : 0;
+
+    function daysSince(d: Date | null): number {
+      if (!d) return Infinity;
+      return (now.getTime() - d.getTime()) / msDay;
+    }
+
+    const segmented = clientMetrics.map(c => {
+      const idleDays = daysSince(c.lastShipmentAt);
+      const accountAgeDays = daysSince(c.createdAt);
+      let segment: Segment;
+      if (c.total === 0) {
+        segment = "dormant";
+      } else if (idleDays > 60 && c.prev90 >= 3) {
+        // كان نشط قبل كده (٣ شحنات على الأقل في الفترة قبل الأخيرة) وقلّ فجأة
+        segment = "at_risk";
+      } else if (idleDays > 120) {
+        segment = "dormant";
+      } else if (c.revenue >= revenueP70 && c.total >= 5 && idleDays <= 30) {
+        segment = "stars";
+      } else if (accountAgeDays <= 60 && c.last30 >= 3) {
+        segment = "rising";
+      } else {
+        segment = "regular";
+      }
+      return { ...c, segment, idleDays: Number.isFinite(idleDays) ? Math.round(idleDays) : null };
+    });
+
+    const segmentGroups: Record<Segment, typeof segmented> = { stars: [], at_risk: [], rising: [], dormant: [], regular: [] };
+    for (const c of segmented) segmentGroups[c.segment].push(c);
+
+    const segments = (Object.keys(SEGMENT_META) as Segment[]).map(key => {
+      const group = segmentGroups[key];
+      const totalRevenue = group.reduce((s, c) => s + c.revenue, 0);
+      return {
+        key, label: SEGMENT_META[key].label, color: SEGMENT_META[key].color, icon: SEGMENT_META[key].icon,
+        count: group.length, totalRevenue: Math.round(totalRevenue),
+        avgRevenue: group.length ? Math.round(totalRevenue / group.length) : 0,
+      };
+    });
+
+    const segmentClients: Record<string, any[]> = {};
+    for (const key of Object.keys(segmentGroups) as Segment[]) {
+      segmentClients[key] = segmentGroups[key]
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 25)
+        .map(c => ({
+          id: c.id, name: c.name, phone: c.phone, city: c.city,
+          total: c.total, delivered: c.delivered, returned: c.returned,
+          revenue: Math.round(c.revenue), idleDays: c.idleDays,
+          declaredType: c.declaredType,
+        }));
+    }
+
+    // ── 2) بصمة المرتجعات — أعلى سبب ارتجاع لكل عميل عنده مرتجعات كفاية للدلالة ──
+    // متوسط توزيع الأسباب على مستوى كل العملاء (baseline) للمقارنة
+    const globalReasonTotals: Record<string, number> = {};
+    let globalReturnsTotal = 0;
+    for (const c of clientMetrics) {
+      for (const [reason, n] of Object.entries(c.returnReasonCounts)) {
+        globalReasonTotals[reason] = (globalReasonTotals[reason] ?? 0) + n;
+        globalReturnsTotal += n;
+      }
+    }
+    const globalReasonRate: Record<string, number> = {};
+    for (const [reason, n] of Object.entries(globalReasonTotals)) {
+      globalReasonRate[reason] = globalReturnsTotal > 0 ? n / globalReturnsTotal : 0;
+    }
+
+    const returnFingerprints = clientMetrics
+      .filter(c => c.returned >= 3)
+      .map(c => {
+        const totalReturns = c.returned;
+        const topEntry = Object.entries(c.returnReasonCounts).sort((a, b) => b[1] - a[1])[0];
+        if (!topEntry) return null;
+        const [topReason, topCount] = topEntry;
+        const clientRate = topCount / totalReturns;
+        const baselineRate = globalReasonRate[topReason] ?? 0;
+        const deviation = clientRate - baselineRate;
+        return {
+          id: c.id, name: c.name, phone: c.phone,
+          totalReturns, returnRate: c.total > 0 ? Math.round((c.returned / c.total) * 1000) / 10 : 0,
+          topReason, topReasonLabel: CI_RETURN_REASON_LABELS[topReason] ?? topReason,
+          topReasonRate: Math.round(clientRate * 1000) / 10,
+          baselineRate: Math.round(baselineRate * 1000) / 10,
+          deviation: Math.round(deviation * 1000) / 10,
+          flagged: deviation > 0.25 && totalReturns >= 3, // انحراف واضح عن المتوسط العام
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => b.deviation - a.deviation)
+      .slice(0, 20);
+
+    // ── 3) نبضة النشاط الأسبوعية (على مستوى كل العملاء مجمّعين) ─────────────
+    const weekdayLabels = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const weeklyTotals = [0, 0, 0, 0, 0, 0, 0];
+    for (const c of clientMetrics) for (let i = 0; i < 7; i++) weeklyTotals[i] += c.weekdayCounts[i];
+    const weeklyMax = Math.max(...weeklyTotals, 1);
+    const weeklyPulse = weekdayLabels.map((label, i) => ({
+      day: label, count: weeklyTotals[i], intensity: Math.round((weeklyTotals[i] / weeklyMax) * 100),
+    }));
+
+    // ── 4) مقارنة التصنيف التلقائي (declaredType) بالسلوك الفعلي (شحنات آخر 30 يوم) ──
+    function actualTypeFromMonthly(monthlyCount: number): "normal" | "commercial" | "vip" {
+      if (monthlyCount >= 501) return "vip";
+      if (monthlyCount >= 201) return "commercial";
+      return "normal";
+    }
+    const misclassified = clientMetrics
+      .map(c => {
+        const actual = actualTypeFromMonthly(c.last30);
+        const declared = (c.declaredType ?? "normal") as "normal" | "commercial" | "vip";
+        return { id: c.id, name: c.name, declared, actual, monthlyShipments: c.last30 };
+      })
+      .filter(c => c.declared !== c.actual && c.monthlyShipments > 0)
+      .sort((a, b) => b.monthlyShipments - a.monthlyShipments)
+      .slice(0, 15);
+
+    // ── 5) تنبؤ إيراد بسيط للشهر القادم (متوسط آخر 3 شهور + معدل نمو) ───────
+    const monthBuckets: number[] = [0, 0, 0]; // [الشهر الحالي(جزئي), الشهر اللي فات, الشهر اللي قبله]
+    for (const r of rows) {
+      const created = new Date(r.createdAt);
+      const monthsAgo = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
+      if (monthsAgo >= 0 && monthsAgo <= 2) monthBuckets[monthsAgo] += Number(r.shippingFee ?? 0);
+    }
+    const [, lastMonth, twoMonthsAgo] = monthBuckets;
+    const growthRate = twoMonthsAgo > 0 ? (lastMonth - twoMonthsAgo) / twoMonthsAgo : 0;
+    const clampedGrowth = Math.max(-0.5, Math.min(0.5, growthRate)); // تقييد التقلب الشديد
+    const forecastNextMonth = lastMonth > 0 ? lastMonth * (1 + clampedGrowth) : twoMonthsAgo;
+    const forecastConfidence = twoMonthsAgo > 0 && lastMonth > 0 ? 75 : 45;
+
+    // ── KPIs عامة + Health Score مركّب ──────────────────────────────────────
+    const totalClients = clients.length;
+    const activeClients90d = clientMetrics.filter(c => c.last90 > 0).length;
+    const totalRevenue = clientMetrics.reduce((s, c) => s + c.revenue, 0);
+    const totalDelivered = clientMetrics.reduce((s, c) => s + c.delivered, 0);
+    const totalShipments = clientMetrics.reduce((s, c) => s + c.total, 0);
+    const avgOrderValue = totalShipments > 0 ? totalRevenue / totalShipments : 0;
+    const activeRatio = totalClients > 0 ? activeClients90d / totalClients : 0;
+    const atRiskRatio = totalClients > 0 ? segmentGroups.at_risk.length / totalClients : 0;
+    const deliveryRatio = totalShipments > 0 ? totalDelivered / totalShipments : 1;
+    const healthScore = Math.round(
+      Math.max(0, Math.min(100,
+        activeRatio * 45 + deliveryRatio * 35 + (1 - atRiskRatio) * 20
+      ))
+    );
+
+    // ── تنبيهات ذكية ─────────────────────────────────────────────────────
+    const alerts: { severity: "critical" | "warning" | "info"; message: string }[] = [];
+    if (segmentGroups.at_risk.length > 0) {
+      alerts.push({
+        severity: segmentGroups.at_risk.length >= 5 ? "critical" : "warning",
+        message: `${segmentGroups.at_risk.length} عميل كان نشطًا وتوقف فجأة — يستحقوا تواصل استباقي`,
+      });
+    }
+    const flaggedReturns = returnFingerprints.filter(f => f.flagged);
+    if (flaggedReturns.length > 0) {
+      alerts.push({
+        severity: "warning",
+        message: `${flaggedReturns.length} عميل عندهم نمط مرتجعات غير طبيعي مقارنة بالمتوسط العام`,
+      });
+    }
+    if (misclassified.length > 0) {
+      alerts.push({
+        severity: "info",
+        message: `${misclassified.length} عميل تصنيفهم الحالي مايطابقش نشاطهم الفعلي الشهر ده`,
+      });
+    }
+    if (segmentGroups.rising.length > 0) {
+      alerts.push({
+        severity: "info",
+        message: `${segmentGroups.rising.length} عميل جديد بمعدل نمو متسارع — فرصة تطوير علاقة تجارية`,
+      });
+    }
+    const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    const periodLabels: Record<string, string> = { today: "اليوم", week: "آخر 7 أيام", month: "آخر 30 يوم", year: "السنة الحالية", custom: "فترة مخصصة" };
+
+    const result = {
+      period, periodLabel: periodLabels[period] ?? "آخر 30 يوم",
+      generatedAt: new Date().toISOString(),
+      kpis: {
+        totalClients, activeClients90d, healthScore,
+        totalRevenue: Math.round(totalRevenue), avgOrderValue: Math.round(avgOrderValue),
+        atRiskCount: segmentGroups.at_risk.length, risingCount: segmentGroups.rising.length,
+      },
+      segments, segmentClients,
+      returnFingerprints,
+      weeklyPulse,
+      misclassified,
+      forecast: {
+        nextMonthEstimate: Math.round(forecastNextMonth),
+        lastMonthActual: Math.round(lastMonth),
+        growthRate: Math.round(clampedGrowth * 1000) / 10,
+        confidence: forecastConfidence,
+      },
+      alerts,
+    };
+
+    setCached(cacheKey, result, 10 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    console.error("[clients-intelligence] error:", err?.message ?? err);
+    res.status(500).json({ error: "فشل التحليل الذكي للعملاء", detail: err?.message ?? String(err) });
+  }
+});
+
 export default router;
