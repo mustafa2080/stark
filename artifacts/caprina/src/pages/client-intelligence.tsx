@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, TrendingUp, TrendingDown, Crown, AlertTriangle, AlertCircle, Info,
@@ -252,6 +255,23 @@ function rateColorInv(pct: number): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Chart tooltip (shared)
+// ═══════════════════════════════════════════════════════════════════════════
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#0a0a0a]/95 px-3 py-2 text-xs shadow-xl backdrop-blur-sm">
+      {label && <p className="text-white/50 mb-1">{label}</p>}
+      {payload.map((p: any, i: number) => (
+        <p key={i} style={{ color: p.color || p.stroke }} className="font-bold">
+          {p.name}: {fmt(p.value)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Weekly Pulse — نبضة النشاط الأسبوعية
 // ═══════════════════════════════════════════════════════════════════════════
 function WeeklyPulsePanel({ data }: { data: ClientsIntelligenceResponse["weeklyPulse"] }) {
@@ -266,22 +286,27 @@ function WeeklyPulsePanel({ data }: { data: ClientsIntelligenceResponse["weeklyP
         </div>
         <span className="text-xs text-white/45">{fmt(peak.count)} شحنة</span>
       </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {data.map((d, i) => (
-          <div key={d.day} className="flex flex-col items-center gap-1.5">
-            <div className="w-full h-24 rounded-lg bg-white/5 relative overflow-hidden flex items-end">
-              <motion.div
-                initial={{ height: 0 }}
-                animate={{ height: `${Math.max(4, d.intensity)}%` }}
-                transition={{ duration: 0.6, delay: Math.min(i * 0.04, 0.4), ease: "easeOut" }}
-                className="w-full rounded-lg"
-                style={{ background: d.intensity >= 70 ? "#e8b93f" : d.intensity >= 35 ? "#e8b93f88" : "#e8b93f40" }}
-              />
-            </div>
-            <span className="text-[10px] text-white/45 font-medium">{d.day.slice(0, 3)}</span>
-            <span className="text-[10px] text-white/30 tabular-nums">{fmt(d.count)}</span>
-          </div>
-        ))}
+      <div style={{ height: 220 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+            <defs>
+              <linearGradient id="ciWeeklyPulseGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#e8b93f" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#e8b93f" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+            <XAxis dataKey="day" tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "#ffffff60", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Area
+              type="monotone" dataKey="count" name="شحنات"
+              stroke="#e8b93f" strokeWidth={2.5} fill="url(#ciWeeklyPulseGrad)"
+              dot={{ r: 4, fill: "#e8b93f", strokeWidth: 2, stroke: "#0a0f1e" }}
+              activeDot={{ r: 6, fill: "#e8b93f", strokeWidth: 2, stroke: "#0a0f1e" }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
