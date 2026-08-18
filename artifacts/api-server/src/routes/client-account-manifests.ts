@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, inArray, count, isNull, or } from "drizzle-orm";
+import { eq, desc, and, inArray, count, isNull, or, ne } from "drizzle-orm";
 import {
   db,
   clientAccountManifestsTable,
@@ -172,6 +172,10 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
     let countMap: Record<number, number> = {};
     let statusCountMap: Record<number, { pending: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
     if (ids.length) {
+      // ⚠️ الشحنات "قيد الانتظار" (deliveryStatus = pending) مستبعدة بالكامل من
+      // عدادات بيان العميل التجاري — البيان بيفترض إن الشحنة خرجت للتسليم
+      // بالفعل، فمفيش معنى تتحسب فيه شحنة لسه منتظرة (شايفينها بس لسه ما
+      // اتحدثتش حالتها بعد إضافتها للبيان).
       const counts = await db
         .select({
           manifestId: clientAccountManifestItemsTable.manifestId,
@@ -179,7 +183,10 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
           cnt: count(),
         })
         .from(clientAccountManifestItemsTable)
-        .where(inArray(clientAccountManifestItemsTable.manifestId, ids))
+        .where(and(
+          inArray(clientAccountManifestItemsTable.manifestId, ids),
+          ne(clientAccountManifestItemsTable.deliveryStatus, "pending"),
+        ))
         .groupBy(clientAccountManifestItemsTable.manifestId, clientAccountManifestItemsTable.deliveryStatus);
 
       counts.forEach(r => {
@@ -188,8 +195,7 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
         if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         const st = r.deliveryStatus ?? "pending";
         const n = Number(r.cnt);
-        if (st === "pending") statusCountMap[mid].pending += n;
-        else if (st === "delayed") statusCountMap[mid].delayed += n;
+        if (st === "delayed") statusCountMap[mid].delayed += n;
         else if (st === "returned") statusCountMap[mid].returned += n;
         else if (st === "delivered") statusCountMap[mid].delivered += n;
         else if (st === "partial_delivered") statusCountMap[mid].partial += n;
@@ -362,10 +368,18 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // وبعدين حالتها اترجعت لقيد الانتظار (مثلاً اتلغى تجهيزها)، فمينفعش تفضل
     // ظاهرة كأنها جزء فعلي من البيان رغم إن الحماية المركزية بتمنع إضافتها من الأساس.
     // العنصر (row) بيفضل موجود في الجدول للتاريخ، بس بيتفلتر بره العرض والحسابات هنا.
+    //
+    // ⚠️ كمان بنستبعد أي عنصر في البيان لسه deliveryStatus بتاعه "pending" (قيد
+    // الانتظار على مستوى التسليم للعميل) — البيان بيفترض إن الشحنة خرجت للتسليم
+    // بالفعل، فمفيش معنى تعرض فيه شحنة لسه منتظرة. الحالتين مختلفتين: الأولى
+    // بتتأكد إن الشحنة "خرجت من المخزن أصلاً"، والتانية بتتأكد إن حالة تسليمها
+    // اتحدثت (حتى لو خرجت من المخزن). محتاجين الاتنين مع بعض.
     const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
     const visibleItems = items.filter(item => {
       const sh = shipmentMap[item.shipmentId];
-      return !sh || !EXCLUDED_SHIPMENT_STATUSES.has(sh.status);
+      if (sh && EXCLUDED_SHIPMENT_STATUSES.has(sh.status)) return false;
+      if (item.deliveryStatus === "pending") return false;
+      return true;
     });
 
     // ── returnValueReceived للمرتجع بالأسباب المالية (رفض بعد المعاينة / تهرب) ──

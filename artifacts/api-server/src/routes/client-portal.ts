@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, isNull, sql, or, inArray, count } from "drizzle-orm";
+import { eq, and, desc, isNull, sql, or, inArray, count, ne } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import {
   db,
@@ -1515,6 +1515,8 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
     let statusCountMap: Record<number, { pending: number; shipping: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
     let countMap: Record<number, number> = {};
     if (ids.length) {
+      // ⚠️ الشحنات "قيد الانتظار" (deliveryStatus = pending) مستبعدة بالكامل من
+      // عدادات بيان العميل — نفس منطق /client-account-manifests (راوت الأدمن).
       const counts = await db
         .select({
           manifestId: clientAccountManifestItemsTable.manifestId,
@@ -1522,7 +1524,10 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
           cnt: count(),
         })
         .from(clientAccountManifestItemsTable)
-        .where(inArray(clientAccountManifestItemsTable.manifestId, ids))
+        .where(and(
+          inArray(clientAccountManifestItemsTable.manifestId, ids),
+          ne(clientAccountManifestItemsTable.deliveryStatus, "pending"),
+        ))
         .groupBy(clientAccountManifestItemsTable.manifestId, clientAccountManifestItemsTable.deliveryStatus);
 
       counts.forEach(r => {
@@ -1531,8 +1536,7 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
         if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         const st = r.deliveryStatus ?? "pending";
         const n = Number(r.cnt);
-        if (st === "pending") statusCountMap[mid].pending += n;
-        else if (st === "shipping") statusCountMap[mid].shipping += n;
+        if (st === "shipping") statusCountMap[mid].shipping += n;
         else if (st === "delayed") statusCountMap[mid].delayed += n;
         else if (st === "returned") statusCountMap[mid].returned += n;
         else if (st === "delivered") statusCountMap[mid].delivered += n;

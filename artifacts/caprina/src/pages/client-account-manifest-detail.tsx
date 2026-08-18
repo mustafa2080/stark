@@ -3899,7 +3899,12 @@ export default function ShippingManifestPage() {
         // "صافي الإيراد المستحق" بيرجع صفر دايمًا رغم إن الـ backend بيبعتها صح.
         zoneCost: (item as any).zoneCost ?? 0,
       } as any;
-    });
+    })
+    // الشحنات "قيد الانتظار" (deliveryStatus بعد الـ sync = pending) متعرضش في بيان
+    // العميل التجاري خالص — البيان بيفترض إن الشحنة خرجت للتسليم بالفعل، فمفيش
+    // معنى تعرض فيه شحنة لسه منتظرة. الفلترة هنا بعد الـ sync عشان الشحنات اللي
+    // كانت pending واتحدثت فعليًا (delivered/returned/...) تفضل ظاهرة زي ما هي.
+    .filter((o) => o.deliveryStatus !== "pending");
     const manualShippingCost = rawManifest.invoicePrice != null ? parseFloat(rawManifest.invoicePrice) : null;
 
     return {
