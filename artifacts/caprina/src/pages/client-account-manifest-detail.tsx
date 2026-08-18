@@ -129,6 +129,32 @@ const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false) => {
   return list.find((o) => o.value === v) ?? list[0];
 };
 
+// ─── حالة الشحنة الفعلية (shipment.status) — نفس الليبل/اللون المستخدمين في
+// صفحة "الشحنات" بالضبط. بتتعرض بدل "قيد الانتظار" لما البيان لسه deliveryStatus
+// بتاعه "pending" (يعني لسه محدش سجّل نتيجة تسليم)، عشان توضح حالة الشحنة
+// الحقيقية بدل ما توهم إنها لسه منتظرة فعليًا.
+const SHIPMENT_STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
+  waiting:          { label: "انتظار",       color: "text-amber-700   dark:text-amber-400",   bg: "border-amber-300   dark:border-amber-700   bg-amber-50   dark:bg-amber-900/20" },
+  confirmed:        { label: "مؤكد",         color: "text-blue-700    dark:text-blue-400",    bg: "border-blue-300    dark:border-blue-700    bg-blue-50    dark:bg-blue-900/20" },
+  picked_up:        { label: "تم الاستلام",   color: "text-indigo-700  dark:text-indigo-400",  bg: "border-indigo-300  dark:border-indigo-700  bg-indigo-50  dark:bg-indigo-900/20" },
+  warehouse_ready:  { label: "جاهز",         color: "text-purple-700  dark:text-purple-400",  bg: "border-purple-300  dark:border-purple-700  bg-purple-50  dark:bg-purple-900/20" },
+  in_transit:       { label: "قيد الشحن",     color: "text-cyan-700    dark:text-cyan-400",    bg: "border-cyan-300    dark:border-cyan-700    bg-cyan-50    dark:bg-cyan-900/20" },
+  in_shipping:      { label: "في الشحن",      color: "text-cyan-700    dark:text-cyan-400",    bg: "border-cyan-300    dark:border-cyan-700    bg-cyan-50    dark:bg-cyan-900/20" },
+  out_for_delivery: { label: "خرج للتسليم",   color: "text-sky-700     dark:text-sky-400",     bg: "border-sky-300     dark:border-sky-700     bg-sky-50     dark:bg-sky-900/20" },
+  delayed:          { label: "مؤجل",         color: "text-orange-700  dark:text-orange-400",  bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+};
+
+// بيرجع خيار العرض (label/color) المناسب لصف الطلب: لو البيان لسه pending
+// وعندنا حالة شحنة فعلية معروفة (زي in_shipping) بتتعرض هي بدل "قيد الانتظار"،
+// وإلا بيرجع سلوك deliveryOpt العادي.
+const orderStatusOpt = (order: { deliveryStatus: DeliveryStatus; status?: string | null }, isShipmentManifest = false) => {
+  if (order.deliveryStatus === "pending" && order.status) {
+    const s = SHIPMENT_STATUS_STYLE[order.status];
+    if (s) return s;
+  }
+  return deliveryOpt(order.deliveryStatus, isShipmentManifest);
+};
+
 function OrderDeliveryRow({
   order,
   manifestId,
@@ -1115,7 +1141,7 @@ function InvoiceGroupDeliveryRow({
   // الكميات المعروضة: لو في وضع التعديل أو بعد حفظ فوري → من state، وإلا من server
   // الحالة المعروضة في الـ UI (خارج وضع التعديل): لما pendingSaveRef موجود نعرض bulkStatus (الحالة المحفوظة) لحد ما يجي الـ refetch
   const displayStatus: DeliveryStatus = (bulkEditing || pendingSaveRef.current !== null) ? bulkStatus : groupStatus;
-  const displayOpt = deliveryOpt(displayStatus, isShipmentManifest);
+  const displayOpt = orderStatusOpt({ deliveryStatus: displayStatus, status: group[0]?.status }, isShipmentManifest);
 
   const displayPartialQtyMap: Record<number, number> = Object.fromEntries(
     group.map(o => {
@@ -1387,7 +1413,7 @@ function InvoiceGroupDeliveryRow({
                   حالات متعددة
                 </Badge>
                 {group.map(o => {
-                  const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
+                  const opt = orderStatusOpt(o as any, isShipmentManifest);
                   const label = (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity
                     ? `${o.product} ×${o.partialQuantity}/${o.quantity}`
                     : `${o.product}`;
@@ -2156,7 +2182,7 @@ function InvoiceGroupDeliveryRow({
           {group.map((order) => {
             const variant = [order.color, order.size].filter(Boolean).join(" / ");
             const unitPrice = order.quantity > 0 ? order.totalPrice / order.quantity : 0;
-            const opt = deliveryOpt(order.deliveryStatus as DeliveryStatus, isShipmentManifest);
+            const opt = orderStatusOpt(order as any, isShipmentManifest);
             const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
             return (
               <div
@@ -3878,9 +3904,6 @@ export default function ShippingManifestPage() {
               partial_received: "partial_delivered",
               delivered:        "delivered",
               received:         "delivered",
-              // الشحنة لسه في الشحن ولسه محدش سجّل نتيجة تسليمها في البيان —
-              // نعرضها كـ "قيد الشحن" بدل "قيد الانتظار" لأنها فعليًا خرجت للتسليم
-              in_shipping:      "postponed",
             };
             return (statusMap[sh.status] ?? item.deliveryStatus) as DeliveryStatus;
           }
