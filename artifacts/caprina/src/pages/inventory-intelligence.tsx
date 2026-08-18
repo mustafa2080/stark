@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, TrendingUp, TrendingDown, Minus, Sparkles, Package, Boxes,
   AlertTriangle, AlertCircle, Info, ChevronDown, ChevronUp, Warehouse,
-  Wallet, PackageX, PackageCheck, Recycle, ShieldAlert,
+  Wallet, PackageX, PackageCheck, Recycle, ShieldAlert, CalendarDays, Check, RotateCcw,
 } from "lucide-react";
 import { analyticsApi, InventoryIntelligenceResponse } from "@/lib/api";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { DateRange } from "react-day-picker";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers (نفس منطق zones-intelligence.tsx / shipments-intelligence.tsx لثبات الهوية البصرية)
@@ -367,6 +370,91 @@ function PeriodSwitcher({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Date Range Picker — فترة مخصصة (نفس مكوّن shipments-intelligence.tsx لثبات الهوية البصرية)
+// ═══════════════════════════════════════════════════════════════════════════
+const fmtRangeDate = (d?: Date) =>
+  d ? d.toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : null;
+
+function DateRangePicker({
+  active,
+  range,
+  onApply,
+  onClear,
+}: {
+  active: boolean;
+  range: DateRange | undefined;
+  onApply: (range: DateRange) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<DateRange | undefined>(range);
+
+  useEffect(() => {
+    if (open) setDraft(range);
+  }, [open, range]);
+
+  const hasCompleteDraft = !!(draft?.from && draft?.to);
+  const label = active && range?.from
+    ? `${fmtRangeDate(range.from)} - ${fmtRangeDate(range.to)}`
+    : "فترة مخصصة";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors duration-200 border ${
+            active
+              ? "bg-[#e8b93f] text-black border-[#e8b93f]"
+              : "text-white/60 hover:text-white border-white/10 bg-white/[0.03]"
+          }`}
+        >
+          <CalendarDays className="w-3.5 h-3.5" />
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto overflow-hidden rounded-2xl border p-0 shadow-2xl" dir="rtl" sideOffset={8}>
+        <div className="border-b px-4 py-3" style={{ background: "hsl(var(--muted)/0.45)", borderColor: "hsl(var(--border))" }}>
+          <p className="text-[12px] font-black text-foreground">اختيار فترة مخصصة</p>
+          <p className="mt-1 text-[10px] font-semibold text-muted-foreground">حدد يوم البداية ثم يوم النهاية</p>
+        </div>
+        <Calendar
+          mode="range"
+          selected={draft}
+          onSelect={setDraft}
+          numberOfMonths={2}
+          initialFocus
+          className="p-3"
+        />
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-3" style={{ borderColor: "hsl(var(--border))" }}>
+          <button
+            type="button"
+            onClick={() => { onClear(); setDraft(undefined); setOpen(false); }}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold text-muted-foreground transition hover:bg-muted"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            مسح
+          </button>
+          <button
+            type="button"
+            disabled={!hasCompleteDraft}
+            onClick={() => { if (draft?.from && draft?.to) { onApply(draft); setOpen(false); } }}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black transition disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: hasCompleteDraft ? "rgba(34,197,94,0.14)" : "hsl(var(--muted)/0.55)",
+              color: hasCompleteDraft ? "#22c55e" : "hsl(var(--muted-foreground))",
+            }}
+          >
+            <Check className="h-3.5 w-3.5" />
+            تطبيق
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Collapsible section wrapper
 // ═══════════════════════════════════════════════════════════════════════════
 function CollapsibleDetail({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -402,10 +490,28 @@ function CollapsibleDetail({ title, children, defaultOpen = false }: { title: st
 // ═══════════════════════════════════════════════════════════════════════════
 export default function InventoryIntelligencePage() {
   const [period, setPeriod] = useState("month");
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
+
+  // لما يبقى فيه فترة مخصصة مطبّقة، هي اللي تحكم الطلب فعليًا بغض النظر عن قيمة period
+  const toDateStr = (d: Date) => {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const isCustomActive = !!(customRange?.from && customRange?.to);
+  const effectivePeriod = isCustomActive ? "custom" : period;
+  const effectiveFrom = isCustomActive ? toDateStr(customRange!.from!) : undefined;
+  const effectiveTo = isCustomActive ? toDateStr(customRange!.to!) : undefined;
+
+  const handlePeriodChange = (v: string) => {
+    setCustomRange(undefined); // اختيار فترة سريعة يلغي أي فترة مخصصة مطبّقة
+    setPeriod(v);
+  };
+  const handleCustomApply = (range: DateRange) => setCustomRange(range);
+  const handleCustomClear = () => setCustomRange(undefined);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["analytics", "inventory-intelligence", period],
-    queryFn: () => analyticsApi.inventoryIntelligence({ period }),
+    queryKey: ["analytics", "inventory-intelligence", effectivePeriod, effectiveFrom, effectiveTo],
+    queryFn: () => analyticsApi.inventoryIntelligence({ period: effectivePeriod, from: effectiveFrom, to: effectiveTo }),
     staleTime: 60_000,
   });
 
@@ -446,7 +552,15 @@ export default function InventoryIntelligencePage() {
             <p className="text-xs text-white/40">سرعة الحركة، رأس المال المجمّد، توزيع المخازن، وتنبيهات ذكية لكل منتج</p>
           </div>
         </div>
-        <PeriodSwitcher value={period} onChange={setPeriod} />
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodSwitcher value={isCustomActive ? "" : period} onChange={handlePeriodChange} />
+          <DateRangePicker
+            active={isCustomActive}
+            range={customRange}
+            onApply={handleCustomApply}
+            onClear={handleCustomClear}
+          />
+        </div>
       </div>
 
       {/* Alerts */}

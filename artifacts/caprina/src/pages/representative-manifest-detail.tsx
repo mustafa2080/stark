@@ -4136,9 +4136,22 @@ export default function ShippingManifestPage() {
           if (o.deliveryStatus === "partial_received") return true;
           return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason);
         });
-        const shippingCostGroupsCountLocal = groupManifestOrders(shippingCostOrdersLocal).length;
         const repExtraCostTotalLocal = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
-        const shippingCostLocal = (courierCostPerShipmentLocal * shippingCostGroupsCountLocal) + repExtraCostTotalLocal;
+        // تكلفة الشحن = مجموع تكلفة كل شحنة على حدة حسب زونها الفعلي (نفس منطق كارت
+        // "إجمالي تكلفة الشحن" وعمود "شحن" بالجدول بالظبط) بدل سعر ثابت × عدد.
+        const shippingCostBaseLocal = shippingCostOrdersLocal.reduce((s: number, o: any) => {
+          if (companyAnyPnlLocal?.costMode === "zone") {
+            const oZoneId = o?.zoneId;
+            if (oZoneId != null) {
+              const oZone = pnlSettlementZones.find((z: any) => z.id === oZoneId);
+              if (oZone) {
+                return s + (oZone.costPrice != null ? Number(oZone.costPrice) : (oZone.price != null ? Number(oZone.price) : 0));
+              }
+            }
+          }
+          return s + courierCostPerShipmentLocal;
+        }, 0);
+        const shippingCostLocal = shippingCostBaseLocal + repExtraCostTotalLocal;
         const due = deliveredCODLocal - shippingCostLocal;
         setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
       }
@@ -4462,8 +4475,21 @@ export default function ShippingManifestPage() {
     }
     return companyAnyPrint?.shippingCost != null ? Number(companyAnyPrint.shippingCost) : 0;
   })();
-  const shippingCostGroupsCountPrint = groupManifestOrders(shippingCostOrdersPrint).length;
-  const shippingCostPrint = courierShippingCostForCalcPrint * shippingCostGroupsCountPrint;
+  // تكلفة الشحن (طباعة) = مجموع تكلفة كل شحنة على حدة حسب زونها الفعلي — نفس منطق
+  // الكارت وعمود "شحن" بالجدول بالظبط، بدل سعر ثابت × عدد.
+  const shippingCostOrdersBasePrint = shippingCostOrdersPrint.reduce((s: number, o: any) => {
+    if (companyAnyPrint?.costMode === "zone") {
+      const oZoneId = o?.zoneId;
+      if (oZoneId != null) {
+        const oZone = pnlSettlementZones.find(z => z.id === oZoneId);
+        if (oZone) {
+          return s + (oZone.costPrice != null ? Number(oZone.costPrice) : (oZone.price != null ? Number(oZone.price) : 0));
+        }
+      }
+    }
+    return s + courierShippingCostForCalcPrint;
+  }, 0);
+  const shippingCostPrint = shippingCostOrdersBasePrint;
   const repExtraCostTotalPrint = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
   const effectiveShipping = shippingCostPrint + repExtraCostTotalPrint;
 
@@ -5304,11 +5330,22 @@ export default function ShippingManifestPage() {
           if (o.deliveryStatus === "partial_received") return true;
           return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((o as any).returnReason);
         });
-        const shippingCostGroups = groupManifestOrders(shippingCostOrders);
-        const shippingCostGroupsCount = shippingCostGroups.length;
-        // تكلفة الشحن = قيمة ثابتة واحدة (تكلفة الشحنة المسجَّلة على شركة الشحن نفسها)
-        // × عدد الشحنات المؤهلة، بدل سعر منطقة كل شحنة على حدة.
-        const shippingCost = courierShippingCostForCalc * shippingCostGroupsCount;
+        // تكلفة الشحن = مجموع تكلفة كل شحنة على حدة حسب زونها الفعلي (تكاليف المناطق)،
+        // بنفس منطق عمود "شحن" في الجدول بالظبط — عشان الإجمالي هنا يطابق مجموع
+        // الأرقام الظاهرة في الصفوف 100%. لو costMode != "zone" أو الشحنة معندهاش
+        // زون معروف، بيرجع لـ courierShippingCostForCalc (سعر ثابت/fallback) لكل شحنة.
+        const shippingCost = shippingCostOrders.reduce((s, o) => {
+          if (companyAnyPnl?.costMode === "zone") {
+            const oZoneId = (o as any).zoneId;
+            if (oZoneId != null) {
+              const oZone = pnlSettlementZones.find(z => z.id === oZoneId);
+              if (oZone) {
+                return s + (oZone.costPrice != null ? Number(oZone.costPrice) : (oZone.price != null ? Number(oZone.price) : 0));
+              }
+            }
+          }
+          return s + courierShippingCostForCalc;
+        }, 0);
         // سعر المنطقة الفعلي لكل شحنة = من جدول shipment_zones الحالي حسب zoneId
         // بتاع كل شحنة (مش سعر ثابت للشركة ومش shippingFee المجمَّد وقت الإنشاء).
         // لو الشحنة مالهاش zoneId أو المنطقة مش موجودة في الجدول الحالي → صفر لها.
