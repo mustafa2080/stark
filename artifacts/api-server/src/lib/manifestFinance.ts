@@ -50,21 +50,22 @@ export async function computeManifestNetDue(
       ? Number(shipment.shippingFee)
       : courierCostPerShipment;
 
+    // تكلفة الشحن بتتخصم على كل شحنة داخلة البيان أيًا كانت حالتها — نفس إجمالي
+    // تكلفة الشحن المعروض في صفحة البيان (مجموع عمود الشحن لكل الطلبيات)، مش
+    // بس المُسلَّمة أو المرتجعة بسبب مالي.
+    courierCostManual += shipmentShippingFee;
+
     if (item.deliveryStatus === "delivered") {
       // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا السعر العادي
       const dvr = (item as any).deliveredValueReceived;
       deliveredGross += dvr != null ? Number(dvr) : price;
-      courierCostManual += shipmentShippingFee;
     } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
       // partialQuantity هنا قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي
       deliveredGross += Number(item.partialQuantity);
-      courierCostManual += shipmentShippingFee;
     } else if (item.deliveryStatus === "partial_received") {
-      // إشعار "باقي مرتجع من استلام جزئي" مُرحَّل من بيان قديم. بيدخل في تكلفة
-      // الشحن دايمًا، لكن بياخد قيمة مالية بس لو اتأكد استلامه فعليًا من شركة
-      // الشحن في البيان ده نفسه (returnReceived === 1) — نفس شرط الفرونت بالظبط
-      // (isStillAtShipping/isReceivedBack) في تفاصيل البيان.
-      courierCostManual += shipmentShippingFee;
+      // إشعار "باقي مرتجع من استلام جزئي" مُرحَّل من بيان قديم. بياخد قيمة مالية
+      // بس لو اتأكد استلامه فعليًا من شركة الشحن في البيان ده نفسه
+      // (returnReceived === 1) — نفس شرط الفرونت بالظبط (isStillAtShipping/isReceivedBack).
       const rr = (shipment as any).returnReceived;
       const isReceivedBack = rr === 1 || rr === true || rr === "1";
       if (isReceivedBack && item.partialQuantity != null) {
@@ -74,11 +75,9 @@ export async function computeManifestNetDue(
       }
     } else if (item.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL.includes((item as any).returnReason)) {
       // مرتجع بسبب مالي (رفض بالدفع / جودة): القيمة اللي استلمها المندوب فعليًا من العميل
-      // — بتدخل في تكلفة الشحن برضه زي الفرونت بالظبط
       deliveredGross += Number((item as any).returnValueReceived ?? 0);
-      courierCostManual += shipmentShippingFee;
     }
-    // delayed / pending / مرتجع بأسباب أخرى → مش بيتحسب خالص (لا إيراد ولا تكلفة شحن)
+    // delayed / pending / مرتجع بأسباب أخرى → مفيش إيراد، لكن تكلفة الشحن بتتخصم برضه فوق
   }
 
   // الصافي المستحق من المندوب (COD المسلَّم − مجموع عمود الشحن الفعلي للشحنات المؤهلة)
