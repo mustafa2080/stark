@@ -390,7 +390,7 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
     shipmentMap = new Map(shipments.map(s => [s.id, s]));
   }
 
-  const tasks = items.map(item => {
+  let tasks = items.map(item => {
     const sh = shipmentMap.get(item.shipmentId);
     return {
       id: item.shipmentId,
@@ -415,6 +415,13 @@ router.get("/today-tasks", requireRepresentativeOrAdmin, async (req: Request, re
       collectedAmount:  sh?.collectedAmount   ?? null,
     };
   });
+
+  // استبعاد نهائي لأي مهمة اتقفلت فعليًا على مستوى الشحنة نفسها (shipmentsTable.status)
+  // حتى لو deliveryStatus في جدول البيان لسه متسجل بقيمة "نشطة" (زي partial_received
+  // اللي بتتحول لـ partial_delivered — قيمة موجودة أصلاً في activeDeliveryStatuses).
+  // من غير الاستبعاد ده، الشحنة تفضل ظاهرة في "مهامي" رغم إن المندوب قفلها بالفعل.
+  const CLOSED_SHIPMENT_STATUSES = ["delivered", "received", "partial_received", "returned"];
+  tasks = tasks.filter(t => !CLOSED_SHIPMENT_STATUSES.includes(t.status));
 
   // رتب: مستعجل أولاً → delayed → partial_delivered → pending
   const priority = (t: any) => {

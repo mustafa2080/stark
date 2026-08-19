@@ -79,7 +79,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
   const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "quality"];
   const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE.includes(returnReason);
 
-  const needsNote = status === "delayed" || status === "returned";
+  const needsNote = true;
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -162,7 +162,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
 
             {status === "partial_received" && (
               <div className="space-y-2 border border-teal-700/40 rounded-md p-2.5 bg-teal-900/10">
-                <Label className="text-[10px] font-bold text-teal-400">الكمية المستلمة</Label>
+                <Label className="text-[10px] font-bold text-teal-400">القيمة المستلمة</Label>
                 <input
                   type="number"
                   min={0}
@@ -170,17 +170,6 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                   onChange={(e) => setPartialQty(e.target.value)}
                   className="h-8 w-full rounded border border-teal-700/50 bg-background px-2 text-xs"
                   placeholder="مطلوب"
-                />
-                <Label className="text-[10px] font-bold text-teal-400 pt-1 block">
-                  القيمة المستلمة فعليًا (اختياري)
-                </Label>
-                <input
-                  type="number"
-                  min={0}
-                  value={deliveredValueReceived}
-                  onChange={(e) => setDeliveredValueReceived(e.target.value)}
-                  className="h-8 w-full rounded border border-teal-700/50 bg-background px-2 text-xs"
-                  placeholder={shipment.totalAmount != null ? `الإجمالي: ${shipment.totalAmount}` : "المبلغ المستلم"}
                 />
               </div>
             )}
