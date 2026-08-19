@@ -802,7 +802,7 @@ function OrderDeliveryRow({
                   ? "مثال: العميل مش راد، العنوان غلط..."
                   : status === "returned"
                   ? "مثال: العميل رفض الاستلام..."
-                  : "ملاحظة (اختياري)..."
+                  : "ملاحظة (مطلوب)..."
               }
               autoFocus={!needsPartial}
             />
