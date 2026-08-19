@@ -2458,55 +2458,15 @@ function CloseConfirmDialog({
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden px-3 pb-3 text-xs">
                   {(() => {
-                    // نفس منطق كارت "الرصيد المستحق من المندوب" بالظبط (representative-manifest-detail.tsx):
-                    // deliveredCOD - (تكلفة الشحن للطلبية الواحدة × عدد الشحنات المؤهلة فعليًا) —
-                    // مش حساب مبسّط بمرة شحن واحدة كان بيدي رقم مختلف تمامًا.
-                    const RETURN_REASONS_IN_PNL_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
-                    const isRolledOver = (o: any) => ((o?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
-                    const isStillAtShippingLocal = (o: any) => {
-                      const rr = o?.returnReceived;
-                      const isReceivedBack = rr === 1 || rr === true || rr === "1";
-                      if (o?.deliveryStatus === "returned") return !isReceivedBack;
-                      if (o?.deliveryStatus === "partial_received" || o?.deliveryStatus === "partial_delivered") return !isReceivedBack;
-                      return false;
-                    };
-                    const ordersForPnlLocal = (manifest.orders ?? []).filter((o: any) => {
-                      if (o.deliveryStatus === "returned") {
-                        if (isRolledOver(o)) return false;
-                        if (!RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason)) return false;
-                        const hasReturnValueLocal = o.returnValueReceived != null;
-                        return hasReturnValueLocal || !isStillAtShippingLocal(o);
-                      }
-                      if (o.deliveryStatus === "partial_delivered") return !isRolledOver(o);
-                      if (o.deliveryStatus === "partial_received") return !isStillAtShippingLocal(o);
-                      return true;
-                    });
-                    const deliveredOrdersLocal = ordersForPnlLocal.filter((o: any) => {
-                      if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-                      if (o.deliveryStatus === "partial_received") return o.returnReceived === 1;
-                      return false;
-                    });
-                    const deliveredCODLocal = deliveredOrdersLocal.reduce((sum: number, o: any) => {
-                      if (o.deliveryStatus === "partial_delivered" && o.partialQuantity != null) {
-                        return sum + Number(o.partialQuantity);
-                      }
-                      if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
-                        return sum + Number(o.unitPrice) * Number(o.partialQuantity);
-                      }
-                      const dvr = o.deliveredValueReceived;
-                      return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
-                    }, 0) + ordersForPnlLocal
-                      .filter((o: any) => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason))
-                      .reduce((sum: number, o: any) => sum + Number(o.returnValueReceived ?? 0), 0);
-                    const courierCostPerShipmentLocal = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
-                    const shippingCostOrdersLocal = ordersForPnlLocal.filter((o: any) => {
-                      if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-                      if (o.deliveryStatus === "partial_received") return true;
-                      return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_LOCAL.includes(o.returnReason);
-                    });
-                    const shippingCostGroupsCountLocal = groupManifestOrders(shippingCostOrdersLocal).length;
-                    const effectiveShipping = courierCostPerShipmentLocal * shippingCostGroupsCountLocal;
-                    const due = deliveredCODLocal - effectiveShipping;
+                    // ⚠️ لازم يفضل مطابق تمامًا لـ "الرصيد المستحق من المندوب" الظاهر في
+                    // صفحة المندوب و/representative/wallet — المصدر الموحّد الوحيد هو
+                    // computeManifestNetDue (manifestFinance.ts)، اللي الباك إند بيرجّعه
+                    // جاهز في manifest.stats.walletNetDue / walletGrossDue (GET /shipment-manifests/:id).
+                    // ممنوع إعادة حساب أي جزء من ده يدويًا هنا — أي منطق محلي (deliveredCOD يدوي،
+                    // courierCostPerShipment × عدد المجموعات، إلخ) بيطلع رقم مختلف عن الصح.
+                    const due = (manifest as any)?.stats?.walletNetDue ?? 0;
+                    const deliveredCODLocal = (manifest as any)?.stats?.walletGrossDue ?? 0;
+                    const effectiveShipping = deliveredCODLocal - due;
                     return (
                       <>
                         <p className="font-black text-lg text-primary">
