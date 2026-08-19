@@ -2166,7 +2166,7 @@ function InvoiceGroupDeliveryRow({
                 placeholder={
                   bulkStatus === "postponed" ? "مثال: العميل طلب التأجيل..."
                   : bulkStatus === "returned" ? "مثال: العميل رفض الاستلام..."
-                  : "ملاحظة (اختياري)..."
+                  : "ملاحظة (مطلوب)..."
                 }
               />
             </div>
