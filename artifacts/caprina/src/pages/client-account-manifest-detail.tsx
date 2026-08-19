@@ -2157,7 +2157,7 @@ function InvoiceGroupDeliveryRow({
 
             <div>
               <Label className="text-[10px] mb-1 block text-muted-foreground">
-                {needsBulkNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
+                {needsBulkNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (مطلوب)"}
               </Label>
               <Input
                 value={bulkNote}
