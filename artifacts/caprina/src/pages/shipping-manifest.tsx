@@ -5109,7 +5109,29 @@ export default function ShippingManifestPage() {
         // المستحق من المندوب" فقط.
         const repExtraCostBreakdown = ((manifest as any)?.stats?.repExtraCostBreakdown ?? []) as Array<{ reason?: string | null; amount?: number }>;
         const repExtraCostTotal = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
-        const baseDisplayedShippingCost = companyAnyPnl?.costMode === "zone" ? zonePricePnl : shippingCost;
+        // ─── إجمالي تكلفة الشحن في الكارت = مجموع عمود "شحن" الظاهر فعليًا في كل صف بالجدول ───
+        // مش مقصور على ordersForPnl/shippingCostOrders (اللي بتستبعد pending/delayed/rolled-over
+        // وبعض حالات returned المعلَّقة) — الكارت لازم يطابق الجدول 1:1 بغض النظر عن أي فلترة
+        // إضافية معمولة على مستوى الحسابات المالية التانية (صافي الربح، الرصيد المستحق...).
+        // نفس شرط shippingWasIncurred المستخدم في عمود الصف بالظبط، على مستوى كل مجموعة
+        // (فاتورة/شحنة) في manifest.orders كله من غير أي استبعاد.
+        const RETURN_REASONS_WITH_SHIPPING_TOTAL = ["refused_paid", "refused_unpaid", "quality"];
+        const allManifestGroupsForTotal = groupManifestOrders((manifest.orders ?? []) as any);
+        const baseDisplayedShippingCost = allManifestGroupsForTotal.reduce((sum, group) => {
+          const repRow = group[0] as any;
+          const rowIncurred =
+            repRow?.deliveryStatus === "delivered" ||
+            repRow?.deliveryStatus === "partial_delivered" ||
+            repRow?.deliveryStatus === "partial_received" ||
+            (repRow?.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_TOTAL.includes(repRow?.returnReason));
+          if (!rowIncurred) return sum;
+          if (companyAnyPnl?.costMode === "zone") {
+            const zId = repRow?.zoneId;
+            const zone = zId != null ? pnlSettlementZones.find(z => z.id === zId) : null;
+            return sum + (zone?.costPrice != null ? Number(zone.costPrice) : 0);
+          }
+          return sum + courierShippingCostForCalc;
+        }, 0);
         const displayedShippingCost = baseDisplayedShippingCost + repExtraCostTotal;
         // ─── صافي الربح الحقيقي = مصروف الشحن للأوردر − تكلفة الشحن للأوردر ───
         // مصروف الشحن للأوردر = رسوم الشحن المسجَّلة على كل أوردر (shippingFee) —
