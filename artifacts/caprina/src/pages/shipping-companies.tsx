@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, LayoutGrid, List } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, LayoutGrid, List, Lock } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -485,6 +485,18 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
   const openShipmentManifest = shipmentManifests?.find(m => m.status === "open") ?? null;
   // البيان المفتوح الفعلي — نظام الشحنات له الأولوية
   const activeManifest = openShipmentManifest ?? openManifest;
+  // كل شحنات البيان المفتوح اتحسمت (مفيش قيد انتظار ولا مؤجل) — جاهز للإقفال
+  const activeManifestAllCollected = !!activeManifest && (
+    ((activeManifest as any).statusCounts?.pending ?? (activeManifest as any).pendingCount ?? 0) === 0 &&
+    ((activeManifest as any).statusCounts?.delayed ?? (activeManifest as any).postponedCount ?? 0) === 0 &&
+    (((activeManifest as any).shipmentCount ?? (activeManifest as any).orderCount ?? 0) > 0)
+  );
+  // آخر بيان قفله المندوب ولسه مستني تأكيد الأدمن (مفيش بيان مفتوح دلوقتي)
+  const lastRepClosedManifest = !activeManifest
+    ? (shipmentManifests ?? [])
+        .filter(m => (m as any).closedByRole === "representative")
+        .sort((a, b) => new Date((b as any).closedAt ?? b.createdAt).getTime() - new Date((a as any).closedAt ?? a.createdAt).getTime())[0] ?? null
+    : null;
   if (hidden) return null;
   if (!stats && !shipmentStats) return null;
 
@@ -529,6 +541,19 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
           <p className="text-sm font-black text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]">{merged.returned}</p>
         </div>
       </div>
+      {/* بانر: تم التحصيل ومستني إقفال البيان، أو آخر بيان اتقفل من المندوب */}
+      {activeManifestAllCollected && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <span className="text-[11px] font-bold">تم التحصيل، في انتظار إقفال البيان</span>
+        </div>
+      )}
+      {lastRepClosedManifest && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+          <Lock className="w-3.5 h-3.5 shrink-0" />
+          <span className="text-[11px] font-bold">تم إغلاق البيان من قبل المندوب</span>
+        </div>
+      )}
       {/* قسم البيان الحالي */}
       <div className="bg-muted/20 border border-border/40 rounded-lg p-2">
         <p className="text-[10px] text-muted-foreground text-center mb-1.5">البيان الحالي</p>
