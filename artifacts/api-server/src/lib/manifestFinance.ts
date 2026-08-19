@@ -23,7 +23,7 @@ export async function computeManifestNetDue(
     : [];
   const shipmentMap = new Map(shipments.map(s => [s.id, s]));
 
-  // جيب شركة الشحن عشان تكلفة المندوب لكل شحنة (courierCostPerShipment)
+  // جيب شركة الشحن (احتياطي بس لو الشحنة مفيهاش shippingFee مسجل)
   const [company] = manifest.shippingCompanyId != null
     ? await db.select().from(shippingCompaniesTable)
         .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId))
@@ -35,7 +35,7 @@ export async function computeManifestNetDue(
   const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
 
   let deliveredGross = 0;
-  let shippingCostCount = 0;
+  let courierCostManual = 0;
 
   for (const item of items) {
     const shipment = shipmentMap.get(item.shipmentId);
@@ -43,22 +43,28 @@ export async function computeManifestNetDue(
     // السعر الكامل للشحنة المسلَّمة = totalAmount (codAmount + shippingFee)، مش codAmount
     // لوحده — نفس totalPrice المستخدم في deliveredCOD بالفرونت بالظبط.
     const price = Number((shipment as any).totalAmount ?? (Number((shipment as any).codAmount ?? 0) + Number(shipment.shippingFee ?? 0)));
+    // تكلفة شحن الشحنة الواحدة = عمود الشحن الفعلي المكتوب عليها (shippingFee) —
+    // مش سعر ثابت مضروب في العدد. لو الشحنة مفيهاش shippingFee مسجل (صفر/فاضي)،
+    // بنرجع لسعر الشركة الثابت كاحتياطي بس.
+    const shipmentShippingFee = Number(shipment.shippingFee ?? 0) > 0
+      ? Number(shipment.shippingFee)
+      : courierCostPerShipment;
 
     if (item.deliveryStatus === "delivered") {
       // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا السعر العادي
       const dvr = (item as any).deliveredValueReceived;
       deliveredGross += dvr != null ? Number(dvr) : price;
-      shippingCostCount += 1;
+      courierCostManual += shipmentShippingFee;
     } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
       // partialQuantity هنا قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي
       deliveredGross += Number(item.partialQuantity);
-      shippingCostCount += 1;
+      courierCostManual += shipmentShippingFee;
     } else if (item.deliveryStatus === "partial_received") {
       // إشعار "باقي مرتجع من استلام جزئي" مُرحَّل من بيان قديم. بيدخل في تكلفة
       // الشحن دايمًا، لكن بياخد قيمة مالية بس لو اتأكد استلامه فعليًا من شركة
       // الشحن في البيان ده نفسه (returnReceived === 1) — نفس شرط الفرونت بالظبط
       // (isStillAtShipping/isReceivedBack) في تفاصيل البيان.
-      shippingCostCount += 1;
+      courierCostManual += shipmentShippingFee;
       const rr = (shipment as any).returnReceived;
       const isReceivedBack = rr === 1 || rr === true || rr === "1";
       if (isReceivedBack && item.partialQuantity != null) {
@@ -70,14 +76,11 @@ export async function computeManifestNetDue(
       // مرتجع بسبب مالي (رفض بالدفع / جودة): القيمة اللي استلمها المندوب فعليًا من العميل
       // — بتدخل في تكلفة الشحن برضه زي الفرونت بالظبط
       deliveredGross += Number((item as any).returnValueReceived ?? 0);
-      shippingCostCount += 1;
+      courierCostManual += shipmentShippingFee;
     }
     // delayed / pending / مرتجع بأسباب أخرى → مش بيتحسب خالص (لا إيراد ولا تكلفة شحن)
   }
 
-  // الصافي المستحق من المندوب (COD المسلَّم − تكلفة شحن المندوب)
-  // تكلفة الشحن بتتحسب على كل الشحنات المؤهلة (مسلَّم + جزئي + استلام جزئي مؤكَّد
-  // + مرتجع بأسباب مالية) — نفس منطق shippingCostOrders بالفرونت بالظبط.
-  const courierCostManual = courierCostPerShipment * shippingCostCount;
+  // الصافي المستحق من المندوب (COD المسلَّم − مجموع عمود الشحن الفعلي للشحنات المؤهلة)
   return { gross: deliveredGross, net: deliveredGross - courierCostManual };
 }
