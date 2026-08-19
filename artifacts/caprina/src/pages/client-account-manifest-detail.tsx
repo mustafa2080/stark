@@ -789,7 +789,7 @@ function OrderDeliveryRow({
           )}
           <div>
             <Label className="text-[10px] mb-1 block text-muted-foreground">
-              {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (مطلوب)"}
+              {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
             </Label>
             <Input
               value={note}
@@ -802,7 +802,7 @@ function OrderDeliveryRow({
                   ? "مثال: العميل مش راد، العنوان غلط..."
                   : status === "returned"
                   ? "مثال: العميل رفض الاستلام..."
-                  : "ملاحظة (مطلوب)..."
+                  : "ملاحظة (اختياري)..."
               }
               autoFocus={!needsPartial}
             />
@@ -2157,7 +2157,7 @@ function InvoiceGroupDeliveryRow({
 
             <div>
               <Label className="text-[10px] mb-1 block text-muted-foreground">
-                {needsBulkNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (مطلوب)"}
+                {needsBulkNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
               </Label>
               <Input
                 value={bulkNote}
@@ -2166,7 +2166,7 @@ function InvoiceGroupDeliveryRow({
                 placeholder={
                   bulkStatus === "postponed" ? "مثال: العميل طلب التأجيل..."
                   : bulkStatus === "returned" ? "مثال: العميل رفض الاستلام..."
-                  : "ملاحظة (مطلوب)..."
+                  : "ملاحظة (اختياري)..."
                 }
               />
             </div>

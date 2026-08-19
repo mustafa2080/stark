@@ -224,7 +224,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
 
             <div>
               <Label className="text-[10px] mb-1 block text-muted-foreground">
-                {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
+                {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (مطلوب)"}
               </Label>
               <Input
                 value={note}
