@@ -79,7 +79,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
   const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "quality"];
   const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE.includes(returnReason);
 
-  const needsNote = true;
+  const needsNote = status !== "delivered";
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -233,6 +233,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                 placeholder={
                   status === "delayed" ? "مثال: العميل طلب التأجيل..."
                   : status === "returned" ? "مثال: العميل رفض الاستلام..."
+                  : status === "delivered" ? "ملاحظة (اختياري)..."
                   : "ملاحظة (مطلوب)..."
                 }
               />
