@@ -5,6 +5,7 @@ import {
   shipmentManifestItemsTable,
   shipmentsTable,
   shippingCompaniesTable,
+  shipmentZonesTable,
   zoneCostsTable,
 } from "@workspace/db";
 
@@ -24,29 +25,46 @@ export async function computeManifestNetDue(
     : [];
   const shipmentMap = new Map(shipments.map(s => [s.id, s]));
 
-  // جيب شركة الشحن بتاعة البيان: costMode بيحدد طريقة حساب تكلفة كل شحنة —
+  // جيب شركة الشحن بتاعة البيان — نفس مصدر عمود "شحن" في صفحة تفاصيل بيان
+  // المندوب بالظبط (getShipmentShippingCost بالفرونت). costMode بيحدد الطريقة:
   //   "rep"  → سعر ثابت واحد لكل شحنة (company.shippingCost)
-  //   "zone" → سعر تكلفة منطقة الشحنة الفعلي (zone_costs.deliveryCost حسب zoneId)
-  // نفس المنطق بالظبط المستخدم في الفرونت (getShipmentShippingCost بصفحة تفاصيل
-  // بيان المندوب) وفي client-account-manifests.ts (getZoneCost) — لازم تفضل الثلاثة متطابقة.
+  //   "zone" → سعر منطقة الشحنة، مع سلسلة fallback كاملة (تحت)
   const [company] = manifest.shippingCompanyId != null
-    ? await db.select({
-        costMode: shippingCompaniesTable.costMode,
-        shippingCost: shippingCompaniesTable.shippingCost,
-      }).from(shippingCompaniesTable)
+    ? await db.select().from(shippingCompaniesTable)
         .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId))
     : [];
   const isZoneMode = company?.costMode === "zone";
   const flatShippingCost = Math.abs(Number(company?.shippingCost ?? 0));
 
-  // في وضع "zone" محتاجين تكلفة كل منطقة (zone_costs.deliveryCost) حسب zoneId
-  // بتاع كل شحنة — نفس مصدر عمود "شحن" في صفحة تفاصيل بيان المندوب بالظبط.
+  // في وضع "zone" محتاجين: تكلفة كل منطقة (zone_costs.deliveryCost)، وسعرها
+  // العادي (shipment_zones.price) كـ fallback لو مفيش costPrice مسجل ليها —
+  // نفس zoneForShipment.costPrice ?? zoneForShipment.price بالفرونت بالظبط.
+  // ولازم كمان زون الشركة الافتراضي (company.zoneIds[0] أو company.zoneId)
+  // كـ fallback تاني لو الشحنة نفسها مالهاش zoneId معروف أصلاً.
   let zoneCostMap: Record<number, number> = {};
+  let zonePriceMap: Record<number, number> = {};
+  let defaultZoneId: number | null = null;
   if (isZoneMode) {
-    const zoneIds = [...new Set(shipments.map(s => (s as any).zoneId).filter((v): v is number => v != null))];
-    if (zoneIds.length) {
-      const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+    const shipmentZoneIds = [...new Set(shipments.map(s => (s as any).zoneId).filter((v): v is number => v != null))];
+
+    // زون الشركة الافتراضي: أول عنصر في zoneIds (JSON array)، وإلا zoneId القديم
+    if (company?.zoneIds) {
+      try {
+        const parsed = JSON.parse(company.zoneIds as any);
+        if (Array.isArray(parsed) && parsed.length) defaultZoneId = Number(parsed[0]);
+      } catch {}
+    } else if ((company as any)?.zoneId != null) {
+      defaultZoneId = Number((company as any).zoneId);
+    }
+
+    const allZoneIds = [...new Set([...shipmentZoneIds, ...(defaultZoneId != null ? [defaultZoneId] : [])])];
+    if (allZoneIds.length) {
+      const [zoneCostRows, zoneRows] = await Promise.all([
+        db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, allZoneIds)),
+        db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, allZoneIds)),
+      ]);
       zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+      zonePriceMap = Object.fromEntries(zoneRows.map(z => [z.id, Number(z.price) || 0]));
     }
   }
 
@@ -56,18 +74,31 @@ export async function computeManifestNetDue(
 
   // شحن بيُحسب فقط لو الحالة delivered / partial_delivered / partial_received
   // أو returned بسبب مالي (رفض بعد معاينة مدفوع/غير مدفوع، أو مشكلة جودة) —
-  // بغض النظر هل البضاعة اتأكد رجوعها للمخزن ولا لسه، لأن تكلفة التوصيل نفسها
-  // اتصرفت فعليًا بمجرد محاولة التسليم. نفس shipmentIncursShippingCost بالفرونت.
+  // بغض النظر هل البضاعة اتأكد رجوعها للمخزن ولا لسه. نفس shipmentIncursShippingCost بالفرونت.
   function shipmentIncursShippingCost(status: string | null | undefined, returnReason: string | null | undefined): boolean {
     if (status === "delivered" || status === "partial_delivered" || status === "partial_received") return true;
     if (status === "returned") return RETURN_REASONS_IN_PNL.includes(returnReason ?? "");
     return false;
   }
 
+  // نفس زون-فولباك بالفرونت بالظبط: costPrice ثم price لزون الشحنة نفسها، وإلا
+  // نفس السلسلة على زون الشركة الافتراضي، وإلا صفر.
+  function costForZone(zoneId: number | null): number {
+    if (zoneId == null) return 0;
+    if (zoneCostMap[zoneId] != null) return zoneCostMap[zoneId];
+    if (zonePriceMap[zoneId] != null) return zonePriceMap[zoneId];
+    return 0;
+  }
+
   function getShipmentShippingCost(shipment: any): number {
     if (!shipment) return 0;
     if (isZoneMode) {
-      return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+      const zoneId = shipment.zoneId != null ? Number(shipment.zoneId) : null;
+      if (zoneId != null && (zoneCostMap[zoneId] != null || zonePriceMap[zoneId] != null)) {
+        return costForZone(zoneId);
+      }
+      // Fallback: مفيش زون معروف للشحنة → زون الشركة الافتراضي
+      return defaultZoneId != null ? costForZone(defaultZoneId) : 0;
     }
     return flatShippingCost;
   }
@@ -83,8 +114,7 @@ export async function computeManifestNetDue(
     const price = Number((shipment as any).totalAmount ?? (Number((shipment as any).codAmount ?? 0) + Number(shipment.shippingFee ?? 0)));
 
     // تكلفة الشحن بتتحسب فقط للحالات اللي بتستوجب شحن (نفس شرط الفرونت)، ومن
-    // نفس مصدر عمود "شحن" (costMode: rep = سعر شركة ثابت، zone = تكلفة المنطقة
-    // الفعلية) — مش من shipment.shippingFee المجمَّد وقت الإنشاء.
+    // نفس مصدر عمود "شحن" بالظبط — مش من shipment.shippingFee المجمَّد وقت الإنشاء.
     if (shipmentIncursShippingCost((item as any).deliveryStatus, (item as any).returnReason)) {
       courierCostManual += getShipmentShippingCost(shipment);
     }
