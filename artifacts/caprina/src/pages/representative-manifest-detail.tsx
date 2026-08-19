@@ -2692,14 +2692,15 @@ function CloseConfirmDialog({
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden px-3 pb-3 text-xs">
                   {(() => {
-                    // ⚠️ لازم يفضل مطابق تمامًا لـ "إجمالي تكلفة الشحن" و"عمود شحن" الظاهرين
-                    // في نفس الصفحة (مصدرهم الموحّد: shipment.shippingFee الفعلي لكل شحنة،
-                    // مع fallback لتكلفة المنطقة). الباك إند بيرجّعه جاهز في s.deliveredShippingFees
-                    // (GET /shipment-manifests/:id) — مفيش داعي لإعادة حساب بمنطق مختلف هنا
-                    // (courierCostPerShipment الثابت أو netDueToCompany القديم كانوا بيطلعوا رقم غلط).
-                    const effectiveShipping = (s as any)?.deliveredShippingFees ?? 0;
-                    const gross = (s as any)?.deliveredGross ?? 0;
-                    const due = gross - effectiveShipping;
+                    // ⚠️ لازم يفضل مطابق تمامًا لـ "الرصيد المستحق من المندوب" الظاهر في
+                    // صفحة المندوب و/representative/wallet — المصدر الموحّد الوحيد هو
+                    // computeManifestNetDue (manifestFinance.ts)، اللي الباك إند بيرجّعه
+                    // جاهز في s.walletNetDue / s.walletGrossDue (GET /shipment-manifests/:id).
+                    // ممنوع إعادة حساب أي جزء من ده يدويًا هنا (deliveredShippingFees أو
+                    // netDueToCompany أو courierCostPerShipment) — كلهم منطق مختلف وبيطلعوا رقم غلط.
+                    const due = (s as any)?.walletNetDue ?? 0;
+                    const gross = (s as any)?.walletGrossDue ?? 0;
+                    const effectiveShipping = gross - due;
                     return (
                       <>
                         <p className="font-black text-lg text-primary">
