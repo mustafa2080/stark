@@ -1507,13 +1507,8 @@ export default function ShippingCompanies({ embedded = false }: { embedded?: boo
                     zcIds = [(company as any).zoneCostId];
                   }
                   if (!zcIds.length) {
-                    // مضبوط على "سعر الزون" بس مفيش منطقة متربطة بيه فعليًا — نوضح السبب بدل الاختفاء الصامت
-                    return (
-                      <p className="text-xs flex items-center gap-2 text-amber-400">
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        تكلفة الشحنة: سعر الزون مفعّل، لكن لم يتم ربط "تكلفة منطقة" بالمندوب (مختلف عن مناطق التغطية) — الرجاء ربطها من زر التعديل
-                      </p>
-                    );
+                    // مضبوط على "سعر الزون" بس مفيش منطقة متربطة بيه فعليًا — بلاش أي عرض هنا
+                    return null;
                   }
                   const zoneCostNames = zcIds
                     .map(id => zoneCosts.find(z => z.id === id))
