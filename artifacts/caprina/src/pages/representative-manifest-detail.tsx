@@ -2692,13 +2692,14 @@ function CloseConfirmDialog({
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden px-3 pb-3 text-xs">
                   {(() => {
-                    // ⚠️ لازم يفضل مطابق تمامًا لـ "الرصيد المستحق عليك" في صفحة المندوب
-                    // و/representative/wallet — المصدر الوحيد للاتنين هو computeManifestNetDue
-                    // في الباك إند (walletNetDue). netDueToCompany القديم بيتحسب بمنطق تسوية
-                    // مختلف (courierBaseCost + repExtraCostTotal + zone mode) ومينفعش يتستخدم هنا.
-                    const due = (s as any)?.walletNetDue ?? 0;
-                    const gross = (s as any)?.walletGrossDue ?? 0;
-                    const effectiveShipping = gross - due;
+                    // ⚠️ لازم يفضل مطابق تمامًا لـ "إجمالي تكلفة الشحن" و"عمود شحن" الظاهرين
+                    // في نفس الصفحة (مصدرهم الموحّد: shipment.shippingFee الفعلي لكل شحنة،
+                    // مع fallback لتكلفة المنطقة). الباك إند بيرجّعه جاهز في s.deliveredShippingFees
+                    // (GET /shipment-manifests/:id) — مفيش داعي لإعادة حساب بمنطق مختلف هنا
+                    // (courierCostPerShipment الثابت أو netDueToCompany القديم كانوا بيطلعوا رقم غلط).
+                    const effectiveShipping = (s as any)?.deliveredShippingFees ?? 0;
+                    const gross = (s as any)?.deliveredGross ?? 0;
+                    const due = gross - effectiveShipping;
                     return (
                       <>
                         <p className="font-black text-lg text-primary">
