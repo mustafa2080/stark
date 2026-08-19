@@ -129,6 +129,7 @@ const FINANCE_NAV = [
   { href: "/finance/cash",              label: "الخزنة",             icon: Wallet,       iconColor: "text-yellow-400"   },
   { href: "/finance/expenses",          label: "المصروفات",         icon: Receipt,      iconColor: "text-rose-400"      },
   { href: "/finance",                   label: "لوحة الماليات",     icon: DollarSign,   iconColor: "text-emerald-400"  },
+  { href: "/finance/smart-analytics",   label: "تحليل الماليات الذكي", icon: Brain,     iconColor: "text-violet-400"   },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

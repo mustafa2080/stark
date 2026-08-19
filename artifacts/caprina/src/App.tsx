@@ -217,6 +217,7 @@ const FinanceCash           = lazy(() => import("@/pages/finance-cash"));
 const FinanceCashAnalytics  = lazy(() => import("@/pages/finance-cash-analytics"));
 const FinanceCashArchive    = lazy(() => import("@/pages/finance-cash-archive"));
 const FinanceHub            = lazy(() => import("@/pages/finance-hub"));
+const FinanceSmartAnalytics = lazy(() => import("@/pages/finance-smart-analytics"));
 const FinanceClients              = lazy(() => import("@/pages/finance-clients"));
 const CommercialClientDetail      = lazy(() => import("@/pages/commercial-client-detail"));
 const ClientReturnManifestDetail  = lazy(() => import("@/pages/client-return-manifest-detail"));
@@ -627,6 +628,7 @@ function Router() {
           <Route path="/finance/cash"              component={() => <ProtectedRoute permission="finance.view" component={FinanceCash} />} />
           <Route path="/finance/cash/analytics"  component={() => <ProtectedRoute permission="finance.view" component={FinanceCashAnalytics} />} />
           <Route path="/finance/cash/archive"    component={() => <ProtectedRoute permission="finance.view" component={FinanceCashArchive} />} />
+          <Route path="/finance/smart-analytics" component={() => <ProtectedRoute permission="finance.view" component={FinanceSmartAnalytics} />} />
           {/* Super Admin */}
           <Route path="/super-admin" component={() => user?.role === "super_admin" ? <SuperAdminPage /> : <Redirect to="/" />} />
           {/* Profile */}
