@@ -2692,19 +2692,20 @@ function CloseConfirmDialog({
               <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden px-3 pb-3 text-xs">
                   {(() => {
-                    // ⚠️ لازم ناخد الرقم جاهز من الباك إند (s.netDueToCompany) وميتحسبش تاني هنا محليًا.
-                    // الباك إند بيدعم costMode="zone" (تكلفة لكل منطقة) + repExtraCostTotal (تكلفة إضافية
-                    // حسب نوع الشحنة)، وده منطق معقد ومش بس company.shippingCost × عدد — أي إعادة حساب
-                    // مبسطة هنا هتطلع رقم غلط ومختلف عن الرصيد الفعلي المعروض في صفحة المندوب.
-                    const due = (s as any)?.netDueToCompany ?? 0;
-                    const effectiveShipping = ((s as any)?.courierBaseCost ?? 0) + ((s as any)?.repExtraCostTotal ?? 0);
+                    // ⚠️ لازم يفضل مطابق تمامًا لـ "الرصيد المستحق عليك" في صفحة المندوب
+                    // و/representative/wallet — المصدر الوحيد للاتنين هو computeManifestNetDue
+                    // في الباك إند (walletNetDue). netDueToCompany القديم بيتحسب بمنطق تسوية
+                    // مختلف (courierBaseCost + repExtraCostTotal + zone mode) ومينفعش يتستخدم هنا.
+                    const due = (s as any)?.walletNetDue ?? 0;
+                    const gross = (s as any)?.walletGrossDue ?? 0;
+                    const effectiveShipping = gross - due;
                     return (
                       <>
                         <p className="font-black text-lg text-primary">
                           {formatCurrency(due)}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
-                          إيرادات مستلمة ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
+                          إيرادات مستلمة ({formatCurrency(gross)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
                         </p>
                       </>
                     );

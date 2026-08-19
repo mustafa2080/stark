@@ -412,6 +412,13 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     // صافي الربح الحقيقي = إجمالي رسوم الشحن − تكلفة المندوب
     const realNetProfit     = deliveredShippingFees - courierCostManual;
 
+    // ─── الرصيد الفعلي المستحق من المندوب (نفس مصدر /representative/wallet بالظبط) ───
+    // ⚠️ ده رقم مختلف عن netDueToCompany فوق: computeManifestNetDue بتاخد سعر الشحنة
+    // من shipment.totalAmount مباشرة وتكلفة شحن بسيطة (courierCostPerShipment × عدد)
+    // من غير zone mode ولا repExtraCost. ده هو الرقم اللي المندوب شايفه فعليًا في
+    // صفحته "الرصيد المستحق عليك"، ولازم يفضل هو نفسه الظاهر في مودال إغلاق البيان.
+    const walletNetDue = await computeManifestNetDue(manifest, items);
+
     res.json({
       ...manifest,
       closedByName: manifest.closedByRole === "representative" ? manifestRepName : null, // اسم المندوب اللي قفل البيان مؤقتًا
@@ -424,6 +431,8 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         // ── بيان التسوية الجديد ──
         deliveredShippingFees,                       // إجمالي رسوم الشحن (shippingFee) للشحنات المسلَّمة
         netDueToCompany,                             // صافي المستحق للشركة = المسلَّم − تكلفة المندوب
+        walletNetDue: walletNetDue.net,               // ✅ الرصيد الحقيقي المستحق من المندوب (نفس /representative/wallet)
+        walletGrossDue: walletNetDue.gross,           // الإيراد الخام المقابل لنفس الحساب
         realNetProfit,                               // صافي الربح الحقيقي = رسوم الشحن − تكلفة المندوب
         courierBaseCost,
         repExtraCostTotal,
