@@ -28,6 +28,8 @@ function ShipmentManifestCard({ m, isLatest }: { m: ShipmentManifestListItem; is
   const returned  = sc.returned ?? 0;
   const pending   = (sc.pending ?? 0) + (sc.delayed ?? 0);
   const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+  // كل الشحنات اتحسمت (مفيش معلَّق) والبيان لسه مفتوح
+  const allCollectedPendingClose = m.status === "open" && total > 0 && pending === 0;
 
   return (
     <a href={`/representative/manifests/${m.id}`}>
@@ -36,6 +38,18 @@ function ShipmentManifestCard({ m, isLatest }: { m: ShipmentManifestListItem; is
       }`}>
         <div className={`w-1 rounded-r-lg shrink-0 ${m.status === "closed" ? "bg-emerald-500" : "bg-blue-500"}`} />
         <div className="flex-1 px-4 py-3.5">
+          {m.status === "closed" && m.closedByRole === "representative" && (
+            <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[11px] font-bold">تم إغلاق البيان من قبل المندوب</span>
+            </div>
+          )}
+          {allCollectedPendingClose && (
+            <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[11px] font-bold">تم التحصيل، في انتظار إقفال البيان</span>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
