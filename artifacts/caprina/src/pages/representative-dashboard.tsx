@@ -224,7 +224,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
 
             <div>
               <Label className="text-[10px] mb-1 block text-muted-foreground">
-                {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (مطلوب)"}
+                {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
               </Label>
               <Input
                 value={note}
@@ -233,7 +233,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                 placeholder={
                   status === "delayed" ? "مثال: العميل طلب التأجيل..."
                   : status === "returned" ? "مثال: العميل رفض الاستلام..."
-                  : "ملاحظة (اختياري)..."
+                  : "ملاحظة (مطلوب)..."
                 }
               />
             </div>
