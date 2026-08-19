@@ -55,7 +55,13 @@ const DELIVERY_TO_SHIPMENT_STATUS: Record<ManifestDeliveryStatus, string> = {
 export async function syncShipmentStatusToManifests(
   shipmentId: number,
   newShipmentStatus: string,
-  options?: { skipShipmentManifestItems?: boolean; returnReason?: string | null },
+  options?: {
+    skipShipmentManifestItems?: boolean;
+    returnReason?: string | null;
+    deliveredValueReceived?: number | null;
+    partialQuantity?: number | null;
+    returnValueReceived?: number | null;
+  },
 ): Promise<void> {
   const mapped = SHIPMENT_STATUS_TO_DELIVERY[newShipmentStatus];
   if (!mapped) return; // حالة مش معروفة → متلمسش البيانات
@@ -67,6 +73,20 @@ export async function syncShipmentStatusToManifests(
   const returnReasonPatch = (mapped === "returned" && options?.returnReason !== undefined)
     ? { returnReason: options.returnReason }
     : {};
+  // القيمة الفعلية المستلمة (تقفيل من مهامي المندوب) — بتتنقل لعمود "مستلم" في البيان
+  // بس لو الحالة النهائية مسلَّم بالكامل. عمود decimal في القاعدة فبنحوّلها string
+  // زي باقي حقول decimal التانية في الراوت (لو null بتفضل null عادي).
+  const deliveredValuePatch = (mapped === "delivered" && options?.deliveredValueReceived !== undefined)
+    ? { deliveredValueReceived: options.deliveredValueReceived === null ? null : String(options.deliveredValueReceived) }
+    : {};
+  // نفس الفكرة للاستلام الجزئي — partialQuantity هنا قيمة مالية مش عدد قطع (عمود int).
+  const partialQuantityPatch = (mapped === "partial_delivered" && options?.partialQuantity !== undefined)
+    ? { partialQuantity: options.partialQuantity }
+    : {};
+  // نفس الفكرة للمرتجع (سبب يستلزم قيمة: refused_paid / refused_unpaid / quality). عمود decimal.
+  const returnValuePatch = (mapped === "returned" && options?.returnValueReceived !== undefined)
+    ? { returnValueReceived: options.returnValueReceived === null ? null : String(options.returnValueReceived) }
+    : {};
 
   try {
     await db.update(clientAccountManifestItemsTable)
@@ -74,6 +94,9 @@ export async function syncShipmentStatusToManifests(
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),
         ...returnReasonPatch,
+        ...deliveredValuePatch,
+        ...partialQuantityPatch,
+        ...returnValuePatch,
       })
       .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
   } catch (e) {
@@ -94,6 +117,9 @@ export async function syncShipmentStatusToManifests(
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),
         ...returnReasonPatch,
+        ...deliveredValuePatch,
+        ...partialQuantityPatch,
+        ...returnValuePatch,
       })
       .where(eq(shipmentManifestItemsTable.shipmentId, shipmentId));
   } catch (e) {

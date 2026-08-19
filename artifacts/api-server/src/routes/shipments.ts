@@ -1139,8 +1139,19 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     // بنمرر returnReason كمان عشان لو القفل تم من مسار المندوب (representative-dashboard)
     // اللي بيعدي من هنا، السبب ينزل صح في جدول الـ manifest items مش يفضل فاضي.
     if (updateData.status !== undefined) {
+      // ملحوظة: من "مهامي" المندوب، collectedAmount هو المصدر الموحّد للقيمة
+      // المالية في الحالات الثلاث (مسلَّم / استلام جزئي / مرتجع). بنمررها
+      // للدالة تحت كل الأسماء المحتملة، والدالة بتختار الـ patch الصح حسب
+      // الحالة النهائية (mapped) فمفيش تعارض ولا كتابة فوق حقل غلط.
+      // partialQuantity في جدول البيان عمود int بيمثّل قيمة مالية (مش عدد قطع
+      // زي partialQty بتاع "مهامي")، فبنقرّبها لأقرب رقم صحيح قبل التمرير.
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
+        deliveredValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
+        partialQuantity: d.collectedAmount !== undefined && d.collectedAmount !== null
+          ? Math.round(d.collectedAmount)
+          : d.collectedAmount,
+        returnValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
       });
       invalidateSmartCache(tenantId);
       invalidateChartsCache(tenantId);
