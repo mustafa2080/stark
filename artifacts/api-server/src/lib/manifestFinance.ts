@@ -5,6 +5,7 @@ import {
   shipmentManifestItemsTable,
   shipmentsTable,
   shippingCompaniesTable,
+  zoneCostsTable,
 } from "@workspace/db";
 
 // ─── حساب صافي المستحق من بيان معين (نفس منطق netDueToCompany) ──────────────
@@ -23,16 +24,53 @@ export async function computeManifestNetDue(
     : [];
   const shipmentMap = new Map(shipments.map(s => [s.id, s]));
 
-  // جيب شركة الشحن (احتياطي بس لو الشحنة مفيهاش shippingFee مسجل)
+  // جيب شركة الشحن بتاعة البيان: costMode بيحدد طريقة حساب تكلفة كل شحنة —
+  //   "rep"  → سعر ثابت واحد لكل شحنة (company.shippingCost)
+  //   "zone" → سعر تكلفة منطقة الشحنة الفعلي (zone_costs.deliveryCost حسب zoneId)
+  // نفس المنطق بالظبط المستخدم في الفرونت (getShipmentShippingCost بصفحة تفاصيل
+  // بيان المندوب) وفي client-account-manifests.ts (getZoneCost) — لازم تفضل الثلاثة متطابقة.
   const [company] = manifest.shippingCompanyId != null
-    ? await db.select().from(shippingCompaniesTable)
+    ? await db.select({
+        costMode: shippingCompaniesTable.costMode,
+        shippingCost: shippingCompaniesTable.shippingCost,
+      }).from(shippingCompaniesTable)
         .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId))
     : [];
-  const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
+  const isZoneMode = company?.costMode === "zone";
+  const flatShippingCost = Math.abs(Number(company?.shippingCost ?? 0));
+
+  // في وضع "zone" محتاجين تكلفة كل منطقة (zone_costs.deliveryCost) حسب zoneId
+  // بتاع كل شحنة — نفس مصدر عمود "شحن" في صفحة تفاصيل بيان المندوب بالظبط.
+  let zoneCostMap: Record<number, number> = {};
+  if (isZoneMode) {
+    const zoneIds = [...new Set(shipments.map(s => (s as any).zoneId).filter((v): v is number => v != null))];
+    if (zoneIds.length) {
+      const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+      zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+    }
+  }
 
   // نفس الأسباب المالية المستخدمة في عرض إحصائيات البيان (RETURN_REASONS_IN_PNL بالفرونت)
   // — لازم تفضل متطابقة، لأن المرتجع بالأسباب دي بيرجّع فلوس فعلية من المندوب
   const RETURN_REASONS_IN_PNL = ["refused_paid", "refused_unpaid", "quality"];
+
+  // شحن بيُحسب فقط لو الحالة delivered / partial_delivered / partial_received
+  // أو returned بسبب مالي (رفض بعد معاينة مدفوع/غير مدفوع، أو مشكلة جودة) —
+  // بغض النظر هل البضاعة اتأكد رجوعها للمخزن ولا لسه، لأن تكلفة التوصيل نفسها
+  // اتصرفت فعليًا بمجرد محاولة التسليم. نفس shipmentIncursShippingCost بالفرونت.
+  function shipmentIncursShippingCost(status: string | null | undefined, returnReason: string | null | undefined): boolean {
+    if (status === "delivered" || status === "partial_delivered" || status === "partial_received") return true;
+    if (status === "returned") return RETURN_REASONS_IN_PNL.includes(returnReason ?? "");
+    return false;
+  }
+
+  function getShipmentShippingCost(shipment: any): number {
+    if (!shipment) return 0;
+    if (isZoneMode) {
+      return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+    }
+    return flatShippingCost;
+  }
 
   let deliveredGross = 0;
   let courierCostManual = 0;
@@ -43,17 +81,13 @@ export async function computeManifestNetDue(
     // السعر الكامل للشحنة المسلَّمة = totalAmount (codAmount + shippingFee)، مش codAmount
     // لوحده — نفس totalPrice المستخدم في deliveredCOD بالفرونت بالظبط.
     const price = Number((shipment as any).totalAmount ?? (Number((shipment as any).codAmount ?? 0) + Number(shipment.shippingFee ?? 0)));
-    // تكلفة شحن الشحنة الواحدة = عمود الشحن الفعلي المكتوب عليها (shippingFee) —
-    // مش سعر ثابت مضروب في العدد. لو الشحنة مفيهاش shippingFee مسجل (صفر/فاضي)،
-    // بنرجع لسعر الشركة الثابت كاحتياطي بس.
-    const shipmentShippingFee = Number(shipment.shippingFee ?? 0) > 0
-      ? Number(shipment.shippingFee)
-      : courierCostPerShipment;
 
-    // تكلفة الشحن بتتخصم على كل شحنة داخلة البيان أيًا كانت حالتها — نفس إجمالي
-    // تكلفة الشحن المعروض في صفحة البيان (مجموع عمود الشحن لكل الطلبيات)، مش
-    // بس المُسلَّمة أو المرتجعة بسبب مالي.
-    courierCostManual += shipmentShippingFee;
+    // تكلفة الشحن بتتحسب فقط للحالات اللي بتستوجب شحن (نفس شرط الفرونت)، ومن
+    // نفس مصدر عمود "شحن" (costMode: rep = سعر شركة ثابت، zone = تكلفة المنطقة
+    // الفعلية) — مش من shipment.shippingFee المجمَّد وقت الإنشاء.
+    if (shipmentIncursShippingCost((item as any).deliveryStatus, (item as any).returnReason)) {
+      courierCostManual += getShipmentShippingCost(shipment);
+    }
 
     if (item.deliveryStatus === "delivered") {
       // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا السعر العادي
@@ -77,9 +111,9 @@ export async function computeManifestNetDue(
       // مرتجع بسبب مالي (رفض بالدفع / جودة): القيمة اللي استلمها المندوب فعليًا من العميل
       deliveredGross += Number((item as any).returnValueReceived ?? 0);
     }
-    // delayed / pending / مرتجع بأسباب أخرى → مفيش إيراد، لكن تكلفة الشحن بتتخصم برضه فوق
+    // delayed / pending / مرتجع بأسباب أخرى → مفيش إيراد ولا تكلفة شحن
   }
 
-  // الصافي المستحق من المندوب (COD المسلَّم − مجموع عمود الشحن الفعلي للشحنات المؤهلة)
+  // الصافي المستحق من المندوب (COD المسلَّم − إجمالي تكلفة الشحن للشحنات المؤهلة)
   return { gross: deliveredGross, net: deliveredGross - courierCostManual };
 }
