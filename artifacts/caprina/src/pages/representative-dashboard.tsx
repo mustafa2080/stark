@@ -737,14 +737,18 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
 }
 
 // ─── COD Settlement Card ──────────────────────────────────────────────────────
+// ملحوظة: بنعتمد على deliveryStatus (حالة الشحنة داخل بيان المندوب الفعلي) بدل status
+// العام، لأن status ممكن يفضل قديم/عام حتى بعد ما المندوب يسجّل التسليم/الإرجاع فعليًا
+// في البيان. deliveryStatus بييجي جاهز من /representative/shipments مع fallback على status.
 function CodSettlementCard({ shipments }: { shipments: any[] }) {
-  const delivered = shipments.filter(s => s.status === "delivered");
-  const returned = shipments.filter(s => s.status === "returned");
-  const partial = shipments.filter(s => s.status === "partial_received");
+  const st = (s: any) => s.deliveryStatus ?? s.status;
+  const delivered = shipments.filter(s => st(s) === "delivered");
+  const returned = shipments.filter(s => st(s) === "returned");
+  const partial = shipments.filter(s => st(s) === "partial_received");
   // "قيد الشحن" = شحنات شغالة عادي لسه في الطريق (مش مشكلة)
-  const inTransit = shipments.filter(s => !["delivered","returned","cancelled","partial_received","delayed","waiting","pending"].includes(s.status));
+  const inTransit = shipments.filter(s => !["delivered","returned","cancelled","partial_received","delayed","waiting","pending"].includes(st(s)));
   // "متأخرة فعلاً" = تحتاج متابعة/مشكلة حقيقية
-  const delayed = shipments.filter(s => ["delayed","waiting","pending"].includes(s.status));
+  const delayed = shipments.filter(s => ["delayed","waiting","pending"].includes(st(s)));
   const inProgress = [...inTransit, ...delayed]; // للمجموع الكلي لو محتاجينه
 
   const codDelivered = delivered.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
@@ -805,12 +809,14 @@ function CodSettlementCard({ shipments }: { shipments: any[] }) {
 
 // ─── Today Stats Strip ────────────────────────────────────────────────────────
 function TodayStrip({ shipments }: { shipments: any[] }) {
+  // نعتمد على deliveryStatus (حالة الشحنة داخل بيان المندوب الفعلي) بدل status العام — نفس منطق CodSettlementCard
+  const st = (s: any) => s.deliveryStatus ?? s.status;
   const today = new Date().toDateString();
   const todayShips = shipments.filter(s => s.createdAt && new Date(s.createdAt).toDateString() === today);
   if (todayShips.length === 0) return null;
-  const delivered = todayShips.filter(s => s.status === "delivered").length;
-  const returned  = todayShips.filter(s => s.status === "returned").length;
-  const pending   = todayShips.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.status)).length;
+  const delivered = todayShips.filter(s => st(s) === "delivered").length;
+  const returned  = todayShips.filter(s => st(s) === "returned").length;
+  const pending   = todayShips.filter(s => !["delivered","returned","cancelled","partial_received"].includes(st(s))).length;
 
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 flex items-center justify-between gap-2">
@@ -914,20 +920,24 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
   const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7);
   const prevWeekStart = new Date(now); prevWeekStart.setDate(now.getDate() - 14);
 
+  // نعتمد على deliveryStatus (حالة الشحنة الفعلية داخل بيان المندوب) بدل status العام
+  // — نفس السبب الموضح في CodSettlementCard فوق.
+  const st = (s: any) => s.deliveryStatus ?? s.status;
+
   const thisWeek = allShipments.filter(s => s.createdAt && new Date(s.createdAt) >= weekStart);
   const prevWeek = allShipments.filter(s => {
     const d = new Date(s.createdAt ?? 0);
     return d >= prevWeekStart && d < weekStart;
   });
 
-  const wDelivered = thisWeek.filter(s => s.status === "delivered").length;
-  const wReturned  = thisWeek.filter(s => s.status === "returned").length;
-  const pwDelivered = prevWeek.filter(s => s.status === "delivered").length;
-  const pwReturned  = prevWeek.filter(s => s.status === "returned").length;
+  const wDelivered = thisWeek.filter(s => st(s) === "delivered").length;
+  const wReturned  = thisWeek.filter(s => st(s) === "returned").length;
+  const pwDelivered = prevWeek.filter(s => st(s) === "delivered").length;
+  const pwReturned  = prevWeek.filter(s => st(s) === "returned").length;
 
   // شحنات مؤجلة/معلقة فعلاً (تحتاج اهتمام) — لا تضم الشحنات الطبيعية "قيد الشحن"
   const needsAttention = allShipments.filter(s =>
-    ["delayed", "waiting", "pending"].includes(s.status)
+    ["delayed", "waiting", "pending"].includes(st(s))
   );
 
   return (
@@ -3188,11 +3198,13 @@ function CollapsibleCardHeader({
 // ─── 1) بطاقة ملخص المهام اليومية ─────────────────────────────────────────────
 function TasksSummaryCard({ allShipments, onNavigate }: { allShipments: any[]; onNavigate: (t: TabId) => void }) {
   const [collapsed, setCollapsed] = useState(false);
+  // نعتمد على deliveryStatus (حالة الشحنة داخل بيان المندوب الفعلي) بدل status العام — نفس منطق CodSettlementCard
+  const st = (s: any) => s.deliveryStatus ?? s.status;
   const today = new Date().toDateString();
   const todayShipments = allShipments.filter(s => s.createdAt && new Date(s.createdAt).toDateString() === today);
-  const delivered = todayShipments.filter(s => s.status === "delivered" || s.status === "partial_received").length;
-  const inProgress = todayShipments.filter(s => !["delivered", "returned", "cancelled", "partial_received"].includes(s.status)).length;
-  const returned = todayShipments.filter(s => s.status === "returned").length;
+  const delivered = todayShipments.filter(s => st(s) === "delivered" || st(s) === "partial_received").length;
+  const inProgress = todayShipments.filter(s => !["delivered", "returned", "cancelled", "partial_received"].includes(st(s))).length;
+  const returned = todayShipments.filter(s => st(s) === "returned").length;
   const total = todayShipments.length;
 
   // أحدث 10 شحنات النهاردة، بترتيب تنازلي
@@ -3252,10 +3264,10 @@ function TasksSummaryCard({ allShipments, onNavigate }: { allShipments: any[]; o
             )}
             {recent.map((s, i) => (
               <div key={s.id ?? i} className="flex items-center gap-2 text-[11px] py-1">
-                <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold ${numberBadgeCls(s.status)}`}>
+                <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold ${numberBadgeCls(st(s))}`}>
                   {i + 1}
                 </span>
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(s.status)}`} />
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(st(s))}`} />
                 <span className="truncate flex-1 text-foreground/90">{s.receiverCity || s.receiverName || "—"}</span>
               </div>
             ))}
@@ -3276,8 +3288,10 @@ function CodSummaryCard({ d, allShipments, onNavigate }: { d: any; allShipments:
 
   // آخر 4 شحنات تم تحصيلها فعليًا، كسجل "تاريخ التحصيل"
   // المبلغ المعروض = collectedAmount الفعلي (زي تاب الشحنات)، مع fallback على codAmount لو مش متسجل
+  // نعتمد على deliveryStatus بدل status العام — نفس منطق CodSettlementCard
+  const st = (s: any) => s.deliveryStatus ?? s.status;
   const lastCollected = [...allShipments]
-    .filter(s => s.status === "delivered" || s.status === "partial_received")
+    .filter(s => st(s) === "delivered" || st(s) === "partial_received")
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
     .slice(0, 4)
     .map(s => ({
@@ -3457,6 +3471,8 @@ function MiniAreaChart({ data }: { data: { label: string; rate: number }[] }) {
 function MyPerformanceCard({ d, allShipments, onNavigate }: { d: any; allShipments: any[]; onNavigate: (t: TabId) => void }) {
   const [collapsed, setCollapsed] = useState(false);
   const overallRate = d?.deliveryRate ?? 0;
+  // نعتمد على deliveryStatus بدل status العام — نفس منطق CodSettlementCard
+  const st = (s: any) => s.deliveryStatus ?? s.status;
 
   // معدل يومي لآخر 7 أيام: نسبة تسليم كل يوم
   const dailyRates = Array.from({ length: 7 }).map((_, idx) => {
@@ -3464,7 +3480,7 @@ function MyPerformanceCard({ d, allShipments, onNavigate }: { d: any; allShipmen
     day.setDate(day.getDate() - (6 - idx));
     const dayKey = day.toDateString();
     const dayShipments = allShipments.filter(s => s.createdAt && new Date(s.createdAt).toDateString() === dayKey);
-    const delivered = dayShipments.filter(s => s.status === "delivered" || s.status === "partial_received").length;
+    const delivered = dayShipments.filter(s => st(s) === "delivered" || st(s) === "partial_received").length;
     const rate = dayShipments.length > 0 ? Math.round((delivered / dayShipments.length) * 100) : 0;
     return { label: format(day, "EEEEEE", { locale: ar }), rate };
   });
@@ -3554,8 +3570,10 @@ function MyPerformanceCard({ d, allShipments, onNavigate }: { d: any; allShipmen
 // ─── 5) بطاقة إدارة المرتجعات المتقدمة ────────────────────────────────────────
 function ReturnsManagementCard({ allShipments, onNavigate }: { allShipments: any[]; onNavigate: (t: TabId) => void }) {
   const [collapsed, setCollapsed] = useState(false);
+  // نعتمد على deliveryStatus بدل status العام — نفس منطق CodSettlementCard
+  const st = (s: any) => s.deliveryStatus ?? s.status;
   const returns = allShipments
-    .filter(s => s.status === "returned" || s.status === "partial_received")
+    .filter(s => st(s) === "returned" || st(s) === "partial_received")
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
     .slice(0, 8);
 
@@ -3588,7 +3606,7 @@ function ReturnsManagementCard({ allShipments, onNavigate }: { allShipments: any
                 <tr><td colSpan={4} className="text-center text-muted-foreground py-6">لا توجد مرتجعات</td></tr>
               )}
               {returns.map((s, i) => {
-                const badge = stateBadge(s.status);
+                const badge = stateBadge(st(s));
                 return (
                   <tr key={s.id ?? i} className="border-b border-border/20 last:border-0">
                     <td className="px-3 py-2 font-mono text-primary/80">{s.shipmentNumber ?? s.id}</td>

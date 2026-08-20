@@ -158,14 +158,18 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
     db.select({ cnt: count() }).from(shipmentsTable).where(where).then(r => r[0]?.cnt ?? 0),
   ]);
 
-  // ─── جلب حالة الاستعجال (isUrgent/urgentNote) من آخر manifest item لكل شحنة ───
+  // ─── جلب حالة الاستعجال (isUrgent/urgentNote) وحالة التسليم الفعلية (deliveryStatus)
+  // من آخر manifest item لكل شحنة — deliveryStatus هو مصدر الحقيقة الحقيقي لحالة
+  // الشحنة داخل بيان المندوب، بعكس shipments.status اللي ممكن يفضل قديم/عام ───
   const rowIds = rows.map(r => r.id);
   const urgentMap = new Map<number, { isUrgent: boolean; urgentNote: string | null }>();
+  const deliveryStatusMap = new Map<number, string>();
   if (rowIds.length) {
     const urgentItems = await db.select({
       shipmentId: shipmentManifestItemsTable.shipmentId,
       isUrgent:   shipmentManifestItemsTable.isUrgent,
       urgentNote: shipmentManifestItemsTable.urgentNote,
+      deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
       id:         shipmentManifestItemsTable.id,
     })
       .from(shipmentManifestItemsTable)
@@ -175,6 +179,10 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
     for (const it of urgentItems) {
       if (!urgentMap.has(it.shipmentId)) {
         urgentMap.set(it.shipmentId, { isUrgent: it.isUrgent === 1, urgentNote: it.urgentNote ?? null });
+      }
+      if (!deliveryStatusMap.has(it.shipmentId)) {
+        const ds = it.deliveryStatus;
+        deliveryStatusMap.set(it.shipmentId, ds === "partial_delivered" ? "partial_received" : ds);
       }
     }
   }
@@ -202,6 +210,8 @@ router.get("/shipments", requireRepresentativeOrAdmin, async (req: Request, res:
     isUrgent:   r.isUrgent === 1 || (urgentMap.get(r.id)?.isUrgent ?? false),
     urgentNote: r.urgentNote ?? urgentMap.get(r.id)?.urgentNote ?? null,
     items:      itemsMap.get(r.id) ?? [],
+    // حالة التسليم الفعلية من البيان — لو الشحنة مش داخلة في أي بيان، استخدم status العام كـ fallback
+    deliveryStatus: deliveryStatusMap.get(r.id) ?? r.status,
   }));
 
   await logAudit({ action: "login", entityType: "representative_view", entityId: companyId,
@@ -262,6 +272,7 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
   if (dateTo)   conditions.push(sql`${shipmentsTable.createdAt} <= ${new Date(dateTo + "T23:59:59")}`);
 
   const all = await db.select({
+    id: shipmentsTable.id,
     status: shipmentsTable.status, receiverCity: shipmentsTable.receiverCity,
     zoneName: shipmentZonesTable.name, codAmount: shipmentsTable.codAmount,
     collectedAmount: shipmentsTable.collectedAmount,
@@ -270,21 +281,52 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
     .where(and(...conditions));
 
-  const total      = all.length;
-  const delivered  = all.filter(s => s.status === "delivered").length;
-  const partial    = all.filter(s => s.status === "partial_received").length;
-  const returned   = all.filter(s => s.status === "returned").length;
-  const inProgress = all.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.status)).length;
+  // ─── مصدر الحقيقة الحقيقي لحالة كل شحنة هو deliveryStatus في البيان (manifest item)
+  // مش shipments.status العام — لأن shipments.status ممكن يفضل واقف على حالة قديمة
+  // (زي in_transit) حتى بعد ما المندوب يسجّل التسليم/الإرجاع فعليًا في البيان.
+  // نجيب آخر manifest item لكل شحنة (بنفس المنطق المستخدم في /shipments لـ isUrgent).
+  const allIds = all.map(s => s.id);
+  const effectiveStatusMap = new Map<number, string>();
+  if (allIds.length) {
+    const manifestItems = await db.select({
+      shipmentId: shipmentManifestItemsTable.shipmentId,
+      deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
+      id: shipmentManifestItemsTable.id,
+    })
+      .from(shipmentManifestItemsTable)
+      .where(inArray(shipmentManifestItemsTable.shipmentId, allIds))
+      .orderBy(desc(shipmentManifestItemsTable.id));
+    // خد أحدث item بس لكل shipmentId (الصفوف جاية مرتبة desc)
+    for (const it of manifestItems) {
+      if (!effectiveStatusMap.has(it.shipmentId)) {
+        // ترجمة deliveryStatus (نطاق البيان) لنفس مسميات shipments.status المستخدمة في الحسابات
+        // delivered/returned/pending/delayed تتطابق زي ما هي، partial_delivered → partial_received
+        const ds = it.deliveryStatus;
+        effectiveStatusMap.set(it.shipmentId, ds === "partial_delivered" ? "partial_received" : ds);
+      }
+    }
+  }
+  // fallback: لو الشحنة مش داخلة في أي بيان لسه (حالة نادرة)، استخدم shipments.status العام
+  const allWithEffectiveStatus = all.map(s => ({
+    ...s,
+    effectiveStatus: effectiveStatusMap.get(s.id) ?? s.status,
+  }));
+
+  const total      = allWithEffectiveStatus.length;
+  const delivered  = allWithEffectiveStatus.filter(s => s.effectiveStatus === "delivered").length;
+  const partial    = allWithEffectiveStatus.filter(s => s.effectiveStatus === "partial_received").length;
+  const returned   = allWithEffectiveStatus.filter(s => s.effectiveStatus === "returned").length;
+  const inProgress = allWithEffectiveStatus.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.effectiveStatus)).length;
   const deliveryRate = total > 0 ? Math.round(((delivered + partial) / total) * 100) : 0;
   const returnRate   = total > 0 ? Math.round((returned / total) * 100) : 0;
   // المحصّل الفعلي: يشمل التسليم الكامل والاستلام الجزئي، ويعتمد على collectedAmount (المبلغ الفعلي)
   // مع fallback على codAmount لو collectedAmount مش متسجل
-  const totalCollected = all
-    .filter(s => s.status === "delivered" || s.status === "partial_received")
+  const totalCollected = allWithEffectiveStatus
+    .filter(s => s.effectiveStatus === "delivered" || s.effectiveStatus === "partial_received")
     .reduce((sum, s) => sum + (Number(s.collectedAmount) > 0 ? Number(s.collectedAmount) : Number(s.codAmount ?? 0)), 0);
 
   const zoneMap = new Map<string, number>();
-  for (const s of all) {
+  for (const s of allWithEffectiveStatus) {
     const zone = s.zoneName || s.receiverCity || "غير محدد";
     zoneMap.set(zone, (zoneMap.get(zone) ?? 0) + 1);
   }
