@@ -742,9 +742,10 @@ function UrgentShipmentCard({ sh, onSaved, waHref }: { sh: any; onSaved: () => v
 // في البيان. deliveryStatus بييجي جاهز من /representative/shipments مع fallback على status.
 function CodSettlementCard({ shipments }: { shipments: any[] }) {
   const st = (s: any) => s.deliveryStatus ?? s.status;
-  const delivered = shipments.filter(s => st(s) === "delivered");
+  // الاستلام الجزئي (partial_received) بيتعامل معاملة الاستلام الكامل — بيتحسب ضمن
+  // "محصَّل" مش كفئة منفصلة (بناءً على طلب المستخدم).
+  const delivered = shipments.filter(s => st(s) === "delivered" || st(s) === "partial_received");
   const returned = shipments.filter(s => st(s) === "returned");
-  const partial = shipments.filter(s => st(s) === "partial_received");
   // "قيد الشحن" = شحنات شغالة عادي لسه في الطريق (مش مشكلة)
   const inTransit = shipments.filter(s => !["delivered","returned","cancelled","partial_received","delayed","waiting","pending"].includes(st(s)));
   // "متأخرة فعلاً" = تحتاج متابعة/مشكلة حقيقية
@@ -814,7 +815,7 @@ function TodayStrip({ shipments }: { shipments: any[] }) {
   const today = new Date().toDateString();
   const todayShips = shipments.filter(s => s.createdAt && new Date(s.createdAt).toDateString() === today);
   if (todayShips.length === 0) return null;
-  const delivered = todayShips.filter(s => st(s) === "delivered").length;
+  const delivered = todayShips.filter(s => st(s) === "delivered" || st(s) === "partial_received").length;
   const returned  = todayShips.filter(s => st(s) === "returned").length;
   const pending   = todayShips.filter(s => !["delivered","returned","cancelled","partial_received"].includes(st(s))).length;
 
@@ -924,16 +925,37 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
   // — نفس السبب الموضح في CodSettlementCard فوق.
   const st = (s: any) => s.deliveryStatus ?? s.status;
 
+  // ─── الاستلام الجزئي (partial_received) بيتوزّع نسبيًا بين "تسليم" و"مرتجع" بدل ما
+  // يتحسب كوحدة واحدة بالكامل مع أي الفئتين: الجزء اللي اتسلم فعلاً (partialQuantity)
+  // من إجمالي كمية الشحنة (مجموع items.quantity) بيتحسب تسليم، والباقي بيتحسب مرتجع. ───
+  const totalQty = (s: any) => (s.items ?? []).reduce((sum: number, it: any) => sum + Number(it.quantity ?? 0), 0);
+  const deliveredFraction = (s: any) => {
+    const status = st(s);
+    if (status === "delivered") return 1;
+    if (status !== "partial_received") return 0;
+    const total = totalQty(s);
+    const got = Number(s.partialQuantity ?? 0);
+    if (total <= 0) return 0.5; // مفيش بيانات كمية — نص/نص كأفضل تقدير محايد
+    return Math.min(1, Math.max(0, got / total));
+  };
+  const returnedFraction = (s: any) => {
+    const status = st(s);
+    if (status === "returned") return 1;
+    if (status === "partial_received") return 1 - deliveredFraction(s);
+    return 0;
+  };
+
   const thisWeek = allShipments.filter(s => s.createdAt && new Date(s.createdAt) >= weekStart);
   const prevWeek = allShipments.filter(s => {
     const d = new Date(s.createdAt ?? 0);
     return d >= prevWeekStart && d < weekStart;
   });
 
-  const wDelivered = thisWeek.filter(s => st(s) === "delivered").length;
-  const wReturned  = thisWeek.filter(s => st(s) === "returned").length;
-  const pwDelivered = prevWeek.filter(s => st(s) === "delivered").length;
-  const pwReturned  = prevWeek.filter(s => st(s) === "returned").length;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const wDelivered  = round1(thisWeek.reduce((sum, s) => sum + deliveredFraction(s), 0));
+  const wReturned   = round1(thisWeek.reduce((sum, s) => sum + returnedFraction(s), 0));
+  const pwDelivered = round1(prevWeek.reduce((sum, s) => sum + deliveredFraction(s), 0));
+  const pwReturned  = round1(prevWeek.reduce((sum, s) => sum + returnedFraction(s), 0));
 
   // شحنات مؤجلة/معلقة فعلاً (تحتاج اهتمام) — لا تضم الشحنات الطبيعية "قيد الشحن"
   const needsAttention = allShipments.filter(s =>
@@ -3571,9 +3593,11 @@ function MyPerformanceCard({ d, allShipments, onNavigate }: { d: any; allShipmen
 function ReturnsManagementCard({ allShipments, onNavigate }: { allShipments: any[]; onNavigate: (t: TabId) => void }) {
   const [collapsed, setCollapsed] = useState(false);
   // نعتمد على deliveryStatus بدل status العام — نفس منطق CodSettlementCard
+  // ملحوظة: الاستلام الجزئي (partial_received) بقى بيتعامل معاملة الاستلام الكامل،
+  // يعني مش مرتجع ومش محتاج متابعة هنا — استبعدناه من قائمة المرتجعات.
   const st = (s: any) => s.deliveryStatus ?? s.status;
   const returns = allShipments
-    .filter(s => st(s) === "returned" || st(s) === "partial_received")
+    .filter(s => st(s) === "returned")
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
     .slice(0, 8);
 

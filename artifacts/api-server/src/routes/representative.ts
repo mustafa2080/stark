@@ -264,7 +264,7 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
   }
 
   if (!shipmentIds2.length) {
-    res.json({ total: 0, delivered: 0, partial: 0, returned: 0, inProgress: 0, deliveryRate: 0, returnRate: 0, totalCollected: 0, openManifestCollected, openManifestPending, zones: [], topZone: null, lastLogin: null, ratingsAvg: null, ratingsCount: 0, recentRatings: [], highReturnRisk: false });
+    res.json({ total: 0, delivered: 0, returned: 0, inProgress: 0, deliveryRate: 0, returnRate: 0, totalCollected: 0, openManifestCollected, openManifestPending, zones: [], topZone: null, lastLogin: null, ratingsAvg: null, ratingsCount: 0, recentRatings: [], highReturnRisk: false });
     return;
   }
   const conditions: any[] = [inArray(shipmentsTable.id, shipmentIds2), isNull(shipmentsTable.deletedAt)];
@@ -276,6 +276,7 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     status: shipmentsTable.status, receiverCity: shipmentsTable.receiverCity,
     zoneName: shipmentZonesTable.name, codAmount: shipmentsTable.codAmount,
     collectedAmount: shipmentsTable.collectedAmount,
+    partialQuantity: shipmentsTable.partialQuantity,
   })
     .from(shipmentsTable)
     .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
@@ -312,15 +313,47 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     effectiveStatus: effectiveStatusMap.get(s.id) ?? s.status,
   }));
 
-  const total      = allWithEffectiveStatus.length;
-  const delivered  = allWithEffectiveStatus.filter(s => s.effectiveStatus === "delivered").length;
-  const partial    = allWithEffectiveStatus.filter(s => s.effectiveStatus === "partial_received").length;
-  const returned   = allWithEffectiveStatus.filter(s => s.effectiveStatus === "returned").length;
+  // ─── الكمية الكلية لكل شحنة (مجموع كميات الأصناف) — عشان نقدر نوزّع الاستلام
+  // الجزئي (partial_received) نسبيًا بين "تسليم" و"مرتجع" بدل ما نعامله كوحدة واحدة ───
+  const totalQtyMap = new Map<number, number>();
+  if (allIds.length) {
+    const qtyRows = await db.select({
+      shipmentId: shipmentItemsTable.shipmentId,
+      quantity: shipmentItemsTable.quantity,
+    })
+      .from(shipmentItemsTable)
+      .where(inArray(shipmentItemsTable.shipmentId, allIds));
+    for (const r of qtyRows) {
+      totalQtyMap.set(r.shipmentId, (totalQtyMap.get(r.shipmentId) ?? 0) + Number(r.quantity ?? 0));
+    }
+  }
+
+  const total = allWithEffectiveStatus.length;
+
+  // ─── الاستلام الجزئي (partial_received) بقى بيتوزّع نسبيًا: الجزء اللي فعلاً
+  // اتسلم (partialQuantity) بيتحسب "تسليم"، والباقي من الكمية الكلية بيتحسب "مرتجع" —
+  // بدل ما نعامل الشحنة كوحدة واحدة بالكامل مع أي الفئتين (طلب المستخدم). ───
+  const deliveredFraction = (s: typeof allWithEffectiveStatus[number]) => {
+    if (s.effectiveStatus === "delivered") return 1;
+    if (s.effectiveStatus !== "partial_received") return 0;
+    const totalQty = totalQtyMap.get(s.id) ?? 0;
+    const gotQty = Number((s as any).partialQuantity ?? 0);
+    if (totalQty <= 0) return 0.5; // مفيش بيانات كمية — نص/نص كأفضل تقدير محايد
+    return Math.min(1, Math.max(0, gotQty / totalQty));
+  };
+  const returnedFraction = (s: typeof allWithEffectiveStatus[number]) => {
+    if (s.effectiveStatus === "returned") return 1;
+    if (s.effectiveStatus === "partial_received") return 1 - deliveredFraction(s);
+    return 0;
+  };
+
+  const delivered  = Math.round(allWithEffectiveStatus.reduce((sum, s) => sum + deliveredFraction(s), 0) * 100) / 100;
+  const returned   = Math.round(allWithEffectiveStatus.reduce((sum, s) => sum + returnedFraction(s), 0) * 100) / 100;
   const inProgress = allWithEffectiveStatus.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.effectiveStatus)).length;
-  const deliveryRate = total > 0 ? Math.round(((delivered + partial) / total) * 100) : 0;
+  const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
   const returnRate   = total > 0 ? Math.round((returned / total) * 100) : 0;
-  // المحصّل الفعلي: يشمل التسليم الكامل والاستلام الجزئي، ويعتمد على collectedAmount (المبلغ الفعلي)
-  // مع fallback على codAmount لو collectedAmount مش متسجل
+  // المحصّل الفعلي: بالنسبة لـ partial_received، بنعتمد على collectedAmount المسجَّل فعليًا
+  // (وهو أصلًا القيمة الحقيقية المحصّلة جزئيًا) — مش نسبة الكمية، لأن المبلغ المالي الفعلي أدق.
   const totalCollected = allWithEffectiveStatus
     .filter(s => s.effectiveStatus === "delivered" || s.effectiveStatus === "partial_received")
     .reduce((sum, s) => sum + (Number(s.collectedAmount) > 0 ? Number(s.collectedAmount) : Number(s.codAmount ?? 0)), 0);
@@ -354,7 +387,7 @@ router.get("/dashboard", requireRepresentativeOrAdmin, async (req: Request, res:
     ? Math.round((ratingRows.reduce((sum, r) => sum + r.rating, 0) / ratingRows.length) * 10) / 10
     : null;
 
-  res.json({ total, delivered, partial, returned, inProgress, deliveryRate, returnRate,
+  res.json({ total, delivered, returned, inProgress, deliveryRate, returnRate,
     totalCollected, openManifestCollected, openManifestPending,
     zones, topZone: zones[0] ?? null, lastLogin: lastLogin?.createdAt ?? null,
     ratingsAvg, ratingsCount: ratingRows.length, recentRatings: ratingRows,
