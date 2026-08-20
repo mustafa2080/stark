@@ -515,9 +515,9 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
     <div className="mt-4 pt-4 border-t border-border space-y-3">
       {/* بانر تنبيه: البيان مُغلق من المندوب ومحتاج استلام من الأدمن */}
       {activeManifestAllCollected && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-red-500/10 border border-red-500/30 text-red-400">
-          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-[11px] font-bold">المندوب قام بإغلاق البيان الرجاء استلام التحصيل والمرتجعات وإغلاق البيان من طرفك</span>
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
+          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="text-[11px] sm:text-xs font-bold leading-snug flex-1 min-w-0 break-words">المندوب قام بإغلاق البيان الرجاء استلام التحصيل والمرتجعات وإغلاق البيان من طرفك</span>
         </div>
       )}
       <DeliveryBar rate={deliveryRate} />
