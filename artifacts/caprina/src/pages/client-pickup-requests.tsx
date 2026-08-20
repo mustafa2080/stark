@@ -9,6 +9,30 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
+// ─── أيام الاستلام الثابتة عند شركة الشحن: السبت والثلاثاء فقط ─────────────
+// بنحسب أقرب يوم استلام قادم (شامل النهاردة لو النهاردة نفسها سبت أو تلات) ونبني
+// ملحوظة تلقائية للعميل توضّحله يستنى مكالمة المندوب امتى بالظبط.
+const PICKUP_DAYS = [6, 2]; // 6 = السبت، 2 = الثلاثاء (0 = الأحد حسب getDay)
+const AR_DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+function nextPickupDay(from: Date = new Date()): { date: Date; dayName: string; isToday: boolean } {
+  for (let add = 0; add <= 7; add++) {
+    const d = new Date(from);
+    d.setDate(from.getDate() + add);
+    if (PICKUP_DAYS.includes(d.getDay())) {
+      return { date: d, dayName: AR_DAY_NAMES[d.getDay()], isToday: add === 0 };
+    }
+  }
+  // fallback نظري (مستحيل يوصله لأن PICKUP_DAYS بتتكرر كل أسبوع)
+  return { date: from, dayName: AR_DAY_NAMES[from.getDay()], isToday: true };
+}
+
+function buildAutoNote(): string {
+  const { dayName, isToday } = nextPickupDay();
+  const dayLabel = isToday ? `${dayName} (النهاردة)` : `${dayName} القادم`;
+  return `سوف يتم استلام طلباتك يوم ${dayLabel}، الرجاء تجهيز الشحنات وانتظار مكالمة المندوب يوم ${dayName}.`;
+}
+
 interface PickupRequest {
   id: number;
   requestNumber: string | null;
@@ -43,14 +67,41 @@ const TIME_SLOTS = [
 // ── Create Pickup Modal ────────────────────────────────────────────────────
 function CreatePickupModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { toast } = useToast();
-  const [form, setForm] = useState({
-    pickupContactName: "", pickupPhone: "", pickupAddress: "", pickupCity: "",
-    piecesCount: "1", estimatedWeight: "", notes: "", preferredDate: "", preferredTimeSlot: "morning",
+
+  // بيانات العميل التجاري المسجّل — نستخدمها لتعبئة الفورم تلقائيًا
+  const { data: clientData } = useQuery<any>({
+    queryKey: ["client-profile-me"],
+    queryFn: () => apiFetch<any>("/finance/clients/me"),
+    staleTime: 30_000,
   });
+
+  const [form, setForm] = useState(() => ({
+    pickupContactName: "", pickupPhone: "", pickupAddress: "", pickupCity: "",
+    piecesCount: "1", estimatedWeight: "", notes: buildAutoNote(), preferredTimeSlot: "morning",
+  }));
+  // بنتابع هل العميل عدّل الملاحظة بنفسه — لو لأ، نفضل نحدّثها تلقائيًا لو
+  // الفورم فضل مفتوح عبر منتصف الليل (نادر لكن ممكن) عشان اليوم المحسوب يفضل صحيح
+  const [notesTouched, setNotesTouched] = useState(false);
+  // لو بيانات العميل وصلت بعد أول render، نعبّي الحقول اللي لسه فاضية بس —
+  // من غير ما نلغي أي حاجة كتبها العميل بنفسه لو بدأ يكتب قبل ما البيانات توصل.
+  const [prefilled, setPrefilled] = useState(false);
+  if (clientData && !prefilled) {
+    setPrefilled(true);
+    setForm(f => ({
+      ...f,
+      pickupContactName: f.pickupContactName || clientData.name || "",
+      pickupPhone:        f.pickupPhone || clientData.phone || "",
+      pickupCity:         f.pickupCity || clientData.city || "",
+      pickupAddress:       f.pickupAddress || clientData.address || "",
+    }));
+  }
+
   const [loading, setLoading] = useState(false);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (k === "notes") setNotesTouched(true);
     setForm(f => ({ ...f, [k]: e.target.value }));
+  };
 
   const submit = async () => {
     if (!form.pickupContactName.trim() || !form.pickupPhone.trim() || !form.pickupAddress.trim()) {
@@ -69,7 +120,6 @@ function CreatePickupModal({ onClose, onCreated }: { onClose: () => void; onCrea
           piecesCount: Number(form.piecesCount) || 1,
           estimatedWeight: form.estimatedWeight ? Number(form.estimatedWeight) : undefined,
           notes: form.notes || undefined,
-          preferredDate: form.preferredDate || undefined,
           preferredTimeSlot: form.preferredTimeSlot,
         }),
       });
@@ -120,7 +170,7 @@ function CreatePickupModal({ onClose, onCreated }: { onClose: () => void; onCrea
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-white/50 mb-1.5">عدد القطع</label>
+              <label className="block text-xs text-white/50 mb-1.5">عدد الطلبيات</label>
               <input type="number" min={1} value={form.piecesCount} onChange={set("piecesCount")} className={inputCls} style={inputStyle} />
             </div>
             <div>
@@ -128,17 +178,11 @@ function CreatePickupModal({ onClose, onCreated }: { onClose: () => void; onCrea
               <input type="number" step="0.1" value={form.estimatedWeight} onChange={set("estimatedWeight")} className={inputCls} style={inputStyle} placeholder="اختياري" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-white/50 mb-1.5">التاريخ المفضل</label>
-              <input type="date" value={form.preferredDate} onChange={set("preferredDate")} className={inputCls} style={inputStyle} />
-            </div>
-            <div>
-              <label className="block text-xs text-white/50 mb-1.5">الفترة المفضلة</label>
-              <select value={form.preferredTimeSlot} onChange={set("preferredTimeSlot")} className={inputCls} style={inputStyle}>
-                {TIME_SLOTS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs text-white/50 mb-1.5">الفترة المفضلة</label>
+            <select value={form.preferredTimeSlot} onChange={set("preferredTimeSlot")} className={inputCls} style={inputStyle}>
+              {TIME_SLOTS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-xs text-white/50 mb-1.5">ملاحظات</label>
