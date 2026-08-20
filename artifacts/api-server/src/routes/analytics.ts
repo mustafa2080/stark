@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, inventoryMovementsTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, inventoryMovementsTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable, parcelTypePricingTable } from "@workspace/db";
 import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -640,6 +640,7 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       codAmount: shipmentsTable.codAmount,
       shippingFee: shipmentsTable.shippingFee,
       zoneId: shipmentsTable.zoneId,
+      parcelType: shipmentsTable.parcelType,
       returnReceived: shipmentManifestItemsTable.returnReceived,
       shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
     })
@@ -722,6 +723,24 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
     : [];
   const zoneCostMap = new Map(zoneCosts.map(z => [z.zoneId, Number(z.deliveryCost ?? 0)]));
 
+  // repExtraCost per parcel type - matches manifestFinance.ts computeManifestNetDue
+  // logic exactly, so this dashboard figure equals the manifest detail net revenue.
+  const parcelTypes = [...new Set(rows.map(r => (r as any).parcelType).filter((v): v is string => !!v))];
+  const repExtraCostMap: Record<string, number> = {};
+  if (parcelTypes.length) {
+    const pricingRows = await db.select({
+      tenantId: parcelTypePricingTable.tenantId,
+      parcelType: parcelTypePricingTable.parcelType,
+      repExtraCost: parcelTypePricingTable.repExtraCost,
+    }).from(parcelTypePricingTable).where(inArray(parcelTypePricingTable.parcelType, parcelTypes));
+    for (const row of pricingRows) {
+      const isTenantRow = row.tenantId != null && row.tenantId === tenantId;
+      if (repExtraCostMap[row.parcelType] == null || isTenantRow) {
+        repExtraCostMap[row.parcelType] = Number(row.repExtraCost ?? 0);
+      }
+    }
+  }
+
   let deliveredShippingFeesClosed = 0;
   let courierCostClosed = 0;
   for (const r of rows) {
@@ -738,9 +757,11 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
     const company = r.shippingCompanyId != null ? companyMap.get(r.shippingCompanyId) : undefined;
     const companyCostMode = (company as any)?.costMode === "zone" ? "zone" : "rep";
     const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
-    courierCostClosed += companyCostMode === "zone"
+    const baseCourierCost = companyCostMode === "zone"
       ? Number(zoneCostMap.get(r.zoneId ?? -1) ?? 0)
       : courierCostPerShipment;
+    const repExtraCost = (r as any).parcelType ? (repExtraCostMap[(r as any).parcelType] ?? 0) : 0;
+    courierCostClosed += baseCourierCost + repExtraCost;
   }
 
   const repNetDue = deliveredShippingFeesClosed - courierCostClosed;
