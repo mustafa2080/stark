@@ -2707,23 +2707,48 @@ function CloseConfirmDialog({
             <div className="p-3 rounded-md bg-primary/10 border border-primary/30 text-xs">
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
-                const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
-                const effectiveShipping = (manifest.orders ?? [])
-                  .filter(o =>
-                    o.deliveryStatus === "delivered" ||
-                    o.deliveryStatus === "partial_received" ||
-                    o.deliveryStatus === "partial_delivered" ||
-                    (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? "")))
-                  )
-                  .reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
-                const due = (s?.deliveredGross ?? 0) - effectiveShipping;
+                // نفس منطق "الرصيد المستحق" في الصفحة الرئيسية بالظبط (totalDueFromClient)،
+                // عشان الرقمين ما يختلفوش تاني: getCollectedAmount + تصفير الشحن بنفس الشرط.
+                const RETURN_REASONS_FINANCIAL_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
+                const getCollectedAmountLocal = (o: any) => {
+                  if (o.deliveryStatus === "delivered") {
+                    const dvr = o.deliveredValueReceived;
+                    return dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
+                  }
+                  if (o.deliveryStatus === "partial_delivered") {
+                    return o.partialQuantity == null ? 0 : Number(o.partialQuantity);
+                  }
+                  if (o.deliveryStatus === "partial_received") {
+                    return o.partialQuantity == null ? 0 : Math.round(Number(o.partialQuantity));
+                  }
+                  if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o.returnReason ?? ""))) {
+                    const rvr = o.returnValueReceived;
+                    return rvr != null ? Number(rvr) : 0;
+                  }
+                  return 0;
+                };
+                const isShippingZeroedRowLocal = (o: any) => {
+                  const st = o.deliveryStatus;
+                  if (st === "postponed" || st === "delayed" || st === "pending") return true;
+                  if (st === "returned") {
+                    if (!RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o?.returnReason ?? ""))) return true;
+                  }
+                  return false;
+                };
+                const orders = manifest.orders ?? [];
+                const netAmount = orders.reduce((sum, o) => sum + getCollectedAmountLocal(o), 0);
+                const displayedShippingCost = orders.reduce((sum, o) => {
+                  if (isShippingZeroedRowLocal(o)) return sum;
+                  return sum + Number((o as any).shippingCost ?? 0) + Number((o as any).repExtraCost ?? 0);
+                }, 0);
+                const due = netAmount - displayedShippingCost;
                 return (
                   <>
                     <p className="font-black text-lg text-primary">
                       {formatCurrency(due)}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      مسلم + جزئي ({formatCurrency(s?.deliveredGross ?? 0)}) − تكلفة شحن ({formatCurrency(effectiveShipping)})
+                      إجمالي الإيرادات ({formatCurrency(netAmount)}) − تكلفة شحن ({formatCurrency(displayedShippingCost)})
                     </p>
                   </>
                 );
