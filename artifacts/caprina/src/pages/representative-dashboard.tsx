@@ -2286,11 +2286,14 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
       {expanded && (
         <div className="mt-2 space-y-1.5 max-h-[320px] overflow-y-auto pr-1"
           style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.15) transparent" }}>
-          {/* بيانات الشحنات (النظام الجديد) */}
+          {/* بيانات الشحنات (النظام الجديد) - آخر بيان فقط */}
           {shipmentManifests && shipmentManifests.length > 0 && (
             <>
               <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide px-1">بيانات الشحنات</p>
-              {shipmentManifests.map(m => (
+              {[...shipmentManifests]
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .slice(0, 1)
+                .map(m => (
                 <Link key={`sm-${m.id}`} href={`/shipping/shipment-manifests/${m.id}`}>
                   <div className="flex items-center justify-between p-2.5 rounded-md bg-primary/5 hover:bg-primary/10 cursor-pointer transition-colors border border-primary/10">
                     <div>
@@ -2305,11 +2308,14 @@ function CompanyManifests({ company, allCompanies, canShipping }: { company: Shi
               ))}
             </>
           )}
-          {/* بيانات الطلبات (النظام القديم) */}
-          {manifests && manifests.length > 0 && (
+          {/* بيانات الطلبات (النظام القديم) - آخر بيان فقط، ويظهر فقط لو مفيش بيانات شحنات جديدة */}
+          {(!shipmentManifests || shipmentManifests.length === 0) && manifests && manifests.length > 0 && (
             <>
               <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide px-1 mt-2">بيانات الطلبات</p>
-              {manifests.map(m => (
+              {[...manifests]
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .slice(0, 1)
+                .map(m => (
                 <Link key={`m-${m.id}`} href={`/shipping/manifests/${m.id}`}>
                   <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors">
                     <div>
