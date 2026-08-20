@@ -925,37 +925,17 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
   // — نفس السبب الموضح في CodSettlementCard فوق.
   const st = (s: any) => s.deliveryStatus ?? s.status;
 
-  // ─── الاستلام الجزئي (partial_received) بيتوزّع نسبيًا بين "تسليم" و"مرتجع" بدل ما
-  // يتحسب كوحدة واحدة بالكامل مع أي الفئتين: الجزء اللي اتسلم فعلاً (partialQuantity)
-  // من إجمالي كمية الشحنة (مجموع items.quantity) بيتحسب تسليم، والباقي بيتحسب مرتجع. ───
-  const totalQty = (s: any) => (s.items ?? []).reduce((sum: number, it: any) => sum + Number(it.quantity ?? 0), 0);
-  const deliveredFraction = (s: any) => {
-    const status = st(s);
-    if (status === "delivered") return 1;
-    if (status !== "partial_received") return 0;
-    const total = totalQty(s);
-    const got = Number(s.partialQuantity ?? 0);
-    if (total <= 0) return 0.5; // مفيش بيانات كمية — نص/نص كأفضل تقدير محايد
-    return Math.min(1, Math.max(0, got / total));
-  };
-  const returnedFraction = (s: any) => {
-    const status = st(s);
-    if (status === "returned") return 1;
-    if (status === "partial_received") return 1 - deliveredFraction(s);
-    return 0;
-  };
-
   const thisWeek = allShipments.filter(s => s.createdAt && new Date(s.createdAt) >= weekStart);
   const prevWeek = allShipments.filter(s => {
     const d = new Date(s.createdAt ?? 0);
     return d >= prevWeekStart && d < weekStart;
   });
 
-  const round1 = (n: number) => Math.round(n * 10) / 10;
-  const wDelivered  = round1(thisWeek.reduce((sum, s) => sum + deliveredFraction(s), 0));
-  const wReturned   = round1(thisWeek.reduce((sum, s) => sum + returnedFraction(s), 0));
-  const pwDelivered = round1(prevWeek.reduce((sum, s) => sum + deliveredFraction(s), 0));
-  const pwReturned  = round1(prevWeek.reduce((sum, s) => sum + returnedFraction(s), 0));
+  // partial_received بيتعامل معاملة الاستلام الكامل — بيتحسب ضمن "تسليم" (طلب المستخدم)
+  const wDelivered = thisWeek.filter(s => st(s) === "delivered" || st(s) === "partial_received").length;
+  const wReturned  = thisWeek.filter(s => st(s) === "returned").length;
+  const pwDelivered = prevWeek.filter(s => st(s) === "delivered" || st(s) === "partial_received").length;
+  const pwReturned  = prevWeek.filter(s => st(s) === "returned").length;
 
   // شحنات مؤجلة/معلقة فعلاً (تحتاج اهتمام) — لا تضم الشحنات الطبيعية "قيد الشحن"
   const needsAttention = allShipments.filter(s =>
