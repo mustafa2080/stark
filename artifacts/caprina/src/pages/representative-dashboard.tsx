@@ -741,11 +741,17 @@ function CodSettlementCard({ shipments }: { shipments: any[] }) {
   const delivered = shipments.filter(s => s.status === "delivered");
   const returned = shipments.filter(s => s.status === "returned");
   const partial = shipments.filter(s => s.status === "partial_received");
-  const inProgress = shipments.filter(s => !["delivered","returned","cancelled","partial_received"].includes(s.status));
+  // "قيد الشحن" = شحنات شغالة عادي لسه في الطريق (مش مشكلة)
+  const inTransit = shipments.filter(s => !["delivered","returned","cancelled","partial_received","delayed","waiting","pending"].includes(s.status));
+  // "متأخرة فعلاً" = تحتاج متابعة/مشكلة حقيقية
+  const delayed = shipments.filter(s => ["delayed","waiting","pending"].includes(s.status));
+  const inProgress = [...inTransit, ...delayed]; // للمجموع الكلي لو محتاجينه
 
   const codDelivered = delivered.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
   const codReturned  = returned.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
-  const codPending   = inProgress.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
+  const codInTransit = inTransit.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
+  const codDelayed   = delayed.reduce((s, sh) => s + Number(sh.codAmount ?? 0), 0);
+  const codPending   = codInTransit + codDelayed;
   const total = codDelivered + codReturned;
 
   return (
@@ -755,7 +761,7 @@ function CodSettlementCard({ shipments }: { shipments: any[] }) {
           <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> التسوية المالية (COD)
         </p>
       </div>
-      <div className="grid grid-cols-3 divide-x divide-x-reverse divide-border/50">
+      <div className="grid grid-cols-4 divide-x divide-x-reverse divide-border/50">
         <div className="p-3 text-center">
           <p className="text-[10px] text-muted-foreground mb-1">محصَّل</p>
           <p className="text-sm font-black text-emerald-400">{formatCurrency(codDelivered)}</p>
@@ -767,9 +773,14 @@ function CodSettlementCard({ shipments }: { shipments: any[] }) {
           <p className="text-[9px] text-muted-foreground mt-0.5">{returned.length} طلب</p>
         </div>
         <div className="p-3 text-center">
-          <p className="text-[10px] text-muted-foreground mb-1">معلق</p>
-          <p className="text-sm font-black text-amber-400">{formatCurrency(codPending)}</p>
-          <p className="text-[9px] text-muted-foreground mt-0.5">{inProgress.length} طلب</p>
+          <p className="text-[10px] text-muted-foreground mb-1">قيد الشحن</p>
+          <p className="text-sm font-black text-blue-400">{formatCurrency(codInTransit)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">{inTransit.length} طلب</p>
+        </div>
+        <div className="p-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">متأخر</p>
+          <p className="text-sm font-black text-amber-400">{formatCurrency(codDelayed)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">{delayed.length} طلب</p>
         </div>
       </div>
       {total > 0 && (
@@ -914,9 +925,9 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
   const pwDelivered = prevWeek.filter(s => s.status === "delivered").length;
   const pwReturned  = prevWeek.filter(s => s.status === "returned").length;
 
-  // شحنات مؤجلة (تحتاج اهتمام)
+  // شحنات مؤجلة/معلقة فعلاً (تحتاج اهتمام) — لا تضم الشحنات الطبيعية "قيد الشحن"
   const needsAttention = allShipments.filter(s =>
-    ["delayed","waiting","out_for_delivery","in_transit"].includes(s.status)
+    ["delayed", "waiting", "pending"].includes(s.status)
   );
 
   return (
@@ -1011,7 +1022,7 @@ function PerformanceTab({ d, allShipments }: { d: any; allShipments: any[] }) {
           <div>
             <div className="flex justify-between items-center text-[11px] mb-1.5">
               <span className="text-muted-foreground">إرجاع</span>
-              <TrendBadge current={pwReturned} prev={wReturned} label="إرجاع" />
+              <TrendBadge current={wReturned} prev={pwReturned} label="إرجاع" />
             </div>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-2 rounded-full bg-muted/15 overflow-hidden">
