@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiFetch } from "@/lib/api";
+import { useBrand } from "@/contexts/BrandContext";
 import {
   Brain, ArrowRight, MapPin, TrendingUp, TrendingDown, RotateCcw, Package,
   ChevronLeft, X, Calendar, Percent, Wallet, Minus,
@@ -931,8 +932,9 @@ function PeriodComparisonPanel({ kpis, hasDateFilter }: { kpis: KpiData; hasDate
   );
 }
 
-// ─── لوحة نصائح كابرينا — أول حاجة يشوفها العميل، صوت كابرينا الوحيد ليه ─
+// ─── لوحة نصائح البراند — أول حاجة يشوفها العميل، صوت الشركة الوحيد ليه ─
 function InsightsPanel({ data }: { data: SmartAnalyticsResponse }) {
+  const { brand } = useBrand();
   const insights = useMemo(() => buildInsights(data), [data]);
   if (insights.length === 0) return null;
 
@@ -951,7 +953,7 @@ function InsightsPanel({ data }: { data: SmartAnalyticsResponse }) {
           <Sparkles className="w-4 h-4" style={{ color: "#a78bfa", filter: "drop-shadow(0 0 4px #a78bfaaa)" }} />
         </div>
         <div>
-          <h3 className="font-bold text-sm">نصائح كابرينا لك</h3>
+          <h3 className="font-bold text-sm">نصائح {brand.name} لك</h3>
           <p className="text-[11px] text-muted-foreground">قراءة سريعة لأداءك مبنية على أرقامك الفعلية</p>
         </div>
       </div>
