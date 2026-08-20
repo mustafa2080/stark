@@ -1526,11 +1526,10 @@ export default function OperationsCenterPage() {
     const totalRevenue = manifestRevenue > 0 ? manifestRevenue : shipmentRevenue;
     const totalExpenses = Math.max(0, Number(manifestsPnlSummary?.totalExpenses ?? 0));
     return {
-      totalRevenue,
       totalExpenses,
-      // لا نخلط صافي الإيراد المستحق بمصاريف الخزينة؛ هذه القيمة هي نفس
-      // "صافي الإيراد المستحق" الظاهرة في صفحة بيان حساب العميل.
-      netRevenue: totalRevenue,
+      totalRevenue,
+      // صافي الإيراد = الإيراد الإجمالي ناقص مصاريف الخزنة الفعلية. 
+      netRevenue: totalRevenue - totalExpenses,
       orders: manifestsPnlSummary?.orders ?? financialData?.month.orders ?? 0,
       returnCount: manifestsPnlSummary?.returnCount ?? 0,
       returnRate: manifestsPnlSummary?.returnRate ?? 0,
