@@ -485,10 +485,9 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
   const openShipmentManifest = shipmentManifests?.find(m => m.status === "open") ?? null;
   // البيان المفتوح الفعلي — نظام الشحنات له الأولوية
   const activeManifest = openShipmentManifest ?? openManifest;
-  // المندوب قفل البيان من عنده (قفل مؤقت — الـ status فاضل "open" فنيًا لحد ما الأدمن يقفله فعليًا)
-  // العلامة الحقيقية هي closedByRole="representative"، مش عدد الشحنات المعلّقة/المؤجلة
-  const activeManifestAllCollected = !!activeManifest && (activeManifest as any).closedByRole === "representative";
-  // آخر بيان قفله المندوب ولسه مستني تأكيد الأدمن (مفيش بيان مفتوح دلوقتي)
+  // آخر بيان قفله المندوب ولسه مستني قفل نهائي من الأدمن (status بيتحول "closed" فورًا
+  // لما المندوب يقفل، وclosedByRole="representative" — لغاية ما الأدمن يقفله نهائيًا
+  // (closedByRole يتغير لـ"admin") أو يفتحه للمندوب تاني)
   const lastRepClosedManifest = !activeManifest
     ? (shipmentManifests ?? [])
         .filter(m => (m as any).closedByRole === "representative")
@@ -514,7 +513,7 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
   return (
     <div className="mt-4 pt-4 border-t border-border space-y-3">
       {/* بانر تنبيه: البيان مُغلق من المندوب ومحتاج استلام من الأدمن */}
-      {activeManifestAllCollected && (
+      {lastRepClosedManifest && (
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
           <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
           <span className="text-[11px] sm:text-xs font-bold leading-snug flex-1 min-w-0 break-words">المندوب قام بإغلاق البيان الرجاء استلام التحصيل والمرتجعات وإغلاق البيان من طرفك</span>
@@ -545,13 +544,6 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
           <p className="text-sm font-black text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]">{merged.returned}</p>
         </div>
       </div>
-      {/* بانر: آخر بيان اتقفل من المندوب */}
-      {lastRepClosedManifest && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-          <Lock className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-[11px] font-bold">تم إغلاق البيان من قبل المندوب</span>
-        </div>
-      )}
       {/* قسم البيان الحالي */}
       <div className="bg-muted/20 border border-border/40 rounded-lg p-2">
         <p className="text-[10px] text-muted-foreground text-center mb-1.5">البيان الحالي</p>
