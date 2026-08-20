@@ -435,6 +435,8 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
 
   // فلتر التاريخ
   let allOrders = allOrdersRaw;
+  let fsFromDate: Date | null = null;
+  let fsToDate: Date | null = null;
   if (fromParam || toParam || period) {
     let fromDate: Date | null = null;
     let toDate: Date | null = null;
@@ -454,6 +456,8 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
       if (toDate   && d > toDate)   return false;
       return true;
     });
+    fsFromDate = fromDate;
+    fsToDate = toDate;
   }
 
   const variantMap = new Map<number, number | null>(variants.map(v => [v.id, v.costPrice]));
@@ -537,8 +541,29 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
   }
 
 
-  // صافي الربح = إجمالي المقبوض − تكلفة البضاعة − تكلفة الشحن − خسائر المرتجعات
-  const netProfit = cashIn - costOfGoods - shippingSpend - returnLoss;
+  // مصاريف الخزنة الفعلية لنفس فترة الفلتر - أي "صافي ربح" لازم يخصمها، بدون استثناء
+  // (نفس شروط computeManifestsPnl بالظبط).
+  const fsCashExpenseConditions: any[] = [
+    sql`${cashTransactionsTable.type} IN ('withdrawal', 'expense_paid', 'purchase_paid')`,
+    sql`(${cashTransactionsTable.expenseId} IS NULL OR ${cashTransactionsTable.expenseId} NOT IN (
+      SELECT id FROM expenses WHERE category = 'client_payment'
+    ))`,
+  ];
+  if (tenantId !== null) {
+    fsCashExpenseConditions.push(
+      sql`${cashTransactionsTable.registerId} IN (SELECT id FROM cash_registers WHERE tenant_id = ${tenantId})`
+    );
+  }
+  if (fsFromDate) fsCashExpenseConditions.push(gte(cashTransactionsTable.transactionDate, fsFromDate));
+  if (fsToDate) fsCashExpenseConditions.push(lte(cashTransactionsTable.transactionDate, fsToDate));
+  const [{ fsTotalExpenses }] = await db
+    .select({ fsTotalExpenses: sql<number>`COALESCE(SUM(CAST(${cashTransactionsTable.amount} AS DECIMAL(14,2))), 0)` })
+    .from(cashTransactionsTable)
+    .where(and(...fsCashExpenseConditions));
+  const operatingExpenses = Number(fsTotalExpenses ?? 0);
+
+  // صافي الربح = إجمالي المقبوض − تكلفة البضاعة − تكلفة الشحن − خسائر المرتجعات − مصاريف الخزنة
+  const netProfit = cashIn - costOfGoods - shippingSpend - returnLoss - operatingExpenses;
   const grossProfit = cashIn - costOfGoods;
   const grossMargin = cashIn > 0 ? Math.round((grossProfit / cashIn) * 100) : 0;
   const netMargin = cashIn > 0 ? Math.round((netProfit / cashIn) * 100) : 0;
@@ -606,6 +631,7 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
 
   const fsResponse = {
     cashIn, costOfGoods, shippingSpend, grossProfit, grossMargin, netProfit, netMargin,
+    operatingExpenses,
     returnLoss, returnRevLost, returnDamagedValue, pendingRevenue, returnCount, returnRate,
     totalOrders: new Set(allOrders.map(o => o.invoiceNumber ?? `solo-${o.id}`)).size,
     completedOrders: new Set(allOrders.filter(o => ["received","partial_received"].includes(o.status)).map(o => o.invoiceNumber ?? `solo-${o.id}`)).size,
@@ -4302,10 +4328,11 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
 });
 
 // لوحة العمليات: اتجاه الإيرادات والأرباح اليومي — آخر 7 أيام أو فترة محددة.
-// نفس منطق manifests-pnl-summary بالظبط (بيانات مقفولة فقط، status="closed")،
-// لكن مجمّعة يوميًا على أساس تاريخ إغلاق البيان (closedAt) بدل رقم إجمالي واحد.
-// خط "الأرباح" = صافي ربح المناديب بس (deliveredShippingFees − totalCourierCost)
-// بدون خصم مصاريف الخزنة — حسب طلب المدير.
+// نفس منطق manifests-pnl-summary/computeManifestsPnl بالظبط (بيانات مقفولة فقط،
+// status="closed")، لكن مجمّعة يوميًا على أساس تاريخ إغلاق البيان (closedAt) بدل
+// رقم إجمالي واحد. خط "الأرباح" = صافي ربح المناديب (shippingFee − courierCost −
+// repExtraCost) مطروحًا منه مصاريف الخزنة الفعلية لنفس اليوم — أي "صافي إيراد"
+// في النظام لازم يشمل خصم المصاريف، بدون استثناء.
 router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
@@ -4352,6 +4379,7 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
         codAmount: shipmentsTable.codAmount,
         shippingFee: shipmentsTable.shippingFee,
         courierCostPerShipment: shippingCompaniesTable.shippingCost,
+        parcelType: shipmentsTable.parcelType,
       })
       .from(shipmentManifestItemsTable)
       .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
@@ -4360,6 +4388,51 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
       .where(and(...manifestConditions));
 
     const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
+
+    // repExtraCost لكل نوع طرد - نفس منطق computeManifestsPnl بالظبط
+    const parcelTypes = [...new Set(rows.map(r => (r as any).parcelType).filter((v): v is string => !!v))];
+    const repExtraCostMap: Record<string, number> = {};
+    if (parcelTypes.length) {
+      const pricingRows = await db.select({
+        tenantId: parcelTypePricingTable.tenantId,
+        parcelType: parcelTypePricingTable.parcelType,
+        repExtraCost: parcelTypePricingTable.repExtraCost,
+      }).from(parcelTypePricingTable).where(inArray(parcelTypePricingTable.parcelType, parcelTypes));
+      for (const row of pricingRows) {
+        const isTenantRow = row.tenantId != null && row.tenantId === tenantId;
+        if (repExtraCostMap[row.parcelType] == null || isTenantRow) {
+          repExtraCostMap[row.parcelType] = Number(row.repExtraCost ?? 0);
+        }
+      }
+    }
+
+    // مصاريف الخزنة موزّعة يوميًا حسب تاريخ الحركة - نفس شروط computeManifestsPnl بالظبط
+    const cashExpenseConditions: any[] = [
+      sql`${cashTransactionsTable.type} IN ('withdrawal', 'expense_paid', 'purchase_paid')`,
+      sql`(${cashTransactionsTable.expenseId} IS NULL OR ${cashTransactionsTable.expenseId} NOT IN (
+        SELECT id FROM expenses WHERE category = 'client_payment'
+      ))`,
+      gte(cashTransactionsTable.transactionDate, fromDate),
+      lte(cashTransactionsTable.transactionDate, toDate),
+    ];
+    if (tenantId !== null) {
+      cashExpenseConditions.push(
+        sql`${cashTransactionsTable.registerId} IN (SELECT id FROM cash_registers WHERE tenant_id = ${tenantId})`
+      );
+    }
+    const expenseRows = await db
+      .select({
+        transactionDate: cashTransactionsTable.transactionDate,
+        amount: cashTransactionsTable.amount,
+      })
+      .from(cashTransactionsTable)
+      .where(and(...cashExpenseConditions));
+    const expensesByDate = new Map<string, number>();
+    for (const e of expenseRows) {
+      if (!e.transactionDate) continue;
+      const key = new Date(e.transactionDate).toISOString().slice(0, 10);
+      expensesByDate.set(key, (expensesByDate.get(key) ?? 0) + Number(e.amount ?? 0));
+    }
 
     const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
     const buckets: { day: string; date: string; revenue: number; profit: number }[] = [];
@@ -4396,11 +4469,19 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
       }
       bucket.revenue += revenue;
 
-      // صافي الربح = رسوم الشحن (shippingFee) − تكلفة المندوب (نفس معادلة manifests-pnl-summary)
+      // صافي الربح = رسوم الشحن (shippingFee) − تكلفة المندوب − إضافة نوع الطرد
+      // (نفس معادلة manifests-pnl-summary/computeManifestsPnl بالظبط)
       bucket.profit += Number(r.shippingFee ?? 0);
       if (r.deliveryStatus === "delivered" || r.deliveryStatus === "returned") {
         bucket.profit -= Math.abs(Number(r.courierCostPerShipment ?? 0));
+        const repExtraCost = (r as any).parcelType ? (repExtraCostMap[(r as any).parcelType] ?? 0) : 0;
+        bucket.profit -= repExtraCost;
       }
+    }
+    // خصم مصاريف الخزنة من صافي الربح كل يوم على حدة - أي "صافي إيراد" لازم
+    // يشمل خصم المصاريف الفعلية، بدون استثناء.
+    for (const b of buckets) {
+      b.profit -= expensesByDate.get(b.date) ?? 0;
     }
     for (const b of buckets) {
       b.revenue = Math.round(b.revenue);
