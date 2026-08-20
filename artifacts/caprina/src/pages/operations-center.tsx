@@ -91,7 +91,8 @@ function OcPeriodCard({
   onClick: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const isProfit = data.totalRevenue >= 0;
+  const netAfterExpenses = data.totalRevenue - data.totalExpenses;
+  const isProfit = netAfterExpenses >= 0;
   return (
     <Card
       className={`oc-kpi-card overflow-hidden cursor-pointer transition-all duration-200 ${active ? "" : "opacity-70 hover:opacity-100"}`}
@@ -119,14 +120,18 @@ function OcPeriodCard({
             <div className="space-y-2 sm:space-y-3 pt-2 sm:pt-3">
               <div className="min-w-0">
                 <p className={`text-lg sm:text-2xl font-black leading-tight truncate ${isProfit ? "" : "text-red-600 dark:text-red-400"}`} style={isProfit ? { color: active ? tone : undefined } : undefined}>
-                  {fc(data.totalRevenue)}
+                  {fc(netAfterExpenses)}
                 </p>
                 <p className="text-[9px] sm:text-[10px] text-muted-foreground">صافي الإيراد</p>
               </div>
-              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
+              <div className="grid grid-cols-4 gap-x-2 gap-y-1.5 pt-2 border-t border-border/50">
                 <div className="min-w-0">
                   <p className="text-[9px] text-muted-foreground leading-tight">إيرادات</p>
                   <p className="text-[11px] sm:text-xs font-bold text-primary truncate">{fc(data.totalRevenue)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] text-muted-foreground leading-tight">مصاريف</p>
+                  <p className="text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-400 truncate">{fc(data.totalExpenses)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] text-muted-foreground leading-tight">الطلبات</p>
