@@ -351,10 +351,40 @@ router.get("/finance/clients/me", async (req, res): Promise<void> => {
     const conds: any[] = [];
     if (tenantId !== null) conds.push(eq(clientsTable.tenantId, tenantId));
 
-    // نحاول نطابق باسم العرض أو رقم الهاتف أو الإيميل
-    const [client] = await db.select().from(clientsTable)
-      .where(conds.length ? and(...conds) : undefined as any)
-      .limit(1);
+    // ── لازم نربط بحساب العميل التجاري الصحيح المرتبط بالـ user الحالي فعليًا ──
+    // usersTable.clientId هو رابط صريح (client role) لسجل العميل في جدول clients.
+    // لو الحساب قديم ومفيهوش clientId، نرجع لمطابقة بالهاتف أولاً ثم الإيميل ثم الاسم
+    // (بالترتيب الأدق) بدل ما نجيب أول عميل عشوائي في نفس الـ tenant.
+    let client: typeof clientsTable.$inferSelect | undefined;
+
+    if (user?.clientId) {
+      const byIdConds = [...conds, eq(clientsTable.id, user.clientId)];
+      [client] = await db.select().from(clientsTable).where(and(...byIdConds)).limit(1);
+    }
+
+    if (!client) {
+      const userPhone = normalizePhone(user?.phone);
+      if (userPhone) {
+        const [byPhone] = await db.select().from(clientsTable)
+          .where(and(...conds, eq(clientsTable.normalizedPhone, userPhone)))
+          .limit(1);
+        client = byPhone;
+      }
+    }
+
+    if (!client && user?.email) {
+      const [byEmail] = await db.select().from(clientsTable)
+        .where(and(...conds, eq(clientsTable.email, user.email)))
+        .limit(1);
+      client = byEmail;
+    }
+
+    if (!client && user?.displayName) {
+      const [byName] = await db.select().from(clientsTable)
+        .where(and(...conds, eq(clientsTable.name, user.displayName)))
+        .limit(1);
+      client = byName;
+    }
 
     if (!client) {
       // لو مفيش عميل → نرجع بيانات الـ user نفسه كـ placeholder
