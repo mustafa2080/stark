@@ -1625,7 +1625,7 @@ export default function OperationsCenterPage() {
         }
       `}</style>
       {/* ── الهيدر العلوي ───────────────────────────────────────────────── */}
-      <div className="oc-card rounded-2xl px-4 sm:px-5 py-4 relative z-[60]">
+      <div className="oc-card rounded-2xl px-4 sm:px-5 py-4 relative z-10">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* يمين: الترحيب + التاريخ */}
           <div className="min-w-0">
