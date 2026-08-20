@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -110,6 +110,88 @@ router.get("/finance/clients/for-shipment", async (req, res): Promise<void> => {
       )
       .orderBy(clientsTable.name);
     res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /finance/pickup-requests — كل طلبات الالتقاط (أدمن) ─────────────────
+router.get("/finance/pickup-requests", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const { status } = req.query;
+
+    const conds: any[] = [isNull(pickupRequestsTable.deletedAt)];
+    if (tenantId !== null) conds.push(eq(pickupRequestsTable.tenantId, tenantId));
+    if (status && typeof status === "string") conds.push(eq(pickupRequestsTable.status, status));
+
+    const rows = await db.select({
+      id:                pickupRequestsTable.id,
+      requestNumber:     pickupRequestsTable.requestNumber,
+      pickupContactName: pickupRequestsTable.pickupContactName,
+      pickupPhone:       pickupRequestsTable.pickupPhone,
+      pickupAddress:     pickupRequestsTable.pickupAddress,
+      pickupCity:        pickupRequestsTable.pickupCity,
+      piecesCount:       pickupRequestsTable.piecesCount,
+      estimatedWeight:   pickupRequestsTable.estimatedWeight,
+      notes:             pickupRequestsTable.notes,
+      preferredDate:     pickupRequestsTable.preferredDate,
+      preferredTimeSlot: pickupRequestsTable.preferredTimeSlot,
+      status:            pickupRequestsTable.status,
+      rejectionReason:   pickupRequestsTable.rejectionReason,
+      portalClientId:    pickupRequestsTable.portalClientId,
+      createdAt:         pickupRequestsTable.createdAt,
+    })
+      .from(pickupRequestsTable)
+      .where(and(...conds))
+      .orderBy(desc(pickupRequestsTable.createdAt));
+
+    // ── اسم العميل التجاري الحقيقي (لو الطلب مربوط بعميل بوابة) — الأولوية لبيانات جدول clients لو موجودة ──
+    const clientIds = [...new Set(rows.map(r => r.portalClientId).filter((id): id is number => id != null))];
+    let clientNameMap: Record<number, string> = {};
+    if (clientIds.length) {
+      const clientsRows = await db.select({ id: clientsTable.id, name: clientsTable.name })
+        .from(clientsTable).where(inArray(clientsTable.id, clientIds));
+      for (const c of clientsRows) clientNameMap[c.id] = c.name;
+    }
+
+    const data = rows.map(r => ({
+      ...r,
+      clientName: (r.portalClientId != null ? clientNameMap[r.portalClientId] : null) ?? r.pickupContactName,
+    }));
+
+    res.json({ data, total: data.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /finance/pickup-requests/:id/status — تحديث حالة طلب الالتقاط (أدمن) ──
+const updatePickupStatusSchema = z.object({
+  status: z.enum(["pending", "approved", "assigned", "picked_up", "cancelled", "rejected"]),
+  rejectionReason: z.string().trim().optional(),
+});
+
+router.patch("/finance/pickup-requests/:id/status", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const parsed = updatePickupStatusSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
+
+    const conds: any[] = [eq(pickupRequestsTable.id, id)];
+    if (tenantId !== null) conds.push(eq(pickupRequestsTable.tenantId, tenantId));
+    const [existing] = await db.select().from(pickupRequestsTable).where(and(...conds)).limit(1);
+    if (!existing) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+
+    await db.update(pickupRequestsTable).set({
+      status: parsed.data.status,
+      rejectionReason: parsed.data.rejectionReason ?? null,
+      updatedAt: new Date(),
+      pickedUpAt: parsed.data.status === "picked_up" ? new Date() : existing.pickedUpAt,
+    } as any).where(eq(pickupRequestsTable.id, id));
+
+    res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
