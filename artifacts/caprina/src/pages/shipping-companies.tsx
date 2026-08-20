@@ -485,12 +485,9 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
   const openShipmentManifest = shipmentManifests?.find(m => m.status === "open") ?? null;
   // البيان المفتوح الفعلي — نظام الشحنات له الأولوية
   const activeManifest = openShipmentManifest ?? openManifest;
-  // كل شحنات البيان المفتوح اتحسمت (مفيش قيد انتظار ولا مؤجل) — جاهز للإقفال
-  const activeManifestAllCollected = !!activeManifest && (
-    ((activeManifest as any).statusCounts?.pending ?? (activeManifest as any).pendingCount ?? 0) === 0 &&
-    ((activeManifest as any).statusCounts?.delayed ?? (activeManifest as any).postponedCount ?? 0) === 0 &&
-    (((activeManifest as any).shipmentCount ?? (activeManifest as any).orderCount ?? 0) > 0)
-  );
+  // المندوب قفل البيان من عنده (قفل مؤقت — الـ status فاضل "open" فنيًا لحد ما الأدمن يقفله فعليًا)
+  // العلامة الحقيقية هي closedByRole="representative"، مش عدد الشحنات المعلّقة/المؤجلة
+  const activeManifestAllCollected = !!activeManifest && (activeManifest as any).closedByRole === "representative";
   // آخر بيان قفله المندوب ولسه مستني تأكيد الأدمن (مفيش بيان مفتوح دلوقتي)
   const lastRepClosedManifest = !activeManifest
     ? (shipmentManifests ?? [])
@@ -516,6 +513,13 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
 
   return (
     <div className="mt-4 pt-4 border-t border-border space-y-3">
+      {/* بانر تنبيه: البيان مُغلق من المندوب ومحتاج استلام من الأدمن */}
+      {activeManifestAllCollected && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-red-500/10 border border-red-500/30 text-red-400">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <span className="text-[11px] font-bold">المندوب قام بإغلاق البيان الرجاء استلام التحصيل والمرتجعات وإغلاق البيان من طرفك</span>
+        </div>
+      )}
       <DeliveryBar rate={deliveryRate} />
       {/* صف: مسلم | مسلم جزئي | مرتجع */}
       <div className="grid grid-cols-3 gap-2 text-center">
@@ -541,13 +545,7 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
           <p className="text-sm font-black text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]">{merged.returned}</p>
         </div>
       </div>
-      {/* بانر: تم التحصيل ومستني إقفال البيان، أو آخر بيان اتقفل من المندوب */}
-      {activeManifestAllCollected && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400">
-          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-[11px] font-bold">تم التحصيل، في انتظار إقفال البيان</span>
-        </div>
-      )}
+      {/* بانر: آخر بيان اتقفل من المندوب */}
       {lastRepClosedManifest && (
         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
           <Lock className="w-3.5 h-3.5 shrink-0" />
