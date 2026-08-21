@@ -544,7 +544,7 @@ export default function ClientManifestViewPage() {
         ) : (
           <div className="overflow-x-auto">
             {/* رأس الجدول */}
-            <div dir="rtl" className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_140px] md:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
+            <div dir="rtl" className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[110px_minmax(120px,1fr)_95px_90px_minmax(130px,1.2fr)_85px_85px_80px_130px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
               <div className="hidden md:flex items-center gap-1.5 px-3 h-9">
                 <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
                 اسم الراسل
@@ -579,7 +579,7 @@ export default function ClientManifestViewPage() {
                   <div
                     key={idx}
                     dir="rtl"
-                    className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_140px] md:min-w-[1080px] gap-0 items-center py-2.5 text-xs hover:bg-muted/10 transition-colors"
+                    className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[110px_minmax(120px,1fr)_95px_90px_minmax(130px,1.2fr)_85px_85px_80px_130px] gap-0 items-center py-2.5 text-xs hover:bg-muted/10 transition-colors"
                   >
                     <div className="hidden md:flex min-w-0 px-3 items-center">
                       {rep.senderName ? (
