@@ -297,7 +297,15 @@ function OrderDeliveryRow({
           )}
         </div>
         {/* Price */}
-        <div className="text-left font-bold">{formatCurrency(order.totalPrice)}</div>
+        <div className="text-left font-bold">
+          {formatCurrency(
+            (order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered") && order.partialQuantity != null
+              ? Number(order.unitPrice) * Number(order.partialQuantity)
+              : order.deliveryStatus === "delivered" && (order as any).deliveredValueReceived != null
+                ? Number((order as any).deliveredValueReceived)
+                : order.totalPrice
+          )}
+        </div>
         {/* Delivery Status Badge -- always visible */}
         <div>
           <Badge
@@ -444,7 +452,15 @@ function OrderDeliveryRow({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className="font-bold">{order.quantity}</span>
-            <span className="font-bold text-primary">{formatCurrency(order.totalPrice)}</span>
+            <span className="font-bold text-primary">
+              {formatCurrency(
+                (order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered") && order.partialQuantity != null
+                  ? Number(order.unitPrice) * Number(order.partialQuantity)
+                  : order.deliveryStatus === "delivered" && (order as any).deliveredValueReceived != null
+                    ? Number((order as any).deliveredValueReceived)
+                    : order.totalPrice
+              )}
+            </span>
           </div>
         </div>
         {order.deliveryStatus === "returned" && (order as any).returnReceived === 1 && (
@@ -887,9 +903,13 @@ function InvoiceGroupDeliveryRow({
   const groupKey = getManifestGroupKey(rep);
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received أو partial_delivered احسب الجزء المستلم فقط
+  // لو delivered وفيه deliveredValueReceived (قيمة مستلمة فعلية أقل من الإجمالي) خده هو
   const totalPrice = group.reduce((s, o) => {
     if ((o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity != null) {
       return s + Number(o.unitPrice) * Number(o.partialQuantity);
+    }
+    if (o.deliveryStatus === "delivered" && (o as any).deliveredValueReceived != null) {
+      return s + Number((o as any).deliveredValueReceived);
     }
     return s + Number(o.totalPrice);
   }, 0);
@@ -1180,7 +1200,11 @@ function InvoiceGroupDeliveryRow({
           </div>
           {/* سعر الشحنة (COD) */}
           <div className="text-left font-bold px-3 flex items-center">
-            <span className="text-emerald-500">{formatCurrency(totalPrice)}</span>
+            <span className="text-emerald-500">{formatCurrency(totalFullPrice)}</span>
+          </div>
+          {/* القيمة المستلمة (فعليًا) */}
+          <div className="text-center px-2 flex items-center justify-center">
+            <span className="text-emerald-500 font-semibold">{formatCurrency(totalPrice)}</span>
           </div>
           {/* سعر الشحن (fee) */}
           <div className="text-center px-2 flex items-center justify-center">
@@ -1197,16 +1221,6 @@ function InvoiceGroupDeliveryRow({
             ) : (
               <span className="text-muted-foreground/40">—</span>
             )}
-          </div>
-          {/* الإجمالي (COD - fee - courier) */}
-          <div className="text-center px-2 flex items-center justify-center">
-            {(() => {
-              const fee = (rep as any).shippingCost != null ? Number((rep as any).shippingCost) : 0;
-              const courier = courierShippingCost != null ? Number(courierShippingCost) : 0;
-              return (
-                <span className="font-bold text-primary">{formatCurrency(totalPrice - fee - courier)}</span>
-              );
-            })()}
           </div>
           {/* الحالة + زرار التقفيل */}
           <div className="px-3 flex flex-col gap-1" onClick={e => e.stopPropagation()}>
@@ -4592,6 +4606,10 @@ export default function ShippingManifestPage() {
                     }
                     {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                   </div>
+                  {/* ─── القيمة المستلمة ─── */}
+                  <div className="flex items-center justify-center gap-1 px-2 h-9">
+                    القيمة المستلمة
+                  </div>
                   {/* ─── سعر الشحن (fee) ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9">
                     سعر الشحن
@@ -4599,10 +4617,6 @@ export default function ShippingManifestPage() {
                   {/* ─── تكلفة الشحنة (courier cost) ─── */}
                   <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">
                     تكلفة الشحنة
-                  </div>
-                  {/* ─── الإجمالي (COD - fee - courier) ─── */}
-                  <div className="flex items-center justify-center gap-1 px-2 h-9">
-                    الإجمالي
                   </div>
                   {/* ─── الحالة ─── */}
                   <div className="flex items-center gap-1 px-2 h-9">
