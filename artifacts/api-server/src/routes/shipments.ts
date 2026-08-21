@@ -512,6 +512,8 @@ router.get("/shipments", async (req, res): Promise<void> => {
           senderCityGovernorate: senderZoneTable.toGovernorate,
           // ── JOIN: سبب التأجيل (من آخر بيان شحن مرتبط بالشحنة) ──
           delayNote: shipmentManifestItemsTable.deliveryNote,
+          // ── JOIN: القيمة الفعلية المستلمة لو تم تسليم الشحنة بقيمة أقل من الإجمالي (من آخر بيان شحن) ──
+          deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))

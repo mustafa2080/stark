@@ -2116,10 +2116,10 @@ export default function Orders() {
                     </TableHead>
                     )}
                     {canFinancials && (
-                    <TableHead className="text-right text-xs">سعر الشحن</TableHead>
+                    <TableHead className="text-right text-xs">القيمة المستلمة</TableHead>
                     )}
                     {canFinancials && (
-                    <TableHead className="text-right text-xs">الإجمالي</TableHead>
+                    <TableHead className="text-right text-xs">سعر الشحن</TableHead>
                     )}
                     <TableHead className="text-center text-xs w-36">
                       <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
@@ -2193,13 +2193,24 @@ export default function Orders() {
                         </TableCell>
                         )}
                         {canFinancials && (
-                        <TableCell className="text-xs font-medium">
-                          {o.shippingFee != null ? formatCurrency(Number(o.shippingFee)) : "—"}
+                        <TableCell className="text-xs font-bold text-emerald-500">
+                          {(() => {
+                            // نفس منطق صفحة المندوب/بيان العميل: partial → partialQuantity كقيمة مالية فعلية،
+                            // delivered بقيمة أقل من الإجمالي → deliveredValueReceived، غير كده الإجمالي العادي
+                            if (o.status === "partial_received" && o.partialQuantity != null) {
+                              return formatCurrency(Number(o.partialQuantity));
+                            }
+                            if (o.status === "delivered" && o.deliveredValueReceived != null) {
+                              return formatCurrency(Number(o.deliveredValueReceived));
+                            }
+                            const base = o.codAmount != null ? Number(o.codAmount) : Number(o.totalAmount ?? 0);
+                            return formatCurrency(base);
+                          })()}
                         </TableCell>
                         )}
                         {canFinancials && (
-                        <TableCell className="text-xs font-bold text-primary">
-                          {formatCurrency((Number(o.codAmount ?? o.totalAmount ?? 0)) + Number(o.shippingFee ?? 0))}
+                        <TableCell className="text-xs font-medium">
+                          {o.shippingFee != null ? formatCurrency(Number(o.shippingFee)) : "—"}
                         </TableCell>
                         )}
                         <TableCell className="text-center">
