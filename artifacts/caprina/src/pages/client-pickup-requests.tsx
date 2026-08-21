@@ -1,22 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
   ArrowRight, Package, Plus, MapPin, Phone, User, Calendar,
-  Clock, X, Truck, CheckCircle2, Ban, AlertCircle, FileText,
+  Clock, X, Truck, CheckCircle2, Ban, AlertCircle, FileText, Bell,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 // ─── أيام الاستلام الثابتة عند شركة الشحن: السبت والثلاثاء فقط ─────────────
-// بنحسب أقرب يوم استلام قادم (شامل النهاردة لو النهاردة نفسها سبت أو تلات) ونبني
-// ملحوظة تلقائية للعميل توضّحله يستنى مكالمة المندوب امتى بالظبط.
+// بنحسب أقرب يوم استلام قادم مع مراعاة "ساعة القطع" (cutoff): لو العميل بعت
+// الطلب بعد الساعة 8 مساءً من يوم سبت أو ثلاثاء (أو أي يوم تاني أصلًا)، ميتحسبش
+// نفس اليوم استلام فوري — لازم ننقله لأقرب يوم استلام بعد كده. ده عشان لو حد
+// بعت الطلب الساعة 11 بالليل يوم سبت مثلاً، مش هيتقالّه "هنستلم النهاردة"
+// وإحنا فعليًا قفلنا الاستلام بالفعل.
 const PICKUP_DAYS = [6, 2]; // 6 = السبت، 2 = الثلاثاء (0 = الأحد حسب getDay)
 const AR_DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const PICKUP_CUTOFF_HOUR = 20; // 8 مساءً — بعدها يوم النهاردة (حتى لو سبت/تلات) ميتحسبش
 
 function nextPickupDay(from: Date = new Date()): { date: Date; dayName: string; isToday: boolean } {
-  for (let add = 0; add <= 7; add++) {
+  const afterCutoffToday = from.getHours() >= PICKUP_CUTOFF_HOUR;
+  for (let add = 0; add <= 8; add++) {
+    // لو النهاردة نفسها (add === 0) وإحنا بعد ساعة القطع، منعتبرهاش خيار متاح خالص
+    if (add === 0 && afterCutoffToday) continue;
     const d = new Date(from);
     d.setDate(from.getDate() + add);
     if (PICKUP_DAYS.includes(d.getDay())) {
@@ -79,9 +86,15 @@ function CreatePickupModal({ onClose, onCreated }: { onClose: () => void; onCrea
     pickupContactName: "", pickupPhone: "", pickupAddress: "", pickupCity: "",
     piecesCount: "1", estimatedWeight: "", notes: buildAutoNote(), preferredTimeSlot: "morning",
   }));
-  // بنتابع هل العميل عدّل الملاحظة بنفسه — لو لأ، نفضل نحدّثها تلقائيًا لو
-  // الفورم فضل مفتوح عبر منتصف الليل (نادر لكن ممكن) عشان اليوم المحسوب يفضل صحيح
-  const [notesTouched, setNotesTouched] = useState(false);
+  // الملاحظة التلقائية دلوقتي "تنويه" ثابت مش حقل قابل للتعديل من العميل، فبنفضل
+  // نعيد حسابها كل دقيقة عشان لو الفورم فضل مفتوح فترة طويلة وعدّى ميعاد القطع
+  // (8 مساءً) وهو مفتوح، يتحدث اليوم المعروض تلقائيًا من غير ما العميل يعمل حاجة.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setForm(f => ({ ...f, notes: buildAutoNote() }));
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, []);
   // لو بيانات العميل وصلت بعد أول render، نعبّي الحقول اللي لسه فاضية بس —
   // من غير ما نلغي أي حاجة كتبها العميل بنفسه لو بدأ يكتب قبل ما البيانات توصل.
   const [prefilled, setPrefilled] = useState(false);
@@ -99,7 +112,6 @@ function CreatePickupModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const [loading, setLoading] = useState(false);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    if (k === "notes") setNotesTouched(true);
     setForm(f => ({ ...f, [k]: e.target.value }));
   };
 
@@ -184,9 +196,21 @@ function CreatePickupModal({ onClose, onCreated }: { onClose: () => void; onCrea
               {TIME_SLOTS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-xs text-white/50 mb-1.5">ملاحظات</label>
-            <textarea value={form.notes} onChange={set("notes")} rows={2} className={inputCls} style={inputStyle} placeholder="اختياري" />
+          {/* ── تنويه هام: ميعاد الاستلام الفعلي — تنويه تلقائي وليس حقل قابل
+              للتعديل، عشان العميل ياخد باله من ميعاد المندوب الحقيقي (السبت
+              أو الثلاثاء فقط، مع مراعاة ميعاد القطع الساعة 8 مساءً) ── */}
+          <div className="relative rounded-xl p-3.5 flex items-start gap-3 overflow-hidden"
+            style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.35)" }}>
+            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+              style={{ background: "rgba(16,185,129,0.18)" }}>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+                style={{ background: "rgba(16,185,129,0.4)" }} />
+              <Bell size={14} className="relative text-emerald-400" />
+            </span>
+            <div>
+              <p className="text-[11px] font-bold mb-0.5 text-emerald-400">تنويه هام</p>
+              <p className="text-xs leading-relaxed text-white/80">{form.notes}</p>
+            </div>
           </div>
 
           <button onClick={submit} disabled={loading}
