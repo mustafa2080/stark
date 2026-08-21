@@ -285,8 +285,16 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
         const dvr = (item as any).deliveredValueReceived;
         const actualCod = dvr != null ? Number(dvr) : cod;
         delta = actualCod - shipping;
-      } else if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
-        delta = Number(item.partialQuantity) - shipping;
+      } else if (
+        (item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") &&
+        item.partialQuantity != null
+      ) {
+        // ⚠️ partial_received كانت متفوّتة هنا قبل كده — نفس الفرق اللي كان بيظهر
+        // بين رصيد العميل الإجمالي وصفحة بيان العميل التفصيلية.
+        const pq = item.deliveryStatus === "partial_received"
+          ? Math.round(Number(item.partialQuantity))
+          : Number(item.partialQuantity);
+        delta = pq - shipping;
       }
       balanceByClient[cId] = (balanceByClient[cId] ?? 0) + delta;
     }
@@ -668,15 +676,23 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         totalCost += cost;
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
-      } else if (item.deliveryStatus === "partial_delivered") {
+      } else if (item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") {
         // partialQuantity هنا في بيان الشحن قيمة مالية فعلية أدخلها المندوب (مش عدد قطع) — تُستخدم كما هي
         // رسوم الشحن تُحسب دايمًا طالما فيه جزء اتسلم، بغض النظر عن استلام المرتجع من شركة الشحن
+        // ⚠️ partial_received لازم تتحسب هنا زي partial_delivered بالظبط (نفس منطق
+        // getCollectedAmount في الفرونت إند) — وإلا صافي الإيرادات هنا هيختلف عن
+        // الرقم الظاهر في صفحة العميل (client-manifest-view.tsx) لأي شحنة partial_received.
         totalShippingCost += shipping;
         deliveredShippingFees += shipping;
         const pqSrc = item.partialQuantity != null ? item.partialQuantity : (shipment as any)?.partialQuantity;
-        const partialCod = pqSrc != null
+        const partialCodRaw = pqSrc != null
           ? Number(pqSrc)
           : Number((shipment as any).collectedAmount ?? 0);
+        // getCollectedAmount في الفرونت إند بيعمل Math.round لحالة partial_received
+        // تحديدًا (partial_delivered بياخدها من غير تقريب) — بنحافظ على نفس الفرق هنا.
+        const partialCod = item.deliveryStatus === "partial_received"
+          ? Math.round(partialCodRaw)
+          : partialCodRaw;
         totalRevenue += partialCod;
         deliveredGross += partialCod;
         if ((item as any).returnReceived === 1) {
