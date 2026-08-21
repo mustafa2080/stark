@@ -1,8 +1,13 @@
 import { useState, useRef, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  PieChart, Pie, Cell, Sector, ResponsiveContainer,
+} from "recharts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ArrowRight, User, Phone, Mail, MapPin, Edit2, X, Check, Loader2,
   Camera, Package, CheckCircle2, Clock, Truck, ShieldCheck, AlertTriangle,
@@ -18,6 +23,227 @@ import { cn } from "@/lib/utils";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
+const fc = (n: number | string) =>
+  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
+
+interface StatsResponse {
+  total: number;
+  breakdown: { key: string; label: string; count: number; pct: number; color: string }[];
+  finance: { totalCod: string; totalCollected: string; totalShippingFee: string; outstanding: string };
+  accountStatus: string;
+  creditLimit: string;
+  clientBalance: number;
+}
+
+// ── Status color config (نفس ألوان breakdown القادمة من /client-portal/stats) ──
+const CLIENT_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  waiting:          { label: "قيد الانتظار",         color: "#f5a623", bg: "#f5a62318" },
+  in_transit:       { label: "قيد الشحن",            color: "#4a7cf5", bg: "#4a7cf518" },
+  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#2dd4bf", bg: "#2dd4bf18" },
+  delivered:        { label: "استلم",                color: "#22c55e", bg: "#22c55e18" },
+  partial_received: { label: "استلم جزئى",           color: "#38bdf8", bg: "#38bdf818" },
+  delayed:          { label: "مؤجل",                 color: "#8b5cf6", bg: "#8b5cf618" },
+  returned:         { label: "مرتجع",                color: "#ef4444", bg: "#ef444418" },
+  cancelled:        { label: "ملغية",                color: "#6b7280", bg: "#6b728018" },
+};
+
+// ─── Hover (active) shape — smooth expand with glow ────────────────────────
+function ClientActiveDonutShape(props: any) {
+  const {
+    cx, cy, innerRadius, outerRadius,
+    startAngle, endAngle, fill,
+    payload, percent, value,
+  } = props;
+  const cfg = CLIENT_STATUS_CFG[payload.key] ?? { label: payload.key, color: fill };
+
+  return (
+    <g tabIndex={-1} style={{ outline: "none" }}>
+      {/* Glow ring */}
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={outerRadius + 5}
+        outerRadius={outerRadius + 9}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        opacity={0.2}
+        cornerRadius={6}
+      />
+      {/* Main segment — slightly expanded */}
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={innerRadius - 4}
+        outerRadius={outerRadius + 7}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        cornerRadius={6}
+        tabIndex={-1}
+        style={{ outline: "none" }}
+      />
+      {/* Center text: count */}
+      <text x={cx} y={cy - 14} textAnchor="middle"
+        fill="hsl(var(--foreground))" fontSize={26} fontWeight={900}
+        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
+        {value}
+      </text>
+      {/* Center text: label */}
+      <text x={cx} y={cy + 8} textAnchor="middle"
+        fill="hsl(var(--muted-foreground))" fontSize={11}
+        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
+        {cfg.label}
+      </text>
+      {/* Center text: percent */}
+      <text x={cx} y={cy + 26} textAnchor="middle"
+        fill={fill} fontSize={14} fontWeight={800}
+        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    </g>
+  );
+}
+
+// ─── Client Shipment Filtered List (Popover body) — مفلتر بالعميل تلقائيًا ────
+function ClientShipmentFilteredList({ statusKey, cfg }: { statusKey: string; cfg: { label: string; color: string; bg: string } }) {
+  const { data, isLoading, error } = useQuery<any>({
+    queryKey: ["client-portal-shipments-by-status", statusKey],
+    queryFn: () => apiFetch<any>(`/client-portal/shipments?status=${statusKey}&pageSize=20`),
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const shipments: any[] = data?.data ?? (Array.isArray(data) ? data : []);
+
+  return (
+    <div className="w-[88vw] max-w-xs max-h-96 overflow-y-auto rounded-xl border" style={{ borderColor: cfg.color + "44", background: cfg.bg }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b sticky top-0 z-10"
+        style={{ borderColor: cfg.color + "33", background: cfg.bg }}>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+          <span className="text-xs font-bold" style={{ color: cfg.color }}>{cfg.label}</span>
+          {!isLoading && shipments.length > 0 && (
+            <span className="text-[10px] text-muted-foreground">({shipments.length})</span>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
+      ) : error ? (
+        <div className="p-4 text-center text-xs text-red-500">خطأ في التحميل</div>
+      ) : shipments.length === 0 ? (
+        <div className="p-4 text-center text-xs text-muted-foreground">لا توجد شحنات بهذه الحالة</div>
+      ) : (
+        <div className="divide-y" style={{ borderColor: cfg.color + "22" }}>
+          {shipments.slice(0, 20).map((s: any) => (
+            <Link
+              key={s.id}
+              href={`/client-shipment-detail/${s.id}`}
+              className="flex items-center justify-between px-3 py-2 hover:bg-black/5 transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-white"
+                  style={{ background: cfg.color }}>
+                  {(s.receiverName ?? "؟").charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">{s.receiverName ?? "—"}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {s.shipmentNumber ?? s.trackingNumber ?? `#${String(s.id).padStart(4, "0")}`}
+                    {s.receiverCity ? ` • ${s.receiverCity}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="text-left shrink-0 mr-1">
+                {s.codAmount != null && Number(s.codAmount) > 0 && (
+                  <p className="text-[10px] font-black" style={{ color: cfg.color }}>
+                    {fc(s.codAmount)}
+                  </p>
+                )}
+                <p className="text-[9px] text-muted-foreground">
+                  {s.createdAt ? format(new Date(s.createdAt), "dd/MM") : ""}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Client Status Legend Item (clickable with popover) ───────────────────────
+function ClientStatusLegendItem({ d }: { d: { key: string; count: number; pct: number } }) {
+  const [open, setOpen] = useState(false);
+  const cfg = CLIENT_STATUS_CFG[d.key] ?? { label: d.key, color: "#888", bg: "#88888818" };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold w-full text-right transition hover:opacity-80 hover:ring-1 hover:ring-current cursor-pointer"
+          style={{ background: cfg.bg }}
+          onClick={() => setOpen(v => !v)}
+        >
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+          <span className="text-foreground truncate flex-1">{cfg.label}</span>
+          <span className="font-black" style={{ color: cfg.color }}>{d.count}</span>
+          <span className="text-muted-foreground">{d.pct}%</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="start" avoidCollisions={true} className="p-0 border-0 shadow-2xl w-auto z-50" sideOffset={6}>
+        <ClientShipmentFilteredList statusKey={d.key} cfg={cfg} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Client Shipment Status Donut (Pie chart + قائمة منسدلة زي operations-center) ──
+function ClientShipmentStatusDonut({ breakdown, total }: { breakdown: StatsResponse["breakdown"]; total: number }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const sorted = useMemo(() => [...breakdown].filter(d => d.count > 0).sort((a, b) => b.count - a.count), [breakdown]);
+
+  return (
+    <div className="space-y-4 w-full">
+      <div className="relative" style={{ height: 220 }}>
+        {activeIndex === null && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+            <p className="text-4xl font-black text-foreground leading-none">{fn(total)}</p>
+            <p className="text-xs text-muted-foreground mt-1">إجمالي الشحنات</p>
+          </div>
+        )}
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart tabIndex={-1} style={{ outline: "none" }}>
+            <Pie
+              data={sorted}
+              cx="50%" cy="50%"
+              innerRadius="52%" outerRadius="78%"
+              paddingAngle={3} dataKey="count"
+              stroke="none" cornerRadius={5}
+              startAngle={90} endAngle={-270}
+              labelLine={false}
+              activeIndex={activeIndex ?? undefined}
+              activeShape={ClientActiveDonutShape}
+              animationBegin={0} animationDuration={600} animationEasing="ease-out"
+              onMouseEnter={(_, i) => setActiveIndex(i)}
+              onMouseLeave={() => setActiveIndex(null)}
+            >
+              {sorted.map((d, i) => (
+                <Cell key={i} fill={CLIENT_STATUS_CFG[d.key]?.color ?? d.color ?? "#888"} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5 w-full">
+        {sorted.map((d) => (
+          <ClientStatusLegendItem key={d.key} d={d} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const AVATAR_COLORS = [
   ["#f59e0b","#78350f"],["#10b981","#064e3b"],["#3b82f6","#1e3a8a"],
@@ -56,90 +282,6 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   returned:         { label: "مرتجع",         color: "#ec4899" },
   cancelled:        { label: "ملغية",         color: "#ef4444" },
 };
-function ShipmentsDonutChart({ breakdown, days, onDaysChange }: {
-  breakdown: Record<string, number>; days: number | "all"; onDaysChange: (d: number | "all") => void;
-}) {
-  const entries = Object.entries(breakdown).filter(([, v]) => v > 0);
-  const total = entries.reduce((sum, [, v]) => sum + v, 0);
-
-  const DAYS_OPTIONS: { value: number | "all"; label: string }[] = [
-    { value: 7, label: "7 أيام" }, { value: 30, label: "30 يوم" }, { value: 90, label: "90 يوم" }, { value: "all", label: "الكل" },
-  ];
-
-  if (total === 0) {
-    return (
-      <div className="rounded-2xl p-5 bg-card border border-border">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-xs text-muted-foreground font-bold">إحصائيات الشحنات</p>
-          <select value={String(days)} onChange={(e) => onDaysChange(e.target.value === "all" ? "all" : Number(e.target.value))}
-            className="px-2 py-1 rounded-lg text-[11px] font-bold bg-muted/40 border border-border outline-none">
-            {DAYS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col items-center justify-center gap-2 text-center min-h-[160px]">
-          <Package className="w-8 h-8 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">لا توجد شحنات في هذه المدة</p>
-        </div>
-      </div>
-    );
-  }
-
-  const R = 70, CX = 90, CY = 90, STROKE = 26;
-  const circumference = 2 * Math.PI * R;
-  let cumulative = 0;
-  const segments = entries.map(([status, count]) => {
-    const meta = STATUS_META[status] ?? { label: status, color: "#94a3b8" };
-    const fraction = count / total;
-    const dash = fraction * circumference;
-    const gap = circumference - dash;
-    const offset = -cumulative * circumference;
-    cumulative += fraction;
-    return { status, count, meta, dash, gap, offset, pct: Math.round(fraction * 100) };
-  });
-
-  return (
-    <div className="rounded-2xl p-5 bg-card border border-border">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground font-bold">إحصائيات الشحنات</p>
-        <select value={String(days)} onChange={(e) => onDaysChange(e.target.value === "all" ? "all" : Number(e.target.value))}
-          className="px-2 py-1 rounded-lg text-[11px] font-bold bg-muted/40 border border-border outline-none">
-          {DAYS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-      </div>
-      <div className="flex flex-col sm:flex-row items-center gap-5">
-        <div className="relative flex-shrink-0" style={{ width: CX * 2, height: CY * 2 }}>
-          <svg viewBox={`0 0 ${CX * 2} ${CY * 2}`} width={CX * 2} height={CY * 2} style={{ transform: "rotate(-90deg)" }}>
-            {segments.map((seg) => (
-              <circle
-                key={seg.status}
-                cx={CX} cy={CY} r={R}
-                fill="none"
-                stroke={seg.meta.color}
-                strokeWidth={STROKE}
-                strokeDasharray={`${seg.dash} ${seg.gap}`}
-                strokeDashoffset={seg.offset}
-              />
-            ))}
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="text-2xl font-black text-foreground">{fn(total)}</p>
-            <p className="text-[10px] text-muted-foreground">الإجمالي</p>
-          </div>
-        </div>
-        <div className="flex-1 w-full grid grid-cols-2 gap-x-3 gap-y-2">
-          {segments.map((seg) => (
-            <div key={seg.status} className="flex items-center gap-2 min-w-0">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: seg.meta.color }} />
-              <span className="text-[11px] text-muted-foreground truncate flex-1">{seg.meta.label}</span>
-              <span className="text-[11px] font-bold text-foreground flex-shrink-0">{fn(seg.count)} ({seg.pct}%)</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function StatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status] ?? { label: status, color: "#94a3b8" };
   return (
@@ -246,7 +388,6 @@ export default function ClientAccountPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState<"received" | "pending">("pending");
-  const [chartDays, setChartDays] = useState<number | "all">(30);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isEditing, setIsEditing] = useState(false);
@@ -261,17 +402,16 @@ export default function ClientAccountPage() {
     staleTime: 15_000,
   });
 
-  const { data: chartData } = useQuery<any>({
-    queryKey: ["client-portal-profile-full-chart", chartDays],
-    queryFn: () => apiFetch(`/client-portal/profile-full${chartDays !== "all" ? `?days=${chartDays}` : ""}`),
+  const { data: stats, isLoading: statsLoading } = useQuery<StatsResponse>({
+    queryKey: ["client-portal-stats"],
+    queryFn: () => apiFetch("/client-portal/stats"),
     enabled: !!user,
-    staleTime: 15_000,
+    staleTime: 30_000,
   });
 
   const client = data?.client;
   const branch = data?.branch;
   const summary = data?.shipmentsSummary ?? { total: 0, received: 0, notReceived: 0 };
-  const statusBreakdown = chartData?.statusBreakdown ?? {};
   const pendingApprovals = data?.pendingApprovals ?? { pickupRequests: 0 };
   const outstandingBalance = data?.outstandingBalance ?? 0;
   const receivedShipments = data?.receivedShipments ?? [];
@@ -510,7 +650,46 @@ export default function ClientAccountPage() {
           <div className="lg:col-span-2 space-y-4">
 
             {/* Shipments donut chart */}
-            <ShipmentsDonutChart breakdown={statusBreakdown} days={chartDays} onDaysChange={setChartDays} />
+            <div className="rounded-2xl p-5 bg-muted/25 border border-border">
+              <p className="text-sm font-black text-foreground mb-4">إحصائيات الشحنات</p>
+              <AnimatePresence mode="wait">
+                {statsLoading ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="h-64 flex items-center justify-center text-muted-foreground text-sm"
+                  >
+                    جارٍ التحميل...
+                  </motion.div>
+                ) : !stats || stats.total === 0 ? (
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground"
+                  >
+                    <Package size={40} className="opacity-30" />
+                    <p className="text-sm">لا توجد شحنات مسجلة بعد</p>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={`stats-${stats.total}-${stats.breakdown.map(b => `${b.key}:${b.count}`).join(",")}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.35, ease: "easeInOut" }}
+                    className="w-full"
+                  >
+                    <ClientShipmentStatusDonut breakdown={stats.breakdown} total={stats.total} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Summary cards */}
             <div className="grid grid-cols-3 gap-3">
