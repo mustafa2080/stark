@@ -711,7 +711,17 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     // shipmentManifestItemsTable كمان كانت بترجّع "postponed" لـ "pending" فورًا
     // بعد الحفظ (كانت هي سبب مشكلة "قيد الشحن" بترجع قيد الانتظار بعد الريفريش).
     if (shipmentPatch.status) {
-      await syncShipmentStatusToManifests(shipmentId, shipmentPatch.status, { skipShipmentManifestItems: true });
+      // ⬅️ لازم نمرر deliveredValueReceived (وباقي القيم المالية) هنا برضو، وإلا
+      // بيان حساب العميل (clientAccountManifestItemsTable) بيفضل مسجل null لعمود
+      // "القيمة المستلمة"، وبيان العميل بيرجع لعرض السعر الإجمالي الكامل للشحنة
+      // بدل القيمة الفعلية اللي المندوب دخلها هنا (سبب ظهور 1585 بدل 1085 لفاتن).
+      await syncShipmentStatusToManifests(shipmentId, shipmentPatch.status, {
+        skipShipmentManifestItems: true,
+        deliveredValueReceived: body.deliveredValueReceived ?? undefined,
+        partialQuantity: body.partialQuantity ?? undefined,
+        returnValueReceived: body.returnValueReceived ?? undefined,
+        returnReason: body.returnReason,
+      });
     }
 
     res.json({ success: true });

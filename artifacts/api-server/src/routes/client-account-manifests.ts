@@ -413,6 +413,32 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         });
     }
 
+    // ── deliveredValueReceived للمسلَّم بقيمة أقل/أكتر من الإجمالي (زي فاتن: 1085
+    // بدل 1585) — القيمة دي كمان بتتسجل في جدول بيان الشحن (shipment_manifest_items)
+    // مش بيان حساب العميل، فبنجيبها هنا fallback بنفس منطق returnValueReceived فوق —
+    // عشان لو الـ sync التلقائي فات شحنة (تحديثات قديمة قبل إصلاح المزامنة) يفضل
+    // في مصدر بديل ياخد منه الفرونت إند القيمة الصح.
+    let shipmentDeliveredValueMap: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const smDeliveredItems = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+          addedAt: shipmentManifestItemsTable.addedAt,
+        })
+        .from(shipmentManifestItemsTable)
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          eq(shipmentManifestItemsTable.deliveryStatus, "delivered"),
+        ));
+      smDeliveredItems
+        .filter(r => r.deliveredValueReceived != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => {
+          shipmentDeliveredValueMap[row.shipmentId] = Number(row.deliveredValueReceived);
+        });
+    }
+
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, manifest.clientId));
     const clientType = client?.clientType ?? "normal";
 
@@ -610,6 +636,14 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
               ? (item as any).returnValueReceived
               : (shipmentReturnValueMap[item.shipmentId] ?? null))
           : null,
+        // deliveredValueReceived: نفس منطق returnValueReceived فوق — item.deliveredValueReceived
+        // (جدول client_account_manifest_items) ممكن يفضل null حتى لو القيمة الحقيقية
+        // مسجّلة في بيان الشحن (shipment_manifest_items)، فبنعمل fallback هنا عشان الفرونت
+        // إند اللي بيقرا o.deliveredValueReceived (getCollectedAmount وغيرها) ياخد القيمة الصح
+        // بدل ما يرجع للسعر الإجمالي الكامل (سبب مشكلة فاتن: 1585 بدل 1085).
+        deliveredValueReceived: (item as any).deliveredValueReceived != null
+          ? (item as any).deliveredValueReceived
+          : (shipmentDeliveredValueMap[item.shipmentId] ?? null),
         shipment: sh,
         // حالة الشحنة الفعلية (shipment.status) — لازم تتضاف صراحةً هنا (مش بس
         // جوة shipment: sh) لأن الفرونت إند (orderStatusOpt في
@@ -669,7 +703,10 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
 
       if (item.deliveryStatus === "delivered") {
         // القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا الإجمالي العادي (cod)
-        const dvr = (item as any).deliveredValueReceived;
+        // نفس fallback عمود الجدول: لو مش مسجلة في بيان حساب العميل نفسه، نجيبها من
+        // بيان الشحن (shipmentDeliveredValueMap) — وإلا الكروت الملخصة (الإيراد الإجمالي)
+        // كانت هتفضل بتحسب 1585 بدل 1085 حتى لو الجدول التفصيلي بقى صح.
+        const dvr = (item as any).deliveredValueReceived ?? shipmentDeliveredValueMap[item.shipmentId];
         const actualCod = dvr != null ? Number(dvr) : cod;
         totalRevenue += actualCod;
         deliveredGross += actualCod;
