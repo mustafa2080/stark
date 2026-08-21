@@ -2200,11 +2200,14 @@ export default function Orders() {
                             if (o.status === "partial_received" && o.partialQuantity != null) {
                               return formatCurrency(Number(o.partialQuantity));
                             }
-                            if (o.status === "delivered" && o.deliveredValueReceived != null) {
-                              return formatCurrency(Number(o.deliveredValueReceived));
+                            if (o.status === "delivered") {
+                              const base = o.deliveredValueReceived != null
+                                ? Number(o.deliveredValueReceived)
+                                : (o.codAmount != null ? Number(o.codAmount) : Number(o.totalAmount ?? 0));
+                              return formatCurrency(base);
                             }
-                            const base = o.codAmount != null ? Number(o.codAmount) : Number(o.totalAmount ?? 0);
-                            return formatCurrency(base);
+                            // أي حالة تانية (قيد الشحن، في المخزن، ...) يعني المندوب لسه مستلمش حاجة فعليًا
+                            return formatCurrency(0);
                           })()}
                         </TableCell>
                         )}
