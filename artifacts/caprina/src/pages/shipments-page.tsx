@@ -2201,8 +2201,11 @@ export default function Orders() {
                               return formatCurrency(Number(o.partialQuantity));
                             }
                             if (o.status === "delivered") {
-                              const base = o.deliveredValueReceived != null
-                                ? Number(o.deliveredValueReceived)
+                              // القيمة المستلمة ممكن تتسجل من بيان شركة الشحن أو من بيان حساب
+                              // العميل التجاري (أيهما اتقفل منه التسليم فعليًا) — نجرب الاتنين.
+                              const dvr = o.deliveredValueReceived ?? o.clientAccountDeliveredValueReceived;
+                              const base = dvr != null
+                                ? Number(dvr)
                                 : (o.codAmount != null ? Number(o.codAmount) : Number(o.totalAmount ?? 0));
                               return formatCurrency(base);
                             }

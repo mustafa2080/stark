@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -26,6 +26,14 @@ const clientWarehouseTable = alias(warehousesTable, "client_warehouse");
 const latestManifestItemIdSql = sql`(
   SELECT MAX(smi2.id) FROM shipment_manifest_items smi2
   WHERE smi2.shipment_id = ${shipmentsTable.id}
+)`;
+
+// نفس الفكرة، لكن لأحدث بند في بيان حساب العميل التجاري (client_account_manifest_items) —
+// ده جدول منفصل عن بيان شركة الشحن، وبيتحدّث "القيمة المستلمة" فيه لما المندوب/الأدمن
+// يقفل تسليم الشحنة من صفحة بيان حساب العميل مباشرة (مش من بيان شركة الشحن).
+const latestClientAccountManifestItemIdSql = sql`(
+  SELECT MAX(cami2.id) FROM client_account_manifest_items cami2
+  WHERE cami2.shipment_id = ${shipmentsTable.id}
 )`;
 
 // ملاحظة: shippingCompaniesTable في هذا النظام تحمل اسم المندوب نفسه
@@ -514,6 +522,8 @@ router.get("/shipments", async (req, res): Promise<void> => {
           delayNote: shipmentManifestItemsTable.deliveryNote,
           // ── JOIN: القيمة الفعلية المستلمة لو تم تسليم الشحنة بقيمة أقل من الإجمالي (من آخر بيان شحن) ──
           deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+          // ── JOIN: نفس القيمة لكن من آخر بيان حساب عميل تجاري (لو اتقفلت الشحنة من هناك بدل بيان شركة الشحن) ──
+          clientAccountDeliveredValueReceived: clientAccountManifestItemsTable.deliveredValueReceived,
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
@@ -523,6 +533,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
         ))
         .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
         .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
+        .leftJoin(clientAccountManifestItemsTable, and(
+          eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id),
+          eq(clientAccountManifestItemsTable.id, latestClientAccountManifestItemIdSql),
+        ))
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
         .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
         .leftJoin(clientsTable, eq(shipmentsTable.clientId, clientsTable.id))
