@@ -8,11 +8,8 @@ import {
   Search, Wallet, TrendingUp, User,
   ChevronRight, RefreshCcw, ShieldCheck, AlertCircle, PackagePlus,
   MessageCircle, ChevronUp, ChevronDown, X, Filter, CalendarDays,
+  ArrowUpRight, Banknote, CircleDollarSign, ReceiptText, Sparkles,
 } from "lucide-react";
-import {
-  PieChart, Pie, Cell, Sector, ResponsiveContainer,
-} from "recharts";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
@@ -186,216 +183,6 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
   );
 }
 
-// ── Status color config (نفس ألوان breakdown القادمة من /client-portal/stats) ──
-const CLIENT_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  waiting:          { label: "قيد الانتظار",         color: "#f5a623", bg: "#f5a62318" },
-  in_transit:       { label: "قيد الشحن",            color: "#4a7cf5", bg: "#4a7cf518" },
-  warehouse_ready:  { label: "قيد الشحن في المخزن", color: "#2dd4bf", bg: "#2dd4bf18" },
-  delivered:        { label: "استلم",                color: "#22c55e", bg: "#22c55e18" },
-  partial_received: { label: "استلم جزئى",           color: "#38bdf8", bg: "#38bdf818" },
-  delayed:          { label: "مؤجل",                 color: "#8b5cf6", bg: "#8b5cf618" },
-  returned:         { label: "مرتجع",                color: "#ef4444", bg: "#ef444418" },
-  cancelled:        { label: "ملغية",                color: "#6b7280", bg: "#6b728018" },
-};
-
-// ─── Hover (active) shape — smooth expand with glow ────────────────────────
-function ClientActiveDonutShape(props: any) {
-  const {
-    cx, cy, innerRadius, outerRadius,
-    startAngle, endAngle, fill,
-    payload, percent, value,
-  } = props;
-  const cfg = CLIENT_STATUS_CFG[payload.key] ?? { label: payload.key, color: fill };
-
-  return (
-    <g tabIndex={-1} style={{ outline: "none" }}>
-      {/* Glow ring */}
-      <Sector
-        cx={cx} cy={cy}
-        innerRadius={outerRadius + 5}
-        outerRadius={outerRadius + 9}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-        opacity={0.2}
-        cornerRadius={6}
-      />
-      {/* Main segment — slightly expanded */}
-      <Sector
-        cx={cx} cy={cy}
-        innerRadius={innerRadius - 4}
-        outerRadius={outerRadius + 7}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-        cornerRadius={6}
-        tabIndex={-1}
-        style={{ outline: "none" }}
-      />
-      {/* Center text: count */}
-      <text x={cx} y={cy - 14} textAnchor="middle"
-        fill="hsl(var(--foreground))" fontSize={26} fontWeight={900}
-        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
-        {value}
-      </text>
-      {/* Center text: label */}
-      <text x={cx} y={cy + 8} textAnchor="middle"
-        fill="hsl(var(--muted-foreground))" fontSize={11}
-        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
-        {cfg.label}
-      </text>
-      {/* Center text: percent */}
-      <text x={cx} y={cy + 26} textAnchor="middle"
-        fill={fill} fontSize={14} fontWeight={800}
-        fontFamily="inherit" style={{ pointerEvents: "none", userSelect: "none" }}>
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    </g>
-  );
-}
-
-// ─── Client Shipment Filtered List (Popover body) — مفلتر بالعميل تلقائيًا ────
-function ClientShipmentFilteredList({ statusKey, cfg }: { statusKey: string; cfg: { label: string; color: string; bg: string } }) {
-  const { data, isLoading, error } = useQuery<any>({
-    queryKey: ["client-portal-shipments-by-status", statusKey],
-    queryFn: () => apiFetch<any>(`/client-portal/shipments?status=${statusKey}&pageSize=20`),
-    staleTime: 30_000,
-    retry: 1,
-  });
-
-  const shipments: any[] = data?.data ?? (Array.isArray(data) ? data : []);
-
-  return (
-    <div className="w-[88vw] max-w-xs max-h-96 overflow-y-auto rounded-xl border" style={{ borderColor: cfg.color + "44", background: cfg.bg }}>
-      <div className="flex items-center justify-between px-3 py-2 border-b sticky top-0 z-10"
-        style={{ borderColor: cfg.color + "33", background: cfg.bg }}>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
-          <span className="text-xs font-bold" style={{ color: cfg.color }}>{cfg.label}</span>
-          {!isLoading && shipments.length > 0 && (
-            <span className="text-[10px] text-muted-foreground">({shipments.length})</span>
-          )}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">جاري التحميل...</div>
-      ) : error ? (
-        <div className="p-4 text-center text-xs text-red-500">خطأ في التحميل</div>
-      ) : shipments.length === 0 ? (
-        <div className="p-4 text-center text-xs text-muted-foreground">لا توجد شحنات بهذه الحالة</div>
-      ) : (
-        <div className="divide-y" style={{ borderColor: cfg.color + "22" }}>
-          {shipments.slice(0, 20).map((s: any) => (
-            <Link
-              key={s.id}
-              href={`/client-shipment-detail/${s.id}`}
-              className="flex items-center justify-between px-3 py-2 hover:bg-black/5 transition-colors"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-white"
-                  style={{ background: cfg.color }}>
-                  {(s.receiverName ?? "؟").charAt(0)}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold truncate">{s.receiverName ?? "—"}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">
-                    {s.shipmentNumber ?? s.trackingNumber ?? `#${String(s.id).padStart(4, "0")}`}
-                    {s.receiverCity ? ` • ${s.receiverCity}` : ""}
-                  </p>
-                </div>
-              </div>
-              <div className="text-left shrink-0 mr-1">
-                {s.codAmount != null && Number(s.codAmount) > 0 && (
-                  <p className="text-[10px] font-black" style={{ color: cfg.color }}>
-                    {fc(s.codAmount)}
-                  </p>
-                )}
-                <p className="text-[9px] text-muted-foreground">
-                  {s.createdAt ? format(new Date(s.createdAt), "dd/MM") : ""}
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Client Status Legend Item (clickable with popover) ───────────────────────
-function ClientStatusLegendItem({ d }: { d: { key: string; count: number; pct: number } }) {
-  const [open, setOpen] = useState(false);
-  const cfg = CLIENT_STATUS_CFG[d.key] ?? { label: d.key, color: "#888", bg: "#88888818" };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold w-full text-right transition hover:opacity-80 hover:ring-1 hover:ring-current cursor-pointer"
-          style={{ background: cfg.bg }}
-          onClick={() => setOpen(v => !v)}
-        >
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
-          <span className="text-foreground truncate flex-1">{cfg.label}</span>
-          <span className="font-black" style={{ color: cfg.color }}>{d.count}</span>
-          <span className="text-muted-foreground">{d.pct}%</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent side="bottom" align="start" avoidCollisions={true} className="p-0 border-0 shadow-2xl w-auto z-50" sideOffset={6}>
-        <ClientShipmentFilteredList statusKey={d.key} cfg={cfg} />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ── Client Shipment Status Donut (Pie chart + قائمة منسدلة زي operations-center) ──
-function ClientShipmentStatusDonut({ breakdown, total }: { breakdown: StatsResponse["breakdown"]; total: number }) {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const sorted = useMemo(() => [...breakdown].filter(d => d.count > 0).sort((a, b) => b.count - a.count), [breakdown]);
-
-  return (
-    <div className="space-y-4 w-full">
-      <div className="relative" style={{ height: 220 }}>
-        {activeIndex === null && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-            <p className="text-4xl font-black text-foreground leading-none">{fn(total)}</p>
-            <p className="text-xs text-muted-foreground mt-1">إجمالي الشحنات</p>
-          </div>
-        )}
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart tabIndex={-1} style={{ outline: "none" }}>
-            <Pie
-              data={sorted}
-              cx="50%" cy="50%"
-              innerRadius="52%" outerRadius="78%"
-              paddingAngle={3} dataKey="count"
-              stroke="none" cornerRadius={5}
-              startAngle={90} endAngle={-270}
-              labelLine={false}
-              activeIndex={activeIndex ?? undefined}
-              activeShape={ClientActiveDonutShape}
-              animationBegin={0} animationDuration={600} animationEasing="ease-out"
-              onMouseEnter={(_, i) => setActiveIndex(i)}
-              onMouseLeave={() => setActiveIndex(null)}
-            >
-              {sorted.map((d, i) => (
-                <Cell key={i} fill={CLIENT_STATUS_CFG[d.key]?.color ?? d.color ?? "#888"} />
-              ))}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="grid grid-cols-2 gap-1.5 w-full">
-        {sorted.map((d) => (
-          <ClientStatusLegendItem key={d.key} d={d} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Small stat pill (top-left cards like "الانتظار / الموافقة") ───────────
 function StatPill({ value, label }: { value: number | string; label: string }) {
   return (
@@ -419,6 +206,154 @@ function WalletCard({ icon: Icon, label, value, color }: { icon: any; label: str
         <p className="text-[11px] text-muted-foreground truncate">{label}</p>
         <p className="text-base font-black text-foreground truncate">{value}</p>
       </div>
+    </div>
+  );
+}
+
+// ── Finance stat card (with subtle hover lift + icon glow) ─────────────────
+function FinanceStatCard({ icon: Icon, label, value, color, delay = 0 }: {
+  icon: any; label: string; value: string; color: string; delay?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay, ease: "easeOut" }}
+      whileHover={{ y: -3 }}
+      className="relative overflow-hidden rounded-2xl p-4 bg-muted/25 border border-border group"
+    >
+      <div
+        className="absolute -left-6 -top-6 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-40 transition-opacity duration-500"
+        style={{ background: color }}
+      />
+      <div className="relative flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110"
+          style={{ background: `${color}1c` }}>
+          <Icon size={17} style={{ color }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] text-muted-foreground truncate mb-0.5">{label}</p>
+          <p className="text-sm sm:text-base font-black text-foreground truncate">{value}</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Recent shipment row (clickable, animated entry) ─────────────────────────
+function RecentShipmentItem({ s, index, onClick }: { s: ShipmentRow; index: number; onClick: () => void }) {
+  const meta = statusMeta(s.status);
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
+      whileHover={{ x: -3 }}
+      whileTap={{ scale: 0.98 }}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-colors hover:bg-muted/40 group"
+    >
+      <div
+        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-black text-white transition-transform duration-300 group-hover:scale-105"
+        style={{ background: meta.color }}
+      >
+        {(s.receiverName ?? "؟").charAt(0)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs sm:text-sm font-bold text-foreground truncate">{s.receiverName || "—"}</p>
+        <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">
+          {s.shipmentNumber || s.trackingNumber || `#${String(s.id).padStart(4, "0")}`}
+          {s.receiverCity ? ` • ${s.receiverCity}` : ""}
+        </p>
+      </div>
+      <div className="text-left shrink-0 flex flex-col items-end gap-1">
+        <span
+          className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
+          style={{ background: meta.bg, color: meta.color }}
+        >
+          {meta.label}
+        </span>
+        <span className="text-[9px] text-muted-foreground">
+          {s.createdAt ? format(new Date(s.createdAt), "dd/MM") : ""}
+        </span>
+      </div>
+      <ChevronRight size={14} className="text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
+    </motion.button>
+  );
+}
+
+// ── Recent Activity panel: last shipments + quick finance overview ─────────
+function RecentActivityPanel({ shipments, finance, isLoading, onNavigate }: {
+  shipments: ShipmentRow[];
+  finance?: StatsResponse["finance"];
+  isLoading: boolean;
+  onNavigate: (path: string) => void;
+}) {
+  const recent = useMemo(() => shipments.slice(0, 5), [shipments]);
+
+  return (
+    <div className="rounded-2xl p-5 bg-muted/25 border border-border">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Sparkles size={13} className="text-primary" />
+          </div>
+          <p className="text-sm font-black text-foreground">آخر النشاطات</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate("/client-shipments")}
+          className="flex items-center gap-1 text-[11px] font-bold text-primary/80 hover:text-primary transition-colors"
+        >
+          عرض الكل <ArrowUpRight size={12} />
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {isLoading ? (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="h-40 flex items-center justify-center text-muted-foreground text-sm"
+          >
+            جارٍ التحميل...
+          </motion.div>
+        ) : recent.length === 0 ? (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="h-40 flex flex-col items-center justify-center gap-2 text-muted-foreground"
+          >
+            <Package size={32} className="opacity-30" />
+            <p className="text-sm">لا توجد شحنات مسجلة بعد</p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="list"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col gap-0.5 mb-4"
+          >
+            {recent.map((s, i) => (
+              <RecentShipmentItem key={s.id} s={s} index={i} onClick={() => onNavigate(`/client-shipment-detail/${s.id}`)} />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {finance && (
+        <div className="pt-4 mt-1 border-t border-border/60 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <FinanceStatCard icon={ReceiptText} label="المستحق للسداد" value={fc(finance.outstanding)} color="#f5a623" delay={0.05} />
+          <FinanceStatCard icon={Banknote} label="إجمالي المحصّل" value={fc(finance.totalCollected)} color="#22c55e" delay={0.1} />
+          <FinanceStatCard icon={CircleDollarSign} label="إجمالي رسوم الشحن" value={fc(finance.totalShippingFee)} color="#4a7cf5" delay={0.15} />
+        </div>
+      )}
     </div>
   );
 }
@@ -669,47 +604,13 @@ export default function ClientDashboardPage() {
             </button>
           </div>
 
-          {/* ── Right column: Donut + Legend ── */}
-          <div className="rounded-2xl p-5 bg-muted/25 border border-border">
-            <p className="text-sm font-black text-foreground mb-4">إحصائيات الشحنات</p>
-            <AnimatePresence mode="wait">
-              {statsLoading ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="h-64 flex items-center justify-center text-muted-foreground text-sm"
-                >
-                  جارٍ التحميل...
-                </motion.div>
-              ) : !stats || stats.total === 0 ? (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground"
-                >
-                  <Package size={40} className="opacity-30" />
-                  <p className="text-sm">لا توجد شحنات مسجلة بعد</p>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key={`stats-${stats.total}-${stats.breakdown.map(b => `${b.key}:${b.count}`).join(",")}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.35, ease: "easeInOut" }}
-                  className="w-full"
-                >
-                  <ClientShipmentStatusDonut breakdown={stats.breakdown} total={stats.total} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          {/* ── Right column: Recent Activity + Finance Overview ── */}
+          <RecentActivityPanel
+            shipments={allShipments}
+            finance={finance}
+            isLoading={statsLoading || shipmentsLoading}
+            onNavigate={navigate}
+          />
         </div>
 
 
