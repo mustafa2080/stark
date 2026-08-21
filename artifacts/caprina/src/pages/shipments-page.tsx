@@ -2189,7 +2189,7 @@ export default function Orders() {
                         )}
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
-                          {o.codAmount != null ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
+                          {Number(o.codAmount ?? 0) > 0 ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
                         </TableCell>
                         )}
                         {canFinancials && (
@@ -2204,9 +2204,12 @@ export default function Orders() {
                               // القيمة المستلمة ممكن تتسجل من بيان شركة الشحن أو من بيان حساب
                               // العميل التجاري (أيهما اتقفل منه التسليم فعليًا) — نجرب الاتنين.
                               const dvr = o.deliveredValueReceived ?? o.clientAccountDeliveredValueReceived;
+                              // codAmount بيبقى فعليًا > 0 بس لو فيه مبلغ منفصل اتسجل عليه (نادر)؛
+                              // القيمة الحقيقية المطلوب تحصيلها في الأغلب هي totalAmount (سعر الشحنة كامل).
+                              // Number(codAmount) > 0 مش != null، عشان "0.00" (اللي شائعة جدًا) تتجاهل صح.
                               const base = dvr != null
                                 ? Number(dvr)
-                                : (o.codAmount != null ? Number(o.codAmount) : Number(o.totalAmount ?? 0));
+                                : (Number(o.codAmount ?? 0) > 0 ? Number(o.codAmount) : Number(o.totalAmount ?? 0));
                               return formatCurrency(base);
                             }
                             // أي حالة تانية (قيد الشحن، في المخزن، ...) يعني المندوب لسه مستلمش حاجة فعليًا
